@@ -13,15 +13,14 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 
 ## 2. Fix the git repository
 
-- [ ] The repo Claude Code is currently pointed at is rooted at your entire Windows user folder (`C:\Users\USER PC`), not this project, and its `origin` remote is still the placeholder `https://github.com/YOUR_USERNAME/aretia-climate.git`. This needs fixing before anything gets pushed anywhere.
-- [ ] Initialize a fresh git repository scoped to just the project folder (`aretia-climate-coin/`, or rename it to `aretia-finance/` first, matching the current entity name and the registered domain — see Step 3).
-- [ ] Confirm no unrelated personal files get swept in (the current `.gitignore` situation at the wrong scope was part of the original problem).
+- [x] Old repo, rooted at the entire Windows user folder with a placeholder remote, abandoned. A fresh git repository was initialized scoped to just the project folder, 5 Sept 2026.
+- [x] Project folder renamed from `aretia-climate-coin` to `aretia-finance`, matching the entity name and domain.
+- [x] Confirmed no unrelated personal files swept in: 43 files staged and committed, all project files. A repo-wide `.gitignore` was added excluding `node_modules/`, the local Solana test-validator ledger, and, as a safety net, any keypair-shaped `.json` file anywhere in the repo (a real disposable devnet keypair on disk was confirmed correctly excluded before the first commit, not just assumed).
 
 ## 3. Decide the GitHub setup and push the code
 
-- [ ] One GitHub account is fine — no need for a second one. Decide between: (a) a clearly-named repo under your existing personal account, or (b) a GitHub Organization if you want code ownership structurally separate from your personal login (useful if an auditor or future collaborator ever needs repo access without touching your other projects).
-- [ ] Rename the local project folder from `aretia-climate-coin` to `aretia-finance`, matching the current entity name and the registered domain, before the first push.
-- [ ] Create the real GitHub repo, set it as the new `origin`, push.
+- [x] Created `abiolabolarinwa/Aretia-Finance` on GitHub, set to **Private** — the right call given `LIQUIDITY_ONE_PAGER.md`, `FOUNDATION_BRIEF.md`, `ATTORNEY_BRIEF.md`, and `ENTITY_RENAME_BRIEF.md` all contain internal or not-yet-reviewed content.
+- [x] Remote set, initial commit pushed, 5 Sept 2026. `main` branch tracking `origin/main`.
 
 ## 4. Choose hosting and connect it to the repo
 

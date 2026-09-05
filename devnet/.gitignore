@@ -1,0 +1,2 @@
+# Never commit keypair files, even devnet throwaway ones.
+*.json

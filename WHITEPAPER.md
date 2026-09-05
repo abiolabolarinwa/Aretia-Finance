@@ -3,8 +3,6 @@
 **Aretia Finance LLC** (Delaware)
 `aretiafinance.org` (domain registered; site not yet deployed there)
 
-**Version 1.0: expanded edition, drafted 4 Sept 2026.** Issued by Aretia Finance LLC (Delaware), renamed from Aretia Climate Coin LLC. The Delaware Certificate of Amendment is in progress, and this document should be read as reflecting the entity's operating name going forward, not as a claim that the amendment has already been confirmed effective. The token's ticker changes correspondingly from ACC to ACT. No on-chain metadata existed under the old symbol, so nothing on-chain requires alteration. This edition expands the technical specification into a fuller treatment, adding theoretical grounding, comparative analysis, and an economic treatment of the fee mechanism, while leaving the underlying mechanism unchanged from the version reviewed by counsel on 1 September 2026 and 4 September 2026. Because this expansion is itself a further revision of previously approved public language, it has not been reviewed by counsel and should not be treated as final until it is. This document is not an offer to sell securities in any jurisdiction, makes no promise of profit or price appreciation, and should not be treated as investment advice.
-
 ---
 
 ## Abstract

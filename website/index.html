@@ -175,9 +175,14 @@
   @media (max-width: 900px) { .hero-fabric .stage { grid-template-columns: 1fr; } }
   .hero-fabric .stage-visual { order: 2; }
   @media (max-width: 900px) { .hero-fabric .stage-visual { order: -1; } }
-  .hero-focus-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--border); }
-  @media (max-width: 640px) { .hero-focus-grid { grid-template-columns: 1fr; gap: 24px; } }
-  .hero-focus-grid p { font-size: 19px; font-weight: 600; letter-spacing: -.01em; line-height: 1.35; margin: 0; max-width: 34ch; }
+  .proof-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--border); }
+  .proof-item { display: block; border-radius: var(--r-sm); transition: transform 200ms var(--ease-out); }
+  .proof-item:hover { transform: translateY(-3px); }
+  .proof-item:hover .kicker { color: var(--ink); }
+  .proof-item .kicker { transition: color 160ms var(--ease-out); }
+  .proof-item p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+  @media (max-width: 860px) { .proof-strip { grid-template-columns: 1fr 1fr; gap: 28px 24px; } }
+  @media (max-width: 480px) { .proof-strip { grid-template-columns: 1fr; gap: 22px; } }
 
   /* -------- Buy ACT -------- */
   .buy-section { padding: 8px 0; }
@@ -323,7 +328,7 @@
 <main>
   <section class="hero-fabric">
     <div class="wrap">
-      <div class="kicker">Aretia (ACT) &middot; Live on Solana mainnet</div>
+      <div class="kicker">Aretia (ACT) &middot; Solana mainnet &middot; Pre-launch</div>
       <h1>Aretia</h1>
 
       <div class="stage">
@@ -337,7 +342,7 @@
         <div class="stage-visual">
           <div class="showcase-visual" style="aspect-ratio:1/1;">
             <div class="fact-card">
-              <span class="fact-card__badge">Live on Solana mainnet</span>
+              <span class="fact-card__badge">Mint live on Solana mainnet</span>
               <div class="fact-card__title"><span class="dot">A</span>Aretia (ACT)</div>
               <div class="fact-card__rows">
                 <div class="fact-card__row"><span class="fact-card__label"><span class="fact-card__sw" style="background:#4C8DFF;"></span>Total supply</span><span class="fact-card__value">100,000,000</span></div>
@@ -350,15 +355,23 @@
         </div>
       </div>
 
-      <div class="hero-focus-grid">
-        <div>
-          <div class="kicker">Focus</div>
-          <p>A protocol-enforced climate catalyst fund on Solana.</p>
-        </div>
-        <div>
-          <div class="kicker">Objective</div>
-          <p>Turn ordinary trading activity into standing, verified climate capital.</p>
-        </div>
+      <div class="proof-strip">
+        <a class="proof-item" href="tokenomics.html">
+          <div class="kicker">Fixed Supply</div>
+          <p>100,000,000 ACT. Mint authority revoked — no new tokens, ever.</p>
+        </a>
+        <a class="proof-item" href="details.html">
+          <div class="kicker">Multisig Custody</div>
+          <p>Treasury funds require 2-of-3 signer approval. No single wallet moves capital.</p>
+        </a>
+        <a class="proof-item" href="roadmap.html">
+          <div class="kicker">Milestone Verified</div>
+          <p>Capital releases only against independently verified project progress.</p>
+        </a>
+        <a class="proof-item" href="verify.html">
+          <div class="kicker">Zero-Trust Verify</div>
+          <p>Check every claim yourself, live against mainnet, from your own browser.</p>
+        </a>
       </div>
     </div>
   </section>
@@ -377,12 +390,14 @@
     </div>
   </section>
 
-  <section class="block" style="padding-top:24px;">
-    <div class="wrap" style="display:flex; gap:28px; flex-wrap:wrap; justify-content:center; text-align:center;">
-      <a href="whitepaper.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Read the whitepaper →</a>
-      <a href="roadmap.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Check the roadmap →</a>
-      <a href="faq.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Read the FAQ →</a>
-      <a href="apply.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Apply for funding →</a>
+  <section class="block alt closing-cta">
+    <div class="wrap" style="text-align:center;">
+      <div class="kicker" style="display:flex; justify-content:center;">Go deeper</div>
+      <p class="lead-in" style="margin:0 auto 28px; text-align:center;">Read the full mechanism, or bring us a project to fund.</p>
+      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="whitepaper.html">Read the whitepaper</a>
+        <a class="btn-blue" style="padding:11px 22px; font-size:14px; background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--border);" href="apply.html">Apply for funding</a>
+      </div>
     </div>
   </section>
 </main>

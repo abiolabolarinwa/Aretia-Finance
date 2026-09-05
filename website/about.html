@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — Aretia (ACT)</title>
+<meta name="description" content="What ACT is, what it isn't, and the mission behind the Aretia Climate Finance Protocol.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF; --bg-alt: #F5F5F7; --surface: #F5F5F7; --surface-hover: #EDEDF0; --card: #FFFFFF;
+    --border: #E6E8EB; --border-soft: #EFF1F3; --ink: #0A0B0D; --ink-soft: #5B616E; --ink-faint: #86868B;
+    --blue: #0052FF; --blue-hover: #0040CC; --blue-soft: #EAF0FF; --green: #05B169; --green-soft: #E6F7EF;
+    --amber: #B8790A; --amber-soft: #FEF3DC; --red: #C0392B; --red-soft: #FBEAE8; --yellow: #FFDE59;
+    --pill-bg: #F0F1F3; --pill-active-bg: #0A0B0D; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
+    --iris: conic-gradient(from 200deg, #0052FF, #05B169, #E3A15E, #0052FF);
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+  .bnum { font-family: "JetBrains Mono", monospace; font-weight: 600; color: var(--ink-faint); }
+  .lead-in { font-family: var(--display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
+  .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
+  .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .btn-dark:hover { background: #26282C; } .btn-dark:active { transform: scale(0.97); }
+  * { box-sizing: border-box; } html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--blue-soft); color: var(--blue); }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
+  h1, h2 { font-weight: 700; letter-spacing: -0.03em; } h3 { font-weight: 700; letter-spacing: -0.01em; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  img, svg { max-width: 100%; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
+  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
+  .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--iris); display: flex; align-items: center; justify-content: center; flex: none; padding: 2px; }
+  .brand .logo svg { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); padding: 4px; }
+  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; justify-content: center; }
+  .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; transition: color 160ms var(--ease-out); }
+  .topnav-links a:hover { color: var(--ink); }
+  .topnav-links a.active { color: var(--ink); font-weight: 700; }
+  .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+  .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
+  @media (max-width: 940px) { .topnav-links a { display: none; } }
+  @media (max-width: 420px) { .status-chip { display: none; } }
+  section.block { padding: 72px 0; }
+  section.block.alt { background: var(--bg-alt); }
+  .block-head { margin-bottom: 32px; }
+  .block-head h2 { font-size: clamp(1.9rem, 3.2vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; }
+  .info-box { background: var(--surface); border-radius: var(--r-sm); padding: 18px 20px; max-width: 640px; }
+  .info-box .label { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .info-box .label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+  .info-box p { font-size: 13px; color: var(--ink-soft); margin: 0; line-height: 1.6; }
+  footer { padding: 40px 0 56px; }
+  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
+  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .footer-links a:hover { color: var(--ink); }
+  .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
+    <div class="topnav-links">
+      <a href="about.html" class="active">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html">Details</a>
+      <a href="verify.html">Verify</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="insights.html">Insights</a>
+      <a href="faq.html">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="apply.html">Apply for Funding</a>
+    </div>
+    <div class="topnav-cta">
+      <span class="status-chip">Pre-launch</span>
+      <a class="btn-dark" href="index.html#buy">Buy ACT</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="block" style="padding-top:56px;">
+    <div class="wrap">
+      <div class="kicker">About</div>
+      <p class="lead-in">Climate finance has a trust gap. <span class="dim">Pledges accelerate faster than verified action, and capital that moves often does so without proof it did what it claimed. Permissionless token trading on Solana generates enormous, continuous volume with no purpose beyond the trade itself. Aretia connects the two mechanically: a protocol-enforced fee turns a fixed share of that existing activity into standing climate capital, verified at every step against the public ledger, not a promise.</span></p>
+
+      <div style="margin-top:36px; max-width:72ch;">
+        <p style="font-size:15px; color:var(--ink-soft); line-height:1.7;">ACT is the native asset of the Aretia Climate Finance Protocol, an SPL Token-2022 asset that trades openly on Solana with no gatekeeping. A protocol-enforced share of every trade replenishes a climate catalyst fund that finances mitigation and adaptation projects, released against verified milestones, governed in layers rather than by one wallet.</p>
+      </div>
+
+      <div class="info-box" style="margin-top:28px;">
+        <div class="label"><span class="dot"></span>Project update</div>
+        <p>Tokenomics parameters are locked and the mint mechanism is proven. Entity formation and the base treasury mechanism are legally reviewed — Aretia Climate, LLC and Aretia Finance LLC are both registered in Delaware. The expanded governance/project-financing architecture is new and still pending its own legal review. ACT has not launched and no live market data exists yet.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt">
+    <div class="wrap">
+      <div class="kicker">Our Mission</div>
+      <p class="lead-in" style="margin-bottom:44px;">To ensure that climate capital moves on proof, not promises — enforced by code, verified in the open, and governed in layers so no single wallet ever decides where it goes.</p>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:32px;" class="mission-pillars">
+        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[01]</div><h3 style="font-size:16px; margin-bottom:8px;">Protocol-Enforced Funding</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">A transfer fee withheld by the token standard itself, on every trade, with no policy for anyone to change without it being visible on-chain.</p></div>
+        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[02]</div><h3 style="font-size:16px; margin-bottom:8px;">Milestone Verification</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">Capital releases in tranches against independently verified progress — never a lump sum against a single approval.</p></div>
+        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[03]</div><h3 style="font-size:16px; margin-bottom:8px;">Layered Governance</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">Community priorities, technical screening, independent verification, and smart-contract execution — no single vote or wallet moves real money alone.</p></div>
+      </div>
+      <style>@media (max-width:760px){ .mission-pillars { grid-template-columns:1fr !important; } }</style>
+    </div>
+  </section>
+
+  <section class="block" style="text-align:center;">
+    <div class="wrap" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+      <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="index.html#buy">Buy ACT</a>
+      <a href="whitepaper.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft); align-self:center;">Read the whitepaper →</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="faq.html">FAQ</a>
+    </div>
+    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice. See the whitepaper's full risk disclosure before relying on anything here.</p>
+    <div class="footer-meta">v0.3 · multi-page site · pre-launch · prepared 5 Sept 2026</div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var nav = document.querySelector('.topnav');
+    if (!nav) return;
+    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+</body>
+</html>

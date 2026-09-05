@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
   :root {
@@ -28,6 +28,9 @@
     --amber: #B8790A;
     --amber-soft: #FEF3DC;
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --iris: conic-gradient(from 200deg, #0052FF, #05B169, #E3A15E, #0052FF);
+    --border-soft: #EFF1F3;
+    --display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -41,25 +44,28 @@
     -webkit-font-smoothing: antialiased;
   }
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3 { font-family: "Inter", sans-serif; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
-  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-  .topnav { border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 50; }
-  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 14px 24px; max-width: 1120px; margin: 0 auto; }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; flex: none; }
-  .brand .logo { width: 26px; height: 26px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; flex: none; }
-  .brand .logo svg { width: 15px; height: 15px; }
-  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; }
-  .topnav-links a { font-size: 14px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; transition: color 160ms var(--ease-out); }
+  .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
+  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
+  .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--iris); display: flex; align-items: center; justify-content: center; flex: none; padding: 2px; }
+  .brand .logo svg { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); padding: 4px; }
+  .topnav-links { display: flex; align-items: center; gap: 22px; flex: 1; justify-content: center; }
+  .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; transition: color 160ms var(--ease-out); }
   .topnav-links a:hover { color: var(--ink); }
-  .topnav-links a.active { color: var(--blue); }
+  .topnav-links a.active { color: var(--ink); font-weight: 700; }
   .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
-  .btn-blue { background: var(--blue); color: #fff; padding: 9px 18px; border-radius: 20px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .btn-blue:hover { background: var(--blue-hover); }
+  .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
+  .btn-blue { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .btn-blue:hover { background: #26282C; }
   .btn-blue:active { transform: scale(0.97); }
-  @media (max-width: 880px) { .topnav-links a { display: none; } }
+  @media (max-width: 940px) { .topnav-links a { display: none; } }
+  @media (max-width: 420px) { .status-chip { display: none; } }
 
   header.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); }
   .kicker { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); margin-bottom: 14px; }
@@ -107,7 +113,7 @@
 
   footer { padding: 40px 0 56px; border-top: 1px solid var(--border); }
   .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
-  .footer-meta { font-family: "IBM Plex Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
 </style>
 </head>
 <body>
@@ -116,22 +122,38 @@
   <div class="topnav-inner">
     <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
     <div class="topnav-links">
-      <a href="index.html#about">About</a>
-      <a href="index.html#tokenomics">Tokenomics</a>
-      <a href="index.html#roadmap">Roadmap</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html">Details</a>
+      <a href="verify.html">Verify</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="insights.html">Insights</a>
+      <a href="faq.html">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
       <a href="apply.html" class="active">Apply for Funding</a>
     </div>
     <div class="topnav-cta">
-      <a class="btn-blue" href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener">Whitepaper</a>
+      <span class="status-chip">Pre-launch</span>
+      <a class="btn-blue" href="index.html#buy">Buy ACT</a>
     </div>
   </div>
 </nav>
+
+<script>
+  (function () {
+    var nav = document.querySelector('.topnav');
+    if (!nav) return;
+    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
 
 <header class="hero">
   <div class="wrap">
     <div class="kicker">Project Funding Application</div>
     <h1>Submit your climate project for treasury funding.</h1>
-    <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects: reforestation, renewable energy, clean cooking, regenerative agriculture, waste-to-energy, blue carbon, and climate adaptation infrastructure. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded — see <a href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
+    <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects: reforestation, renewable energy, clean cooking, regenerative agriculture, waste-to-energy, blue carbon, and climate adaptation infrastructure. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded — see <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
     <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission — expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum.</div>
   </div>
 </header>

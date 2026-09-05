@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aretia (ACT)</title>
-<meta name="description" content="ACT — the native asset of the Aretia Climate Finance Protocol on Solana, funding a climate catalyst fund via a protocol-enforced transfer fee. Token details, tokenomics, governance, roadmap, and FAQ. Pre-launch — no live market data exists yet.">
+<meta name="description" content="ACT — the native asset of the Aretia Climate Finance Protocol on Solana, funding a climate catalyst fund via a protocol-enforced transfer fee. Pre-launch — no live market data exists yet.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
   :root {
@@ -41,12 +41,13 @@
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
 
   /* -------- Kicker labels, bracket numbers, editorial lead-ins (Fabric-inspired) -------- */
   .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
-  .bnum { font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--ink-faint); }
-  .lead-in { font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
+  .bnum { font-family: "JetBrains Mono", monospace; font-weight: 600; color: var(--ink-faint); }
+  .lead-in { font-family: var(--display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
   .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
   .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
   .btn-dark:hover { background: #26282C; }
@@ -65,12 +66,12 @@
   }
   ::selection { background: var(--blue-soft); color: var(--blue); }
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--sans); }
+  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
   h1, h2 { font-weight: 700; letter-spacing: -0.03em; }
   h3 { font-weight: 700; letter-spacing: -0.01em; }
   h1 em, h2 em { font-style: normal; font-weight: inherit; }
   .tnum { font-variant-numeric: tabular-nums; }
-  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
   img, svg { max-width: 100%; }
   a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
@@ -82,18 +83,18 @@
   .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
   .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--iris); display: flex; align-items: center; justify-content: center; flex: none; padding: 2px; }
   .brand .logo svg { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); padding: 4px; }
-  .topnav-links { display: flex; align-items: center; gap: 28px; flex: 1; justify-content: center; }
+  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; justify-content: center; }
   .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; letter-spacing: -.005em; transition: color 160ms var(--ease-out); }
   .topnav-links a:hover { color: var(--ink); }
+  .topnav-links a.active { color: var(--ink); font-weight: 700; }
   .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
   .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
   .btn-blue { background: var(--blue); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
   .btn-blue:hover { background: var(--blue-hover); }
   .btn-blue:active { transform: scale(0.97); }
-  @media (max-width: 880px) { .topnav-links a { display: none; } }
+  @media (max-width: 940px) { .topnav-links a { display: none; } }
   @media (max-width: 420px) { .status-chip { display: none; } }
 
-  /* -------- Hero: status instead of price -------- */
   /* -------- Showcase (split-hero carousel) -------- */
   .showcase { border-bottom: 1px solid var(--border); background: var(--bg-alt); overflow: hidden; }
   .showcase-panels { position: relative; min-height: 480px; }
@@ -102,7 +103,7 @@
     grid-template-columns: 1fr 1fr;
     align-items: center;
     gap: 56px;
-    padding: 96px 48px;
+    padding: 72px 48px;
     max-width: 1180px;
     margin: 0 auto;
   }
@@ -118,7 +119,7 @@
     .showcase-panel.active { @starting-style { opacity: 0; transform: none; } }
   }
 
-  .showcase-eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; display: inline-flex; align-items: center; gap: 7px; }
+  .showcase-eyebrow { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; display: inline-flex; align-items: center; gap: 7px; }
   .showcase-eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; }
   .showcase-panel h1, .showcase-panel h2 { font-size: clamp(2.6rem, 5vw, 4.1rem); font-weight: 700; line-height: 1.04; letter-spacing: -.035em; margin-bottom: 22px; }
   .showcase-panel p { font-size: 17px; color: var(--ink-soft); line-height: 1.6; max-width: 44ch; margin-bottom: 32px; }
@@ -130,19 +131,19 @@
   .showcase-visual svg { width: 72%; height: 72%; }
 
   .fact-card { width: 100%; height: 100%; background: #0B0E14; color: #fff; padding: 26px; display: flex; flex-direction: column; }
-  .fact-card__badge { align-self: flex-start; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8A93A3; background: rgba(255,255,255,.06); padding: 5px 11px; border-radius: 20px; margin-bottom: 18px; }
+  .fact-card__badge { align-self: flex-start; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8A93A3; background: rgba(255,255,255,.06); padding: 5px 11px; border-radius: 20px; margin-bottom: 18px; }
   .fact-card__title { font-size: 17px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-  .fact-card__title .dot { width: 24px; height: 24px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-weight: 800; font-size: 12px; }
+  .fact-card__title .dot { width: 24px; height: 24px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; font-family: "JetBrains Mono", monospace; font-weight: 800; font-size: 12px; }
   .fact-card__rows { display: flex; flex-direction: column; gap: 2px; }
   .fact-card__row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
   .fact-card__row:last-child { border-bottom: none; }
   .fact-card__label { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #C7CDD6; }
   .fact-card__sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
-  .fact-card__value { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; color: #fff; }
+  .fact-card__value { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; color: #fff; }
   .fact-card__value.green { color: #3ED598; }
 
   /* Final "get started" panel */
-  .showcase-panel--cta { grid-template-columns: 1fr; padding: 96px 48px 88px; text-align: center; }
+  .showcase-panel--cta { grid-template-columns: 1fr; padding: 72px 48px 88px; text-align: center; }
   .showcase-panel--cta h2 { max-width: none; margin: 0 auto 52px; font-size: clamp(2.2rem, 4.4vw, 3.2rem); }
   .showcase-cta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: left; }
   @media (max-width: 1040px) { .showcase-cta-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -161,12 +162,11 @@
 
   /* Carousel controls — numbered, prev/next arrows (Fabric-inspired) */
   .showcase-tabs { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 48px 28px; max-width: 1180px; margin: 0 auto; }
-  .showcase-count { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink-faint); }
+  .showcase-count { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--ink-faint); }
   .showcase-arrow { width: 38px; height: 38px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
   .showcase-arrow:hover { background: var(--surface-hover); }
   .showcase-arrow:active { transform: scale(0.94); }
   .showcase-arrow svg { width: 16px; height: 16px; }
-  .showcase-tab { display: none; }
 
   /* -------- Hero (standalone, Fabric-inspired) -------- */
   .hero-fabric { padding: 64px 0 40px; overflow: hidden; }
@@ -189,101 +189,15 @@
   .buy-note { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--amber); background: var(--amber-soft); border-radius: var(--r-sm); padding: 14px 16px; line-height: 1.55; max-width: 46ch; }
   .buy-note .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; margin-top: 6px; }
   .buy-widget-frame { background: #0B0E14; border-radius: var(--r-lg); overflow: hidden; min-height: 560px; box-shadow: 0 24px 56px -24px rgba(10,12,16,.4); display: flex; align-items: center; justify-content: center; }
-  .buy-widget-loading { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: #8A93A3; letter-spacing: .04em; }
+  .buy-widget-loading { font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: #8A93A3; letter-spacing: .04em; }
   #jupiter-terminal { width: 100%; min-height: 560px; }
   @media (max-width: 860px) { .buy-wrap { grid-template-columns: 1fr; padding: 56px 24px; gap: 28px; } }
-
-  .hero-outer { padding: 24px 0 8px; }
-  main .hero-grid { display: grid; grid-template-columns: 280px 1fr; gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-  @media (max-width: 860px) { main .hero-grid { grid-template-columns: 1fr; padding: 0; } }
-
-  .sidebar { padding: 28px 0; display: flex; flex-direction: column; gap: 20px; }
-  @media (max-width: 860px) { .sidebar { padding: 28px 24px; border-bottom: 1px solid var(--border-soft); } }
-  .sidebar h2 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 12px; }
-  .sidebar p.desc { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 14px; }
-  .sidebar-links { display: flex; gap: 16px; margin-bottom: 6px; }
-  .sidebar-links a { font-size: 13px; font-weight: 600; color: var(--blue); display: flex; align-items: center; gap: 6px; }
-  .sidebar-links svg { width: 14px; height: 14px; }
-
-  .info-box { background: var(--surface); border-radius: var(--r-sm); padding: 16px 17px; }
-  .info-box .label { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-  .info-box .label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
-  .info-box p { font-size: 12.5px; color: var(--ink-soft); margin: 0; line-height: 1.55; }
-
-  .promo-box { background: var(--yellow); border-radius: var(--r-sm); padding: 16px 16px 18px; }
-  .promo-box .ptitle { font-weight: 700; font-size: 13.5px; margin-bottom: 5px; }
-  .promo-box p { font-size: 12px; color: #4A3E00; margin: 0 0 12px; }
-  .promo-box .pbtn { background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 18px; display: inline-flex; align-items: center; gap: 6px; }
-  a.pbtn { transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
-  a.pbtn:hover { opacity: 0.88; }
-  a.pbtn:active { transform: scale(0.97); }
-
-  .status-main { padding: 16px 28px 8px; }
-  .status-value { font-family: var(--sans); font-size: clamp(2.1rem, 4.2vw, 2.8rem); font-weight: 700; letter-spacing: -.03em; }
-  .status-change { font-size: 14px; color: var(--ink-faint); margin-top: 6px; font-weight: 500; }
-
-  .phase-pills { display: flex; gap: 8px; margin: 22px 0 26px; flex-wrap: wrap; }
-  .phase-pill { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 18px; background: var(--pill-bg); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
-  .phase-pill.done { background: var(--green-soft); color: var(--green); }
-  .phase-pill.active { background: var(--blue); color: #fff; }
-
-  .progress-rail { padding: 10px 28px 34px; }
-  .rail { position: relative; }
-  .rail-line-bg, .rail-line-fill { position: absolute; top: 5px; height: 4px; border-radius: 4px; z-index: 0; }
-  .rail-line-bg { left: 0; right: 0; background: var(--border); }
-  .rail-line-fill { left: 0; background: var(--blue); width: 44%; }
-  .rail-steps { display: flex; justify-content: space-between; position: relative; z-index: 1; }
-  .rail-step { display: flex; flex-direction: column; align-items: center; flex: 1; }
-  .rail-step .node { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--border); }
-  .rail-step.done .node { background: var(--green); border-color: var(--green); }
-  .rail-step.active .node { background: var(--blue); border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
-  .rail-step .rlabel { font-size: 10.5px; color: var(--ink-faint); margin-top: 12px; white-space: nowrap; text-align: center; }
-  .rail-step.done .rlabel, .rail-step.active .rlabel { color: var(--ink); font-weight: 600; }
-  @media (max-width: 700px) { .rail-step .rlabel { display: none; } }
-
-  /* -------- Stat card row -------- */
-  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }
-  .stat-card { padding: 24px 26px; border-left: 1px solid var(--border); }
-  .stat-card:first-child { border-left: none; }
-  @media (max-width: 860px) { .stat-row { grid-template-columns: 1fr; } .stat-card { border-left: none; border-top: 1px solid var(--border); } .stat-card:first-child { border-top: none; } }
-  .stat-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 16px; }
-
-  .donut-wrap { display: flex; align-items: center; gap: 18px; }
-  .donut { width: 92px; height: 92px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; background: conic-gradient(var(--blue) 0% 2%, var(--amber) 2% 3%, var(--ink-faint) 3% 4%, #C77 4% 4.1%, var(--border) 4.1% 100%); }
-  .donut-inner { width: 62px; height: 62px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .donut-inner b { font-size: 15px; font-weight: 700; }
-  .donut-inner span { font-size: 9px; color: var(--ink-faint); }
-  .donut-legend { display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
-  .donut-legend li { list-style: none; display: flex; align-items: center; gap: 7px; color: var(--ink-soft); }
-  .donut-legend .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
-  .donut-legend b { margin-left: auto; color: var(--ink); font-weight: 600; }
-
-  table.kv { width: 100%; border-collapse: collapse; }
-  table.kv td { padding: 9px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
-  table.kv tr:last-child td { border-bottom: none; }
-  table.kv td.flabel { color: var(--ink-faint); }
-  table.kv td.fval { font-weight: 600; text-align: right; }
-  table.kv td.fval.green { color: var(--green); }
-
-  table.legend-table { width: 100%; border-collapse: collapse; }
-  table.legend-table td { padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 12px; color: var(--ink-soft); }
-  table.legend-table tr:last-child td { border-bottom: none; }
-  table.legend-table td:first-child { display: flex; align-items: center; gap: 7px; }
-  table.legend-table td:last-child { text-align: right; font-weight: 600; color: var(--ink); }
-  table.legend-table .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
 
   /* -------- Sections -------- */
   section.block { padding: 88px 0; }
   section.block.alt { background: var(--bg-alt); }
   .block-head { margin-bottom: 40px; }
   .block-head h2 { font-size: clamp(1.9rem, 3.2vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; }
-
-  .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
-  .detail-card { background: #fff; padding: 20px 22px; }
-  .detail-card h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 14px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; }
-  @media (max-width: 860px) { .detail-grid { grid-template-columns: 1fr; } }
-
-  table.kv td.fval.muted { color: var(--ink-faint); font-style: italic; font-weight: 500; }
 
   .table-scroll { overflow-x: auto; background: var(--card); border-radius: var(--r-md); padding: 4px 28px; box-shadow: 0 0 0 1px var(--border-soft), 0 1px 3px rgba(10,12,16,.03); }
   table.grid-table { width: 100%; border-collapse: collapse; min-width: 560px; }
@@ -311,7 +225,7 @@
   .verify-intro { max-width: 68ch; color: var(--ink-soft); font-size: 15px; margin: 0 0 8px; }
   .verify-intro strong { color: var(--ink); }
   .verify-controls { display: flex; align-items: center; gap: 12px; margin: 20px 0 30px; flex-wrap: wrap; }
-  .verify-controls .rpc-note { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-faint); }
+  .verify-controls .rpc-note { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-faint); }
   .verify-card { background: var(--card); border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--border-soft), 0 1px 3px rgba(10,12,16,.03); padding: 6px 28px; margin-bottom: 22px; }
   .vcheck { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--border-soft); }
   .vcheck:last-child { border-bottom: none; }
@@ -321,7 +235,7 @@
   .vcheck .vstatus.fail { background: var(--red-soft); color: var(--red); }
   .vcheck .vstatus.info { background: var(--blue-soft); color: var(--blue); }
   .vcheck .vclaim { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
-  .vcheck .vdetail { font-size: 12.5px; color: var(--ink-soft); font-family: "IBM Plex Mono", monospace; word-break: break-all; }
+  .vcheck .vdetail { font-size: 12.5px; color: var(--ink-soft); font-family: "JetBrains Mono", monospace; word-break: break-all; }
   .vcheck .vdetail .vlive { color: var(--ink); }
   .vcheck .vlink { font-size: 12px; white-space: nowrap; margin-top: 2px; color: var(--blue); font-weight: 600; }
   .verify-selfcheck { background: var(--surface); border-radius: var(--r-sm); padding: 18px 20px; margin: 24px 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
@@ -339,7 +253,7 @@
   .insight-grid p { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 16px; }
   .update-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
   .update-list li { display: flex; gap: 12px; font-size: 13px; color: var(--ink-soft); }
-  .update-list .udate { flex: none; width: 78px; color: var(--ink-faint); font-size: 11.5px; font-family: "IBM Plex Mono", monospace; padding-top: 1px; }
+  .update-list .udate { flex: none; width: 78px; color: var(--ink-faint); font-size: 11.5px; font-family: "JetBrains Mono", monospace; padding-top: 1px; }
 
   /* -------- FAQ -------- */
   .faq-list { max-width: 760px; }
@@ -353,29 +267,51 @@
   details.faq-item[open] .faq-body { grid-template-rows: 1fr; }
   details.faq-item .faq-body > p { min-height: 0; overflow: hidden; font-size: 13.5px; color: var(--ink-soft); margin: 12px 0 0; max-width: 66ch; }
 
+  /* -------- Whitepaper page -------- */
+  .paper-sheet { max-width: 760px; margin: 0 auto; }
+  .paper-sheet h2 { font-size: 1.35rem; margin: 56px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .paper-sheet h2:first-of-type { margin-top: 0; }
+  .paper-sheet h2 .num { font-family: "JetBrains Mono", monospace; font-size: .7em; font-weight: 500; color: var(--blue); margin-right: 10px; }
+  .paper-sheet h3 { font-size: 1.02rem; margin: 30px 0 12px; }
+  .paper-sheet p { font-size: 15px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 16px; }
+  .paper-sheet p strong { color: var(--ink); }
+  .paper-sheet .formula { background: var(--surface); border-radius: var(--r-sm); padding: 16px 20px; margin: 16px 0 20px; overflow-x: auto; }
+  .paper-sheet .formula pre { margin: 0; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.8; color: var(--ink); white-space: pre; }
+  .paper-sheet table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 20px; }
+  .paper-sheet table th, .paper-sheet table td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border-soft); }
+  .paper-sheet table th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); }
+  .paper-sheet ol.risks { list-style: none; margin: 0; padding: 0; counter-reset: risk; }
+  .paper-sheet ol.risks li { counter-increment: risk; display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); font-size: 14px; color: var(--ink-soft); }
+  .paper-sheet ol.risks li::before { content: counter(risk) "."; font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--blue); flex: none; width: 1.4em; }
+  .paper-toc { columns: 2; column-gap: 28px; margin: 24px 0 0; padding: 0; list-style: none; }
+  .paper-toc li { break-inside: avoid; margin-bottom: 8px; font-size: 13.5px; }
+  .paper-toc a { color: var(--ink-soft); }
+  .paper-toc a:hover { color: var(--blue); }
+  @media (max-width: 560px) { .paper-toc { columns: 1; } }
+
   /* -------- Footer -------- */
   footer { padding: 40px 0 56px; }
   .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
   .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
   .footer-links a:hover { color: var(--ink); }
   .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
-  .footer-meta { font-family: "IBM Plex Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
 </style>
 </head>
 <body>
 
 <nav class="topnav">
   <div class="topnav-inner">
-    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</div>
+    <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
     <div class="topnav-links">
-      <a href="#about">About</a>
-      <a href="#tokenomics">Tokenomics</a>
-      <a href="#details">Details</a>
-      <a href="#verify">Verify</a>
-      <a href="#roadmap">Roadmap</a>
-      <a href="#insights">Insights</a>
-      <a href="#faq">FAQ</a>
-      <a href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener">Whitepaper</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html">Details</a>
+      <a href="verify.html">Verify</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="insights.html">Insights</a>
+      <a href="faq.html">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
       <a href="apply.html">Apply for Funding</a>
     </div>
     <div class="topnav-cta">
@@ -396,7 +332,7 @@
           <p style="font-size:19px; color:var(--ink-soft); line-height:1.6; max-width:44ch; margin:28px 0 32px;">A protocol-enforced transfer fee, engineered for climate finance. ACT trades openly on Solana — no gatekeeping, no custom program required — and a fixed share of every trade continuously replenishes a climate catalyst fund, governed in layers, verified against real project milestones.</p>
           <div style="display:flex; gap:12px; flex-wrap:wrap;">
             <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="#buy">Buy ACT</a>
-            <a class="btn-blue" style="padding:11px 22px; font-size:14px; background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--border);" href="#verify">Verify the claims</a>
+            <a class="btn-blue" style="padding:11px 22px; font-size:14px; background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--border);" href="verify.html">Verify the claims</a>
           </div>
         </div>
         <div class="stage-visual">
@@ -428,135 +364,13 @@
     </div>
   </section>
 
-  <section class="block" style="padding-top:16px;">
-    <div class="wrap">
-      <div class="kicker">About</div>
-      <p class="lead-in">Climate finance has a trust gap. <span class="dim">Pledges accelerate faster than verified action, and capital that moves often does so without proof it did what it claimed. Permissionless token trading on Solana generates enormous, continuous volume with no purpose beyond the trade itself — Aretia connects the two mechanically: a protocol-enforced fee turns a fixed share of that existing activity into standing climate capital, verified at every step against the public ledger, not a promise.</span></p>
-    </div>
-  </section>
-
-  <section class="block alt">
-    <div class="wrap">
-      <div class="kicker">Our Mission</div>
-      <p class="lead-in" style="margin-bottom:44px;">To ensure that climate capital moves on proof, not promises — enforced by code, verified in the open, and governed in layers so no single wallet ever decides where it goes.</p>
-      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:32px;" class="mission-pillars">
-        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[01]</div><h3 style="font-size:16px; margin-bottom:8px;">Protocol-Enforced Funding</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">A transfer fee withheld by the token standard itself, on every trade, with no policy for anyone to change without it being visible on-chain.</p></div>
-        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[02]</div><h3 style="font-size:16px; margin-bottom:8px;">Milestone Verification</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">Capital releases in tranches against independently verified progress — never a lump sum against a single approval.</p></div>
-        <div><div class="bnum" style="font-size:13px; margin-bottom:10px;">[03]</div><h3 style="font-size:16px; margin-bottom:8px;">Layered Governance</h3><p style="font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.55;">Community priorities, technical screening, independent verification, and smart-contract execution — no single vote or wallet moves real money alone.</p></div>
-      </div>
-      <style>@media (max-width:760px){ .mission-pillars { grid-template-columns:1fr !important; } }</style>
-    </div>
-  </section>
-
-  <section class="showcase">
-    <div class="wrap" style="padding-top:64px;">
-      <div class="kicker">What We Do</div>
-    </div>
-    <div class="showcase-panels">
-
-      <div class="showcase-panel active" data-panel="0">
-        <div>
-          <div class="showcase-eyebrow">How it works</div>
-          <h2>Every trade,<br><em>split automatically.</em></h2>
-          <p>Built on Solana's Token-2022 transfer-fee extension: 4.1% of every transfer routes to treasury, liquidity, burn, and management — enforced by the token contract itself, not a policy the team follows.</p>
-          <button class="showcase-next" type="button">Next</button>
-        </div>
-        <div class="showcase-visual">
-          <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E3A15E"/><stop offset="1" stop-color="#4C8DFF"/></linearGradient></defs>
-            <path fill="url(#g1)" d="M50 160C50 90 120 30 200 30C280 30 350 90 350 160C350 240 270 270 200 270C130 270 50 240 50 160Z"/>
-            <g transform="translate(130,120)" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
-              <rect x="0" y="40" width="140" height="20" rx="4" fill="none"/>
-              <rect x="0" y="40" width="112" height="20" rx="4" fill="#fff" opacity=".9"/>
-              <line x1="0" y1="0" x2="0" y2="76"/>
-              <line x1="140" y1="0" x2="140" y2="76"/>
-            </g>
-          </svg>
-        </div>
-      </div>
-
-      <div class="showcase-panel" data-panel="1">
-        <div>
-          <div class="showcase-eyebrow">Tokenomics</div>
-          <h2>Fixed supply.<br><em>No games.</em></h2>
-          <p>100,000,000 ACT, minted once. Mint authority permanently revoked right after. Freeze authority never granted at all — no one, ever, can inflate the supply or freeze a wallet.</p>
-          <button class="showcase-next" type="button">Next</button>
-        </div>
-        <div class="showcase-visual">
-          <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16776F"/><stop offset="1" stop-color="#3E8F72"/></linearGradient></defs>
-            <path fill="url(#g2)" d="M45 145C45 75 115 25 200 25C285 25 355 75 355 145C355 225 280 275 200 275C120 275 45 225 45 145Z"/>
-            <g transform="translate(170,120)" fill="none" stroke="#fff" stroke-width="2.4">
-              <rect x="0" y="26" width="60" height="42" rx="6"/>
-              <path d="M12 26V16a18 18 0 0 1 36 0v10" stroke-linecap="round"/>
-            </g>
-          </svg>
-        </div>
-      </div>
-
-      <div class="showcase-panel" data-panel="2">
-        <div>
-          <div class="showcase-eyebrow">Our approach</div>
-          <h2>Built the careful way,<br><em>not the fast way.</em></h2>
-          <p>Governance runs in four layers — community priorities, technical screening, independent verification, smart-contract execution — so no single vote or wallet can move real money. Project funding releases against verified milestones, never as one lump sum.</p>
-          <button class="showcase-next" type="button">Next</button>
-        </div>
-        <div class="showcase-visual">
-          <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#E3A15E"/></linearGradient></defs>
-            <path fill="url(#g3)" d="M42 150C42 78 113 22 200 22C287 22 358 78 358 150C358 228 284 278 200 278C116 278 42 228 42 150Z"/>
-            <circle cx="200" cy="150" r="46" fill="none" stroke="#fff" stroke-width="2.2"/>
-            <path d="M182 150l12 13 26-28" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="showcase-panel showcase-panel--cta" data-panel="3">
-        <h2>Get started with ACT.</h2>
-        <div class="showcase-cta-grid">
-          <div class="showcase-cta-card">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke-linejoin="round"/><path d="M9 12h6M9 16h6M9 8h3" stroke-linecap="round"/></svg>
-            <h3>Read the whitepaper</h3>
-            <p>The full mechanism, tokenomics, and risk disclosure — start here before anything else.</p>
-            <a class="pbtn" href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener">Read now →</a>
-          </div>
-          <div class="showcase-cta-card">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
-            <h3>Check the roadmap</h3>
-            <p>See exactly what's done, in progress, and pending before ACT reaches mainnet.</p>
-            <a class="pbtn" href="#roadmap">View roadmap →</a>
-          </div>
-          <div class="showcase-cta-card">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4" stroke-linecap="round"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg>
-            <h3>Read the FAQ</h3>
-            <p>Straight answers on what ACT is, what it isn't, and when it launches.</p>
-            <a class="pbtn" href="#faq">See FAQ →</a>
-          </div>
-          <div class="showcase-cta-card">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 4 14h6l-1 8 9-12h-6l1-8Z" stroke-linejoin="round" stroke-linecap="round"/></svg>
-            <h3>Apply for funding</h3>
-            <p>Run a reforestation, renewable energy, or other climate project? Submit it for treasury funding.</p>
-            <a class="pbtn" href="apply.html">Apply now →</a>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <nav class="showcase-tabs">
-      <button class="showcase-arrow" id="showcase-prev" type="button" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <span class="showcase-count"><span id="showcase-count-current">1</span> / <span id="showcase-count-total">4</span></span>
-      <button class="showcase-arrow" id="showcase-next-arrow" type="button" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </nav>
-  </section>
-
   <section class="buy-section" id="buy">
     <div class="buy-wrap">
       <div class="buy-copy">
         <div class="showcase-eyebrow">Buy ACT</div>
         <h2>Swap directly<br><em>from this page.</em></h2>
         <p class="lead">Powered by Jupiter, Solana's swap aggregator — it routes your trade through whichever pool has the best price and depth, no separate app or extra site required.</p>
-        <div class="buy-note"><span class="dot"></span>Liquidity hasn't been seeded yet (see the roadmap below), so swaps will currently show "no route found." This widget is fully wired to the real ACT mint and will start working automatically the moment the pool goes live — nothing further to change here.</div>
+        <div class="buy-note"><span class="dot"></span>Liquidity hasn't been seeded yet (see the <a href="roadmap.html" style="text-decoration:underline;">roadmap</a>), so swaps will currently show "no route found." This widget is fully wired to the real ACT mint and will start working automatically the moment the pool goes live — nothing further to change here.</div>
       </div>
       <div class="buy-widget-frame">
         <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
@@ -564,285 +378,12 @@
     </div>
   </section>
 
-  <div class="hero-outer">
-  <div class="hero-grid">
-    <aside class="sidebar" id="about">
-      <div>
-        <h2>About ACT</h2>
-        <p class="desc">ACT is the native asset of the Aretia Climate Finance Protocol — an SPL Token-2022 asset that trades openly on Solana, no gatekeeping. A protocol-enforced share of every trade replenishes a climate catalyst fund that finances mitigation and adaptation projects, released against verified milestones, governed in layers rather than by one wallet.</p>
-        <div class="sidebar-links">
-          <a href="#buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 14h6l-1 8 9-12h-6l1-8Z" stroke-linejoin="round" stroke-linecap="round"/></svg>Buy ACT</a>
-          <a href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg>Whitepaper</a>
-        </div>
-      </div>
-
-      <a class="btn-blue" style="text-align:center;" href="#buy">Buy ACT</a>
-
-      <div class="info-box">
-        <div class="label"><span class="dot"></span>Project update</div>
-        <p>Tokenomics parameters are locked and the mint mechanism is proven. Entity formation and the base treasury mechanism are legally reviewed — Aretia Climate, LLC and Aretia Finance LLC are both registered in Delaware. The expanded governance/project-financing architecture is new and still pending its own legal review. ACT has not launched and no live market data exists yet.</p>
-      </div>
-
-      <div class="promo-box">
-        <div class="ptitle">Follow the roadmap</div>
-        <p>See exactly what's done, in progress, and pending before ACT reaches mainnet.</p>
-        <a class="pbtn" href="#roadmap">View roadmap →</a>
-      </div>
-    </aside>
-
-    <div>
-      <div class="status-main">
-        <div class="status-value">Pre-Launch</div>
-        <div class="status-change">No live price — ACT has not launched on any exchange yet</div>
-
-        <div class="phase-pills">
-          <span class="phase-pill done">✓ Tokenomics locked</span>
-          <span class="phase-pill done">✓ Legal review</span>
-          <span class="phase-pill done">✓ Treasury live</span>
-          <span class="phase-pill done">✓ Mint live</span>
-          <span class="phase-pill">Public launch</span>
-        </div>
-      </div>
-
-      <div class="progress-rail">
-        <div class="rail">
-          <div class="rail-line-bg"></div>
-          <div class="rail-line-fill"></div>
-          <div class="rail-steps">
-            <div class="rail-step done"><span class="node"></span><span class="rlabel">Tokenomics</span></div>
-            <div class="rail-step done"><span class="node"></span><span class="rlabel">Legal review</span></div>
-            <div class="rail-step done"><span class="node"></span><span class="rlabel">Treasury live</span></div>
-            <div class="rail-step done"><span class="node"></span><span class="rlabel">Mint live</span></div>
-            <div class="rail-step"><span class="node"></span><span class="rlabel">Audit</span></div>
-            <div class="rail-step"><span class="node"></span><span class="rlabel">Liquidity</span></div>
-            <div class="rail-step"><span class="node"></span><span class="rlabel">Dashboard</span></div>
-            <div class="rail-step"><span class="node"></span><span class="rlabel">Launch</span></div>
-            <div class="rail-step"><span class="node"></span><span class="rlabel">Partners</span></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="wrap" id="tokenomics" style="max-width:100%; padding:0;">
-        <div class="table-scroll">
-          <table class="grid-table">
-            <thead><tr><th>Category</th><th>Field</th><th>Value</th></tr></thead>
-            <tbody>
-              <tr><td rowspan="4">Fee split</td><td><span class="sw" style="background:var(--blue);"></span>Treasury</td><td class="tnum">2%</td></tr>
-              <tr><td><span class="sw" style="background:var(--amber);"></span>Liquidity</td><td class="tnum">1%</td></tr>
-              <tr><td><span class="sw" style="background:var(--ink-faint);"></span>Burn</td><td class="tnum">1%</td></tr>
-              <tr><td><span class="sw" style="background:#C77;"></span>Management</td><td class="tnum">0.1%</td></tr>
-              <tr><td rowspan="5">Token</td><td>Total supply</td><td class="tnum">100,000,000</td></tr>
-              <tr><td>Circulating supply</td><td>Not yet trading</td></tr>
-              <tr><td>Mint authority</td><td class="green">Revoked</td></tr>
-              <tr><td>Freeze authority</td><td class="green">Revoked</td></tr>
-              <tr><td>Decimals</td><td class="tnum">9</td></tr>
-              <tr><td rowspan="5">Protocol</td><td>Network</td><td>Solana</td></tr>
-              <tr><td>Token standard</td><td>Token-2022</td></tr>
-              <tr><td>Treasury custody</td><td>Squads multisig</td></tr>
-              <tr><td>Governance</td><td>Realms (phased in)</td></tr>
-              <tr><td>Trading pair</td><td>ACT / USDT</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-  </div>
-
-  <section class="block alt" id="details">
-    <div class="wrap">
-      <div class="block-head"><h2>Additional details</h2></div>
-      <div class="table-scroll">
-        <table class="grid-table">
-          <thead><tr><th>Category</th><th>Field</th><th>Value</th></tr></thead>
-          <tbody>
-            <tr><td rowspan="5">Token details</td><td>Standard</td><td>SPL Token-2022</td></tr>
-            <tr><td>Supply model</td><td>Fixed, capped</td></tr>
-            <tr><td>Category</td><td>Climate finance protocol asset</td></tr>
-            <tr><td>Fee mechanism</td><td>Native transfer-fee extension</td></tr>
-            <tr><td>Issuer</td><td>Aretia Finance LLC (Delaware)</td></tr>
-            <tr><td rowspan="4">Network &amp; addresses</td><td>Devnet mint</td><td class="mono muted">Testing only</td></tr>
-            <tr><td>Mainnet mint</td><td class="mono">BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT</td></tr>
-            <tr><td>Treasury multisig</td><td class="mono">3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg</td></tr>
-            <tr><td>Management fee wallet</td><td class="mono">2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2</td></tr>
-            <tr><td rowspan="3">Where to find ACT</td><td>Exchanges</td><td class="muted">None — not yet launched</td></tr>
-            <tr><td>Liquidity pool</td><td class="muted">Not yet seeded</td></tr>
-            <tr><td>Updates</td><td><a href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">Read whitepaper →</a></td></tr>
-            <tr><td>Self-verification</td><td><a href="#verify" style="color:var(--blue); font-weight:600;">Check on-chain claims live →</a></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section class="block" id="verify">
-    <div class="wrap">
-      <div class="block-head"><h2>Verify, don't trust</h2></div>
-      <p class="verify-intro">Every check below queries Solana mainnet <strong>directly from your own browser</strong>, live, right now. Nothing is fetched from an Aretia server — there isn't one in this loop. The left side of each row is what our documentation claims; the right side is what the chain actually says.</p>
-      <p class="verify-intro">This isn't a substitute for a real independent security audit — see the note below for what an audit adds that this can't. Think of it as the thing you can check yourself, today, for free, before any formal review completes.</p>
-
-      <div class="verify-controls">
-        <a class="btn-blue" id="verify-rerun" href="#" style="padding:9px 18px; font-size:13.5px;">Run checks again</a>
-        <span class="rpc-note" id="verify-rpc-note">RPC: —</span>
-      </div>
-
-      <div class="verify-card">
-        <div class="vcheck" data-vcheck="mintAuth">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Mint authority is revoked (no one can ever create more ACT)</div>
-            <div class="vdetail">Claimed: <span class="mono">None</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="mintAuth">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="freezeAuth">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Freeze authority was never granted (no wallet can ever be frozen)</div>
-            <div class="vdetail">Claimed: <span class="mono">None</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="freezeAuth">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="supply">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Total supply is fixed at 100,000,000 ACT</div>
-            <div class="vdetail">Claimed: <span class="mono">100,000,000</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="supply">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="decimals">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Decimals</div>
-            <div class="vdetail">Claimed: <span class="mono">9</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="decimals">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="feeBps">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Transfer fee is 410 basis points (4.1%)</div>
-            <div class="vdetail">Claimed: <span class="mono">410 bps</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeBps">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="feeAuth">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Fee-config and withheld-withdraw authorities both point to the treasury multisig, nowhere else</div>
-            <div class="vdetail">Claimed: <span class="mono">3FyoJdvC7Fa...N6cyzZg</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeAuth">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-      </div>
-
-      <div class="verify-card">
-        <div class="vcheck" data-vcheck="treasuryBalance">
-          <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Treasury vault holds the full supply — no ACT was ever pre-sold or sent to a personal wallet</div>
-            <div class="vdetail">Claimed: <span class="mono">100,000,000 ACT</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="treasuryBalance">checking…</span></div></div>
-          <a class="vlink" href="https://solscan.io/account/3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg" target="_blank" rel="noopener">Solscan ↗</a>
-        </div>
-        <div class="vcheck" data-vcheck="multisigNote">
-          <div class="vstatus info">i</div>
-          <div><div class="vclaim">Treasury requires 2-of-3 independent signers to move any funds</div>
-            <div class="vdetail" style="font-family:var(--sans); font-size:13px;">This page deliberately doesn't re-implement Squads' own account parsing in the browser — check the multisig's real threshold and signer set directly in Squads' own app.</div></div>
-          <a class="vlink" href="https://app.squads.so/squads/AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX" target="_blank" rel="noopener">Squads ↗</a>
-        </div>
-      </div>
-
-      <div class="verify-selfcheck"><strong>Verify this page too.</strong> Every check above is computed client-side in JavaScript you can read yourself — right-click → View Page Source, or open DevTools → Sources. There's no server-side step to trust — if this page lied to you, the lie would be sitting in plain text in your own browser.</div>
-
-      <p class="verify-limits"><strong>What this can't do</strong>, and why an independent audit still matters: this checks on-chain <em>configuration</em> against our documentation. It doesn't review the off-chain scripts that build treasury transactions for logic bugs, and it doesn't evaluate Token-2022 or Squads internally — those are separate, already-audited programs this project doesn't control. Treat this as a free, instant, zero-trust first check, not a replacement for a real one. RPC reads here are public and read-only — no wallet connection, no signature, no transaction is ever requested.</p>
-    </div>
-  </section>
-
-  <section class="block" id="roadmap">
-    <div class="wrap">
-      <div class="block-head"><h2>Roadmap</h2></div>
-      <div class="table-scroll">
-        <table class="roadmap-table">
-          <thead><tr><th>Step</th><th>Status</th><th>Note</th></tr></thead>
-          <tbody>
-            <tr><td>Lock tokenomics parameters</td><td><span class="status-pill done">Done</span></td><td>Ticker, supply, authorities, fee split finalized</td></tr>
-            <tr><td>Legal review</td><td><span class="status-pill done">Done</span></td><td>Entity structure, framing, and management-fee treatment approved as proposed</td></tr>
-            <tr><td>Form the operating entity</td><td><span class="status-pill done">Done</span></td><td>Aretia Climate, LLC and Aretia Finance LLC, both Delaware</td></tr>
-            <tr><td>Build and test the mint</td><td><span class="status-pill done">Done</span></td><td>Live on mainnet — 100,000,000 supply, mint authority revoked, fee authorities on the treasury</td></tr>
-            <tr><td>Stand up treasury &amp; governance</td><td><span class="status-pill progress">In progress</span></td><td>Squads multisig live with 2-of-3 real signers, tested end-to-end; Realms governance still pending</td></tr>
-            <tr><td>Independent program review</td><td><span class="status-pill pending">Pending</span></td><td>Before mainnet, before real funds</td></tr>
-            <tr><td>Seed and lock liquidity</td><td><span class="status-pill pending">Pending</span></td><td>Target: 5,000,000 ACT + $10,000 USDT, ~$0.002/ACT, 6-month LP lock — capital not yet secured</td></tr>
-            <tr><td>Ship transparency dashboard</td><td><span class="status-pill pending">Pending</span></td><td>Live before or at launch, never after</td></tr>
-            <tr><td>Public launch</td><td><span class="status-pill pending">Pending</span></td><td>—</td></tr>
-            <tr><td>Vet first project slate</td><td><span class="status-pill pending">Pending</span></td><td>Reviewed from real applications via the funding form, not sourced in advance</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section class="block alt" id="insights">
-    <div class="wrap">
-      <div class="block-head"><h2>Project insights</h2></div>
-      <div class="insight-grid">
-        <div>
-          <h3>Why ACT</h3>
-          <p>Permissionless token trading moves enormous volume on Solana with no purpose beyond the trade itself. Climate finance has the opposite problem: real funding need, and a widening trust gap between pledged and verified action — carbon credit retirements fell 7% in 2025 even as corporate climate commitments rose 227%. ACT redirects a slice of trading activity that already exists into a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by trading activity, that finances climate mitigation and adaptation projects released against verified milestones, not a single promise from a single wallet.</p>
-          <h3>What ACT isn't</h3>
-          <p>Not a claim on any carbon credit. Not an investment contract, equity stake, or profit-sharing arrangement. Holding ACT creates no claim on treasury assets and no guaranteed value.</p>
-        </div>
-        <div>
-          <h3>Recent updates</h3>
-          <ul class="update-list">
-            <li><span class="udate mono">04 SEP 2026</span><span>Published a live self-verification page (<a href="verify.html" style="color:var(--blue); font-weight:600;">verify.html</a>) — checks the mint's authorities, supply, and fee config, plus the treasury's balance, directly against Solana mainnet from your own browser. Not a replacement for a real independent audit, but a free, instant, zero-trust first check while one is arranged.</span></li>
-            <li><span class="udate mono">04 SEP 2026</span><span>Renamed from Aretia Climate Coin LLC to Aretia Finance LLC, and the ticker from ACC to ACT — "Token" is the technically accurate term for an SPL Token-2022 asset. Delaware Certificate of Amendment in progress. No on-chain metadata existed under the old symbol, so nothing on-chain changed.</span></li>
-            <li><span class="udate mono">04 SEP 2026</span><span>Confirmed with counsel: Aretia Foundation (a separate, not-yet-active Delaware nonprofit) stays fully independent of Aretia Finance LLC — no ownership, no parent/subsidiary relationship. It's expected to pursue its own 501(c)(3) status and may later work alongside the treasury as a grant partner, never as an owner.</span></li>
-            <li><span class="udate mono">04 SEP 2026</span><span>Public-facing language repositioned away from "meme coin" comparisons toward mechanism-first terms (SPL Token-2022, protocol-enforced transfer fee), and the treasury reframed explicitly as a climate catalyst fund. Reviewed and approved by counsel same day.</span></li>
-            <li><span class="udate mono">03 SEP 2026</span><span>Dedicated wallet designated for the 0.1% management fee, separate from the treasury multisig: <span class="mono">2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2</span>. Not yet funded — no fees have accrued.</span></li>
-            <li><span class="udate mono">03 SEP 2026</span><span>In-page "Buy ACT" swap widget (Jupiter) added, wired to the live mainnet mint. Functional now — it will start returning routes automatically once liquidity is seeded, no further changes needed.</span></li>
-            <li><span class="udate mono">31 AUG 2026</span><span>Tokenomics parameters locked: fixed 100M supply, mint &amp; freeze authority revoked, 4.1% protocol fee.</span></li>
-            <li><span class="udate mono">02 SEP 2026</span><span>ACT live on Solana mainnet — 100,000,000 fixed supply, mint authority permanently revoked, full supply held by the treasury vault, fee authorities on the treasury multisig. See <span class="mono">MINT.md</span>.</span></li>
-            <li><span class="udate mono">01 SEP 2026</span><span>Treasury multisig live on mainnet — Aretia Treasury, 2-of-3 threshold, real independent co-signers. Full propose-review-approve-execute cycle tested end-to-end.</span></li>
-            <li><span class="udate mono">01 SEP 2026</span><span>Protocol architecture expanded: ACT reframed as the economic engine of the Aretia Climate Finance Protocol, with four-layer governance and milestone-based project financing. New governance/financing mechanics pending legal review.</span></li>
-            <li><span class="udate mono">01 SEP 2026</span><span>Legal review complete for entity formation and the base treasury mechanism. Aretia Climate, LLC and Aretia Finance LLC formally registered in Delaware.</span></li>
-            <li><span class="udate mono">31 AUG 2026</span><span>ACT mint built and tested end-to-end on a local Solana validator: 100M supply minted, mint authority revoked, and the 4.1% transfer fee withheld and harvested exactly as designed.</span></li>
-            <li><span class="udate mono">31 AUG 2026</span><span>Solana devnet toolchain installed; mint-creation script drafted and pending funded test run.</span></li>
-            <li><span class="udate mono">31 AUG 2026</span><span>Attorney brief and draft whitepaper prepared, sent for legal review.</span></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block alt">
-    <div class="wrap">
-      <div class="kicker">Our Definition of Success</div>
-      <p style="font-size:clamp(1.5rem, 3vw, 2.1rem); font-weight:600; letter-spacing:-.02em; line-height:1.5; max-width:56ch; margin:0;">
-        Success means a treasury that grows whether or not anyone is watching it&nbsp;—<br>
-        <span style="color:var(--ink-soft);">where every disbursement can be checked against the chain, not taken on faith;</span><br>
-        <span style="color:var(--ink-soft);">where no single wallet ever decides where the capital goes;</span><br>
-        and where trading activity that already exists quietly becomes climate work that actually gets verified.
-      </p>
-    </div>
-  </section>
-
-  <section class="block" id="faq">
-    <div class="wrap">
-      <div class="block-head"><h2>FAQ</h2></div>
-      <div class="faq-list">
-        <details class="faq-item" open>
-          <summary>What is ACT?</summary>
-          <div class="faq-body"><p>ACT (Aretia) is an SPL Token-2022 asset that trades openly on Solana, no gatekeeping. A fixed share of every trade is automatically withheld by the token contract and routed to a treasury that functions as a climate catalyst fund — standing capital, continuously replenished by trading activity, that finances mitigation and adaptation projects.</p></div>
-        </details>
-        <details class="faq-item">
-          <summary>How does ACT fund climate projects?</summary>
-          <div class="faq-body"><p>Every transfer routes 4.1% through Solana's Token-2022 transfer-fee extension: 2% to a treasury multisig for project grants and on-chain carbon-credit retirements, 1% to liquidity, 1% burned, and 0.1% to fund the treasury's own monitoring and verification work.</p></div>
-        </details>
-        <details class="faq-item">
-          <summary>Is ACT an investment?</summary>
-          <div class="faq-body"><p>No. Holding ACT creates no equity, profit share, or claim on treasury assets. It is a speculative, freely traded digital asset with no guaranteed value. See the whitepaper's full risk disclosure before relying on anything about ACT.</p></div>
-        </details>
-        <details class="faq-item">
-          <summary>When does ACT launch?</summary>
-          <div class="faq-body"><p>No launch date is set. Legal review, devnet testing, project-partner vetting, and an independent program review all need to complete first — see the roadmap above for current status.</p></div>
-        </details>
-        <details class="faq-item">
-          <summary>Where can I buy ACT?</summary>
-          <div class="faq-body"><p>The <a href="#buy" style="color:var(--blue); font-weight:600;">Buy ACT</a> widget on this page is live and wired to the real mainnet mint, but no liquidity pool has been seeded yet — swaps will show "no route found" until it is. Nothing else needs to change here once the pool goes live; the widget will start returning routes automatically.</p></div>
-        </details>
-        <details class="faq-item">
-          <summary>What is the 0.1% management fee for?</summary>
-          <div class="faq-body"><p>It funds the operating entity's cost of actually running the treasury responsibly — verifying registry certificates, reviewing partner impact reports, occasional site visits, and dashboard upkeep. It settles in its own dedicated wallet, separate from the treasury multisig, so it can never be merged into the project-funding total even by accident. Not yet funded — it only receives money once real trading volume generates fees to harvest.</p></div>
-        </details>
-      </div>
+  <section class="block" style="padding-top:24px;">
+    <div class="wrap" style="display:flex; gap:28px; flex-wrap:wrap; justify-content:center; text-align:center;">
+      <a href="whitepaper.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Read the whitepaper →</a>
+      <a href="roadmap.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Check the roadmap →</a>
+      <a href="faq.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Read the FAQ →</a>
+      <a href="apply.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Apply for funding →</a>
     </div>
   </section>
 </main>
@@ -850,51 +391,16 @@
 <footer>
   <div class="wrap">
     <div class="footer-links">
-      <a href="https://claude.ai/code/artifact/cab896ea-7fcd-4ec6-a147-a2bb0b60b627" target="_blank" rel="noopener">Whitepaper</a>
-      <a href="#about">About</a>
-      <a href="#tokenomics">Tokenomics</a>
-      <a href="#roadmap">Roadmap</a>
-      <a href="#faq">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="faq.html">FAQ</a>
     </div>
     <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice. See the whitepaper's full risk disclosure before relying on anything here.</p>
-    <div class="footer-meta">v0.2 preview site · pre-launch · prepared 31 Aug 2026</div>
+    <div class="footer-meta">v0.3 · multi-page site · pre-launch · prepared 5 Sept 2026</div>
   </div>
 </footer>
-
-<script>
-  (function () {
-    var panels = [].slice.call(document.querySelectorAll('.showcase-panel'));
-    var nextBtns = [].slice.call(document.querySelectorAll('.showcase-next'));
-    var prevArrow = document.getElementById('showcase-prev');
-    var nextArrow = document.getElementById('showcase-next-arrow');
-    var countCurrent = document.getElementById('showcase-count-current');
-    var countTotal = document.getElementById('showcase-count-total');
-
-    if (countTotal) countTotal.textContent = String(panels.length);
-
-    function show(index) {
-      var wrapped = ((index % panels.length) + panels.length) % panels.length;
-      panels.forEach(function (p, i) { p.classList.toggle('active', i === wrapped); });
-      if (countCurrent) countCurrent.textContent = String(wrapped + 1);
-    }
-
-    if (prevArrow) prevArrow.addEventListener('click', function () {
-      var current = panels.findIndex(function (p) { return p.classList.contains('active'); });
-      show(current - 1);
-    });
-    if (nextArrow) nextArrow.addEventListener('click', function () {
-      var current = panels.findIndex(function (p) { return p.classList.contains('active'); });
-      show(current + 1);
-    });
-
-    nextBtns.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var current = panels.findIndex(function (p) { return p.classList.contains('active'); });
-        show(current + 1);
-      });
-    });
-  })();
-</script>
 
 <!-- Floating pill nav on scroll -->
 <script>
@@ -942,177 +448,6 @@
       }, 100);
     }
   })();
-</script>
-
-<!-- Verify, don't trust: live client-side check of on-chain claims against the -->
-<!-- claims in MINT.md. No @solana/spl-token dependency on purpose (a dual-package -->
-<!-- CDN bundling bug there breaks its own Layout parsing) — raw Token-2022 byte -->
-<!-- parsing instead, short enough that "view source" is a real audit option. -->
-<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-<script>
-(function () {
-  var RPC_ENDPOINTS = [
-    "https://solana-rpc.publicnode.com",
-    "https://api.mainnet-beta.solana.com"
-  ];
-  var MINT = "BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT";
-  var TREASURY_VAULT = "3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg";
-  var TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-  var ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
-
-  function readU16LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 2).getUint16(0, true); }
-  function readU32LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true); }
-  function readU64LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getBigUint64(0, true); }
-
-  function readPubkeyOrNull(bytes, offset) {
-    var allZero = true;
-    for (var i = 0; i < 32; i++) { if (bytes[offset + i] !== 0) { allZero = false; break; } }
-    if (allZero) return null;
-    return new solanaWeb3.PublicKey(bytes.slice(offset, offset + 32));
-  }
-
-  // Base Mint struct is 82 bytes (same as legacy SPL Token); Token-2022 pads to
-  // a 165-byte boundary (BASE_ACCOUNT_LENGTH, shared with token accounts),
-  // writes a 1-byte AccountType at offset 165, then TLV-encoded extensions.
-  function parseMintAccount(data) {
-    var mintAuthorityOption = readU32LE(data, 0);
-    var mintAuthority = mintAuthorityOption === 1 ? new solanaWeb3.PublicKey(data.slice(4, 36)) : null;
-    var supply = readU64LE(data, 36);
-    var decimals = data[44];
-    var freezeAuthorityOption = readU32LE(data, 46);
-    var freezeAuthority = freezeAuthorityOption === 1 ? new solanaWeb3.PublicKey(data.slice(50, 82)) : null;
-
-    var result = { mintAuthority: mintAuthority, supply: supply, decimals: decimals, freezeAuthority: freezeAuthority, transferFeeConfig: null };
-
-    var ACCOUNT_TYPE_OFFSET = 165;
-    if (data.length > ACCOUNT_TYPE_OFFSET) {
-      var pos = ACCOUNT_TYPE_OFFSET + 1;
-      while (pos + 4 <= data.length) {
-        var extType = readU16LE(data, pos);
-        var extLen = readU16LE(data, pos + 2);
-        var extStart = pos + 4;
-        if (extStart + extLen > data.length) break;
-        if (extType === 1) { // ExtensionType::TransferFeeConfig
-          var d = data.slice(extStart, extStart + extLen);
-          result.transferFeeConfig = {
-            transferFeeConfigAuthority: readPubkeyOrNull(d, 0),
-            withdrawWithheldAuthority: readPubkeyOrNull(d, 32),
-            newerTransferFee: {
-              maximumFee: readU64LE(d, 98),
-              transferFeeBasisPoints: readU16LE(d, 106)
-            }
-          };
-        }
-        pos = extStart + extLen;
-      }
-    }
-    return result;
-  }
-
-  function findAssociatedTokenAddress(owner, mint, tokenProgramId) {
-    var seeds = [owner.toBuffer(), tokenProgramId.toBuffer(), mint.toBuffer()];
-    var result = solanaWeb3.PublicKey.findProgramAddressSync(seeds, new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID));
-    return result[0];
-  }
-
-  function short(addr) { return addr.slice(0, 10) + "..." + addr.slice(-8); }
-
-  function setVCheck(name, status, liveText) {
-    var el = document.querySelector('.vcheck[data-vcheck="' + name + '"]');
-    if (!el) return;
-    var badge = el.querySelector(".vstatus");
-    badge.className = "vstatus " + status;
-    badge.textContent = status === "pass" ? "✓" : status === "fail" ? "✕" : status === "info" ? "i" : "…";
-    var live = el.querySelector(".vlive");
-    if (live && liveText !== undefined) live.textContent = liveText;
-  }
-
-  async function connectFirstWorking() {
-    for (var i = 0; i < RPC_ENDPOINTS.length; i++) {
-      try {
-        var conn = new solanaWeb3.Connection(RPC_ENDPOINTS[i], "confirmed");
-        await conn.getSlot();
-        var note = document.getElementById("verify-rpc-note");
-        if (note) note.textContent = "RPC: " + RPC_ENDPOINTS[i].replace("https://", "");
-        return conn;
-      } catch (e) { /* try next */ }
-    }
-    throw new Error("No RPC endpoint reachable");
-  }
-
-  var VCHECK_NAMES = ["mintAuth","freezeAuth","supply","decimals","feeBps","feeAuth","treasuryBalance"];
-
-  async function runVerifyChecks() {
-    var btn = document.getElementById("verify-rerun");
-    if (btn) btn.style.pointerEvents = "none";
-    VCHECK_NAMES.forEach(function (n) { setVCheck(n, "pending", "checking…"); });
-
-    try {
-      var connection = await connectFirstWorking();
-      var mintPubkey = new solanaWeb3.PublicKey(MINT);
-      var tokenProgram = new solanaWeb3.PublicKey(TOKEN_2022_PROGRAM_ID);
-
-      var mintAccountInfo = await connection.getAccountInfo(mintPubkey, "confirmed");
-      if (!mintAccountInfo) throw new Error("mint account not found");
-      var mintInfo = parseMintAccount(new Uint8Array(mintAccountInfo.data));
-
-      setVCheck("mintAuth", mintInfo.mintAuthority === null ? "pass" : "fail",
-        mintInfo.mintAuthority === null ? "None (revoked) ✓" : mintInfo.mintAuthority.toBase58());
-
-      setVCheck("freezeAuth", mintInfo.freezeAuthority === null ? "pass" : "fail",
-        mintInfo.freezeAuthority === null ? "None (never granted) ✓" : mintInfo.freezeAuthority.toBase58());
-
-      var wholeSupply = Number(mintInfo.supply) / Math.pow(10, mintInfo.decimals);
-      setVCheck("supply", wholeSupply === 100000000 ? "pass" : "fail", wholeSupply.toLocaleString() + (wholeSupply === 100000000 ? " ✓" : ""));
-
-      setVCheck("decimals", mintInfo.decimals === 9 ? "pass" : "fail", String(mintInfo.decimals) + (mintInfo.decimals === 9 ? " ✓" : ""));
-
-      var feeConfig = mintInfo.transferFeeConfig;
-      if (feeConfig) {
-        var bps = feeConfig.newerTransferFee.transferFeeBasisPoints;
-        setVCheck("feeBps", bps === 410 ? "pass" : "fail", bps + " bps" + (bps === 410 ? " ✓" : ""));
-
-        var configAuth = feeConfig.transferFeeConfigAuthority;
-        var withdrawAuth = feeConfig.withdrawWithheldAuthority;
-        var configOk = configAuth && configAuth.toBase58() === TREASURY_VAULT;
-        var withdrawOk = withdrawAuth && withdrawAuth.toBase58() === TREASURY_VAULT;
-        if (configOk && withdrawOk) {
-          setVCheck("feeAuth", "pass", "Both -> treasury vault ✓");
-        } else {
-          setVCheck("feeAuth", "fail",
-            "config=" + (configAuth ? short(configAuth.toBase58()) : "none") +
-            " withdraw=" + (withdrawAuth ? short(withdrawAuth.toBase58()) : "none"));
-        }
-      } else {
-        setVCheck("feeBps", "fail", "no TransferFeeConfig extension found");
-        setVCheck("feeAuth", "fail", "no TransferFeeConfig extension found");
-      }
-
-      var treasuryVaultPubkey = new solanaWeb3.PublicKey(TREASURY_VAULT);
-      var ata = findAssociatedTokenAddress(treasuryVaultPubkey, mintPubkey, tokenProgram);
-      try {
-        var ataInfo = await connection.getAccountInfo(ata, "confirmed");
-        if (!ataInfo) throw new Error("treasury token account not found");
-        var rawBalance = readU64LE(new Uint8Array(ataInfo.data), 64);
-        var wholeBalance = Number(rawBalance) / Math.pow(10, mintInfo.decimals);
-        setVCheck("treasuryBalance", wholeBalance === 100000000 ? "pass" : "fail", wholeBalance.toLocaleString() + " ACT" + (wholeBalance === 100000000 ? " ✓" : ""));
-      } catch (e) {
-        setVCheck("treasuryBalance", "fail", "could not read treasury token account: " + e.message);
-      }
-
-    } catch (err) {
-      VCHECK_NAMES.forEach(function (n) { setVCheck(n, "fail", "RPC error: " + err.message); });
-    } finally {
-      if (btn) btn.style.pointerEvents = "";
-    }
-  }
-
-  var rerunBtn = document.getElementById("verify-rerun");
-  if (rerunBtn) {
-    rerunBtn.addEventListener("click", function (e) { e.preventDefault(); runVerifyChecks(); });
-  }
-  runVerifyChecks();
-})();
 </script>
 </body>
 </html>

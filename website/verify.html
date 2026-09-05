@@ -2,11 +2,378 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0; url=index.html#verify">
-<link rel="canonical" href="index.html#verify">
-<title>Verify ACT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify — Aretia (ACT)</title>
+<meta name="description" content="Verify Aretia's on-chain claims yourself, live, directly from your browser — no wallet connection, no Aretia server in the loop.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF; --bg-alt: #F5F5F7; --surface: #F5F5F7; --surface-hover: #EDEDF0; --card: #FFFFFF;
+    --border: #E6E8EB; --border-soft: #EFF1F3; --ink: #0A0B0D; --ink-soft: #5B616E; --ink-faint: #86868B;
+    --blue: #0052FF; --blue-hover: #0040CC; --blue-soft: #EAF0FF; --green: #05B169; --green-soft: #E6F7EF;
+    --amber: #B8790A; --amber-soft: #FEF3DC; --red: #C0392B; --red-soft: #FBEAE8; --yellow: #FFDE59;
+    --pill-bg: #F0F1F3; --pill-active-bg: #0A0B0D; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
+    --iris: conic-gradient(from 200deg, #0052FF, #05B169, #E3A15E, #0052FF);
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+  .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .btn-dark:hover { background: #26282C; } .btn-dark:active { transform: scale(0.97); }
+  .btn-blue { background: var(--blue); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .btn-blue:hover { background: var(--blue-hover); } .btn-blue:active { transform: scale(0.97); }
+  * { box-sizing: border-box; } html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--blue-soft); color: var(--blue); }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
+  h1, h2 { font-weight: 700; letter-spacing: -0.03em; } h3 { font-weight: 700; letter-spacing: -0.01em; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  img, svg { max-width: 100%; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
+  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
+  .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--iris); display: flex; align-items: center; justify-content: center; flex: none; padding: 2px; }
+  .brand .logo svg { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); padding: 4px; }
+  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; justify-content: center; }
+  .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; transition: color 160ms var(--ease-out); }
+  .topnav-links a:hover { color: var(--ink); }
+  .topnav-links a.active { color: var(--ink); font-weight: 700; }
+  .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+  .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
+  @media (max-width: 940px) { .topnav-links a { display: none; } }
+  @media (max-width: 420px) { .status-chip { display: none; } }
+  section.block { padding: 72px 0; }
+  section.block.alt { background: var(--bg-alt); }
+  .block-head { margin-bottom: 32px; }
+  .block-head h2 { font-size: clamp(1.9rem, 3.2vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; }
+  footer { padding: 40px 0 56px; }
+  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
+  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .footer-links a:hover { color: var(--ink); }
+  .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+
+  /* verify section — unchanged from the originally deployed self-verification tool */
+  .verify-intro { max-width: 68ch; color: var(--ink-soft); font-size: 15px; margin: 0 0 8px; }
+  .verify-intro strong { color: var(--ink); }
+  .verify-controls { display: flex; align-items: center; gap: 12px; margin: 20px 0 30px; flex-wrap: wrap; }
+  .verify-controls .rpc-note { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-faint); }
+  .verify-card { background: var(--card); border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--border-soft), 0 1px 3px rgba(10,12,16,.03); padding: 6px 28px; margin-bottom: 22px; }
+  .vcheck { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--border-soft); }
+  .vcheck:last-child { border-bottom: none; }
+  .vcheck .vstatus { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex: none; margin-top: 1px; }
+  .vcheck .vstatus.pending { background: var(--surface); color: var(--ink-faint); }
+  .vcheck .vstatus.pass { background: var(--green-soft); color: var(--green); }
+  .vcheck .vstatus.fail { background: var(--red-soft); color: var(--red); }
+  .vcheck .vstatus.info { background: var(--blue-soft); color: var(--blue); }
+  .vcheck .vclaim { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .vcheck .vdetail { font-size: 12.5px; color: var(--ink-soft); font-family: "JetBrains Mono", monospace; word-break: break-all; }
+  .vcheck .vdetail .vlive { color: var(--ink); }
+  .vcheck .vlink { font-size: 12px; white-space: nowrap; margin-top: 2px; color: var(--blue); font-weight: 600; }
+  .verify-selfcheck { background: var(--surface); border-radius: var(--r-sm); padding: 18px 20px; margin: 24px 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .verify-selfcheck strong { color: var(--ink); }
+  .verify-limits { font-size: 12.5px; color: var(--ink-faint); line-height: 1.7; max-width: 76ch; }
+  @media (max-width: 640px) {
+    .vcheck { grid-template-columns: 20px 1fr; }
+    .vcheck .vlink { grid-column: 2; }
+  }
+</style>
 </head>
 <body>
-<p>This check now lives on the main page: <a href="index.html#verify">Aretia — Verify, don't trust</a>.</p>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
+    <div class="topnav-links">
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html">Details</a>
+      <a href="verify.html" class="active">Verify</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="insights.html">Insights</a>
+      <a href="faq.html">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="apply.html">Apply for Funding</a>
+    </div>
+    <div class="topnav-cta">
+      <span class="status-chip">Pre-launch</span>
+      <a class="btn-dark" href="index.html#buy">Buy ACT</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="block" style="padding-top:56px;">
+    <div class="wrap">
+      <div class="kicker">Verify</div>
+      <div class="block-head"><h2>Verify, don't trust</h2></div>
+      <p class="verify-intro">Every check below queries Solana mainnet <strong>directly from your own browser</strong>, live, right now. Nothing is fetched from an Aretia server — there isn't one in this loop. The left side of each row is what our documentation claims; the right side is what the chain actually says.</p>
+      <p class="verify-intro">This isn't a substitute for a real independent security audit — see the note below for what an audit adds that this can't. Think of it as the thing you can check yourself, today, for free, before any formal review completes.</p>
+
+      <div class="verify-controls">
+        <a class="btn-blue" id="verify-rerun" href="#" style="padding:9px 18px; font-size:13.5px;">Run checks again</a>
+        <span class="rpc-note" id="verify-rpc-note">RPC: —</span>
+      </div>
+
+      <div class="verify-card">
+        <div class="vcheck" data-vcheck="mintAuth">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Mint authority is revoked (no one can ever create more ACT)</div>
+            <div class="vdetail">Claimed: <span class="mono">None</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="mintAuth">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="freezeAuth">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Freeze authority was never granted (no wallet can ever be frozen)</div>
+            <div class="vdetail">Claimed: <span class="mono">None</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="freezeAuth">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="supply">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Total supply is fixed at 100,000,000 ACT</div>
+            <div class="vdetail">Claimed: <span class="mono">100,000,000</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="supply">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="decimals">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Decimals</div>
+            <div class="vdetail">Claimed: <span class="mono">9</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="decimals">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="feeBps">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Transfer fee is 410 basis points (4.1%)</div>
+            <div class="vdetail">Claimed: <span class="mono">410 bps</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeBps">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="feeAuth">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Fee-config and withheld-withdraw authorities both point to the treasury multisig, nowhere else</div>
+            <div class="vdetail">Claimed: <span class="mono">3FyoJdvC7Fa...N6cyzZg</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeAuth">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+      </div>
+
+      <div class="verify-card">
+        <div class="vcheck" data-vcheck="treasuryBalance">
+          <div class="vstatus pending">…</div>
+          <div><div class="vclaim">Treasury vault holds the full supply — no ACT was ever pre-sold or sent to a personal wallet</div>
+            <div class="vdetail">Claimed: <span class="mono">100,000,000 ACT</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="treasuryBalance">checking…</span></div></div>
+          <a class="vlink" href="https://solscan.io/account/3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg" target="_blank" rel="noopener">Solscan ↗</a>
+        </div>
+        <div class="vcheck" data-vcheck="multisigNote">
+          <div class="vstatus info">i</div>
+          <div><div class="vclaim">Treasury requires 2-of-3 independent signers to move any funds</div>
+            <div class="vdetail" style="font-family:var(--sans); font-size:13px;">This page deliberately doesn't re-implement Squads' own account parsing in the browser — check the multisig's real threshold and signer set directly in Squads' own app.</div></div>
+          <a class="vlink" href="https://app.squads.so/squads/AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX" target="_blank" rel="noopener">Squads ↗</a>
+        </div>
+      </div>
+
+      <div class="verify-selfcheck"><strong>Verify this page too.</strong> Every check above is computed client-side in JavaScript you can read yourself — right-click → View Page Source, or open DevTools → Sources. There's no server-side step to trust — if this page lied to you, the lie would be sitting in plain text in your own browser.</div>
+
+      <p class="verify-limits"><strong>What this can't do</strong>, and why an independent audit still matters: this checks on-chain <em>configuration</em> against our documentation. It doesn't review the off-chain scripts that build treasury transactions for logic bugs, and it doesn't evaluate Token-2022 or Squads internally — those are separate, already-audited programs this project doesn't control. Treat this as a free, instant, zero-trust first check, not a replacement for a real one. RPC reads here are public and read-only — no wallet connection, no signature, no transaction is ever requested.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="faq.html">FAQ</a>
+    </div>
+    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice. See the whitepaper's full risk disclosure before relying on anything here.</p>
+    <div class="footer-meta">v0.3 · multi-page site · pre-launch · prepared 5 Sept 2026</div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var nav = document.querySelector('.topnav');
+    if (!nav) return;
+    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script>
+(function () {
+  var RPC_ENDPOINTS = [
+    "https://solana-rpc.publicnode.com",
+    "https://api.mainnet-beta.solana.com"
+  ];
+  var MINT = "BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT";
+  var TREASURY_VAULT = "3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg";
+  var TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+  var ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+  function readU16LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 2).getUint16(0, true); }
+  function readU32LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true); }
+  function readU64LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getBigUint64(0, true); }
+
+  function readPubkeyOrNull(bytes, offset) {
+    var allZero = true;
+    for (var i = 0; i < 32; i++) { if (bytes[offset + i] !== 0) { allZero = false; break; } }
+    if (allZero) return null;
+    return new solanaWeb3.PublicKey(bytes.slice(offset, offset + 32));
+  }
+
+  // Base Mint struct is 82 bytes (same as legacy SPL Token); Token-2022 pads to
+  // a 165-byte boundary (BASE_ACCOUNT_LENGTH, shared with token accounts),
+  // writes a 1-byte AccountType at offset 165, then TLV-encoded extensions.
+  function parseMintAccount(data) {
+    var mintAuthorityOption = readU32LE(data, 0);
+    var mintAuthority = mintAuthorityOption === 1 ? new solanaWeb3.PublicKey(data.slice(4, 36)) : null;
+    var supply = readU64LE(data, 36);
+    var decimals = data[44];
+    var freezeAuthorityOption = readU32LE(data, 46);
+    var freezeAuthority = freezeAuthorityOption === 1 ? new solanaWeb3.PublicKey(data.slice(50, 82)) : null;
+
+    var result = { mintAuthority: mintAuthority, supply: supply, decimals: decimals, freezeAuthority: freezeAuthority, transferFeeConfig: null };
+
+    var ACCOUNT_TYPE_OFFSET = 165;
+    if (data.length > ACCOUNT_TYPE_OFFSET) {
+      var pos = ACCOUNT_TYPE_OFFSET + 1;
+      while (pos + 4 <= data.length) {
+        var extType = readU16LE(data, pos);
+        var extLen = readU16LE(data, pos + 2);
+        var extStart = pos + 4;
+        if (extStart + extLen > data.length) break;
+        if (extType === 1) { // ExtensionType::TransferFeeConfig
+          var d = data.slice(extStart, extStart + extLen);
+          result.transferFeeConfig = {
+            transferFeeConfigAuthority: readPubkeyOrNull(d, 0),
+            withdrawWithheldAuthority: readPubkeyOrNull(d, 32),
+            newerTransferFee: {
+              maximumFee: readU64LE(d, 98),
+              transferFeeBasisPoints: readU16LE(d, 106)
+            }
+          };
+        }
+        pos = extStart + extLen;
+      }
+    }
+    return result;
+  }
+
+  function findAssociatedTokenAddress(owner, mint, tokenProgramId) {
+    var seeds = [owner.toBuffer(), tokenProgramId.toBuffer(), mint.toBuffer()];
+    var result = solanaWeb3.PublicKey.findProgramAddressSync(seeds, new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID));
+    return result[0];
+  }
+
+  function short(addr) { return addr.slice(0, 10) + "..." + addr.slice(-8); }
+
+  function setVCheck(name, status, liveText) {
+    var el = document.querySelector('.vcheck[data-vcheck="' + name + '"]');
+    if (!el) return;
+    var badge = el.querySelector(".vstatus");
+    badge.className = "vstatus " + status;
+    badge.textContent = status === "pass" ? "✓" : status === "fail" ? "✕" : status === "info" ? "i" : "…";
+    var live = el.querySelector(".vlive");
+    if (live && liveText !== undefined) live.textContent = liveText;
+  }
+
+  async function connectFirstWorking() {
+    for (var i = 0; i < RPC_ENDPOINTS.length; i++) {
+      try {
+        var conn = new solanaWeb3.Connection(RPC_ENDPOINTS[i], "confirmed");
+        await conn.getSlot();
+        var note = document.getElementById("verify-rpc-note");
+        if (note) note.textContent = "RPC: " + RPC_ENDPOINTS[i].replace("https://", "");
+        return conn;
+      } catch (e) { /* try next */ }
+    }
+    throw new Error("No RPC endpoint reachable");
+  }
+
+  var VCHECK_NAMES = ["mintAuth","freezeAuth","supply","decimals","feeBps","feeAuth","treasuryBalance"];
+
+  async function runVerifyChecks() {
+    var btn = document.getElementById("verify-rerun");
+    if (btn) btn.style.pointerEvents = "none";
+    VCHECK_NAMES.forEach(function (n) { setVCheck(n, "pending", "checking…"); });
+
+    try {
+      var connection = await connectFirstWorking();
+      var mintPubkey = new solanaWeb3.PublicKey(MINT);
+      var tokenProgram = new solanaWeb3.PublicKey(TOKEN_2022_PROGRAM_ID);
+
+      var mintAccountInfo = await connection.getAccountInfo(mintPubkey, "confirmed");
+      if (!mintAccountInfo) throw new Error("mint account not found");
+      var mintInfo = parseMintAccount(new Uint8Array(mintAccountInfo.data));
+
+      setVCheck("mintAuth", mintInfo.mintAuthority === null ? "pass" : "fail",
+        mintInfo.mintAuthority === null ? "None (revoked) ✓" : mintInfo.mintAuthority.toBase58());
+
+      setVCheck("freezeAuth", mintInfo.freezeAuthority === null ? "pass" : "fail",
+        mintInfo.freezeAuthority === null ? "None (never granted) ✓" : mintInfo.freezeAuthority.toBase58());
+
+      var wholeSupply = Number(mintInfo.supply) / Math.pow(10, mintInfo.decimals);
+      setVCheck("supply", wholeSupply === 100000000 ? "pass" : "fail", wholeSupply.toLocaleString() + (wholeSupply === 100000000 ? " ✓" : ""));
+
+      setVCheck("decimals", mintInfo.decimals === 9 ? "pass" : "fail", String(mintInfo.decimals) + (mintInfo.decimals === 9 ? " ✓" : ""));
+
+      var feeConfig = mintInfo.transferFeeConfig;
+      if (feeConfig) {
+        var bps = feeConfig.newerTransferFee.transferFeeBasisPoints;
+        setVCheck("feeBps", bps === 410 ? "pass" : "fail", bps + " bps" + (bps === 410 ? " ✓" : ""));
+
+        var configAuth = feeConfig.transferFeeConfigAuthority;
+        var withdrawAuth = feeConfig.withdrawWithheldAuthority;
+        var configOk = configAuth && configAuth.toBase58() === TREASURY_VAULT;
+        var withdrawOk = withdrawAuth && withdrawAuth.toBase58() === TREASURY_VAULT;
+        if (configOk && withdrawOk) {
+          setVCheck("feeAuth", "pass", "Both -> treasury vault ✓");
+        } else {
+          setVCheck("feeAuth", "fail",
+            "config=" + (configAuth ? short(configAuth.toBase58()) : "none") +
+            " withdraw=" + (withdrawAuth ? short(withdrawAuth.toBase58()) : "none"));
+        }
+      } else {
+        setVCheck("feeBps", "fail", "no TransferFeeConfig extension found");
+        setVCheck("feeAuth", "fail", "no TransferFeeConfig extension found");
+      }
+
+      var treasuryVaultPubkey = new solanaWeb3.PublicKey(TREASURY_VAULT);
+      var ata = findAssociatedTokenAddress(treasuryVaultPubkey, mintPubkey, tokenProgram);
+      try {
+        var ataInfo = await connection.getAccountInfo(ata, "confirmed");
+        if (!ataInfo) throw new Error("treasury token account not found");
+        var rawBalance = readU64LE(new Uint8Array(ataInfo.data), 64);
+        var wholeBalance = Number(rawBalance) / Math.pow(10, mintInfo.decimals);
+        setVCheck("treasuryBalance", wholeBalance === 100000000 ? "pass" : "fail", wholeBalance.toLocaleString() + " ACT" + (wholeBalance === 100000000 ? " ✓" : ""));
+      } catch (e) {
+        setVCheck("treasuryBalance", "fail", "could not read treasury token account: " + e.message);
+      }
+
+    } catch (err) {
+      VCHECK_NAMES.forEach(function (n) { setVCheck(n, "fail", "RPC error: " + err.message); });
+    } finally {
+      if (btn) btn.style.pointerEvents = "";
+    }
+  }
+
+  var rerunBtn = document.getElementById("verify-rerun");
+  if (rerunBtn) {
+    rerunBtn.addEventListener("click", function (e) { e.preventDefault(); runVerifyChecks(); });
+  }
+  runVerifyChecks();
+})();
+</script>
 </body>
 </html>

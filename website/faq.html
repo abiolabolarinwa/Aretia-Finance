@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ — Aretia (ACT)</title>
+<meta name="description" content="Common questions about ACT — launch status, why it shows no name in wallets, the fee mechanism, audits, and risk.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF; --bg-alt: #F5F5F7; --surface: #F5F5F7; --surface-hover: #EDEDF0; --card: #FFFFFF;
+    --border: #E6E8EB; --border-soft: #EFF1F3; --ink: #0A0B0D; --ink-soft: #5B616E; --ink-faint: #86868B;
+    --blue: #0052FF; --blue-hover: #0040CC; --blue-soft: #EAF0FF; --green: #05B169; --green-soft: #E6F7EF;
+    --amber: #B8790A; --amber-soft: #FEF3DC; --red: #C0392B; --red-soft: #FBEAE8; --yellow: #FFDE59;
+    --pill-bg: #F0F1F3; --pill-active-bg: #0A0B0D; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
+    --iris: conic-gradient(from 200deg, #0052FF, #05B169, #E3A15E, #0052FF);
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+  .lead-in { font-family: var(--display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
+  .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
+  .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .btn-dark:hover { background: #26282C; } .btn-dark:active { transform: scale(0.97); }
+  * { box-sizing: border-box; } html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--blue-soft); color: var(--blue); }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
+  h1, h2 { font-weight: 700; letter-spacing: -0.03em; } h3 { font-weight: 700; letter-spacing: -0.01em; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+  img, svg { max-width: 100%; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
+  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
+  .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--iris); display: flex; align-items: center; justify-content: center; flex: none; padding: 2px; }
+  .brand .logo svg { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); padding: 4px; }
+  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; justify-content: center; }
+  .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; transition: color 160ms var(--ease-out); }
+  .topnav-links a:hover { color: var(--ink); }
+  .topnav-links a.active { color: var(--ink); font-weight: 700; }
+  .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+  .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
+  @media (max-width: 940px) { .topnav-links a { display: none; } }
+  @media (max-width: 420px) { .status-chip { display: none; } }
+  section.block { padding: 64px 0; }
+  .faq-group { margin-bottom: 44px; }
+  .faq-group .glabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin-bottom: 14px; }
+  details.faq-item { border-bottom: 1px solid var(--border-soft); padding: 18px 0; }
+  details.faq-item summary { cursor: pointer; font-size: 15px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  details.faq-item summary::-webkit-details-marker { display: none; }
+  details.faq-item summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-faint); flex: none; transition: transform 160ms var(--ease-out); }
+  details.faq-item[open] summary::after { content: "–"; }
+  details.faq-item .a { font-size: 14px; color: var(--ink-soft); line-height: 1.7; margin-top: 12px; max-width: 74ch; }
+  details.faq-item .a a { color: var(--blue); font-weight: 600; }
+  footer { padding: 40px 0 56px; }
+  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
+  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .footer-links a:hover { color: var(--ink); }
+  .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
+    <div class="topnav-links">
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html">Details</a>
+      <a href="verify.html">Verify</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="insights.html">Insights</a>
+      <a href="faq.html" class="active">FAQ</a>
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="apply.html">Apply for Funding</a>
+    </div>
+    <div class="topnav-cta">
+      <span class="status-chip">Pre-launch</span>
+      <a class="btn-dark" href="index.html#buy">Buy ACT</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="block" style="padding-top:56px; padding-bottom:8px;">
+    <div class="wrap">
+      <div class="kicker">FAQ</div>
+      <p class="lead-in">Common questions, answered plainly. <span class="dim">Every answer here traces back to something already stated in the whitepaper or verifiable on-chain — nothing here is a new claim.</span></p>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top:24px;">
+    <div class="wrap">
+
+      <div class="faq-group">
+        <div class="glabel">Status</div>
+        <details class="faq-item" open>
+          <summary>Has ACT launched?</summary>
+          <div class="a">No. The mint is live on Solana mainnet and the treasury multisig is live and tested, but no liquidity pool has been seeded yet, so ACT is not currently tradeable on any exchange. See the <a href="roadmap.html">roadmap</a> for what's built and what isn't.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Is this financial advice, or an offer to sell a security?</summary>
+          <div class="a">No. Nothing on this site or in the whitepaper is investment advice, and this is not an offer or solicitation to buy or sell any security, token, or financial instrument in any jurisdiction where that would be unlawful. Aretia has not been registered under the securities laws of any jurisdiction. See the whitepaper's full risk disclosure (§14) before relying on anything here.</div>
+        </details>
+      </div>
+
+      <div class="faq-group">
+        <div class="glabel">The token</div>
+        <details class="faq-item">
+          <summary>Why doesn't ACT show a name, symbol, or logo in my wallet?</summary>
+          <div class="a">Mint authority was permanently revoked immediately after the single initial mint — that's what makes the fixed-supply claim verifiable rather than a promise. The cost of that same irrevocability is that neither the native Token-2022 metadata extension nor the Metaplex Token Metadata program can be attached afterward, since both require an authority the mint no longer has. This is a permanent, deliberate tradeoff, not a bug — see whitepaper §4.2. It's also why some automated risk scanners flag the token: their heuristics are built to catch an active rug pull, not a fixed, immutable supply with no metadata attached. The <a href="verify.html">Verify</a> page exists specifically so you don't have to take that on faith.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Can the total supply ever increase?</summary>
+          <div class="a">No. Mint authority is revoked — there is no code path left by which more ACT can ever be created. Total supply is fixed at 100,000,000. Check it yourself on the <a href="verify.html">Verify</a> page, live against mainnet.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Can any wallet holding ACT be frozen?</summary>
+          <div class="a">No. Freeze authority was never granted on this mint, for any wallet, including Aretia Finance LLC's own.</div>
+        </details>
+      </div>
+
+      <div class="faq-group">
+        <div class="glabel">The fee mechanism</div>
+        <details class="faq-item">
+          <summary>How much is the transfer fee, and where does it go?</summary>
+          <div class="a">410 basis points (4.1%) on every transfer, withheld automatically by the Token-2022 standard itself — not by any custom logic Aretia wrote. Of that: 95.9% of the original transfer reaches the recipient net; 2% funds the climate catalyst fund; 1% goes to the liquidity pool; 1% is burned; 0.1% is a disclosed management fee that funds Aretia Finance LLC's operational costs of running the treasury. Full breakdown on the <a href="tokenomics.html">Tokenomics</a> page.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Can the team just decide not to route the fee where it says it will?</summary>
+          <div class="a">No — that's the specific distinction this project draws against tokens whose charitable commitments are a stated intention rather than a property of the code. The fee split is enforced by the mint's own on-chain configuration; there's no code path in which a transfer completes without it, and no policy step for anyone to skip.</div>
+        </details>
+      </div>
+
+      <div class="faq-group">
+        <div class="glabel">Trust &amp; security</div>
+        <details class="faq-item">
+          <summary>Has Aretia been independently audited?</summary>
+          <div class="a">Not yet. No formal, independent security audit of the mint configuration or the off-chain scripts that build treasury transactions has been completed. This is disclosed directly in the whitepaper's risk section (§14, item 4) and limitations section (§15), not hidden. The <a href="verify.html">Verify</a> tool is a free, instant, zero-trust first check — it is explicitly not a substitute for a real audit.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Who controls the treasury?</summary>
+          <div class="a">No single party. The treasury is a Squads multisig requiring 2 of 3 independent signers to approve any outbound transaction — live on mainnet, with the full propose-approve-execute cycle already tested end to end with a real transaction. No key, including any held by Aretia Finance LLC, can move funds alone.</div>
+        </details>
+        <details class="faq-item">
+          <summary>How do I check any of this myself instead of trusting the site?</summary>
+          <div class="a">Use the <a href="verify.html">Verify</a> page. It queries Solana mainnet directly from your own browser — no Aretia server sits in the request path — and recomputes the mint's authorities, supply, decimals, transfer fee rate, fee authorities, and treasury balance live, showing the result next to the documented claim. The page's own source is visible via View Page Source, so you don't have to trust the verification tool either.</div>
+        </details>
+      </div>
+
+      <div class="faq-group">
+        <div class="glabel">Funding &amp; governance</div>
+        <details class="faq-item">
+          <summary>How does a project actually get funded?</summary>
+          <div class="a">Never as a single lump sum. An approved project's total commitment is divided into tranches, and each tranche releases only after independent verification confirms the prior milestone was actually met. See <a href="details.html">Details</a> for the full lifecycle.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Do token holders vote on which projects get funded?</summary>
+          <div class="a">Not directly, and not yet. Governance is layered rather than flat, specifically to avoid the failure mode where a well-organized proposal can extract funds from a naive one-holder-one-vote system. Token holders (Layer 1) set funding priorities and category weights, not individual payouts; a technical committee screens applications; independent verification confirms milestones; smart-contract execution releases funds only once both have signed off. Layer 1 activates once the holder base is large enough for a vote to be meaningful — until then, the treasury runs on team-curated grants under the same milestone-verification discipline. See <a href="details.html">Details</a>.</div>
+        </details>
+        <details class="faq-item">
+          <summary>Can I apply for project funding?</summary>
+          <div class="a">Yes — the application intake is live. See <a href="apply.html">Apply for Funding</a>. Submissions are received and reviewed; automated scoring and milestone-gated disbursement are still being built (see the <a href="roadmap.html">roadmap</a>), so expect a real review period rather than an instant response.</div>
+        </details>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="block" style="padding-top:0; text-align:center;">
+    <div class="wrap" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+      <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="whitepaper.html">Read the full whitepaper</a>
+      <a href="verify.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft); align-self:center;">Verify the claims yourself →</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="about.html">About</a>
+      <a href="tokenomics.html">Tokenomics</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="faq.html">FAQ</a>
+    </div>
+    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice. See the whitepaper's full risk disclosure before relying on anything here.</p>
+    <div class="footer-meta">v0.3 · multi-page site · pre-launch · prepared 5 Sept 2026</div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var nav = document.querySelector('.topnav');
+    if (!nav) return;
+    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+</body>
+</html>

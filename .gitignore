@@ -1,0 +1,19 @@
+# Never commit keypair files, anywhere in the repo, even disposable/devnet ones.
+*-keypair.json
+*keypair*.json
+deployer*.json
+
+# Dependencies
+node_modules/
+
+# Local Solana test validator data (large, regeneratable, not source)
+devnet/test-ledger/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

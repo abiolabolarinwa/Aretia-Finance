@@ -1,0 +1,15 @@
+{
+  "name": "aretia-management-fee-proposal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Manual-run tool: drafts a Squads proposal to harvest withheld ACT transfer fees and send the 0.1% management-fee share to the dedicated wallet. Never executes on its own — a real 2-of-3 Squads approval is still required.",
+  "type": "module",
+  "scripts": {
+    "propose": "node propose-harvest.mjs"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.3",
+    "@sqds/multisig": "^2.1.4"
+  }
+}

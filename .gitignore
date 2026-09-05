@@ -3,6 +3,15 @@
 *keypair*.json
 deployer*.json
 
+# Never commit anything under a folder or file named like wallet/key storage.
+Wallets/
+wallets/
+*wallet*keys*
+*Wallet*Keys*
+*.env
+*seed*phrase*
+*private*key*
+
 # Dependencies
 node_modules/
 

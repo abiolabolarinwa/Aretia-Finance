@@ -1,9 +1,10 @@
 # Treasury Multisig Proposal Scripts
 
-This folder holds two kinds of scripts against the live ACT mint and its treasury Squads multisig:
+This folder holds three kinds of scripts against the live ACT mint and its treasury Squads multisig:
 
-- **Read-only checks** (`check-metadata.mjs`, `check-fee-authority.mjs`) — query mainnet, print findings, never send a transaction.
+- **Read-only checks** (`check-metadata.mjs`, `check-fee-authority.mjs`, `verify-proposal.mjs`) — query mainnet, print findings, never send a transaction.
 - **Proposal drafters** (`propose-harvest.mjs`, `propose-fee-change.mjs`) — build a real Squads proposal, but never execute it. Each requires a real signer to open Squads and approve (2 of 3) before anything actually moves or changes, exactly like any other treasury transaction.
+- **A local-only key helper** (`convert-phantom-key.mjs`) — converts a Phantom-exported key into the JSON format the proposal scripts need. Never sends anything over the network.
 
 **All of this was written from verified on-chain data and verified SDK source, but treat first runs as a code review, not a trusted tool — dry-run repeatedly, read the output carefully, and check the proposal's actual instructions in the Squads UI before approving, the same as you would for a proposal from anyone else.**
 
@@ -63,6 +64,14 @@ Reads the live rate, compares it to the target, prints the instruction it would 
 ```bash
 PROPOSER_KEYPAIR_PATH=/path/to/your/keypair.json node propose-fee-change.mjs --execute
 ```
+
+**After submitting, verify what actually got proposed before approving it in Squads:**
+
+```bash
+node verify-proposal.mjs <transactionIndex>
+```
+
+(The transaction index is printed by `propose-fee-change.mjs --execute` as "Next Squads transaction index".) This fetches the real on-chain vault-transaction account and decodes the instruction inside it directly — program ID, accounts, and the raw `SetTransferFee` bytes — rather than trusting what any proposal script printed about what it submitted. Confirm it shows exactly one instruction, targeting the ACT mint, with the basis-points value you expect.
 
 **After it's approved and executed in Squads**, update `MINT.md`'s "live" row and remove the "not yet executed" framing there and in `TOKENOMICS.md`/`PROTOCOL.md`. `website/verify.html` needs no code change — it already checks live state and will simply stop reporting a mismatch once the new rate takes effect.
 

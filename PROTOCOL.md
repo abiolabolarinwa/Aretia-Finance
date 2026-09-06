@@ -158,7 +158,7 @@ Standard shape: **Application → Approval → Milestone 1 release → Verificat
 
 ## 12. Smart contracts — what gets automated
 
-- The 3.5% transfer-fee split (deployed and tested at the earlier 4.1% rate with a burn share; the 3.5% figure with no burn and a 0.5% management fee is the current design, not yet applied on-chain — see `TOKENOMICS.md` §01).
+- The 3.5% transfer-fee split (deployed and tested at the earlier 4.1% rate with a burn share; the 3.5% figure with no burn and a 0.5% management fee was approved 2-of-3 and executed on-chain 6 Sept 2026, scheduled for epoch 1031 — see `MINT.md`, `TOKENOMICS.md` §01).
 - Milestone-gated treasury disbursement, once the Milestone Engine module exists (Phase 2+): funds move only after Layer 2 + Layer 3 sign-off is recorded on-chain.
 - What is **not** automated: the judgment calls (screening, verification) — those stay human, by design, per Layer 2/3 above. The contract enforces the *outcome* of human review, not the review itself.
 

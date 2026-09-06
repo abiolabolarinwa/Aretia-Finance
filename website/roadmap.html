@@ -11,11 +11,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #FFFFFF; --bg-alt: #F5F5F7; --surface: #F5F5F7; --surface-hover: #EDEDF0; --card: #FFFFFF;
-    --border: #E6E8EB; --border-soft: #EFF1F3; --ink: #0A0B0D; --ink-soft: #5B616E; --ink-faint: #86868B;
-    --blue: #0052FF; --blue-hover: #0040CC; --blue-soft: #EAF0FF; --green: #05B169; --green-soft: #E6F7EF;
-    --amber: #B8790A; --amber-soft: #FEF3DC; --red: #C0392B; --red-soft: #FBEAE8; --yellow: #FFDE59;
-    --pill-bg: #F0F1F3; --pill-active-bg: #0A0B0D; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
+    --bg: #F6F5F0; --bg-alt: #ECEAE2; --surface: #ECEAE2; --surface-hover: #E2E0D6; --card: #FAF9F5;
+    --border: #DDDAD0; --border-soft: #E7E5DC; --ink: #2B2C27; --ink-soft: #6D6E65; --ink-faint: #9B9C90;
+    --blue: #4F6B47; --blue-hover: #3F5539; --blue-soft: #E7ECE4; --green: #4F6B47; --green-soft: #E7ECE4;
+    --amber: #9C7A3E; --amber-soft: #EFE7D5; --red: #9C4B3F; --red-soft: #F1E3DF; --yellow: #C9A15A;
+    --pill-bg: #ECEAE2; --pill-active-bg: #2B2C27; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
     --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -25,7 +25,7 @@
   .lead-in { font-family: var(--display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
   .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
   .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .btn-dark:hover { background: #26282C; } .btn-dark:active { transform: scale(0.97); }
+  .btn-dark:hover { background: #3A3B34; } .btn-dark:active { transform: scale(0.97); }
   * { box-sizing: border-box; } html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
@@ -39,7 +39,7 @@
   a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
   .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
-  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
+  .topnav.scrolled .topnav-inner { background: rgba(246,245,240,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
   .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
   .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); display: flex; align-items: center; justify-content: center; flex: none; }
   .brand .logo svg { width: 62%; height: 62%; }
@@ -68,7 +68,7 @@
   .item-list .mark.pending { background: var(--surface); color: var(--ink-faint); }
   .item-list .code { font-family: "JetBrains Mono", monospace; font-size: 12px; background: var(--surface); padding: 1px 6px; border-radius: 5px; }
   .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 18px 22px; margin-top: 8px; }
-  .warn-box p { font-size: 13.5px; color: #7a5206; margin: 0; line-height: 1.65; }
+  .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
   @media (max-width: 600px) { .phase { grid-template-columns: 1fr; } .phase-badge { display: flex; align-items: center; gap: 10px; } .phase-badge .n { margin-bottom: 0; } }
   footer { padding: 40px 0 56px; }
   .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }

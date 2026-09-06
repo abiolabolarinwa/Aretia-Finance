@@ -3,54 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aretia (ACT)</title>
-<meta name="description" content="ACT — the native asset of the Aretia Climate Finance Protocol on Solana, funding a climate catalyst fund via a protocol-enforced transfer fee. Pre-launch — no live market data exists yet.">
+<title>Aretia — Climate Finance Protocol</title>
+<meta name="description" content="Aretia is a climate-finance protocol that converts a fixed share of economic activity into transparent, milestone-verified climate capital. ACT is the protocol's economic mechanism on Solana.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
   :root {
-    --bg: #FFFFFF;
-    --bg-alt: #F5F5F7;
-    --surface: #F5F5F7;
-    --surface-hover: #EDEDF0;
-    --card: #FFFFFF;
-    --border: #E6E8EB;
-    --border-soft: #EFF1F3;
-    --ink: #0A0B0D;
-    --ink-soft: #5B616E;
-    --ink-faint: #86868B;
-    --blue: #0052FF;
-    --blue-hover: #0040CC;
-    --blue-soft: #EAF0FF;
-    --green: #05B169;
-    --green-soft: #E6F7EF;
-    --amber: #B8790A;
-    --amber-soft: #FEF3DC;
-    --red: #C0392B;
-    --red-soft: #FBEAE8;
-    --yellow: #FFDE59;
-    --pill-bg: #F0F1F3;
-    --pill-active-bg: #0A0B0D;
-    --r-lg: 28px;
-    --r-md: 20px;
-    --r-sm: 14px;
-    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
-    --display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --bg: #0B0D0C;
+    --bg-raised: #101312;
+    --ink: #F2F0E8;
+    --ink-soft: #9A9C97;
+    --ink-faint: #63655F;
+    --border: #272B28;
+    --border-soft: #1B1E1B;
+    --accent: #8FAE86;
+    --accent-dim: #5F7A59;
+    --accent-soft: rgba(143, 174, 134, 0.1);
+    --amber: #C9A15A;
+    --amber-soft: rgba(201, 161, 90, 0.1);
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
   }
-
-  /* -------- Kicker labels, bracket numbers, editorial lead-ins (Fabric-inspired) -------- */
-  .kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
-  .bnum { font-family: "JetBrains Mono", monospace; font-weight: 600; color: var(--ink-faint); }
-  .lead-in { font-family: var(--display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.42; max-width: 78ch; }
-  .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
-  .btn-dark { background: var(--ink); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .btn-dark:hover { background: #26282C; }
-  .btn-dark:active { transform: scale(0.97); }
 
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -60,469 +37,620 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--sans);
-    line-height: 1.55;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01" 1;
   }
-  ::selection { background: var(--blue-soft); color: var(--blue); }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
-  h1, h2 { font-weight: 700; letter-spacing: -0.03em; }
-  h3 { font-weight: 700; letter-spacing: -0.01em; }
-  h1 em, h2 em { font-style: normal; font-weight: inherit; }
-  .tnum { font-variant-numeric: tabular-nums; }
-  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-  img, svg { max-width: 100%; }
-  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  img, svg { max-width: 100%; display: block; }
+  .mono { font-family: var(--mono); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 640px) { .wrap { padding: 0 20px; } }
+  a:focus-visible, button:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
 
-  /* -------- Top nav -------- */
-  .topnav { position: sticky; top: 0; z-index: 50; padding: 14px 0; }
-  .topnav-inner { display: flex; align-items: center; gap: 32px; padding: 10px 24px; max-width: 1180px; margin: 0 auto; border-radius: 980px; transition: background 220ms var(--ease-out), box-shadow 220ms var(--ease-out), backdrop-filter 220ms var(--ease-out); }
-  .topnav.scrolled .topnav-inner { background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 24px -8px rgba(10,12,16,.12), 0 0 0 1px var(--border-soft); }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; flex: none; }
-  .brand .logo { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); display: flex; align-items: center; justify-content: center; flex: none; }
-  .brand .logo svg { width: 62%; height: 62%; }
-  .topnav-links { display: flex; align-items: center; gap: 26px; flex: 1; justify-content: center; }
-  .topnav-links a { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; white-space: nowrap; letter-spacing: -.005em; transition: color 160ms var(--ease-out); }
+  h1, h2, h3 { margin: 0; font-family: var(--sans); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-faint); display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .eyebrow .idx { color: var(--accent); }
+  .eyebrow::after { content: ""; height: 1px; background: var(--border); flex: 1; }
+
+  .rule { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+  .lede { font-size: clamp(1.7rem, 3.4vw, 2.7rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.18; max-width: 22ch; }
+
+  .body-copy { font-size: 16px; color: var(--ink-soft); line-height: 1.75; max-width: 58ch; }
+  .body-copy + .body-copy { margin-top: 18px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600;
+    letter-spacing: 0.01em; padding: 13px 22px; border-radius: 2px; white-space: nowrap;
+    transition: background 200ms var(--ease), color 200ms var(--ease), border-color 200ms var(--ease);
+  }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-ghost { border: 1px solid var(--border); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--ink-soft); }
+  .btn-text { color: var(--ink); font-weight: 600; font-size: 13.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-text .arrow { transition: transform 200ms var(--ease); }
+  .btn-text:hover .arrow { transform: translateX(3px); }
+
+  section.block { padding: 120px 0; border-bottom: 1px solid var(--border-soft); }
+  @media (max-width: 860px) { section.block { padding: 76px 0; } }
+  section.block:last-of-type { border-bottom: none; }
+
+  /* -------- Nav -------- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50; background: rgba(11,13,12,0.88);
+    backdrop-filter: saturate(140%) blur(10px); -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid transparent; transition: border-color 220ms var(--ease);
+  }
+  .topnav.scrolled { border-bottom-color: var(--border); }
+  .topnav-inner { display: flex; align-items: center; gap: 40px; padding: 20px 0; max-width: 1180px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
+  @media (max-width: 640px) { .topnav-inner { padding-left: 20px; padding-right: 20px; } }
+  .brand { display: flex; flex-direction: column; gap: 2px; flex: none; line-height: 1; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand .desc { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--ink-faint); text-transform: uppercase; }
+  .topnav-links { display: flex; align-items: center; gap: 30px; flex: 1; justify-content: center; }
+  .topnav-links a { font-size: 13px; color: var(--ink-soft); font-weight: 500; transition: color 160ms var(--ease); }
   .topnav-links a:hover { color: var(--ink); }
-  .topnav-links a.active { color: var(--ink); font-weight: 700; }
-  .topnav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
-  .status-chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 20px; white-space: nowrap; }
-  .btn-blue { background: var(--blue); color: #fff; padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .btn-blue:hover { background: var(--blue-hover); }
-  .btn-blue:active { transform: scale(0.97); }
-  @media (max-width: 940px) { .topnav-links a { display: none; } }
-  @media (max-width: 420px) { .status-chip { display: none; } }
+  @media (max-width: 900px) { .topnav-links { display: none; } }
+  .topnav-cta { margin-left: auto; flex: none; }
+  .topnav-cta .btn { padding: 10px 18px; }
+  @media (max-width: 520px) { .topnav-cta .btn span.long { display: none; } }
 
-  /* -------- Showcase (split-hero carousel) -------- */
-  .showcase { border-bottom: 1px solid var(--border); background: var(--bg-alt); overflow: hidden; }
-  .showcase-panels { position: relative; min-height: 480px; }
-  .showcase-panel {
-    display: none;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
-    gap: 56px;
-    padding: 72px 48px;
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-  .showcase-panel.active {
-    display: grid;
-    opacity: 1;
-    transform: translateY(0);
-    transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
-    @starting-style { opacity: 0; transform: translateY(8px); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .showcase-panel.active { transition: opacity 200ms ease; }
-    .showcase-panel.active { @starting-style { opacity: 0; transform: none; } }
-  }
+  /* -------- Hero -------- */
+  .hero { padding: 96px 0 0; border-bottom: 1px solid var(--border-soft); }
+  .hero-inner { padding-bottom: 88px; }
+  .hero h1 { font-size: clamp(2.6rem, 6vw, 4.6rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 16ch; }
+  .hero-sub { font-size: clamp(15px, 1.6vw, 17.5px); color: var(--ink-soft); line-height: 1.7; max-width: 52ch; margin: 32px 0 40px; }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 44px; }
+  .status-line { font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .status-line .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex: none; }
+  .status-line strong { color: var(--ink-soft); font-weight: 500; }
 
-  .showcase-eyebrow { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; display: inline-flex; align-items: center; gap: 7px; }
-  .showcase-eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; }
-  .showcase-panel h1, .showcase-panel h2 { font-size: clamp(2.6rem, 5vw, 4.1rem); font-weight: 700; line-height: 1.04; letter-spacing: -.035em; margin-bottom: 22px; }
-  .showcase-panel p { font-size: 17px; color: var(--ink-soft); line-height: 1.6; max-width: 44ch; margin-bottom: 32px; }
-  .showcase-next { background: none; border: none; padding: 0; font-size: 16px; font-weight: 600; color: var(--blue); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: gap 160ms var(--ease-out); }
-  .showcase-next::after { content: "›"; font-size: 19px; line-height: 1; transition: transform 160ms var(--ease-out); }
-  .showcase-next:hover::after { transform: translateX(3px); }
+  /* Network visual */
+  .network-visual { border-top: 1px solid var(--border-soft); background: var(--bg-raised); }
+  .network-visual svg { width: 100%; height: auto; display: block; }
+  .nv-node { fill: var(--ink); }
+  .nv-node.dim { fill: var(--ink-faint); }
+  .nv-node.accent { fill: var(--accent); }
+  .nv-line { stroke: var(--border); stroke-width: 1; fill: none; }
+  .nv-flow { stroke: var(--accent); stroke-width: 1; fill: none; stroke-dasharray: 4 10; opacity: 0.55; animation: nv-dash 5s linear infinite; }
+  @keyframes nv-dash { to { stroke-dashoffset: -140; } }
+  .nv-pulse { animation: nv-pulse 3.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  .nv-pulse:nth-child(3n) { animation-delay: -1.1s; }
+  .nv-pulse:nth-child(3n+1) { animation-delay: -2.3s; }
+  @keyframes nv-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .nv-flow, .nv-pulse { animation: none; opacity: 0.7; } }
 
-  .showcase-visual { position: relative; aspect-ratio: 4/3; border-radius: var(--r-lg); overflow: hidden; display: flex; align-items: center; justify-content: center; background: #0B0E14; box-shadow: 0 24px 56px -24px rgba(10,12,16,.4); }
-  .showcase-visual svg { width: 72%; height: 72%; }
+  /* -------- Numbered concept grid (Why It Exists) -------- */
+  .concept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 56px; margin-top: 56px; }
+  @media (max-width: 860px) { .concept-grid { grid-template-columns: 1fr; gap: 44px; } }
+  .concept { border-top: 1px solid var(--border); padding-top: 24px; }
+  .concept .num { font-family: var(--mono); font-size: 13px; color: var(--accent); margin-bottom: 20px; display: block; }
+  .concept h3 { font-size: 20px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .concept p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; max-width: 34ch; }
 
-  .fact-card { width: 100%; height: 100%; background: #0B0E14; color: #fff; padding: 26px; display: flex; flex-direction: column; }
-  .fact-card__badge { align-self: flex-start; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8A93A3; background: rgba(255,255,255,.06); padding: 5px 11px; border-radius: 20px; margin-bottom: 18px; }
-  .fact-card__title { font-size: 17px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-  .fact-card__title .dot { width: 24px; height: 24px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; font-family: "JetBrains Mono", monospace; font-weight: 800; font-size: 12px; }
-  .fact-card__rows { display: flex; flex-direction: column; gap: 2px; }
-  .fact-card__row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
-  .fact-card__row:last-child { border-bottom: none; }
-  .fact-card__label { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #C7CDD6; }
-  .fact-card__sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
-  .fact-card__value { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; color: #fff; }
-  .fact-card__value.green { color: #3ED598; }
+  /* -------- Mechanism steps -------- */
+  .mech-steps { margin-top: 64px; }
+  .mech-step { display: grid; grid-template-columns: 100px 1fr; gap: 32px; padding: 32px 0; border-top: 1px solid var(--border); align-items: start; }
+  .mech-step:last-child { border-bottom: 1px solid var(--border); }
+  .mech-step .num { font-family: var(--mono); font-size: 34px; font-weight: 600; color: var(--border); line-height: 1; }
+  .mech-step.is-active .num { color: var(--accent); }
+  .mech-step h3 { font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin-bottom: 10px; font-weight: 600; }
+  .mech-step p { font-size: 15.5px; color: var(--ink-soft); max-width: 60ch; line-height: 1.65; }
+  @media (max-width: 640px) { .mech-step { grid-template-columns: 52px 1fr; gap: 20px; } .mech-step .num { font-size: 24px; } }
 
-  /* Final "get started" panel */
-  .showcase-panel--cta { grid-template-columns: 1fr; padding: 72px 48px 88px; text-align: center; }
-  .showcase-panel--cta h2 { max-width: none; margin: 0 auto 52px; font-size: clamp(2.2rem, 4.4vw, 3.2rem); }
-  .showcase-cta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: left; }
-  @media (max-width: 1040px) { .showcase-cta-grid { grid-template-columns: repeat(2, 1fr); } }
-  .showcase-cta-card { background: var(--card); border-radius: var(--r-md); padding: 30px 26px; transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
-  .showcase-cta-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -20px rgba(10,12,16,.18); }
-  .showcase-cta-card .icon { width: 30px; height: 30px; color: var(--blue); margin-bottom: 20px; }
-  .showcase-cta-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; letter-spacing: -.01em; }
-  .showcase-cta-card p { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 20px; max-width: none; line-height: 1.55; }
-  .showcase-cta-card a.pbtn { background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 980px; display: inline-flex; align-items: center; gap: 6px; }
-  @media (max-width: 860px) { .showcase-cta-grid { grid-template-columns: 1fr; } }
+  /* -------- Allocation diagram -------- */
+  .alloc-headline { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin: 48px 0 40px; }
+  .alloc-figure { font-family: var(--mono); font-size: clamp(3.2rem, 8vw, 5.5rem); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); line-height: 1; }
+  .alloc-label { font-size: 14px; color: var(--ink-soft); }
+  .alloc-bar { display: flex; height: 10px; border-radius: 2px; overflow: hidden; background: var(--border-soft); margin-bottom: 40px; }
+  .alloc-bar span { height: 100%; }
+  .alloc-rows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  @media (max-width: 760px) { .alloc-rows { grid-template-columns: 1fr; gap: 24px; } }
+  .alloc-row { border-top: 1px solid var(--border); padding-top: 18px; }
+  .alloc-row .sw { display: inline-block; width: 7px; height: 7px; border-radius: 1px; margin-right: 8px; vertical-align: 1px; }
+  .alloc-row .pct { font-family: var(--mono); font-size: 24px; font-weight: 600; color: var(--ink); display: block; margin-bottom: 6px; }
+  .alloc-row .name { font-size: 13.5px; color: var(--ink-soft); }
+  .alloc-note { font-size: 13px; color: var(--ink-faint); max-width: 62ch; margin-top: 40px; line-height: 1.7; border-left: 1px solid var(--border); padding-left: 20px; }
 
+  /* -------- Verification principles -------- */
+  .principle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); margin: 56px 0 40px; border: 1px solid var(--border); }
+  @media (max-width: 900px) { .principle-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .principle-grid { grid-template-columns: 1fr; } }
+  .principle { background: var(--bg); padding: 32px 28px; }
+  .principle h3 { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); margin-bottom: 14px; font-weight: 600; }
+  .principle p { font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+
+  /* -------- Category editorial grid -------- */
+  .category-list { margin-top: 56px; }
+  .category-row { display: grid; grid-template-columns: 90px 1.1fr 1fr 1fr; gap: 28px; padding: 28px 0; border-top: 1px solid var(--border); align-items: start; }
+  .category-row:last-child { border-bottom: 1px solid var(--border); }
+  .category-row .num { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+  .category-row h3 { font-size: 17px; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .category-row .field-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 6px; }
+  .category-row .field-value { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
   @media (max-width: 860px) {
-    .showcase-panel { grid-template-columns: 1fr; padding: 48px 24px; gap: 28px; }
-    .showcase-visual { order: -1; aspect-ratio: 16/9; }
+    .category-row { grid-template-columns: 1fr; gap: 10px; }
+    .category-row .num { display: inline-block; margin-bottom: 4px; }
   }
 
-  /* Carousel controls — numbered, prev/next arrows (Fabric-inspired) */
-  .showcase-tabs { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 48px 28px; max-width: 1180px; margin: 0 auto; }
-  .showcase-count { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--ink-faint); }
-  .showcase-arrow { width: 38px; height: 38px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .showcase-arrow:hover { background: var(--surface-hover); }
-  .showcase-arrow:active { transform: scale(0.94); }
-  .showcase-arrow svg { width: 16px; height: 16px; }
+  /* -------- Impact economics -------- */
+  .impact-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin: 56px 0 32px; }
+  @media (max-width: 760px) { .impact-grid { grid-template-columns: 1fr; } }
+  .impact-cell { background: var(--bg); padding: 40px 32px; }
+  .impact-cell .from { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); margin-bottom: 24px; }
+  .impact-cell .figure { font-family: var(--mono); font-size: clamp(2.2rem, 4vw, 3rem); font-weight: 600; color: var(--accent); letter-spacing: -0.02em; line-height: 1; margin-bottom: 10px; }
+  .impact-cell .to { font-size: 13px; color: var(--ink-soft); }
+  .impact-disclaimer { display: flex; gap: 16px; align-items: baseline; margin-top: 8px; flex-wrap: wrap; }
+  .impact-disclaimer .tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); flex: none; }
+  .impact-disclaimer p { font-size: 13px; color: var(--ink-faint); max-width: 62ch; line-height: 1.65; }
 
-  /* -------- Hero (standalone, Fabric-inspired) -------- */
-  .hero-fabric { padding: 64px 0 40px; overflow: hidden; }
-  .hero-fabric .wrap { max-width: 1180px; }
-  .hero-fabric h1 { font-size: clamp(2.8rem, 6.4vw, 5rem); line-height: 0.98; letter-spacing: -.04em; margin-bottom: 0; }
-  .hero-fabric .stage { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; margin-top: 12px; }
-  @media (max-width: 900px) { .hero-fabric .stage { grid-template-columns: 1fr; } }
-  .hero-fabric .stage-visual { order: 2; }
-  @media (max-width: 900px) { .hero-fabric .stage-visual { order: -1; } }
-  /* -------- Mini carousels (What We Fund / How It Works / Why Trust It / Climate Impact / Roadmap) -------- */
-  .mini-carousel { border-top: 1px solid var(--border); padding-top: 36px; margin-top: 8px; }
-  .mini-slide { display: none; min-height: 132px; }
-  .mini-slide.active { display: block; animation: mslide-in 260ms var(--ease-out); }
-  @keyframes mslide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { .mini-slide.active { animation: none; } }
-  .mini-slide .mtag { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--blue); margin-bottom: 10px; display: block; }
-  .mini-slide h3 { font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.015em; margin-bottom: 12px; }
-  .mini-slide p { font-size: 15px; color: var(--ink-soft); line-height: 1.65; max-width: 64ch; margin: 0 0 10px; }
-  .mini-slide p:last-child { margin-bottom: 0; }
-  .mini-slide p strong { color: var(--ink); font-weight: 600; }
-  .mini-carousel-controls { display: flex; align-items: center; gap: 16px; margin-top: 26px; }
-  .mini-dots { display: flex; align-items: center; gap: 7px; margin-left: 2px; }
-  .mini-dot { width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%; background: var(--border); cursor: pointer; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .mini-dot.active { background: var(--ink); transform: scale(1.3); }
-  .mini-dot:hover { background: var(--ink-faint); }
+  /* -------- Funding pipeline -------- */
+  .pipeline { margin-top: 56px; display: flex; flex-direction: column; }
+  .pipeline-step { display: flex; align-items: center; gap: 20px; padding: 18px 0; }
+  .pipeline-step .n { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); width: 24px; flex: none; }
+  .pipeline-step .label { font-size: 14.5px; font-weight: 600; letter-spacing: -0.005em; }
+  .pipeline-connector { height: 22px; width: 1px; background: var(--border); margin-left: 12px; }
+  @media (max-width: 560px) { .pipeline-step .label { font-size: 13.5px; } }
 
-  /* -------- Buy ACT -------- */
-  .buy-section { padding: 8px 0; }
-  .buy-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; padding: 88px 24px; max-width: 1180px; margin: 0 auto; }
-  .buy-copy h2 { font-size: clamp(2.1rem, 3.8vw, 2.9rem); line-height: 1.08; letter-spacing: -.03em; margin-bottom: 18px; }
-  .buy-copy > .showcase-eyebrow { margin-bottom: 14px; }
-  .buy-copy p.lead { font-size: 16px; color: var(--ink-soft); line-height: 1.6; max-width: 42ch; margin: 0 0 24px; }
-  .buy-note { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--amber); background: var(--amber-soft); border-radius: var(--r-sm); padding: 14px 16px; line-height: 1.55; max-width: 46ch; }
-  .buy-note .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; margin-top: 6px; }
-  .buy-widget-frame { background: #0B0E14; border-radius: var(--r-lg); overflow: hidden; min-height: 560px; box-shadow: 0 24px 56px -24px rgba(10,12,16,.4); display: flex; align-items: center; justify-content: center; }
-  .buy-widget-loading { font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: #8A93A3; letter-spacing: .04em; }
-  #jupiter-terminal { width: 100%; min-height: 560px; }
-  @media (max-width: 860px) { .buy-wrap { grid-template-columns: 1fr; padding: 56px 24px; gap: 28px; } }
+  /* -------- Roadmap timeline -------- */
+  .timeline { margin-top: 56px; }
+  .timeline-phase { display: grid; grid-template-columns: 140px 1fr; gap: 32px; padding: 30px 0; border-top: 1px solid var(--border); }
+  .timeline-phase:last-child { border-bottom: 1px solid var(--border); }
+  .timeline-phase .ph { font-family: var(--mono); font-size: 13px; color: var(--ink-faint); }
+  .timeline-phase.current .ph { color: var(--accent); }
+  .timeline-phase h3 { font-size: 17px; margin-bottom: 10px; }
+  .timeline-phase ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .timeline-phase li { font-size: 13.5px; color: var(--ink-soft); }
+  @media (max-width: 640px) { .timeline-phase { grid-template-columns: 1fr; gap: 12px; } }
 
-  /* -------- Sections -------- */
-  section.block { padding: 88px 0; }
-  section.block.alt { background: var(--bg-alt); }
-  .block-head { margin-bottom: 40px; }
-  .block-head h2 { font-size: clamp(1.9rem, 3.2vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; }
+  /* -------- Insights list -------- */
+  .insight-list { margin-top: 48px; }
+  .insight-row { display: grid; grid-template-columns: 60px 1fr auto; gap: 24px; align-items: baseline; padding: 22px 0; border-top: 1px solid var(--border); }
+  .insight-row:last-child { border-bottom: 1px solid var(--border); }
+  .insight-row .n { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  .insight-row .t { font-size: 15px; font-weight: 500; letter-spacing: -0.005em; }
+  .insight-row .tag { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  @media (max-width: 640px) { .insight-row { grid-template-columns: 1fr; gap: 6px; } .insight-row .tag { display: none; } }
 
-  .table-scroll { overflow-x: auto; background: var(--card); border-radius: var(--r-md); padding: 4px 28px; box-shadow: 0 0 0 1px var(--border-soft), 0 1px 3px rgba(10,12,16,.03); }
-  table.grid-table { width: 100%; border-collapse: collapse; min-width: 560px; }
-  table.grid-table th, table.grid-table td { border: none; border-bottom: 1px solid var(--border-soft); padding: 15px 12px; font-size: 14px; text-align: left; }
-  table.grid-table thead th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); padding-top: 20px; padding-bottom: 12px; }
-  table.grid-table tbody td:first-child { color: var(--ink-faint); font-weight: 500; vertical-align: top; white-space: nowrap; padding-left: 0; }
-  table.grid-table tbody td:nth-child(2) { color: var(--ink-soft); }
-  table.grid-table tbody td:last-child { font-weight: 600; color: var(--ink); text-align: right; padding-right: 0; }
-  table.grid-table tbody tr:last-child td { border-bottom: none; }
-  table.grid-table tbody td:last-child.green { color: var(--green); }
-  table.grid-table tbody td:last-child.muted { color: var(--ink-faint); font-weight: 500; }
-  table.grid-table .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 7px; vertical-align: 1px; }
-  table.roadmap-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 480px; }
-  table.roadmap-table th { text-align: left; font-size: 11px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; padding: 20px 12px 12px; }
-  table.roadmap-table td { padding: 15px 12px; border-bottom: 1px solid var(--border-soft); color: var(--ink-soft); }
-  table.roadmap-table tr:last-child td { border-bottom: none; }
-  table.roadmap-table td:first-child { color: var(--ink); font-weight: 600; padding-left: 0; }
-  table.roadmap-table td:last-child { padding-right: 0; }
-  .status-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
-  .status-pill.done { background: var(--green-soft); color: var(--green); }
-  .status-pill.progress { background: var(--blue-soft); color: var(--blue); }
-  .status-pill.pending { background: var(--pill-bg); color: var(--ink-faint); }
+  /* -------- Buy ACT (subordinate) -------- */
+  .get-act { background: var(--bg-raised); }
+  .get-act-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  @media (max-width: 860px) { .get-act-inner { grid-template-columns: 1fr; gap: 32px; } }
+  .get-act h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); letter-spacing: -0.02em; margin-bottom: 16px; max-width: 18ch; }
+  .get-act .body-copy { margin-bottom: 22px; }
+  .buy-note { font-size: 12.5px; color: var(--ink-faint); border-left: 1px solid var(--border); padding-left: 14px; max-width: 46ch; line-height: 1.6; }
+  .buy-widget-frame { background: var(--bg); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; min-height: 480px; display: flex; align-items: center; justify-content: center; }
+  .buy-widget-loading { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  #jupiter-terminal { width: 100%; min-height: 480px; }
 
-  /* -------- Verify -------- */
-  .verify-intro { max-width: 68ch; color: var(--ink-soft); font-size: 15px; margin: 0 0 8px; }
-  .verify-intro strong { color: var(--ink); }
-  .verify-controls { display: flex; align-items: center; gap: 12px; margin: 20px 0 30px; flex-wrap: wrap; }
-  .verify-controls .rpc-note { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-faint); }
-  .verify-card { background: var(--card); border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--border-soft), 0 1px 3px rgba(10,12,16,.03); padding: 6px 28px; margin-bottom: 22px; }
-  .vcheck { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; padding: 15px 0; border-bottom: 1px solid var(--border-soft); }
-  .vcheck:last-child { border-bottom: none; }
-  .vcheck .vstatus { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex: none; margin-top: 1px; }
-  .vcheck .vstatus.pending { background: var(--surface); color: var(--ink-faint); }
-  .vcheck .vstatus.pass { background: var(--green-soft); color: var(--green); }
-  .vcheck .vstatus.fail { background: var(--red-soft); color: var(--red); }
-  .vcheck .vstatus.info { background: var(--blue-soft); color: var(--blue); }
-  .vcheck .vclaim { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
-  .vcheck .vdetail { font-size: 12.5px; color: var(--ink-soft); font-family: "JetBrains Mono", monospace; word-break: break-all; }
-  .vcheck .vdetail .vlive { color: var(--ink); }
-  .vcheck .vlink { font-size: 12px; white-space: nowrap; margin-top: 2px; color: var(--blue); font-weight: 600; }
-  .verify-selfcheck { background: var(--surface); border-radius: var(--r-sm); padding: 18px 20px; margin: 24px 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
-  .verify-selfcheck strong { color: var(--ink); }
-  .verify-limits { font-size: 12.5px; color: var(--ink-faint); line-height: 1.7; max-width: 76ch; }
-  @media (max-width: 560px) {
-    .vcheck { grid-template-columns: 20px 1fr; }
-    .vcheck .vlink { grid-column: 2; }
-  }
-
-  /* -------- Insights -------- */
-  .insight-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 32px; }
-  @media (max-width: 860px) { .insight-grid { grid-template-columns: 1fr; } }
-  .insight-grid h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
-  .insight-grid p { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 16px; }
-  .update-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-  .update-list li { display: flex; gap: 12px; font-size: 13px; color: var(--ink-soft); }
-  .update-list .udate { flex: none; width: 78px; color: var(--ink-faint); font-size: 11.5px; font-family: "JetBrains Mono", monospace; padding-top: 1px; }
-
-  /* -------- FAQ -------- */
-  .faq-list { max-width: 760px; }
-  details.faq-item { border-bottom: 1px solid var(--border); padding: 16px 0; }
-  details.faq-item summary { cursor: pointer; font-size: 14.5px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; transition: color 160ms var(--ease-out); }
-  details.faq-item summary:hover { color: var(--ink-soft); }
-  details.faq-item summary::-webkit-details-marker { display: none; }
-  details.faq-item summary::after { content: "+"; font-size: 20px; color: var(--ink-faint); font-weight: 400; transition: transform 200ms var(--ease-out); }
-  details.faq-item[open] summary::after { content: "+"; transform: rotate(45deg); }
-  details.faq-item .faq-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 240ms var(--ease-in-out); overflow: hidden; }
-  details.faq-item[open] .faq-body { grid-template-rows: 1fr; }
-  details.faq-item .faq-body > p { min-height: 0; overflow: hidden; font-size: 13.5px; color: var(--ink-soft); margin: 12px 0 0; max-width: 66ch; }
-
-  /* -------- Whitepaper page -------- */
-  .paper-sheet { max-width: 760px; margin: 0 auto; }
-  .paper-sheet h2 { font-size: 1.35rem; margin: 56px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-  .paper-sheet h2:first-of-type { margin-top: 0; }
-  .paper-sheet h2 .num { font-family: "JetBrains Mono", monospace; font-size: .7em; font-weight: 500; color: var(--blue); margin-right: 10px; }
-  .paper-sheet h3 { font-size: 1.02rem; margin: 30px 0 12px; }
-  .paper-sheet p { font-size: 15px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 16px; }
-  .paper-sheet p strong { color: var(--ink); }
-  .paper-sheet .formula { background: var(--surface); border-radius: var(--r-sm); padding: 16px 20px; margin: 16px 0 20px; overflow-x: auto; }
-  .paper-sheet .formula pre { margin: 0; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.8; color: var(--ink); white-space: pre; }
-  .paper-sheet table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 20px; }
-  .paper-sheet table th, .paper-sheet table td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border-soft); }
-  .paper-sheet table th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); }
-  .paper-sheet ol.risks { list-style: none; margin: 0; padding: 0; counter-reset: risk; }
-  .paper-sheet ol.risks li { counter-increment: risk; display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); font-size: 14px; color: var(--ink-soft); }
-  .paper-sheet ol.risks li::before { content: counter(risk) "."; font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--blue); flex: none; width: 1.4em; }
-  .paper-toc { columns: 2; column-gap: 28px; margin: 24px 0 0; padding: 0; list-style: none; }
-  .paper-toc li { break-inside: avoid; margin-bottom: 8px; font-size: 13.5px; }
-  .paper-toc a { color: var(--ink-soft); }
-  .paper-toc a:hover { color: var(--blue); }
-  @media (max-width: 560px) { .paper-toc { columns: 1; } }
+  /* -------- Final CTA -------- */
+  .final-cta { text-align: center; padding: 140px 0; }
+  @media (max-width: 760px) { .final-cta { padding: 88px 0; } }
+  .final-cta h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -0.03em; line-height: 1.12; max-width: 20ch; margin: 0 auto 44px; }
+  .final-cta .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 
   /* -------- Footer -------- */
-  footer { padding: 40px 0 56px; }
-  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
-  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
-  .footer-links a:hover { color: var(--ink); }
-  .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
-  .footer-meta { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+  footer { padding: 64px 0 48px; }
+  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 56px; }
+  @media (max-width: 760px) { .footer-top { grid-template-columns: 1fr; gap: 32px; } }
+  .footer-brand .name { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+  .footer-brand .tag { font-size: 13.5px; color: var(--ink-soft); max-width: 32ch; line-height: 1.6; }
+  .footer-col .h { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
+  .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .footer-col a { font-size: 13.5px; color: var(--ink-soft); transition: color 160ms var(--ease); }
+  .footer-col a:hover { color: var(--ink); }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-top: 32px; border-top: 1px solid var(--border); }
+  .legal { font-size: 11px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
+  .footer-copy { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
 </style>
 </head>
 <body>
 
 <nav class="topnav">
   <div class="topnav-inner">
-    <a href="index.html" class="brand"><span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="17.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff">A</text></svg></span>ARETIA</a>
+    <a href="index.html" class="brand">
+      <span class="name">ARETIA</span>
+      <span class="desc">Climate Finance Protocol</span>
+    </a>
     <div class="topnav-links">
-      <a href="about.html">About</a>
-      <a href="tokenomics.html">Tokenomics</a>
-      <a href="details.html">Details</a>
-      <a href="verify.html">Verify</a>
-      <a href="roadmap.html">Roadmap</a>
-      <a href="insights.html">Insights</a>
-      <a href="faq.html">FAQ</a>
+      <a href="#mechanism">Protocol</a>
+      <a href="#climate-finance">Impact</a>
+      <a href="verify.html">Verification</a>
+      <a href="apply.html">Funding</a>
       <a href="whitepaper.html">Whitepaper</a>
-      <a href="apply.html">Apply for Funding</a>
     </div>
     <div class="topnav-cta">
-      <span class="status-chip">Pre-launch</span>
-      <a class="btn-dark" href="#buy">Buy ACT</a>
+      <a class="btn btn-primary" href="apply.html"><span class="long">Apply for </span>Funding</a>
     </div>
   </div>
 </nav>
 
 <main>
-  <section class="hero-fabric">
-    <div class="wrap">
-      <div class="kicker">Aretia (ACT) &middot; Solana mainnet &middot; Pre-launch</div>
-      <h1>Aretia</h1>
 
-      <div class="stage">
-        <div>
-          <p style="font-size:19px; color:var(--ink-soft); line-height:1.6; max-width:44ch; margin:28px 0 32px;">A protocol-enforced transfer fee, engineered for climate finance. ACT trades openly on Solana — no gatekeeping, no custom program required — and a fixed share of every trade continuously replenishes a climate catalyst fund, governed in layers, verified against real project milestones.</p>
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="#buy">Buy ACT</a>
-            <a class="btn-blue" style="padding:11px 22px; font-size:14px; background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--border);" href="verify.html">Verify the claims</a>
-          </div>
-        </div>
-        <div class="stage-visual">
-          <div class="showcase-visual" style="aspect-ratio:1/1;">
-            <div class="fact-card">
-              <span class="fact-card__badge">Mint live on Solana mainnet</span>
-              <div class="fact-card__title"><span class="dot">A</span>Aretia (ACT)</div>
-              <div class="fact-card__rows">
-                <div class="fact-card__row"><span class="fact-card__label"><span class="fact-card__sw" style="background:#4C8DFF;"></span>Total supply</span><span class="fact-card__value">100,000,000</span></div>
-                <div class="fact-card__row"><span class="fact-card__label"><span class="fact-card__sw" style="background:#16776F;"></span>Network</span><span class="fact-card__value">Solana</span></div>
-                <div class="fact-card__row"><span class="fact-card__label"><span class="fact-card__sw" style="background:#E3A15E;"></span>Protocol fee</span><span class="fact-card__value">3.5%</span></div>
-                <div class="fact-card__row"><span class="fact-card__label"><span class="fact-card__sw" style="background:#3ED598;"></span>Mint authority</span><span class="fact-card__value green">Revoked</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div class="eyebrow"><span class="idx">—</span>ARETIA CLIMATE FINANCE PROTOCOL</div>
+      <h1>Capital for climate action, built for verification.</h1>
+      <p class="hero-sub">Aretia is a climate-finance protocol designed to channel a fixed share of economic activity into real mitigation and adaptation projects, with capital released against independently verified milestones.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#mechanism">Explore the Protocol</a>
+        <a class="btn btn-ghost" href="apply.html">Apply for Funding</a>
       </div>
+      <div class="status-line"><span class="dot"></span><strong>ACT</strong> · Solana · Protocol fee 3.5%</div>
+    </div>
 
+    <div class="network-visual">
+      <div class="wrap" style="padding-top:0; padding-bottom:0;">
+        <svg viewBox="0 0 1180 340" aria-hidden="true">
+          <!-- connecting lines -->
+          <path class="nv-line" d="M 590 170 L 200 90"/>
+          <path class="nv-line" d="M 590 170 L 180 200"/>
+          <path class="nv-line" d="M 590 170 L 260 280"/>
+          <path class="nv-line" d="M 590 170 L 470 60"/>
+          <path class="nv-line" d="M 590 170 L 980 90"/>
+          <path class="nv-line" d="M 590 170 L 1000 210"/>
+          <path class="nv-line" d="M 590 170 L 900 280"/>
+          <path class="nv-line" d="M 590 170 L 710 55"/>
+          <!-- flowing capital lines (subset, animated) -->
+          <path class="nv-flow" d="M 590 170 L 200 90"/>
+          <path class="nv-flow" d="M 590 170 L 980 90"/>
+          <path class="nv-flow" d="M 590 170 L 260 280"/>
+          <path class="nv-flow" d="M 590 170 L 900 280"/>
+          <!-- project / node points -->
+          <circle class="nv-node dim nv-pulse" cx="200" cy="90" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="180" cy="200" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="260" cy="280" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="470" cy="60" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="980" cy="90" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="1000" cy="210" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="900" cy="280" r="3.5"/>
+          <circle class="nv-node dim nv-pulse" cx="710" cy="55" r="3.5"/>
+          <!-- treasury (center) -->
+          <circle class="nv-node accent" cx="590" cy="170" r="6"/>
+          <circle class="nv-node" cx="590" cy="170" r="10" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.35"/>
+        </svg>
+      </div>
     </div>
   </section>
 
+  <!-- ============ 01 / ABOUT ============ -->
+  <section class="block" id="about">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">01</span>ABOUT</div>
+      <p class="lede">Climate finance needs infrastructure it can trust.</p>
+      <div class="body-copy" style="margin-top:32px;">
+        <p>Climate capital often moves through complex institutions, fragmented reporting systems, and long chains of intermediaries. Aretia proposes a different model.</p>
+        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 / WHY IT EXISTS ============ -->
   <section class="block">
     <div class="wrap">
-      <div class="kicker">Why Trust It</div>
-      <p class="lead-in" style="margin-bottom:8px;">Every claim here is something you can check yourself — not something you have to take our word for.</p>
-      <div class="mini-carousel" data-carousel>
-        <div class="mini-slide active">
+      <div class="eyebrow"><span class="idx">02</span>WHY IT EXISTS</div>
+      <p class="lede">The climate transition is constrained not only by capital, but by confidence.</p>
+      <div class="concept-grid">
+        <div class="concept">
+          <span class="num">01</span>
+          <h3>Capital</h3>
+          <p>More capital needs to reach real mitigation and adaptation projects.</p>
+        </div>
+        <div class="concept">
+          <span class="num">02</span>
+          <h3>Verification</h3>
+          <p>Funding needs to correspond to observable project progress.</p>
+        </div>
+        <div class="concept">
+          <span class="num">03</span>
+          <h3>Transparency</h3>
+          <p>The flow of funds should be independently inspectable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 / THE MECHANISM ============ -->
+  <section class="block" id="mechanism">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">03</span>THE MECHANISM</div>
+      <p class="lede">From transfer to climate capital.</p>
+      <div class="mech-steps">
+        <div class="mech-step is-active">
+          <span class="num">01</span>
+          <div><h3>Transfer</h3><p>ACT transactions generate a protocol-defined fee, withheld automatically by the Token-2022 standard itself — not by custom logic Aretia wrote.</p></div>
+        </div>
+        <div class="mech-step">
+          <span class="num">02</span>
+          <div><h3>Allocation</h3><p>A fixed portion is directed toward the climate catalyst fund, with the remainder split between liquidity and protocol operations.</p></div>
+        </div>
+        <div class="mech-step">
+          <span class="num">03</span>
+          <div><h3>Treasury</h3><p>Funds accumulate under multisig custody — a Squads vault requiring 2-of-3 independent signer approval to move.</p></div>
+        </div>
+        <div class="mech-step">
+          <span class="num">04</span>
+          <div><h3>Verification</h3><p>Projects must demonstrate independently verified milestones before any tranche of funding is released.</p></div>
+        </div>
+        <div class="mech-step">
+          <span class="num">05</span>
+          <div><h3>Release</h3><p>Capital is released in tranches against verified progress — never a lump sum against a single approval.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE 3.5% ALLOCATION ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">—</span>PROTOCOL ALLOCATION</div>
+      <p class="lede">A fixed mechanism, not a discretionary promise.</p>
+      <div class="alloc-headline">
+        <span class="alloc-figure">3.5%</span>
+        <span class="alloc-label">Protocol fee, withheld on every transfer</span>
+      </div>
+      <div class="alloc-bar">
+        <span style="width:57.1%; background:var(--accent);"></span>
+        <span style="width:28.6%; background:var(--ink-soft);"></span>
+        <span style="width:14.3%; background:var(--amber);"></span>
+      </div>
+      <div class="alloc-rows">
+        <div class="alloc-row">
+          <span class="pct"><span class="sw" style="background:var(--accent);"></span>2.0%</span>
+          <span class="name">Climate Catalyst Fund</span>
+        </div>
+        <div class="alloc-row">
+          <span class="pct"><span class="sw" style="background:var(--ink-soft);"></span>1.0%</span>
+          <span class="name">Liquidity</span>
+        </div>
+        <div class="alloc-row">
+          <span class="pct"><span class="sw" style="background:var(--amber);"></span>0.5%</span>
+          <span class="name">Management</span>
+        </div>
+      </div>
+      <p class="alloc-note">The allocation is defined by the protocol's on-chain configuration and is designed to make the relationship between activity and climate finance explicit. It is not permanently immutable — the mint's fee-rate authority sits with the treasury multisig, so a change requires the same 2-of-3 signer approval as any other treasury action, never a single party acting alone. <a href="tokenomics.html" style="color:var(--accent);">Full breakdown →</a></p>
+    </div>
+  </section>
+
+  <!-- ============ 04 / VERIFICATION ============ -->
+  <section class="block" id="verification">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">04</span>VERIFICATION</div>
+      <p class="lede">Don't trust the claim. Verify it.</p>
+      <div class="principle-grid">
+        <div class="principle">
           <h3>Fixed Supply</h3>
-          <p>100,000,000 ACT. Mint authority was revoked immediately after the single initial mint — no new tokens can ever be created.</p>
+          <p>100,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p>
         </div>
-        <div class="mini-slide">
+        <div class="principle">
           <h3>Multisig Custody</h3>
-          <p>Treasury funds live in a Squads multisig requiring 2-of-3 signer approval. No single wallet, including ours, can move capital alone.</p>
+          <p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p>
         </div>
-        <div class="mini-slide">
+        <div class="principle">
           <h3>Milestone Verified</h3>
-          <p>Capital releases only in tranches, against independently verified project progress — never a lump sum against a promise.</p>
+          <p>Capital released against verified project progress — never a lump sum against a promise.</p>
         </div>
-        <div class="mini-slide">
-          <h3>Zero-Trust Verify Tool</h3>
-          <p>A client-side tool queries Solana mainnet directly from your own browser and recomputes every claim above, live. <a href="verify.html" style="color:var(--blue); font-weight:600;">Try it →</a></p>
-        </div>
-        <div class="mini-slide">
+        <div class="principle">
           <h3>On-Chain Auditability</h3>
-          <p>Every disbursement is a public transaction from a known treasury address — checkable by anyone, not representable as anything other than what the chain shows.</p>
-        </div>
-        <div class="mini-carousel-controls">
-          <button class="showcase-arrow" type="button" data-prev aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="showcase-count" data-count>01 / 05</span>
-          <button class="showcase-arrow" type="button" data-next aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
-          <div class="mini-dots" data-dots></div>
+          <p>Every transaction is publicly observable on Solana, checkable by anyone.</p>
         </div>
       </div>
+      <a class="btn-text" href="verify.html">Open Verification Tool <span class="arrow">→</span></a>
     </div>
   </section>
 
-  <section class="block alt">
+  <!-- ============ 05 / CLIMATE FINANCE ============ -->
+  <section class="block" id="climate-finance">
     <div class="wrap">
-      <div class="kicker">How It Works</div>
-      <p class="lead-in" style="margin-bottom:8px;">From an ordinary trade to verified climate capital — five steps, all on-chain.</p>
-      <div class="mini-carousel" data-carousel>
-        <div class="mini-slide active">
-          <span class="mtag">Step 1</span>
-          <h3>Every Transfer Pays In</h3>
-          <p>A 3.5% fee is withheld automatically by the Token-2022 transfer-fee extension, on every trade — enforced by the token standard itself, not by policy.</p>
+      <div class="eyebrow"><span class="idx">05</span>CLIMATE FINANCE</div>
+      <p class="lede">Capital moves where measurable climate outcomes can be demonstrated.</p>
+      <div class="category-list">
+        <div class="category-row">
+          <span class="num">01</span>
+          <h3>Renewable Energy</h3>
+          <div><span class="field-label">Verified Output</span><span class="field-value">Metered generation capacity added.</span></div>
+          <div><span class="field-label">Diligence</span><span class="field-value">Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.</span></div>
         </div>
-        <div class="mini-slide">
-          <span class="mtag">Step 2</span>
-          <h3>The Fee Splits Three Ways</h3>
-          <p>2.0% to the catalyst fund, 1.0% to liquidity, 0.5% management fee — fixed by the mint's own on-chain configuration.</p>
+        <div class="category-row">
+          <span class="num">02</span>
+          <h3>Waste-to-Energy</h3>
+          <div><span class="field-label">Verified Output</span><span class="field-value">Waste diverted and energy generated.</span></div>
+          <div><span class="field-label">Diligence</span><span class="field-value">Facility operating permits, throughput metering, emissions monitored against a stated baseline.</span></div>
         </div>
-        <div class="mini-slide">
-          <span class="mtag">Step 3</span>
-          <h3>Harvest to Treasury</h3>
-          <p>Withheld fees accumulate in each token account, then sweep into a Squads multisig requiring 2-of-3 signer approval to move.</p>
+        <div class="category-row">
+          <span class="num">03</span>
+          <h3>Carbon Reduction</h3>
+          <div><span class="field-label">Verified Output</span><span class="field-value">Emissions avoided or removed.</span></div>
+          <div><span class="field-label">Diligence</span><span class="field-value">Registry-issued credits from Verra, Gold Standard, or a comparable standard, or an equivalent third-party MRV protocol.</span></div>
         </div>
-        <div class="mini-slide">
-          <span class="mtag">Step 4</span>
-          <h3>Milestone-Verified Release</h3>
-          <p>Capital leaves the catalyst fund only in tranches, each against an independently verified project milestone — never a lump sum.</p>
+        <div class="category-row">
+          <span class="num">04</span>
+          <h3>Technical Assistance</h3>
+          <div><span class="field-label">Verified Output</span><span class="field-value">Capacity delivered — studies, training, MRV systems built.</span></div>
+          <div><span class="field-label">Diligence</span><span class="field-value">Deliverable-based milestones; independent review of the technical work product itself.</span></div>
         </div>
-        <div class="mini-slide">
-          <span class="mtag">Step 5</span>
-          <h3>Provable, Every Step</h3>
-          <p>Every transfer, harvest, and disbursement is a public on-chain transaction anyone can check, from fee withholding through final release.</p>
-        </div>
-        <div class="mini-carousel-controls">
-          <button class="showcase-arrow" type="button" data-prev aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="showcase-count" data-count>01 / 05</span>
-          <button class="showcase-arrow" type="button" data-next aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
-          <div class="mini-dots" data-dots></div>
+        <div class="category-row">
+          <span class="num">05</span>
+          <h3>Flood Management &amp; Reforestation</h3>
+          <div><span class="field-label">Verified Output</span><span class="field-value">Hectares restored; flood-risk reduction achieved.</span></div>
+          <div><span class="field-label">Diligence</span><span class="field-value">Remote-sensing canopy verification; hydrological modeling or post-event impact assessment.</span></div>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ============ 06 / IMPACT ECONOMICS ============ -->
   <section class="block">
     <div class="wrap">
-      <div class="kicker">What We Fund</div>
-      <p class="lead-in" style="margin-bottom:8px;">Real climate mitigation and adaptation work, verified before capital moves — not a pledge.</p>
-      <div class="mini-carousel" data-carousel>
-        <div class="mini-slide active">
-          <h3>Renewable Energy</h3>
-          <p><strong>Verified output:</strong> metered generation capacity added.</p>
-          <p><strong>Diligence standard:</strong> independent engineering certification of installed and operating capacity; interconnection or off-take documentation.</p>
+      <div class="eyebrow"><span class="idx">06</span>IMPACT ECONOMICS</div>
+      <p class="lede">The mechanism scales with activity.</p>
+      <div class="impact-grid">
+        <div class="impact-cell">
+          <div class="from">$10,000 trading volume</div>
+          <div class="figure">$200</div>
+          <div class="to">Climate Catalyst Fund</div>
         </div>
-        <div class="mini-slide">
-          <h3>Waste-to-Energy Management</h3>
-          <p><strong>Verified output:</strong> waste diverted and energy generated.</p>
-          <p><strong>Diligence standard:</strong> facility operating permits, throughput metering, emissions monitored against a stated baseline.</p>
+        <div class="impact-cell">
+          <div class="from">$100,000 trading volume</div>
+          <div class="figure">$2,000</div>
+          <div class="to">Climate Catalyst Fund</div>
         </div>
-        <div class="mini-slide">
-          <h3>Carbon Reduction</h3>
-          <p><strong>Verified output:</strong> emissions avoided or removed.</p>
-          <p><strong>Diligence standard:</strong> registry-issued credits from Verra, Gold Standard, or a comparable standard, or an equivalent third-party MRV protocol.</p>
+        <div class="impact-cell">
+          <div class="from">$1,000,000 trading volume</div>
+          <div class="figure">$20,000</div>
+          <div class="to">Climate Catalyst Fund</div>
         </div>
-        <div class="mini-slide">
-          <h3>Technical Assistance</h3>
-          <p><strong>Verified output:</strong> capacity delivered — studies, training, MRV systems built.</p>
-          <p><strong>Diligence standard:</strong> deliverable-based milestones; independent review of the technical work product itself.</p>
-        </div>
-        <div class="mini-slide">
-          <h3>Flood Management &amp; Reforestation</h3>
-          <p><strong>Verified output:</strong> hectares restored; flood-risk reduction achieved.</p>
-          <p><strong>Diligence standard:</strong> remote-sensing canopy verification for reforestation; hydrological modeling or post-event impact assessment for flood management.</p>
-        </div>
-        <div class="mini-carousel-controls">
-          <button class="showcase-arrow" type="button" data-prev aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="showcase-count" data-count>01 / 05</span>
-          <button class="showcase-arrow" type="button" data-next aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
-          <div class="mini-dots" data-dots></div>
-        </div>
+      </div>
+      <div class="impact-disclaimer">
+        <span class="tag">No forecast. No promise.</span>
+        <p>These examples describe the mathematical relationship between trading volume and the protocol allocation. They are not projections of future trading activity or investment returns. ACT has not launched and no liquidity pool has been seeded yet.</p>
       </div>
     </div>
   </section>
 
-  <section class="block alt">
+  <!-- ============ 07 / FUNDING ============ -->
+  <section class="block" id="funding">
     <div class="wrap">
-      <div class="kicker">Climate Impact</div>
-      <p class="lead-in" style="margin-bottom:8px;">The mechanism's output is arithmetic, not a forecast — here's what it means at different scales.</p>
-      <div class="mini-carousel" data-carousel>
-        <div class="mini-slide active">
-          <h3>At $10,000 in trading volume</h3>
-          <p>$200 flows to the catalyst fund, $100 to liquidity, $50 to management. No step depends on price or sentiment.</p>
+      <div class="eyebrow"><span class="idx">07</span>FUNDING</div>
+      <p class="lede">From proposal to verified impact.</p>
+      <div class="pipeline">
+        <div class="pipeline-step"><span class="n">01</span><span class="label">Project Application</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">02</span><span class="label">Due Diligence</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">03</span><span class="label">Project Scoring</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">04</span><span class="label">Funding Proposal</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">05</span><span class="label">Milestone</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">06</span><span class="label">Independent Verification</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">07</span><span class="label">Capital Release</span></div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-step"><span class="n">08</span><span class="label">Impact Reporting</span></div>
+      </div>
+      <div style="margin-top:36px;">
+        <a class="btn-text" href="apply.html">Apply for Funding <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROADMAP ============ -->
+  <section class="block" id="roadmap">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">—</span>ROADMAP</div>
+      <p class="lede">Four phases, not one launch.</p>
+      <div class="timeline">
+        <div class="timeline-phase current">
+          <div class="ph">01<br>Current</div>
+          <div>
+            <h3>Foundation</h3>
+            <ul>
+              <li>ACT infrastructure — live on Solana mainnet</li>
+              <li>Treasury — multisig live, tested end to end</li>
+              <li>Verification — client-side tool live</li>
+              <li>Funding intake — application form open</li>
+            </ul>
+          </div>
         </div>
-        <div class="mini-slide">
-          <h3>At $100,000 in trading volume</h3>
-          <p>$2,000 flows to the catalyst fund — funding real mitigation and adaptation work across the five categories above.</p>
+        <div class="timeline-phase">
+          <div class="ph">02</div>
+          <div>
+            <h3>Climate Finance</h3>
+            <ul>
+              <li>Project scoring</li>
+              <li>Funding proposals</li>
+              <li>Milestone-based funding</li>
+            </ul>
+          </div>
         </div>
-        <div class="mini-slide">
-          <h3>At $1,000,000 in trading volume</h3>
-          <p>$20,000 flows to the catalyst fund. A direct, mechanical function of real trading — not a pledge, not a promise.</p>
+        <div class="timeline-phase">
+          <div class="ph">03</div>
+          <div>
+            <h3>MRV</h3>
+            <ul>
+              <li>Climate impact measurement</li>
+              <li>Emissions accounting</li>
+              <li>Satellite / geospatial data</li>
+              <li>Independent verification infrastructure</li>
+            </ul>
+          </div>
         </div>
-        <div class="mini-slide">
-          <h3>Where It Goes</h3>
-          <p>Five verified categories: renewable energy, waste-to-energy, carbon reduction, technical assistance, flood management &amp; reforestation.</p>
-        </div>
-        <div class="mini-slide">
-          <h3>No Forecast, No Promise</h3>
-          <p>This is a fixed function of trading volume, computed identically whether one large trade or ten thousand small ones drive it. Actual future volume is presently unknown and isn't forecast anywhere in the <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">whitepaper</a>.</p>
-        </div>
-        <div class="mini-carousel-controls">
-          <button class="showcase-arrow" type="button" data-prev aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="showcase-count" data-count>01 / 05</span>
-          <button class="showcase-arrow" type="button" data-next aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
-          <div class="mini-dots" data-dots></div>
+        <div class="timeline-phase">
+          <div class="ph">04</div>
+          <div>
+            <h3>Global Protocol</h3>
+            <ul>
+              <li>Multiple countries and project types</li>
+              <li>Institutional participation</li>
+              <li>Additional validators</li>
+              <li>Potential multi-chain deployment</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="buy-section" id="buy">
-    <div class="buy-wrap">
-      <div class="buy-copy">
-        <div class="showcase-eyebrow">Buy ACT</div>
-        <h2>Swap directly<br><em>from this page.</em></h2>
-        <p class="lead">Powered by Jupiter, Solana's swap aggregator — it routes your trade through whichever pool has the best price and depth, no separate app or extra site required.</p>
-        <div class="buy-note"><span class="dot"></span>Liquidity hasn't been seeded yet (see the <a href="roadmap.html" style="text-decoration:underline;">roadmap</a>), so swaps will currently show "no route found." This widget is fully wired to the real ACT mint and will start working automatically the moment the pool goes live — nothing further to change here.</div>
+  <!-- ============ 08 / THE PROTOCOL ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">08</span>THE PROTOCOL</div>
+      <p class="lede">The mechanism is public.</p>
+      <div class="body-copy" style="margin: 28px 0 40px;">
+        <p>The Aretia protocol defines how economic activity, treasury allocation, project funding, and verification interact. Anyone should be able to understand the rules before participating.</p>
+      </div>
+      <div class="hero-actions" style="margin-bottom:0;">
+        <a class="btn btn-ghost" href="whitepaper.html">Read the Whitepaper</a>
+        <a class="btn btn-ghost" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">View on Solana</a>
+        <a class="btn btn-ghost" href="verify.html">Verify the Protocol</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INSIGHTS ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="eyebrow"><span class="idx">—</span>LATEST FROM ARETIA</div>
+      <div class="insight-list">
+        <a class="insight-row" href="insights.html">
+          <span class="n">01</span>
+          <span class="t">Does a 3.5% fee meaningfully deter trading?</span>
+          <span class="tag">Fee Incidence</span>
+        </a>
+        <a class="insight-row" href="insights.html">
+          <span class="n">02</span>
+          <span class="t">Why "code-enforced" is a different claim than "we promise"</span>
+          <span class="tag">Mechanism Design</span>
+        </a>
+        <a class="insight-row" href="insights.html">
+          <span class="n">03</span>
+          <span class="t">The catalyst fund only works if someone provides liquidity</span>
+          <span class="tag">Liquidity</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GET ACT (subordinate) ============ -->
+  <section class="block get-act" id="buy">
+    <div class="wrap get-act-inner">
+      <div>
+        <div class="eyebrow"><span class="idx">—</span>ACT</div>
+        <h2>ACT is the protocol's economic mechanism.</h2>
+        <p class="body-copy">ACT trades openly on Solana — no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
+        <p class="buy-note">Liquidity hasn't been seeded yet (see the <a href="#roadmap" style="color:var(--ink-soft); text-decoration:underline;">roadmap</a>), so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
       </div>
       <div class="buy-widget-frame">
         <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
@@ -530,119 +658,62 @@
     </div>
   </section>
 
-  <section class="block">
+  <!-- ============ FINAL CTA ============ -->
+  <section class="final-cta">
     <div class="wrap">
-      <div class="kicker">Roadmap</div>
-      <p class="lead-in" style="margin-bottom:8px;">Four phases, not one launch. Phase 1 has to be real before Phase 2 starts.</p>
-      <div class="mini-carousel" data-carousel>
-        <div class="mini-slide active">
-          <span class="mtag">Phase 01 · Current</span>
-          <h3>Foundation</h3>
-          <p>Token live on Solana mainnet, treasury multisig tested end to end, project application intake open. Public dashboard and on-chain governance aren't live yet.</p>
-        </div>
-        <div class="mini-slide">
-          <span class="mtag">Phase 02</span>
-          <h3>Climate Finance</h3>
-          <p>Project scoring, funding proposals, milestone-gated funding, and independent verification — turning the application intake into an actual funding pipeline.</p>
-        </div>
-        <div class="mini-slide">
-          <span class="mtag">Phase 03</span>
-          <h3>MRV</h3>
-          <p>Project monitoring, climate-impact measurement, emissions accounting, satellite/geospatial data integration, and independent verification infrastructure.</p>
-        </div>
-        <div class="mini-slide">
-          <span class="mtag">Phase 04</span>
-          <h3>Global Protocol</h3>
-          <p>Multiple countries and project types, institutional participation, additional validators and verifiers, and potentially multi-chain deployment.</p>
-        </div>
-        <div class="mini-carousel-controls">
-          <button class="showcase-arrow" type="button" data-prev aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="showcase-count" data-count>01 / 04</span>
-          <button class="showcase-arrow" type="button" data-next aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
-          <div class="mini-dots" data-dots></div>
-        </div>
+      <h2>Climate finance should be measurable. Capital should be accountable.</h2>
+      <p style="font-size:15px; color:var(--ink-soft); margin-bottom:44px;">Build with Aretia.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="apply.html">Apply for Funding</a>
+        <a class="btn btn-ghost" href="whitepaper.html">Read the Whitepaper</a>
       </div>
     </div>
   </section>
 
-  <section class="block alt closing-cta">
-    <div class="wrap" style="text-align:center;">
-      <div class="kicker" style="display:flex; justify-content:center;">Go deeper</div>
-      <p class="lead-in" style="margin:0 auto 28px; text-align:center;">Read the full mechanism, or bring us a project to fund.</p>
-      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-        <a class="btn-dark" style="padding:11px 22px; font-size:14px;" href="whitepaper.html">Read the whitepaper</a>
-        <a class="btn-blue" style="padding:11px 22px; font-size:14px; background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--border);" href="apply.html">Apply for funding</a>
-      </div>
-    </div>
-  </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <div class="footer-links">
-      <a href="whitepaper.html">Whitepaper</a>
-      <a href="about.html">About</a>
-      <a href="tokenomics.html">Tokenomics</a>
-      <a href="roadmap.html">Roadmap</a>
-      <a href="faq.html">FAQ</a>
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="name">ARETIA</div>
+        <p class="tag">Climate finance protocol. A fixed share of economic activity, converted into transparent, milestone-verified climate capital.</p>
+      </div>
+      <div class="footer-col">
+        <div class="h">Protocol</div>
+        <ul>
+          <li><a href="#mechanism">Mechanism</a></li>
+          <li><a href="tokenomics.html">Tokenomics</a></li>
+          <li><a href="details.html">Treasury</a></li>
+          <li><a href="roadmap.html">Roadmap</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <div class="h">Resources</div>
+        <ul>
+          <li><a href="verify.html">Verification</a></li>
+          <li><a href="apply.html">Funding</a></li>
+          <li><a href="whitepaper.html">Whitepaper</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="insights.html">Insights</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+        </ul>
+      </div>
     </div>
-    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice.</p>
-    <div class="footer-meta">v0.3 · multi-page site · pre-launch · prepared 5 Sept 2026</div>
+    <div class="footer-bottom">
+      <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice.</p>
+      <span class="footer-copy">© 2026 Aretia</span>
+    </div>
   </div>
 </footer>
 
-<!-- Floating pill nav on scroll -->
 <script>
   (function () {
     var nav = document.querySelector('.topnav');
     if (!nav) return;
-    function update() {
-      nav.classList.toggle('scrolled', window.scrollY > 12);
-    }
+    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
     window.addEventListener('scroll', update, { passive: true });
     update();
-  })();
-</script>
-
-<!-- Mini carousels: What We Fund / How It Works / Why Trust It / Climate Impact / Roadmap -->
-<script>
-  (function () {
-    function pad(n) { return n < 10 ? '0' + n : '' + n; }
-
-    document.querySelectorAll('[data-carousel]').forEach(function (root) {
-      var slides = Array.prototype.slice.call(root.querySelectorAll('.mini-slide'));
-      var countEl = root.querySelector('[data-count]');
-      var dotsWrap = root.querySelector('[data-dots]');
-      var prevBtn = root.querySelector('[data-prev]');
-      var nextBtn = root.querySelector('[data-next]');
-      var idx = 0;
-
-      function render() {
-        slides.forEach(function (s, i) { s.classList.toggle('active', i === idx); });
-        if (countEl) countEl.textContent = pad(idx + 1) + ' / ' + pad(slides.length);
-        if (dotsWrap) {
-          Array.prototype.forEach.call(dotsWrap.children, function (d, i) {
-            d.classList.toggle('active', i === idx);
-          });
-        }
-      }
-
-      if (dotsWrap) {
-        slides.forEach(function (_, i) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'mini-dot';
-          b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
-          b.addEventListener('click', function () { idx = i; render(); });
-          dotsWrap.appendChild(b);
-        });
-      }
-
-      if (prevBtn) prevBtn.addEventListener('click', function () { idx = (idx - 1 + slides.length) % slides.length; render(); });
-      if (nextBtn) nextBtn.addEventListener('click', function () { idx = (idx + 1) % slides.length; render(); });
-
-      render();
-    });
   })();
 </script>
 

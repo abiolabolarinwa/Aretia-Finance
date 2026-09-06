@@ -150,8 +150,9 @@
         </div>
         <div class="vcheck" data-vcheck="feeBps">
           <div class="vstatus pending">…</div>
-          <div><div class="vclaim">Transfer fee is 410 basis points (4.1%)</div>
-            <div class="vdetail">Claimed: <span class="mono">410 bps</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeBps">checking…</span></div></div>
+          <div><div class="vclaim">Transfer fee is 350 basis points (3.5%)</div>
+            <div class="vdetail">Claimed: <span class="mono">350 bps</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
+            <div class="vdetail" style="font-family:var(--sans); font-size:12px; margin-top:4px;">A change from 410 bps (4.1%, with a 1% burn) to 350 bps (3.5%, no burn, management fee raised to 0.5%) is documented here as the current design. It takes effect on-chain only once the treasury's 2-of-3 multisig approves and executes it — until then this check will correctly show a mismatch against the still-live 410 bps rate.</div></div>
           <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
         </div>
         <div class="vcheck" data-vcheck="feeAuth">
@@ -330,7 +331,7 @@
       var feeConfig = mintInfo.transferFeeConfig;
       if (feeConfig) {
         var bps = feeConfig.newerTransferFee.transferFeeBasisPoints;
-        setVCheck("feeBps", bps === 410 ? "pass" : "fail", bps + " bps" + (bps === 410 ? " ✓" : ""));
+        setVCheck("feeBps", bps === 350 ? "pass" : "fail", bps + " bps" + (bps === 350 ? " ✓" : ""));
 
         var configAuth = feeConfig.transferFeeConfigAuthority;
         var withdrawAuth = feeConfig.withdrawWithheldAuthority;

@@ -32,17 +32,18 @@ ACT is issued as an SPL **Token-2022** mint, using the standard's native **trans
 
 | Destination | Share |
 |---|---|
-| Net transfer to recipient | 95.9% |
+| Net transfer to recipient | 96.5% |
 | Treasury — climate catalyst fund | 2% |
 | Liquidity pool | 1% |
-| Burn | 1% |
-| **Management fee** — project monitoring & verification | **0.1%** |
+| **Management fee** — project monitoring & verification | **0.5%** |
+
+**6 Sept 2026 update: burn removed, management fee raised 0.1% → 0.5%.** Total tax drops from 4.1% to 3.5% — the removed 1% burn share isn't redistributed, it's simply no longer withheld. Documented here as the current design; not yet live on-chain (see `MINT.md`'s fee-authority section for what that actually requires and who can do it). **This also reopens `ATTORNEY_BRIEF.md` §4 Q3** — the securities-analysis question about fee streams benefiting the operating entity was asked against 0.1%, not 0.5%, and hasn't been re-reviewed at the new figure.
 
 **Trading pair:** Primary pool is ACT / USDT (Tether's Circle-issued SPL token) on Raydium, mirrored on Orca for depth, with Jupiter aggregating routes for anyone swapping in from SOL or another asset. Liquidity-pool tokens are locked for a fixed term at launch so early liquidity can't be pulled out from under holders.
 
-> **Design note:** 4.1% total tax is a starting figure, not a fixed constant — it should be tuned against norms for comparable Solana open-market token launches (most successful launches run 0–2% to stay competitive on swap price) before mainnet. A higher treasury cut funds more climate impact per trade; a lower one keeps the token more attractive to pure traders.
+> **Design note:** 3.5% total tax is a starting figure, not a fixed constant — it should be tuned against norms for comparable Solana open-market token launches (most successful launches run 0–2% to stay competitive on swap price) before mainnet. A higher treasury cut funds more climate impact per trade; a lower one keeps the token more attractive to pure traders.
 
-> **Why a separate management fee, not folded into treasury:** running the treasury responsibly costs real money — verifying registry certificates, reviewing Impact Reports, occasional site visits, maintaining the transparency dashboard. Funding that from an undisclosed slice of the "treasury" allocation would quietly make the "2% funds climate projects" claim partly untrue. Keeping the 0.1% as its own disclosed line — reported separately on the transparency dashboard, never merged into the project-funding total — keeps that claim honest. This fee funds Aretia Finance LLC's operational work; it is not a profit share or dividend to token holders.
+> **Why a separate management fee, not folded into treasury:** running the treasury responsibly costs real money — verifying registry certificates, reviewing Impact Reports, occasional site visits, maintaining the transparency dashboard. Funding that from an undisclosed slice of the "treasury" allocation would quietly make the "2% funds climate projects" claim partly untrue. Keeping the 0.5% as its own disclosed line — reported separately on the transparency dashboard, never merged into the project-funding total — keeps that claim honest. This fee funds Aretia Finance LLC's operational work; it is not a profit share or dividend to token holders.
 >
 > **Where it goes:** a dedicated wallet, separate from the treasury multisig — `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. Not yet funded; see `MANAGEMENT_FEE.md`.
 
@@ -61,7 +62,7 @@ Disbursements draw from an illustrative functional allocation — a separate dim
 
 Every disbursement — either kind — is a public on-chain transaction from a known treasury address. A companion transparency dashboard (separate build) can index those transactions and render them as a running ledger: date, amount, recipient or registry, and running total.
 
-**Management fee handling:** the 0.1% management fee settles in its own dedicated wallet — `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`, deliberately separate from the 2-of-3 treasury multisig — so it can never be commingled with project-funding assets even by accident, not just by reporting convention. It pays for Aretia Finance LLC's operational costs of running the treasury: registry/credit verification, Impact Report review, occasional site visits, and dashboard upkeep. This is a service fee for that work, not a profit distribution to token holders or team members personally. See `MANAGEMENT_FEE.md` for the wallet record and the harvest-and-split mechanism.
+**Management fee handling:** the 0.5% management fee settles in its own dedicated wallet — `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`, deliberately separate from the 2-of-3 treasury multisig — so it can never be commingled with project-funding assets even by accident, not just by reporting convention. It pays for Aretia Finance LLC's operational costs of running the treasury: registry/credit verification, Impact Report review, occasional site visits, and dashboard upkeep. This is a service fee for that work, not a profit distribution to token holders or team members personally. See `MANAGEMENT_FEE.md` for the wallet record and the harvest-and-split mechanism.
 
 ## 03 — Governance layer
 

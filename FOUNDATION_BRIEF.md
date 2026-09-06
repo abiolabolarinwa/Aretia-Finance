@@ -11,7 +11,7 @@
 Two entities already exist and are already operating, both previously reviewed and approved:
 
 - **Aretia Climate, LLC** — the climate app. Delaware LLC.
-- **Aretia Climate Coin LLC** — issues ACC, holds and disburses the treasury, signs project-partner agreements. Delaware LLC. Live on Solana mainnet since 2 Sept 2026 (see `MINT.md`, `TREASURY.md`). Earns a 0.1% management fee off token-transfer volume, disclosed and tracked separately from the project-funding treasury (see `MANAGEMENT_FEE.md`).
+- **Aretia Climate Coin LLC** — issues ACC, holds and disburses the treasury, signs project-partner agreements. Delaware LLC. Live on Solana mainnet since 2 Sept 2026 (see `MINT.md`, `TREASURY.md`). Earns a 0.5% management fee off token-transfer volume (raised from 0.1%, 6 Sept 2026), disclosed and tracked separately from the project-funding treasury (see `MANAGEMENT_FEE.md`).
 
 A third entity also exists, formed separately and **not yet active**:
 
@@ -47,7 +47,7 @@ Our tentative lean, purely from pattern-matching and not as a substitute for you
 Full detail is already in `TOKENOMICS.md`, `WHITEPAPER.md`, `MINT.md`, `TREASURY.md`, and `MANAGEMENT_FEE.md` — summarized here only for the specific question this memo raises:
 
 - ACC is an SPL Token-2022 asset on Solana, fixed 100,000,000 supply, mint and freeze authority both revoked.
-- A 4.1% transfer fee splits: 2% to the treasury (functions as a **climate catalyst fund** — standing capital, continuously replenished by trading activity, financing climate mitigation and adaptation projects released against verified milestones), 1% liquidity, 1% burn, 0.1% management fee.
+- A 3.5% transfer fee splits: 2% to the treasury (functions as a **climate catalyst fund** — standing capital, continuously replenished by trading activity, financing climate mitigation and adaptation projects released against verified milestones), 1% liquidity, 0.5% management fee. No burn allocation (removed 6 Sept 2026, was 1%).
 - The management fee is disclosed, separately tracked, service compensation to Aretia Climate Coin LLC for running the treasury (registry verification, Impact Report review, dashboard upkeep) — not a profit distribution to token holders.
 - Treasury custody is a 2-of-3 Squads multisig on Solana mainnet; disbursements go to vetted project partners or on-chain carbon-credit retirements.
 - This entire structure — including the "meme coin"-free, mechanism-first public language and the "catalyst fund" framing for the treasury — was reviewed and approved by counsel on 4 Sept 2026, under the existing two-LLC structure with no Foundation involvement.

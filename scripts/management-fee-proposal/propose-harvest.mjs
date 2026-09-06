@@ -6,9 +6,12 @@
  *
  * What it does:
  *   1. Scans every ACT (Token-2022) token account for withheld transfer fees.
- *   2. If there's anything to harvest, computes the 0.1%-of-4.1% management-fee
+ *   2. If there's anything to harvest, computes the 0.5%-of-3.5% management-fee
  *      share (grossed up so the NET amount landing in the management wallet
- *      matches the intended share, after that internal transfer's own 4.1% fee).
+ *      matches the intended share, after that internal transfer's own fee).
+ *      NOTE (6 Sept 2026): this reflects the current intended design (burn
+ *      removed, management raised from 0.1%) - the live on-chain rate is
+ *      still 4.1% with the old split as of this writing. See MINT.md.
  *   3. Builds ONE Squads vault transaction containing:
  *        - create the management wallet's ACT token account (idempotent)
  *        - WithdrawWithheldTokensFromAccounts -> treasury vault's ACT account
@@ -72,9 +75,14 @@ const TREASURY_VAULT = new PublicKey("3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyz
 const MULTISIG_PDA = new PublicKey("AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX"); // verified: derives vault index 0 == TREASURY_VAULT above
 const VAULT_INDEX = 0;
 const MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
-// Management fee is 0.1% out of the mint's total 4.1% transfer fee -> exactly 1/41 of whatever gets harvested.
+// Management fee is 0.5% out of the mint's intended 3.5% transfer fee (burn removed,
+// management raised from 0.1%, 6 Sept 2026 - see TOKENOMICS.md SS01) -> exactly 1/7
+// (equivalently 5/35) of whatever gets harvested. NOTE: this ratio assumes the on-chain
+// rate has actually been moved to 350 bps; as of this writing it is still live at 410 bps
+// with the old 1/41 split. Re-check MINT.md's fee-authority section before running
+// --execute for real, since this constant does not update itself from chain state.
 const MANAGEMENT_SHARE_NUM = 1n;
-const MANAGEMENT_SHARE_DEN = 41n;
+const MANAGEMENT_SHARE_DEN = 7n;
 
 const EXECUTE = process.argv.includes("--execute");
 

@@ -64,4 +64,10 @@ Full tokenomics draft, a draft project-partner agreement template, and a draft p
 
 ---
 
+## 6. Addendum, 6 Sept 2026 — management fee changed after this brief was written
+
+This brief and its Section 4, Q3/Q8 above were written against a **0.1%** management fee. That figure has since been raised to **0.5%** (5x), and the 1% burn allocation removed, taking the aggregate transfer fee from 4.1% to 3.5% (see `TOKENOMICS.md` §01, `MINT.md`). The text above is left as-is, unedited, since it's a record of what was actually sent for review — not retouched to match the new number.
+
+This matters specifically because Q3 asked "any fee stream that benefits the operating entity/team is directly relevant to the securities analysis... want your read on whether this changes that analysis," and Q8 asked whether the *0.1%* structure and disclosure was sufficient. A 5x larger fee stream to the operating entity is a materially different fact pattern for both questions. **Neither has been re-reviewed at 0.5%.** Flagging this explicitly rather than letting the brief go stale silently: if counsel's answer to Q3/Q8 depended on the fee being small relative to the treasury allocation, that dependency should be re-checked before the 0.5% figure goes out in any public document.
+
 *Attachments: `TOKENOMICS.md`, `PARTNER_AGREEMENT_TEMPLATE.md`, `WHITEPAPER.md` (all working drafts, all explicitly marked as pending legal review).*

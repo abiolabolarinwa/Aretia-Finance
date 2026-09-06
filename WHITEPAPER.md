@@ -108,7 +108,7 @@ Token-2022's native transfer fee extension withholds a percentage of every trans
 
     fee(A) = min(A × b, M)
 
-where b equals 0.041, or 410 basis points, is the fee rate, and M is the mint's configured maximum fee, included so that a single very large transfer does not withhold an unbounded absolute amount.
+where b equals 0.035, or 350 basis points, is the fee rate, and M is the mint's configured maximum fee, included so that a single very large transfer does not withhold an unbounded absolute amount.
 
 ### 5.2 Fee Allocation
 
@@ -116,13 +116,12 @@ Aretia's split of the withheld fee is as follows.
 
 | Destination | Share of transfer | Share of withheld fee |
 |---|---|---|
-| Recipient (net) | 95.9% | not applicable |
-| Catalyst fund (treasury) | 2.0% | 20/41, approximately 0.4878 |
-| Liquidity pool | 1.0% | 10/41, approximately 0.2439 |
-| Burn | 1.0% | 10/41, approximately 0.2439 |
-| Management fee | 0.1% | 1/41, approximately 0.0244 |
+| Recipient (net) | 96.5% | not applicable |
+| Catalyst fund (treasury) | 2.0% | 20/35, approximately 0.5714 |
+| Liquidity pool | 1.0% | 10/35, approximately 0.2857 |
+| Management fee | 0.5% | 5/35, approximately 0.1429 |
 
-This split is a property of the mint's on-chain configuration, not a policy any party follows voluntarily, a distinction this paper has already drawn in Section 2.4 against tokens whose charitable commitments are policy rather than code.
+There is no separate burn allocation: an earlier configuration withheld a further 1.0% for burning, but that share has been removed, lowering the aggregate withheld rate from 4.1% to the 3.5% above rather than redistributing it elsewhere. The aggregate withheld rate (b, above) is the property enforced by the mint's on-chain configuration, the distinction this paper draws in Section 2.4 against tokens whose charitable commitments are policy rather than code; the destination split in the table is the treasury's own harvest-and-route procedure, applied consistently every time withheld fees are harvested, but is not itself a second on-chain-enforced ratio.
 
 ### 5.3 The Two-Phase Withhold-and-Harvest Design
 
@@ -134,9 +133,9 @@ The management fee wallet, address `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2
 
     G − fee(G) = N
     G × (1 − b) = N     [when fee(G) < M]
-    G = N / (1 − b) = N / 0.959
+    G = N / (1 − b) = N / 0.965
 
-For example, to deliver a net N of 1,000 ACT to the management wallet, the treasury must send a gross G of 1,000 divided by 0.959, approximately 1,042.75 ACT, of which approximately 42.75 ACT is withheld on that second transfer and re-enters the fee-split pool described in Section 5.2. We are not aware of this recursive fee-on-internal-transfer problem being treated explicitly in prior public documentation of comparable mechanisms, and include it here because a treasury operator who failed to account for it would systematically underdeliver the intended management compensation on every occasion the calculation was performed.
+For example, to deliver a net N of 1,000 ACT to the management wallet, the treasury must send a gross G of 1,000 divided by 0.965, approximately 1,036.27 ACT, of which approximately 36.27 ACT is withheld on that second transfer and re-enters the fee-split pool described in Section 5.2. We are not aware of this recursive fee-on-internal-transfer problem being treated explicitly in prior public documentation of comparable mechanisms, and include it here because a treasury operator who failed to account for it would systematically underdeliver the intended management compensation on every occasion the calculation was performed.
 
 ## 6. Treasury Custody
 
@@ -253,7 +252,7 @@ In addition to the dashboard described above, a client-side verification tool ha
 
 ### 12.1 Fee Incidence and Trading Behavior
 
-A transfer fee of 410 basis points is a real cost borne by anyone transacting the token, and it is fair to ask whether a fee of this magnitude meaningfully deters the trading activity the mechanism depends upon in the first place. We note two considerations relevant to this question without claiming to resolve it empirically, since no trading history yet exists to measure against. First, transfer fees in this general range are not unusual among comparable Solana Token-2022 assets that have achieved meaningful trading volume, suggesting the fee alone is not prohibitive at this scale. Second, and more specific to this design, the fee is fixed and fully disclosed prior to any transaction, which distinguishes it from slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms for a given trade than the fee itself. A rational trader prices the fee into their decision the same way they price any other known, fixed transaction cost.
+A transfer fee of 350 basis points is a real cost borne by anyone transacting the token, and it is fair to ask whether a fee of this magnitude meaningfully deters the trading activity the mechanism depends upon in the first place. We note two considerations relevant to this question without claiming to resolve it empirically, since no trading history yet exists to measure against. First, transfer fees in this general range are not unusual among comparable Solana Token-2022 assets that have achieved meaningful trading volume, suggesting the fee alone is not prohibitive at this scale. Second, and more specific to this design, the fee is fixed and fully disclosed prior to any transaction, which distinguishes it from slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms for a given trade than the fee itself. A rational trader prices the fee into their decision the same way they price any other known, fixed transaction cost.
 
 ### 12.2 Credible Commitment Through Mechanism Design
 
@@ -269,17 +268,16 @@ The mechanism's output is arithmetic, not a forecast, and this section presents 
 
     catalyst fund accrual   = 0.02  × V
     liquidity accrual       = 0.01  × V
-    burn amount             = 0.01  × V
-    management fee accrual  = 0.001 × V
-    recipient net           = 0.959 × V
+    management fee accrual  = 0.005 × V
+    recipient net           = 0.965 × V
 
 The following table applies this formula at three illustrative scales.
 
-| Aggregate volume V | Catalyst fund (0.02 V) | Liquidity (0.01 V) | Burned (0.01 V) | Management fee (0.001 V) |
-|---|---|---|---|---|
-| $10,000 | $200 | $100 | $100 | $10 |
-| $100,000 | $2,000 | $1,000 | $1,000 | $100 |
-| $1,000,000 | $20,000 | $10,000 | $10,000 | $1,000 |
+| Aggregate volume V | Catalyst fund (0.02 V) | Liquidity (0.01 V) | Management fee (0.005 V) |
+|---|---|---|---|
+| $10,000 | $200 | $100 | $50 |
+| $100,000 | $2,000 | $1,000 | $500 |
+| $1,000,000 | $20,000 | $10,000 | $5,000 |
 
 No step in this computation depends on price, sentiment, or continued attention to the protocol's mission. It is a fixed function of transfer volume, computed identically whether that volume reflects one large trade or ten thousand small ones. This document makes no representation about which, if any, of the three rows above will resemble actual future volume. Actual accrual to the catalyst fund is a direct, mechanical function of real trading volume, which is presently unknown and is not forecast anywhere in this paper.
 

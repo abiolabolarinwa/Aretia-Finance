@@ -15,7 +15,7 @@
 | 100,000,000 ACT fixed supply, mint authority permanently revoked | `BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT` on Solscan |
 | Full supply held by the treasury vault since mint (never touched a personal wallet) | Same address |
 | Treasury is a 2-of-3 Squads multisig, tested end-to-end with a real transaction | `3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg` |
-| 4.1% protocol-enforced transfer fee, verified on-chain | Mint's TransferFeeConfig extension |
+| 3.5% protocol-enforced transfer fee, verified on-chain | Mint's TransferFeeConfig extension |
 | In-page swap widget live, wired to the real mint | aretiacoin site, "Buy ACT" |
 
 Nothing above is a claim you have to trust; all of it is on-chain state.

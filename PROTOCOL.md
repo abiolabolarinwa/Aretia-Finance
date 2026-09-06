@@ -61,21 +61,20 @@ Eight modules, plus the chain they run on. Not all eight exist yet — see Secti
 | Chain | Solana (SPL Token-2022) |
 | Total supply | **100,000,000**, fixed — minted once, mint authority revoked |
 | Freeze authority | Never granted |
-| Transaction allocation | **4.1%** total, protocol-enforced via the native transfer-fee extension |
+| Transaction allocation | **3.5%** total, protocol-enforced via the native transfer-fee extension |
 
-**Per-trade split** (unchanged, locked, already built and tested):
+**Per-trade split** (as of 6 Sept 2026 — burn removed, management raised 0.1% → 0.5%; see `TOKENOMICS.md` §01 and `MINT.md`'s fee-authority section for what's needed to actually move this on-chain):
 
 | Destination | Share |
 |---|---|
-| Recipient (net) | 95.9% |
+| Recipient (net) | 96.5% |
 | Climate Treasury | 2.0% |
 | Liquidity | 1.0% |
-| Burn | 1.0% |
-| Protocol operations (management) | 0.1% |
+| Protocol operations (management) | 0.5% |
 
-Worked example: a wallet transfers 100 ACT. 95.9 ACT reaches the recipient. 2 ACT routes to the Climate Treasury. 1 ACT supports liquidity. 1 ACT is burned. 0.1 ACT funds protocol operations (MRV, verification, dashboard upkeep — see Section 6).
+Worked example: a wallet transfers 100 ACT. 96.5 ACT reaches the recipient. 2 ACT routes to the Climate Treasury. 1 ACT supports liquidity. 0.5 ACT funds protocol operations (MRV, verification, dashboard upkeep — see Section 6).
 
-Scaled to trading volume: if $1,000,000 of taxable volume occurs in a period, roughly $20,000 (2%) accrues to the Climate Treasury from that volume alone, before liquidity/burn/operations shares. This is illustrative — actual accrual depends on real trading volume, which doesn't exist yet pre-launch.
+Scaled to trading volume: if $1,000,000 of taxable volume occurs in a period, roughly $20,000 (2%) accrues to the Climate Treasury from that volume alone, before liquidity/operations shares. This is illustrative — actual accrual depends on real trading volume, which doesn't exist yet pre-launch.
 
 ### What the token does
 
@@ -159,7 +158,7 @@ Standard shape: **Application → Approval → Milestone 1 release → Verificat
 
 ## 12. Smart contracts — what gets automated
 
-- The 4.1% transfer-fee split (already built, tested on a local validator, proven to withhold and route correctly).
+- The 3.5% transfer-fee split (deployed and tested at the earlier 4.1% rate with a burn share; the 3.5% figure with no burn and a 0.5% management fee is the current design, not yet applied on-chain — see `TOKENOMICS.md` §01).
 - Milestone-gated treasury disbursement, once the Milestone Engine module exists (Phase 2+): funds move only after Layer 2 + Layer 3 sign-off is recorded on-chain.
 - What is **not** automated: the judgment calls (screening, verification) — those stay human, by design, per Layer 2/3 above. The contract enforces the *outcome* of human review, not the review itself.
 

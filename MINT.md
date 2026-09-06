@@ -10,7 +10,7 @@
 | Total supply | 100,000,000 (fixed, permanent) |
 | Mint authority | Revoked — not set, cannot be reinstated |
 | Freeze authority | Never granted |
-| Transfer fee | 410 bps (4.1%) |
+| Transfer fee | 410 bps (4.1%) — a change to 350 bps (3.5%) is decided but not yet executed, see below |
 | Transfer-fee-config authority | Treasury vault (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`) |
 | Withheld-withdraw authority | Treasury vault (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`) |
 | Full supply holder | Treasury vault |
@@ -41,5 +41,20 @@ The disposable deployer keypair (`ETpFf19TbxHG4cBiq38SMWbdxvG3L8VapcW2uH52tAdC`)
 - **The separate Metaplex Token Metadata program** requires the mint's current authority to sign the instruction that creates it. Ours is `None` (revoked 2 Sept 2026), so no signer can ever satisfy that check.
 
 This is the direct, permanent cost of the mint-authority revocation — the same irreversibility that makes "mint authority: revoked" a real, verifiable claim (see `website/verify.html`) also closed this door. The practical mitigation is not fixing the token's on-chain identity, but making the real identity easy to find anyway: the whitepaper, `MINT.md`, and the live verification page are what a visitor should be pointed to when a scanner shows "unverified."
+
+## Still open: the transfer fee rate is NOT permanently fixed
+
+**Confirmed 6 Sept 2026, empirically** (`scripts/management-fee-proposal/check-fee-authority.mjs`), because this is the natural next question once mint authority's revocation is understood: revoking mint authority fixes *supply*, but the transfer-fee rate is a separate on-chain field with its own separate authority, and that one was **not** revoked.
+
+- `transfer_fee_config_authority` on the live mint is `3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg` — the Aretia Treasury Squads multisig itself (2-of-3), not `None`, not a single wallet, not left over from deployment.
+- `withdraw_withheld_authority` is the same multisig.
+- Live on-chain rate confirmed, still true as of 6 Sept 2026: 410 basis points (4.10%). `withheld_amount` is currently 0 — no trading has occurred yet, so there is nothing "already collected at the old rate" to reconcile if the rate changes now.
+- Token-2022 will not let a rate change apply retroactively or instantly: a `SetTransferFee` instruction schedules a new rate that only takes effect starting from a future epoch, giving a mandatory on-chain notice window.
+
+Practical upshot: the 4.1% rate — and by extension the fee split derived from it (Section 5.2 of the whitepaper) — **can** be changed, but only through the same 2-of-3 multisig approval that governs every other treasury action, never unilaterally. It is exactly as changeable as anything else the treasury multisig controls, and exactly as protected: no single signer, including the founder, can move it alone.
+
+One further clarification this check surfaced: Token-2022's transfer-fee extension only enforces the *aggregate* withheld rate on-chain. It has no native concept of splitting that withheld amount into named destinations. The 2.0% / 1.0% / 1.0% / 0.1% breakdown that was live when this check was run is the treasury's own harvest-and-route procedure, not a second on-chain-enforced ratio — there is no custom program on this project that would make it one. That distinction matters for anyone evaluating exactly what "enforced by the mint's own configuration" does and doesn't cover.
+
+**6 Sept 2026 — decision to change the rate, not yet executed.** The design was changed to remove the 1% burn allocation and raise the management fee from 0.1% to 0.5%, taking the aggregate rate from 4.1% to 3.5% (recipient net 95.9% → 96.5%). `WHITEPAPER.md`, the website, and `TOKENOMICS.md`/`PROTOCOL.md` now describe 3.5%/350 bps as the current design. **The live mint is still at 410 bps** — nothing above changes that until a real `SetTransferFee` instruction is proposed and approved 2-of-3 by the treasury multisig (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`). Until it is, `website/verify.html`'s fee-rate check will correctly report a mismatch — that's the tool working as intended, not a bug. This also reopens `ATTORNEY_BRIEF.md` §4 Q3, which asked counsel about the management fee specifically at the 0.1% figure; it hasn't been re-reviewed at 0.5%.
 
 Public addresses and transaction data only. No private keys, seed phrases, or personal information belong in this file or this repository, ever.

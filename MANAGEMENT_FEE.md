@@ -2,9 +2,11 @@
 
 **Status:** ✅ Wallet designated, 3 Sept 2026. Not yet funded — no fees have accrued, since ACT has no live liquidity pool and isn't trading yet.
 
+**6 Sept 2026 update:** the management fee is raised from 0.1% to 0.5% of transfer volume, and the 1% burn allocation is removed (total transfer fee: 4.1% → 3.5%). Documented as the current design; not yet applied on-chain — see `MINT.md`'s fee-authority section and `TOKENOMICS.md` §01. This is also the fee stream `ATTORNEY_BRIEF.md` §4 Q3 asked counsel about at the old 0.1% figure; that question is reopened at 0.5% and hasn't been re-reviewed.
+
 | Field | Value |
 |---|---|
-| Purpose | Receives the 0.1% management fee slice of the 4.1% transfer fee — funds Aretia Finance LLC's operational cost of running the treasury (registry/credit verification, Impact Report review, site visits, dashboard upkeep). See `TOKENOMICS.md` §01–02. |
+| Purpose | Receives the 0.5% management fee slice of the 3.5% transfer fee — funds Aretia Finance LLC's operational cost of running the treasury (registry/credit verification, Impact Report review, site visits, dashboard upkeep). See `TOKENOMICS.md` §01–02. |
 | Address | `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2` |
 | Custody | Single account inside the founder's existing Phantom wallet (same seed phrase, new derived account) — deliberately lighter-weight than the 2-of-3 treasury multisig, since this is an operational expense account, not the project-funding treasury. |
 | Network | Solana Mainnet |
@@ -12,15 +14,15 @@
 
 ## Why this is separate from the treasury multisig
 
-`TREASURY.md` flagged this as open: *"Set up a separate, lighter-weight wallet for the 0.1% management/operations fee, distinct from this 2-of-3 governance multisig."* Keeping it apart from `3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg` means the two flows can never get commingled by accident, and the transparency dashboard (once built) can show "funded climate projects" and "operational costs" as genuinely separate on-chain totals — not just a reporting label on the same pool.
+`TREASURY.md` flagged this as open: *"Set up a separate, lighter-weight wallet for the 0.1% management/operations fee, distinct from this 2-of-3 governance multisig."* (Written when the fee was still 0.1%; the wallet itself doesn't change with the rate.) Keeping it apart from `3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg` means the two flows can never get commingled by accident, and the transparency dashboard (once built) can show "funded climate projects" and "operational costs" as genuinely separate on-chain totals — not just a reporting label on the same pool.
 
 ## How it actually gets funded (mechanism, not yet executed)
 
-Token-2022's transfer-fee extension withholds one flat 4.1% per transfer — it does not split on-chain into the 2% / 1% / 1% / 0.1% buckets. Splitting is a manual step, done after harvesting:
+Token-2022's transfer-fee extension withholds one flat rate per transfer (3.5% under the current design, still 4.1% live on-chain as of this writing) — it does not split on-chain into the 2% / 1% / 0.5% buckets. Splitting is a manual step, done after harvesting:
 
 1. Withheld fees accumulate in each holder's token account as ACT trades.
 2. The treasury multisig (holder of the withdraw-withheld authority) harvests them into the treasury vault.
-3. From that harvested amount, the treasury multisig sends the management-fee share — 0.1% ÷ 4.1% ≈ 2.44% of whatever was harvested — to this wallet as a normal transfer. The remaining ~97.56% (2% treasury + 1% liquidity + 1% burn, proportionally) stays with its intended purpose.
+3. From that harvested amount, the treasury multisig sends the management-fee share — 0.5% ÷ 3.5% ≈ 14.29% of whatever was harvested — to this wallet as a normal transfer. The remaining ~85.71% (2% treasury + 1% liquidity, proportionally) stays with its intended purpose.
 
 Step 3 requires a real treasury-multisig transaction each time it runs. Nothing to execute yet — there's a $0 amount to harvest until liquidity is seeded and trading starts.
 

@@ -1,6 +1,6 @@
 # Management Fee Harvest — Proposal Script
 
-Drafts a Squads proposal that harvests withheld ACT transfer fees and sends the 0.1% management-fee share to the [dedicated management-fee wallet](../../MANAGEMENT_FEE.md). It never moves funds on its own — it only prepares a proposal that a real signer still has to open in Squads and approve (2 of 3), exactly like any other treasury transaction. See `propose-harvest.mjs`'s header comment for the full mechanism.
+Drafts a Squads proposal that harvests withheld ACT transfer fees and sends the 0.5% management-fee share (raised from 0.1%, 6 Sept 2026 — see `MANAGEMENT_FEE.md`) to the [dedicated management-fee wallet](../../MANAGEMENT_FEE.md). It never moves funds on its own — it only prepares a proposal that a real signer still has to open in Squads and approve (2 of 3), exactly like any other treasury transaction. See `propose-harvest.mjs`'s header comment for the full mechanism.
 
 **This was written from verified on-chain data and verified SDK source, but could not be run end-to-end in the environment it was written in (no outbound network access there). Treat the first several runs as a code review, not a trusted tool — dry-run repeatedly, read the output carefully, and check the proposal's actual instructions in the Squads UI before approving, the same as you would for a proposal from anyone else.**
 

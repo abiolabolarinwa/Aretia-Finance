@@ -113,7 +113,7 @@
 
       <div class="insight-card">
         <span class="tag">Fee incidence</span>
-        <h3>Does a 4.1% fee meaningfully deter trading?</h3>
+        <h3>Does a 3.5% fee meaningfully deter trading?</h3>
         <p>It's a real cost, and no trading history yet exists to measure the answer empirically. Two things are still worth noting. First, transfer fees in this general range aren't unusual among comparable Solana Token-2022 assets that have achieved meaningful volume — the fee alone isn't obviously prohibitive at this scale. Second, and more specific to this design: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms than the fee itself. A rational trader prices a known, fixed cost into their decision the same way they'd price any other one.</p>
         <p class="ref">Whitepaper §12.1</p>
       </div>
@@ -143,17 +143,16 @@
       <div class="formula-box">
         <pre>catalyst fund accrual   = 0.02  × V
 liquidity accrual       = 0.01  × V
-burn amount             = 0.01  × V
-management fee accrual  = 0.001 × V
-recipient net           = 0.959 × V</pre>
+management fee accrual  = 0.005 × V
+recipient net           = 0.965 × V</pre>
       </div>
       <div class="table-scroll">
         <table class="grid-table">
-          <thead><tr><th>Aggregate volume</th><th>Catalyst fund</th><th>Liquidity</th><th>Burned</th><th>Management fee</th></tr></thead>
+          <thead><tr><th>Aggregate volume</th><th>Catalyst fund</th><th>Liquidity</th><th>Management fee</th></tr></thead>
           <tbody>
-            <tr><td>$10,000</td><td>$200</td><td>$100</td><td>$100</td><td>$10</td></tr>
-            <tr><td>$100,000</td><td>$2,000</td><td>$1,000</td><td>$1,000</td><td>$100</td></tr>
-            <tr><td>$1,000,000</td><td>$20,000</td><td>$10,000</td><td>$10,000</td><td>$1,000</td></tr>
+            <tr><td>$10,000</td><td>$200</td><td>$100</td><td>$50</td></tr>
+            <tr><td>$100,000</td><td>$2,000</td><td>$1,000</td><td>$500</td></tr>
+            <tr><td>$1,000,000</td><td>$20,000</td><td>$10,000</td><td>$5,000</td></tr>
           </tbody>
         </table>
       </div>

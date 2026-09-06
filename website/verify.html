@@ -152,7 +152,7 @@
           <div class="vstatus pending">…</div>
           <div><div class="vclaim">Transfer fee is 350 basis points (3.5%)</div>
             <div class="vdetail">Claimed: <span class="mono">350 bps</span> &nbsp;•&nbsp; Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
-            <div class="vdetail" style="font-family:var(--sans); font-size:12px; margin-top:4px;">A change from 410 bps (4.1%, with a 1% burn) to 350 bps (3.5%, no burn, management fee raised to 0.5%) is documented here as the current design. It takes effect on-chain only once the treasury's 2-of-3 multisig approves and executes it — until then this check will correctly show a mismatch against the still-live 410 bps rate.</div></div>
+            <div class="vdetail" style="font-family:var(--sans); font-size:12px; margin-top:4px;">A change from 410 bps (4.1%, with a 1% burn) to 350 bps (3.5%, no burn, management fee raised to 0.5%) was approved 2-of-3 and executed by the treasury multisig on 6 Sept 2026 (<a href="https://solscan.io/tx/4YwPZzV3q5yrRvjydHQ9rSAxEwi2vt2qZ9QyexuLb3DfAenTx92gR5tJEhZMWjnQe3rWsWePZNAbcTFBbNc7KfLD" target="_blank" rel="noopener" style="color:var(--blue);">proposal</a>). Token-2022 schedules a fee change for a future epoch rather than applying it instantly — the new rate is confirmed on-chain for epoch 1031, so this check will correctly keep showing 410 bps as the live rate until the network reaches that epoch, expected roughly 1–2 days after the change was approved.</div></div>
           <a class="vlink" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT#extensions" target="_blank" rel="noopener">Solscan ↗</a>
         </div>
         <div class="vcheck" data-vcheck="feeAuth">
@@ -258,7 +258,13 @@
           result.transferFeeConfig = {
             transferFeeConfigAuthority: readPubkeyOrNull(d, 0),
             withdrawWithheldAuthority: readPubkeyOrNull(d, 32),
+            olderTransferFee: {
+              epoch: readU64LE(d, 72),
+              maximumFee: readU64LE(d, 80),
+              transferFeeBasisPoints: readU16LE(d, 88)
+            },
             newerTransferFee: {
+              epoch: readU64LE(d, 90),
               maximumFee: readU64LE(d, 98),
               transferFeeBasisPoints: readU16LE(d, 106)
             }
@@ -316,6 +322,8 @@
       var mintAccountInfo = await connection.getAccountInfo(mintPubkey, "confirmed");
       if (!mintAccountInfo) throw new Error("mint account not found");
       var mintInfo = parseMintAccount(new Uint8Array(mintAccountInfo.data));
+      var epochInfo = await connection.getEpochInfo();
+      var currentEpoch = BigInt(epochInfo.epoch);
 
       setVCheck("mintAuth", mintInfo.mintAuthority === null ? "pass" : "fail",
         mintInfo.mintAuthority === null ? "None (revoked) ✓" : mintInfo.mintAuthority.toBase58());
@@ -330,8 +338,19 @@
 
       var feeConfig = mintInfo.transferFeeConfig;
       if (feeConfig) {
-        var bps = feeConfig.newerTransferFee.transferFeeBasisPoints;
-        setVCheck("feeBps", bps === 350 ? "pass" : "fail", bps + " bps" + (bps === 350 ? " ✓" : ""));
+        // A fee change only ever applies from a future epoch onward - use whichever
+        // of the two schedules is actually in effect right now, the same way
+        // propose-fee-change.mjs and check-fee-authority.mjs do it. Reading
+        // newerTransferFee unconditionally would report a rate that isn't
+        // actually being charged on any transfer yet.
+        var pendingNotYetActive = currentEpoch < feeConfig.newerTransferFee.epoch;
+        var activeFee = pendingNotYetActive ? feeConfig.olderTransferFee : feeConfig.newerTransferFee;
+        var bps = activeFee.transferFeeBasisPoints;
+        var liveText = bps + " bps" + (bps === 350 ? " ✓" : "");
+        if (pendingNotYetActive) {
+          liveText = bps + " bps now (350 bps scheduled at epoch " + feeConfig.newerTransferFee.epoch + ", current epoch " + currentEpoch + ")";
+        }
+        setVCheck("feeBps", bps === 350 ? "pass" : "fail", liveText);
 
         var configAuth = feeConfig.transferFeeConfigAuthority;
         var withdrawAuth = feeConfig.withdrawWithheldAuthority;

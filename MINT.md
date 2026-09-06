@@ -10,7 +10,7 @@
 | Total supply | 100,000,000 (fixed, permanent) |
 | Mint authority | Revoked — not set, cannot be reinstated |
 | Freeze authority | Never granted |
-| Transfer fee | 410 bps (4.1%) — a change to 350 bps (3.5%) is decided but not yet executed, see below |
+| Transfer fee | 410 bps (4.1%) now; 350 bps (3.5%) confirmed on-chain for epoch 1031, takes effect automatically — see below |
 | Transfer-fee-config authority | Treasury vault (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`) |
 | Withheld-withdraw authority | Treasury vault (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`) |
 | Full supply holder | Treasury vault |
@@ -55,6 +55,17 @@ Practical upshot: the 4.1% rate — and by extension the fee split derived from 
 
 One further clarification this check surfaced: Token-2022's transfer-fee extension only enforces the *aggregate* withheld rate on-chain. It has no native concept of splitting that withheld amount into named destinations. The 2.0% / 1.0% / 1.0% / 0.1% breakdown that was live when this check was run is the treasury's own harvest-and-route procedure, not a second on-chain-enforced ratio — there is no custom program on this project that would make it one. That distinction matters for anyone evaluating exactly what "enforced by the mint's own configuration" does and doesn't cover.
 
-**6 Sept 2026 — decision to change the rate, not yet executed.** The design was changed to remove the 1% burn allocation and raise the management fee from 0.1% to 0.5%, taking the aggregate rate from 4.1% to 3.5% (recipient net 95.9% → 96.5%). `WHITEPAPER.md`, the website, and `TOKENOMICS.md`/`PROTOCOL.md` now describe 3.5%/350 bps as the current design. **The live mint is still at 410 bps** — nothing above changes that until a real `SetTransferFee` instruction is proposed and approved 2-of-3 by the treasury multisig (`3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`). Until it is, `website/verify.html`'s fee-rate check will correctly report a mismatch — that's the tool working as intended, not a bug. This also reopens `ATTORNEY_BRIEF.md` §4 Q3, which asked counsel about the management fee specifically at the 0.1% figure; it hasn't been re-reviewed at 0.5%.
+**6 Sept 2026 — rate change approved and executed, scheduled for epoch 1031.** The design was changed to remove the 1% burn allocation and raise the management fee from 0.1% to 0.5%, taking the aggregate rate from 4.1% to 3.5% (recipient net 95.9% → 96.5%). `WHITEPAPER.md`, the website, and `TOKENOMICS.md`/`PROTOCOL.md` describe 3.5%/350 bps as the current design.
+
+A `SetTransferFee` proposal (`scripts/management-fee-proposal/propose-fee-change.mjs`) was submitted by the founder signer, approved 2-of-3 in Squads, and executed on 6 Sept 2026. Confirmed independently — not just from the Squads UI — by reading the executed proposal's actual instruction bytes (`verify-proposal.mjs`) and the mint's resulting fee schedule (`check-fee-authority.mjs`):
+
+- Transaction: [`4YwPZzV3q5yrRvjydHQ9rSAxEwi2vt2qZ9QyexuLb3DfAenTx92gR5tJEhZMWjnQe3rWsWePZNAbcTFBbNc7KfLD`](https://solscan.io/tx/4YwPZzV3q5yrRvjydHQ9rSAxEwi2vt2qZ9QyexuLb3DfAenTx92gR5tJEhZMWjnQe3rWsWePZNAbcTFBbNc7KfLD)
+- `olderTransferFee`: epoch 1027, 410 bps (still the rate actually charged on transfers today)
+- `newerTransferFee`: epoch 1031, 350 bps (takes effect automatically once the network reaches that epoch — Token-2022 never applies a fee change retroactively or instantly)
+- At the time of execution, current epoch was 1029; rough estimate ~1-2 days until epoch 1031 based on recent slot times, not a guarantee
+
+`website/verify.html`'s fee-rate check was updated to be epoch-aware (it previously always read the "newer" scheduled config unconditionally, which would have shown a premature "pass" before the new rate actually took effect). Until epoch 1031 arrives, it correctly reports the live rate as 410 bps with a note explaining the scheduled change — that's accurate, not a bug. Once the epoch turns over, re-run `check-fee-authority.mjs` to confirm 350 bps is actually active before treating this section as fully closed.
+
+This also reopened `ATTORNEY_BRIEF.md` §4 Q3, which asked counsel about the management fee specifically at the 0.1% figure; it has not been re-reviewed at 0.5%, and that on-chain execution happened before that legal question was resolved.
 
 Public addresses and transaction data only. No private keys, seed phrases, or personal information belong in this file or this repository, ever.

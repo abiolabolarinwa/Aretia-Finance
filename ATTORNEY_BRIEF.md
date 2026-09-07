@@ -70,4 +70,16 @@ This brief and its Section 4, Q3/Q8 above were written against a **0.1%** manage
 
 This matters specifically because Q3 asked "any fee stream that benefits the operating entity/team is directly relevant to the securities analysis... want your read on whether this changes that analysis," and Q8 asked whether the *0.1%* structure and disclosure was sufficient. A 5x larger fee stream to the operating entity is a materially different fact pattern for both questions. **Neither has been re-reviewed at 0.5%.** Flagging this explicitly rather than letting the brief go stale silently: if counsel's answer to Q3/Q8 depended on the fee being small relative to the treasury allocation, that dependency should be re-checked before the 0.5% figure goes out in any public document.
 
+## 7. Addendum, 7 Sept 2026 — new project-registration fee, not in the original brief at all
+
+A new mechanism was added after this brief was written and has never been reviewed: a project developer applying for catalyst-fund financing pays a **1,000 ACT registration fee**, sent to the same management wallet discussed in Section 6 above. See `MANAGEMENT_FEE.md`, "Project registration fee," and `PROTOCOL.md` §8 step 1 for the full mechanism. Not yet built (no payment flow exists on `apply.html`).
+
+This is a different fact pattern from Q3/Q8, not just a bigger version of the same one: those questions asked about a *transfer-fee* stream to the operating entity, sized as a small percentage of trading activity the entity doesn't control. This is an **applicant-pays-the-decision-maker** structure — the same entity that reviews and approves or rejects a project also collects a fee from every applicant regardless of outcome, with no independent layer checking that specific decision. The stated rationale is cost recovery for review work (site visits, documentation review — the same category of work the management wallet already exists to fund), which is a defensible pattern in the abstract (comparable to a standard application or listing fee), but:
+
+- The fee's real dollar cost is undefined until ACT has a live price, so its size relative to actual review cost — the thing that would make it defensible — can't currently be assessed.
+- No refund/credit policy has been decided (forfeited on rejection, credited against an eventual grant, or returned).
+- It potentially affects the same securities-characterization question Q3 raised (does a fee stream to the operating entity, tied to token holdings/use, look like an expectation of profit from the issuer's efforts), from a new angle: does *requiring ACT to access the funding process itself* give the token a financial-rights-like utility.
+
+**None of this has been reviewed.** Flagging it now, before any implementation, rather than after — this is exactly the kind of new mechanism Section 16 of `PROTOCOL.md` (legal/regulatory architecture) says needs counsel before being represented as final, publicly.
+
 *Attachments: `TOKENOMICS.md`, `PARTNER_AGREEMENT_TEMPLATE.md`, `WHITEPAPER.md` (all working drafts, all explicitly marked as pending legal review).*

@@ -174,7 +174,7 @@
     <div class="kicker">Project Funding Application</div>
     <h1>Submit your climate project for treasury funding.</h1>
     <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects across five categories: renewable energy, waste-to-energy management, carbon reduction, technical assistance, and flood management and reforestation. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded — see <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
-    <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission — expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum. Applying requires paying a <strong>1,000 ACT registration fee</strong> from a Solana wallet — non-refundable, regardless of outcome. It covers the cost of reviewing your application and isn't tied to being funded.</div>
+    <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission — expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum. Applying requires paying a <strong>5,000 ACT registration fee</strong> from a Solana wallet — non-refundable, regardless of outcome. It covers the cost of reviewing your application and isn't tied to being funded.</div>
   </div>
 </header>
 
@@ -282,7 +282,7 @@
     <div class="fee-box">
       <div class="fee-head">
         <span class="fee-title">Registration fee</span>
-        <span class="fee-amount">1,000 ACT</span>
+        <span class="fee-amount">5,000 ACT</span>
       </div>
       <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable — it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">View the management wallet on Solscan →</a></p>
 
@@ -293,7 +293,7 @@
           <button type="button" class="wallet-btn" data-wallet="backpack">Connect Backpack</button>
         </div>
         <span id="wallet-info" class="wallet-info"></span>
-        <button type="button" id="pay-fee-btn" class="pay-btn" disabled>Pay 1,000 ACT Registration Fee</button>
+        <button type="button" id="pay-fee-btn" class="pay-btn" disabled>Pay 5,000 ACT Registration Fee</button>
       </div>
       <div id="no-wallet-note" style="display:none; font-size:12.5px; margin-top:8px;">
         No supported wallet found in this browser. Install
@@ -306,7 +306,7 @@
       <details style="margin-top:18px;">
         <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-soft);">Paid another way? (Trust Wallet, a CEX withdrawal, a different device)</summary>
         <div style="margin-top:14px;">
-          <p class="fee-note" style="margin-bottom:12px;">If you already sent 1,000 ACT to the management wallet above by some other means — Trust Wallet, an exchange withdrawal, a different browser or device — paste the transaction signature here. This page will look it up on Solana directly and confirm the payment on its own; it doesn't just take your word for it.</p>
+          <p class="fee-note" style="margin-bottom:12px;">If you already sent 5,000 ACT to the management wallet above by some other means — Trust Wallet, an exchange withdrawal, a different browser or device — paste the transaction signature here. This page will look it up on Solana directly and confirm the payment on its own; it doesn't just take your word for it.</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <input type="text" id="manual-sig-input" placeholder="Transaction signature" style="flex:1; min-width:220px; font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:10px 12px; border:1px solid var(--border); border-radius:7px; background:var(--bg-alt); color:var(--ink);">
             <button type="button" id="verify-sig-btn" class="wallet-btn">Verify Payment</button>
@@ -346,7 +346,7 @@
         // boundary. Anyone can re-enable the button or POST to the Formspree
         // endpoint directly, bypassing this check entirely. The real
         // enforcement is manual: whoever reviews applications must verify
-        // payment_tx_signature is a real, confirmed transfer of >=1000 ACT to
+        // payment_tx_signature is a real, confirmed transfer of >=5000 ACT to
         // the management wallet (2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2)
         // on Solscan before treating an application as valid.
         e.stopPropagation();
@@ -378,7 +378,7 @@
 </script>
 
 <!--
-  Registration-fee payment: 1,000 ACT, applicant's own wallet -> management
+  Registration-fee payment: 5,000 ACT, applicant's own wallet -> management
   wallet. Supports Phantom, Solflare, and Backpack directly (connect + sign
   in-page), plus a manual fallback that verifies a payment made by ANY
   means -- Trust Wallet, a CEX withdrawal, a different device -- by looking
@@ -398,7 +398,7 @@
   entirely (devtools, or POSTing to the Formspree endpoint directly). The
   real check has to happen when applications are reviewed: independently
   confirm payment_tx_signature is a genuine, confirmed transfer of
-  approximately 1000 ACT to the management wallet before treating an
+  approximately 5000 ACT to the management wallet before treating an
   application as valid. See MANAGEMENT_FEE.md, "Project registration fee".
 -->
 <script type="module">
@@ -417,12 +417,12 @@
   var ACT_MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
   var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
   var ACT_DECIMALS = 9;
-  var REGISTRATION_FEE_ACT = 1000n;
-  // A 1,000 ACT gross payment nets ~965 ACT (at the 3.5% target rate) or
-  // ~959 ACT (at the 4.1% rate live until epoch 1031 -- see MINT.md) after
+  var REGISTRATION_FEE_ACT = 5000n;
+  // A 5,000 ACT gross payment nets ~4,825 ACT (at the 3.5% target rate) or
+  // ~4,795 ACT (at the 4.1% rate live until epoch 1031 -- see MINT.md) after
   // Token-2022's transfer fee is withheld, same as any other ACT transfer.
-  // Require at least 950 ACT net as a safety margin below both.
-  var MIN_NET_RECEIVED_RAW = 950n * (10n ** 9n);
+  // Require at least 4,750 ACT net as a safety margin below both.
+  var MIN_NET_RECEIVED_RAW = 4750n * (10n ** 9n);
 
   var walletPicker = document.getElementById('wallet-picker');
   var payBtn = document.getElementById('pay-fee-btn');
@@ -561,7 +561,7 @@
       var msg = (err && err.message) ? err.message : String(err);
       setStatus('Payment failed: ' + msg + '. Check your ACT balance and try again.', 'error');
       payBtn.disabled = false;
-      payBtn.textContent = 'Pay 1,000 ACT Registration Fee';
+      payBtn.textContent = 'Pay 5,000 ACT Registration Fee';
     }
   });
 
@@ -623,7 +623,7 @@
         throw new Error('This transaction doesn\'t show any ACT received by the management wallet (' + short(managementWalletStr) + '). Double-check the signature and the destination address.');
       }
       if (received < MIN_NET_RECEIVED_RAW) {
-        throw new Error('Only ' + (Number(received) / 1e9).toLocaleString() + ' ACT was received -- expected at least ~950 ACT net from a 1,000 ACT payment. This may be a different, smaller transaction.');
+        throw new Error('Only ' + (Number(received) / 1e9).toLocaleString() + ' ACT was received -- expected at least ~4,750 ACT net from a 5,000 ACT payment. This may be a different, smaller transaction.');
       }
 
       markPaid(sig);

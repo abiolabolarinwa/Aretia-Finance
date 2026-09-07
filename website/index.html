@@ -88,6 +88,7 @@
   .btn-outline-light:hover { background: var(--ivory); color: var(--wine); }
   .btn-text { color: var(--wine); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
   .btn-text .arrow { transition: transform 200ms var(--ease); }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; }
   .btn-text:hover .arrow { transform: translateX(3px); }
 
   section.block { padding: 104px 0; }
@@ -109,24 +110,12 @@
   .topnav-cta { margin-left: auto; flex: none; }
   .topnav-cta .btn { padding: 12px 20px; }
 
-  /* -------- Hero (bold / loud) -------- */
-  .hero { background: var(--wine); background: linear-gradient(150deg, var(--wine) 0%, var(--wine) 55%, var(--wine-deep) 100%); color: var(--ivory); overflow: hidden; position: relative; }
-  .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; align-items: center; padding: 88px 0 96px; position: relative; z-index: 1; }
-  @media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; padding: 56px 0 48px; gap: 48px; } }
-  .hero .eyebrow { color: var(--peach); }
-  .hero h1 { font-size: clamp(2.6rem, 5.6vw, 4.4rem); line-height: 1.03; letter-spacing: -0.02em; color: var(--ivory); max-width: 15ch; }
-  .hero-sub { font-family: var(--font-sans); font-size: clamp(15px, 1.6vw, 17.5px); color: var(--cream); line-height: 1.7; max-width: 50ch; margin: 30px 0 40px; }
-  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; }
-  .status-line { font-family: var(--mono); font-size: 12.5px; color: var(--peach); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .status-line .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); flex: none; box-shadow: 0 0 0 4px rgba(238,93,86,0.25); }
-  .status-line strong { color: var(--ivory); font-weight: 700; }
-
-  .hero-visual { position: relative; aspect-ratio: 1/1; }
-  .hero-visual svg { width: 100%; height: 100%; }
-  .nv-node { fill: var(--ivory); }
+  /* -------- Hero (asset-page style) -------- */
+  .hero-asset { background: var(--ivory); border-bottom: 1px solid var(--border); padding-top: 28px; }
+  .nv-node { fill: var(--wine); }
   .nv-node.dim { fill: var(--peach); }
   .nv-node.accent { fill: var(--coral); }
-  .nv-line { stroke: rgba(246,214,192,0.28); stroke-width: 1; fill: none; }
+  .nv-line { stroke: var(--border); stroke-width: 1; fill: none; }
   .nv-flow { stroke: var(--coral); stroke-width: 1.5; fill: none; stroke-dasharray: 4 10; opacity: 0.85; animation: nv-dash 5s linear infinite; }
   @keyframes nv-dash { to { stroke-dashoffset: -140; } }
   .nv-pulse { animation: nv-pulse 3.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
@@ -135,16 +124,53 @@
   @keyframes nv-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .nv-flow, .nv-pulse { animation: none; opacity: 0.8; } }
 
-  /* -------- Featured tab row (JPMorgan-style article selector) -------- */
-  .tab-row { background: var(--card); border-bottom: 1px solid var(--border); }
-  .tab-list { display: flex; }
-  .tab-item { flex: 1; padding: 26px 28px; border-right: 1px solid var(--border-soft); cursor: pointer; transition: background 160ms var(--ease); }
-  .tab-item:last-child { border-right: none; }
-  .tab-item:hover { background: var(--bg-alt); }
-  .tab-item .t { font-size: 14px; font-weight: 700; color: var(--wine); line-height: 1.4; }
-  .tab-item .bar { height: 3px; background: var(--border); margin-top: 18px; border-radius: 0; overflow: hidden; }
-  .tab-item.active .bar::after { content: ""; display: block; height: 100%; width: 100%; background: var(--coral); }
-  @media (max-width: 760px) { .tab-list { flex-direction: column; } .tab-item { border-right: none; border-bottom: 1px solid var(--border-soft); } }
+  .asset-header { display: flex; flex-direction: column; gap: 18px; padding-bottom: 0; }
+  .asset-id { display: flex; align-items: center; gap: 14px; }
+  .asset-icon { width: 38px; height: 38px; border-radius: 50%; background: var(--wine); color: var(--ivory); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 15px; flex: none; }
+  .asset-id h1 { font-size: 25px; margin: 0; color: var(--wine); }
+  .asset-id h1 .ticker { color: var(--ink-faint); font-weight: 400; font-family: var(--font-sans); font-size: 17px; }
+  .icon-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); margin-left: 4px; flex: none; font-size: 13px; transition: border-color 160ms var(--ease), color 160ms var(--ease); }
+  .icon-btn:hover { border-color: var(--wine); color: var(--wine); }
+  .asset-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .asset-tabs a { padding: 11px 16px; font-size: 13px; font-weight: 700; color: var(--ink-soft); border-radius: 999px 999px 0 0; white-space: nowrap; }
+  .asset-tabs a.active { background: var(--wine); color: var(--ivory); border-radius: 999px; }
+  .asset-tabs a:not(.active):hover { color: var(--wine); }
+
+  .asset-body { display: grid; grid-template-columns: 300px 1fr; border-top: 1px solid var(--border); }
+  @media (max-width: 900px) { .asset-body { grid-template-columns: 1fr; } }
+  .asset-sidebar { padding: 32px 28px 32px 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 20px; }
+  @media (max-width: 900px) { .asset-sidebar { border-right: none; border-bottom: 1px solid var(--border); padding: 28px 0; } }
+  .sidebar-card h2 { font-size: 17px; margin-bottom: 10px; color: var(--wine); }
+  .sidebar-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 16px; }
+  .sidebar-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .pill-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 8px 14px; border-radius: 999px; background: var(--cream); color: var(--ink); border: 1px solid var(--border); }
+  .pill-btn:hover { border-color: var(--wine); }
+  .btn.full { width: 100%; justify-content: center; border-radius: 999px; }
+  .info-card { background: var(--cream); border-radius: 12px; padding: 16px 18px; }
+  .info-card .info-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); margin-bottom: 8px; font-weight: 700; }
+  .info-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+  .promo-card { background: var(--peach); border-radius: 12px; padding: 18px; }
+  .promo-card .promo-label { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; color: var(--wine); }
+  .promo-card p { font-size: 12.5px; color: var(--wine); opacity: 0.85; margin-bottom: 14px; }
+
+  .asset-main { padding: 32px 0 32px 32px; }
+  @media (max-width: 900px) { .asset-main { padding: 28px 0; } }
+  .stat-headline { margin-bottom: 24px; }
+  .stat-badge { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); background: var(--peach); padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; }
+  .stat-figure { font-family: var(--font-display); font-size: clamp(2.4rem, 5vw, 3.4rem); color: var(--wine); line-height: 1; }
+  .stat-sub { font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; max-width: 60ch; }
+
+  .chart-placeholder { background: var(--card); border: 1px dashed var(--border); border-radius: 8px; padding: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 200px; margin-bottom: 32px; }
+  .chart-note { font-size: 12.5px; color: var(--ink-faint); text-align: center; max-width: 52ch; }
+  .chart-note a { color: var(--wine); font-weight: 700; }
+
+  .stat-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  @media (max-width: 760px) { .stat-panels { grid-template-columns: 1fr; } }
+  .stat-panel .panel-h { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .stat-panel dl { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .stat-panel dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .stat-panel dt { font-size: 12.5px; color: var(--ink-soft); }
+  .stat-panel dd { margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--wine); text-align: right; }
 
   /* -------- Numbered concept grid -------- */
   .concept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-top: 52px; }
@@ -295,67 +321,111 @@
 
 <main>
 
-  <!-- ============ HERO (bold / loud) ============ -->
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <div class="eyebrow">— Aretia Climate Finance Protocol</div>
-        <h1>Capital for climate action, built for verification.</h1>
-        <p class="hero-sub">Aretia is a climate-finance protocol designed to channel a fixed share of economic activity into real mitigation and adaptation projects, with capital released against independently verified milestones.</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="#mechanism">Explore the Protocol</a>
-          <a class="btn btn-outline-light" href="apply.html">Apply for Funding</a>
+  <!-- ============ HERO (asset-page style) ============ -->
+  <section class="hero-asset">
+    <div class="wrap">
+      <div class="asset-header">
+        <div class="asset-id">
+          <span class="asset-icon">A</span>
+          <h1>Aretia <span class="ticker">(ACT)</span></h1>
+          <a class="icon-btn" href="verify.html" title="Verify on-chain" aria-label="Verify on-chain">✓</a>
+          <a class="icon-btn" href="whitepaper.html" title="Whitepaper" aria-label="Whitepaper">↗</a>
         </div>
-        <div class="status-line"><span class="dot"></span><strong>ACT</strong> · Solana · Protocol fee 3.5%</div>
+        <div class="asset-tabs">
+          <a href="#about" class="active">About</a>
+          <a href="#mechanism">Mechanism</a>
+          <a href="verify.html">Verification</a>
+          <a href="apply.html">Funding</a>
+          <a href="whitepaper.html">Whitepaper</a>
+        </div>
       </div>
-      <div class="hero-visual">
-        <svg viewBox="0 0 520 520" aria-hidden="true">
-          <path class="nv-line" d="M 260 260 L 90 140"/>
-          <path class="nv-line" d="M 260 260 L 70 300"/>
-          <path class="nv-line" d="M 260 260 L 140 420"/>
-          <path class="nv-line" d="M 260 260 L 220 60"/>
-          <path class="nv-line" d="M 260 260 L 440 110"/>
-          <path class="nv-line" d="M 260 260 L 460 290"/>
-          <path class="nv-line" d="M 260 260 L 400 430"/>
-          <path class="nv-line" d="M 260 260 L 330 70"/>
-          <path class="nv-flow" d="M 260 260 L 90 140"/>
-          <path class="nv-flow" d="M 260 260 L 440 110"/>
-          <path class="nv-flow" d="M 260 260 L 140 420"/>
-          <path class="nv-flow" d="M 260 260 L 400 430"/>
-          <circle class="nv-node dim nv-pulse" cx="90" cy="140" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="70" cy="300" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="140" cy="420" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="220" cy="60" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="440" cy="110" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="460" cy="290" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="400" cy="430" r="5"/>
-          <circle class="nv-node dim nv-pulse" cx="330" cy="70" r="5"/>
-          <circle class="nv-node accent" cx="260" cy="260" r="10"/>
-          <circle cx="260" cy="260" r="16" fill="none" stroke="var(--coral)" stroke-width="1.5" opacity="0.5"/>
-        </svg>
+
+      <div class="asset-body">
+        <aside class="asset-sidebar">
+          <div class="sidebar-card">
+            <h2>About Aretia</h2>
+            <p>Aretia is a climate-finance protocol that converts a fixed share of Solana trading activity into standing capital for climate mitigation and adaptation, released only against independently verified milestones.</p>
+            <div class="sidebar-links">
+              <a class="pill-btn" href="whitepaper.html">📄 Whitepaper</a>
+              <a class="pill-btn" href="https://solscan.io/token/BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT" target="_blank" rel="noopener">🌐 View on Solana</a>
+            </div>
+            <a class="btn btn-primary full" href="apply.html">Apply for Funding →</a>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Project update</div>
+            <p>Tokenomics are locked and the mint mechanism is proven live on mainnet. ACT has not launched on any exchange — no liquidity pool has been seeded yet, so no live price exists.</p>
+          </div>
+          <div class="promo-card">
+            <div class="promo-label">Verify, don't trust</div>
+            <p>Check every claim on this page yourself, live against mainnet, from your own browser.</p>
+            <a class="btn btn-dark" style="width:100%; justify-content:center; border-radius:999px; padding:11px 18px;" href="verify.html">Open Verify Tool →</a>
+          </div>
+        </aside>
+
+        <div class="asset-main">
+          <div class="stat-headline">
+            <span class="stat-badge">Pre-Launch</span>
+            <div class="stat-figure">3.5%</div>
+            <div class="stat-sub">Protocol fee, withheld on every transfer — no live price yet, ACT has not launched on any exchange.</div>
+          </div>
+
+          <div class="chart-placeholder">
+            <svg viewBox="0 0 320 140" aria-hidden="true" style="width:100%; max-width:420px; height:auto;">
+              <path class="nv-line" d="M 160 70 L 40 30"/>
+              <path class="nv-line" d="M 160 70 L 30 100"/>
+              <path class="nv-line" d="M 160 70 L 90 128"/>
+              <path class="nv-line" d="M 160 70 L 130 14"/>
+              <path class="nv-line" d="M 160 70 L 270 26"/>
+              <path class="nv-line" d="M 160 70 L 288 96"/>
+              <path class="nv-line" d="M 160 70 L 230 128"/>
+              <path class="nv-flow" d="M 160 70 L 40 30"/>
+              <path class="nv-flow" d="M 160 70 L 270 26"/>
+              <path class="nv-flow" d="M 160 70 L 90 128"/>
+              <circle class="nv-node dim nv-pulse" cx="40" cy="30" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="30" cy="100" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="90" cy="128" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="130" cy="14" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="270" cy="26" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="288" cy="96" r="3.5"/>
+              <circle class="nv-node dim nv-pulse" cx="230" cy="128" r="3.5"/>
+              <circle class="nv-node accent" cx="160" cy="70" r="6"/>
+            </svg>
+            <p class="chart-note">A price chart will appear here once a liquidity pool is live — see the <a href="roadmap.html">roadmap</a>. This diagram shows the real mechanism (fee → treasury → verified projects) that exists today instead.</p>
+          </div>
+
+          <div class="stat-panels">
+            <div class="stat-panel">
+              <div class="panel-h">Token Facts</div>
+              <dl>
+                <div><dt>Total Supply</dt><dd>100,000,000</dd></div>
+                <div><dt>Decimals</dt><dd>9</dd></div>
+                <div><dt>Mint Authority</dt><dd>Revoked</dd></div>
+                <div><dt>Freeze Authority</dt><dd>Never granted</dd></div>
+              </dl>
+            </div>
+            <div class="stat-panel">
+              <div class="panel-h">Fee Allocation</div>
+              <dl>
+                <div><dt>Protocol Fee</dt><dd>3.5%</dd></div>
+                <div><dt>Catalyst Fund</dt><dd>2.0%</dd></div>
+                <div><dt>Liquidity</dt><dd>1.0%</dd></div>
+                <div><dt>Management</dt><dd>0.5%</dd></div>
+              </dl>
+            </div>
+            <div class="stat-panel">
+              <div class="panel-h">Status</div>
+              <dl>
+                <div><dt>Network</dt><dd>Solana</dd></div>
+                <div><dt>Treasury</dt><dd>2-of-3 Multisig</dd></div>
+                <div><dt>Verification</dt><dd>Live</dd></div>
+                <div><dt>Launch</dt><dd>Pre-Launch</dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
-
-  <!-- ============ FEATURED TAB ROW ============ -->
-  <div class="tab-row">
-    <div class="wrap" style="padding:0;">
-      <div class="tab-list">
-        <a class="tab-item active" href="insights.html">
-          <div class="t">Does a 3.5% fee meaningfully deter trading?</div>
-          <div class="bar"><div class="bar-fill"></div></div>
-        </a>
-        <a class="tab-item" href="insights.html">
-          <div class="t">Why "code-enforced" beats "we promise"</div>
-          <div class="bar"></div>
-        </a>
-        <a class="tab-item" href="insights.html">
-          <div class="t">The catalyst fund needs liquidity to work</div>
-          <div class="bar"></div>
-        </a>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ ABOUT ============ -->
   <section class="block" id="about">

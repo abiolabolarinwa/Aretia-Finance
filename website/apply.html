@@ -122,7 +122,9 @@
   .fee-status a { color: var(--blue); font-weight: 600; }
   .fee-status.error { color: #9C4B3F; }
   .fee-status.success { color: var(--green); }
-  #install-phantom-link { display: none; font-size: 12.5px; }
+  #wallet-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+  .wallet-btn.detected { outline: 2px solid var(--blue); outline-offset: 1px; }
+  #no-wallet-note a { color: var(--blue); font-weight: 600; }
   #submit-gate-note { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
 
   #form-success, #form-error { display: none; padding: 18px 20px; border-radius: 8px; font-size: 14px; margin-bottom: 28px; }
@@ -282,14 +284,35 @@
         <span class="fee-title">Registration fee</span>
         <span class="fee-amount">1,000 ACT</span>
       </div>
-      <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable — it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. Currently supports Phantom only. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">View the management wallet on Solscan →</a></p>
+      <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable — it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">View the management wallet on Solscan →</a></p>
+
       <div class="fee-actions">
-        <button type="button" id="connect-wallet-btn" class="wallet-btn">Connect Wallet</button>
+        <div id="wallet-picker">
+          <button type="button" class="wallet-btn" data-wallet="phantom">Connect Phantom</button>
+          <button type="button" class="wallet-btn" data-wallet="solflare">Connect Solflare</button>
+          <button type="button" class="wallet-btn" data-wallet="backpack">Connect Backpack</button>
+        </div>
         <span id="wallet-info" class="wallet-info"></span>
         <button type="button" id="pay-fee-btn" class="pay-btn" disabled>Pay 1,000 ACT Registration Fee</button>
       </div>
-      <a id="install-phantom-link" href="https://phantom.app/" target="_blank" rel="noopener">Phantom not found — install it →</a>
+      <div id="no-wallet-note" style="display:none; font-size:12.5px; margin-top:8px;">
+        No supported wallet found in this browser. Install
+        <a href="https://phantom.app/" target="_blank" rel="noopener">Phantom</a>,
+        <a href="https://solflare.com/" target="_blank" rel="noopener">Solflare</a>, or
+        <a href="https://backpack.app/" target="_blank" rel="noopener">Backpack</a> — or use the "paid another way" option below if you already sent the payment from Trust Wallet, a different device, or an exchange.
+      </div>
       <div id="fee-status" class="fee-status"></div>
+
+      <details style="margin-top:18px;">
+        <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-soft);">Paid another way? (Trust Wallet, a CEX withdrawal, a different device)</summary>
+        <div style="margin-top:14px;">
+          <p class="fee-note" style="margin-bottom:12px;">If you already sent 1,000 ACT to the management wallet above by some other means — Trust Wallet, an exchange withdrawal, a different browser or device — paste the transaction signature here. This page will look it up on Solana directly and confirm the payment on its own; it doesn't just take your word for it.</p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" id="manual-sig-input" placeholder="Transaction signature" style="flex:1; min-width:220px; font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:10px 12px; border:1px solid var(--border); border-radius:7px; background:var(--bg-alt); color:var(--ink);">
+            <button type="button" id="verify-sig-btn" class="wallet-btn">Verify Payment</button>
+          </div>
+        </div>
+      </details>
     </div>
 
     <input type="hidden" id="payment_tx_signature" name="payment_tx_signature" value="">
@@ -355,30 +378,30 @@
 </script>
 
 <!--
-  Registration-fee payment: 1,000 ACT, applicant's own Phantom wallet ->
-  management wallet. Uses jsdelivr's `+esm` auto-bundling to load
-  @solana/web3.js and @solana/spl-token as real ES modules in-browser --
-  the same library logic already verified against live mainnet in
-  scripts/management-fee-proposal/, not hand-rolled instruction bytes for
-  a money-moving operation. Only ever asks the connected wallet to sign;
-  no private key ever touches this page.
+  Registration-fee payment: 1,000 ACT, applicant's own wallet -> management
+  wallet. Supports Phantom, Solflare, and Backpack directly (connect + sign
+  in-page), plus a manual fallback that verifies a payment made by ANY
+  means -- Trust Wallet, a CEX withdrawal, a different device -- by looking
+  the transaction up on-chain, since none of those have a "connect" step
+  this page could hook into. Uses @solana/web3.js and @solana/spl-token
+  loaded as real ES modules from esm.sh (with the `?deps=` dedup param --
+  jsdelivr's `+esm` bundles each package with its own independent copy of
+  shared dependencies, which breaks spl-token's internal Layout-instance
+  checks once web3.js is loaded separately; confirmed against a live HTTP
+  origin before shipping this). The connect-and-pay path only ever asks
+  the wallet to sign; no private key ever touches this page. The manual
+  path never asks for anything but a public transaction signature.
 
-  IMPORTANT: this is a UX affordance, not the actual enforcement of the
-  fee. A technically motivated user could bypass the disabled-button gate
+  IMPORTANT: none of this is the actual enforcement of the fee, including
+  the manual on-chain verification -- it's still just this page's own
+  client-side JS, which a technically motivated applicant could bypass
   entirely (devtools, or POSTing to the Formspree endpoint directly). The
-  real check has to happen when applications are reviewed: confirm
-  payment_tx_signature is a genuine, confirmed >=1000 ACT transfer to the
-  management wallet before treating an application as valid. See
-  MANAGEMENT_FEE.md, "Project registration fee".
+  real check has to happen when applications are reviewed: independently
+  confirm payment_tx_signature is a genuine, confirmed transfer of
+  approximately 1000 ACT to the management wallet before treating an
+  application as valid. See MANAGEMENT_FEE.md, "Project registration fee".
 -->
 <script type="module">
-  // NOTE: loaded from esm.sh, not jsdelivr's `+esm` -- jsdelivr auto-bundles
-  // each package with its own independent copy of shared dependencies
-  // (@solana/buffer-layout etc.), which breaks spl-token's internal
-  // instanceof-style layout checks ("fields must be array of Layout
-  // instances") when web3.js is also loaded separately. esm.sh's `?deps=`
-  // parameter deduplicates the shared dependency correctly -- verified
-  // against a live HTTP origin before using it here, not assumed.
   import {
     Connection, PublicKey, Transaction,
   } from "https://esm.sh/@solana/web3.js@1.95.3";
@@ -395,14 +418,21 @@
   var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
   var ACT_DECIMALS = 9;
   var REGISTRATION_FEE_ACT = 1000n;
+  // A 1,000 ACT gross payment nets ~965 ACT (at the 3.5% target rate) or
+  // ~959 ACT (at the 4.1% rate live until epoch 1031 -- see MINT.md) after
+  // Token-2022's transfer fee is withheld, same as any other ACT transfer.
+  // Require at least 950 ACT net as a safety margin below both.
+  var MIN_NET_RECEIVED_RAW = 950n * (10n ** 9n);
 
-  var connectBtn = document.getElementById('connect-wallet-btn');
+  var walletPicker = document.getElementById('wallet-picker');
   var payBtn = document.getElementById('pay-fee-btn');
   var walletInfo = document.getElementById('wallet-info');
-  var installLink = document.getElementById('install-phantom-link');
+  var noWalletNote = document.getElementById('no-wallet-note');
   var statusEl = document.getElementById('fee-status');
   var submitBtn = document.getElementById('submit-btn');
   var gateNote = document.getElementById('submit-gate-note');
+  var manualSigInput = document.getElementById('manual-sig-input');
+  var verifySigBtn = document.getElementById('verify-sig-btn');
 
   var connection = null;
   var provider = null;
@@ -411,11 +441,42 @@
   function short(addr) { return addr.slice(0, 4) + '…' + addr.slice(-4); }
   function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'fee-status' + (cls ? ' ' + cls : ''); }
 
-  function getProvider() {
-    if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom) return window.phantom.solana;
-    if (window.solana && window.solana.isPhantom) return window.solana;
-    return null;
-  }
+  // Each of these is a Solana-native wallet exposing a Phantom-compatible
+  // connect()/signAndSendTransaction() interface. Trust Wallet is
+  // deliberately not included here -- its browser-extension provider
+  // doesn't reliably expose the same shape, and Solana support there has
+  // historically been mobile-app/dApp-browser focused rather than desktop-
+  // extension focused. Trust Wallet users should use the manual
+  // verification flow below instead of a "Connect" button that likely
+  // wouldn't detect it correctly anyway.
+  var WALLETS = {
+    phantom: {
+      label: 'Phantom',
+      installUrl: 'https://phantom.app/',
+      detect: function () {
+        if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom) return window.phantom.solana;
+        if (window.solana && window.solana.isPhantom) return window.solana;
+        return null;
+      }
+    },
+    solflare: {
+      label: 'Solflare',
+      installUrl: 'https://solflare.com/',
+      detect: function () {
+        if (window.solflare && window.solflare.isSolflare) return window.solflare;
+        return null;
+      }
+    },
+    backpack: {
+      label: 'Backpack',
+      installUrl: 'https://backpack.app/',
+      detect: function () {
+        if (window.backpack && window.backpack.isBackpack) return window.backpack;
+        if (window.xnft && window.xnft.solana) return window.xnft.solana;
+        return null;
+      }
+    }
+  };
 
   async function connectionThatWorks() {
     for (var i = 0; i < RPC_ENDPOINTS.length; i++) {
@@ -428,28 +489,35 @@
     throw new Error("No RPC endpoint reachable");
   }
 
-  connectBtn.addEventListener('click', async function () {
-    provider = getProvider();
-    if (!provider) {
-      installLink.style.display = 'inline-block';
-      setStatus('Phantom wallet not found in this browser.', 'error');
-      return;
-    }
-    connectBtn.disabled = true;
-    connectBtn.textContent = 'Connecting…';
-    try {
-      var resp = await provider.connect();
-      payerPubkey = new PublicKey(resp.publicKey.toString());
-      connection = connection || await connectionThatWorks();
-      walletInfo.textContent = short(payerPubkey.toBase58());
-      connectBtn.textContent = 'Connected';
-      payBtn.disabled = false;
-      setStatus('');
-    } catch (err) {
-      setStatus('Wallet connection was rejected or failed.', 'error');
-      connectBtn.disabled = false;
-      connectBtn.textContent = 'Connect Wallet';
-    }
+  walletPicker.querySelectorAll('[data-wallet]').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+      var key = btn.getAttribute('data-wallet');
+      var w = WALLETS[key];
+      var found = w.detect();
+      if (!found) {
+        noWalletNote.style.display = 'block';
+        setStatus(w.label + ' not found in this browser.', 'error');
+        return;
+      }
+      noWalletNote.style.display = 'none';
+      walletPicker.querySelectorAll('[data-wallet]').forEach(function (b) { b.disabled = true; });
+      btn.textContent = 'Connecting…';
+      try {
+        provider = found;
+        var resp = await provider.connect();
+        payerPubkey = new PublicKey(resp.publicKey.toString());
+        connection = connection || await connectionThatWorks();
+        walletInfo.textContent = w.label + ': ' + short(payerPubkey.toBase58());
+        btn.textContent = 'Connected';
+        btn.classList.add('detected');
+        payBtn.disabled = false;
+        setStatus('');
+      } catch (err) {
+        setStatus('Wallet connection was rejected or failed.', 'error');
+        walletPicker.querySelectorAll('[data-wallet]').forEach(function (b) { b.disabled = false; });
+        btn.textContent = 'Connect ' + w.label;
+      }
+    });
   });
 
   payBtn.addEventListener('click', async function () {
@@ -486,24 +554,86 @@
         lastValidBlockHeight: latest.lastValidBlockHeight,
       }, "confirmed");
 
-      document.getElementById('payment_tx_signature').value = signature;
-      setStatus('Payment confirmed. ', 'success');
-      var link = document.createElement('a');
-      link.href = 'https://solscan.io/tx/' + signature;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.textContent = 'View on Solscan →';
-      statusEl.appendChild(link);
-
+      markPaid(signature);
       payBtn.textContent = 'Paid ✓';
-      submitBtn.disabled = false;
-      gateNote.style.display = 'none';
     } catch (err) {
       console.error(err);
       var msg = (err && err.message) ? err.message : String(err);
       setStatus('Payment failed: ' + msg + '. Check your ACT balance and try again.', 'error');
       payBtn.disabled = false;
       payBtn.textContent = 'Pay 1,000 ACT Registration Fee';
+    }
+  });
+
+  function markPaid(signature) {
+    document.getElementById('payment_tx_signature').value = signature;
+    setStatus('Payment confirmed. ', 'success');
+    var link = document.createElement('a');
+    link.href = 'https://solscan.io/tx/' + signature;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'View on Solscan →';
+    statusEl.appendChild(link);
+    submitBtn.disabled = false;
+    gateNote.style.display = 'none';
+  }
+
+  // Manual verification: look up a signature the applicant supplies (paid
+  // via Trust Wallet, a CEX withdrawal, a different device -- anything not
+  // covered by the connect-and-pay flow above) and confirm, independently,
+  // that it's a real transfer of ACT to the management wallet. Checks
+  // pre/postTokenBalances rather than decoding instructions -- this works
+  // regardless of how the transfer was constructed (a raw Transfer, a
+  // TransferChecked, routed through an exchange's own withdrawal system,
+  // whatever), since it looks at the actual balance change the transaction
+  // caused rather than assuming a specific instruction shape.
+  verifySigBtn.addEventListener('click', async function () {
+    var sig = (manualSigInput.value || '').trim();
+    if (!sig) { setStatus('Paste a transaction signature first.', 'error'); return; }
+    verifySigBtn.disabled = true;
+    verifySigBtn.textContent = 'Checking…';
+    setStatus('Looking up this transaction on Solana…');
+    try {
+      connection = connection || await connectionThatWorks();
+      var tx = await connection.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: 'confirmed' });
+      if (!tx) throw new Error('Transaction not found. If you just sent it, wait a few seconds and try again.');
+      if (tx.meta && tx.meta.err) throw new Error('This transaction failed on-chain -- nothing was actually transferred.');
+
+      var pre = (tx.meta && tx.meta.preTokenBalances) || [];
+      var post = (tx.meta && tx.meta.postTokenBalances) || [];
+      var managementWalletStr = MANAGEMENT_WALLET.toBase58();
+      var actMintStr = ACT_MINT.toBase58();
+      var received = null;
+
+      for (var i = 0; i < post.length; i++) {
+        var p = post[i];
+        if (p.owner === managementWalletStr && p.mint === actMintStr) {
+          var preEntry = null;
+          for (var j = 0; j < pre.length; j++) {
+            if (pre[j].accountIndex === p.accountIndex) { preEntry = pre[j]; break; }
+          }
+          var preAmt = preEntry ? BigInt(preEntry.uiTokenAmount.amount) : 0n;
+          var postAmt = BigInt(p.uiTokenAmount.amount);
+          received = postAmt - preAmt;
+          break;
+        }
+      }
+
+      if (received === null) {
+        throw new Error('This transaction doesn\'t show any ACT received by the management wallet (' + short(managementWalletStr) + '). Double-check the signature and the destination address.');
+      }
+      if (received < MIN_NET_RECEIVED_RAW) {
+        throw new Error('Only ' + (Number(received) / 1e9).toLocaleString() + ' ACT was received -- expected at least ~950 ACT net from a 1,000 ACT payment. This may be a different, smaller transaction.');
+      }
+
+      markPaid(sig);
+      verifySigBtn.textContent = 'Verified ✓';
+    } catch (err) {
+      console.error(err);
+      var msg = (err && err.message) ? err.message : String(err);
+      setStatus('Could not verify this payment: ' + msg, 'error');
+      verifySigBtn.disabled = false;
+      verifySigBtn.textContent = 'Verify Payment';
     }
   });
 </script>

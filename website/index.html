@@ -21,21 +21,25 @@
 
 <style>
   :root {
-    --wine: #59202E;
-    --wine-deep: #3E1420;
-    --coral: #EE5D56;
-    --coral-deep: #D8453E;
-    --peach: #F3A78F;
-    --cream: #F6D6C0;
-    --ivory: #FBEEE1;
-    --bg: #FBEEE1;
-    --bg-alt: #F6D6C0;
-    --card: #FFFFFF;
-    --ink: #2E1B1A;
-    --ink-soft: #6B4C46;
-    --ink-faint: #9C8078;
-    --border: #E7C7B4;
-    --border-soft: #EFDBCB;
+    /* Grey / ash / offwhite base, with blue reserved for interactive and
+       key-metric emphasis. Variable names kept from the previous palette
+       to avoid touching ~85 call sites -- only the values changed. */
+    --wine: #2B2B2E;         /* ash/charcoal: dark section bg + dark heading text */
+    --wine-deep: #1B1B1D;    /* deepest ash, for gradients/hover */
+    --coral: #0052FF;        /* blue: CTAs, links, active states, key figures */
+    --coral-deep: #0040CC;   /* darker blue: text-on-light emphasis (eyebrows, badges) */
+    --peach: #C9C8C2;        /* medium grey: muted text-on-dark, grid lines */
+    --cream: #E7E6E1;        /* light ash-grey surface */
+    --ivory: #F6F6F4;        /* offwhite: base background + text-on-dark */
+    --blue-soft: #E3ECFC;    /* light blue tint, for highlight-card surfaces */
+    --bg: #F6F6F4;
+    --bg-alt: #ECEBE7;
+    --card: #FBFBFA;
+    --ink: #2B2B2E;
+    --ink-soft: #6B6B67;
+    --ink-faint: #9C9C97;
+    --border: #DDDCD7;
+    --border-soft: #E7E6E1;
 
     --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
     --font-sans: "Hanken Grotesk", Helvetica, Arial, sans-serif;
@@ -149,15 +153,15 @@
   .info-card { background: var(--cream); border-radius: 12px; padding: 16px 18px; }
   .info-card .info-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); margin-bottom: 8px; font-weight: 700; }
   .info-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 0; }
-  .promo-card { background: var(--peach); border-radius: 12px; padding: 18px; }
-  .promo-card .promo-label { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; color: var(--wine); }
-  .promo-card p { font-size: 12.5px; color: var(--wine); opacity: 0.85; margin-bottom: 14px; }
+  .promo-card { background: var(--blue-soft); border-radius: 12px; padding: 18px; }
+  .promo-card .promo-label { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; color: var(--coral-deep); }
+  .promo-card p { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; }
 
   .asset-main { padding: 32px 0 32px 32px; }
   @media (max-width: 900px) { .asset-main { padding: 28px 0; } }
   .stat-headline { margin-bottom: 24px; }
-  .stat-badge { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); background: var(--peach); padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; }
-  .stat-figure { font-family: var(--font-display); font-size: clamp(2.4rem, 5vw, 3.4rem); color: var(--wine); line-height: 1; }
+  .stat-badge { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); background: var(--blue-soft); padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; }
+  .stat-figure { font-family: var(--font-display); font-size: clamp(2.4rem, 5vw, 3.4rem); color: var(--coral); line-height: 1; }
   .stat-sub { font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; max-width: 60ch; }
 
   .chart-placeholder { background: var(--card); border: 1px dashed var(--border); border-radius: 8px; padding: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 200px; margin-bottom: 32px; }
@@ -192,7 +196,7 @@
 
   /* -------- Allocation diagram -------- */
   .alloc-headline { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin: 44px 0 36px; }
-  .alloc-figure { font-family: var(--font-display); font-size: clamp(3.4rem, 8vw, 5.8rem); color: var(--wine); line-height: 1; }
+  .alloc-figure { font-family: var(--font-display); font-size: clamp(3.4rem, 8vw, 5.8rem); color: var(--coral); line-height: 1; }
   .alloc-label { font-size: 14px; color: var(--ink-soft); }
   .alloc-bar { display: flex; height: 14px; overflow: hidden; background: var(--border-soft); margin-bottom: 40px; }
   .alloc-bar span { height: 100%; }
@@ -207,7 +211,7 @@
   .verify-band { background: var(--wine); color: var(--ivory); }
   .verify-band .eyebrow { color: var(--peach); }
   .verify-band .lede { color: var(--ivory); }
-  .principle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(246,214,192,0.25); margin: 52px 0 40px; }
+  .principle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.12); margin: 52px 0 40px; }
   @media (max-width: 900px) { .principle-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { .principle-grid { grid-template-columns: 1fr; } }
   .principle { background: var(--wine-deep); padding: 34px 28px; }

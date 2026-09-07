@@ -211,7 +211,7 @@ Project documents:     [link]
 - ⬜ Transparent transaction allocation live on a public dashboard
 - ⬜ Basic governance (even if team-curated at first)
 - ⬜ Project Registry (v1 — manual/simple, not the full on-chain version)
-- ✅ Project application intake (`apply.html`) — built ahead of schedule, live at launch rather than waiting for Phase 2. Now gated on a 5,000 ACT registration fee paid from the applicant's own wallet (see `MANAGEMENT_FEE.md`, "Project registration fee") before the form unlocks. Screening (Layer 2) and milestone-gated funding are not yet built; submissions are received, not yet automatically processed. **The form still can't actually deliver a submission** — `action` points at a literal `YOUR_FORM_ID` Formspree placeholder that was never replaced with a real form ID; fix this before treating the intake as functional.
+- ✅ Project application intake (`apply.html`) — built ahead of schedule, live at launch rather than waiting for Phase 2. Now gated on a 5,000 ACT registration fee paid from the applicant's own wallet (see `MANAGEMENT_FEE.md`, "Project registration fee") before the form unlocks. Screening (Layer 2) and milestone-gated funding are not yet built; submissions are received, not yet automatically processed. **Formspree wired up, 7 Sept 2026** — `action` now points at a real form (`https://formspree.io/f/xaeypjob`), replacing the `YOUR_FORM_ID` placeholder. Not yet confirmed end-to-end: Formspree requires confirming the first submission via an emailed link before the form is fully live, and no test submission has been sent yet.
 
 **Phase 2 — Climate finance**
 - Project scoring (Layer 2), funding proposals, milestone-gated funding, verification (Layer 3)

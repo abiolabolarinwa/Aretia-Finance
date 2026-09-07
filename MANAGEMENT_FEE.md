@@ -36,17 +36,20 @@ A manual-run script drafts the harvest + split as a Squads proposal — it never
 
 Note: the default RPC endpoint (`solana-rpc.publicnode.com`) failed with a generic `fetch failed` on the first attempt; swapping to `https://api.mainnet-beta.solana.com` via the `RPC_ENDPOINT` env var worked immediately. Likely a transient issue with that specific public endpoint rather than anything wrong with the script — worth retrying the default next time, and keeping the override in your back pocket if it acts up again.
 
-## Project registration fee (7 Sept 2026, not yet built)
+## Project registration fee (7 Sept 2026, built; decisions below settled)
 
 A project developer applying for catalyst-fund financing pays a **1,000 ACT registration fee**, sent to this wallet, at the point of application (`apply.html`, Section 8 step 1 in `PROTOCOL.md`). No voting mechanism sits around this — the earlier idea of a community vote per category was considered and dropped (see conversation history) in favor of the existing, already-documented team-curated selection process (`WHITEPAPER.md` §9.3): management reviews applications and decides which projects proceed, under the same milestone-verification discipline (`WHITEPAPER.md` §7) as everything else.
 
 **Rationale:** covers the real cost of reviewing an application — the same category of work (`registry/credit verification, Impact Report review, site visits, dashboard upkeep`) this wallet already exists to fund, per the Purpose row above. Charging an application fee to the same entity that reviews and decides is a real conflict-of-interest pattern in the abstract; the fee is defensible specifically because it's sized to cost-recovery for review work, not because it changes who benefits from an approval decision.
 
-**Open questions, unresolved:**
+**Decided, 7 Sept 2026:**
+- **Non-refundable.** The fee is forfeited regardless of outcome — it is priced as cost recovery for reviewing the application, not a stake in being funded, and is not returned or credited if a project is rejected.
+
+**Still open:**
 - **Fee value is undefined pre-launch.** 1,000 ACT has no fixed dollar cost until ACT trades. Revisit the number once there's a real price — it could turn out to be trivial (no deterrent effect, no real cost recovery) or exclusionary for smaller developers, particularly in the Technical Assistance category, which by its own definition (`WHITEPAPER.md` §8.2) often serves less-resourced applicants.
-- **Refund policy not decided.** Is the fee returned, credited against an eventual grant, or forfeited if the application is rejected? Each has different accounting and fairness implications and isn't settled yet.
-- **Not yet reviewed by counsel.** This is new legal surface area under `PROTOCOL.md` §16's existing "everything added beyond the original simple treasury mechanism" flag — an application-fee-to-the-decision-maker structure is exactly the kind of thing that draws regulatory scrutiny if not clearly bounded to actual cost recovery.
-- **Not yet built.** `apply.html` is currently a plain form (Formspree submission, no wallet connection). Collecting and verifying a 1,000 ACT on-chain payment before an application is considered requires a real wallet-connect + transaction-verification flow that doesn't exist yet.
+- **Not yet reviewed by counsel.** This is new legal surface area under `PROTOCOL.md` §16's existing "everything added beyond the original simple treasury mechanism" flag — an application-fee-to-the-decision-maker structure is exactly the kind of thing that draws regulatory scrutiny if not clearly bounded to actual cost recovery. This applies with or without a refund policy; forfeiture on rejection, specifically, is the version of this fact pattern that reads most like the operator profiting from rejections, not less — flag this explicitly to counsel, don't let the "it's just cost recovery" framing go unquestioned.
+
+**Built, 7 Sept 2026:** `apply.html` now requires connecting a Phantom wallet and paying 1,000 ACT (a real `TransferChecked` instruction to this wallet's Token-2022 associated token account, idempotently created if needed) before the submit button unlocks. Uses `@solana/web3.js` and `@solana/spl-token` loaded from `esm.sh` (not jsdelivr's `+esm` — that auto-bundles each package with its own copy of shared dependencies, which broke spl-token's internal layout checks when tested against a real HTTP origin; esm.sh's `?deps=` parameter dedupes correctly, verified before shipping). Verified in-browser against real mainnet constants: both instructions build successfully with the correct program IDs, ATA derivations resolve to valid addresses, and the no-wallet-installed fallback path works. **Not verified end-to-end with a real signed transaction** — that requires a funded wallet, and ACT has no liquidity pool yet, so no one can actually acquire ACT to complete this flow regardless. The client-side gate (disabled submit button) is a UX affordance only, not the real enforcement — see the code comment in `apply.html` and confirm `payment_tx_signature` against Solscan manually when reviewing any application.
 
 ## Still open
 

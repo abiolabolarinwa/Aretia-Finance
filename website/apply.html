@@ -105,6 +105,26 @@
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+  .fee-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px 26px; margin: 44px 0 0; }
+  .fee-box .fee-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .fee-box .fee-title { font-size: 15px; font-weight: 700; }
+  .fee-box .fee-amount { font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 700; color: var(--blue); }
+  .fee-box p.fee-note { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 18px; }
+  .fee-box .fee-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .wallet-btn { background: var(--ink); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .wallet-btn:hover { background: #3A3B34; }
+  .wallet-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .pay-btn { background: var(--blue); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .pay-btn:hover { background: var(--blue-hover); }
+  .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .wallet-info { font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--ink-soft); }
+  .fee-status { font-size: 13px; color: var(--ink-soft); margin-top: 12px; line-height: 1.6; }
+  .fee-status a { color: var(--blue); font-weight: 600; }
+  .fee-status.error { color: #9C4B3F; }
+  .fee-status.success { color: var(--green); }
+  #install-phantom-link { display: none; font-size: 12.5px; }
+  #submit-gate-note { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
+
   #form-success, #form-error { display: none; padding: 18px 20px; border-radius: 8px; font-size: 14px; margin-bottom: 28px; }
   #form-success { background: var(--green-soft); color: var(--green); border: 1px solid var(--green); }
   #form-error { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
@@ -151,8 +171,8 @@
   <div class="wrap">
     <div class="kicker">Project Funding Application</div>
     <h1>Submit your climate project for treasury funding.</h1>
-    <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects: reforestation, renewable energy, clean cooking, regenerative agriculture, waste-to-energy, blue carbon, and climate adaptation infrastructure. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded — see <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
-    <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission — expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum.</div>
+    <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong> — standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects across five categories: renewable energy, waste-to-energy management, carbon reduction, technical assistance, and flood management and reforestation. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded — see <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
+    <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission — expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum. Applying requires paying a <strong>1,000 ACT registration fee</strong> from a Solana wallet — non-refundable, regardless of outcome. It covers the cost of reviewing your application and isn't tied to being funded.</div>
   </div>
 </header>
 
@@ -173,14 +193,11 @@
           <label for="category">Project category *</label>
           <select id="category" name="category" required>
             <option value="">Select one</option>
-            <option>Reforestation</option>
             <option>Renewable energy</option>
-            <option>Clean cooking</option>
-            <option>Regenerative agriculture</option>
-            <option>Waste-to-energy</option>
-            <option>Blue carbon</option>
-            <option>Climate adaptation infrastructure</option>
-            <option>Other</option>
+            <option>Waste-to-energy management</option>
+            <option>Carbon reduction</option>
+            <option>Technical assistance</option>
+            <option>Flood management and reforestation</option>
           </select>
         </div>
         <div class="field">
@@ -260,8 +277,26 @@
       <label for="confirm">I confirm the information above is accurate to the best of my knowledge, and I understand this is an application for review, not a guarantee of funding.</label>
     </div>
 
+    <div class="fee-box">
+      <div class="fee-head">
+        <span class="fee-title">Registration fee</span>
+        <span class="fee-amount">1,000 ACT</span>
+      </div>
+      <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable — it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. Currently supports Phantom only. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">View the management wallet on Solscan →</a></p>
+      <div class="fee-actions">
+        <button type="button" id="connect-wallet-btn" class="wallet-btn">Connect Wallet</button>
+        <span id="wallet-info" class="wallet-info"></span>
+        <button type="button" id="pay-fee-btn" class="pay-btn" disabled>Pay 1,000 ACT Registration Fee</button>
+      </div>
+      <a id="install-phantom-link" href="https://phantom.app/" target="_blank" rel="noopener">Phantom not found — install it →</a>
+      <div id="fee-status" class="fee-status"></div>
+    </div>
+
+    <input type="hidden" id="payment_tx_signature" name="payment_tx_signature" value="">
+
     <div style="margin-top:28px;">
-      <button type="submit" class="submit-btn">Submit application</button>
+      <button type="submit" id="submit-btn" class="submit-btn" disabled>Submit application</button>
+      <div id="submit-gate-note">Pay the registration fee above to enable submission.</div>
     </div>
 
   </div>
@@ -281,6 +316,19 @@
     var errorBox = document.getElementById('form-error');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      var sigField = document.getElementById('payment_tx_signature');
+      if (!sigField.value) {
+        // Defense in depth only -- the submit button is disabled until payment
+        // succeeds, but that's a client-side UX affordance, not a security
+        // boundary. Anyone can re-enable the button or POST to the Formspree
+        // endpoint directly, bypassing this check entirely. The real
+        // enforcement is manual: whoever reviews applications must verify
+        // payment_tx_signature is a real, confirmed transfer of >=1000 ACT to
+        // the management wallet (2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2)
+        // on Solscan before treating an application as valid.
+        e.stopPropagation();
+        return;
+      }
       errorBox.style.display = 'none';
       var btn = form.querySelector('.submit-btn');
       btn.disabled = true;
@@ -304,6 +352,160 @@
       });
     });
   })();
+</script>
+
+<!--
+  Registration-fee payment: 1,000 ACT, applicant's own Phantom wallet ->
+  management wallet. Uses jsdelivr's `+esm` auto-bundling to load
+  @solana/web3.js and @solana/spl-token as real ES modules in-browser --
+  the same library logic already verified against live mainnet in
+  scripts/management-fee-proposal/, not hand-rolled instruction bytes for
+  a money-moving operation. Only ever asks the connected wallet to sign;
+  no private key ever touches this page.
+
+  IMPORTANT: this is a UX affordance, not the actual enforcement of the
+  fee. A technically motivated user could bypass the disabled-button gate
+  entirely (devtools, or POSTing to the Formspree endpoint directly). The
+  real check has to happen when applications are reviewed: confirm
+  payment_tx_signature is a genuine, confirmed >=1000 ACT transfer to the
+  management wallet before treating an application as valid. See
+  MANAGEMENT_FEE.md, "Project registration fee".
+-->
+<script type="module">
+  // NOTE: loaded from esm.sh, not jsdelivr's `+esm` -- jsdelivr auto-bundles
+  // each package with its own independent copy of shared dependencies
+  // (@solana/buffer-layout etc.), which breaks spl-token's internal
+  // instanceof-style layout checks ("fields must be array of Layout
+  // instances") when web3.js is also loaded separately. esm.sh's `?deps=`
+  // parameter deduplicates the shared dependency correctly -- verified
+  // against a live HTTP origin before using it here, not assumed.
+  import {
+    Connection, PublicKey, Transaction,
+  } from "https://esm.sh/@solana/web3.js@1.95.3";
+  import {
+    createTransferCheckedInstruction,
+    createAssociatedTokenAccountIdempotentInstruction,
+    getAssociatedTokenAddressSync,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  } from "https://esm.sh/@solana/spl-token@0.4.9?deps=@solana/web3.js@1.95.3";
+
+  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+  var ACT_MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
+  var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
+  var ACT_DECIMALS = 9;
+  var REGISTRATION_FEE_ACT = 1000n;
+
+  var connectBtn = document.getElementById('connect-wallet-btn');
+  var payBtn = document.getElementById('pay-fee-btn');
+  var walletInfo = document.getElementById('wallet-info');
+  var installLink = document.getElementById('install-phantom-link');
+  var statusEl = document.getElementById('fee-status');
+  var submitBtn = document.getElementById('submit-btn');
+  var gateNote = document.getElementById('submit-gate-note');
+
+  var connection = null;
+  var provider = null;
+  var payerPubkey = null;
+
+  function short(addr) { return addr.slice(0, 4) + '…' + addr.slice(-4); }
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'fee-status' + (cls ? ' ' + cls : ''); }
+
+  function getProvider() {
+    if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom) return window.phantom.solana;
+    if (window.solana && window.solana.isPhantom) return window.solana;
+    return null;
+  }
+
+  async function connectionThatWorks() {
+    for (var i = 0; i < RPC_ENDPOINTS.length; i++) {
+      try {
+        var c = new Connection(RPC_ENDPOINTS[i], "confirmed");
+        await c.getSlot();
+        return c;
+      } catch (e) { /* try next */ }
+    }
+    throw new Error("No RPC endpoint reachable");
+  }
+
+  connectBtn.addEventListener('click', async function () {
+    provider = getProvider();
+    if (!provider) {
+      installLink.style.display = 'inline-block';
+      setStatus('Phantom wallet not found in this browser.', 'error');
+      return;
+    }
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Connecting…';
+    try {
+      var resp = await provider.connect();
+      payerPubkey = new PublicKey(resp.publicKey.toString());
+      connection = connection || await connectionThatWorks();
+      walletInfo.textContent = short(payerPubkey.toBase58());
+      connectBtn.textContent = 'Connected';
+      payBtn.disabled = false;
+      setStatus('');
+    } catch (err) {
+      setStatus('Wallet connection was rejected or failed.', 'error');
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Connect Wallet';
+    }
+  });
+
+  payBtn.addEventListener('click', async function () {
+    if (!provider || !payerPubkey || !connection) return;
+    payBtn.disabled = true;
+    payBtn.textContent = 'Confirm in wallet…';
+    setStatus('Waiting for wallet confirmation…');
+    try {
+      var payerAta = getAssociatedTokenAddressSync(ACT_MINT, payerPubkey, false, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+      var destAta = getAssociatedTokenAddressSync(ACT_MINT, MANAGEMENT_WALLET, true, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+
+      var ixCreateDestAta = createAssociatedTokenAccountIdempotentInstruction(
+        payerPubkey, destAta, MANAGEMENT_WALLET, ACT_MINT, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      var amountRaw = REGISTRATION_FEE_ACT * (10n ** BigInt(ACT_DECIMALS));
+      var ixTransfer = createTransferCheckedInstruction(
+        payerAta, ACT_MINT, destAta, payerPubkey, amountRaw, ACT_DECIMALS, [], TOKEN_2022_PROGRAM_ID
+      );
+
+      var latest = await connection.getLatestBlockhash();
+      var tx = new Transaction({
+        feePayer: payerPubkey,
+        blockhash: latest.blockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      }).add(ixCreateDestAta, ixTransfer);
+
+      var sent = await provider.signAndSendTransaction(tx);
+      var signature = sent.signature || sent;
+      setStatus('Confirming on-chain (' + signature.slice(0, 10) + '…) — this can take a few seconds.');
+
+      await connection.confirmTransaction({
+        signature: signature,
+        blockhash: latest.blockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      }, "confirmed");
+
+      document.getElementById('payment_tx_signature').value = signature;
+      setStatus('Payment confirmed. ', 'success');
+      var link = document.createElement('a');
+      link.href = 'https://solscan.io/tx/' + signature;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = 'View on Solscan →';
+      statusEl.appendChild(link);
+
+      payBtn.textContent = 'Paid ✓';
+      submitBtn.disabled = false;
+      gateNote.style.display = 'none';
+    } catch (err) {
+      console.error(err);
+      var msg = (err && err.message) ? err.message : String(err);
+      setStatus('Payment failed: ' + msg + '. Check your ACT balance and try again.', 'error');
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay 1,000 ACT Registration Fee';
+    }
+  });
 </script>
 </body>
 </html>

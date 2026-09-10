@@ -1,0 +1,18 @@
+{
+  "name": "aretia-rebuild-mint",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Manual-run tools for the ACT v2 mint rebuild: upload logo + metadata JSON to Arweave via Irys, then create the new Token-2022 mint with transfer-fee + metadata extensions. Never executes destructively on its own.",
+  "type": "module",
+  "dependencies": {
+    "@irys/upload": "^0.0.15",
+    "@irys/upload-solana": "^0.1.8",
+    "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
+    "@metaplex-foundation/umi": "^1.5.1",
+    "@metaplex-foundation/umi-bundle-defaults": "^1.5.1",
+    "@metaplex-foundation/umi-web3js-adapters": "^1.5.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/spl-token-metadata": "^0.1.6",
+    "@solana/web3.js": "^1.95.3"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Aretia Finance Protocol",
+  "symbol": "ACT",
+  "description": "A decentralized protocol connecting digital finance with climate and sustainable development through transparent on-chain capital allocation.",
+  "image": "REPLACE_WITH_ARWEAVE_IMAGE_URI",
+  "external_url": "https://aretiafinance.org",
+  "properties": {
+    "files": [
+      {
+        "uri": "REPLACE_WITH_ARWEAVE_IMAGE_URI",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

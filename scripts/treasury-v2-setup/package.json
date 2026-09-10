@@ -1,0 +1,11 @@
+{
+  "name": "aretia-treasury-v2-setup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Manual-run tools for setting up and verifying the ACT v2 treasury multisig (distinct from the live v1 treasury). Never executes destructively on its own.",
+  "type": "module",
+  "dependencies": {
+    "@solana/web3.js": "^1.95.3",
+    "@sqds/multisig": "^2.1.4"
+  }
+}

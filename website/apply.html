@@ -414,14 +414,13 @@
   } from "https://esm.sh/@solana/spl-token@0.4.9?deps=@solana/web3.js@1.95.3";
 
   var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
-  var ACT_MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
+  var ACT_MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
   var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
   var ACT_DECIMALS = 9;
   var REGISTRATION_FEE_ACT = 5000n;
-  // A 5,000 ACT gross payment nets ~4,825 ACT (at the 3.5% target rate) or
-  // ~4,795 ACT (at the 4.1% rate live until epoch 1031 -- see MINT.md) after
-  // Token-2022's transfer fee is withheld, same as any other ACT transfer.
-  // Require at least 4,750 ACT net as a safety margin below both.
+  // A 5,000 ACT gross payment nets ~4,825 ACT at the live 3.5% rate (see
+  // MINT_V2.md) after Token-2022's transfer fee is withheld, same as any
+  // other ACT transfer. Require at least 4,750 ACT net as a safety margin.
   var MIN_NET_RECEIVED_RAW = 4750n * (10n ** 9n);
 
   var walletPicker = document.getElementById('wallet-picker');

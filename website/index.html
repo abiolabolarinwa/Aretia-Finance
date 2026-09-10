@@ -188,11 +188,44 @@
   .category-row .field-value { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
   @media (max-width: 860px) { .category-row { grid-template-columns: 1fr; gap: 10px; } .category-row .cnum { display: inline-block; margin-bottom: 4px; } }
 
+  /* -------- Carousels (used by: Why It Exists, Verification, Climate
+     Finance, Impact Economics) -------- */
+  .carousel-wrap { margin-top: 52px; }
+  .carousel-controls { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; }
+  .carousel-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--card);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; padding: 0; color: var(--wine);
+    transition: background 160ms var(--ease), border-color 160ms var(--ease), color 160ms var(--ease), opacity 160ms var(--ease);
+  }
+  .carousel-btn:hover:not(:disabled) { background: var(--wine); color: var(--ivory); border-color: var(--wine); }
+  .carousel-btn:disabled { opacity: 0.32; cursor: default; }
+  .carousel-btn svg { width: 16px; height: 16px; }
+  .carousel-btn.on-dark { border-color: rgba(255,255,255,0.28); background: transparent; color: var(--ivory); }
+  .carousel-btn.on-dark:hover:not(:disabled) { background: var(--ivory); color: var(--wine); border-color: var(--ivory); }
+  .carousel-track {
+    display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
+    padding-bottom: 4px; margin: 0 -32px; padding-left: 32px; padding-right: 32px;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  /* Scrolling is animated manually via requestAnimationFrame in the script
+     at the bottom of this page, not native smooth-scroll -- both the JS
+     scrollBy({behavior:'smooth'}) options object and CSS scroll-behavior:
+     smooth were unreliable in testing. */
+  .carousel-track::-webkit-scrollbar { display: none; }
+  @media (max-width: 640px) { .carousel-track { margin: 0 -20px; padding-left: 20px; padding-right: 20px; } }
+  .carousel-card { scroll-snap-align: start; flex: 0 0 auto; width: min(320px, 78vw); }
+  .carousel-card.concept, .carousel-card.category-card { border: 1px solid var(--border); }
+  .carousel-card.principle { border: 1px solid rgba(255,255,255,0.14); }
+  .carousel-card.impact-cell { border: 1px solid rgba(255,255,255,0.14); }
+  .category-card .cnum { font-family: var(--mono); font-size: 13px; color: var(--coral); display: block; margin-bottom: 18px; }
+  .category-card h3 { font-size: 17px; color: var(--ink); margin: 0 0 18px; }
+  .category-card .field { margin-bottom: 14px; }
+  .category-card .field:last-child { margin-bottom: 0; }
+  .category-card .field-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 6px; }
+  .category-card .field-value { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
+
   /* -------- Impact economics -------- */
-  .impact-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 52px 0 32px; }
-  @media (max-width: 760px) { .impact-grid { grid-template-columns: 1fr; } .impact-cell { border-left: none; border-top: 1px solid rgba(255,255,255,0.12); } .impact-cell:first-child { border-top: none; } }
-  .impact-cell { background: var(--wine); color: var(--ivory); padding: 40px 32px; border-left: 1px solid rgba(255,255,255,0.12); }
-  .impact-cell:first-child { border-left: none; }
+  .impact-cell { background: var(--wine); color: var(--ivory); padding: 40px 32px; }
   .impact-cell .from { font-family: var(--mono); font-size: 12px; color: var(--peach); margin-bottom: 22px; }
   .impact-cell .figure { font-family: var(--font-display); font-size: clamp(2.2rem, 4vw, 3rem); color: var(--coral); line-height: 1; margin-bottom: 10px; }
   .impact-cell .to { font-size: 13px; color: var(--cream); }
@@ -325,10 +358,16 @@
     <div class="wrap">
       <div class="eyebrow">02 — Why It Exists</div>
       <p class="lede">The climate transition is constrained not only by capital, but by confidence.</p>
-      <div class="concept-grid">
-        <div class="concept"><span class="num">01</span><h3>Capital</h3><p>More capital needs to reach real mitigation and adaptation projects.</p></div>
-        <div class="concept"><span class="num">02</span><h3>Verification</h3><p>Funding needs to correspond to observable project progress.</p></div>
-        <div class="concept"><span class="num">03</span><h3>Transparency</h3><p>The flow of funds should be independently inspectable.</p></div>
+      <div class="carousel-wrap">
+        <div class="carousel-controls">
+          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <div class="carousel-track">
+          <div class="carousel-card concept"><span class="num">01</span><h3>Capital</h3><p>More capital needs to reach real mitigation and adaptation projects.</p></div>
+          <div class="carousel-card concept"><span class="num">02</span><h3>Verification</h3><p>Funding needs to correspond to observable project progress.</p></div>
+          <div class="carousel-card concept"><span class="num">03</span><h3>Transparency</h3><p>The flow of funds should be independently inspectable.</p></div>
+        </div>
       </div>
     </div>
   </section>
@@ -376,11 +415,17 @@
     <div class="wrap">
       <div class="eyebrow">04 — Verification</div>
       <p class="lede">Don't trust the claim. Verify it.</p>
-      <div class="principle-grid">
-        <div class="principle"><span class="principle-num">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
-        <div class="principle"><span class="principle-num">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
-        <div class="principle"><span class="principle-num">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress — never a lump sum against a promise.</p></div>
-        <div class="principle"><span class="principle-num">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
+      <div class="carousel-wrap">
+        <div class="carousel-controls">
+          <button class="carousel-btn on-dark carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="carousel-btn on-dark carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <div class="carousel-track">
+          <div class="carousel-card principle"><span class="principle-num">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
+          <div class="carousel-card principle"><span class="principle-num">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
+          <div class="carousel-card principle"><span class="principle-num">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress — never a lump sum against a promise.</p></div>
+          <div class="carousel-card principle"><span class="principle-num">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
+        </div>
       </div>
       <a class="btn-text" href="verify.html" style="color:var(--ivory);">Open Verification Tool <span class="arrow">→</span></a>
     </div>
@@ -391,36 +436,42 @@
     <div class="wrap">
       <div class="eyebrow">05 — Climate Finance</div>
       <p class="lede">Capital moves where measurable climate outcomes can be demonstrated.</p>
-      <div class="category-list">
-        <div class="category-row">
-          <span class="cnum">01</span>
-          <h3>Renewable Energy</h3>
-          <div><span class="field-label">Verified Output</span><span class="field-value">Metered generation capacity added.</span></div>
-          <div><span class="field-label">Diligence</span><span class="field-value">Independent engineering certification and operating documentation.</span></div>
+      <div class="carousel-wrap">
+        <div class="carousel-controls">
+          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
         </div>
-        <div class="category-row">
-          <span class="cnum">02</span>
-          <h3>Waste-to-Energy</h3>
-          <div><span class="field-label">Verified Output</span><span class="field-value">Waste diverted and energy generated.</span></div>
-          <div><span class="field-label">Diligence</span><span class="field-value">Facility operating permits, throughput metering, emissions monitored against a stated baseline.</span></div>
-        </div>
-        <div class="category-row">
-          <span class="cnum">03</span>
-          <h3>Carbon Reduction</h3>
-          <div><span class="field-label">Verified Output</span><span class="field-value">Emissions avoided or removed.</span></div>
-          <div><span class="field-label">Diligence</span><span class="field-value">Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.</span></div>
-        </div>
-        <div class="category-row">
-          <span class="cnum">04</span>
-          <h3>Technical Assistance</h3>
-          <div><span class="field-label">Verified Output</span><span class="field-value">Capacity delivered — studies, training, MRV systems built.</span></div>
-          <div><span class="field-label">Diligence</span><span class="field-value">Deliverable-based milestones; independent review of the technical work product.</span></div>
-        </div>
-        <div class="category-row">
-          <span class="cnum">05</span>
-          <h3>Flood Management &amp; Reforestation</h3>
-          <div><span class="field-label">Verified Output</span><span class="field-value">Hectares restored; flood-risk reduction achieved.</span></div>
-          <div><span class="field-label">Diligence</span><span class="field-value">Remote-sensing canopy verification; hydrological modeling or post-event assessment.</span></div>
+        <div class="carousel-track">
+          <div class="carousel-card category-card">
+            <span class="cnum">01</span>
+            <h3>Renewable Energy</h3>
+            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Metered generation capacity added.</span></div>
+            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Independent engineering certification and operating documentation.</span></div>
+          </div>
+          <div class="carousel-card category-card">
+            <span class="cnum">02</span>
+            <h3>Waste-to-Energy</h3>
+            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Waste diverted and energy generated.</span></div>
+            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Facility operating permits, throughput metering, emissions monitored against a stated baseline.</span></div>
+          </div>
+          <div class="carousel-card category-card">
+            <span class="cnum">03</span>
+            <h3>Carbon Reduction</h3>
+            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Emissions avoided or removed.</span></div>
+            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.</span></div>
+          </div>
+          <div class="carousel-card category-card">
+            <span class="cnum">04</span>
+            <h3>Technical Assistance</h3>
+            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Capacity delivered — studies, training, MRV systems built.</span></div>
+            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Deliverable-based milestones; independent review of the technical work product.</span></div>
+          </div>
+          <div class="carousel-card category-card">
+            <span class="cnum">05</span>
+            <h3>Flood Management &amp; Reforestation</h3>
+            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Hectares restored; flood-risk reduction achieved.</span></div>
+            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Remote-sensing canopy verification; hydrological modeling or post-event assessment.</span></div>
+          </div>
         </div>
       </div>
     </div>
@@ -431,10 +482,17 @@
     <div class="wrap">
       <div class="eyebrow">06 — Impact Economics</div>
       <p class="lede">The mechanism scales with activity.</p>
-      <div class="impact-grid">
-        <div class="impact-cell"><div class="from">$10,000 trading volume</div><div class="figure">$200</div><div class="to">Climate Catalyst Fund</div></div>
-        <div class="impact-cell"><div class="from">$100,000 trading volume</div><div class="figure">$2,000</div><div class="to">Climate Catalyst Fund</div></div>
-        <div class="impact-cell"><div class="from">$1,000,000 trading volume</div><div class="figure">$20,000</div><div class="to">Climate Catalyst Fund</div></div>
+      <div class="carousel-wrap">
+        <div class="carousel-controls">
+          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <div class="carousel-track">
+          <div class="carousel-card impact-cell"><div class="from">$10,000 trading volume</div><div class="figure">$200</div><div class="to">Climate Catalyst Fund</div></div>
+          <div class="carousel-card impact-cell"><div class="from">$100,000 trading volume</div><div class="figure">$2,000</div><div class="to">Climate Catalyst Fund</div></div>
+          <div class="carousel-card impact-cell"><div class="from">$1,000,000 trading volume</div><div class="figure">$20,000</div><div class="to">Climate Catalyst Fund</div></div>
+          <div class="carousel-card impact-cell"><div class="from">$100,000,000 trading volume</div><div class="figure">$2,000,000</div><div class="to">Climate Catalyst Fund</div></div>
+        </div>
       </div>
       <div class="impact-disclaimer">
         <span class="tag">No forecast. No promise.</span>
@@ -603,6 +661,53 @@
     function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
     window.addEventListener('scroll', update, { passive: true });
     update();
+  })();
+</script>
+
+<!-- Carousels: Why It Exists, Verification, Climate Finance, Impact Economics -->
+<script>
+  (function () {
+    // Animate scrollLeft manually via requestAnimationFrame rather than
+    // relying on native smooth-scroll (the scrollBy options-object form and
+    // CSS scroll-behavior:smooth are both unreliable in some environments --
+    // this rAF approach depends on nothing but a plain scrollLeft assignment).
+    function animateScrollTo(el, targetLeft, duration) {
+      var startLeft = el.scrollLeft;
+      var change = targetLeft - startLeft;
+      if (change === 0) return;
+      var startTime = null;
+      function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+      function frame(now) {
+        if (startTime === null) startTime = now;
+        var progress = Math.min((now - startTime) / duration, 1);
+        el.scrollLeft = startLeft + change * ease(progress);
+        if (progress < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    document.querySelectorAll('.carousel-wrap').forEach(function (wrap) {
+      var track = wrap.querySelector('.carousel-track');
+      var prev = wrap.querySelector('.carousel-prev');
+      var next = wrap.querySelector('.carousel-next');
+      if (!track || !prev || !next) return;
+
+      function step() {
+        var card = track.querySelector('.carousel-card');
+        if (!card) return 300;
+        var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 20;
+        return card.getBoundingClientRect().width + gap;
+      }
+      function updateButtons() {
+        prev.disabled = track.scrollLeft <= 4;
+        next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 4;
+      }
+      prev.addEventListener('click', function () { animateScrollTo(track, track.scrollLeft - step(), 380); });
+      next.addEventListener('click', function () { animateScrollTo(track, track.scrollLeft + step(), 380); });
+      track.addEventListener('scroll', updateButtons, { passive: true });
+      window.addEventListener('resize', updateButtons);
+      updateButtons();
+    });
   })();
 </script>
 

@@ -78,8 +78,11 @@
   .hero-trust .dot-check { width: 16px; height: 16px; border-radius: 50%; background: #1E8A5F; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; flex: none; }
 
   .hero-visual { background: #F0D879; border-radius: 28px; padding: 26px; min-height: 340px; }
-  .hv-photo { width: 100%; height: 150px; object-fit: cover; border-radius: 16px; margin-bottom: 16px; display: block; }
-  .hv-photo-credit { font-size: 9.5px; color: #8A7A3A; margin: -10px 0 16px; text-align: right; }
+  .hv-photo-frame { position: relative; border-radius: 16px; overflow: hidden; height: 150px; margin-bottom: 6px; }
+  .hv-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 700ms var(--ease); }
+  .hv-photo.on { opacity: 1; }
+  .hv-photo-cat { position: absolute; top: 10px; left: 10px; background: rgba(23,21,12,.72); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; }
+  .hv-photo-credit { font-size: 9.5px; color: #8A7A3A; margin: 0 0 16px; text-align: right; }
   .hv-tag { display: inline-block; background: #FBF3D0; color: #7A6420; font-size: 11px; font-weight: 700; padding: 6px 14px; border-radius: 980px; margin-bottom: 18px; }
   .hv-row { background: #fff; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; box-shadow: 0 10px 24px -16px rgba(20,15,0,.25); }
   .hv-row:last-child { margin-bottom: 0; }
@@ -321,8 +324,10 @@
           <div class="hero-trust"><span class="dot-check">✓</span>Mint authority revoked · fixed 1,000,000,000 ACT supply</div>
         </div>
         <div class="hero-visual">
-          <img class="hv-photo" src="assets/solar-field.jpg" alt="Solar panel array, representing the real-world climate projects the catalyst fund is built to finance">
-          <div class="hv-photo-credit">Photo: American Public Power Association · Unsplash</div>
+          <div class="hv-photo-frame" id="hv-photo-frame">
+            <span class="hv-photo-cat" id="hv-photo-cat">Renewable Energy</span>
+          </div>
+          <div class="hv-photo-credit" id="hv-photo-credit">Photo: American Public Power Association · Unsplash</div>
           <div class="hv-tag">Verified On-Chain</div>
           <div class="hv-row">
             <div><div class="hv-label">Mint Authority</div><div class="hv-fact">Revoked</div></div>
@@ -1045,6 +1050,53 @@
         if (target) target.classList.add('active');
       });
     });
+  })();
+</script>
+
+<!-- Hero photo rotator: cycles through Aretia's real funding categories -->
+<script>
+  (function () {
+    var SLIDES = [
+      { src: "assets/solar-field.jpg", cat: "Renewable Energy", credit: "Photo: American Public Power Association · Unsplash" },
+      { src: "assets/waste-to-energy.jpg", cat: "Waste-to-Energy", credit: "Photo: Rose Galloway Green · Unsplash" },
+      { src: "assets/carbon-reduction.jpg", cat: "Carbon Reduction", credit: "Photo: Paul Summers · Unsplash" },
+      { src: "assets/technical-assistance.jpg", cat: "Technical Assistance", credit: "Photo: Evgeniy Alyoshin · Unsplash" },
+      { src: "assets/flood-management.jpg", cat: "Flood Management", credit: "Photo: Mathis Mauprivez · Unsplash" },
+      { src: "assets/reforestation.jpg", cat: "Reforestation", credit: "Photo: Dmitry Dreyer · Unsplash" }
+    ];
+    var frame = document.getElementById("hv-photo-frame");
+    var catLabel = document.getElementById("hv-photo-cat");
+    var creditLabel = document.getElementById("hv-photo-credit");
+    if (!frame) return;
+
+    var imgA = document.createElement("img");
+    var imgB = document.createElement("img");
+    imgA.className = "hv-photo";
+    imgB.className = "hv-photo";
+    frame.insertBefore(imgA, catLabel);
+    frame.insertBefore(imgB, catLabel);
+
+    var index = 0;
+    var showingA = true;
+
+    function render(i) {
+      var slide = SLIDES[i];
+      var incoming = showingA ? imgB : imgA;
+      var outgoing = showingA ? imgA : imgB;
+      incoming.src = slide.src;
+      incoming.alt = slide.cat + ", one of the categories the catalyst fund is built to finance";
+      incoming.classList.add("on");
+      outgoing.classList.remove("on");
+      catLabel.textContent = slide.cat;
+      if (creditLabel) creditLabel.textContent = slide.credit;
+      showingA = !showingA;
+    }
+
+    render(index);
+    setInterval(function () {
+      index = (index + 1) % SLIDES.length;
+      render(index);
+    }, 4000);
   })();
 </script>
 </body>

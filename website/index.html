@@ -177,6 +177,65 @@
   .final-cta p { font-size: 14px; color: var(--ink-soft); margin-bottom: 32px; }
   .final-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
+  /* -------- Section eyebrow (doola-style label above headline) -------- */
+  .sec-eyebrow { text-align: center; font-size: 12px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .sec-head { text-align: center; max-width: 640px; margin: 0 auto 48px; }
+  .sec-head h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); }
+  .sec-head p { font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.65; }
+  .hl { color: var(--blue); }
+
+  /* -------- "Built on" strip -------- */
+  .builton-strip { text-align: center; margin-top: 40px; }
+  .builton-strip .lbl { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+  .builton-logos { display: flex; justify-content: center; gap: 36px; flex-wrap: wrap; }
+  .builton-logos span { font-size: 15px; font-weight: 800; color: var(--ink-faint); letter-spacing: -0.01em; }
+
+  /* -------- Differentiator pastel cards -------- */
+  .diff-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 48px; }
+  @media (max-width: 1020px) { .diff-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px) { .diff-grid { grid-template-columns: 1fr 1fr; } }
+  .diff-card { border-radius: var(--r-lg); padding: 24px 20px; min-height: 190px; display: flex; flex-direction: column; }
+  .diff-card .ic { width: 38px; height: 38px; border-radius: 11px; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+  .diff-card .ic svg { width: 19px; height: 19px; }
+  .diff-card h3 { font-size: 14.5px; margin-bottom: 8px; }
+  .diff-card p { font-size: 12px; line-height: 1.55; color: var(--ink-soft); }
+
+  /* -------- Tabbed protocol showcase -------- */
+  .tabbar { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 0 0 40px; border-bottom: 1px solid var(--border-soft); padding-bottom: 0; }
+  .tabbar button { background: none; border: none; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); padding: 12px 18px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 160ms var(--ease), border-color 160ms var(--ease); }
+  .tabbar button:hover { color: var(--ink-soft); }
+  .tabbar button.active { color: var(--ink); border-color: var(--black); }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
+  .tab-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .tab-cards { grid-template-columns: 1fr; } }
+  .tab-card { border-radius: var(--r-lg); padding: 26px 24px; min-height: 200px; display: flex; flex-direction: column; }
+  .tab-card .tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(255,255,255,.6); padding: 4px 10px; border-radius: 8px; margin-bottom: 14px; align-self: flex-start; }
+  .tab-card h3 { font-size: 16px; margin-bottom: 10px; }
+  .tab-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 16px; flex: 1; }
+  .tab-card a { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+  /* -------- Tokenomics "pricing-style" cards -------- */
+  .tok-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .tok-grid { grid-template-columns: 1fr; } }
+  .tok-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px 26px; background: #fff; position: relative; }
+  .tok-card.hl { border-color: var(--black); box-shadow: 0 20px 40px -28px rgba(10,12,16,.3); }
+  .tok-card .badge { position: absolute; top: -12px; left: 24px; background: var(--black); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 12px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tok-card h3 { font-size: 15px; margin-bottom: 4px; }
+  .tok-card .sub { font-size: 12px; color: var(--ink-faint); margin-bottom: 20px; }
+  .tok-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .tok-card li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--ink-soft); }
+  .tok-card li .tick { width: 16px; height: 16px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; flex: none; margin-top: 2px; }
+
+  /* -------- FAQ accordion preview -------- */
+  .faq-preview { max-width: 720px; margin: 0 auto; }
+  .faq-preview details { border-bottom: 1px solid var(--border-soft); padding: 18px 0; }
+  .faq-preview summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq-preview summary::-webkit-details-marker { display: none; }
+  .faq-preview summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-faint); flex: none; }
+  .faq-preview details[open] summary::after { content: "\2013"; }
+  .faq-preview .a { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-top: 12px; max-width: 68ch; }
+
   /* -------- Footer -------- */
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 44px; }
@@ -227,11 +286,20 @@
         <div class="float-bubble fb-4"><span class="avatar-dot" style="background:var(--ink);"></span>1,000,000,000 Fixed Supply</div>
 
         <div class="eyebrow-pill"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Live on Solana Mainnet</div>
-        <h1>Finance that funds progress. Not promises.</h1>
+        <h1>Finance that funds progress. <span class="hl">Not promises.</span></h1>
         <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved. Every movement is visible. Every claim is checkable.</p>
         <div class="hero-actions">
           <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
           <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
+        </div>
+        <div class="builton-strip">
+          <div class="lbl">Built On</div>
+          <div class="builton-logos">
+            <span>Solana</span>
+            <span>Token-2022</span>
+            <span>Squads</span>
+            <span>Jupiter</span>
+          </div>
         </div>
       </div>
 
@@ -279,24 +347,147 @@
     </div>
   </section>
 
-  <!-- ============ 3 ICON FEATURES ============ -->
+  <!-- ============ PROTOCOL IN PRACTICE (tabbed showcase) ============ -->
+  <section class="block alt">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Protocol In Practice</div>
+        <h2>One protocol, four things you can check yourself.</h2>
+        <p>Every tab below links to a live page that does exactly what it says, not a description of a feature.</p>
+      </div>
+      <div class="tabbar" role="tablist">
+        <button type="button" class="active" data-tab="treasury">Treasury</button>
+        <button type="button" data-tab="verify">Verification</button>
+        <button type="button" data-tab="tokenomics">Tokenomics</button>
+        <button type="button" data-tab="funding">Funding</button>
+      </div>
+
+      <div class="tabpanel active" data-panel="treasury">
+        <div class="tab-cards">
+          <div class="tab-card" style="background:var(--blue-soft);">
+            <span class="tag">Custody</span>
+            <h3>Squads Multisig</h3>
+            <p>Accumulated fees settle into a 2-of-3 Squads multisig. No single key, including ours, can move treasury funds alone.</p>
+            <a href="details.html">See the custody model →</a>
+          </div>
+          <div class="tab-card" style="background:var(--green-soft);">
+            <span class="tag">Tested</span>
+            <h3>Exercised, Not Just Configured</h3>
+            <p>The propose-approve-execute cycle has already been tested end to end with a real signed transaction on mainnet.</p>
+            <a href="details.html">Read the treasury details →</a>
+          </div>
+          <div class="tab-card" style="background:var(--amber-soft);">
+            <span class="tag">Disbursement</span>
+            <h3>Grants &amp; Retirements</h3>
+            <p>Capital leaves the fund only as a grant to a vetted partner or a permanent, provable carbon-credit retirement.</p>
+            <a href="details.html">See how funding flows →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpanel" data-panel="verify">
+        <div class="tab-cards">
+          <div class="tab-card" style="background:var(--green-soft);">
+            <span class="tag">Live</span>
+            <h3>Queries Mainnet Directly</h3>
+            <p>Every check runs in your own browser against Solana mainnet, live, right now. No Aretia server sits in the loop.</p>
+            <a href="verify.html">Run the checks yourself →</a>
+          </div>
+          <div class="tab-card" style="background:var(--blue-soft);">
+            <span class="tag">Self-Checking</span>
+            <h3>The Page's Own Source Is Visible</h3>
+            <p>Every computation is client-side JavaScript you can read yourself. There's no server-side step you have to trust.</p>
+            <a href="verify.html">View the verification page →</a>
+          </div>
+          <div class="tab-card" style="background:var(--amber-soft);">
+            <span class="tag">Honest Limits</span>
+            <h3>Not a Substitute for an Audit</h3>
+            <p>This checks on-chain configuration against documentation. It's a free, instant, zero-trust first check, not a replacement for one.</p>
+            <a href="verify.html">See what this can't do →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpanel" data-panel="tokenomics">
+        <div class="tab-cards">
+          <div class="tab-card" style="background:var(--amber-soft);">
+            <span class="tag">Fee</span>
+            <h3>350 Basis Points</h3>
+            <p>3.5% withheld automatically on every transfer by the Token-2022 standard itself, not custom logic Aretia wrote.</p>
+            <a href="tokenomics.html">See the full fee split →</a>
+          </div>
+          <div class="tab-card" style="background:var(--blue-soft);">
+            <span class="tag">Supply</span>
+            <h3>1,000,000,000, Fixed</h3>
+            <p>Mint authority revoked immediately after the single initial mint. There is no code path left to create more ACT.</p>
+            <a href="tokenomics.html">Verify the supply →</a>
+          </div>
+          <div class="tab-card" style="background:var(--green-soft);">
+            <span class="tag">Standard</span>
+            <h3>Token-2022 on Solana</h3>
+            <p>A native fee-on-transfer primitive, not bespoke program logic that would need its own separate audit.</p>
+            <a href="tokenomics.html">Read the protocol parameters →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpanel" data-panel="funding">
+        <div class="tab-cards">
+          <div class="tab-card" style="background:var(--blue-soft);">
+            <span class="tag">Live Intake</span>
+            <h3>Applications Are Open</h3>
+            <p>Project developers can apply today, scoped to one of five funding categories, each held to its own diligence standard.</p>
+            <a href="apply.html">Apply for funding →</a>
+          </div>
+          <div class="tab-card" style="background:var(--green-soft);">
+            <span class="tag">Diligence</span>
+            <h3>Screened Before Anything Releases</h3>
+            <p>A technical committee and an independent verifier confirm each milestone before any tranche is released.</p>
+            <a href="details.html">See the diligence standard →</a>
+          </div>
+          <div class="tab-card" style="background:var(--amber-soft);">
+            <span class="tag">Governance</span>
+            <h3>Layered, Not Flat</h3>
+            <p>Community priorities, technical screening, independent verification, and smart-contract execution: no single vote moves money.</p>
+            <a href="details.html">Read the governance model →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHY ARETIA: 5 DIFFERENTIATOR CARDS ============ -->
   <section class="block">
     <div class="wrap">
-      <div class="feature-row">
-        <div class="feature-item">
-          <div class="feature-icon" style="background:var(--blue-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+      <div class="sec-head">
+        <div class="sec-eyebrow">Why Aretia</div>
+        <h2>Five things that make this different from a promise.</h2>
+      </div>
+      <div class="diff-grid">
+        <div class="diff-card" style="background:var(--blue-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
           <h3>Protocol-Enforced</h3>
           <p>The transfer fee is withheld automatically by the Token-2022 standard itself, not by custom logic Aretia wrote or could quietly change.</p>
         </div>
-        <div class="feature-item">
-          <div class="feature-icon" style="background:var(--green-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div class="diff-card" style="background:var(--green-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
           <h3>Independently Verified</h3>
           <p>Every check in the Verification tool queries Solana mainnet directly from your own browser, live, right now.</p>
         </div>
-        <div class="feature-item">
-          <div class="feature-icon" style="background:var(--amber-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <div class="diff-card" style="background:var(--amber-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
           <h3>Multisig Custody</h3>
           <p>2-of-3 treasury approval for every disbursement. No single wallet, including ours, can move capital alone.</p>
+        </div>
+        <div class="diff-card" style="background:var(--blue-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8a7 7 0 0114 0M5 16a7 7 0 0014 0"/></svg></div>
+          <h3>Fixed Supply, Revoked Authority</h3>
+          <p>1,000,000,000 ACT, permanently. Mint authority was revoked immediately after the single initial mint; no more can ever be created.</p>
+        </div>
+        <div class="diff-card" style="background:var(--green-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></div>
+          <h3>Milestone-Verified Disbursement</h3>
+          <p>Capital releases in tranches against independently verified progress, never a lump sum against a single approval.</p>
         </div>
       </div>
     </div>
@@ -419,12 +610,6 @@
           <div class="quote-source">Aretia Finance Protocol Whitepaper · Abstract</div>
         </div>
       </div>
-      <div class="built-on-row">
-        <span class="built-on-item">Solana</span>
-        <span class="built-on-item">Token-2022</span>
-        <span class="built-on-item">Squads</span>
-        <span class="built-on-item">Jupiter</span>
-      </div>
     </div>
   </section>
 
@@ -438,6 +623,83 @@
         <div class="hiw-step"><div class="hiw-badge">02</div><h3>Treasury</h3><p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p></div>
         <div class="hiw-step"><div class="hiw-badge">03</div><h3>Verification</h3><p>Projects clear category-specific diligence before reaching disbursement.</p></div>
         <div class="hiw-step"><div class="hiw-badge">04</div><h3>Disbursement</h3><p>Capital releases in tranches, each one a public, permanent transaction.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TOKENOMICS AT A GLANCE ============ -->
+  <section class="block alt">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Tokenomics at a Glance</div>
+        <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
+      </div>
+      <div class="tok-grid">
+        <div class="tok-card">
+          <h3>Fee Split</h3>
+          <div class="sub">Every transfer, automatically</div>
+          <ul>
+            <li><span class="tick">✓</span>2.0% → Climate Catalyst Fund</li>
+            <li><span class="tick">✓</span>1.0% → Liquidity</li>
+            <li><span class="tick">✓</span>0.5% → Disclosed management fee</li>
+            <li><span class="tick">✓</span>96.5% reaches the recipient net</li>
+          </ul>
+        </div>
+        <div class="tok-card hl">
+          <span class="badge">Fixed Forever</span>
+          <h3>Token</h3>
+          <div class="sub">Solana · Token-2022</div>
+          <ul>
+            <li><span class="tick">✓</span>1,000,000,000 total supply</li>
+            <li><span class="tick">✓</span>Mint authority revoked</li>
+            <li><span class="tick">✓</span>Freeze authority never granted</li>
+            <li><span class="tick">✓</span>9 decimals</li>
+          </ul>
+        </div>
+        <div class="tok-card">
+          <h3>Protocol</h3>
+          <div class="sub">Custody &amp; governance</div>
+          <ul>
+            <li><span class="tick">✓</span>Squads multisig, 2-of-3</li>
+            <li><span class="tick">✓</span>Governance phased in, layered</li>
+            <li><span class="tick">✓</span>Milestone-verified disbursement</li>
+            <li><span class="tick">✓</span>Live, independent verification tool</li>
+          </ul>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="tokenomics.html">See the full breakdown →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ PREVIEW ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Common Questions</div>
+        <h2>Answered plainly, traceable to the whitepaper or on-chain.</h2>
+      </div>
+      <div class="faq-preview">
+        <details open>
+          <summary>Has ACT launched?</summary>
+          <div class="a">No. The mint is live on Solana mainnet and the treasury multisig is live and tested, but no liquidity pool has been seeded yet, so ACT is not currently tradeable on any exchange. An initial, self-funded liquidity seed is planned. See the <a href="roadmap.html" style="color:var(--blue); font-weight:600;">roadmap</a>.</div>
+        </details>
+        <details>
+          <summary>Why doesn't ACT show a name or logo in my wallet?</summary>
+          <div class="a">Mint authority was permanently revoked immediately after the single initial mint, which is what makes the fixed-supply claim verifiable rather than a promise. The cost is that no metadata can ever be attached afterward. See the <a href="faq.html" style="color:var(--blue); font-weight:600;">full FAQ</a> for the tradeoff.</div>
+        </details>
+        <details>
+          <summary>Who controls the treasury?</summary>
+          <div class="a">No single party. The treasury is a Squads multisig requiring 2 of 3 independent signers to approve any outbound transaction, tested end to end with a real transaction on mainnet.</div>
+        </details>
+        <details>
+          <summary>Has Aretia been independently audited?</summary>
+          <div class="a">Not yet. No formal, independent security audit has been completed, and that's stated plainly here rather than implied otherwise. The <a href="verify.html" style="color:var(--blue); font-weight:600;">Verify</a> tool is a free, instant first check, not a substitute for one.</div>
+        </details>
+      </div>
+      <div style="text-align:center; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="faq.html">Read the full FAQ →</a>
       </div>
     </div>
   </section>
@@ -692,6 +954,23 @@
 
   loadLiveStats();
 })();
+</script>
+
+<!-- Protocol In Practice: tabbed showcase -->
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('.tabbar button');
+    var panels = document.querySelectorAll('.tabpanel');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('active'); });
+        panels.forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        var target = document.querySelector('.tabpanel[data-panel="' + btn.getAttribute('data-tab') + '"]');
+        if (target) target.classList.add('active');
+      });
+    });
+  })();
 </script>
 </body>
 </html>

@@ -18,6 +18,8 @@
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
+    --pink: #C0447A; --pink-soft: #FCE7EF;
+    --cyan: #0E7D8C; --cyan-soft: #DEF3F5;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -150,10 +152,10 @@
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
-  .step-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; background: var(--bg-alt); }
-  .step-mock { background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 18px; margin-bottom: 18px; min-height: 120px; }
-  .step-card h3 { font-size: 15px; color: var(--ink); margin-bottom: 8px; }
-  .step-card p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 12px; }
+  .step-card { border-radius: var(--r-lg); padding: 24px 22px; }
+  .step-mock { background: #fff; border-radius: var(--r-sm); padding: 16px; margin-bottom: 18px; min-height: 100px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); }
+  .step-card h3 { font-size: 16px; color: var(--ink); margin-bottom: 8px; }
+  .step-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 14px; }
   .step-card .rm { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 
   /* -------- Pull-quote (honest substitute for testimonial) -------- */
@@ -196,6 +198,10 @@
 
   /* -------- Final CTA -------- */
   .final-cta { text-align: center; padding: 84px 0; }
+  .final-cta-band { background: #F5EAB0; }
+  .final-cta-band .final-cta h2 { color: #17150C; }
+  .final-cta-band .final-cta p { color: #4A4227; }
+  .final-cta-band .pill-ghost { background: #fff; }
   .final-cta h2 { font-size: clamp(1.8rem, 3.6vw, 2.6rem); color: var(--ink); max-width: 20ch; margin: 0 auto 14px; }
   .final-cta p { font-size: 14px; color: var(--ink-soft); margin-bottom: 32px; }
   .final-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
@@ -569,13 +575,13 @@
           <h3>Multisig Custody</h3>
           <p>2-of-3 treasury approval for every disbursement. No single wallet, including ours, can move capital alone.</p>
         </div>
-        <div class="diff-card" style="background:var(--blue-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8a7 7 0 0114 0M5 16a7 7 0 0014 0"/></svg></div>
+        <div class="diff-card" style="background:var(--pink-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8a7 7 0 0114 0M5 16a7 7 0 0014 0"/></svg></div>
           <h3>Fixed Supply, Revoked Authority</h3>
           <p>1,000,000,000 ACT, permanently. Mint authority was revoked immediately after the single initial mint; no more can ever be created.</p>
         </div>
-        <div class="diff-card" style="background:var(--green-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></div>
+        <div class="diff-card" style="background:var(--cyan-soft);">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></div>
           <h3>Milestone-Verified Disbursement</h3>
           <p>Capital releases in tranches against independently verified progress, never a lump sum against a single approval.</p>
         </div>
@@ -632,7 +638,7 @@
             <span class="lb">Carbon Reduction</span>
           </div>
           <div class="cat-chip">
-            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
+            <span class="ic" style="background:var(--pink-soft); color:var(--pink);">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
               </svg>
@@ -640,7 +646,7 @@
             <span class="lb">Technical Assistance</span>
           </div>
           <div class="cat-chip">
-            <span class="ic" style="background:var(--green-soft); color:var(--green);">
+            <span class="ic" style="background:var(--cyan-soft); color:var(--cyan);">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
                 <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
@@ -650,7 +656,7 @@
             <span class="lb">Flood Management</span>
           </div>
           <div class="cat-chip">
-            <span class="ic" style="background:var(--amber-soft); color:var(--amber);">
+            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
                 <path d="M12 15v6"/>
@@ -667,21 +673,24 @@
   <!-- ============ 3 STEP CARDS ============ -->
   <section class="block">
     <div class="wrap">
-      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); max-width:18ch;">One simple path from application to verified impact.</h2>
+      <div class="sec-head" style="text-align:left; margin:0 0 48px;">
+        <div class="sec-eyebrow" style="text-align:left;">How Funding Works</div>
+        <h2>One simple path from application to verified impact.</h2>
+      </div>
       <div class="step-cards">
-        <div class="step-card">
+        <div class="step-card" style="background:var(--blue-soft);">
           <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
           <h3>Apply</h3>
           <p>Project developers submit an application scoped to one of five funding categories.</p>
           <a class="rm" href="apply.html">Apply for Funding →</a>
         </div>
-        <div class="step-card">
+        <div class="step-card" style="background:var(--amber-soft);">
           <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
           <h3>Verify</h3>
           <p>A technical committee and independent verifier confirm each milestone before release.</p>
           <a class="rm" href="whitepaper.html">Read the Standards →</a>
         </div>
-        <div class="step-card">
+        <div class="step-card" style="background:var(--green-soft);">
           <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
           <h3>Get Funded</h3>
           <p>Capital releases in tranches against verified progress, never a lump sum against a promise.</p>
@@ -808,8 +817,8 @@
     </div>
   </section>
 
-  <!-- ============ FINAL CTA ============ -->
-  <section class="block">
+  <!-- ============ FINAL CTA (cream band, bookends the hero) ============ -->
+  <section class="block final-cta-band">
     <div class="wrap">
       <div class="final-cta">
         <h2>Climate finance should be measurable. Capital should be accountable.</h2>

@@ -212,10 +212,11 @@
         <div class="float-bubble fb-4"><span class="avatar-dot" style="background:var(--ink);"></span>1,000,000,000 Fixed Supply</div>
 
         <div class="eyebrow-pill"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Live on Solana Mainnet</div>
-        <h1>Capital for climate action, built for verification.</h1>
-        <p class="hero-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital, released only against independently verified project progress.</p>
+        <h1>Finance that funds progress. Not promises.</h1>
+        <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved. Every movement is visible. Every claim is checkable.</p>
         <div class="hero-actions">
-          <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-black" href="#buy" data-jupiter-direction="buy">Buy ACT</a>
+          <a class="pill-btn pill-ghost" href="#buy" data-jupiter-direction="sell">Sell ACT</a>
           <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
         </div>
       </div>
@@ -439,30 +440,42 @@
     var SOL_MINT = "So11111111111111111111111111111111111111112";
     var RPC_ENDPOINT = "https://solana-rpc.publicnode.com";
 
-    function initTerminal() {
+    function initTerminal(direction) {
       if (!window.Jupiter || typeof window.Jupiter.init !== "function") return false;
       var container = document.getElementById("jupiter-terminal");
       if (container) container.innerHTML = "";
+      var isSell = direction === "sell";
       window.Jupiter.init({
         displayMode: "integrated",
         integratedTargetId: "jupiter-terminal",
         endpoint: RPC_ENDPOINT,
         formProps: {
-          initialInputMint: SOL_MINT,
-          initialOutputMint: ACT_MINT,
-          fixedOutputMint: true
+          initialInputMint: isSell ? ACT_MINT : SOL_MINT,
+          initialOutputMint: isSell ? SOL_MINT : ACT_MINT,
+          fixedOutputMint: false
         }
       });
       return true;
     }
 
-    if (!initTerminal()) {
+    if (!initTerminal("buy")) {
       var attempts = 0;
       var poll = setInterval(function () {
         attempts += 1;
-        if (initTerminal() || attempts > 100) clearInterval(poll);
+        if (initTerminal("buy") || attempts > 100) clearInterval(poll);
       }, 100);
     }
+
+    // Buy/Sell pills in the hero: jump to the widget and set the swap direction.
+    document.querySelectorAll("[data-jupiter-direction]").forEach(function (link) {
+      link.addEventListener("click", function (e) {
+        e.preventDefault();
+        var direction = link.getAttribute("data-jupiter-direction");
+        var target = document.getElementById("buy");
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(function () { initTerminal(direction); }, 300);
+      });
+    });
   })();
 </script>
 </body>

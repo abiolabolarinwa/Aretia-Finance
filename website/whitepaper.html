@@ -133,7 +133,8 @@
   .paper-toc li { break-inside: avoid; margin-bottom: 8px; font-size: 13.5px; }
   .paper-toc a { color: var(--ink-soft); }
   .paper-toc a:hover { color: var(--blue); }
-  .paper-toc li.toc-part { break-before: column; margin-top: 4px; }
+  .paper-toc li.toc-part { margin-top: 16px; }
+  .paper-toc li.toc-part:first-child { margin-top: 0; }
   .paper-toc li.toc-part a { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--blue); }
   @media (max-width: 560px) { .paper-toc { columns: 1; } }
   @media (max-width: 700px) { .paper-sheet table { font-size: 12.5px; } }

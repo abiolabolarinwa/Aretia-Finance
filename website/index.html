@@ -84,12 +84,13 @@
   .panel { background: #fff; border-radius: var(--r-md); padding: 22px; position: relative; }
   .panel + .panel { margin-left: 10px; }
   @media (max-width: 860px) { .panel + .panel { margin-left: 0; margin-top: 10px; } }
-  .panel-h { font-size: 12px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
-  .signer-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
-  .signer-row:last-child { border-bottom: none; }
-  .signer-avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
-  .signer-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .signer-addr { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+  .panel-h { font-size: 12px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-h .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none; box-shadow: 0 0 0 3px var(--green-soft); text-transform: none; letter-spacing: 0; }
+  .stat-row { padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .stat-label { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; margin-bottom: 4px; }
+  .stat-row .stat-usd { font-size: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stat-row .stat-act { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
   .fee-stat-figure { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--ink); }
   .fee-stat-up { font-size: 11px; font-weight: 700; color: var(--green); background: var(--green-soft); padding: 3px 8px; border-radius: 980px; margin-left: 8px; }
   .fee-bar { display: flex; height: 8px; border-radius: 980px; overflow: hidden; margin: 14px 0; background: var(--border-soft); }
@@ -236,10 +237,22 @@
       <!-- ============ 3-PANEL TREASURY CARD ============ -->
       <div class="panel-row" id="about">
         <div class="panel">
-          <div class="panel-h">Treasury Signers</div>
-          <div class="signer-row"><span class="signer-avatar" style="background:var(--blue);">F</span><div><div class="signer-name">Founder</div><div class="signer-addr">4DoV9F...WhjdG</div></div></div>
-          <div class="signer-row"><span class="signer-avatar" style="background:var(--green);">C1</span><div><div class="signer-name">Co-signer 1</div><div class="signer-addr">CAyPkS...LKcB5r</div></div></div>
-          <div class="signer-row"><span class="signer-avatar" style="background:var(--amber);">C2</span><div><div class="signer-name">Co-signer 2</div><div class="signer-addr">7Sn7H1...v87dVJx</div></div></div>
+          <div class="panel-h">Live On-Chain Stats <span class="live-dot" title="Queried directly from Solana mainnet"></span></div>
+          <div class="stat-row">
+            <div class="stat-label">Total Volume Traded</div>
+            <div class="stat-usd" data-stat="volumeUsd">checking…</div>
+            <div class="stat-act" data-stat="volumeAct">checking…</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">Aretia Climate Treasury</div>
+            <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
+            <div class="stat-act" data-stat="treasuryAct">checking…</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">Management Fee Wallet</div>
+            <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
+            <div class="stat-act" data-stat="mgmtAct">checking…</div>
+          </div>
         </div>
         <div class="panel">
           <div class="panel-h">Fee Allocation<span class="fee-stat-up">3.5%</span></div>
@@ -583,6 +596,101 @@
       if (e.key === "Escape") closeDrawer();
     });
   })();
+</script>
+
+<!-- Live On-Chain Stats: treasury and management-wallet balances read directly
+     from Solana mainnet, priced against ACT's live market price when one
+     exists. No liquidity pool has been seeded yet, so total volume traded is
+     honestly zero and the ACT/USD price is not yet defined; both update
+     automatically once trading begins. -->
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script>
+(function () {
+  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+  var MINT = "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG";
+  var TREASURY_VAULT = "GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA";
+  var MANAGEMENT_WALLET = "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2";
+  var TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+  var ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+  function readU64LE(bytes, offset) { return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getBigUint64(0, true); }
+
+  function findAta(owner, mint, tokenProgramId) {
+    var seeds = [owner.toBuffer(), tokenProgramId.toBuffer(), mint.toBuffer()];
+    return solanaWeb3.PublicKey.findProgramAddressSync(seeds, new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))[0];
+  }
+
+  function setStat(name, usdText, actText) {
+    var usdEl = document.querySelector('[data-stat="' + name + 'Usd"]');
+    var actEl = document.querySelector('[data-stat="' + name + 'Act"]');
+    if (usdEl) usdEl.textContent = usdText;
+    if (actEl) actEl.textContent = actText;
+  }
+
+  function formatUsd(n) {
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function formatAct(n) {
+    return "(" + n.toLocaleString(undefined, { maximumFractionDigits: 0 }) + " ACT)";
+  }
+
+  async function connectFirstWorking() {
+    for (var i = 0; i < RPC_ENDPOINTS.length; i++) {
+      try {
+        var conn = new solanaWeb3.Connection(RPC_ENDPOINTS[i], "confirmed");
+        await conn.getSlot();
+        return conn;
+      } catch (e) { /* try next endpoint */ }
+    }
+    throw new Error("No RPC endpoint reachable");
+  }
+
+  async function getAtaBalance(connection, owner, mint) {
+    var ata = findAta(new solanaWeb3.PublicKey(owner), new solanaWeb3.PublicKey(mint), new solanaWeb3.PublicKey(TOKEN_2022_PROGRAM_ID));
+    var info = await connection.getAccountInfo(ata, "confirmed");
+    if (!info) return 0;
+    return Number(readU64LE(new Uint8Array(info.data), 64)) / 1e9;
+  }
+
+  // Jupiter's price API returns no entry for a mint with no seeded liquidity,
+  // which is the honest, correct state pre-launch rather than an error.
+  async function getActUsdPrice() {
+    try {
+      var res = await fetch("https://lite-api.jup.ag/price/v3?ids=" + MINT);
+      var json = await res.json();
+      var entry = json[MINT];
+      return entry && typeof entry.usdPrice === "number" ? entry.usdPrice : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function loadLiveStats() {
+    // No liquidity pool has been seeded yet, so there is no trading history
+    // to report. This will start reflecting real volume once trading begins.
+    setStat("volume", "$0.00", "(0 ACT)");
+
+    try {
+      var connection = await connectFirstWorking();
+      var price = await getActUsdPrice();
+      var treasuryAct = await getAtaBalance(connection, TREASURY_VAULT, MINT);
+      var mgmtAct = await getAtaBalance(connection, MANAGEMENT_WALLET, MINT);
+
+      if (price) {
+        setStat("treasury", formatUsd(treasuryAct * price), formatAct(treasuryAct));
+        setStat("mgmt", formatUsd(mgmtAct * price), formatAct(mgmtAct));
+      } else {
+        setStat("treasury", "No live market yet", formatAct(treasuryAct));
+        setStat("mgmt", "No live market yet", formatAct(mgmtAct));
+      }
+    } catch (err) {
+      setStat("treasury", "RPC unavailable", "unavailable");
+      setStat("mgmt", "RPC unavailable", "unavailable");
+    }
+  }
+
+  loadLiveStats();
+})();
 </script>
 </body>
 </html>

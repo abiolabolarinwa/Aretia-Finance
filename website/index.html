@@ -116,9 +116,11 @@
   .stat-figure { font-family: var(--mono); font-size: 34px; font-weight: 700; color: var(--ink); }
   .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
   .cat-collage { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .cat-chip { aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 14px; gap: 8px; border: 1px solid var(--border); }
-  .cat-chip .ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-  .cat-chip .lb { font-size: 11px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+  .cat-chip { aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px 10px; gap: 12px; border: 1px solid var(--border); transition: transform 200ms var(--ease), border-color 200ms var(--ease), box-shadow 200ms var(--ease); }
+  .cat-chip:hover { transform: translateY(-3px); border-color: var(--ink-faint); box-shadow: 0 10px 24px -14px rgba(10,12,16,.22); }
+  .cat-chip .ic { width: 54px; height: 54px; border-radius: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .cat-chip .ic svg { width: 27px; height: 27px; }
+  .cat-chip .lb { font-size: 11.5px; font-weight: 600; color: var(--ink); line-height: 1.3; }
 
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
@@ -146,15 +148,26 @@
   .hiw-step h3 { font-size: 14.5px; color: var(--ink); margin-bottom: 8px; }
   .hiw-step p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 26ch; margin: 0 auto; }
 
-  /* -------- Final: buy widget -------- */
-  .final-split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
-  @media (max-width: 860px) { .final-split { grid-template-columns: 1fr; gap: 28px; } }
-  .final-left h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); color: var(--ink); margin-bottom: 16px; max-width: 15ch; }
-  .final-left p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 18px; }
-  .buy-note { font-size: 12px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; max-width: 42ch; line-height: 1.6; }
-  .buy-widget-frame { background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; min-height: 460px; display: flex; align-items: center; justify-content: center; }
+  /* -------- Final: get ACT -------- */
+  .final-left h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); color: var(--ink); margin-bottom: 16px; }
+  .final-left p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 0; }
+
+  /* -------- Trade drawer (right-side slide-out) -------- */
+  .trade-overlay { position: fixed; inset: 0; background: rgba(14,15,18,.42); opacity: 0; visibility: hidden; transition: opacity 220ms var(--ease); z-index: 200; }
+  .trade-overlay.open { opacity: 1; visibility: visible; }
+  .trade-drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(440px, 100vw); background: #fff; box-shadow: -12px 0 40px rgba(10,12,16,.14); z-index: 201; transform: translateX(100%); transition: transform 300ms var(--ease); display: flex; flex-direction: column; }
+  .trade-drawer.open { transform: translateX(0); }
+  .trade-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border-soft); flex: none; }
+  .trade-drawer-head h3 { font-size: 15.5px; }
+  .trade-drawer-close { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 17px; line-height: 1; color: var(--ink-soft); transition: background 160ms var(--ease); }
+  .trade-drawer-close:hover { background: var(--bg-alt); }
+  .trade-drawer-body { padding: 22px 24px 28px; overflow-y: auto; flex: 1; }
+  .buy-note { font-size: 12px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; margin-bottom: 18px; line-height: 1.6; }
+  .buy-widget-frame { background: #fff; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; min-height: 460px; display: flex; align-items: center; justify-content: center; }
   .buy-widget-loading { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
   #jupiter-terminal { width: 100%; min-height: 460px; }
+  body.drawer-open { overflow: hidden; }
+  @media (max-width: 480px) { .trade-drawer { width: 100vw; } }
 
   /* -------- Final CTA -------- */
   .final-cta { text-align: center; padding: 84px 0; }
@@ -215,8 +228,7 @@
         <h1>Finance that funds progress. Not promises.</h1>
         <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved. Every movement is visible. Every claim is checkable.</p>
         <div class="hero-actions">
-          <a class="pill-btn pill-black" href="#buy" data-jupiter-direction="buy">Buy ACT</a>
-          <a class="pill-btn pill-ghost" href="#buy" data-jupiter-direction="sell">Sell ACT</a>
+          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
           <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
         </div>
       </div>
@@ -292,12 +304,66 @@
           </div>
         </div>
         <div class="cat-collage">
-          <div class="cat-chip"><span class="ic" style="background:var(--blue-soft);">☀</span><span class="lb">Renewable Energy</span></div>
-          <div class="cat-chip"><span class="ic" style="background:var(--green-soft);">♻</span><span class="lb">Waste-to-Energy</span></div>
-          <div class="cat-chip"><span class="ic" style="background:var(--amber-soft);">◐</span><span class="lb">Carbon Reduction</span></div>
-          <div class="cat-chip"><span class="ic" style="background:var(--blue-soft);">◈</span><span class="lb">Technical Assistance</span></div>
-          <div class="cat-chip"><span class="ic" style="background:var(--green-soft);">≈</span><span class="lb">Flood Management</span></div>
-          <div class="cat-chip"><span class="ic" style="background:var(--amber-soft);">✦</span><span class="lb">Reforestation</span></div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="3"/>
+                <path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/>
+                <rect x="6" y="16" width="12" height="6" rx="1"/>
+                <path d="M9 16v6M15 16v6M6 19h12"/>
+              </svg>
+            </span>
+            <span class="lb">Renewable Energy</span>
+          </div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--green-soft); color:var(--green);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 6h7"/>
+                <path d="M5 6l.8 11a1 1 0 001 1h1.4"/>
+                <path d="M6.5 6l.4-1.6h2.2l.4 1.6"/>
+                <path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/>
+              </svg>
+            </span>
+            <span class="lb">Waste-to-Energy</span>
+          </div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--amber-soft); color:var(--amber);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/>
+                <path d="M12 20c-.7-5 .3-11 5-15.5"/>
+                <path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/>
+              </svg>
+            </span>
+            <span class="lb">Carbon Reduction</span>
+          </div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
+              </svg>
+            </span>
+            <span class="lb">Technical Assistance</span>
+          </div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--green-soft); color:var(--green);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
+                <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+                <path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+              </svg>
+            </span>
+            <span class="lb">Flood Management</span>
+          </div>
+          <div class="cat-chip">
+            <span class="ic" style="background:var(--amber-soft); color:var(--amber);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
+                <path d="M12 15v6"/>
+                <path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/>
+              </svg>
+            </span>
+            <span class="lb">Reforestation</span>
+          </div>
         </div>
       </div>
     </div>
@@ -365,15 +431,12 @@
   <!-- ============ GET ACT ============ -->
   <section class="block alt" id="buy">
     <div class="wrap">
-      <div class="final-split">
-        <div class="final-left">
-          <div style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px;">ACT</div>
-          <h2>ACT is the protocol's economic mechanism.</h2>
-          <p>ACT trades openly on Solana, no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
-          <p class="buy-note">Liquidity hasn't been seeded yet, so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
-        </div>
-        <div class="buy-widget-frame">
-          <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
+      <div class="final-left" style="max-width:560px; margin:0 auto; text-align:center;">
+        <div style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px;">ACT</div>
+        <h2>ACT is the protocol's economic mechanism.</h2>
+        <p style="margin-left:auto; margin-right:auto;">ACT trades openly on Solana, no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
+        <div style="margin-top:26px;">
+          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
         </div>
       </div>
     </div>
@@ -432,49 +495,92 @@
   </div>
 </footer>
 
-<!-- Buy ACT: Jupiter Terminal swap widget, wired to the live ACT mint -->
+<!-- Trade ACT: right-side slide-out drawer holding the Jupiter Terminal swap widget -->
+<div class="trade-overlay" id="trade-overlay"></div>
+<aside class="trade-drawer" id="trade-drawer" aria-hidden="true">
+  <div class="trade-drawer-head">
+    <h3>Trade ACT</h3>
+    <button type="button" class="trade-drawer-close" id="trade-drawer-close" aria-label="Close">×</button>
+  </div>
+  <div class="trade-drawer-body">
+    <p class="buy-note">Liquidity hasn't been seeded yet, so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live. Use the swap-direction arrow inside the widget to switch between buying and selling ACT.</p>
+    <div class="buy-widget-frame">
+      <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
+    </div>
+  </div>
+</aside>
+
 <script src="https://terminal.jup.ag/main-v4.js" data-preload></script>
 <script>
   (function () {
     var ACT_MINT = "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG";
     var SOL_MINT = "So11111111111111111111111111111111111111112";
     var RPC_ENDPOINT = "https://solana-rpc.publicnode.com";
+    var terminalReady = false;
 
-    function initTerminal(direction) {
+    function initTerminal() {
+      if (terminalReady) return true;
       if (!window.Jupiter || typeof window.Jupiter.init !== "function") return false;
       var container = document.getElementById("jupiter-terminal");
       if (container) container.innerHTML = "";
-      var isSell = direction === "sell";
       window.Jupiter.init({
         displayMode: "integrated",
         integratedTargetId: "jupiter-terminal",
         endpoint: RPC_ENDPOINT,
         formProps: {
-          initialInputMint: isSell ? ACT_MINT : SOL_MINT,
-          initialOutputMint: isSell ? SOL_MINT : ACT_MINT,
+          initialInputMint: SOL_MINT,
+          initialOutputMint: ACT_MINT,
           fixedOutputMint: false
         }
       });
+      terminalReady = true;
       return true;
     }
 
-    if (!initTerminal("buy")) {
+    if (!initTerminal()) {
       var attempts = 0;
       var poll = setInterval(function () {
         attempts += 1;
-        if (initTerminal("buy") || attempts > 100) clearInterval(poll);
+        if (initTerminal() || attempts > 100) clearInterval(poll);
       }, 100);
     }
 
-    // Buy/Sell pills in the hero: jump to the widget and set the swap direction.
-    document.querySelectorAll("[data-jupiter-direction]").forEach(function (link) {
-      link.addEventListener("click", function (e) {
+    // Right-side trade drawer: opened from the hero pill and the "Get ACT" section.
+    var drawer = document.getElementById("trade-drawer");
+    var overlay = document.getElementById("trade-overlay");
+    var closeBtn = document.getElementById("trade-drawer-close");
+    var lastTrigger = null;
+
+    function openDrawer(trigger) {
+      lastTrigger = trigger || null;
+      drawer.classList.add("open");
+      overlay.classList.add("open");
+      drawer.setAttribute("aria-hidden", "false");
+      document.body.classList.add("drawer-open");
+      initTerminal();
+    }
+    function closeDrawer() {
+      // Move focus out before hiding, so aria-hidden is never applied while
+      // a descendant (e.g. the close button) still has focus.
+      if (drawer.contains(document.activeElement)) {
+        (lastTrigger || document.body).focus();
+      }
+      drawer.classList.remove("open");
+      overlay.classList.remove("open");
+      drawer.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("drawer-open");
+    }
+
+    document.querySelectorAll(".js-open-trade").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
         e.preventDefault();
-        var direction = link.getAttribute("data-jupiter-direction");
-        var target = document.getElementById("buy");
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-        setTimeout(function () { initTerminal(direction); }, 300);
+        openDrawer(btn);
       });
+    });
+    if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
+    if (overlay) overlay.addEventListener("click", closeDrawer);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeDrawer();
     });
   })();
 </script>

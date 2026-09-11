@@ -63,20 +63,39 @@
   .nav-links a:hover { color: var(--ink); }
   @media (max-width: 900px) { .nav-links { display: none; } }
 
-  /* -------- Hero -------- */
-  .hero { position: relative; padding: 96px 0 60px; overflow: visible; }
-  @media (max-width: 860px) { .hero { padding: 56px 0 40px; } }
-  .hero-inner { text-align: center; max-width: 720px; margin: 0 auto; position: relative; }
-  .hero-inner .eyebrow-pill { margin-bottom: 30px; }
-  .hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.12; letter-spacing: -0.03em; color: var(--ink); margin: 0 auto 22px; }
-  .hero-sub { font-size: clamp(14.5px, 1.4vw, 16.5px); color: var(--ink-soft); max-width: 50ch; margin: 0 auto 34px; line-height: 1.7; }
-  .hero-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  /* -------- Hero (doola-style: cream/mustard, two-column) -------- */
+  .hero { position: relative; background: #F5EAB0; overflow: hidden; padding: 56px 0 0; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; padding-bottom: 24px; }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 36px; } }
+  .hero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 18px; }
+  .hero h1 { font-size: clamp(2.1rem, 4.2vw, 3.1rem); line-height: 1.15; letter-spacing: -0.02em; color: #17150C; margin: 0 0 20px; text-align: left; }
+  .hero h1 .hl { color: #A9791B; }
+  .hero-sub { font-size: 15.5px; color: #4A4227; max-width: 46ch; margin: 0 0 28px; line-height: 1.65; text-align: left; }
+  .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; margin-bottom: 20px; }
+  .hero .pill-black { background: #101114; }
+  .hero .pill-ghost-link { font-size: 13px; font-weight: 600; color: #7A6420; text-decoration: underline; text-underline-offset: 3px; }
+  .hero-trust { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #4A4227; font-weight: 600; }
+  .hero-trust .dot-check { width: 16px; height: 16px; border-radius: 50%; background: #1E8A5F; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; flex: none; }
 
-  /* Floating fact bubbles, decorative, real content not fabricated social proof */
-  .float-bubble { position: absolute; background: #fff; border: 1px solid var(--border); border-radius: 980px; padding: 9px 16px; font-size: 12px; font-weight: 600; color: var(--ink); box-shadow: 0 12px 30px -12px rgba(16,17,20,0.14); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-  .float-bubble .avatar-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
-  .fb-1 { top: -4%; left: -20%; } .fb-2 { top: 62%; left: -22%; } .fb-3 { top: -4%; right: -18%; } .fb-4 { top: 62%; right: -20%; }
-  @media (max-width: 1000px) { .float-bubble { display: none; } }
+  .hero-visual { background: #F0D879; border-radius: 28px; padding: 26px; min-height: 340px; }
+  .hv-photo { width: 100%; height: 150px; object-fit: cover; border-radius: 16px; margin-bottom: 16px; display: block; }
+  .hv-photo-credit { font-size: 9.5px; color: #8A7A3A; margin: -10px 0 16px; text-align: right; }
+  .hv-tag { display: inline-block; background: #FBF3D0; color: #7A6420; font-size: 11px; font-weight: 700; padding: 6px 14px; border-radius: 980px; margin-bottom: 18px; }
+  .hv-row { background: #fff; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; box-shadow: 0 10px 24px -16px rgba(20,15,0,.25); }
+  .hv-row:last-child { margin-bottom: 0; }
+  .hv-row .hv-label { font-size: 10.5px; color: #8A7A3A; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  .hv-row .hv-fact { font-size: 14.5px; font-weight: 700; color: #17150C; }
+  .hv-row .hv-pill { font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; background: #E1F5EC; color: #1E8A5F; white-space: nowrap; flex: none; }
+
+  .builton-card { background: #fff; border-radius: 24px; box-shadow: 0 24px 50px -30px rgba(20,15,0,.3); padding: 26px 36px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; transform: translateY(30px); position: relative; z-index: 2; }
+  .builton-card .lbl { font-size: 15px; font-weight: 800; color: #17150C; }
+  .builton-card .logos { display: flex; gap: 32px; flex-wrap: wrap; }
+  .builton-card .logos span { font-size: 14px; font-weight: 700; color: var(--ink-faint); }
+  @media (max-width: 640px) { .builton-card { flex-direction: column; align-items: flex-start; transform: translateY(20px); } }
+
+  /* -------- Live stats section (moved below the cream hero band) -------- */
+  .stats-section { padding: 56px 0 88px; }
+  @media (max-width: 860px) { .stats-section { padding: 44px 0 56px; } }
 
   /* -------- 3-panel workflow card -------- */
   .panel-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-alt); padding: 10px; margin-top: 56px; box-shadow: 0 30px 70px -40px rgba(16,17,20,0.16); }
@@ -287,34 +306,53 @@
 
 <main>
 
-  <!-- ============ HERO ============ -->
+  <!-- ============ HERO (doola-style: cream, two-column) ============ -->
   <section class="hero" id="hero">
     <div class="wrap">
-      <div class="hero-inner">
-        <div class="float-bubble fb-1"><span class="avatar-dot" style="background:var(--blue);"></span>3.5% Protocol Fee</div>
-        <div class="float-bubble fb-2"><span class="avatar-dot" style="background:var(--green);"></span>Mint Authority Revoked</div>
-        <div class="float-bubble fb-3"><span class="avatar-dot" style="background:var(--amber);"></span>2-of-3 Multisig</div>
-        <div class="float-bubble fb-4"><span class="avatar-dot" style="background:var(--ink);"></span>1,000,000,000 Fixed Supply</div>
-
-        <div class="eyebrow-pill"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Live on Solana Mainnet</div>
-        <h1>Finance that funds progress. <span class="hl">Not promises.</span></h1>
-        <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved. Every movement is visible. Every claim is checkable.</p>
-        <div class="hero-actions">
-          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
-          <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
+      <div class="hero-grid">
+        <div>
+          <div class="hero-eyebrow">Live on Solana Mainnet.</div>
+          <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
+          <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved.</p>
+          <div class="hero-actions">
+            <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
+            <a class="pill-ghost-link" href="whitepaper.html">Read the Whitepaper before you do →</a>
+          </div>
+          <div class="hero-trust"><span class="dot-check">✓</span>Mint authority revoked · fixed 1,000,000,000 ACT supply</div>
         </div>
-        <div class="builton-strip">
-          <div class="lbl">Built On</div>
-          <div class="builton-logos">
-            <span>Solana</span>
-            <span>Token-2022</span>
-            <span>Squads</span>
-            <span>Jupiter</span>
+        <div class="hero-visual">
+          <img class="hv-photo" src="assets/solar-field.jpg" alt="Solar panel array, representing the real-world climate projects the catalyst fund is built to finance">
+          <div class="hv-photo-credit">Photo: American Public Power Association · Unsplash</div>
+          <div class="hv-tag">Verified On-Chain</div>
+          <div class="hv-row">
+            <div><div class="hv-label">Mint Authority</div><div class="hv-fact">Revoked</div></div>
+            <span class="hv-pill">Verified</span>
+          </div>
+          <div class="hv-row">
+            <div><div class="hv-label">Freeze Authority</div><div class="hv-fact">Never Granted</div></div>
+            <span class="hv-pill">Verified</span>
+          </div>
+          <div class="hv-row">
+            <div><div class="hv-label">Treasury Custody</div><div class="hv-fact">2-of-3 Multisig</div></div>
+            <span class="hv-pill">Tested</span>
           </div>
         </div>
       </div>
+      <div class="builton-card">
+        <div class="lbl">Built On</div>
+        <div class="logos">
+          <span>Solana</span>
+          <span>Token-2022</span>
+          <span>Squads</span>
+          <span>Jupiter</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <!-- ============ 3-PANEL TREASURY CARD ============ -->
+  <!-- ============ 3-PANEL LIVE STATS ============ -->
+  <section class="stats-section">
+    <div class="wrap">
       <div class="panel-row" id="about">
         <div class="panel">
           <div class="panel-h">Live On-Chain Stats <span class="live-dot" title="Queried directly from Solana mainnet"></span></div>

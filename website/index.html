@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aretia — Climate Finance Protocol</title>
+<title>Aretia · Climate Finance Protocol</title>
 <meta name="description" content="Aretia is a climate-finance protocol that converts a fixed share of economic activity into transparent, milestone-verified climate capital. ACT is the protocol's economic mechanism on Solana.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,14 +65,14 @@
   .topnav-cta { flex: none; }
 
   /* -------- Hero -------- */
-  .hero { position: relative; padding: 60px 0 0; overflow: hidden; background: radial-gradient(120% 100% at 50% 0%, var(--navy-soft) 0%, var(--navy) 55%, var(--navy-deep) 100%); border-radius: 0 0 var(--r-xl) var(--r-xl); }
+  .hero { position: relative; padding: 60px 0 0; overflow: hidden; background: var(--navy); border-radius: 0 0 var(--r-xl) var(--r-xl); }
   .hero-inner { padding: 76px 0 220px; text-align: center; position: relative; z-index: 2; }
   @media (max-width: 860px) { .hero-inner { padding: 48px 0 200px; } }
   .hero-eyebrow { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9FB0FF; margin-bottom: 30px; }
   .hero h1 { font-size: clamp(2.6rem, 6.4vw, 5.2rem); line-height: 1.06; letter-spacing: -0.03em; color: #fff; max-width: 15ch; margin: 0 auto 30px; font-weight: 500; }
   .hero h1 .accent-wrap { display: inline-flex; align-items: center; gap: 10px; }
   .hero h1 .pill-deco { display: inline-block; width: 1.3em; height: 0.62em; border: 2.5px solid #6B84FF; border-radius: 980px; vertical-align: middle; margin: 0 4px; }
-  .hero h1 .hatch-deco { display: inline-block; width: 1.5em; height: 0.7em; vertical-align: middle; margin: 0 4px; background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 8px); border-radius: 4px; }
+  .hero h1 .hatch-deco { display: inline-block; width: 1.5em; height: 0.7em; vertical-align: middle; margin: 0 4px; background: none; border: 2.5px dashed rgba(255,255,255,0.55); border-radius: 4px; }
   .hero-sub { font-size: clamp(15px, 1.6vw, 17.5px); color: #C4CBEE; max-width: 52ch; margin: 0 auto 40px; line-height: 1.7; }
   .hero-actions { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
 
@@ -94,7 +94,7 @@
   .bento-stat { background: var(--navy); color: #fff; display: flex; flex-direction: column; justify-content: flex-end; min-height: 158px; }
   .bento-stat .figure { font-family: var(--mono); font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 700; color: #fff; margin-bottom: 8px; }
   .bento-stat .cap { font-size: 12.5px; color: #A9B4E6; }
-  .bento-stat.grad { background: linear-gradient(135deg, var(--rose-1), var(--rose-2)); }
+  .bento-stat.grad { background: var(--blue-deep); }
 
   /* -------- Category explorer (Selected Projects pattern) -------- */
   .cat-explorer { display: grid; grid-template-columns: 300px 1fr; gap: 44px; margin-top: 48px; align-items: start; }
@@ -106,7 +106,7 @@
   .cat-item.active { border-color: var(--blue); }
   .cat-item.active .t { color: var(--navy); }
   .cat-item.active .s { opacity: 1; }
-  .cat-panel { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy)); min-height: 420px; position: relative; overflow: hidden; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; }
+  .cat-panel { border-radius: var(--r-xl); background: var(--navy); min-height: 420px; position: relative; overflow: hidden; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; }
   .cat-panel-card { background: var(--card); border-radius: var(--r-lg); padding: 30px 28px; max-width: 380px; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.35); }
   .cat-panel-card h3 { font-size: 21px; color: var(--navy); margin-bottom: 10px; }
   .cat-panel-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
@@ -132,7 +132,7 @@
   .fan-dot.active { background: var(--blue); transform: scale(1.3); }
 
   /* -------- Roadmap split card -------- */
-  .split-card { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy)); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; margin-top: 48px; }
+  .split-card { border-radius: var(--r-xl); background: var(--navy); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; margin-top: 48px; }
   @media (max-width: 860px) { .split-card { grid-template-columns: 1fr; } }
   .split-left { padding: 52px 48px; }
   .split-left h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); color: #fff; margin-bottom: 30px; }
@@ -175,7 +175,7 @@
   #jupiter-terminal { width: 100%; min-height: 480px; }
 
   /* -------- Final CTA -------- */
-  .final-cta { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy-deep)); padding: 96px 40px; text-align: center; }
+  .final-cta { border-radius: var(--r-xl); background: var(--navy-deep); padding: 96px 40px; text-align: center; }
   .final-cta h2 { font-size: clamp(1.9rem, 4vw, 3rem); color: #fff; max-width: 20ch; margin: 0 auto 16px; }
   .final-cta p { font-size: 14.5px; color: #9FB0DE; margin-bottom: 40px; }
   .final-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
@@ -225,9 +225,9 @@
   <section class="hero" id="hero">
     <div class="wrap">
       <div class="hero-inner">
-        <div class="hero-eyebrow">Aretia — Climate Finance Protocol</div>
+        <div class="hero-eyebrow">Aretia · Climate Finance Protocol</div>
         <h1>Capital for climate <span class="accent-wrap"><span class="pill-deco"></span> action</span>, built for <span class="accent-wrap">verification<span class="hatch-deco"></span></span>.</h1>
-        <p class="hero-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital — released only against independently verified project progress.</p>
+        <p class="hero-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital, released only against independently verified project progress.</p>
         <div class="hero-actions">
           <a class="pill-btn pill-primary" href="apply.html">Apply for Funding</a>
           <a class="pill-btn pill-outline-light" href="whitepaper.html">Read the Whitepaper →</a>
@@ -244,7 +244,7 @@
           <div class="eyebrow">About Aretia</div>
           <h2>Capital that speaks for itself.</h2>
         </div>
-        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones — not a promise anyone has to trust.</p>
+        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones, not a promise anyone has to trust.</p>
       </div>
       <div class="bento-tile bento-note">
         <h3>Capital</h3>
@@ -260,7 +260,7 @@
       </div>
       <div class="bento-tile bento-stat grad">
         <div class="figure">2-of-3</div>
-        <div class="cap">Multisig treasury custody — no single wallet can move capital alone</div>
+        <div class="cap">Multisig treasury custody: no single wallet can move capital alone</div>
       </div>
     </div>
   </div>
@@ -300,7 +300,7 @@
         <div class="fan-track" id="fan-track">
           <div class="fan-card" data-fan="0"><span class="n">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
           <div class="fan-card" data-fan="1"><span class="n">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
-          <div class="fan-card" data-fan="2"><span class="n">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress — never a lump sum against a promise.</p></div>
+          <div class="fan-card" data-fan="2"><span class="n">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress, never a lump sum against a promise.</p></div>
           <div class="fan-card" data-fan="3"><span class="n">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
         </div>
         <div class="fan-dots" id="fan-dots"></div>
@@ -341,7 +341,7 @@
         <div class="insight-left">
           <div class="eyebrow">Latest From Aretia</div>
           <h2>Ideas shaping the mechanism.</h2>
-          <p>Short essays on the open questions this protocol doesn't consider settled — fee incidence, mechanism design, and what liquidity actually requires.</p>
+          <p>Short essays on the open questions this protocol doesn't consider settled: fee incidence, mechanism design, and what liquidity actually requires.</p>
           <div class="insight-nav">
             <button class="carousel-btn" id="insight-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
             <button class="carousel-btn" id="insight-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
@@ -350,7 +350,7 @@
         <a class="insight-card" href="insights.html" id="insight-card">
           <div class="insight-tags"><span class="insight-tag" id="insight-tag">Fee Incidence</span></div>
           <h3 id="insight-title">Does a 3.5% fee meaningfully deter trading?</h3>
-          <p id="insight-excerpt">The fee is fixed and fully disclosed prior to any transaction — this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.</p>
+          <p id="insight-excerpt">The fee is fixed and fully disclosed prior to any transaction; this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.</p>
           <span class="pill-btn pill-ghost" style="pointer-events:none;">Read More</span>
         </a>
       </div>
@@ -364,7 +364,7 @@
         <div class="get-act-left">
           <div class="eyebrow">ACT</div>
           <h2>ACT is the protocol's economic mechanism.</h2>
-          <p>ACT trades openly on Solana — no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
+          <p>ACT trades openly on Solana: no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
           <p class="buy-note">Liquidity hasn't been seeded yet (see the <a href="#roadmap" style="color:var(--navy); text-decoration:underline;">roadmap</a>), so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
         </div>
         <div class="buy-widget-frame">
@@ -455,7 +455,7 @@
       { title: 'Renewable Energy', output: 'Metered generation capacity added.', diligence: 'Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.' },
       { title: 'Waste-to-Energy', output: 'Waste diverted and energy generated.', diligence: 'Facility operating permits, throughput metering, emissions monitored against a stated baseline.' },
       { title: 'Carbon Reduction', output: 'Emissions avoided or removed.', diligence: 'Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.' },
-      { title: 'Technical Assistance', output: 'Capacity delivered — studies, training, MRV systems built.', diligence: 'Deliverable-based milestones; independent review of the technical work product.' },
+      { title: 'Technical Assistance', output: 'Capacity delivered: studies, training, MRV systems built.', diligence: 'Deliverable-based milestones; independent review of the technical work product.' },
       { title: 'Flood Management & Reforestation', output: 'Hectares restored; flood-risk reduction achieved.', diligence: 'Remote-sensing canopy verification; hydrological modeling or post-event assessment.' }
     ];
     var items = document.querySelectorAll('.cat-item');
@@ -504,9 +504,9 @@
   // ---- Insights cycler ----
   (function () {
     var DATA = [
-      { tag: 'Fee Incidence', title: 'Does a 3.5% fee meaningfully deter trading?', excerpt: 'The fee is fixed and fully disclosed prior to any transaction — this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.' },
+      { tag: 'Fee Incidence', title: 'Does a 3.5% fee meaningfully deter trading?', excerpt: 'The fee is fixed and fully disclosed prior to any transaction; this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.' },
       { tag: 'Mechanism Design', title: 'Why "code-enforced" is a different claim than "we promise"', excerpt: 'A statement of intent the issuer could costlessly reverse is cheap talk, regardless of sincerity. A property enforced by an immutable, permissionless token standard is a credible commitment in the technical sense.' },
-      { tag: 'Liquidity', title: 'The catalyst fund only works if someone provides liquidity', excerpt: 'The fund’s continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place — which depends on someone accepting impermanent-loss risk.' }
+      { tag: 'Liquidity', title: 'The catalyst fund only works if someone provides liquidity', excerpt: 'The fund’s continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place, which depends on someone accepting impermanent-loss risk.' }
     ];
     var idx = 0;
     var tagEl = document.getElementById('insight-tag');

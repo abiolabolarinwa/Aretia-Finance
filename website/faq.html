@@ -63,6 +63,23 @@
   .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
 
+  /* -------- Doola-style cream hero -------- */
+  .dhero { position: relative; background: #F5EAB0; overflow: hidden; padding: 48px 0 60px; }
+  .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
+  @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(1.9rem, 3.6vw, 2.6rem); line-height: 1.16; letter-spacing: -0.02em; color: #17150C; margin: 0 0 18px; text-align: left; }
+  .dhero h1 .hl { color: #A9791B; }
+  .dhero-sub { font-size: 15px; color: #4A4227; max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
+  .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dhero .pill-black { background: #101114; }
+  .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 280px; background: #F0D879; }
+  .dhero-visual img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }
+  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #2A4BFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
+
   .lead-in { font-size: clamp(1.5rem, 2.8vw, 2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.4; max-width: 78ch; color: var(--ink); }
   .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
 
@@ -112,10 +129,24 @@
 </nav>
 
 <main>
-  <section class="block" style="padding-bottom:8px;">
+  <section class="dhero">
     <div class="wrap">
-      <div class="eyebrow">FAQ</div>
-      <p class="lead-in">Common questions, answered plainly. <span class="dim">Every answer here traces back to something already stated in the whitepaper or verifiable on-chain, nothing here is a new claim.</span></p>
+      <div class="dhero-grid">
+        <div>
+          <div class="dhero-eyebrow">Frequently Asked</div>
+          <h1>Straight answers, <span class="hl">every one traceable.</span></h1>
+          <p class="dhero-sub">Every answer here traces back to something already stated in the whitepaper or verifiable on-chain right now. Nothing below is a new claim.</p>
+          <div class="dhero-actions">
+            <a class="pill-btn pill-black" href="whitepaper.html">Read the Whitepaper</a>
+            <a class="pill-btn pill-ghost" href="verify.html">Verify the Claims</a>
+          </div>
+          <div class="dhero-microcopy">No hidden terms, nothing off the record</div>
+        </div>
+        <div class="dhero-visual">
+          <img src="assets/technical-assistance.jpg" alt="Technical due diligence behind Aretia's published claims">
+          <div class="dhero-badge"><span class="chk">✓</span>Answers Sourced from the Whitepaper</div>
+        </div>
+      </div>
     </div>
   </section>
 

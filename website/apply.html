@@ -46,6 +46,8 @@
   .pill-btn:active { transform: scale(0.97); }
   .pill-black { background: var(--black); color: #fff; }
   .pill-black:hover { background: var(--black-hover); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
+  .pill-ghost:hover { background: var(--bg-alt); }
 
   .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
   .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
@@ -61,12 +63,27 @@
   .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
 
-  header.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); }
   .kicker { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
-  header.hero h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 700; margin-bottom: 16px; max-width: 20ch; }
-  header.hero p { font-size: 15.5px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
 
   .status-note { margin-top: 24px; padding: 14px 18px; border: 1px solid var(--amber); background: var(--amber-soft); border-radius: 8px; font-size: 13px; color: var(--amber); max-width: 62ch; }
+
+  /* -------- Doola-style cream hero -------- */
+  .dhero { position: relative; background: #F5EAB0; overflow: hidden; padding: 48px 0 60px; }
+  .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
+  @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(1.9rem, 3.6vw, 2.6rem); line-height: 1.16; letter-spacing: -0.02em; color: #17150C; margin: 0 0 18px; text-align: left; }
+  .dhero h1 .hl { color: #A9791B; }
+  .dhero-sub { font-size: 15px; color: #4A4227; max-width: 50ch; margin: 0 0 22px; line-height: 1.65; text-align: left; }
+  .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dhero .pill-black { background: #101114; }
+  .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 280px; background: #F0D879; }
+  .dhero-visual img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }
+  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #2A4BFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
+  .dhero .status-note { max-width: 100%; }
 
   form { padding: 44px 0 80px; }
   fieldset { border: none; padding: 0; margin: 0 0 40px; }
@@ -159,14 +176,31 @@
   </div>
 </nav>
 
-<header class="hero">
+<main>
+<section class="dhero">
   <div class="wrap">
-    <div class="kicker">Project Funding Application</div>
-    <h1>Submit your climate project for treasury funding.</h1>
-    <p>The Aretia Treasury operates as a <strong>climate catalyst fund</strong>: standing capital, continuously replenished by ACT trading activity, purpose-built to finance real climate mitigation and adaptation projects across five categories: renewable energy, waste-to-energy management, carbon reduction, technical assistance, and flood management and reforestation. Fill out the form below to be considered. Every application is screened for credibility, additionality, and feasibility before anything is funded; see <a href="whitepaper.html" style="color:var(--blue); font-weight:600;">the whitepaper</a> for the full project lifecycle.</p>
-    <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission: expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum. Applying requires paying a <strong>5,000 ACT registration fee</strong> from a Solana wallet, non-refundable, regardless of outcome. It covers the cost of reviewing your application and isn't tied to being funded.</div>
+    <div class="dhero-grid">
+      <div>
+        <div class="dhero-eyebrow">Project Funding Application</div>
+        <h1>Fund your climate project. <span class="hl">Directly.</span></h1>
+        <p class="dhero-sub">The Aretia Treasury is a climate catalyst fund: standing capital, continuously replenished by ACT trading activity, built to finance real mitigation and adaptation work across five categories. Every application is screened before anything is funded; see <a href="whitepaper.html" style="color:#7A6420; font-weight:700; text-decoration:underline;">the whitepaper</a> for the full lifecycle.</p>
+        <div class="dhero-actions">
+          <a class="pill-btn pill-black" href="#apply-form">Start Application</a>
+          <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper First</a>
+        </div>
+        <div class="dhero-microcopy">Milestone-verified funding, not a lump sum</div>
+      </div>
+      <div class="dhero-visual">
+        <img src="assets/flood-management.jpg" alt="Flood management, one of five categories the Aretia treasury funds">
+        <div class="dhero-badge"><span class="chk">✓</span>Five Funded Project Categories</div>
+      </div>
+    </div>
   </div>
-</header>
+</section>
+
+<div class="wrap" style="margin-top:32px;">
+  <div class="status-note">This program is new. Funding decisions go through a governance and screening process, not automatic approval on submission: expect a real review period, not an instant response. Approved funding releases against verified milestones, not as a single lump sum. Applying requires paying a <strong>5,000 ACT registration fee</strong> from a Solana wallet, non-refundable, regardless of outcome. It covers the cost of reviewing your application and isn't tied to being funded.</div>
+</div>
 
 <form id="apply-form" action="https://formspree.io/f/xaeypjob" method="POST">
   <div class="wrap">
@@ -314,6 +348,7 @@
 
   </div>
 </form>
+</main>
 
 <footer>
   <div class="wrap">

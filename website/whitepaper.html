@@ -57,6 +57,8 @@
   .pill-btn:active { transform: scale(0.97); }
   .pill-black { background: var(--black); color: #fff; }
   .pill-black:hover { background: var(--black-hover); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
+  .pill-ghost:hover { background: var(--surface); }
   .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
   section.block { padding: 72px 0; }
@@ -75,12 +77,23 @@
   .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
   .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
 
-  /* whitepaper-specific */
-  .wp-hero { text-align: center; padding: 64px 0 40px; }
-  .wp-hero .kicker { display: block; text-align: center; }
-  .wp-hero h1 { font-size: clamp(1.8rem, 4vw, 2.7rem); letter-spacing: -.03em; max-width: 20ch; margin: 0 auto 18px; }
-  .wp-hero .wp-meta { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--ink-faint); margin-bottom: 26px; }
-  .wp-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  /* -------- Doola-style cream hero -------- */
+  .dhero { position: relative; background: #F5EAB0; overflow: hidden; padding: 48px 0 60px; }
+  .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
+  @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(1.9rem, 3.6vw, 2.6rem); line-height: 1.16; letter-spacing: -0.02em; color: #17150C; margin: 0 0 18px; text-align: left; }
+  .dhero h1 .hl { color: #A9791B; }
+  .dhero-sub { font-size: 15px; color: #4A4227; max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
+  .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dhero .pill-black { background: #101114; }
+  .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 280px; background: #F0D879; }
+  .dhero-visual img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }
+  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #2A4BFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
+  .wp-actions { display: flex; gap: 12px; flex-wrap: wrap; }
   .btn-outline { border: 1px solid var(--border); color: var(--ink); padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; display: inline-flex; align-items: center; gap: 7px; transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out); }
   .btn-outline:hover { background: var(--surface); border-color: var(--ink-faint); }
   .toc-card { background: var(--surface); border-radius: var(--r-md); padding: 28px 32px; max-width: 760px; margin: 0 auto; }
@@ -154,13 +167,23 @@
 </nav>
 
 <main>
-  <section class="wp-hero">
+  <section class="dhero">
     <div class="wrap">
-      <span class="kicker">Whitepaper</span>
-      <h1>A Protocol-Enforced Climate Catalyst Fund</h1>
-      <div class="wp-actions">
-        <a class="btn-dark" href="aretia-whitepaper.pdf" target="_blank" rel="noopener">↓ Download PDF</a>
-        <a class="btn-outline" href="#abstract">Read on this page</a>
+      <div class="dhero-grid">
+        <div>
+          <div class="dhero-eyebrow">Whitepaper</div>
+          <h1>A protocol-enforced <span class="hl">climate catalyst fund.</span></h1>
+          <p class="dhero-sub">The full technical and economic case: the fee mechanism, treasury custody, milestone-verified disbursement, and governance, all reproducible against the public ledger.</p>
+          <div class="dhero-actions">
+            <a class="pill-btn pill-black" href="aretia-whitepaper.pdf" target="_blank" rel="noopener">Download PDF</a>
+            <a class="pill-btn pill-ghost" href="#abstract">Read on This Page</a>
+          </div>
+          <div class="dhero-microcopy">26 sections, fully reproducible on-chain</div>
+        </div>
+        <div class="dhero-visual">
+          <img src="assets/technical-assistance.jpg" alt="The technical due diligence documented in the Aretia whitepaper">
+          <div class="dhero-badge"><span class="chk">✓</span>Every Claim Independently Checkable</div>
+        </div>
       </div>
     </div>
   </section>

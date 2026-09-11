@@ -241,6 +241,13 @@
   .tabpanel.active { display: block; }
   .tab-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   @media (max-width: 860px) { .tab-cards { grid-template-columns: 1fr; } }
+  .tab-card-wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0; }
+  .tab-card-wide .live-stat { flex: 1 1 200px; padding: 4px 22px; }
+  .tab-card-wide .live-stat + .live-stat { border-left: 1px solid var(--border); }
+  @media (max-width: 700px) { .tab-card-wide .live-stat + .live-stat { border-left: none; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 12px; } }
+  .tab-card-wide .live-stat .stat-label { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .tab-card-wide .live-stat .stat-usd { font-size: 17px; font-weight: 700; color: var(--ink); }
+  .tab-card-wide .live-stat .stat-act { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
   .tab-card { border-radius: var(--r-lg); padding: 26px 24px; min-height: 200px; display: flex; flex-direction: column; }
   .tab-card .tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(255,255,255,.6); padding: 4px 10px; border-radius: 8px; margin-bottom: 14px; align-self: flex-start; }
   .tab-card h3 { font-size: 16px; margin-bottom: 10px; }
@@ -366,7 +373,7 @@
   </section>
 
   <!-- ============ PROTOCOL IN PRACTICE (tabbed showcase) ============ -->
-  <section class="block">
+  <section class="block" id="about">
     <div class="wrap">
       <div class="sec-head">
         <div class="sec-eyebrow">Protocol In Practice</div>
@@ -410,6 +417,23 @@
             <h3>Grants &amp; Retirements</h3>
             <p>Capital leaves the fund only as a grant to a vetted partner or a permanent, provable carbon-credit retirement.</p>
             <a href="details.html">See how funding flows →</a>
+          </div>
+          <div class="tab-card tab-card-wide" style="background:#fff; border:1px solid var(--border);">
+            <div class="live-stat">
+              <div class="stat-label">Total Volume Traded</div>
+              <div class="stat-usd" data-stat="volumeUsd">checking…</div>
+              <div class="stat-act" data-stat="volumeAct">checking…</div>
+            </div>
+            <div class="live-stat">
+              <div class="stat-label">Aretia Climate Treasury</div>
+              <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
+              <div class="stat-act" data-stat="treasuryAct">checking…</div>
+            </div>
+            <div class="live-stat">
+              <div class="stat-label">Management Fee Wallet</div>
+              <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
+              <div class="stat-act" data-stat="mgmtAct">checking…</div>
+            </div>
           </div>
         </div>
       </div>
@@ -501,52 +525,6 @@
             <p>Community priorities, technical screening, independent verification, and smart-contract execution: no single vote moves money.</p>
             <a href="details.html">Read the governance model →</a>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ 3-PANEL LIVE STATS ============ -->
-  <section class="stats-section alt">
-    <div class="wrap">
-      <div class="panel-row" id="about">
-        <div class="panel">
-          <div class="panel-h">Live On-Chain Stats <span class="live-dot" title="Queried directly from Solana mainnet"></span></div>
-          <div class="stat-row">
-            <div class="stat-label">Total Volume Traded</div>
-            <div class="stat-usd" data-stat="volumeUsd">checking…</div>
-            <div class="stat-act" data-stat="volumeAct">checking…</div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-label">Aretia Climate Treasury</div>
-            <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
-            <div class="stat-act" data-stat="treasuryAct">checking…</div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-label">Management Fee Wallet</div>
-            <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
-            <div class="stat-act" data-stat="mgmtAct">checking…</div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-h">Fee Allocation<span class="fee-stat-up">3.5%</span></div>
-          <div class="fee-bar">
-            <span style="width:57.1%; background:var(--blue);"></span>
-            <span style="width:28.6%; background:var(--green);"></span>
-            <span style="width:14.3%; background:var(--amber);"></span>
-          </div>
-          <div class="fee-legend">
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--blue);"></span>2.0% Climate Catalyst Fund</div>
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--green);"></span>1.0% Liquidity</div>
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--amber);"></span>0.5% Management</div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-h">Verified On-Chain</div>
-          <div class="check-row"><span class="check-icon">✓</span>Fixed supply, 1,000,000,000 ACT</div>
-          <div class="check-row"><span class="check-icon">✓</span>Mint authority revoked</div>
-          <div class="check-row"><span class="check-icon">✓</span>Freeze authority never granted</div>
-          <div class="check-row"><span class="check-icon">✓</span>Treasury tested end to end</div>
         </div>
       </div>
     </div>

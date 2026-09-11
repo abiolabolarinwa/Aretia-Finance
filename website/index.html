@@ -8,287 +8,191 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!--
-  Font note: Graphik, Tiempos, Block Gothic, Dinamit and Nocturno are commercial
-  typefaces not available to embed here. Substituted with close, freely-licensed
-  equivalents: Hanken Grotesk (Graphik's UI-grotesk role), Source Serif 4
-  (Tiempos' editorial-serif role), Archivo Black (Block Gothic's bold-display
-  role). Georgia and Helvetica are used directly via system font stacks, as
-  requested, since both are genuinely free. Swap in the real font files under
-  --font-serif / --font-sans / --font-display below if you hold licenses for them.
--->
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Archivo+Black&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    /* Grey / ash / offwhite base, with blue reserved for interactive and
-       key-metric emphasis. Variable names kept from the previous palette
-       to avoid touching ~85 call sites -- only the values changed. */
-    --wine: #2B2B2E;         /* ash/charcoal: dark section bg + dark heading text */
-    --wine-deep: #1B1B1D;    /* deepest ash, for gradients/hover */
-    --coral: #0052FF;        /* blue: CTAs, links, active states, key figures */
-    --coral-deep: #0040CC;   /* darker blue: text-on-light emphasis (eyebrows, badges) */
-    --peach: #C9C8C2;        /* medium grey: muted text-on-dark, grid lines */
-    --cream: #E7E6E1;        /* light ash-grey surface */
-    --ivory: #F6F6F4;        /* offwhite: base background + text-on-dark */
-    --blue-soft: #E3ECFC;    /* light blue tint, for highlight-card surfaces */
-    --bg: #F6F6F4;
-    --bg-alt: #ECEBE7;
-    --card: #FBFBFA;
-    --ink: #2B2B2E;
-    --ink-soft: #6B6B67;
-    --ink-faint: #9C9C97;
-    --border: #DDDCD7;
-    --border-soft: #E7E6E1;
-
-    --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-    --font-sans: "Hanken Grotesk", Helvetica, Arial, sans-serif;
-    --font-display: "Archivo Black", Helvetica, Arial, sans-serif;
+    --navy: #0B1440; --navy-deep: #060B29; --navy-soft: #16205C;
+    --blue: #2A4BFF; --blue-deep: #1B36CC;
+    --ink: #12142B; --ink-soft: #5C5E72; --ink-faint: #8D8FA3;
+    --bg: #F6F5F2; --bg-alt: #ECE9E2; --card: #FFFFFF;
+    --border: #E4E1D8; --border-soft: #ECEAE3;
+    --rose-1: #16205C; --rose-2: #2A4BFF;
+    --font-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --r-xl: 36px; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
   }
-
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans);
-    line-height: 1.6; -webkit-font-smoothing: antialiased;
-  }
-  ::selection { background: var(--coral); color: var(--ivory); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--blue); color: #fff; }
   a { color: inherit; text-decoration: none; }
   img, svg { max-width: 100%; display: block; }
   .mono { font-family: var(--mono); }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
   @media (max-width: 640px) { .wrap { padding: 0 20px; } }
-  a:focus-visible, button:focus-visible { outline: 2px solid var(--wine); outline-offset: 3px; }
-
-  h1, h2, h3 { margin: 0; font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+  h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; }
   p { margin: 0; }
 
-  .eyebrow {
-    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--coral-deep); margin-bottom: 18px;
-  }
-  .rule { border: none; border-top: 1px solid var(--border); margin: 0; }
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 14px 26px; border-radius: 980px; white-space: nowrap; transition: background 200ms var(--ease), color 200ms var(--ease), transform 160ms var(--ease); border: 1.5px solid transparent; }
+  .pill-btn:active { transform: scale(0.97); }
+  .pill-primary { background: var(--blue); color: #fff; }
+  .pill-primary:hover { background: var(--blue-deep); }
+  .pill-dark { background: var(--navy); color: #fff; }
+  .pill-dark:hover { background: var(--navy-deep); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: var(--card); }
+  .pill-ghost:hover { background: var(--bg-alt); }
+  .pill-outline-light { border-color: rgba(255,255,255,0.4); color: #fff; }
+  .pill-outline-light:hover { background: rgba(255,255,255,0.12); }
 
-  .lede { font-family: var(--font-serif); font-size: clamp(1.8rem, 3.6vw, 2.9rem); font-weight: 600; letter-spacing: -0.015em; line-height: 1.16; max-width: 22ch; color: var(--wine); }
+  .eyebrow { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
+  section.block { padding: 96px 0; }
+  @media (max-width: 860px) { section.block { padding: 64px 0; } }
 
-  .body-copy { font-size: 16px; color: var(--ink-soft); line-height: 1.75; max-width: 58ch; }
-  .body-copy + .body-copy { margin-top: 18px; }
-
-  .btn {
-    display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-sans); font-size: 12.5px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; padding: 15px 26px; border-radius: 0; white-space: nowrap;
-    transition: background 200ms var(--ease), color 200ms var(--ease); border: 1.5px solid transparent;
-  }
-  .btn-primary { background: var(--coral); color: var(--ivory); }
-  .btn-primary:hover { background: var(--wine); }
-  .btn-dark { background: var(--wine); color: var(--ivory); }
-  .btn-dark:hover { background: var(--wine-deep); }
-  .btn-ghost { border-color: var(--wine); color: var(--wine); background: transparent; }
-  .btn-ghost:hover { background: var(--wine); color: var(--ivory); }
-  .btn-outline-light { border-color: var(--ivory); color: var(--ivory); background: transparent; }
-  .btn-outline-light:hover { background: var(--ivory); color: var(--wine); }
-  .btn-text { color: var(--wine); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .btn-text .arrow { transition: transform 200ms var(--ease); }
-  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; }
-  .btn-text:hover .arrow { transform: translateX(3px); }
-
-  section.block { padding: 104px 0; }
-  @media (max-width: 860px) { section.block { padding: 68px 0; } }
-  section.block.alt { background: var(--bg-alt); }
-
-  /* -------- Nav -------- */
-  .topnav { position: sticky; top: 0; z-index: 50; background: rgba(251,238,225,0.92); backdrop-filter: saturate(160%) blur(10px); -webkit-backdrop-filter: saturate(160%) blur(10px); border-bottom: 1px solid transparent; transition: border-color 220ms var(--ease); }
-  .topnav.scrolled { border-bottom-color: var(--border); }
-  .topnav-inner { display: flex; align-items: center; gap: 40px; padding: 20px 0; max-width: 1200px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
-  @media (max-width: 640px) { .topnav-inner { padding-left: 20px; padding-right: 20px; } }
-  .brand { display: flex; align-items: center; gap: 9px; flex: none; line-height: 1; }
+  /* -------- Nav (pill style) -------- */
+  .topnav { position: sticky; top: 18px; z-index: 60; }
+  .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; background: rgba(255,255,255,0.85); backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px); border: 1px solid var(--border-soft); border-radius: 980px; padding: 10px 12px 10px 20px; box-shadow: 0 8px 30px -12px rgba(11,20,64,0.14); }
+  .brand { display: flex; align-items: center; gap: 9px; flex: none; font-weight: 700; font-size: 16px; color: var(--navy); }
   .brand .mark { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex: none; }
-  .brand .mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .brand .text { display: flex; flex-direction: column; gap: 1px; }
-  .brand .name { font-family: var(--font-serif); font-weight: 600; font-size: 21px; letter-spacing: -0.01em; color: var(--wine); }
-  .brand .desc { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; color: var(--ink-faint); text-transform: uppercase; }
-  .topnav-links { display: flex; align-items: center; gap: 30px; flex: 1; justify-content: center; }
-  .topnav-links a { font-size: 13px; color: var(--ink-soft); font-weight: 600; transition: color 160ms var(--ease); }
-  .topnav-links a:hover { color: var(--wine); }
-  @media (max-width: 900px) { .topnav-links { display: none; } }
-  .topnav-cta { margin-left: auto; flex: none; }
-  .topnav-cta .btn { padding: 12px 20px; }
+  .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
+  .nav-links { display: flex; align-items: center; gap: 4px; background: var(--bg-alt); border-radius: 980px; padding: 4px; }
+  .nav-links a { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); padding: 9px 16px; border-radius: 980px; transition: background 160ms var(--ease), color 160ms var(--ease); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { background: var(--navy); color: #fff; }
+  @media (max-width: 920px) { .nav-links { display: none; } }
+  .topnav-cta { flex: none; }
 
-  /* -------- Hero (institutional) -------- */
-  .hero-institutional { background: var(--bg); border-bottom: 1px solid var(--border); padding-top: 116px; }
-  @media (max-width: 860px) { .hero-institutional { padding-top: 72px; } }
-  .hero-i-eyebrow { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 28px; }
-  .hero-i-headline { font-family: var(--font-serif); font-weight: 600; font-size: clamp(2.6rem, 6vw, 4.6rem); line-height: 1.1; letter-spacing: -0.02em; color: var(--ink); margin: 0 0 32px; }
-  .hero-i-sub { font-size: clamp(15.5px, 1.5vw, 18px); color: var(--ink-soft); line-height: 1.7; max-width: 56ch; margin-bottom: 44px; }
-  .hero-i-actions { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; margin-bottom: 92px; }
-  @media (max-width: 860px) { .hero-i-actions { margin-bottom: 56px; } }
+  /* -------- Hero -------- */
+  .hero { position: relative; padding: 60px 0 0; overflow: hidden; background: radial-gradient(120% 100% at 50% 0%, var(--navy-soft) 0%, var(--navy) 55%, var(--navy-deep) 100%); border-radius: 0 0 var(--r-xl) var(--r-xl); }
+  .hero-inner { padding: 76px 0 220px; text-align: center; position: relative; z-index: 2; }
+  @media (max-width: 860px) { .hero-inner { padding: 48px 0 200px; } }
+  .hero-eyebrow { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9FB0FF; margin-bottom: 30px; }
+  .hero h1 { font-size: clamp(2.6rem, 6.4vw, 5.2rem); line-height: 1.06; letter-spacing: -0.03em; color: #fff; max-width: 15ch; margin: 0 auto 30px; font-weight: 500; }
+  .hero h1 .accent-wrap { display: inline-flex; align-items: center; gap: 10px; }
+  .hero h1 .pill-deco { display: inline-block; width: 1.3em; height: 0.62em; border: 2.5px solid #6B84FF; border-radius: 980px; vertical-align: middle; margin: 0 4px; }
+  .hero h1 .hatch-deco { display: inline-block; width: 1.5em; height: 0.7em; vertical-align: middle; margin: 0 4px; background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 8px); border-radius: 4px; }
+  .hero-sub { font-size: clamp(15px, 1.6vw, 17.5px); color: #C4CBEE; max-width: 52ch; margin: 0 auto 40px; line-height: 1.7; }
+  .hero-actions { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
 
-  .hero-i-stats-wrap { border-top: 1px solid var(--border); background: var(--bg-alt); }
-  .hero-i-stats { display: flex; flex-wrap: wrap; }
-  .hero-i-stat { flex: 1; min-width: 150px; padding: 28px 32px; border-right: 1px solid var(--border); }
-  .hero-i-stat:first-child { padding-left: 0; }
-  .hero-i-stat:last-child { border-right: none; }
-  .hero-i-stat .v { display: block; font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--ink); margin-bottom: 6px; letter-spacing: -0.01em; }
-  .hero-i-stat .l { font-size: 11.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; }
-  @media (max-width: 760px) { .hero-i-stat { flex: 1 1 50%; border-right: none; border-bottom: 1px solid var(--border); padding: 20px 0; } .hero-i-stat:nth-child(odd) { padding-right: 16px; } }
+  /* -------- Bento "about" panel, floats over hero bottom -------- */
+  .bento-wrap { margin-top: -172px; position: relative; z-index: 3; }
+  @media (max-width: 860px) { .bento-wrap { margin-top: -150px; } }
+  .bento { background: var(--card); border-radius: var(--r-xl); padding: 20px; box-shadow: 0 30px 70px -30px rgba(11,20,64,0.28); display: grid; grid-template-columns: 1.35fr 1fr 1fr; grid-template-rows: auto auto; gap: 16px; }
+  @media (max-width: 900px) { .bento { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .bento { grid-template-columns: 1fr; } }
+  .bento-tile { border-radius: var(--r-md); padding: 30px 28px; }
+  .bento-lead { grid-column: 1; grid-row: 1 / span 2; background: var(--bg-alt); display: flex; flex-direction: column; justify-content: space-between; min-height: 340px; }
+  @media (max-width: 900px) { .bento-lead { grid-column: 1 / span 2; grid-row: 1; min-height: 220px; } }
+  @media (max-width: 600px) { .bento-lead { grid-column: 1; } }
+  .bento-lead h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 14px; }
+  .bento-lead p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 40ch; }
+  .bento-note { border: 1px solid var(--border); background: var(--card); }
+  .bento-note h3 { font-size: 17px; color: var(--ink); margin-bottom: 10px; }
+  .bento-note p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .bento-stat { background: var(--navy); color: #fff; display: flex; flex-direction: column; justify-content: flex-end; min-height: 158px; }
+  .bento-stat .figure { font-family: var(--mono); font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .bento-stat .cap { font-size: 12.5px; color: #A9B4E6; }
+  .bento-stat.grad { background: linear-gradient(135deg, var(--rose-1), var(--rose-2)); }
 
-  /* -------- Numbered concept grid -------- */
-  .concept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-top: 52px; }
-  @media (max-width: 860px) { .concept-grid { grid-template-columns: 1fr; } }
-  .concept { background: var(--card); padding: 36px 30px; }
-  .concept .num { font-family: var(--font-display); font-size: 26px; color: var(--coral); margin-bottom: 20px; display: block; }
-  .concept h3 { font-size: 20px; margin-bottom: 12px; color: var(--wine); }
-  .concept p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; max-width: 34ch; }
+  /* -------- Category explorer (Selected Projects pattern) -------- */
+  .cat-explorer { display: grid; grid-template-columns: 300px 1fr; gap: 44px; margin-top: 48px; align-items: start; }
+  @media (max-width: 860px) { .cat-explorer { grid-template-columns: 1fr; } }
+  .cat-list { display: flex; flex-direction: column; }
+  .cat-item { padding: 16px 4px; border-left: 2px solid transparent; padding-left: 18px; cursor: pointer; transition: border-color 200ms var(--ease); }
+  .cat-item .t { font-size: 16.5px; font-weight: 600; color: var(--ink-faint); transition: color 200ms var(--ease); }
+  .cat-item .s { font-size: 12px; color: var(--ink-faint); font-family: var(--mono); margin-top: 3px; opacity: 0; transition: opacity 200ms var(--ease); }
+  .cat-item.active { border-color: var(--blue); }
+  .cat-item.active .t { color: var(--navy); }
+  .cat-item.active .s { opacity: 1; }
+  .cat-panel { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy)); min-height: 420px; position: relative; overflow: hidden; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; }
+  .cat-panel-card { background: var(--card); border-radius: var(--r-lg); padding: 30px 28px; max-width: 380px; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.35); }
+  .cat-panel-card h3 { font-size: 21px; color: var(--navy); margin-bottom: 10px; }
+  .cat-panel-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .cat-panel-foot { display: flex; gap: 32px; background: rgba(255,255,255,0.08); backdrop-filter: blur(10px); border-radius: var(--r-md); padding: 20px 26px; flex-wrap: wrap; }
+  .cat-panel-foot .f { display: flex; flex-direction: column; gap: 4px; }
+  .cat-panel-foot .fl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9FB0DE; }
+  .cat-panel-foot .fv { font-size: 13px; color: #fff; max-width: 30ch; line-height: 1.5; }
 
-  /* -------- Mechanism steps (alternating) -------- */
-  .mech-steps { margin-top: 60px; display: flex; flex-direction: column; }
-  .mech-step { display: grid; grid-template-columns: 120px 1fr; gap: 32px; padding: 34px 0; border-top: 1px solid var(--border); align-items: start; }
-  .mech-step:last-child { border-bottom: 1px solid var(--border); }
-  .mech-step .num { font-family: var(--font-display); font-size: 38px; color: var(--border); line-height: 1; }
-  .mech-step.is-active .num { color: var(--coral); }
-  .mech-step h3 { font-family: var(--font-sans); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wine); margin-bottom: 10px; font-weight: 700; }
-  .mech-step p { font-size: 15.5px; color: var(--ink-soft); max-width: 60ch; line-height: 1.65; }
-  @media (max-width: 640px) { .mech-step { grid-template-columns: 56px 1fr; gap: 20px; } .mech-step .num { font-size: 26px; } }
+  /* -------- Fanned carousel (verification principles) -------- */
+  .fan-wrap { margin-top: 60px; position: relative; }
+  .fan-track { display: flex; align-items: center; justify-content: center; gap: -10px; padding: 20px 0 40px; position: relative; min-height: 260px; }
+  .fan-card { width: 190px; min-height: 210px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--border); padding: 26px 22px; margin: 0 -14px; transition: transform 300ms var(--ease), opacity 300ms var(--ease), box-shadow 300ms var(--ease), z-index 0ms; cursor: pointer; transform: scale(0.86) translateY(10px); opacity: 0.55; position: relative; }
+  .fan-card .n { font-family: var(--mono); font-size: 11px; color: var(--blue); display: block; margin-bottom: 16px; }
+  .fan-card h3 { font-size: 15px; color: var(--navy); margin-bottom: 8px; }
+  .fan-card p { font-size: 12px; color: var(--ink-soft); line-height: 1.55; display: none; }
+  .fan-card.is-center { transform: scale(1.12) translateY(-14px); opacity: 1; z-index: 5; box-shadow: 0 30px 60px -22px rgba(11,20,64,0.3); background: var(--navy); border-color: var(--navy); }
+  .fan-card.is-center .n { color: #9FB0FF; }
+  .fan-card.is-center h3 { color: #fff; }
+  .fan-card.is-center p { display: block; color: #C4CBEE; }
+  @media (max-width: 760px) { .fan-card { width: 150px; min-height: 180px; padding: 20px 16px; } .fan-card.is-center { transform: scale(1.06) translateY(-8px); } }
+  .fan-dots { display: flex; justify-content: center; gap: 8px; }
+  .fan-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); border: none; cursor: pointer; padding: 0; transition: background 200ms var(--ease), transform 200ms var(--ease); }
+  .fan-dot.active { background: var(--blue); transform: scale(1.3); }
 
-  /* -------- Allocation diagram -------- */
-  .alloc-headline { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin: 44px 0 36px; }
-  .alloc-figure { font-family: var(--font-serif); font-weight: 600; font-size: clamp(2.6rem, 5vw, 3.6rem); color: var(--coral); line-height: 1; }
-  .alloc-label { font-size: 14px; color: var(--ink-soft); }
-  .alloc-bar { display: flex; height: 14px; overflow: hidden; background: var(--border-soft); margin-bottom: 40px; }
-  .alloc-bar span { height: 100%; }
-  .alloc-rows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-  @media (max-width: 760px) { .alloc-rows { grid-template-columns: 1fr; gap: 24px; } }
-  .alloc-row { border-top: 3px solid var(--border); padding-top: 18px; }
-  .alloc-row .pct { font-family: var(--font-display); font-size: 26px; color: var(--wine); display: block; margin-bottom: 6px; }
-  .alloc-row .name { font-size: 13.5px; color: var(--ink-soft); }
-  .alloc-note { font-size: 13px; color: var(--ink-faint); max-width: 62ch; margin-top: 40px; line-height: 1.7; border-left: 3px solid var(--coral); padding-left: 20px; }
+  /* -------- Roadmap split card -------- */
+  .split-card { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy)); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; margin-top: 48px; }
+  @media (max-width: 860px) { .split-card { grid-template-columns: 1fr; } }
+  .split-left { padding: 52px 48px; }
+  .split-left h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); color: #fff; margin-bottom: 30px; }
+  .split-phase-list { display: flex; flex-direction: column; gap: 4px; }
+  .split-phase { display: flex; align-items: baseline; gap: 12px; padding: 11px 0; border-left: 2px solid transparent; padding-left: 16px; }
+  .split-phase .ph { font-family: var(--mono); font-size: 11px; color: #7A87C2; }
+  .split-phase .t { font-size: 14.5px; color: #7A87C2; font-weight: 600; }
+  .split-phase.current { border-color: #6B84FF; }
+  .split-phase.current .ph, .split-phase.current .t { color: #fff; }
+  .split-right { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: rgba(255,255,255,0.08); min-height: 340px; }
+  .split-cell { display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+  .split-cell .ic { font-family: var(--mono); font-size: 26px; color: #fff; margin-bottom: 10px; }
+  .split-cell .lb { font-size: 11.5px; color: #A9B4E6; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+  .split-cell:nth-child(1) { background: rgba(255,255,255,0.03); }
+  .split-cell:nth-child(4) { background: rgba(255,255,255,0.03); }
 
-  /* -------- Verification principles (loud block + cards) -------- */
-  .verify-band { background: var(--wine); color: var(--ivory); }
-  .verify-band .eyebrow { color: var(--peach); }
-  .verify-band .lede { color: var(--ivory); }
-  .principle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.12); margin: 52px 0 40px; }
-  @media (max-width: 900px) { .principle-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 520px) { .principle-grid { grid-template-columns: 1fr; } }
-  .principle { background: var(--wine-deep); padding: 34px 28px; }
-  .principle-num { font-family: var(--mono); font-size: 12px; color: var(--coral); display: block; margin-bottom: 22px; }
-  .principle h3 { font-family: var(--font-sans); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ivory); margin-bottom: 14px; font-weight: 700; }
-  .principle p { font-size: 14px; color: var(--cream); line-height: 1.6; }
-
-  /* -------- Category cards (JPMorgan "solve together" style) -------- */
-  .category-list { margin-top: 52px; }
-  .category-row { display: grid; grid-template-columns: 60px 1fr 1fr 1fr; gap: 28px; padding: 28px 0; border-top: 1px solid var(--border); align-items: start; }
-  .category-row:last-child { border-bottom: 1px solid var(--border); }
-  .category-row .cnum { font-family: var(--mono); font-size: 13px; color: var(--coral); padding-top: 2px; }
-  .category-row h3 { font-size: 17px; color: var(--ink); margin: 0; }
-  .category-row .field-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 6px; }
-  .category-row .field-value { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
-  @media (max-width: 860px) { .category-row { grid-template-columns: 1fr; gap: 10px; } .category-row .cnum { display: inline-block; margin-bottom: 4px; } }
-
-  /* -------- Carousels (used by: Why It Exists, Verification, Climate
-     Finance, Impact Economics) -------- */
-  .carousel-wrap { margin-top: 52px; }
-  .carousel-controls { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; }
-  .carousel-btn {
-    width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--card);
-    display: flex; align-items: center; justify-content: center; cursor: pointer; flex: none; padding: 0; color: var(--wine);
-    transition: background 160ms var(--ease), border-color 160ms var(--ease), color 160ms var(--ease), opacity 160ms var(--ease);
-  }
-  .carousel-btn:hover:not(:disabled) { background: var(--wine); color: var(--ivory); border-color: var(--wine); }
-  .carousel-btn:disabled { opacity: 0.32; cursor: default; }
+  /* -------- Insights floating card -------- */
+  .insight-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
+  @media (max-width: 860px) { .insight-wrap { grid-template-columns: 1fr; gap: 28px; } }
+  .insight-left h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 16px; max-width: 14ch; }
+  .insight-left p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 34px; }
+  .insight-nav { display: flex; gap: 10px; }
+  .insight-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 34px 30px; box-shadow: 0 24px 60px -28px rgba(11,20,64,0.22); }
+  .insight-tags { display: flex; gap: 8px; margin-bottom: 20px; }
+  .insight-tag { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-alt); color: var(--ink-soft); padding: 6px 12px; border-radius: 980px; }
+  .insight-card h3 { font-size: 20px; color: var(--navy); margin-bottom: 14px; line-height: 1.3; }
+  .insight-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 20px; }
+  .carousel-btn { width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--card); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--navy); transition: background 160ms var(--ease), color 160ms var(--ease); }
+  .carousel-btn:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
   .carousel-btn svg { width: 16px; height: 16px; }
-  .carousel-btn.on-dark { border-color: rgba(255,255,255,0.28); background: transparent; color: var(--ivory); }
-  .carousel-btn.on-dark:hover:not(:disabled) { background: var(--ivory); color: var(--wine); border-color: var(--ivory); }
-  .carousel-track {
-    display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
-    padding-bottom: 4px; margin: 0 -32px; padding-left: 32px; padding-right: 32px;
-    scrollbar-width: none; -ms-overflow-style: none;
-  }
-  /* Scrolling is animated manually via requestAnimationFrame in the script
-     at the bottom of this page, not native smooth-scroll -- both the JS
-     scrollBy({behavior:'smooth'}) options object and CSS scroll-behavior:
-     smooth were unreliable in testing. */
-  .carousel-track::-webkit-scrollbar { display: none; }
-  @media (max-width: 640px) { .carousel-track { margin: 0 -20px; padding-left: 20px; padding-right: 20px; } }
-  .carousel-card { scroll-snap-align: start; flex: 0 0 auto; width: min(320px, 78vw); }
-  .carousel-card.concept, .carousel-card.category-card { border: 1px solid var(--border); }
-  .carousel-card.principle { border: 1px solid rgba(255,255,255,0.14); }
-  .carousel-card.impact-cell { border: 1px solid rgba(255,255,255,0.14); }
-  .category-card .cnum { font-family: var(--mono); font-size: 13px; color: var(--coral); display: block; margin-bottom: 18px; }
-  .category-card h3 { font-size: 17px; color: var(--ink); margin: 0 0 18px; }
-  .category-card .field { margin-bottom: 14px; }
-  .category-card .field:last-child { margin-bottom: 0; }
-  .category-card .field-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 6px; }
-  .category-card .field-value { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
 
-  /* -------- Impact economics -------- */
-  .impact-cell { background: var(--wine); color: var(--ivory); padding: 40px 32px; }
-  .impact-cell .from { font-family: var(--mono); font-size: 12px; color: var(--peach); margin-bottom: 22px; }
-  .impact-cell .figure { font-family: var(--font-display); font-size: clamp(2.2rem, 4vw, 3rem); color: var(--coral); line-height: 1; margin-bottom: 10px; }
-  .impact-cell .to { font-size: 13px; color: var(--cream); }
-  .impact-disclaimer { display: flex; gap: 16px; align-items: baseline; margin-top: 8px; flex-wrap: wrap; }
-  .impact-disclaimer .tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--coral-deep); flex: none; font-weight: 700; }
-  .impact-disclaimer p { font-size: 13px; color: var(--ink-faint); max-width: 62ch; line-height: 1.65; }
-
-  /* -------- Funding pipeline -------- */
-  .pipeline { margin-top: 52px; display: flex; flex-wrap: wrap; gap: 0; }
-  .pipeline-step { display: flex; align-items: center; gap: 14px; padding: 16px 22px 16px 0; }
-  .pipeline-step .n { font-family: var(--font-display); font-size: 13px; color: var(--coral); }
-  .pipeline-step .label { font-size: 14px; font-weight: 700; color: var(--wine); }
-  .pipeline-arrow { color: var(--ink-faint); font-size: 16px; padding: 0 4px; align-self: center; }
-  @media (max-width: 640px) { .pipeline { flex-direction: column; } .pipeline-arrow { display: none; } .pipeline-step { border-bottom: 1px solid var(--border-soft); width: 100%; } }
-
-  /* -------- Roadmap timeline -------- */
-  .timeline { margin-top: 52px; }
-  .timeline-phase { display: grid; grid-template-columns: 150px 1fr; gap: 32px; padding: 30px 0; border-top: 1px solid var(--border); }
-  .timeline-phase:last-child { border-bottom: 1px solid var(--border); }
-  .timeline-phase .ph { font-family: var(--font-display); font-size: 14px; color: var(--ink-faint); }
-  .timeline-phase.current .ph { color: var(--coral); }
-  .timeline-phase h3 { font-size: 18px; margin-bottom: 10px; color: var(--wine); }
-  .timeline-phase ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .timeline-phase li { font-size: 13.5px; color: var(--ink-soft); }
-  @media (max-width: 640px) { .timeline-phase { grid-template-columns: 1fr; gap: 12px; } }
-
-  /* -------- Insights list -------- */
-  .insight-list { margin-top: 44px; }
-  .insight-row { display: grid; grid-template-columns: 50px 1fr auto; gap: 24px; align-items: baseline; padding: 22px 0; border-top: 1px solid var(--border); }
-  .insight-row:last-child { border-bottom: 1px solid var(--border); }
-  .insight-row .n { font-family: var(--font-display); font-size: 13px; color: var(--coral); }
-  .insight-row .t { font-family: var(--font-serif); font-size: 16px; font-weight: 500; color: var(--wine); }
-  .insight-row .tag { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-  @media (max-width: 640px) { .insight-row { grid-template-columns: 1fr; gap: 6px; } .insight-row .tag { display: none; } }
-
-  /* -------- Get ACT (subordinate) -------- */
-  .get-act-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
-  @media (max-width: 860px) { .get-act-inner { grid-template-columns: 1fr; gap: 32px; } }
-  .get-act h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); margin-bottom: 16px; max-width: 18ch; color: var(--wine); }
-  .get-act .body-copy { margin-bottom: 22px; }
-  .buy-note { font-size: 12.5px; color: var(--ink-faint); border-left: 3px solid var(--coral); padding-left: 14px; max-width: 46ch; line-height: 1.6; }
-  .buy-widget-frame { background: var(--card); border: 1px solid var(--border); overflow: hidden; min-height: 480px; display: flex; align-items: center; justify-content: center; }
+  /* -------- Get ACT (buy widget) -------- */
+  .get-act-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
+  @media (max-width: 860px) { .get-act-wrap { grid-template-columns: 1fr; gap: 28px; } }
+  .get-act-left h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 16px; max-width: 16ch; }
+  .get-act-left p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 18px; }
+  .buy-note { font-size: 12.5px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; max-width: 42ch; line-height: 1.6; }
+  .buy-widget-frame { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; min-height: 480px; display: flex; align-items: center; justify-content: center; box-shadow: 0 24px 60px -28px rgba(11,20,64,0.18); }
   .buy-widget-loading { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
   #jupiter-terminal { width: 100%; min-height: 480px; }
 
-  /* -------- Final CTA (loud, bookends hero) -------- */
-  .final-cta { text-align: center; padding: 128px 0; background: var(--wine); background: linear-gradient(150deg, var(--wine-deep) 0%, var(--wine) 100%); color: var(--ivory); }
-  @media (max-width: 760px) { .final-cta { padding: 84px 0; } }
-  .final-cta h2 { font-family: var(--font-serif); color: var(--ivory); font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -0.02em; line-height: 1.12; max-width: 20ch; margin: 0 auto 44px; }
-  .final-cta .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  /* -------- Final CTA -------- */
+  .final-cta { border-radius: var(--r-xl); background: linear-gradient(150deg, var(--navy-soft), var(--navy-deep)); padding: 96px 40px; text-align: center; }
+  .final-cta h2 { font-size: clamp(1.9rem, 4vw, 3rem); color: #fff; max-width: 20ch; margin: 0 auto 16px; }
+  .final-cta p { font-size: 14.5px; color: #9FB0DE; margin-bottom: 40px; }
+  .final-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 
-  /* -------- Footer (JPMorgan-style multi-column) -------- */
-  footer { background: var(--card); padding: 64px 0 40px; border-top: 1px solid var(--border); }
-  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 56px; }
-  @media (max-width: 860px) { .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; } }
-  @media (max-width: 520px) { .footer-top { grid-template-columns: 1fr; } }
-  .footer-brand .name { font-family: var(--font-serif); font-weight: 600; font-size: 19px; color: var(--wine); margin-bottom: 8px; }
-  .footer-brand .tag { font-size: 13.5px; color: var(--ink-soft); max-width: 32ch; line-height: 1.6; }
-  .footer-col .h { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral-deep); margin-bottom: 16px; font-weight: 700; }
+  /* -------- Footer -------- */
+  footer { padding: 64px 0 40px; }
+  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 48px; }
+  @media (max-width: 700px) { .footer-top { grid-template-columns: 1fr; gap: 28px; } }
+  .footer-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 17px; color: var(--navy); margin-bottom: 10px; }
+  .footer-brand .mark { width: 24px; height: 24px; border-radius: 50%; overflow: hidden; }
+  .footer-brand .mark img { width: 100%; height: 100%; object-fit: cover; }
+  .footer-contact p { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 4px; }
+  .footer-col .h { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
   .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .footer-col a { font-size: 13.5px; color: var(--ink-soft); transition: color 160ms var(--ease); }
-  .footer-col a:hover { color: var(--wine); }
-  .footer-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-top: 32px; border-top: 1px solid var(--border); }
+  .footer-col a:hover { color: var(--navy); }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid var(--border); }
   .legal { font-size: 11px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
   .footer-copy { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
 </style>
@@ -296,318 +200,190 @@
 <body>
 
 <nav class="topnav">
-  <div class="topnav-inner">
-    <a href="index.html" class="brand">
-      <span class="mark"><img src="data:image/png;base64,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" alt="Aretia"></span>
-      <span class="text">
-        <span class="name">Aretia</span>
-        <span class="desc">Climate Finance Protocol</span>
-      </span>
-    </a>
-    <div class="topnav-links">
-      <a href="#mechanism">Protocol</a>
-      <a href="#climate-finance">Impact</a>
-      <a href="verify.html">Verification</a>
-      <a href="apply.html">Funding</a>
-      <a href="whitepaper.html">Whitepaper</a>
-    </div>
-    <div class="topnav-cta">
-      <a class="btn btn-dark" href="apply.html">Apply for Funding</a>
+  <div class="wrap">
+    <div class="topnav-inner">
+      <a href="index.html" class="brand">
+        <span class="mark"><img src="data:image/png;base64,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" alt="Aretia"></span>
+        Aretia
+      </a>
+      <div class="nav-links">
+        <a href="#hero" class="active">Home</a>
+        <a href="#about">Protocol</a>
+        <a href="#categories">Funding</a>
+        <a href="#verification">Verification</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="whitepaper.html">Whitepaper</a>
+      </div>
+      <a class="pill-btn pill-dark topnav-cta" href="apply.html">Apply for Funding</a>
     </div>
   </div>
 </nav>
 
 <main>
 
-  <!-- ============ HERO (institutional) ============ -->
-  <section class="hero-institutional">
+  <!-- ============ HERO ============ -->
+  <section class="hero" id="hero">
     <div class="wrap">
-      <div class="hero-i-eyebrow">Aretia — Climate Finance Protocol</div>
-      <h1 class="hero-i-headline">Capital for climate<br>action, built for<br>verification.</h1>
-      <p class="hero-i-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital — released only against independently verified project progress.</p>
-      <div class="hero-i-actions">
-        <a class="btn btn-primary" href="apply.html">Apply for Funding</a>
-        <a class="btn-text" href="whitepaper.html">Read the Whitepaper <span class="arrow">→</span></a>
-      </div>
-    </div>
-    <div class="hero-i-stats-wrap">
-      <div class="wrap hero-i-stats">
-        <div class="hero-i-stat"><span class="v">3.5%</span><span class="l">Protocol Fee</span></div>
-        <div class="hero-i-stat"><span class="v">1,000,000,000</span><span class="l">Fixed Supply</span></div>
-        <div class="hero-i-stat"><span class="v">2-of-3</span><span class="l">Treasury Multisig</span></div>
-        <div class="hero-i-stat"><span class="v">Solana</span><span class="l">Network</span></div>
-        <div class="hero-i-stat"><span class="v">Pre-Launch</span><span class="l">Status</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ ABOUT ============ -->
-  <section class="block" id="about">
-    <div class="wrap">
-      <div class="eyebrow">01 — About</div>
-      <p class="lede">Climate finance needs infrastructure it can trust.</p>
-      <div class="body-copy" style="margin-top:32px;">
-        <p>Climate capital often moves through complex institutions, fragmented reporting systems, and long chains of intermediaries. Aretia proposes a different model.</p>
-        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ WHY IT EXISTS ============ -->
-  <section class="block alt">
-    <div class="wrap">
-      <div class="eyebrow">02 — Why It Exists</div>
-      <p class="lede">The climate transition is constrained not only by capital, but by confidence.</p>
-      <div class="carousel-wrap">
-        <div class="carousel-controls">
-          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
-        </div>
-        <div class="carousel-track">
-          <div class="carousel-card concept"><span class="num">01</span><h3>Capital</h3><p>More capital needs to reach real mitigation and adaptation projects.</p></div>
-          <div class="carousel-card concept"><span class="num">02</span><h3>Verification</h3><p>Funding needs to correspond to observable project progress.</p></div>
-          <div class="carousel-card concept"><span class="num">03</span><h3>Transparency</h3><p>The flow of funds should be independently inspectable.</p></div>
+      <div class="hero-inner">
+        <div class="hero-eyebrow">Aretia — Climate Finance Protocol</div>
+        <h1>Capital for climate <span class="accent-wrap"><span class="pill-deco"></span> action</span>, built for <span class="accent-wrap">verification<span class="hatch-deco"></span></span>.</h1>
+        <p class="hero-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital — released only against independently verified project progress.</p>
+        <div class="hero-actions">
+          <a class="pill-btn pill-primary" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-outline-light" href="whitepaper.html">Read the Whitepaper →</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ THE MECHANISM ============ -->
-  <section class="block" id="mechanism">
-    <div class="wrap">
-      <div class="eyebrow">03 — The Mechanism</div>
-      <p class="lede">From transfer to climate capital.</p>
-      <div class="mech-steps">
-        <div class="mech-step is-active"><span class="num">01</span><div><h3>Transfer</h3><p>ACT transactions generate a protocol-defined fee, withheld automatically by the Token-2022 standard itself — not by custom logic Aretia wrote.</p></div></div>
-        <div class="mech-step"><span class="num">02</span><div><h3>Allocation</h3><p>A fixed portion is directed toward the climate catalyst fund, with the remainder split between liquidity and protocol operations.</p></div></div>
-        <div class="mech-step"><span class="num">03</span><div><h3>Treasury</h3><p>Funds accumulate under multisig custody — a Squads vault requiring 2-of-3 independent signer approval to move.</p></div></div>
-        <div class="mech-step"><span class="num">04</span><div><h3>Verification</h3><p>Projects must demonstrate independently verified milestones before any tranche of funding is released.</p></div></div>
-        <div class="mech-step"><span class="num">05</span><div><h3>Release</h3><p>Capital is released in tranches against verified progress — never a lump sum against a single approval.</p></div></div>
+  <!-- ============ BENTO ABOUT ============ -->
+  <div class="wrap bento-wrap" id="about">
+    <div class="bento">
+      <div class="bento-tile bento-lead">
+        <div>
+          <div class="eyebrow">About Aretia</div>
+          <h2>Capital that speaks for itself.</h2>
+        </div>
+        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones — not a promise anyone has to trust.</p>
+      </div>
+      <div class="bento-tile bento-note">
+        <h3>Capital</h3>
+        <p>More capital needs to reach real mitigation and adaptation projects, not just pledges.</p>
+      </div>
+      <div class="bento-tile bento-note">
+        <h3>Verification</h3>
+        <p>Funding needs to correspond to observable project progress, checked by parties independent of the fund itself.</p>
+      </div>
+      <div class="bento-tile bento-stat">
+        <div class="figure">3.5%</div>
+        <div class="cap">Protocol fee, withheld automatically on every ACT transfer</div>
+      </div>
+      <div class="bento-tile bento-stat grad">
+        <div class="figure">2-of-3</div>
+        <div class="cap">Multisig treasury custody — no single wallet can move capital alone</div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- ============ ALLOCATION ============ -->
-  <section class="block alt">
+  <!-- ============ CATEGORY EXPLORER ============ -->
+  <section class="block" id="categories">
     <div class="wrap">
-      <div class="eyebrow">— Protocol Allocation</div>
-      <p class="lede">A fixed mechanism, not a discretionary promise.</p>
-      <div class="alloc-headline">
-        <span class="alloc-figure">3.5%</span>
-        <span class="alloc-label">Protocol fee, withheld on every transfer</span>
-      </div>
-      <div class="alloc-bar">
-        <span style="width:57.1%; background:var(--wine);"></span>
-        <span style="width:28.6%; background:var(--coral);"></span>
-        <span style="width:14.3%; background:var(--peach);"></span>
-      </div>
-      <div class="alloc-rows">
-        <div class="alloc-row" style="border-color:var(--wine);"><span class="pct">2.0%</span><span class="name">Climate Catalyst Fund</span></div>
-        <div class="alloc-row" style="border-color:var(--coral);"><span class="pct">1.0%</span><span class="name">Liquidity</span></div>
-        <div class="alloc-row" style="border-color:var(--peach);"><span class="pct">0.5%</span><span class="name">Management</span></div>
-      </div>
-      <p class="alloc-note">The allocation is defined by the protocol's on-chain configuration and is designed to make the relationship between activity and climate finance explicit. It is not permanently immutable — the mint's fee-rate authority sits with the treasury multisig, so a change requires the same 2-of-3 signer approval as any other treasury action, never a single party acting alone. <a href="tokenomics.html" style="color:var(--wine); font-weight:700;">Full breakdown →</a></p>
-    </div>
-  </section>
-
-  <!-- ============ VERIFICATION (loud band) ============ -->
-  <section class="block verify-band" id="verification">
-    <div class="wrap">
-      <div class="eyebrow">04 — Verification</div>
-      <p class="lede">Don't trust the claim. Verify it.</p>
-      <div class="carousel-wrap">
-        <div class="carousel-controls">
-          <button class="carousel-btn on-dark carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button class="carousel-btn on-dark carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      <div class="eyebrow">Where Capital Goes</div>
+      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Five categories, each held to its own standard of proof.</h2>
+      <div class="cat-explorer">
+        <div class="cat-list" id="cat-list">
+          <div class="cat-item active" data-cat="0"><div class="t">Renewable Energy</div><div class="s">Metered generation capacity</div></div>
+          <div class="cat-item" data-cat="1"><div class="t">Waste-to-Energy</div><div class="s">Waste diverted, energy generated</div></div>
+          <div class="cat-item" data-cat="2"><div class="t">Carbon Reduction</div><div class="s">Emissions avoided or removed</div></div>
+          <div class="cat-item" data-cat="3"><div class="t">Technical Assistance</div><div class="s">Studies, training, MRV systems</div></div>
+          <div class="cat-item" data-cat="4"><div class="t">Flood &amp; Reforestation</div><div class="s">Hectares restored</div></div>
         </div>
-        <div class="carousel-track">
-          <div class="carousel-card principle"><span class="principle-num">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
-          <div class="carousel-card principle"><span class="principle-num">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
-          <div class="carousel-card principle"><span class="principle-num">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress — never a lump sum against a promise.</p></div>
-          <div class="carousel-card principle"><span class="principle-num">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
-        </div>
-      </div>
-      <a class="btn-text" href="verify.html" style="color:var(--ivory);">Open Verification Tool <span class="arrow">→</span></a>
-    </div>
-  </section>
-
-  <!-- ============ CLIMATE FINANCE ============ -->
-  <section class="block" id="climate-finance">
-    <div class="wrap">
-      <div class="eyebrow">05 — Climate Finance</div>
-      <p class="lede">Capital moves where measurable climate outcomes can be demonstrated.</p>
-      <div class="carousel-wrap">
-        <div class="carousel-controls">
-          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
-        </div>
-        <div class="carousel-track">
-          <div class="carousel-card category-card">
-            <span class="cnum">01</span>
-            <h3>Renewable Energy</h3>
-            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Metered generation capacity added.</span></div>
-            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Independent engineering certification and operating documentation.</span></div>
+        <div class="cat-panel">
+          <div class="cat-panel-card" id="cat-panel-card">
+            <h3 id="cat-title">Renewable Energy</h3>
+            <p id="cat-output">Metered generation capacity added.</p>
           </div>
-          <div class="carousel-card category-card">
-            <span class="cnum">02</span>
-            <h3>Waste-to-Energy</h3>
-            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Waste diverted and energy generated.</span></div>
-            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Facility operating permits, throughput metering, emissions monitored against a stated baseline.</span></div>
-          </div>
-          <div class="carousel-card category-card">
-            <span class="cnum">03</span>
-            <h3>Carbon Reduction</h3>
-            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Emissions avoided or removed.</span></div>
-            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.</span></div>
-          </div>
-          <div class="carousel-card category-card">
-            <span class="cnum">04</span>
-            <h3>Technical Assistance</h3>
-            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Capacity delivered — studies, training, MRV systems built.</span></div>
-            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Deliverable-based milestones; independent review of the technical work product.</span></div>
-          </div>
-          <div class="carousel-card category-card">
-            <span class="cnum">05</span>
-            <h3>Flood Management &amp; Reforestation</h3>
-            <div class="field"><span class="field-label">Verified Output</span><span class="field-value">Hectares restored; flood-risk reduction achieved.</span></div>
-            <div class="field"><span class="field-label">Diligence</span><span class="field-value">Remote-sensing canopy verification; hydrological modeling or post-event assessment.</span></div>
+          <div class="cat-panel-foot">
+            <div class="f"><span class="fl">Diligence Standard</span><span class="fv" id="cat-diligence">Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.</span></div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ IMPACT ECONOMICS ============ -->
-  <section class="block alt">
+  <!-- ============ VERIFICATION FAN CAROUSEL ============ -->
+  <section class="block" id="verification" style="background:var(--bg-alt); border-radius: var(--r-xl); margin: 0 32px; width:auto;">
     <div class="wrap">
-      <div class="eyebrow">06 — Impact Economics</div>
-      <p class="lede">The mechanism scales with activity.</p>
-      <div class="carousel-wrap">
-        <div class="carousel-controls">
-          <button class="carousel-btn carousel-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button class="carousel-btn carousel-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      <div class="eyebrow">Verify, Don't Trust</div>
+      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Four properties, each independently checkable.</h2>
+      <div class="fan-wrap">
+        <div class="fan-track" id="fan-track">
+          <div class="fan-card" data-fan="0"><span class="n">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
+          <div class="fan-card" data-fan="1"><span class="n">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
+          <div class="fan-card" data-fan="2"><span class="n">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress — never a lump sum against a promise.</p></div>
+          <div class="fan-card" data-fan="3"><span class="n">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
         </div>
-        <div class="carousel-track">
-          <div class="carousel-card impact-cell"><div class="from">$10,000 trading volume</div><div class="figure">$200</div><div class="to">Climate Catalyst Fund</div></div>
-          <div class="carousel-card impact-cell"><div class="from">$100,000 trading volume</div><div class="figure">$2,000</div><div class="to">Climate Catalyst Fund</div></div>
-          <div class="carousel-card impact-cell"><div class="from">$1,000,000 trading volume</div><div class="figure">$20,000</div><div class="to">Climate Catalyst Fund</div></div>
-          <div class="carousel-card impact-cell"><div class="from">$100,000,000 trading volume</div><div class="figure">$2,000,000</div><div class="to">Climate Catalyst Fund</div></div>
-        </div>
+        <div class="fan-dots" id="fan-dots"></div>
       </div>
-      <div class="impact-disclaimer">
-        <span class="tag">No forecast. No promise.</span>
-        <p>These examples describe the mathematical relationship between trading volume and the protocol allocation. They are not projections of future trading activity or investment returns. ACT has not launched and no liquidity pool has been seeded yet.</p>
-      </div>
+      <div style="text-align:center; margin-top:8px;"><a class="pill-btn pill-ghost" href="verify.html">Open Verification Tool →</a></div>
     </div>
   </section>
 
-  <!-- ============ FUNDING ============ -->
-  <section class="block" id="funding">
+  <!-- ============ ROADMAP SPLIT CARD ============ -->
+  <section class="block" id="roadmap">
     <div class="wrap">
-      <div class="eyebrow">07 — Funding</div>
-      <p class="lede">From proposal to verified impact.</p>
-      <div class="pipeline">
-        <div class="pipeline-step"><span class="n">01</span><span class="label">Project Application</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">02</span><span class="label">Due Diligence</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">03</span><span class="label">Project Scoring</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">04</span><span class="label">Funding Proposal</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">05</span><span class="label">Milestone</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">06</span><span class="label">Independent Verification</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">07</span><span class="label">Capital Release</span></div><span class="pipeline-arrow">→</span>
-        <div class="pipeline-step"><span class="n">08</span><span class="label">Impact Reporting</span></div>
-      </div>
-      <div style="margin-top:36px;"><a class="btn-text" href="apply.html">Apply for Funding <span class="arrow">→</span></a></div>
-    </div>
-  </section>
-
-  <!-- ============ ROADMAP ============ -->
-  <section class="block alt" id="roadmap">
-    <div class="wrap">
-      <div class="eyebrow">— Roadmap</div>
-      <p class="lede">Four phases, not one launch.</p>
-      <div class="timeline">
-        <div class="timeline-phase current">
-          <div class="ph">01<br>Current</div>
-          <div><h3>Foundation</h3><ul>
-            <li>ACT infrastructure — live on Solana mainnet</li>
-            <li>Treasury — multisig live, tested end to end</li>
-            <li>Verification — client-side tool live</li>
-            <li>Funding intake — application form open</li>
-          </ul></div>
+      <div class="eyebrow">Roadmap</div>
+      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Four phases, not one launch.</h2>
+      <div class="split-card">
+        <div class="split-left">
+          <h2>Foundation is live. Three phases follow.</h2>
+          <div class="split-phase-list">
+            <div class="split-phase current"><span class="ph">01</span><span class="t">Foundation</span></div>
+            <div class="split-phase"><span class="ph">02</span><span class="t">Climate Finance</span></div>
+            <div class="split-phase"><span class="ph">03</span><span class="t">MRV</span></div>
+            <div class="split-phase"><span class="ph">04</span><span class="t">Global Protocol</span></div>
+          </div>
         </div>
-        <div class="timeline-phase">
-          <div class="ph">02</div>
-          <div><h3>Climate Finance</h3><ul>
-            <li>Project scoring</li><li>Funding proposals</li><li>Milestone-based funding</li>
-          </ul></div>
+        <div class="split-right">
+          <div class="split-cell"><div><div class="ic">✓</div><div class="lb">Mint Live</div></div></div>
+          <div class="split-cell"><div><div class="ic">✓</div><div class="lb">Treasury Tested</div></div></div>
+          <div class="split-cell"><div><div class="ic">○</div><div class="lb">Liquidity Pending</div></div></div>
+          <div class="split-cell"><div><div class="ic">○</div><div class="lb">MRV Pending</div></div></div>
         </div>
-        <div class="timeline-phase">
-          <div class="ph">03</div>
-          <div><h3>MRV</h3><ul>
-            <li>Climate impact measurement</li><li>Emissions accounting</li><li>Satellite / geospatial data</li><li>Independent verification infrastructure</li>
-          </ul></div>
-        </div>
-        <div class="timeline-phase">
-          <div class="ph">04</div>
-          <div><h3>Global Protocol</h3><ul>
-            <li>Multiple countries and project types</li><li>Institutional participation</li><li>Additional validators</li><li>Potential multi-chain deployment</li>
-          </ul></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ THE PROTOCOL ============ -->
-  <section class="block">
-    <div class="wrap">
-      <div class="eyebrow">08 — The Protocol</div>
-      <p class="lede">The mechanism is public.</p>
-      <div class="body-copy" style="margin: 28px 0 40px;">
-        <p>The Aretia protocol defines how economic activity, treasury allocation, project funding, and verification interact. Anyone should be able to understand the rules before participating.</p>
-      </div>
-      <div class="hero-actions" style="margin-bottom:0;">
-        <a class="btn btn-ghost" href="whitepaper.html">Read the Whitepaper</a>
-        <a class="btn btn-ghost" href="https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG" target="_blank" rel="noopener">View on Solana</a>
-        <a class="btn btn-ghost" href="verify.html">Verify the Protocol</a>
       </div>
     </div>
   </section>
 
   <!-- ============ INSIGHTS ============ -->
-  <section class="block alt">
+  <section class="block" id="insights">
     <div class="wrap">
-      <div class="eyebrow">— Latest From Aretia</div>
-      <div class="insight-list">
-        <a class="insight-row" href="insights.html"><span class="n">01</span><span class="t">Does a 3.5% fee meaningfully deter trading?</span><span class="tag">Fee Incidence</span></a>
-        <a class="insight-row" href="insights.html"><span class="n">02</span><span class="t">Why "code-enforced" is a different claim than "we promise"</span><span class="tag">Mechanism Design</span></a>
-        <a class="insight-row" href="insights.html"><span class="n">03</span><span class="t">The catalyst fund only works if someone provides liquidity</span><span class="tag">Liquidity</span></a>
+      <div class="insight-wrap">
+        <div class="insight-left">
+          <div class="eyebrow">Latest From Aretia</div>
+          <h2>Ideas shaping the mechanism.</h2>
+          <p>Short essays on the open questions this protocol doesn't consider settled — fee incidence, mechanism design, and what liquidity actually requires.</p>
+          <div class="insight-nav">
+            <button class="carousel-btn" id="insight-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="carousel-btn" id="insight-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <a class="insight-card" href="insights.html" id="insight-card">
+          <div class="insight-tags"><span class="insight-tag" id="insight-tag">Fee Incidence</span></div>
+          <h3 id="insight-title">Does a 3.5% fee meaningfully deter trading?</h3>
+          <p id="insight-excerpt">The fee is fixed and fully disclosed prior to any transaction — this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.</p>
+          <span class="pill-btn pill-ghost" style="pointer-events:none;">Read More</span>
+        </a>
       </div>
     </div>
   </section>
 
-  <!-- ============ GET ACT (subordinate) ============ -->
-  <section class="block get-act" id="buy">
-    <div class="wrap get-act-inner">
-      <div>
-        <div class="eyebrow">— ACT</div>
-        <h2>ACT is the protocol's economic mechanism.</h2>
-        <p class="body-copy">ACT trades openly on Solana — no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
-        <p class="buy-note">Liquidity hasn't been seeded yet (see the <a href="#roadmap" style="color:var(--wine); text-decoration:underline;">roadmap</a>), so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
-      </div>
-      <div class="buy-widget-frame">
-        <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
+  <!-- ============ GET ACT ============ -->
+  <section class="block" id="buy">
+    <div class="wrap">
+      <div class="get-act-wrap">
+        <div class="get-act-left">
+          <div class="eyebrow">ACT</div>
+          <h2>ACT is the protocol's economic mechanism.</h2>
+          <p>ACT trades openly on Solana — no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
+          <p class="buy-note">Liquidity hasn't been seeded yet (see the <a href="#roadmap" style="color:var(--navy); text-decoration:underline;">roadmap</a>), so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
+        </div>
+        <div class="buy-widget-frame">
+          <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ FINAL CTA (loud, bookends hero) ============ -->
-  <section class="final-cta">
+  <!-- ============ FINAL CTA ============ -->
+  <section class="block">
     <div class="wrap">
-      <h2>Climate finance should be measurable. Capital should be accountable.</h2>
-      <p style="font-size:15px; color:var(--peach); margin-bottom:44px;">Build with Aretia.</p>
-      <div class="actions">
-        <a class="btn btn-primary" href="apply.html">Apply for Funding</a>
-        <a class="btn btn-outline-light" href="whitepaper.html">Read the Whitepaper</a>
+      <div class="final-cta">
+        <h2>Climate finance should be measurable. Capital should be accountable.</h2>
+        <p>Build with Aretia.</p>
+        <div class="final-actions">
+          <a class="pill-btn pill-primary" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-outline-light" href="whitepaper.html">Read the Whitepaper</a>
+        </div>
       </div>
     </div>
   </section>
@@ -617,14 +393,17 @@
 <footer>
   <div class="wrap">
     <div class="footer-top">
-      <div class="footer-brand">
-        <div class="name">Aretia</div>
-        <p class="tag">Climate finance protocol. A fixed share of economic activity, converted into transparent, milestone-verified climate capital.</p>
+      <div>
+        <div class="footer-brand"><span class="mark"><img src="data:image/png;base64,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" alt="Aretia"></span>Aretia</div>
+        <div class="footer-contact">
+          <p>Climate finance protocol.</p>
+          <p>A fixed share of economic activity, converted into transparent, milestone-verified climate capital.</p>
+        </div>
       </div>
       <div class="footer-col">
         <div class="h">Protocol</div>
         <ul>
-          <li><a href="#mechanism">Mechanism</a></li>
+          <li><a href="#about">Mechanism</a></li>
           <li><a href="tokenomics.html">Tokenomics</a></li>
           <li><a href="details.html">Treasury</a></li>
           <li><a href="roadmap.html">Roadmap</a></li>
@@ -637,12 +416,6 @@
           <li><a href="apply.html">Funding</a></li>
           <li><a href="whitepaper.html">Whitepaper</a></li>
           <li><a href="about.html">About</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <div class="h">More</div>
-        <ul>
-          <li><a href="insights.html">Insights</a></li>
           <li><a href="faq.html">FAQ</a></li>
         </ul>
       </div>
@@ -655,59 +428,105 @@
 </footer>
 
 <script>
+  // ---- Nav scroll-spy (lightweight, no external deps) ----
   (function () {
-    var nav = document.querySelector('.topnav');
-    if (!nav) return;
-    function update() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    var sections = ['hero','about','categories','verification','roadmap','insights'];
+    var links = document.querySelectorAll('.nav-links a[href^="#"]');
+    function update() {
+      var pos = window.scrollY + 140;
+      var current = sections[0];
+      sections.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.offsetTop <= pos) current = id;
+      });
+      links.forEach(function (a) {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+      });
+    }
     window.addEventListener('scroll', update, { passive: true });
     update();
   })();
 </script>
 
-<!-- Carousels: Why It Exists, Verification, Climate Finance, Impact Economics -->
 <script>
+  // ---- Category explorer ----
   (function () {
-    // Animate scrollLeft manually via requestAnimationFrame rather than
-    // relying on native smooth-scroll (the scrollBy options-object form and
-    // CSS scroll-behavior:smooth are both unreliable in some environments --
-    // this rAF approach depends on nothing but a plain scrollLeft assignment).
-    function animateScrollTo(el, targetLeft, duration) {
-      var startLeft = el.scrollLeft;
-      var change = targetLeft - startLeft;
-      if (change === 0) return;
-      var startTime = null;
-      function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
-      function frame(now) {
-        if (startTime === null) startTime = now;
-        var progress = Math.min((now - startTime) / duration, 1);
-        el.scrollLeft = startLeft + change * ease(progress);
-        if (progress < 1) requestAnimationFrame(frame);
-      }
-      requestAnimationFrame(frame);
-    }
-
-    document.querySelectorAll('.carousel-wrap').forEach(function (wrap) {
-      var track = wrap.querySelector('.carousel-track');
-      var prev = wrap.querySelector('.carousel-prev');
-      var next = wrap.querySelector('.carousel-next');
-      if (!track || !prev || !next) return;
-
-      function step() {
-        var card = track.querySelector('.carousel-card');
-        if (!card) return 300;
-        var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 20;
-        return card.getBoundingClientRect().width + gap;
-      }
-      function updateButtons() {
-        prev.disabled = track.scrollLeft <= 4;
-        next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 4;
-      }
-      prev.addEventListener('click', function () { animateScrollTo(track, track.scrollLeft - step(), 380); });
-      next.addEventListener('click', function () { animateScrollTo(track, track.scrollLeft + step(), 380); });
-      track.addEventListener('scroll', updateButtons, { passive: true });
-      window.addEventListener('resize', updateButtons);
-      updateButtons();
+    var DATA = [
+      { title: 'Renewable Energy', output: 'Metered generation capacity added.', diligence: 'Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.' },
+      { title: 'Waste-to-Energy', output: 'Waste diverted and energy generated.', diligence: 'Facility operating permits, throughput metering, emissions monitored against a stated baseline.' },
+      { title: 'Carbon Reduction', output: 'Emissions avoided or removed.', diligence: 'Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.' },
+      { title: 'Technical Assistance', output: 'Capacity delivered — studies, training, MRV systems built.', diligence: 'Deliverable-based milestones; independent review of the technical work product.' },
+      { title: 'Flood Management & Reforestation', output: 'Hectares restored; flood-risk reduction achieved.', diligence: 'Remote-sensing canopy verification; hydrological modeling or post-event assessment.' }
+    ];
+    var items = document.querySelectorAll('.cat-item');
+    var titleEl = document.getElementById('cat-title');
+    var outputEl = document.getElementById('cat-output');
+    var diligenceEl = document.getElementById('cat-diligence');
+    items.forEach(function (item) {
+      item.addEventListener('click', function () {
+        items.forEach(function (i) { i.classList.remove('active'); });
+        item.classList.add('active');
+        var d = DATA[parseInt(item.getAttribute('data-cat'), 10)];
+        titleEl.textContent = d.title;
+        outputEl.textContent = d.output;
+        diligenceEl.textContent = d.diligence;
+      });
     });
+  })();
+</script>
+
+<script>
+  // ---- Fanned verification carousel ----
+  (function () {
+    var cards = document.querySelectorAll('.fan-card');
+    var dotsWrap = document.getElementById('fan-dots');
+    if (!cards.length) return;
+    var activeIndex = 1;
+    cards.forEach(function (c, i) {
+      var dot = document.createElement('button');
+      dot.className = 'fan-dot';
+      dot.setAttribute('aria-label', 'Show card ' + (i + 1));
+      dot.addEventListener('click', function () { setActive(i); });
+      dotsWrap.appendChild(dot);
+      c.addEventListener('click', function () { setActive(i); });
+    });
+    var dots = dotsWrap.querySelectorAll('.fan-dot');
+    function setActive(i) {
+      activeIndex = i;
+      cards.forEach(function (c, idx) { c.classList.toggle('is-center', idx === i); });
+      dots.forEach(function (d, idx) { d.classList.toggle('active', idx === i); });
+    }
+    setActive(activeIndex);
+  })();
+</script>
+
+<script>
+  // ---- Insights cycler ----
+  (function () {
+    var DATA = [
+      { tag: 'Fee Incidence', title: 'Does a 3.5% fee meaningfully deter trading?', excerpt: 'The fee is fixed and fully disclosed prior to any transaction — this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.' },
+      { tag: 'Mechanism Design', title: 'Why "code-enforced" is a different claim than "we promise"', excerpt: 'A statement of intent the issuer could costlessly reverse is cheap talk, regardless of sincerity. A property enforced by an immutable, permissionless token standard is a credible commitment in the technical sense.' },
+      { tag: 'Liquidity', title: 'The catalyst fund only works if someone provides liquidity', excerpt: 'The fund’s continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place — which depends on someone accepting impermanent-loss risk.' }
+    ];
+    var idx = 0;
+    var tagEl = document.getElementById('insight-tag');
+    var titleEl = document.getElementById('insight-title');
+    var excerptEl = document.getElementById('insight-excerpt');
+    function render() {
+      var d = DATA[idx];
+      tagEl.textContent = d.tag;
+      titleEl.textContent = d.title;
+      excerptEl.textContent = d.excerpt;
+    }
+    document.getElementById('insight-prev').addEventListener('click', function () {
+      idx = (idx - 1 + DATA.length) % DATA.length;
+      render();
+    });
+    document.getElementById('insight-next').addEventListener('click', function () {
+      idx = (idx + 1) % DATA.length;
+      render();
+    });
+    render();
   })();
 </script>
 

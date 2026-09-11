@@ -110,14 +110,15 @@
   .feature-item p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; max-width: 34ch; }
 
   /* -------- Stats + category collage -------- */
-  .stats-split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-top: 48px; }
+  .stats-split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-top: 48px; min-width: 0; }
+  .stats-split > * { min-width: 0; }
   @media (max-width: 860px) { .stats-split { grid-template-columns: 1fr; gap: 36px; } }
   .stat-block { padding: 24px 0; border-top: 1px solid var(--border); }
   .stat-block:first-child { border-top: none; padding-top: 0; }
-  .stat-figure { font-family: var(--mono); font-size: 34px; font-weight: 700; color: var(--ink); }
+  .stat-figure { font-family: var(--mono); font-size: clamp(22px, 6.5vw, 34px); font-weight: 700; color: var(--ink); }
   .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
-  .cat-collage { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .cat-chip { aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px 10px; gap: 12px; border: 1px solid var(--border); transition: transform 200ms var(--ease), border-color 200ms var(--ease), box-shadow 200ms var(--ease); }
+  .cat-collage { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; min-width: 0; }
+  .cat-chip { min-width: 0; aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px 10px; gap: 12px; border: 1px solid var(--border); transition: transform 200ms var(--ease), border-color 200ms var(--ease), box-shadow 200ms var(--ease); }
   .cat-chip:hover { transform: translateY(-3px); border-color: var(--ink-faint); box-shadow: 0 10px 24px -14px rgba(10,12,16,.22); }
   .cat-chip .ic { width: 54px; height: 54px; border-radius: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
   .cat-chip .ic svg { width: 27px; height: 27px; }

@@ -8,193 +8,175 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy: #0B1440; --navy-deep: #060B29; --navy-soft: #16205C;
-    --blue: #2A4BFF; --blue-deep: #1B36CC;
-    --ink: #12142B; --ink-soft: #5C5E72; --ink-faint: #8D8FA3;
-    --bg: #F6F5F2; --bg-alt: #ECE9E2; --card: #FFFFFF;
-    --border: #E4E1D8; --border-soft: #ECEAE3;
-    --rose-1: #16205C; --rose-2: #2A4BFF;
-    --font-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
+    --bg: #FFFFFF; --bg-alt: #F7F7F9; --card: #FFFFFF;
+    --border: #E7E7EC; --border-soft: #EFEFF3;
+    --black: #101114; --black-hover: #26272C;
+    --blue: #2A4BFF; --blue-soft: #E7ECFF;
+    --green: #1E8A5F; --green-soft: #E1F5EC;
+    --amber: #B5790A; --amber-soft: #FBEFD9;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
-    --r-xl: 36px; --r-lg: 28px; --r-md: 20px; --r-sm: 14px;
+    --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
-  ::selection { background: var(--blue); color: #fff; }
+  ::selection { background: var(--black); color: #fff; }
   a { color: inherit; text-decoration: none; }
   img, svg { max-width: 100%; display: block; }
   .mono { font-family: var(--mono); }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
   @media (max-width: 640px) { .wrap { padding: 0 20px; } }
-  a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
-  h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--black); outline-offset: 3px; }
+  h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.025em; text-wrap: balance; }
   p { margin: 0; }
 
-  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 14px 26px; border-radius: 980px; white-space: nowrap; transition: background 200ms var(--ease), color 200ms var(--ease), transform 160ms var(--ease); border: 1.5px solid transparent; }
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
   .pill-btn:active { transform: scale(0.97); }
-  .pill-primary { background: var(--blue); color: #fff; }
-  .pill-primary:hover { background: var(--blue-deep); }
-  .pill-dark { background: var(--navy); color: #fff; }
-  .pill-dark:hover { background: var(--navy-deep); }
-  .pill-ghost { border-color: var(--border); color: var(--ink); background: var(--card); }
+  .pill-black { background: var(--black); color: #fff; }
+  .pill-black:hover { background: var(--black-hover); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
   .pill-ghost:hover { background: var(--bg-alt); }
-  .pill-outline-light { border-color: rgba(255,255,255,0.4); color: #fff; }
-  .pill-outline-light:hover { background: rgba(255,255,255,0.12); }
 
-  .eyebrow { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
-  section.block { padding: 96px 0; }
-  @media (max-width: 860px) { section.block { padding: 64px 0; } }
+  .eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); background: var(--bg-alt); border: 1px solid var(--border); padding: 7px 16px 7px 8px; border-radius: 980px; }
+  .eyebrow-pill .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; }
+  .eyebrow-pill .dot svg { width: 10px; height: 10px; }
 
-  /* -------- Nav (pill style) -------- */
-  .topnav { position: sticky; top: 18px; z-index: 60; }
-  .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; background: rgba(255,255,255,0.85); backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px); border: 1px solid var(--border-soft); border-radius: 980px; padding: 10px 12px 10px 20px; box-shadow: 0 8px 30px -12px rgba(11,20,64,0.14); }
-  .brand { display: flex; align-items: center; gap: 9px; flex: none; font-weight: 700; font-size: 16px; color: var(--navy); }
-  .brand .mark { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex: none; }
+  section.block { padding: 88px 0; }
+  @media (max-width: 860px) { section.block { padding: 56px 0; } }
+  section.block.alt { background: var(--bg-alt); }
+
+  /* -------- Nav -------- */
+  .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
+  .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15.5px; color: var(--ink); }
+  .brand .mark { width: 24px; height: 24px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
-  .nav-links { display: flex; align-items: center; gap: 4px; background: var(--bg-alt); border-radius: 980px; padding: 4px; }
-  .nav-links a { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); padding: 9px 16px; border-radius: 980px; transition: background 160ms var(--ease), color 160ms var(--ease); }
+  .nav-links { display: flex; align-items: center; gap: 30px; }
+  .nav-links a { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
-  .nav-links a.active { background: var(--navy); color: #fff; }
-  @media (max-width: 920px) { .nav-links { display: none; } }
-  .topnav-cta { flex: none; }
+  @media (max-width: 900px) { .nav-links { display: none; } }
 
   /* -------- Hero -------- */
-  .hero { position: relative; padding: 60px 0 0; overflow: hidden; background: var(--navy); border-radius: 0 0 var(--r-xl) var(--r-xl); }
-  .hero-inner { padding: 76px 0 220px; text-align: center; position: relative; z-index: 2; }
-  @media (max-width: 860px) { .hero-inner { padding: 48px 0 200px; } }
-  .hero-eyebrow { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9FB0FF; margin-bottom: 30px; }
-  .hero h1 { font-size: clamp(2.6rem, 6.4vw, 5.2rem); line-height: 1.06; letter-spacing: -0.03em; color: #fff; max-width: 15ch; margin: 0 auto 30px; font-weight: 500; }
-  .hero h1 .accent-wrap { display: inline-flex; align-items: center; gap: 10px; }
-  .hero h1 .pill-deco { display: inline-block; width: 1.3em; height: 0.62em; border: 2.5px solid #6B84FF; border-radius: 980px; vertical-align: middle; margin: 0 4px; }
-  .hero h1 .hatch-deco { display: inline-block; width: 1.5em; height: 0.7em; vertical-align: middle; margin: 0 4px; background: none; border: 2.5px dashed rgba(255,255,255,0.55); border-radius: 4px; }
-  .hero-sub { font-size: clamp(15px, 1.6vw, 17.5px); color: #C4CBEE; max-width: 52ch; margin: 0 auto 40px; line-height: 1.7; }
-  .hero-actions { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .hero { position: relative; padding: 96px 0 60px; overflow: visible; }
+  @media (max-width: 860px) { .hero { padding: 56px 0 40px; } }
+  .hero-inner { text-align: center; max-width: 720px; margin: 0 auto; position: relative; }
+  .hero-inner .eyebrow-pill { margin-bottom: 30px; }
+  .hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.12; letter-spacing: -0.03em; color: var(--ink); margin: 0 auto 22px; }
+  .hero-sub { font-size: clamp(14.5px, 1.4vw, 16.5px); color: var(--ink-soft); max-width: 50ch; margin: 0 auto 34px; line-height: 1.7; }
+  .hero-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
-  /* -------- Bento "about" panel, floats over hero bottom -------- */
-  .bento-wrap { margin-top: -172px; position: relative; z-index: 3; }
-  @media (max-width: 860px) { .bento-wrap { margin-top: -150px; } }
-  .bento { background: var(--card); border-radius: var(--r-xl); padding: 20px; box-shadow: 0 30px 70px -30px rgba(11,20,64,0.28); display: grid; grid-template-columns: 1.35fr 1fr 1fr; grid-template-rows: auto auto; gap: 16px; }
-  @media (max-width: 900px) { .bento { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 600px) { .bento { grid-template-columns: 1fr; } }
-  .bento-tile { border-radius: var(--r-md); padding: 30px 28px; }
-  .bento-lead { grid-column: 1; grid-row: 1 / span 2; background: var(--bg-alt); display: flex; flex-direction: column; justify-content: space-between; min-height: 340px; }
-  @media (max-width: 900px) { .bento-lead { grid-column: 1 / span 2; grid-row: 1; min-height: 220px; } }
-  @media (max-width: 600px) { .bento-lead { grid-column: 1; } }
-  .bento-lead h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 14px; }
-  .bento-lead p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 40ch; }
-  .bento-note { border: 1px solid var(--border); background: var(--card); }
-  .bento-note h3 { font-size: 17px; color: var(--ink); margin-bottom: 10px; }
-  .bento-note p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
-  .bento-stat { background: var(--navy); color: #fff; display: flex; flex-direction: column; justify-content: flex-end; min-height: 158px; }
-  .bento-stat .figure { font-family: var(--mono); font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 700; color: #fff; margin-bottom: 8px; }
-  .bento-stat .cap { font-size: 12.5px; color: #A9B4E6; }
-  .bento-stat.grad { background: var(--blue-deep); }
+  /* Floating fact bubbles, decorative, real content not fabricated social proof */
+  .float-bubble { position: absolute; background: #fff; border: 1px solid var(--border); border-radius: 980px; padding: 9px 16px; font-size: 12px; font-weight: 600; color: var(--ink); box-shadow: 0 12px 30px -12px rgba(16,17,20,0.14); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .float-bubble .avatar-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+  .fb-1 { top: -4%; left: -20%; } .fb-2 { top: 62%; left: -22%; } .fb-3 { top: -4%; right: -18%; } .fb-4 { top: 62%; right: -20%; }
+  @media (max-width: 1000px) { .float-bubble { display: none; } }
 
-  /* -------- Category explorer (Selected Projects pattern) -------- */
-  .cat-explorer { display: grid; grid-template-columns: 300px 1fr; gap: 44px; margin-top: 48px; align-items: start; }
-  @media (max-width: 860px) { .cat-explorer { grid-template-columns: 1fr; } }
-  .cat-list { display: flex; flex-direction: column; }
-  .cat-item { padding: 16px 4px; border-left: 2px solid transparent; padding-left: 18px; cursor: pointer; transition: border-color 200ms var(--ease); }
-  .cat-item .t { font-size: 16.5px; font-weight: 600; color: var(--ink-faint); transition: color 200ms var(--ease); }
-  .cat-item .s { font-size: 12px; color: var(--ink-faint); font-family: var(--mono); margin-top: 3px; opacity: 0; transition: opacity 200ms var(--ease); }
-  .cat-item.active { border-color: var(--blue); }
-  .cat-item.active .t { color: var(--navy); }
-  .cat-item.active .s { opacity: 1; }
-  .cat-panel { border-radius: var(--r-xl); background: var(--navy); min-height: 420px; position: relative; overflow: hidden; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; }
-  .cat-panel-card { background: var(--card); border-radius: var(--r-lg); padding: 30px 28px; max-width: 380px; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.35); }
-  .cat-panel-card h3 { font-size: 21px; color: var(--navy); margin-bottom: 10px; }
-  .cat-panel-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
-  .cat-panel-foot { display: flex; gap: 32px; background: rgba(255,255,255,0.08); backdrop-filter: blur(10px); border-radius: var(--r-md); padding: 20px 26px; flex-wrap: wrap; }
-  .cat-panel-foot .f { display: flex; flex-direction: column; gap: 4px; }
-  .cat-panel-foot .fl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9FB0DE; }
-  .cat-panel-foot .fv { font-size: 13px; color: #fff; max-width: 30ch; line-height: 1.5; }
+  /* -------- 3-panel workflow card -------- */
+  .panel-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-alt); padding: 10px; margin-top: 56px; box-shadow: 0 30px 70px -40px rgba(16,17,20,0.16); }
+  @media (max-width: 860px) { .panel-row { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border-radius: var(--r-md); padding: 22px; position: relative; }
+  .panel + .panel { margin-left: 10px; }
+  @media (max-width: 860px) { .panel + .panel { margin-left: 0; margin-top: 10px; } }
+  .panel-h { font-size: 12px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+  .signer-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+  .signer-row:last-child { border-bottom: none; }
+  .signer-avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .signer-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .signer-addr { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+  .fee-stat-figure { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--ink); }
+  .fee-stat-up { font-size: 11px; font-weight: 700; color: var(--green); background: var(--green-soft); padding: 3px 8px; border-radius: 980px; margin-left: 8px; }
+  .fee-bar { display: flex; height: 8px; border-radius: 980px; overflow: hidden; margin: 14px 0; background: var(--border-soft); }
+  .fee-bar span { height: 100%; }
+  .fee-legend { display: flex; flex-direction: column; gap: 6px; }
+  .fee-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+  .fee-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .check-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 12.5px; color: var(--ink); }
+  .check-icon { width: 18px; height: 18px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; flex: none; font-size: 11px; font-weight: 800; }
 
-  /* -------- Fanned carousel (verification principles) -------- */
-  .fan-wrap { margin-top: 60px; position: relative; }
-  .fan-track { display: flex; align-items: center; justify-content: center; gap: -10px; padding: 20px 0 40px; position: relative; min-height: 260px; }
-  .fan-card { width: 190px; min-height: 210px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--border); padding: 26px 22px; margin: 0 -14px; transition: transform 300ms var(--ease), opacity 300ms var(--ease), box-shadow 300ms var(--ease), z-index 0ms; cursor: pointer; transform: scale(0.86) translateY(10px); opacity: 0.55; position: relative; }
-  .fan-card .n { font-family: var(--mono); font-size: 11px; color: var(--blue); display: block; margin-bottom: 16px; }
-  .fan-card h3 { font-size: 15px; color: var(--navy); margin-bottom: 8px; }
-  .fan-card p { font-size: 12px; color: var(--ink-soft); line-height: 1.55; display: none; }
-  .fan-card.is-center { transform: scale(1.12) translateY(-14px); opacity: 1; z-index: 5; box-shadow: 0 30px 60px -22px rgba(11,20,64,0.3); background: var(--navy); border-color: var(--navy); }
-  .fan-card.is-center .n { color: #9FB0FF; }
-  .fan-card.is-center h3 { color: #fff; }
-  .fan-card.is-center p { display: block; color: #C4CBEE; }
-  @media (max-width: 760px) { .fan-card { width: 150px; min-height: 180px; padding: 20px 16px; } .fan-card.is-center { transform: scale(1.06) translateY(-8px); } }
-  .fan-dots { display: flex; justify-content: center; gap: 8px; }
-  .fan-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); border: none; cursor: pointer; padding: 0; transition: background 200ms var(--ease), transform 200ms var(--ease); }
-  .fan-dot.active { background: var(--blue); transform: scale(1.3); }
+  /* -------- 3 icon feature row -------- */
+  .feature-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 52px; }
+  @media (max-width: 760px) { .feature-row { grid-template-columns: 1fr; gap: 32px; } }
+  .feature-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+  .feature-icon svg { width: 19px; height: 19px; }
+  .feature-item h3 { font-size: 16.5px; color: var(--ink); margin-bottom: 10px; }
+  .feature-item p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; max-width: 34ch; }
 
-  /* -------- Roadmap split card -------- */
-  .split-card { border-radius: var(--r-xl); background: var(--navy); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; margin-top: 48px; }
-  @media (max-width: 860px) { .split-card { grid-template-columns: 1fr; } }
-  .split-left { padding: 52px 48px; }
-  .split-left h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); color: #fff; margin-bottom: 30px; }
-  .split-phase-list { display: flex; flex-direction: column; gap: 4px; }
-  .split-phase { display: flex; align-items: baseline; gap: 12px; padding: 11px 0; border-left: 2px solid transparent; padding-left: 16px; }
-  .split-phase .ph { font-family: var(--mono); font-size: 11px; color: #7A87C2; }
-  .split-phase .t { font-size: 14.5px; color: #7A87C2; font-weight: 600; }
-  .split-phase.current { border-color: #6B84FF; }
-  .split-phase.current .ph, .split-phase.current .t { color: #fff; }
-  .split-right { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: rgba(255,255,255,0.08); min-height: 340px; }
-  .split-cell { display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; }
-  .split-cell .ic { font-family: var(--mono); font-size: 26px; color: #fff; margin-bottom: 10px; }
-  .split-cell .lb { font-size: 11.5px; color: #A9B4E6; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
-  .split-cell:nth-child(1) { background: rgba(255,255,255,0.03); }
-  .split-cell:nth-child(4) { background: rgba(255,255,255,0.03); }
+  /* -------- Stats + category collage -------- */
+  .stats-split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-top: 48px; }
+  @media (max-width: 860px) { .stats-split { grid-template-columns: 1fr; gap: 36px; } }
+  .stat-block { padding: 24px 0; border-top: 1px solid var(--border); }
+  .stat-block:first-child { border-top: none; padding-top: 0; }
+  .stat-figure { font-family: var(--mono); font-size: 34px; font-weight: 700; color: var(--ink); }
+  .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
+  .cat-collage { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .cat-chip { aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 14px; gap: 8px; border: 1px solid var(--border); }
+  .cat-chip .ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .cat-chip .lb { font-size: 11px; font-weight: 600; color: var(--ink); line-height: 1.3; }
 
-  /* -------- Insights floating card -------- */
-  .insight-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
-  @media (max-width: 860px) { .insight-wrap { grid-template-columns: 1fr; gap: 28px; } }
-  .insight-left h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 16px; max-width: 14ch; }
-  .insight-left p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 34px; }
-  .insight-nav { display: flex; gap: 10px; }
-  .insight-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 34px 30px; box-shadow: 0 24px 60px -28px rgba(11,20,64,0.22); }
-  .insight-tags { display: flex; gap: 8px; margin-bottom: 20px; }
-  .insight-tag { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-alt); color: var(--ink-soft); padding: 6px 12px; border-radius: 980px; }
-  .insight-card h3 { font-size: 20px; color: var(--navy); margin-bottom: 14px; line-height: 1.3; }
-  .insight-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 20px; }
-  .carousel-btn { width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--card); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--navy); transition: background 160ms var(--ease), color 160ms var(--ease); }
-  .carousel-btn:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
-  .carousel-btn svg { width: 16px; height: 16px; }
+  /* -------- 3-step process with screenshots -------- */
+  .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
+  @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
+  .step-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; background: var(--bg-alt); }
+  .step-mock { background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 18px; margin-bottom: 18px; min-height: 120px; }
+  .step-card h3 { font-size: 15px; color: var(--ink); margin-bottom: 8px; }
+  .step-card p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 12px; }
+  .step-card .rm { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 
-  /* -------- Get ACT (buy widget) -------- */
-  .get-act-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
-  @media (max-width: 860px) { .get-act-wrap { grid-template-columns: 1fr; gap: 28px; } }
-  .get-act-left h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); color: var(--navy); margin-bottom: 16px; max-width: 16ch; }
-  .get-act-left p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 18px; }
-  .buy-note { font-size: 12.5px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; max-width: 42ch; line-height: 1.6; }
-  .buy-widget-frame { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; min-height: 480px; display: flex; align-items: center; justify-content: center; box-shadow: 0 24px 60px -28px rgba(11,20,64,0.18); }
+  /* -------- Pull-quote (honest substitute for testimonial) -------- */
+  .quote-wrap { display: flex; justify-content: center; margin-top: 52px; }
+  .quote-card { background: var(--black); color: #fff; border-radius: var(--r-lg); padding: 40px; max-width: 640px; text-align: center; }
+  .quote-card p { font-size: 17px; line-height: 1.6; color: #EDEDF2; margin-bottom: 24px; }
+  .quote-source { font-size: 12.5px; color: #9497A3; font-family: var(--mono); }
+  .built-on-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; margin-top: 48px; padding-top: 40px; border-top: 1px solid var(--border); }
+  .built-on-item { font-size: 13px; font-weight: 700; color: var(--ink-faint); }
+
+  /* -------- How it works (dotted-line steps) -------- */
+  .hiw-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 56px; position: relative; }
+  .hiw-line { position: absolute; top: 19px; left: 60px; right: 60px; height: 0; border-top: 2px dashed var(--border); z-index: 0; }
+  @media (max-width: 760px) { .hiw-row { flex-direction: column; gap: 32px; } .hiw-line { display: none; } }
+  .hiw-step { position: relative; z-index: 1; flex: 1; text-align: center; padding: 0 16px; }
+  .hiw-badge { width: 38px; height: 38px; border-radius: 50%; background: var(--black); color: #fff; font-family: var(--mono); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+  .hiw-step h3 { font-size: 14.5px; color: var(--ink); margin-bottom: 8px; }
+  .hiw-step p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 26ch; margin: 0 auto; }
+
+  /* -------- Final: buy widget -------- */
+  .final-split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 48px; }
+  @media (max-width: 860px) { .final-split { grid-template-columns: 1fr; gap: 28px; } }
+  .final-left h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); color: var(--ink); margin-bottom: 16px; max-width: 15ch; }
+  .final-left p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 18px; }
+  .buy-note { font-size: 12px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; max-width: 42ch; line-height: 1.6; }
+  .buy-widget-frame { background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; min-height: 460px; display: flex; align-items: center; justify-content: center; }
   .buy-widget-loading { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
-  #jupiter-terminal { width: 100%; min-height: 480px; }
+  #jupiter-terminal { width: 100%; min-height: 460px; }
 
   /* -------- Final CTA -------- */
-  .final-cta { border-radius: var(--r-xl); background: var(--navy-deep); padding: 96px 40px; text-align: center; }
-  .final-cta h2 { font-size: clamp(1.9rem, 4vw, 3rem); color: #fff; max-width: 20ch; margin: 0 auto 16px; }
-  .final-cta p { font-size: 14.5px; color: #9FB0DE; margin-bottom: 40px; }
-  .final-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .final-cta { text-align: center; padding: 84px 0; }
+  .final-cta h2 { font-size: clamp(1.8rem, 3.6vw, 2.6rem); color: var(--ink); max-width: 20ch; margin: 0 auto 14px; }
+  .final-cta p { font-size: 14px; color: var(--ink-soft); margin-bottom: 32px; }
+  .final-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
   /* -------- Footer -------- */
-  footer { padding: 64px 0 40px; }
-  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 48px; }
-  @media (max-width: 700px) { .footer-top { grid-template-columns: 1fr; gap: 28px; } }
-  .footer-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 17px; color: var(--navy); margin-bottom: 10px; }
-  .footer-brand .mark { width: 24px; height: 24px; border-radius: 50%; overflow: hidden; }
+  footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
+  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 44px; }
+  @media (max-width: 700px) { .footer-top { grid-template-columns: 1fr; gap: 26px; } }
+  .footer-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; color: var(--ink); margin-bottom: 10px; }
+  .footer-brand .mark { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
   .footer-brand .mark img { width: 100%; height: 100%; object-fit: cover; }
-  .footer-contact p { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 4px; }
-  .footer-col .h { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
-  .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-  .footer-col a { font-size: 13.5px; color: var(--ink-soft); transition: color 160ms var(--ease); }
-  .footer-col a:hover { color: var(--navy); }
-  .footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid var(--border); }
-  .legal { font-size: 11px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
-  .footer-copy { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+  .footer-contact p { font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
+  .footer-col .h { font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+  .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .footer-col a { font-size: 13px; color: var(--ink-soft); transition: color 160ms var(--ease); }
+  .footer-col a:hover { color: var(--ink); }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 26px; border-top: 1px solid var(--border-soft); }
+  .legal { font-size: 10.5px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
+  .footer-copy { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -207,14 +189,13 @@
         Aretia
       </a>
       <div class="nav-links">
-        <a href="#hero" class="active">Home</a>
         <a href="#about">Protocol</a>
         <a href="#categories">Funding</a>
-        <a href="#verification">Verification</a>
-        <a href="#roadmap">Roadmap</a>
+        <a href="#how">How It Works</a>
+        <a href="verify.html">Verification</a>
         <a href="whitepaper.html">Whitepaper</a>
       </div>
-      <a class="pill-btn pill-dark topnav-cta" href="apply.html">Apply for Funding</a>
+      <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
     </div>
   </div>
 </nav>
@@ -225,147 +206,170 @@
   <section class="hero" id="hero">
     <div class="wrap">
       <div class="hero-inner">
-        <div class="hero-eyebrow">Aretia · Climate Finance Protocol</div>
-        <h1>Capital for climate <span class="accent-wrap"><span class="pill-deco"></span> action</span>, built for <span class="accent-wrap">verification<span class="hatch-deco"></span></span>.</h1>
+        <div class="float-bubble fb-1"><span class="avatar-dot" style="background:var(--blue);"></span>3.5% Protocol Fee</div>
+        <div class="float-bubble fb-2"><span class="avatar-dot" style="background:var(--green);"></span>Mint Authority Revoked</div>
+        <div class="float-bubble fb-3"><span class="avatar-dot" style="background:var(--amber);"></span>2-of-3 Multisig</div>
+        <div class="float-bubble fb-4"><span class="avatar-dot" style="background:var(--ink);"></span>1,000,000,000 Fixed Supply</div>
+
+        <div class="eyebrow-pill"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Live on Solana Mainnet</div>
+        <h1>Capital for climate action, built for verification.</h1>
         <p class="hero-sub">Aretia converts a fixed share of economic activity into transparent, milestone-verified climate capital, released only against independently verified project progress.</p>
         <div class="hero-actions">
-          <a class="pill-btn pill-primary" href="apply.html">Apply for Funding</a>
-          <a class="pill-btn pill-outline-light" href="whitepaper.html">Read the Whitepaper →</a>
+          <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
+        </div>
+      </div>
+
+      <!-- ============ 3-PANEL TREASURY CARD ============ -->
+      <div class="panel-row" id="about">
+        <div class="panel">
+          <div class="panel-h">Treasury Signers</div>
+          <div class="signer-row"><span class="signer-avatar" style="background:var(--blue);">F</span><div><div class="signer-name">Founder</div><div class="signer-addr">4DoV9F...WhjdG</div></div></div>
+          <div class="signer-row"><span class="signer-avatar" style="background:var(--green);">C1</span><div><div class="signer-name">Co-signer 1</div><div class="signer-addr">CAyPkS...LKcB5r</div></div></div>
+          <div class="signer-row"><span class="signer-avatar" style="background:var(--amber);">C2</span><div><div class="signer-name">Co-signer 2</div><div class="signer-addr">7Sn7H1...v87dVJx</div></div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">Fee Allocation<span class="fee-stat-up">3.5%</span></div>
+          <div class="fee-bar">
+            <span style="width:57.1%; background:var(--blue);"></span>
+            <span style="width:28.6%; background:var(--green);"></span>
+            <span style="width:14.3%; background:var(--amber);"></span>
+          </div>
+          <div class="fee-legend">
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--blue);"></span>2.0% Climate Catalyst Fund</div>
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--green);"></span>1.0% Liquidity</div>
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--amber);"></span>0.5% Management</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">Verified On-Chain</div>
+          <div class="check-row"><span class="check-icon">✓</span>Fixed supply, 1,000,000,000 ACT</div>
+          <div class="check-row"><span class="check-icon">✓</span>Mint authority revoked</div>
+          <div class="check-row"><span class="check-icon">✓</span>Freeze authority never granted</div>
+          <div class="check-row"><span class="check-icon">✓</span>Treasury tested end to end</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ BENTO ABOUT ============ -->
-  <div class="wrap bento-wrap" id="about">
-    <div class="bento">
-      <div class="bento-tile bento-lead">
+  <!-- ============ 3 ICON FEATURES ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="feature-row">
+        <div class="feature-item">
+          <div class="feature-icon" style="background:var(--blue-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+          <h3>Protocol-Enforced</h3>
+          <p>The transfer fee is withheld automatically by the Token-2022 standard itself, not by custom logic Aretia wrote or could quietly change.</p>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon" style="background:var(--green-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+          <h3>Independently Verified</h3>
+          <p>Every check in the Verification tool queries Solana mainnet directly from your own browser, live, right now.</p>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon" style="background:var(--amber-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <h3>Multisig Custody</h3>
+          <p>2-of-3 treasury approval for every disbursement. No single wallet, including ours, can move capital alone.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATS + CATEGORY COLLAGE ============ -->
+  <section class="block alt" id="categories">
+    <div class="wrap">
+      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); max-width:18ch;">See exactly where capital goes before it's disbursed.</h2>
+      <div class="stats-split">
         <div>
-          <div class="eyebrow">About Aretia</div>
-          <h2>Capital that speaks for itself.</h2>
-        </div>
-        <p>A transparent protocol where the mechanism for generating climate capital is defined in advance, treasury movements are publicly observable, and project funding is released against measurable milestones, not a promise anyone has to trust.</p>
-      </div>
-      <div class="bento-tile bento-note">
-        <h3>Capital</h3>
-        <p>More capital needs to reach real mitigation and adaptation projects, not just pledges.</p>
-      </div>
-      <div class="bento-tile bento-note">
-        <h3>Verification</h3>
-        <p>Funding needs to correspond to observable project progress, checked by parties independent of the fund itself.</p>
-      </div>
-      <div class="bento-tile bento-stat">
-        <div class="figure">3.5%</div>
-        <div class="cap">Protocol fee, withheld automatically on every ACT transfer</div>
-      </div>
-      <div class="bento-tile bento-stat grad">
-        <div class="figure">2-of-3</div>
-        <div class="cap">Multisig treasury custody: no single wallet can move capital alone</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ CATEGORY EXPLORER ============ -->
-  <section class="block" id="categories">
-    <div class="wrap">
-      <div class="eyebrow">Where Capital Goes</div>
-      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Five categories, each held to its own standard of proof.</h2>
-      <div class="cat-explorer">
-        <div class="cat-list" id="cat-list">
-          <div class="cat-item active" data-cat="0"><div class="t">Renewable Energy</div><div class="s">Metered generation capacity</div></div>
-          <div class="cat-item" data-cat="1"><div class="t">Waste-to-Energy</div><div class="s">Waste diverted, energy generated</div></div>
-          <div class="cat-item" data-cat="2"><div class="t">Carbon Reduction</div><div class="s">Emissions avoided or removed</div></div>
-          <div class="cat-item" data-cat="3"><div class="t">Technical Assistance</div><div class="s">Studies, training, MRV systems</div></div>
-          <div class="cat-item" data-cat="4"><div class="t">Flood &amp; Reforestation</div><div class="s">Hectares restored</div></div>
-        </div>
-        <div class="cat-panel">
-          <div class="cat-panel-card" id="cat-panel-card">
-            <h3 id="cat-title">Renewable Energy</h3>
-            <p id="cat-output">Metered generation capacity added.</p>
+          <div class="stat-block">
+            <div class="stat-figure">1,000,000,000</div>
+            <div class="stat-label">Fixed ACT supply. Mint authority revoked immediately after the single initial mint.</div>
           </div>
-          <div class="cat-panel-foot">
-            <div class="f"><span class="fl">Diligence Standard</span><span class="fv" id="cat-diligence">Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.</span></div>
+          <div class="stat-block">
+            <div class="stat-figure">5</div>
+            <div class="stat-label">Funding categories, each held to a diligence standard appropriate to its specific claim.</div>
           </div>
+        </div>
+        <div class="cat-collage">
+          <div class="cat-chip"><span class="ic" style="background:var(--blue-soft);">☀</span><span class="lb">Renewable Energy</span></div>
+          <div class="cat-chip"><span class="ic" style="background:var(--green-soft);">♻</span><span class="lb">Waste-to-Energy</span></div>
+          <div class="cat-chip"><span class="ic" style="background:var(--amber-soft);">◐</span><span class="lb">Carbon Reduction</span></div>
+          <div class="cat-chip"><span class="ic" style="background:var(--blue-soft);">◈</span><span class="lb">Technical Assistance</span></div>
+          <div class="cat-chip"><span class="ic" style="background:var(--green-soft);">≈</span><span class="lb">Flood Management</span></div>
+          <div class="cat-chip"><span class="ic" style="background:var(--amber-soft);">✦</span><span class="lb">Reforestation</span></div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ VERIFICATION FAN CAROUSEL ============ -->
-  <section class="block" id="verification" style="background:var(--bg-alt); border-radius: var(--r-xl); margin: 0 32px; width:auto;">
+  <!-- ============ 3 STEP CARDS ============ -->
+  <section class="block">
     <div class="wrap">
-      <div class="eyebrow">Verify, Don't Trust</div>
-      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Four properties, each independently checkable.</h2>
-      <div class="fan-wrap">
-        <div class="fan-track" id="fan-track">
-          <div class="fan-card" data-fan="0"><span class="n">01</span><h3>Fixed Supply</h3><p>1,000,000,000 ACT. Mint authority revoked immediately after the single initial mint.</p></div>
-          <div class="fan-card" data-fan="1"><span class="n">02</span><h3>Multisig Custody</h3><p>2-of-3 treasury approval. No single wallet, including ours, can move capital alone.</p></div>
-          <div class="fan-card" data-fan="2"><span class="n">03</span><h3>Milestone Verified</h3><p>Capital released against verified project progress, never a lump sum against a promise.</p></div>
-          <div class="fan-card" data-fan="3"><span class="n">04</span><h3>On-Chain Auditability</h3><p>Every transaction is publicly observable on Solana, checkable by anyone.</p></div>
+      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); max-width:18ch;">One simple path from application to verified impact.</h2>
+      <div class="step-cards">
+        <div class="step-card">
+          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
+          <h3>Apply</h3>
+          <p>Project developers submit an application scoped to one of five funding categories.</p>
+          <a class="rm" href="apply.html">Apply for Funding →</a>
         </div>
-        <div class="fan-dots" id="fan-dots"></div>
-      </div>
-      <div style="text-align:center; margin-top:8px;"><a class="pill-btn pill-ghost" href="verify.html">Open Verification Tool →</a></div>
-    </div>
-  </section>
-
-  <!-- ============ ROADMAP SPLIT CARD ============ -->
-  <section class="block" id="roadmap">
-    <div class="wrap">
-      <div class="eyebrow">Roadmap</div>
-      <h2 style="font-size:clamp(1.9rem,3.4vw,2.6rem); max-width:20ch; color:var(--navy);">Four phases, not one launch.</h2>
-      <div class="split-card">
-        <div class="split-left">
-          <h2>Foundation is live. Three phases follow.</h2>
-          <div class="split-phase-list">
-            <div class="split-phase current"><span class="ph">01</span><span class="t">Foundation</span></div>
-            <div class="split-phase"><span class="ph">02</span><span class="t">Climate Finance</span></div>
-            <div class="split-phase"><span class="ph">03</span><span class="t">MRV</span></div>
-            <div class="split-phase"><span class="ph">04</span><span class="t">Global Protocol</span></div>
-          </div>
+        <div class="step-card">
+          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
+          <h3>Verify</h3>
+          <p>A technical committee and independent verifier confirm each milestone before release.</p>
+          <a class="rm" href="whitepaper.html">Read the Standards →</a>
         </div>
-        <div class="split-right">
-          <div class="split-cell"><div><div class="ic">✓</div><div class="lb">Mint Live</div></div></div>
-          <div class="split-cell"><div><div class="ic">✓</div><div class="lb">Treasury Tested</div></div></div>
-          <div class="split-cell"><div><div class="ic">○</div><div class="lb">Liquidity Pending</div></div></div>
-          <div class="split-cell"><div><div class="ic">○</div><div class="lb">MRV Pending</div></div></div>
+        <div class="step-card">
+          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
+          <h3>Get Funded</h3>
+          <p>Capital releases in tranches against verified progress, never a lump sum against a promise.</p>
+          <a class="rm" href="verify.html">Verify a Disbursement →</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ INSIGHTS ============ -->
-  <section class="block" id="insights">
+  <!-- ============ PULL QUOTE + BUILT ON ============ -->
+  <section class="block alt">
     <div class="wrap">
-      <div class="insight-wrap">
-        <div class="insight-left">
-          <div class="eyebrow">Latest From Aretia</div>
-          <h2>Ideas shaping the mechanism.</h2>
-          <p>Short essays on the open questions this protocol doesn't consider settled: fee incidence, mechanism design, and what liquidity actually requires.</p>
-          <div class="insight-nav">
-            <button class="carousel-btn" id="insight-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-            <button class="carousel-btn" id="insight-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
-          </div>
+      <div class="quote-wrap">
+        <div class="quote-card">
+          <p>"This paper describes a protocol that converts a fixed share of ordinary token transfer activity into standing, continuously replenished capital, without requiring any party to trust a promise at any stage."</p>
+          <div class="quote-source">Aretia Finance Protocol Whitepaper · Abstract</div>
         </div>
-        <a class="insight-card" href="insights.html" id="insight-card">
-          <div class="insight-tags"><span class="insight-tag" id="insight-tag">Fee Incidence</span></div>
-          <h3 id="insight-title">Does a 3.5% fee meaningfully deter trading?</h3>
-          <p id="insight-excerpt">The fee is fixed and fully disclosed prior to any transaction; this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.</p>
-          <span class="pill-btn pill-ghost" style="pointer-events:none;">Read More</span>
-        </a>
+      </div>
+      <div class="built-on-row">
+        <span class="built-on-item">Solana</span>
+        <span class="built-on-item">Token-2022</span>
+        <span class="built-on-item">Squads</span>
+        <span class="built-on-item">Jupiter</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS (dotted line) ============ -->
+  <section class="block" id="how">
+    <div class="wrap">
+      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); max-width:18ch; text-align:center; margin:0 auto;">Here's how the mechanism works.</h2>
+      <div class="hiw-row">
+        <div class="hiw-line"></div>
+        <div class="hiw-step"><div class="hiw-badge">01</div><h3>Transfer</h3><p>Every ACT transfer withholds 3.5%, automatically, at the protocol level.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">02</div><h3>Treasury</h3><p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">03</div><h3>Verification</h3><p>Projects clear category-specific diligence before reaching disbursement.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">04</div><h3>Disbursement</h3><p>Capital releases in tranches, each one a public, permanent transaction.</p></div>
       </div>
     </div>
   </section>
 
   <!-- ============ GET ACT ============ -->
-  <section class="block" id="buy">
+  <section class="block alt" id="buy">
     <div class="wrap">
-      <div class="get-act-wrap">
-        <div class="get-act-left">
-          <div class="eyebrow">ACT</div>
+      <div class="final-split">
+        <div class="final-left">
+          <div style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px;">ACT</div>
           <h2>ACT is the protocol's economic mechanism.</h2>
-          <p>ACT trades openly on Solana: no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
-          <p class="buy-note">Liquidity hasn't been seeded yet (see the <a href="#roadmap" style="color:var(--navy); text-decoration:underline;">roadmap</a>), so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
+          <p>ACT trades openly on Solana, no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
+          <p class="buy-note">Liquidity hasn't been seeded yet, so swaps below will currently show "no route found." This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live.</p>
         </div>
         <div class="buy-widget-frame">
           <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
@@ -381,8 +385,8 @@
         <h2>Climate finance should be measurable. Capital should be accountable.</h2>
         <p>Build with Aretia.</p>
         <div class="final-actions">
-          <a class="pill-btn pill-primary" href="apply.html">Apply for Funding</a>
-          <a class="pill-btn pill-outline-light" href="whitepaper.html">Read the Whitepaper</a>
+          <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper</a>
         </div>
       </div>
     </div>
@@ -426,109 +430,6 @@
     </div>
   </div>
 </footer>
-
-<script>
-  // ---- Nav scroll-spy (lightweight, no external deps) ----
-  (function () {
-    var sections = ['hero','about','categories','verification','roadmap','insights'];
-    var links = document.querySelectorAll('.nav-links a[href^="#"]');
-    function update() {
-      var pos = window.scrollY + 140;
-      var current = sections[0];
-      sections.forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el && el.offsetTop <= pos) current = id;
-      });
-      links.forEach(function (a) {
-        a.classList.toggle('active', a.getAttribute('href') === '#' + current);
-      });
-    }
-    window.addEventListener('scroll', update, { passive: true });
-    update();
-  })();
-</script>
-
-<script>
-  // ---- Category explorer ----
-  (function () {
-    var DATA = [
-      { title: 'Renewable Energy', output: 'Metered generation capacity added.', diligence: 'Independent engineering certification of installed and operating capacity; interconnection or off-take documentation.' },
-      { title: 'Waste-to-Energy', output: 'Waste diverted and energy generated.', diligence: 'Facility operating permits, throughput metering, emissions monitored against a stated baseline.' },
-      { title: 'Carbon Reduction', output: 'Emissions avoided or removed.', diligence: 'Registry-issued credits (Verra, Gold Standard) or an equivalent third-party MRV protocol.' },
-      { title: 'Technical Assistance', output: 'Capacity delivered: studies, training, MRV systems built.', diligence: 'Deliverable-based milestones; independent review of the technical work product.' },
-      { title: 'Flood Management & Reforestation', output: 'Hectares restored; flood-risk reduction achieved.', diligence: 'Remote-sensing canopy verification; hydrological modeling or post-event assessment.' }
-    ];
-    var items = document.querySelectorAll('.cat-item');
-    var titleEl = document.getElementById('cat-title');
-    var outputEl = document.getElementById('cat-output');
-    var diligenceEl = document.getElementById('cat-diligence');
-    items.forEach(function (item) {
-      item.addEventListener('click', function () {
-        items.forEach(function (i) { i.classList.remove('active'); });
-        item.classList.add('active');
-        var d = DATA[parseInt(item.getAttribute('data-cat'), 10)];
-        titleEl.textContent = d.title;
-        outputEl.textContent = d.output;
-        diligenceEl.textContent = d.diligence;
-      });
-    });
-  })();
-</script>
-
-<script>
-  // ---- Fanned verification carousel ----
-  (function () {
-    var cards = document.querySelectorAll('.fan-card');
-    var dotsWrap = document.getElementById('fan-dots');
-    if (!cards.length) return;
-    var activeIndex = 1;
-    cards.forEach(function (c, i) {
-      var dot = document.createElement('button');
-      dot.className = 'fan-dot';
-      dot.setAttribute('aria-label', 'Show card ' + (i + 1));
-      dot.addEventListener('click', function () { setActive(i); });
-      dotsWrap.appendChild(dot);
-      c.addEventListener('click', function () { setActive(i); });
-    });
-    var dots = dotsWrap.querySelectorAll('.fan-dot');
-    function setActive(i) {
-      activeIndex = i;
-      cards.forEach(function (c, idx) { c.classList.toggle('is-center', idx === i); });
-      dots.forEach(function (d, idx) { d.classList.toggle('active', idx === i); });
-    }
-    setActive(activeIndex);
-  })();
-</script>
-
-<script>
-  // ---- Insights cycler ----
-  (function () {
-    var DATA = [
-      { tag: 'Fee Incidence', title: 'Does a 3.5% fee meaningfully deter trading?', excerpt: 'The fee is fixed and fully disclosed prior to any transaction; this paper treats its effect on trading behavior as an open empirical question rather than one this document can settle by comparison to other tokens.' },
-      { tag: 'Mechanism Design', title: 'Why "code-enforced" is a different claim than "we promise"', excerpt: 'A statement of intent the issuer could costlessly reverse is cheap talk, regardless of sincerity. A property enforced by an immutable, permissionless token standard is a credible commitment in the technical sense.' },
-      { tag: 'Liquidity', title: 'The catalyst fund only works if someone provides liquidity', excerpt: 'The fund’s continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place, which depends on someone accepting impermanent-loss risk.' }
-    ];
-    var idx = 0;
-    var tagEl = document.getElementById('insight-tag');
-    var titleEl = document.getElementById('insight-title');
-    var excerptEl = document.getElementById('insight-excerpt');
-    function render() {
-      var d = DATA[idx];
-      tagEl.textContent = d.tag;
-      titleEl.textContent = d.title;
-      excerptEl.textContent = d.excerpt;
-    }
-    document.getElementById('insight-prev').addEventListener('click', function () {
-      idx = (idx - 1 + DATA.length) % DATA.length;
-      render();
-    });
-    document.getElementById('insight-next').addEventListener('click', function () {
-      idx = (idx + 1) % DATA.length;
-      render();
-    });
-    render();
-  })();
-</script>
 
 <!-- Buy ACT: Jupiter Terminal swap widget, wired to the live ACT mint -->
 <script src="https://terminal.jup.ag/main-v4.js" data-preload></script>

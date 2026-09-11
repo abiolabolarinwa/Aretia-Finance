@@ -98,6 +98,7 @@
 
   /* -------- Live stats section (moved below the cream hero band) -------- */
   .stats-section { padding: 56px 0 88px; }
+  .stats-section.alt { background: var(--bg-alt); }
   @media (max-width: 860px) { .stats-section { padding: 44px 0 56px; } }
 
   /* -------- 3-panel workflow card -------- */
@@ -223,7 +224,10 @@
   .diff-card p { font-size: 12px; line-height: 1.55; color: var(--ink-soft); }
 
   /* -------- Tabbed protocol showcase -------- */
-  .tabbar { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 0 0 40px; border-bottom: 1px solid var(--border-soft); padding-bottom: 0; }
+  .suite-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 0 0 40px; border-bottom: 1px solid var(--border-soft); }
+  .suite-cta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 14px; min-width: 0; }
+  @media (max-width: 560px) { .suite-cta .pill-btn { padding: 11px 18px; font-size: 12.5px; } }
+  .tabbar { display: flex; justify-content: flex-start; gap: 8px; flex-wrap: wrap; padding-bottom: 0; }
   .tabbar button { background: none; border: none; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); padding: 12px 18px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 160ms var(--ease), border-color 160ms var(--ease); }
   .tabbar button:hover { color: var(--ink-soft); }
   .tabbar button.active { color: var(--ink); border-color: var(--black); }
@@ -355,65 +359,25 @@
     </div>
   </section>
 
-  <!-- ============ 3-PANEL LIVE STATS ============ -->
-  <section class="stats-section">
-    <div class="wrap">
-      <div class="panel-row" id="about">
-        <div class="panel">
-          <div class="panel-h">Live On-Chain Stats <span class="live-dot" title="Queried directly from Solana mainnet"></span></div>
-          <div class="stat-row">
-            <div class="stat-label">Total Volume Traded</div>
-            <div class="stat-usd" data-stat="volumeUsd">checking…</div>
-            <div class="stat-act" data-stat="volumeAct">checking…</div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-label">Aretia Climate Treasury</div>
-            <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
-            <div class="stat-act" data-stat="treasuryAct">checking…</div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-label">Management Fee Wallet</div>
-            <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
-            <div class="stat-act" data-stat="mgmtAct">checking…</div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-h">Fee Allocation<span class="fee-stat-up">3.5%</span></div>
-          <div class="fee-bar">
-            <span style="width:57.1%; background:var(--blue);"></span>
-            <span style="width:28.6%; background:var(--green);"></span>
-            <span style="width:14.3%; background:var(--amber);"></span>
-          </div>
-          <div class="fee-legend">
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--blue);"></span>2.0% Climate Catalyst Fund</div>
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--green);"></span>1.0% Liquidity</div>
-            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--amber);"></span>0.5% Management</div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-h">Verified On-Chain</div>
-          <div class="check-row"><span class="check-icon">✓</span>Fixed supply, 1,000,000,000 ACT</div>
-          <div class="check-row"><span class="check-icon">✓</span>Mint authority revoked</div>
-          <div class="check-row"><span class="check-icon">✓</span>Freeze authority never granted</div>
-          <div class="check-row"><span class="check-icon">✓</span>Treasury tested end to end</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ PROTOCOL IN PRACTICE (tabbed showcase) ============ -->
-  <section class="block alt">
+  <section class="block">
     <div class="wrap">
       <div class="sec-head">
         <div class="sec-eyebrow">Protocol In Practice</div>
         <h2>One protocol, four things you can check yourself.</h2>
         <p>Every tab below links to a live page that does exactly what it says, not a description of a feature.</p>
       </div>
-      <div class="tabbar" role="tablist">
-        <button type="button" class="active" data-tab="treasury">Treasury</button>
-        <button type="button" data-tab="verify">Verification</button>
-        <button type="button" data-tab="tokenomics">Tokenomics</button>
-        <button type="button" data-tab="funding">Funding</button>
+      <div class="suite-row">
+        <div class="tabbar" role="tablist">
+          <button type="button" class="active" data-tab="treasury">Treasury</button>
+          <button type="button" data-tab="verify">Verification</button>
+          <button type="button" data-tab="tokenomics">Tokenomics</button>
+          <button type="button" data-tab="funding">Funding</button>
+        </div>
+        <div class="suite-cta">
+          <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+          <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper</a>
+        </div>
       </div>
 
       <div class="tabpanel active" data-panel="treasury">
@@ -531,6 +495,52 @@
             <p>Community priorities, technical screening, independent verification, and smart-contract execution: no single vote moves money.</p>
             <a href="details.html">Read the governance model →</a>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3-PANEL LIVE STATS ============ -->
+  <section class="stats-section alt">
+    <div class="wrap">
+      <div class="panel-row" id="about">
+        <div class="panel">
+          <div class="panel-h">Live On-Chain Stats <span class="live-dot" title="Queried directly from Solana mainnet"></span></div>
+          <div class="stat-row">
+            <div class="stat-label">Total Volume Traded</div>
+            <div class="stat-usd" data-stat="volumeUsd">checking…</div>
+            <div class="stat-act" data-stat="volumeAct">checking…</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">Aretia Climate Treasury</div>
+            <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
+            <div class="stat-act" data-stat="treasuryAct">checking…</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">Management Fee Wallet</div>
+            <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
+            <div class="stat-act" data-stat="mgmtAct">checking…</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">Fee Allocation<span class="fee-stat-up">3.5%</span></div>
+          <div class="fee-bar">
+            <span style="width:57.1%; background:var(--blue);"></span>
+            <span style="width:28.6%; background:var(--green);"></span>
+            <span style="width:14.3%; background:var(--amber);"></span>
+          </div>
+          <div class="fee-legend">
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--blue);"></span>2.0% Climate Catalyst Fund</div>
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--green);"></span>1.0% Liquidity</div>
+            <div class="fee-legend-row"><span class="fee-legend-dot" style="background:var(--amber);"></span>0.5% Management</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">Verified On-Chain</div>
+          <div class="check-row"><span class="check-icon">✓</span>Fixed supply, 1,000,000,000 ACT</div>
+          <div class="check-row"><span class="check-icon">✓</span>Mint authority revoked</div>
+          <div class="check-row"><span class="check-icon">✓</span>Freeze authority never granted</div>
+          <div class="check-row"><span class="check-icon">✓</span>Treasury tested end to end</div>
         </div>
       </div>
     </div>

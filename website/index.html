@@ -214,6 +214,17 @@
   .tab-card h3 { font-size: 16px; margin-bottom: 10px; }
   .tab-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 16px; flex: 1; }
   .tab-card a { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .mini-mock { background: #fff; border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(10,12,16,.04), 0 8px 20px -14px rgba(10,12,16,.18); }
+  .mini-mock .mm-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11.5px; color: var(--ink); }
+  .mini-mock .mm-row + .mm-row { border-top: 1px solid var(--border-soft); }
+  .mini-mock .mm-check { width: 15px; height: 15px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; flex: none; }
+  .mini-mock .mm-addr { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+  .mini-mock .mm-badge { font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .mini-mock .mm-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .mini-mock .mm-fee-bar { display: flex; height: 7px; border-radius: 980px; overflow: hidden; background: var(--border-soft); margin: 8px 0; }
+  .mini-mock .mm-fee-bar span { height: 100%; }
+  .mini-mock .mm-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mini-mock .mm-chip { font-size: 10.5px; font-weight: 600; padding: 4px 9px; border-radius: 980px; background: var(--bg-alt); color: var(--ink-soft); }
 
   /* -------- Tokenomics "pricing-style" cards -------- */
   .tok-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -366,6 +377,11 @@
         <div class="tab-cards">
           <div class="tab-card" style="background:var(--blue-soft);">
             <span class="tag">Custody</span>
+            <div class="mini-mock">
+              <div class="mm-badge"><span class="dot"></span>Treasury Vault · Live</div>
+              <div class="mm-row"><span class="mm-addr">GtKGE6mQRj...bryZnA</span></div>
+              <div class="mm-row"><span class="mm-check">✓</span>2-of-3 signature threshold</div>
+            </div>
             <h3>Squads Multisig</h3>
             <p>Accumulated fees settle into a 2-of-3 Squads multisig. No single key, including ours, can move treasury funds alone.</p>
             <a href="details.html">See the custody model →</a>
@@ -389,6 +405,11 @@
         <div class="tab-cards">
           <div class="tab-card" style="background:var(--green-soft);">
             <span class="tag">Live</span>
+            <div class="mini-mock">
+              <div class="mm-row"><span class="mm-check">✓</span>Mint authority: None (revoked)</div>
+              <div class="mm-row"><span class="mm-check">✓</span>Supply: 1,000,000,000</div>
+              <div class="mm-row"><span class="mm-check">✓</span>Transfer fee: 350 bps</div>
+            </div>
             <h3>Queries Mainnet Directly</h3>
             <p>Every check runs in your own browser against Solana mainnet, live, right now. No Aretia server sits in the loop.</p>
             <a href="verify.html">Run the checks yourself →</a>
@@ -412,6 +433,15 @@
         <div class="tab-cards">
           <div class="tab-card" style="background:var(--amber-soft);">
             <span class="tag">Fee</span>
+            <div class="mini-mock">
+              <div class="mm-badge">3.5% Withheld Per Transfer</div>
+              <div class="mm-fee-bar">
+                <span style="width:57.1%; background:var(--blue);"></span>
+                <span style="width:28.6%; background:var(--green);"></span>
+                <span style="width:14.3%; background:var(--amber);"></span>
+              </div>
+              <div class="mm-row" style="font-size:10.5px; color:var(--ink-faint);">2.0% Catalyst · 1.0% Liquidity · 0.5% Mgmt</div>
+            </div>
             <h3>350 Basis Points</h3>
             <p>3.5% withheld automatically on every transfer by the Token-2022 standard itself, not custom logic Aretia wrote.</p>
             <a href="tokenomics.html">See the full fee split →</a>
@@ -435,6 +465,13 @@
         <div class="tab-cards">
           <div class="tab-card" style="background:var(--blue-soft);">
             <span class="tag">Live Intake</span>
+            <div class="mini-mock">
+              <div class="mm-chips">
+                <span class="mm-chip">☀ Renewable Energy</span>
+                <span class="mm-chip">♻ Waste-to-Energy</span>
+                <span class="mm-chip">✦ Reforestation</span>
+              </div>
+            </div>
             <h3>Applications Are Open</h3>
             <p>Project developers can apply today, scoped to one of five funding categories, each held to its own diligence standard.</p>
             <a href="apply.html">Apply for funding →</a>

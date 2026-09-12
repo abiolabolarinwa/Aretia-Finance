@@ -144,22 +144,30 @@
   .cat-stats-row { display: flex; justify-content: center; gap: 56px; flex-wrap: wrap; text-align: center; margin: 0 auto 48px; }
   .cat-stats-row .stat-block { border-top: none; padding: 0; max-width: 300px; }
   .cat-stats-row .stat-label { margin-left: auto; margin-right: auto; }
-  .cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; min-width: 0; }
-  @media (max-width: 760px) { .cat-grid { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 480px) { .cat-grid { grid-template-columns: 1fr; } }
-  .cat-card { min-width: 0; border-radius: var(--r-lg); padding: 28px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; transition: transform 200ms var(--ease); }
-  .cat-card:hover { transform: translateY(-3px); }
-  .cat-card .cat-tile { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
-  .cat-card .cat-tile svg { width: 26px; height: 26px; }
-  .cat-card .cat-name { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .cat-card-featured { grid-column: 1 / -1; flex-direction: row; align-items: stretch; text-align: left; padding: 0; gap: 0; overflow: hidden; }
-  .cat-card-featured .cat-card-featured-text { flex: 1 1 42%; padding: 36px 40px; display: flex; flex-direction: column; align-items: flex-start; }
-  .cat-card-featured .cat-name { text-align: left; font-size: 19px; margin-top: 4px; }
-  .cat-card-desc { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 14px 0 0; text-align: left; }
+  .cat-card-featured { min-width: 0; border-radius: var(--r-lg); display: flex; flex-direction: row; align-items: stretch; text-align: left; overflow: hidden; }
+  .cat-card-featured .cat-tile { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
+  .cat-card-featured .cat-tile svg { width: 26px; height: 26px; }
+  .cat-card-featured .cat-card-featured-text { flex: 1 1 42%; padding: 40px 44px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+  .cat-card-featured .cat-name { text-align: left; font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 18px; }
+  .cat-card-desc { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 14px 0 0; text-align: left; max-width: 36ch; }
   .cat-card-desc strong { color: var(--ink); }
   .cat-card-img { flex: 1 1 55%; min-width: 0; }
-  .cat-card-img img { width: 100%; height: 100%; min-height: 240px; object-fit: cover; display: block; }
-  @media (max-width: 760px) { .cat-card-featured { flex-direction: column; } .cat-card-featured .cat-card-featured-text { padding: 28px 24px; } .cat-card-img img { min-height: 200px; } }
+  .cat-card-img img { width: 100%; height: 100%; min-height: 420px; object-fit: cover; display: block; }
+  @media (max-width: 760px) { .cat-card-featured { flex-direction: column; } .cat-card-featured .cat-card-featured-text { padding: 28px 24px; } .cat-card-img img { min-height: 220px; } }
+
+  /* -------- Category carousel -------- */
+  .cat-carousel { position: relative; }
+  .cat-carousel-viewport { position: relative; overflow: hidden; border-radius: var(--r-lg); }
+  .cat-carousel-track { display: flex; transition: transform 460ms var(--ease); }
+  .cat-slide { flex: 0 0 100%; min-width: 0; }
+  .cat-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.92); border: none; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: 0 8px 20px -12px rgba(10,12,16,.35); color: var(--ink); z-index: 3; transition: background 160ms var(--ease), transform 160ms var(--ease); }
+  .cat-arrow:hover { background: #fff; transform: translateY(-50%) scale(1.06); }
+  .cat-arrow-prev { left: 16px; }
+  .cat-arrow-next { right: 16px; }
+  .cat-dots { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+  .cat-dots button { width: 8px; height: 8px; border-radius: 50%; background: var(--border); border: none; padding: 0; cursor: pointer; transition: background 160ms var(--ease), width 160ms var(--ease); }
+  .cat-dots button.active { background: var(--hero-amber); width: 24px; border-radius: 4px; }
+  @media (max-width: 480px) { .cat-arrow { width: 36px; height: 36px; font-size: 17px; } .cat-arrow-prev { left: 10px; } .cat-arrow-next { right: 10px; } }
 
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
@@ -576,71 +584,110 @@
           <div class="stat-label">Funding categories, each held to a diligence standard appropriate to its specific claim.</div>
         </div>
       </div>
-      <div class="cat-grid">
-        <div class="cat-card cat-card-featured" style="background:var(--blue-soft);">
-          <div class="cat-card-featured-text">
-            <div class="cat-tile">
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="3"/>
-                <path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/>
-                <rect x="6" y="16" width="12" height="6" rx="1"/>
-                <path d="M9 16v6M15 16v6M6 19h12"/>
-              </svg>
+      <div class="cat-carousel">
+        <div class="cat-carousel-viewport">
+          <div class="cat-carousel-track" id="cat-track">
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--blue-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="8" r="3"/>
+                      <path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/>
+                      <rect x="6" y="16" width="12" height="6" rx="1"/>
+                      <path d="M9 16v6M15 16v6M6 19h12"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Renewable Energy</div>
+                  <p class="cat-card-desc">Aretia funds <strong>renewable energy</strong> projects verified against installed capacity and grid interconnection data before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/solar-field.jpg" alt="Solar farm, a renewable energy project funded through Aretia's treasury"></div>
+              </div>
             </div>
-            <div class="cat-name">Renewable Energy</div>
-            <p class="cat-card-desc">Aretia funds <strong>renewable energy</strong> projects verified against installed capacity and grid interconnection data before any capital moves.</p>
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--green-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 6h7"/>
+                      <path d="M5 6l.8 11a1 1 0 001 1h1.4"/>
+                      <path d="M6.5 6l.4-1.6h2.2l.4 1.6"/>
+                      <path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Waste-to-Energy</div>
+                  <p class="cat-card-desc">Aretia funds <strong>waste-to-energy</strong> projects verified against processed tonnage and metered energy output before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/waste-to-energy.jpg" alt="Waste-to-energy plant, a project category funded through Aretia's treasury"></div>
+              </div>
+            </div>
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--amber-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/>
+                      <path d="M12 20c-.7-5 .3-11 5-15.5"/>
+                      <path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Carbon Reduction</div>
+                  <p class="cat-card-desc">Aretia funds <strong>carbon reduction</strong> projects verified against independent, third-party emissions accounting before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/carbon-reduction.jpg" alt="Misty forest, a carbon reduction project category funded through Aretia's treasury"></div>
+              </div>
+            </div>
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--pink-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Technical Assistance</div>
+                  <p class="cat-card-desc">Aretia funds <strong>technical assistance</strong> work verified against delivered training records and implementation outcomes before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/technical-assistance.jpg" alt="Technical assistance on solar infrastructure, a project category funded through Aretia's treasury"></div>
+              </div>
+            </div>
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--cyan-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
+                      <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+                      <path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Flood Management</div>
+                  <p class="cat-card-desc">Aretia funds <strong>flood management</strong> projects verified against completed mitigation infrastructure and hydrological monitoring data before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/flood-management.jpg" alt="Flooded rural area, a flood management project category funded through Aretia's treasury"></div>
+              </div>
+            </div>
+            <div class="cat-slide">
+              <div class="cat-card-featured" style="background:var(--blue-soft);">
+                <div class="cat-card-featured-text">
+                  <div class="cat-tile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
+                      <path d="M12 15v6"/>
+                      <path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/>
+                    </svg>
+                  </div>
+                  <div class="cat-name">Reforestation</div>
+                  <p class="cat-card-desc">Aretia funds <strong>reforestation</strong> projects verified against planted area and survival-rate monitoring before any capital moves.</p>
+                </div>
+                <div class="cat-card-img"><img src="assets/reforestation.jpg" alt="Reforestation work, a project category funded through Aretia's treasury"></div>
+              </div>
+            </div>
           </div>
-          <div class="cat-card-img"><img src="assets/solar-field.jpg" alt="Solar farm, a renewable energy project funded through Aretia's treasury"></div>
+          <button type="button" class="cat-arrow cat-arrow-prev" id="cat-prev" aria-label="Previous category">‹</button>
+          <button type="button" class="cat-arrow cat-arrow-next" id="cat-next" aria-label="Next category">›</button>
         </div>
-        <div class="cat-card" style="background:var(--green-soft);">
-          <div class="cat-tile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 6h7"/>
-              <path d="M5 6l.8 11a1 1 0 001 1h1.4"/>
-              <path d="M6.5 6l.4-1.6h2.2l.4 1.6"/>
-              <path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/>
-            </svg>
-          </div>
-          <div class="cat-name">Waste-to-Energy</div>
-        </div>
-        <div class="cat-card" style="background:var(--amber-soft);">
-          <div class="cat-tile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/>
-              <path d="M12 20c-.7-5 .3-11 5-15.5"/>
-              <path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/>
-            </svg>
-          </div>
-          <div class="cat-name">Carbon Reduction</div>
-        </div>
-        <div class="cat-card" style="background:var(--pink-soft);">
-          <div class="cat-tile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
-            </svg>
-          </div>
-          <div class="cat-name">Technical Assistance</div>
-        </div>
-        <div class="cat-card" style="background:var(--cyan-soft);">
-          <div class="cat-tile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
-              <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
-              <path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
-            </svg>
-          </div>
-          <div class="cat-name">Flood Management</div>
-        </div>
-        <div class="cat-card" style="background:var(--blue-soft);">
-          <div class="cat-tile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
-              <path d="M12 15v6"/>
-              <path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/>
-            </svg>
-          </div>
-          <div class="cat-name">Reforestation</div>
-        </div>
+        <div class="cat-dots" id="cat-dots"></div>
       </div>
     </div>
   </section>
@@ -1016,6 +1063,58 @@
 
   loadLiveStats();
 })();
+</script>
+
+<!-- Funding Categories carousel -->
+<script>
+  (function () {
+    var track = document.getElementById('cat-track');
+    var dotsWrap = document.getElementById('cat-dots');
+    var prevBtn = document.getElementById('cat-prev');
+    var nextBtn = document.getElementById('cat-next');
+    if (!track || !dotsWrap || !prevBtn || !nextBtn) return;
+
+    var slides = track.children.length;
+    var idx = 0;
+    var timer = null;
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    for (var i = 0; i < slides; i++) {
+      var dot = document.createElement('button');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', 'Go to category ' + (i + 1));
+      (function (target) {
+        dot.addEventListener('click', function () { go(target); restart(); });
+      })(i);
+      dotsWrap.appendChild(dot);
+    }
+    var dots = dotsWrap.children;
+
+    function render() {
+      track.style.transform = 'translateX(-' + (idx * 100) + '%)';
+      for (var d = 0; d < dots.length; d++) {
+        dots[d].classList.toggle('active', d === idx);
+      }
+    }
+    function go(i) { idx = (i + slides) % slides; render(); }
+    function next() { go(idx + 1); }
+    function prev() { go(idx - 1); }
+    function restart() {
+      if (reduced) return;
+      clearInterval(timer);
+      timer = setInterval(next, 6000);
+    }
+
+    prevBtn.addEventListener('click', function () { prev(); restart(); });
+    nextBtn.addEventListener('click', function () { next(); restart(); });
+
+    var wrap = document.querySelector('.cat-carousel');
+    wrap.addEventListener('mouseenter', function () { clearInterval(timer); });
+    wrap.addEventListener('mouseleave', restart);
+
+    render();
+    restart();
+  })();
 </script>
 
 <!-- Protocol In Practice: tabbed showcase -->

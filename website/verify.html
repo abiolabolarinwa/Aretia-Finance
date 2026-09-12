@@ -104,24 +104,24 @@
   .vcheck .vstatus.pass { background: var(--green-soft); color: var(--green); }
   .vcheck .vstatus.fail { background: var(--red-soft); color: var(--red); }
   .vcheck .vstatus.info { background: var(--blue-soft); color: var(--blue); }
-  .verify-limits { font-size: 12.5px; color: var(--ink-faint); line-height: 1.7; max-width: 76ch; }
-
   /* -------- Horizontal marquee check carousel (auto-scrolls right to left, pauses on hover) -------- */
   .hscroll-section { position: relative; margin: 8px 0 0; width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
   .hscroll-pin { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
   .hscroll-row { display: flex; gap: 32px; padding: 4px 0; width: max-content; animation: hs-marquee 42s linear infinite; }
   .hscroll-pin:hover .hscroll-row, .hscroll-pin.paused .hscroll-row { animation-play-state: paused; }
   @keyframes hs-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  .hs-card { flex: 0 0 520px; min-height: 400px; border-radius: var(--r-lg); padding: 44px 40px; display: flex; flex-direction: column; background: var(--surface); }
+  .hs-card { flex: 0 0 520px; min-height: 400px; border-radius: var(--r-lg); padding: 44px 40px; display: flex; flex-direction: column; background: var(--surface); font-family: var(--sans); }
   .hs-card .vstatus { width: 36px; height: 36px; font-size: 16px; margin-bottom: 24px; }
-  .hs-claim { font-size: 24px; font-weight: 800; color: var(--hero-amber, #A9791B); margin: 0 0 16px; line-height: 1.25; }
-  .hs-detail { font-size: 15px; color: var(--ink-soft); font-family: "JetBrains Mono", monospace; word-break: break-all; line-height: 1.9; margin: 0; }
-  .hs-detail .vlive { color: var(--ink); font-weight: 600; }
-  .hs-note { font-family: var(--sans); font-size: 13.5px; color: var(--ink-faint); margin-top: 12px; line-height: 1.65; }
-  .hs-link { margin-top: auto; padding-top: 22px; font-size: 14px; font-weight: 700; color: var(--ink); align-self: flex-start; }
+  .hs-claim { font-size: 27px; font-weight: 800; color: var(--hero-amber, #A9791B); margin: 0 0 18px; line-height: 1.25; }
+  .hs-detail { font-size: 17px; color: var(--ink-soft); font-family: var(--sans); word-break: break-word; line-height: 1.75; margin: 0; }
+  .hs-detail .mono { font-family: var(--sans); font-weight: 600; color: var(--ink); }
+  .hs-detail .vlive { color: var(--ink); font-weight: 700; }
+  .hs-note { font-family: var(--sans); font-size: 15px; color: var(--ink-faint); margin-top: 14px; line-height: 1.65; }
+  .hs-link { margin-top: auto; padding-top: 24px; font-size: 15.5px; font-weight: 700; color: var(--ink); align-self: flex-start; }
   @media (max-width: 900px) {
     .hs-card { flex: 0 0 380px; min-height: 340px; padding: 34px 30px; }
-    .hs-claim { font-size: 19px; }
+    .hs-claim { font-size: 21px; }
+    .hs-detail { font-size: 15px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .hscroll-row { animation: none; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
@@ -290,8 +290,6 @@
           </div>
         </div>
       </section>
-
-      <p class="verify-limits"><strong>What this can't do</strong>, and why an independent audit still matters: this checks on-chain <em>configuration</em> against our documentation. It doesn't review the off-chain scripts that build treasury transactions for logic bugs, and it doesn't evaluate Token-2022 or Squads internally; those are separate, already-audited programs this project doesn't control. Treat this as a free, instant, zero-trust first check, not a replacement for a real one. RPC reads here are public and read-only: no wallet connection, no signature, no transaction is ever requested.</p>
     </div>
   </section>
 </main>

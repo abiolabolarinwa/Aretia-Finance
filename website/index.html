@@ -141,9 +141,6 @@
   .stat-block:first-child { border-top: none; padding-top: 0; }
   .stat-figure { font-family: var(--mono); font-size: clamp(22px, 6.5vw, 34px); font-weight: 700; color: var(--ink); }
   .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
-  .cat-stats-row { display: flex; justify-content: center; gap: 56px; flex-wrap: wrap; text-align: center; margin: 0 auto 48px; }
-  .cat-stats-row .stat-block { border-top: none; padding: 0; max-width: 300px; }
-  .cat-stats-row .stat-label { margin-left: auto; margin-right: auto; }
   .cat-card-featured { min-width: 0; border-radius: var(--r-lg); display: flex; flex-direction: row; align-items: stretch; text-align: left; overflow: hidden; }
   .cat-card-featured .cat-tile { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
   .cat-card-featured .cat-tile svg { width: 26px; height: 26px; }
@@ -170,21 +167,13 @@
   @media (max-width: 480px) { .cat-arrow { width: 36px; height: 36px; font-size: 17px; } .cat-arrow-prev { left: 10px; } .cat-arrow-next { right: 10px; } }
 
   /* -------- 3-step process with screenshots -------- */
-  .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
+  .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 52px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
-  .step-card { border-radius: var(--r-lg); padding: 24px 22px; }
-  .step-mock { background: #fff; border-radius: var(--r-sm); padding: 16px; margin-bottom: 18px; min-height: 100px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); }
-  .step-card h3 { font-size: 16px; color: var(--ink); margin-bottom: 8px; }
-  .step-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 14px; }
-  .step-card .rm { font-size: 12.5px; font-weight: 700; color: var(--ink); }
-
-  /* -------- Pull-quote (honest substitute for testimonial) -------- */
-  .quote-wrap { display: flex; justify-content: center; margin-top: 52px; }
-  .quote-card { background: var(--black); color: #fff; border-radius: var(--r-lg); padding: 40px; max-width: 640px; text-align: center; }
-  .quote-card p { font-size: 17px; line-height: 1.6; color: #EDEDF2; margin-bottom: 24px; }
-  .quote-source { font-size: 12.5px; color: #9497A3; font-family: var(--mono); }
-  .built-on-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; margin-top: 48px; padding-top: 40px; border-top: 1px solid var(--border); }
-  .built-on-item { font-size: 13px; font-weight: 700; color: var(--ink-faint); }
+  .step-card { border-radius: var(--r-lg); padding: 36px 32px; }
+  .step-mock { background: #fff; border-radius: var(--r-sm); padding: 20px; margin-bottom: 24px; min-height: 120px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); font-size: 13px; }
+  .step-card h3 { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 12px; }
+  .step-card p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 18px; }
+  .step-card .rm { font-size: 13.5px; font-weight: 800; color: var(--ink); }
 
   /* -------- How it works (dotted-line steps) -------- */
   .hiw-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 56px; position: relative; }
@@ -578,12 +567,6 @@
         <div class="sec-eyebrow">Funding Categories</div>
         <h2 class="pip-nowrap">See exactly where capital goes before it's disbursed.</h2>
       </div>
-      <div class="cat-stats-row">
-        <div class="stat-block">
-          <div class="stat-figure">5</div>
-          <div class="stat-label">Funding categories, each held to a diligence standard appropriate to its specific claim.</div>
-        </div>
-      </div>
       <div class="cat-carousel">
         <div class="cat-carousel-viewport">
           <div class="cat-carousel-track" id="cat-track">
@@ -701,34 +684,22 @@
       </div>
       <div class="step-cards">
         <div class="step-card" style="background:var(--blue-soft);">
-          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
+          <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
           <h3>Apply</h3>
           <p>Project developers submit an application scoped to one of five funding categories.</p>
           <a class="rm" href="apply.html">Apply for Funding →</a>
         </div>
         <div class="step-card" style="background:var(--amber-soft);">
-          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
+          <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
           <h3>Verify</h3>
           <p>A technical committee and independent verifier confirm each milestone before release.</p>
           <a class="rm" href="whitepaper.html">Read the Standards →</a>
         </div>
         <div class="step-card" style="background:var(--green-soft);">
-          <div class="step-mock mono" style="font-size:11.5px; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
+          <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
           <h3>Get Funded</h3>
           <p>Capital releases in tranches against verified progress, never a lump sum against a promise.</p>
           <a class="rm" href="verify.html">Verify a Disbursement →</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ PULL QUOTE + BUILT ON ============ -->
-  <section class="block alt">
-    <div class="wrap">
-      <div class="quote-wrap">
-        <div class="quote-card">
-          <p>"This paper describes a protocol that converts a fixed share of ordinary token transfer activity into standing, continuously replenished capital, without requiring any party to trust a promise at any stage."</p>
-          <div class="quote-source">Aretia Finance Protocol Whitepaper · Abstract</div>
         </div>
       </div>
     </div>

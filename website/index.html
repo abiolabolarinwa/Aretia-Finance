@@ -61,10 +61,10 @@
   .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 19px; color: var(--ink); }
   .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
-  .nav-links { display: flex; align-items: center; gap: 30px; }
-  .nav-links a { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); transition: color 160ms var(--ease); }
+  .nav-links { display: flex; align-items: center; gap: 18px; flex: 1; justify-content: center; }
+  .nav-links a { font-size: 13px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
-  @media (max-width: 900px) { .nav-links { display: none; } }
+  @media (max-width: 1080px) { .nav-links { display: none; } }
 
   /* -------- Hero (doola-style: cream/mustard, two-column) -------- */
   .hero { position: relative; background: #F5EAB0; overflow: hidden; padding: 56px 0 0; }
@@ -312,10 +312,13 @@
         Aretia Finance
       </a>
       <div class="nav-links">
-        <a href="#about">Protocol</a>
-        <a href="#categories">Funding</a>
-        <a href="#how">How It Works</a>
-        <a href="verify.html">Verification</a>
+        <a href="about.html">About</a>
+        <a href="tokenomics.html">Tokenomics</a>
+        <a href="details.html">Treasury</a>
+        <a href="verify.html">Verify</a>
+        <a href="roadmap.html">Roadmap</a>
+        <a href="insights.html">Insights</a>
+        <a href="faq.html">FAQ</a>
         <a href="whitepaper.html">Whitepaper</a>
       </div>
       <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>

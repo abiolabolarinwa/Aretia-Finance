@@ -127,6 +127,20 @@
     .hscroll-row { animation: none; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
     .hs-card { scroll-snap-align: start; }
   }
+
+  /* -------- Official on-chain addresses -------- */
+  .addr-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 4px 24px; }
+  .addr-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap; }
+  .addr-row:last-child { border-bottom: none; }
+  .addr-meta { flex: 1; min-width: 220px; }
+  .addr-label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .addr-sub { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+  .addr-value { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); word-break: break-all; }
+  .addr-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+  .addr-copy { font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 980px; border: 1px solid var(--border); background: #fff; color: var(--ink-soft); cursor: pointer; transition: background 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease); font-family: var(--font-sans); }
+  .addr-copy:hover { background: var(--bg-alt); color: var(--ink); }
+  .addr-copy.copied { background: var(--green-soft); color: var(--green); border-color: transparent; }
+  @media (max-width: 560px) { .addr-row { flex-direction: column; align-items: flex-start; } .addr-actions { width: 100%; } .addr-copy { flex: 1; } }
 </style>
 </head>
 <body>
@@ -178,6 +192,95 @@
       </div>
     </div>
   </section>
+
+  <section class="block" style="padding-bottom:24px;">
+    <div class="wrap">
+      <div class="eyebrow">Official On-Chain Addresses</div>
+      <p style="font-size:13.5px; color:var(--ink-soft); max-width:70ch; margin-bottom:20px; line-height:1.65;">ACT has no on-chain name, symbol, or logo by design (mint authority was revoked before any metadata could be attached, see the whitepaper's Section 12), which is exactly why a copy or lookalike could be mistaken for the real thing. These are the only addresses that are actually Aretia's. Copy them directly from here rather than trusting a search result or a link someone sent you.</p>
+      <div class="addr-card">
+        <div class="addr-row">
+          <div class="addr-meta">
+            <div class="addr-label">ACT mint address</div>
+            <div class="addr-sub">The only real ACT token. Verify any wallet or exchange listing against this.</div>
+            <div class="addr-value" id="addr-mint">7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG</div>
+          </div>
+          <div class="addr-actions">
+            <button class="addr-copy" type="button" data-copy-target="addr-mint">Copy</button>
+            <a class="pill-btn pill-ghost" style="padding:7px 16px; font-size:12px;" href="https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG" target="_blank" rel="noopener">Solscan ↗</a>
+          </div>
+        </div>
+        <div class="addr-row">
+          <div class="addr-meta">
+            <div class="addr-label">Treasury multisig (Squads)</div>
+            <div class="addr-sub">2-of-3 signers required for any outbound transaction.</div>
+            <div class="addr-value" id="addr-multisig">5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr</div>
+          </div>
+          <div class="addr-actions">
+            <button class="addr-copy" type="button" data-copy-target="addr-multisig">Copy</button>
+            <a class="pill-btn pill-ghost" style="padding:7px 16px; font-size:12px;" href="https://app.squads.so/squads/GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA" target="_blank" rel="noopener">Squads ↗</a>
+          </div>
+        </div>
+        <div class="addr-row">
+          <div class="addr-meta">
+            <div class="addr-label">Treasury vault</div>
+            <div class="addr-sub">Holds the full 1,000,000,000 ACT supply and all harvested fees.</div>
+            <div class="addr-value" id="addr-vault">GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA</div>
+          </div>
+          <div class="addr-actions">
+            <button class="addr-copy" type="button" data-copy-target="addr-vault">Copy</button>
+            <a class="pill-btn pill-ghost" style="padding:7px 16px; font-size:12px;" href="https://solscan.io/account/GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA" target="_blank" rel="noopener">Solscan ↗</a>
+          </div>
+        </div>
+        <div class="addr-row">
+          <div class="addr-meta">
+            <div class="addr-label">Token-2022 program</div>
+            <div class="addr-sub">Solana's own program. Not specific to Aretia; shown for completeness.</div>
+            <div class="addr-value" id="addr-t22">TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb</div>
+          </div>
+          <div class="addr-actions">
+            <button class="addr-copy" type="button" data-copy-target="addr-t22">Copy</button>
+            <a class="pill-btn pill-ghost" style="padding:7px 16px; font-size:12px;" href="https://solscan.io/account/TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" target="_blank" rel="noopener">Solscan ↗</a>
+          </div>
+        </div>
+        <div class="addr-row">
+          <div class="addr-meta">
+            <div class="addr-label">Management fee wallet</div>
+            <div class="addr-sub">Not yet addressed as part of the v2 rebuild.</div>
+            <div class="addr-value" style="color:var(--ink-faint);">To be confirmed</div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--ink-faint); margin-top:14px;">The complete reference, including the Metaplex metadata account, is in <a href="whitepaper.html#appendix-a-on-chain-reference-addresses" style="color:var(--ink-soft); font-weight:600;">Appendix A of the whitepaper</a>.</p>
+    </div>
+  </section>
+  <script>
+    document.querySelectorAll('.addr-copy').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.getAttribute('data-copy-target'));
+        if (!target) return;
+        var text = target.textContent.trim();
+        var done = function () {
+          var original = btn.textContent;
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(function () { btn.textContent = original; btn.classList.remove('copied'); }, 1600);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            var ta = document.createElement('textarea');
+            ta.value = text; document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta); done();
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta); done();
+        }
+      });
+    });
+  </script>
 
   <section class="block" style="padding-top:56px;">
     <div class="wrap">
@@ -305,6 +408,7 @@
       <a href="faq.html">FAQ</a>
     </div>
     <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice.</p>
+    <div class="footer-meta">ACT mint: <span class="mono">7Ut5njM9aj...x5sSFrTG</span> &middot; Treasury: <span class="mono">GtKGE6mQRj...wQbryZnA</span> &middot; full addresses on <a href="verify.html" style="color:inherit; text-decoration:underline;">Verify</a></div>
     <div class="footer-meta">© 2026 Aretia</div>
   </div>
 </footer>

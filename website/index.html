@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aretia · Climate Finance Protocol</title>
 <meta name="description" content="Aretia is a climate-finance protocol that converts a fixed share of economic activity into transparent, milestone-verified climate capital. ACT is the protocol's economic mechanism on Solana.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+<link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
-    --bg: #FFFFFF; --bg-alt: #F7F7F9; --card: #FFFFFF;
+    --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
@@ -20,6 +20,7 @@
     --amber: #B5790A; --amber-soft: #FBEFD9;
     --pink: #C0447A; --pink-soft: #FCE7EF;
     --cyan: #0E7D8C; --cyan-soft: #DEF3F5;
+    --hero-cream: #F5EAB0; --hero-mustard: #F0D879; --hero-amber: #A9791B; --hero-ink: #17150C;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -47,7 +48,7 @@
   .pill-ghost:hover { background: var(--bg-alt); }
 
   .eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); background: var(--bg-alt); border: 1px solid var(--border); padding: 7px 16px 7px 8px; border-radius: 980px; }
-  .eyebrow-pill .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; }
+  .eyebrow-pill .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--hero-amber); display: flex; align-items: center; justify-content: center; }
   .eyebrow-pill .dot svg { width: 10px; height: 10px; }
 
   section.block { padding: 88px 0; }
@@ -92,13 +93,12 @@
   .hv-row .hv-fact { font-size: 14.5px; font-weight: 700; color: #17150C; }
   .hv-row .hv-pill { font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; background: #E1F5EC; color: #1E8A5F; white-space: nowrap; flex: none; }
 
-  .builton-card { background: #fff; border-radius: 24px; box-shadow: 0 24px 50px -30px rgba(20,15,0,.3); padding: 26px 36px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; transform: translateY(30px); position: relative; z-index: 2; }
-  .builton-card .lbl { font-size: 15px; font-weight: 800; color: #17150C; }
-  .builton-card .logos { display: flex; gap: 32px; flex-wrap: wrap; align-items: center; }
+  .builton-card { background: #fff; border-radius: 24px; box-shadow: 0 24px 50px -30px rgba(20,15,0,.3); padding: 26px 36px; display: flex; align-items: center; justify-content: center; transform: translateY(30px); position: relative; z-index: 2; }
+  .builton-card .logos { display: flex; gap: 32px; flex-wrap: wrap; align-items: center; justify-content: center; }
   .builton-card .logo-item { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; color: var(--ink-faint); }
   .builton-card .logo-mark { width: 22px; height: 22px; flex: none; display: block; }
   .builton-card .logo-mark-img { border-radius: 6px; }
-  @media (max-width: 640px) { .builton-card { flex-direction: column; align-items: flex-start; transform: translateY(20px); } }
+  @media (max-width: 640px) { .builton-card { transform: translateY(20px); } }
 
   /* -------- Live stats section (moved below the cream hero band) -------- */
   .stats-section { padding: 56px 0 88px; }
@@ -209,11 +209,13 @@
   .final-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
   /* -------- Section eyebrow (doola-style label above headline) -------- */
-  .sec-eyebrow { text-align: center; font-size: 12px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .sec-eyebrow { text-align: center; font-size: 12px; font-weight: 700; color: var(--hero-amber); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
   .sec-head { text-align: center; max-width: 640px; margin: 0 auto 48px; }
   .sec-head h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); }
   .sec-head p { font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.65; }
-  .hl { color: var(--blue); }
+  .pip-nowrap { white-space: nowrap; }
+  @media (max-width: 860px) { .pip-nowrap { white-space: normal; } }
+  .hl { color: var(--hero-amber); }
 
   /* -------- "Built on" strip -------- */
   .builton-strip { text-align: center; margin-top: 40px; }
@@ -243,13 +245,15 @@
   .tabpanel.active { display: block; }
   .tab-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   @media (max-width: 860px) { .tab-cards { grid-template-columns: 1fr; } }
-  .tab-card-wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0; }
-  .tab-card-wide .live-stat { flex: 1 1 200px; padding: 4px 22px; }
-  .tab-card-wide .live-stat + .live-stat { border-left: 1px solid var(--border); }
-  @media (max-width: 700px) { .tab-card-wide .live-stat + .live-stat { border-left: none; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 12px; } }
-  .tab-card-wide .live-stat .stat-label { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
-  .tab-card-wide .live-stat .stat-usd { font-size: 17px; font-weight: 700; color: var(--ink); }
-  .tab-card-wide .live-stat .stat-act { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
+  .stat-tile-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .stat-tile-row { grid-template-columns: 1fr; } }
+  .stat-tile { position: relative; overflow: hidden; border-radius: var(--r-lg); padding: 24px 22px; min-height: 176px; display: flex; flex-direction: column; }
+  .stat-tile .st-eyebrow { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 18px; position: relative; z-index: 1; }
+  .stat-tile .st-eyebrow svg { width: 15px; height: 15px; flex: none; }
+  .stat-tile .st-value { font-size: 21px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; position: relative; z-index: 1; }
+  .stat-tile .st-sub { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 4px; position: relative; z-index: 1; }
+  .stat-tile .st-link { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: auto; padding-top: 16px; position: relative; z-index: 1; }
+  .stat-tile .st-bleed { position: absolute; right: -20px; bottom: -20px; width: 100px; height: 100px; opacity: .16; pointer-events: none; }
   .tab-card { border-radius: var(--r-lg); padding: 26px 24px; min-height: 200px; display: flex; flex-direction: column; }
   .tab-card .tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(255,255,255,.6); padding: 4px 10px; border-radius: 8px; margin-bottom: 14px; align-self: flex-start; }
   .tab-card h3 { font-size: 16px; margin-bottom: 10px; }
@@ -363,7 +367,6 @@
         </div>
       </div>
       <div class="builton-card">
-        <div class="lbl">Built On</div>
         <div class="logos">
           <span class="logo-item">
             <svg class="logo-mark" viewBox="0 0 26 22.142" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -397,10 +400,10 @@
   <!-- ============ PROTOCOL IN PRACTICE (tabbed showcase) ============ -->
   <section class="block" id="about">
     <div class="wrap">
-      <div class="sec-head">
+      <div class="sec-head" style="max-width:900px;">
         <div class="sec-eyebrow">Protocol In Practice</div>
-        <h2>One protocol, four things you can check yourself.</h2>
-        <p>Every tab below links to a live page that does exactly what it says, not a description of a feature.</p>
+        <h2 class="pip-nowrap">One protocol, four things you can check yourself.</h2>
+        <p class="pip-nowrap">Every tab below links to a live page that does exactly what it says, not a description of a feature.</p>
       </div>
       <div class="suite-row">
         <div class="tabbar" role="tablist">
@@ -440,21 +443,27 @@
             <p>Capital leaves the fund only as a grant to a vetted partner or a permanent, provable carbon-credit retirement.</p>
             <a href="details.html">See how funding flows →</a>
           </div>
-          <div class="tab-card tab-card-wide" style="background:#fff; border:1px solid var(--border);">
-            <div class="live-stat">
-              <div class="stat-label">Total Volume Traded</div>
-              <div class="stat-usd" data-stat="volumeUsd">checking…</div>
-              <div class="stat-act" data-stat="volumeAct">checking…</div>
+          <div class="stat-tile-row">
+            <div class="stat-tile" style="background:var(--cyan-soft);">
+              <div class="st-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>Live Trading</div>
+              <div class="st-value" data-stat="volumeUsd">checking…</div>
+              <div class="st-sub" data-stat="volumeAct">checking…</div>
+              <a class="st-link" href="tokenomics.html">See tokenomics →</a>
+              <svg class="st-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
             </div>
-            <div class="live-stat">
-              <div class="stat-label">Aretia Climate Treasury</div>
-              <div class="stat-usd" data-stat="treasuryUsd">checking…</div>
-              <div class="stat-act" data-stat="treasuryAct">checking…</div>
+            <div class="stat-tile" style="background:var(--green-soft);">
+              <div class="st-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 9h20L12 3z"/><path d="M4 9v11M20 9v11M9 20V9M15 20V9"/><path d="M2 20h20"/></svg>Climate Treasury</div>
+              <div class="st-value" data-stat="treasuryUsd">checking…</div>
+              <div class="st-sub" data-stat="treasuryAct">checking…</div>
+              <a class="st-link" href="details.html">See the treasury →</a>
+              <svg class="st-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 9h20L12 3z"/><path d="M4 9v11M20 9v11M9 20V9M15 20V9"/><path d="M2 20h20"/></svg>
             </div>
-            <div class="live-stat">
-              <div class="stat-label">Management Fee Wallet</div>
-              <div class="stat-usd" data-stat="mgmtUsd">checking…</div>
-              <div class="stat-act" data-stat="mgmtAct">checking…</div>
+            <div class="stat-tile" style="background:var(--pink-soft);">
+              <div class="st-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14.5" r="1" fill="var(--pink)" stroke="none"/></svg>Management Fee</div>
+              <div class="st-value" data-stat="mgmtUsd">checking…</div>
+              <div class="st-sub" data-stat="mgmtAct">checking…</div>
+              <a class="st-link" href="tokenomics.html">See the fee split →</a>
+              <svg class="st-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14.5" r="1" fill="var(--pink)" stroke="none"/></svg>
             </div>
           </div>
         </div>

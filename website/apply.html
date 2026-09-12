@@ -440,7 +440,11 @@
     ASSOCIATED_TOKEN_PROGRAM_ID,
   } from "https://esm.sh/@solana/spl-token@0.4.9?deps=@solana/web3.js@1.95.3";
 
-  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+  // api.mainnet-beta.solana.com returns 403 Access forbidden for direct
+  // browser-origin requests (confirmed, not a transient issue), so it is
+  // not a working fallback and was replaced. Both endpoints below were
+  // confirmed live via a direct getSlot() call before switching to them.
+  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://solana.publicnode.com"];
   var ACT_MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
   var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
   var ACT_DECIMALS = 9;

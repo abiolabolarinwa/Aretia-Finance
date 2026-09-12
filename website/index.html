@@ -187,7 +187,7 @@
   /* -------- Trade drawer (right-side slide-out) -------- */
   .trade-overlay { position: fixed; inset: 0; background: rgba(14,15,18,.42); opacity: 0; visibility: hidden; transition: opacity 220ms var(--ease); z-index: 200; }
   .trade-overlay.open { opacity: 1; visibility: visible; }
-  .trade-drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(440px, 100vw); background: #fff; box-shadow: -12px 0 40px rgba(10,12,16,.14); z-index: 201; transform: translateX(100%); transition: transform 300ms var(--ease); display: flex; flex-direction: column; }
+  .trade-drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(440px, 100vw); background: var(--hero-cream); box-shadow: -12px 0 40px rgba(10,12,16,.14); z-index: 201; transform: translateX(100%); transition: transform 300ms var(--ease); display: flex; flex-direction: column; }
   .trade-drawer.open { transform: translateX(0); }
   .trade-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border-soft); flex: none; }
   .trade-drawer-head h3 { font-size: 15.5px; }
@@ -195,6 +195,7 @@
   .trade-drawer-close:hover { background: var(--bg-alt); }
   .trade-drawer-body { padding: 22px 24px 28px; overflow-y: auto; flex: 1; }
   .buy-note { font-size: 12px; color: var(--ink-faint); border-left: 3px solid var(--blue); padding-left: 14px; margin-bottom: 18px; line-height: 1.6; }
+  .buy-status-loud { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; text-transform: uppercase; text-align: center; color: var(--black); background: #fff; border: 2.5px solid var(--black); border-radius: var(--r-md); padding: 16px; margin-bottom: 18px; }
   .buy-widget-frame { background: #fff; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; min-height: 460px; display: flex; align-items: center; justify-content: center; }
   .buy-widget-loading { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
   #jupiter-terminal { width: 100%; min-height: 460px; }
@@ -850,7 +851,7 @@
     <button type="button" class="trade-drawer-close" id="trade-drawer-close" aria-label="Close">×</button>
   </div>
   <div class="trade-drawer-body">
-    <p class="buy-note">Liquidity hasn't been seeded yet, so swaps below will currently show "no route found." An initial, self-funded liquidity seed is planned, intended to deepen over time rather than launch at full depth immediately. This widget is fully wired to the real ACT mint and starts working automatically once the pool goes live. Use the swap-direction arrow inside the widget to switch between buying and selling ACT.</p>
+    <div class="buy-status-loud">Pre-Launch</div>
     <div class="buy-widget-frame">
       <div id="jupiter-terminal"><span class="buy-widget-loading">Loading swap widget…</span></div>
     </div>

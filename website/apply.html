@@ -13,12 +13,12 @@
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
-    --bg: #FFFFFF; --bg-alt: #F7F7F9; --card: #FFFFFF;
+    --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
     --blue: #2A4BFF; --blue-hover: #1B37D6; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
-    --amber: #B5790A; --amber-soft: #FBEFD9;
+    --amber: #B5790A; --amber-hover: #8C5D08; --amber-soft: #FBEFD9;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --display: var(--font-sans);
     --mono: "JetBrains Mono", ui-monospace, monospace;
@@ -81,7 +81,7 @@
   .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 280px; background: #F0D879; }
   .dhero-visual img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }
   .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
-  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #2A4BFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #A9791B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
   @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
   .dhero .status-note { max-width: 100%; }
 
@@ -105,7 +105,7 @@
     color: var(--ink);
     transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out);
   }
-  input:focus, select:focus, textarea:focus { border-color: var(--blue); background: var(--bg); }
+  input:focus, select:focus, textarea:focus { border-color: var(--amber); background: var(--bg); }
   textarea { resize: vertical; min-height: 90px; }
   select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A8F98'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; padding-right: 32px; }
 
@@ -113,31 +113,31 @@
   .checkbox-field input { margin-top: 3px; }
   .checkbox-field label { font-size: 13px; color: var(--ink-soft); }
 
-  .submit-btn { background: var(--blue); color: #fff; border: none; padding: 13px 28px; border-radius: 7px; font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
-  .submit-btn:hover { background: var(--blue-hover); }
+  .submit-btn { background: var(--amber); color: #fff; border: none; padding: 13px 28px; border-radius: 7px; font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .submit-btn:hover { background: var(--amber-hover); }
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .fee-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px 26px; margin: 44px 0 0; }
   .fee-box .fee-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
   .fee-box .fee-title { font-size: 15px; font-weight: 700; }
-  .fee-box .fee-amount { font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 700; color: var(--blue); }
+  .fee-box .fee-amount { font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 700; color: var(--amber); }
   .fee-box p.fee-note { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 18px; }
   .fee-box .fee-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .wallet-btn { background: var(--ink); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
   .wallet-btn:hover { background: #3A3B34; }
   .wallet-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .pay-btn { background: var(--blue); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
-  .pay-btn:hover { background: var(--blue-hover); }
+  .pay-btn { background: var(--amber); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .pay-btn:hover { background: var(--amber-hover); }
   .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .wallet-info { font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--ink-soft); }
   .fee-status { font-size: 13px; color: var(--ink-soft); margin-top: 12px; line-height: 1.6; }
-  .fee-status a { color: var(--blue); font-weight: 600; }
+  .fee-status a { color: var(--amber); font-weight: 600; }
   .fee-status.error { color: #9C4B3F; }
   .fee-status.success { color: var(--green); }
   #wallet-picker { display: flex; gap: 8px; flex-wrap: wrap; }
-  .wallet-btn.detected { outline: 2px solid var(--blue); outline-offset: 1px; }
-  #no-wallet-note a { color: var(--blue); font-weight: 600; }
+  .wallet-btn.detected { outline: 2px solid var(--amber); outline-offset: 1px; }
+  #no-wallet-note a { color: var(--amber); font-weight: 600; }
   #submit-gate-note { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
 
   #form-success, #form-error { display: none; padding: 18px 20px; border-radius: 8px; font-size: 14px; margin-bottom: 28px; }
@@ -308,7 +308,7 @@
         <span class="fee-title">Registration fee</span>
         <span class="fee-amount">5,000 ACT</span>
       </div>
-      <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable: it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--blue); font-weight:600;">View the management wallet on Solscan →</a></p>
+      <p class="fee-note">Paid from your own Solana wallet to Aretia's management wallet before you can submit. Non-refundable: it covers the cost of reviewing this application regardless of outcome, not a stake in being funded. <a href="https://solscan.io/account/2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2" target="_blank" rel="noopener" style="color:var(--amber); font-weight:600;">View the management wallet on Solscan →</a></p>
 
       <div class="fee-actions">
         <div id="wallet-picker">

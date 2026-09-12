@@ -6,9 +6,11 @@
 //! and duration staked. It does NOT gate access to anything -- Stage Two
 //! (the thing tiers were proposed to gate) does not exist yet. See
 //! STAKING_DESIGN.md for the full design record, the tier formula and
-//! its rationale, and -- importantly -- for the toolchain gap that means
-//! this file has been written carefully but has never been compiled.
-//! Treat it as a first draft until `anchor build` runs clean against it.
+//! its rationale, and the build log: compiled clean, deployed live on
+//! devnet, and `initialize_config` verified correct end-to-end there.
+//! `stake`/`unstake` are still pending real exercise -- see the
+//! `test-fast-clock` feature below, added specifically to make that
+//! testable without waiting real days.
 //!
 //! Two rules from Section 30 that this program must never be extended to
 //! violate: no tier confers investor eligibility, and ACT's marketed
@@ -25,6 +27,17 @@ use anchor_spl::token_interface::{
 // Generated via `solana-keygen new` on 2026-09-12 (see Anchor.toml). Not yet deployed.
 declare_id!("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 
+// Real builds (devnet, mainnet) use real days. The `test-fast-clock` feature
+// exists ONLY to make `stake`/`unstake`'s lock-duration logic testable on a
+// local validator without waiting real days for a lock to mature -- it
+// shrinks a "day" to 2 seconds so a 30-day lock resolves in 60 real seconds.
+// This changes no logic, only this one constant's value; a build with this
+// feature enabled must never be deployed anywhere but a throwaway local
+// validator, and this repo's own scripts enforce that by construction (the
+// devnet/mainnet build scripts never pass --features test-fast-clock).
+#[cfg(feature = "test-fast-clock")]
+pub const SECONDS_PER_DAY: i64 = 2;
+#[cfg(not(feature = "test-fast-clock"))]
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const NUM_TIERS: usize = 5; // tier 0 (no stake) through tier 4
 pub const NUM_DURATIONS: usize = 4; // 30 / 90 / 180 / 365 days

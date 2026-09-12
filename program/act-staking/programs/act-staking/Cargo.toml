@@ -1,7 +1,7 @@
 [package]
 name = "act-staking"
 version = "0.1.0"
-description = "Aretia Finance -- ACT staking (tiered access infrastructure, Part VIII Sec. 30). Not yet compiled or deployed -- see STAKING_DESIGN.md."
+description = "Aretia Finance -- ACT staking (tiered access infrastructure, Part VIII Sec. 30). Deployed on devnet; not yet on mainnet -- see STAKING_DESIGN.md."
 edition = "2021"
 
 [lib]
@@ -14,6 +14,10 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
+# Local-validator testing ONLY. See the SECONDS_PER_DAY comment in src/lib.rs
+# for exactly what this changes (one constant) and why. Never pass this to a
+# devnet or mainnet build.
+test-fast-clock = []
 
 [dependencies]
 anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }

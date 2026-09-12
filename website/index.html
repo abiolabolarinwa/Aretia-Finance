@@ -940,7 +940,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 <script>
 (function () {
-  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+  // api.mainnet-beta.solana.com returns 403 Access forbidden for direct
+  // browser-origin requests (confirmed, not a transient issue), so it is
+  // not a working fallback and was replaced. Both endpoints below were
+  // confirmed live via a direct getSlot() call before switching to them.
+  var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://solana.publicnode.com"];
   var MINT = "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG";
   var TREASURY_VAULT = "GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA";
   var MANAGEMENT_WALLET = "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2";

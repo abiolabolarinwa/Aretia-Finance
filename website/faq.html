@@ -170,8 +170,8 @@
       <div class="faq-group">
         <div class="glabel">The token</div>
         <details class="faq-item">
-          <summary>Why doesn't ACT show a name, symbol, or logo in my wallet?</summary>
-          <div class="a">Mint authority was permanently revoked immediately after the single initial mint: that's what makes the fixed-supply claim verifiable rather than a promise. The cost of that same irrevocability is that neither the native Token-2022 metadata extension nor the Metaplex Token Metadata program can be attached afterward, since both require an authority the mint no longer has. This is a permanent, deliberate tradeoff, not a bug (see whitepaper §4.2). It's also why some automated risk scanners flag the token: their heuristics are built to catch an active rug pull, not a fixed, immutable supply with no metadata attached. The <a href="verify.html">Verify</a> page exists specifically so you don't have to take that on faith.</div>
+          <summary>Does ACT show a name or logo in my wallet?</summary>
+          <div class="a">Yes. ACT's name ("Aretia Finance Protocol") and logo are attached through a Token-2022 MetadataPointer extension referencing a separate Metaplex Token Metadata account, and display correctly in any wallet or block explorer that supports Token-2022 metadata. That metadata account's own update-authority field still names a single key, not the treasury multisig, but its <code>is_mutable</code> flag was permanently set to false at creation, which the Metaplex program itself enforces: no one, including that recorded authority, can change the name, symbol, or logo going forward (see whitepaper Section 12). A name and logo displaying correctly doesn't make a token unique, though, since nothing stops a fraudulent mint from using a matching name and logo of its own; only the mint address is unique, which is why the <a href="verify.html">Verify</a> page checks the address-level facts directly rather than asking you to trust a display name.</div>
         </details>
         <details class="faq-item">
           <summary>Can the total supply ever increase?</summary>

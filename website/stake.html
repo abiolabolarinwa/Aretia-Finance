@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Treasury &amp; Governance · Aretia (ACT)</title>
-<meta name="description" content="How the treasury, governance, milestone financing, project portfolio, and chain selection actually work.">
+<title>Staking · Aretia (ACT)</title>
+<meta name="description" content="Lock ACT for a chosen duration to build a Capital Access Score: the formula, the mechanics, and current build status of Aretia's staking program.">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,8 @@
   a { color: inherit; text-decoration: none; }
   img, svg { max-width: 100%; display: block; }
   .mono { font-family: var(--mono); }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
   @media (max-width: 640px) { .wrap { padding: 0 20px; } }
   a:focus-visible, button:focus-visible { outline: 2px solid var(--black); outline-offset: 3px; }
   h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.025em; text-wrap: balance; }
@@ -56,7 +57,7 @@
   .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
   .nav-links { display: flex; align-items: center; gap: 16px; flex: 1; justify-content: center; }
-  .nav-links a { font-size: 13px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
+  .nav-links a { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
   .nav-links a.active { color: var(--ink); font-weight: 700; }
   @media (max-width: 1120px) { .nav-links { display: none; } }
@@ -76,41 +77,65 @@
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
   .dhero .pill-black { background: #101114; }
   .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
-  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: #F0D879; }
-  .dhero-visual img { width: 100%; height: 100%; min-height: 400px; object-fit: cover; display: block; }
-  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
-  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #A9791B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
-  @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
-
-  .lead-in { font-size: clamp(1.5rem, 2.8vw, 2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.4; max-width: 78ch; color: var(--ink); }
-  .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: #F0D879; display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .cas-tile { background: #fff; border-radius: 20px; padding: 32px; width: 100%; box-shadow: 0 20px 44px -20px rgba(20,15,0,.35); }
+  .cas-tile .cas-label { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .cas-tile .cas-formula { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); background: var(--bg-alt); border-radius: 10px; padding: 14px 16px; line-height: 1.6; }
+  .cas-tile .cas-note { font-size: 12px; color: var(--ink-faint); margin-top: 14px; line-height: 1.6; }
+  @media (max-width: 480px) { .dhero-visual { min-height: 220px; padding: 20px; } }
 
   .block-head { margin-bottom: 32px; }
-  .block-head h2 { font-size: clamp(1.6rem, 2.6vw, 2rem); }
-  .block-head .dek { font-size: 14.5px; color: var(--ink-soft); max-width: 70ch; margin-top: 10px; line-height: 1.65; }
-
-  .info-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; }
-  .info-card .label { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
-  .info-card .label .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
-  .info-card p { font-size: 13.5px; color: var(--ink-soft); margin: 0; line-height: 1.7; }
-  .split-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-  @media (max-width: 760px) { .split-grid { grid-template-columns: 1fr; } }
+  .block-head h2 { font-size: clamp(1.9rem, 3.2vw, 2.5rem); }
+  .block-head p.sub { font-size: 15px; color: var(--ink-soft); max-width: 68ch; margin-top: 12px; line-height: 1.65; }
+  .status-value { font-size: clamp(2.1rem, 4.2vw, 2.8rem); font-weight: 700; letter-spacing: -0.03em; }
+  .status-change { font-size: 14px; color: var(--ink-faint); margin-top: 6px; font-weight: 500; }
+  .phase-pills { display: flex; gap: 8px; margin: 22px 0 8px; flex-wrap: wrap; }
+  .phase-pill { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 980px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+  .phase-pill.done { background: var(--green-soft); color: var(--green); border-color: transparent; }
 
   .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 4px 24px; }
   table.data-table { width: 100%; border-collapse: collapse; min-width: 480px; }
-  table.data-table th, table.data-table td { border: none; border-bottom: 1px solid var(--border-soft); padding: 15px 12px; font-size: 13.5px; text-align: left; vertical-align: top; }
+  table.data-table th, table.data-table td { border: none; border-bottom: 1px solid var(--border-soft); padding: 15px 12px; font-size: 14px; text-align: left; }
   table.data-table thead th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); padding-top: 20px; padding-bottom: 12px; }
-  table.data-table tbody td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; padding-left: 0; }
-  table.data-table tbody td { color: var(--ink-soft); }
+  table.data-table tbody td:first-child { color: var(--ink-faint); font-weight: 500; vertical-align: top; }
+  table.data-table tbody td:nth-child(2) { color: var(--ink-soft); }
+  table.data-table tbody td:last-child { font-weight: 600; color: var(--ink); text-align: right; padding-right: 0; }
   table.data-table tbody tr:last-child td { border-bottom: none; }
 
-  .layer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
-  .layer-list li { display: flex; gap: 18px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 18px 20px; }
-  .layer-list .lnum { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--amber); flex: none; width: 1.6em; padding-top: 2px; }
-  .layer-list h3 { font-size: 14.5px; margin-bottom: 4px; }
-  .layer-list p { font-size: 13.5px; color: var(--ink-soft); margin: 0; line-height: 1.65; }
+  .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 980px) { .value-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .value-grid { grid-template-columns: 1fr; } }
+  .value-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 26px 22px; }
+  .value-card .vc-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--blue-soft); color: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 16px; }
+  .value-card h3 { font-size: 15.5px; margin-bottom: 8px; }
+  .value-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
 
-  .fine { font-size: 12.5px; color: var(--ink-faint); max-width: 76ch; margin-top: 16px; line-height: 1.6; }
+  .tier-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .tier-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .tier-grid { grid-template-columns: 1fr; } }
+  .tier-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px 18px; text-align: left; }
+  .tier-card .tier-n { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .tier-card h4 { font-size: 16px; margin: 8px 0 6px; }
+  .tier-card .tier-cas { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+  .tier-card.t4 { border-color: var(--amber); background: var(--amber-soft); }
+
+  .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: #fff; padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
+  .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; }
+  .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
+  .rule-box { background: #fff; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; display: flex; gap: 14px; align-items: flex-start; }
+  .rule-box .rn { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--black); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .rule-box p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .rule-box strong { color: var(--ink); }
+  .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .rule-grid { grid-template-columns: 1fr; } }
+
+  .steps { counter-reset: step; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 980px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+  .step { position: relative; padding-left: 2px; }
+  .step .sn { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--border); line-height: 1; margin-bottom: 10px; }
+  .step h4 { font-size: 14.5px; margin-bottom: 6px; }
+  .step p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
 
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -123,7 +148,7 @@
 <body>
 
 <nav class="topnav">
-  <div class="wrap">
+  <div class="wrap" style="max-width:1180px;">
     <div class="topnav-inner">
       <a href="index.html" class="brand">
         <span class="mark"><img src="data:image/png;base64,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" alt="Aretia"></span>
@@ -132,8 +157,8 @@
       <div class="nav-links">
         <a href="about.html">About</a>
         <a href="tokenomics.html">Tokenomics</a>
-        <a href="stake.html">Staking</a>
-        <a href="details.html" class="active">Treasury</a>
+        <a href="stake.html" class="active">Staking</a>
+        <a href="details.html">Treasury</a>
         <a href="verify.html">Verify</a>
         <a href="roadmap.html">Roadmap</a>
         <a href="insights.html">Insights</a>
@@ -153,79 +178,38 @@
     <div class="wrap">
       <div class="dhero-grid">
         <div>
-          <div class="dhero-eyebrow">Treasury &amp; Governance</div>
-          <h1>Treasury capital, <span class="hl">governed in layers.</span></h1>
-          <p class="dhero-sub">Tokenomics covers the fee split. This page covers what happens after a fee is collected: multisig custody, the four governance layers, how a project actually gets funded, and why Solana was chosen over the alternatives.</p>
+          <div class="dhero-eyebrow">Staking · In Development</div>
+          <h1>Stake ACT. <span class="hl">Build your access tier.</span></h1>
+          <p class="dhero-sub">Lock ACT for a chosen duration and the protocol computes a deterministic Capital Access Score from the amount and time committed, a number anyone can verify on-chain rather than a promise anyone has to trust. It's the mechanism proposed in Section 30 of the whitepaper for prioritizing access to Aretia's proposed second capital stage, and the program that computes it is being built right now, while ACT isn't trading yet: the least disruptive time to get the infrastructure right.</p>
           <div class="dhero-actions">
-            <a class="pill-btn pill-black" href="https://app.squads.so/squads/GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA" target="_blank" rel="noopener">View Treasury Multisig</a>
-            <a class="pill-btn pill-ghost" href="whitepaper.html#15-treasury-custody">Read Governance Docs</a>
+            <a class="pill-btn pill-black" href="#formula">Read the Formula</a>
+            <a class="pill-btn pill-ghost" href="whitepaper.html#30-tiered-access-through-act-staking">Section 30 of the Whitepaper</a>
           </div>
-          <div class="dhero-microcopy">No single wallet ever decides where funds go</div>
+          <div class="dhero-microcopy">Not live yet; see build status below</div>
         </div>
         <div class="dhero-visual">
-          <img src="assets/waste-to-energy.jpg" alt="Infrastructure funded through Aretia's milestone-verified treasury disbursements">
-          <div class="dhero-badge"><span class="chk">✓</span>2-of-3 Multisig, Live on Mainnet</div>
+          <div class="cas-tile">
+            <div class="cas-label">Capital Access Score</div>
+            <div class="cas-formula">CAS = amount × duration<br>&nbsp;&nbsp;&nbsp;&nbsp;multiplier ÷ 100</div>
+            <div class="cas-note">Computed on-chain from what you actually stake and how long you lock it, recalculated the moment either changes.</div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="block alt">
+  <section class="block" style="padding-bottom:24px;">
     <div class="wrap">
-      <div class="block-head">
-        <h2>Treasury &amp; custody</h2>
-        <p class="dek">The treasury is Aretia's catalyst fund: a standing, continuously replenished pool, not a one-time pledge or a grant round that depletes and has to be re-raised. Every trade tops it up again by protocol design, whether or not anyone is actively fundraising.</p>
-      </div>
-      <div class="split-grid">
-        <div class="info-card">
-          <div class="label"><span class="dot"></span>Custody</div>
-          <p>Accumulated fees settle into a Squads multisig, Solana's equivalent of Gnosis Safe, requiring multiple independent signers to approve any outbound disbursement. No single key can move treasury funds. Live on mainnet at <span class="mono">GtKGE6mQRj...bryZnA</span>, 2-of-3 threshold, real independent co-signers, with the full propose-approve-execute cycle already tested end to end.</p>
-        </div>
-        <div class="info-card">
-          <div class="label"><span class="dot"></span>Two forms of disbursement</div>
-          <p><strong style="color:var(--ink);">Grants:</strong> a lump-sum transfer to a vetted project partner not itself tokenized, such as a reforestation cooperative or community solar developer. <strong style="color:var(--ink);">Retirements:</strong> the treasury buys and permanently retires tokenized carbon credits on-chain, producing a provable, quantified tonnes-CO2 figure tied to a transaction hash.</p>
-        </div>
-      </div>
-      <div class="table-wrap" style="margin-top:24px;">
-        <table class="data-table">
-          <thead><tr><th>Functional allocation</th><th>Share</th></tr></thead>
-          <tbody>
-            <tr><td>Climate mitigation</td><td>60%</td></tr>
-            <tr><td>Climate adaptation</td><td>20%</td></tr>
-            <tr><td>Ecosystem development</td><td>10%</td></tr>
-            <tr><td>MRV / verification</td><td>5%</td></tr>
-            <tr><td>Emergency reserve</td><td>5%</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="fine">An illustrative starting configuration, revisable by Layer 1 governance through the defined procedure once it activates, not fixed by the mint. The separate 0.5% management fee that funds Aretia Finance LLC's operational costs (registry verification, report review, dashboard upkeep) settles in its own wallet, deliberately outside this multisig, so it can never be commingled with project-funding assets even by accident.</p>
-    </div>
-  </section>
-
-  <section class="block">
-    <div class="wrap">
-      <div class="block-head">
-        <h2>Governance: four layers, not one vote</h2>
-        <p class="dek">Flat "holders vote on every payout" governance breaks the moment a treasury is large enough to be worth attacking: a single well-organized proposal can extract real money from a naive vote. ACT governance runs in four layers instead.</p>
-      </div>
-      <ul class="layer-list">
-        <li><span class="lnum mono">01</span><div><h3>Community</h3><p>Token holders, via Realms / SPL Governance, vote on funding priorities, project categories, and treasury allocation weights, not individual project payouts.</p></div></li>
-        <li><span class="lnum mono">02</span><div><h3>Technical committee</h3><p>Domain experts screen individual project applications against climate-science credibility, MRV soundness, financial feasibility, and social/environmental risk.</p></div></li>
-        <li><span class="lnum mono">03</span><div><h3>Independent verification</h3><p>A party independent of both the protocol team and the project developer confirms a funded project actually did what it claimed, before further milestone funds release.</p></div></li>
-        <li><span class="lnum mono">04</span><div><h3>Smart-contract execution</h3><p>Funds move only after Layers 2 and 3 have both signed off on a given milestone. No human discretion is exercised at the point of transfer itself.</p></div></li>
-      </ul>
-      <p class="fine">Governance is phased in, not switched on at launch: the treasury runs on team-curated grants first, with Layer 1 voting handed over once there's a large enough, engaged holder base for it to be meaningful rather than symbolic.</p>
-    </div>
-  </section>
-
-  <section class="block alt">
-    <div class="wrap">
-      <div class="block-head">
-        <h2>Milestone financing</h2>
-        <p class="dek">Approved projects don't receive their full commitment as one lump sum.</p>
-      </div>
-      <div class="info-card" style="max-width:820px;">
-        <p>Capital releases in tranches tied to verified progress: an approval commits a total amount, then each tranche releases only after independent verification (Layer 3) confirms the prior milestone was actually met. This is the structural mechanism that keeps "the treasury financed a project" from silently meaning "the treasury sent money to a project that never finished."</p>
+      <div class="eyebrow">Build Status</div>
+      <div class="status-value">In Development</div>
+      <div class="status-change">Program designed and written; not yet compiled, not yet tested, not deployed to devnet or mainnet. Staking does not gate access to anything today.</div>
+      <div class="phase-pills">
+        <span class="phase-pill done">✓ Formula defined</span>
+        <span class="phase-pill done">✓ Program written</span>
+        <span class="phase-pill">Compiled &amp; tested locally</span>
+        <span class="phase-pill">Deployed to devnet</span>
+        <span class="phase-pill">Independent review</span>
+        <span class="phase-pill">Mainnet, real ACT</span>
       </div>
     </div>
   </section>
@@ -233,20 +217,90 @@
   <section class="block">
     <div class="wrap">
       <div class="block-head">
-        <h2>Project portfolio</h2>
-        <p class="dek">"Tied to many climate-friendly projects" means the treasury spreads across categories rather than committing to one. Each category carries its own diligence bar; none of this is decided by the smart contract, it's a curation and governance question that sits entirely off-chain.</p>
+        <h2>Why stake ACT</h2>
+        <p class="sub">Staking doesn't change what ACT does today: the transfer fee, the catalyst fund, and the treasury all work exactly as documented whether or not a single wallet ever stakes. What it adds is a way to start building standing now, before there's anything to have standing for.</p>
+      </div>
+      <div class="value-grid">
+        <div class="value-card">
+          <div class="vc-icon">◎</div>
+          <h3>Priority when Stage Two exists</h3>
+          <p>If the proposed project-finance marketplace in Part VIII of the whitepaper is ever built, staking tier is the proposed mechanism for who sees a project's data room first, not who gets to invest, just who gets to look first.</p>
+        </div>
+        <div class="value-card">
+          <div class="vc-icon">⏱</div>
+          <h3>Commitment is rewarded, not just size</h3>
+          <p>A longer lock earns a higher duration multiplier on top of the amount staked. Someone who commits ACT for a year builds a materially higher score per token than someone locking for a month.</p>
+        </div>
+        <div class="value-card">
+          <div class="vc-icon">⛓</div>
+          <h3>Computed on-chain, checkable by anyone</h3>
+          <p>Your score isn't a number in a database Aretia controls. It's stored in an account on Solana that any wallet, block explorer, or script can read directly, the same self-verification principle behind the mint checker on the Verify page.</p>
+        </div>
+        <div class="value-card">
+          <div class="vc-icon">↺</div>
+          <h3>Early participation compounds</h3>
+          <p>Because duration is part of the score, staking now, while there's no trading pressure and nothing urgent competing for the same ACT, builds age credit that a wallet staking the same amount later simply won't have yet.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt" id="formula">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>How the Capital Access Score works</h2>
+        <p class="sub">One formula, two inputs. Both tables below live in a governance-controlled config account on-chain: the treasury multisig can recalibrate the numbers later without redeploying the program, which matters because there's no real holder-distribution data to calibrate against yet. Treat every number here as a documented starting point, not a permanent constant.</p>
+      </div>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <table class="data-table">
+          <thead><tr><th>Lock period</th><th>Duration multiplier</th></tr></thead>
+          <tbody>
+            <tr><td>30 days</td><td class="tnum">1.00×</td></tr>
+            <tr><td>90 days</td><td class="tnum">1.30×</td></tr>
+            <tr><td>180 days</td><td class="tnum">1.75×</td></tr>
+            <tr><td>365 days</td><td class="tnum">2.60×</td></tr>
+          </tbody>
+        </table>
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Category</th><th>Verified output</th><th>Diligence standard</th></tr></thead>
+          <thead><tr><th>Tier</th><th>≈ Supply at 30-day lock</th><th>CAS threshold</th></tr></thead>
           <tbody>
-            <tr><td>Renewable energy</td><td>Metered generation capacity added</td><td>Independent engineering certification; interconnection or off-take documentation</td></tr>
-            <tr><td>Waste-to-energy</td><td>Waste diverted and energy generated</td><td>Facility operating permits, throughput metering, emissions monitored against a baseline</td></tr>
-            <tr><td>Carbon reduction</td><td>Emissions avoided or removed</td><td>Registry-issued credits: Verra, Gold Standard, or a comparable third-party MRV protocol</td></tr>
-            <tr><td>Technical assistance</td><td>Capacity delivered: studies, training, MRV systems built</td><td>Deliverable-based milestones; independent review of the technical work product</td></tr>
-            <tr><td>Flood mgmt. &amp; reforestation</td><td>Hectares restored; flood-risk reduction achieved</td><td>Remote-sensing canopy verification; hydrological modeling or post-event assessment</td></tr>
+            <tr><td>0 (Public)</td><td class="tnum">n/a</td><td>below 1,000,000</td></tr>
+            <tr><td>1 (Observer)</td><td class="tnum">0.10%</td><td class="tnum">≥ 1,000,000</td></tr>
+            <tr><td>2 (Participant)</td><td class="tnum">0.50%</td><td class="tnum">≥ 5,000,000</td></tr>
+            <tr><td>3 (Partner)</td><td class="tnum">2.00%</td><td class="tnum">≥ 20,000,000</td></tr>
+            <tr><td>4 (Anchor)</td><td class="tnum">7.50%</td><td class="tnum">≥ 75,000,000</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="block-head"><h2>What happens when you stake</h2></div>
+      <div class="steps">
+        <div class="step">
+          <div class="sn">01</div>
+          <h4>Choose amount &amp; lock</h4>
+          <p>Pick how much ACT to stake and one of four lock periods. Topping up an existing, still-locked position blends its age fairly rather than resetting the clock for free.</p>
+        </div>
+        <div class="step">
+          <div class="sn">02</div>
+          <h4>ACT moves to the vault</h4>
+          <p>Tokens transfer to a program-controlled vault, subject to the same transfer fee as any other ACT transfer. What's credited is the actual net amount received, not the amount you sent.</p>
+        </div>
+        <div class="step">
+          <div class="sn">03</div>
+          <h4>Score &amp; tier compute automatically</h4>
+          <p>CAS = amount × duration multiplier. The resulting tier is cached on your stake account, readable directly from the chain by any wallet or explorer.</p>
+        </div>
+        <div class="step">
+          <div class="sn">04</div>
+          <h4>Withdraw once the lock matures</h4>
+          <p>Unstaking is only possible after the chosen lock period ends, and the return transfer is subject to the transfer fee like any other ACT movement.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -254,41 +308,50 @@
   <section class="block alt">
     <div class="wrap">
       <div class="block-head">
-        <h2>Why Solana</h2>
-        <p class="dek">The deciding factor is native fee-on-transfer support, not raw transaction cost. Without it, the withholding mechanism would have to be bespoke program logic, written and audited specifically for this project instead of relying on infrastructure the entire ecosystem already uses correctly.</p>
+        <h2>What staking does not do <span class="phase-tag">Read this part</span></h2>
+        <p class="sub">Two rules from Section 30 of the whitepaper apply to this program without exception, and will keep applying no matter how the tier system is refined later.</p>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>Network</th><th>Fee per transfer</th><th>Native fee-on-transfer</th><th>USDT liquidity</th></tr></thead>
-          <tbody>
-            <tr><td>Solana</td><td>~$0.0003</td><td style="color:var(--green); font-weight:600;">Yes: Token-2022 extension</td><td>Native SPL USDT, deep on Raydium &amp; Orca</td></tr>
-            <tr><td>Base</td><td>~$0.01–0.05</td><td>No: custom contract logic</td><td>Bridged USDT</td></tr>
-            <tr><td>BNB Chain</td><td>~$0.10–0.30</td><td>No: custom contract logic</td><td>Deep, more centralized custody risk</td></tr>
-            <tr><td>Ethereum L1</td><td>$2–30+</td><td>No: custom contract logic</td><td>Deepest overall, expensive to disburse often</td></tr>
-          </tbody>
-        </table>
+      <div class="rule-grid">
+        <div class="rule-box">
+          <div class="rn">1</div>
+          <p><strong>No tier confers investor eligibility.</strong> A higher stake or a longer lock changes what a wallet can see and how early. It never changes whether that wallet is legally permitted to invest in anything. That's governed entirely by securities law in the holder's own jurisdiction, independent of anything staked.</p>
+        </div>
+        <div class="rule-box">
+          <div class="rn">2</div>
+          <p><strong>ACT's value is never tied to a gated project's returns.</strong> Staking ACT can grant visibility into a project's numbers. It never entitles a holder to a share of that project's cash flows, and ACT's own marketed value must never be represented as depending on how any gated project performs.</p>
+        </div>
+      </div>
+      <div class="warn-box" style="margin-top:20px;">
+        <p><strong>Also true today:</strong> Stage Two, the marketplace this tiering was proposed to gate, does not exist. No project has completed a full catalyst-fund cycle. Staking right now builds a real, on-chain, verifiable score; it does not currently unlock a data room, a listing, or an investment opportunity, because none exist yet. See Section 32 of the whitepaper for the five conditions that would need to be true before that changes.</p>
       </div>
     </div>
   </section>
 
-  <section class="block" style="text-align:center;">
-    <div class="wrap" style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-      <a class="pill-btn pill-black" href="index.html#buy">Buy ACT</a>
-      <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper →</a>
+  <section class="block">
+    <div class="wrap" style="text-align:center;">
+      <div class="block-head" style="margin-bottom:20px;">
+        <h2>Follow the build</h2>
+        <p class="sub" style="margin-left:auto; margin-right:auto;">The program's full design record, including account layout, fee-handling logic, and exactly what's tested versus what's still a draft, is public in the project repository alongside the rest of Aretia's on-chain work.</p>
+      </div>
+      <div class="dhero-actions" style="justify-content:center;">
+        <a class="pill-btn pill-black" href="whitepaper.html#30-tiered-access-through-act-staking">Read Section 30</a>
+        <a class="pill-btn pill-ghost" href="roadmap.html">See the Roadmap</a>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap">
+  <div class="wrap" style="max-width:1180px;">
     <div class="footer-links">
       <a href="whitepaper.html">Whitepaper</a>
       <a href="about.html">About</a>
       <a href="tokenomics.html">Tokenomics</a>
+      <a href="stake.html">Staking</a>
       <a href="roadmap.html">Roadmap</a>
       <a href="faq.html">FAQ</a>
     </div>
-    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice.</p>
+    <p class="legal">This site is a pre-launch preview and does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia (ACT) has not launched, has not been registered under the securities laws of any jurisdiction, and nothing on this site is investment advice. The staking program described on this page is under active development and is not yet deployed; no ACT can be staked today, and nothing described here has been independently reviewed or audited.</p>
     <div class="footer-meta">© 2026 Aretia</div>
   </div>
 </footer>

@@ -22,9 +22,8 @@ use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
-// PLACEHOLDER -- not a real deployed program id. Replace after
-// `anchor keygen new` per the note in Anchor.toml, before the first build.
-declare_id!("ActStk11111111111111111111111111111111111");
+// Generated via `solana-keygen new` on 2026-09-12 (see Anchor.toml). Not yet deployed.
+declare_id!("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const NUM_TIERS: usize = 5; // tier 0 (no stake) through tier 4

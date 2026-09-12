@@ -12,7 +12,7 @@
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
-    --bg: #FFFFFF; --bg-alt: #F7F7F9; --card: #FFFFFF;
+    --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
@@ -78,7 +78,7 @@
   .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 280px; background: #F0D879; }
   .dhero-visual img { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; }
   .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: #17150C; max-width: calc(100% - 40px); }
-  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #2A4BFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: #A9791B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
   @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
 
   .lead-in { font-size: clamp(1.5rem, 2.8vw, 2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.4; max-width: 78ch; color: var(--ink); }
@@ -88,13 +88,13 @@
   .phase:last-child { border-bottom: none; }
   .phase-badge { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink-faint); }
   .phase-badge .n { display: block; font-size: 28px; font-weight: 700; color: var(--border); line-height: 1; margin-bottom: 6px; font-family: var(--font-sans); }
-  .phase.current .phase-badge .n { color: var(--blue); }
+  .phase.current .phase-badge .n { color: var(--amber); }
   .phase h3 { font-size: 17px; margin-bottom: 4px; }
-  .phase .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue); background: var(--blue-soft); padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
+  .phase .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: var(--amber-soft); padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
   .phase p.summary { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0 14px; max-width: 62ch; line-height: 1.6; }
   .item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
   .item-list li { display: flex; gap: 10px; font-size: 13.5px; color: var(--ink-soft); align-items: flex-start; line-height: 1.55; }
-  .item-list a { color: var(--blue); font-weight: 600; }
+  .item-list a { color: var(--amber); font-weight: 600; }
   .item-list .mark { flex: none; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; margin-top: 1px; }
   .item-list .mark.done { background: var(--green-soft); color: var(--green); }
   .item-list .mark.pending { background: var(--bg-alt); color: var(--ink-faint); border: 1px solid var(--border); }

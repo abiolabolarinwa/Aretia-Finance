@@ -136,20 +136,22 @@
   .feature-item h3 { font-size: 16.5px; color: var(--ink); margin-bottom: 10px; }
   .feature-item p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; max-width: 34ch; }
 
-  /* -------- Stats + category collage -------- */
-  .stats-split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-top: 48px; min-width: 0; }
-  .stats-split > * { min-width: 0; }
-  @media (max-width: 860px) { .stats-split { grid-template-columns: 1fr; gap: 36px; } }
+  /* -------- Funding categories (doola-style: centered header, pastel cards) -------- */
   .stat-block { padding: 24px 0; border-top: 1px solid var(--border); }
   .stat-block:first-child { border-top: none; padding-top: 0; }
   .stat-figure { font-family: var(--mono); font-size: clamp(22px, 6.5vw, 34px); font-weight: 700; color: var(--ink); }
   .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
-  .cat-collage { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; min-width: 0; }
-  .cat-chip { min-width: 0; aspect-ratio: 1; border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px 10px; gap: 12px; border: 1px solid var(--border); transition: transform 200ms var(--ease), border-color 200ms var(--ease), box-shadow 200ms var(--ease); }
-  .cat-chip:hover { transform: translateY(-3px); border-color: var(--ink-faint); box-shadow: 0 10px 24px -14px rgba(10,12,16,.22); }
-  .cat-chip .ic { width: 54px; height: 54px; border-radius: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
-  .cat-chip .ic svg { width: 27px; height: 27px; }
-  .cat-chip .lb { font-size: 11.5px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+  .cat-stats-row { display: flex; justify-content: center; gap: 56px; flex-wrap: wrap; text-align: center; margin: 0 auto 48px; }
+  .cat-stats-row .stat-block { border-top: none; padding: 0; max-width: 300px; }
+  .cat-stats-row .stat-label { margin-left: auto; margin-right: auto; }
+  .cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; min-width: 0; }
+  @media (max-width: 760px) { .cat-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .cat-grid { grid-template-columns: 1fr; } }
+  .cat-card { min-width: 0; border-radius: var(--r-lg); padding: 28px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; transition: transform 200ms var(--ease); }
+  .cat-card:hover { transform: translateY(-3px); }
+  .cat-card .cat-tile { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
+  .cat-card .cat-tile svg { width: 26px; height: 26px; }
+  .cat-card .cat-name { font-size: 14px; font-weight: 700; color: var(--ink); }
 
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 52px; }
@@ -176,10 +178,6 @@
   .hiw-badge { width: 38px; height: 38px; border-radius: 50%; background: var(--black); color: #fff; font-family: var(--mono); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
   .hiw-step h3 { font-size: 14.5px; color: var(--ink); margin-bottom: 8px; }
   .hiw-step p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 26ch; margin: 0 auto; }
-
-  /* -------- Final: get ACT -------- */
-  .final-left h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); color: var(--ink); margin-bottom: 16px; }
-  .final-left p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; max-width: 42ch; margin-bottom: 0; }
 
   /* -------- Trade drawer (right-side slide-out) -------- */
   .trade-overlay { position: fixed; inset: 0; background: rgba(14,15,18,.42); opacity: 0; visibility: hidden; transition: opacity 220ms var(--ease); z-index: 200; }
@@ -222,16 +220,6 @@
   .builton-strip .lbl { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
   .builton-logos { display: flex; justify-content: center; gap: 36px; flex-wrap: wrap; }
   .builton-logos span { font-size: 15px; font-weight: 800; color: var(--ink-faint); letter-spacing: -0.01em; }
-
-  /* -------- Differentiator pastel cards -------- */
-  .diff-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 48px; }
-  @media (max-width: 1020px) { .diff-grid { grid-template-columns: repeat(3, 1fr); } }
-  @media (max-width: 640px) { .diff-grid { grid-template-columns: 1fr 1fr; } }
-  .diff-card { border-radius: var(--r-lg); padding: 24px 20px; min-height: 190px; display: flex; flex-direction: column; }
-  .diff-card .ic { width: 38px; height: 38px; border-radius: 11px; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
-  .diff-card .ic svg { width: 19px; height: 19px; }
-  .diff-card h3 { font-size: 14.5px; margin-bottom: 8px; }
-  .diff-card p { font-size: 12px; line-height: 1.55; color: var(--ink-soft); }
 
   /* -------- Tabbed protocol showcase -------- */
   .suite-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 0 0 40px; border-bottom: 1px solid var(--border-soft); }
@@ -561,119 +549,83 @@
     </div>
   </section>
 
-  <!-- ============ WHY ARETIA: 5 DIFFERENTIATOR CARDS ============ -->
-  <section class="block">
-    <div class="wrap">
-      <div class="sec-head">
-        <div class="sec-eyebrow">Why Aretia</div>
-        <h2>Five things that make this different from a promise.</h2>
-      </div>
-      <div class="diff-grid">
-        <div class="diff-card" style="background:var(--blue-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
-          <h3>Protocol-Enforced</h3>
-          <p>The transfer fee is withheld automatically by the Token-2022 standard itself, not by custom logic Aretia wrote or could quietly change.</p>
-        </div>
-        <div class="diff-card" style="background:var(--green-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-          <h3>Independently Verified</h3>
-          <p>Every check in the Verification tool queries Solana mainnet directly from your own browser, live, right now.</p>
-        </div>
-        <div class="diff-card" style="background:var(--amber-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
-          <h3>Multisig Custody</h3>
-          <p>2-of-3 treasury approval for every disbursement. No single wallet, including ours, can move capital alone.</p>
-        </div>
-        <div class="diff-card" style="background:var(--pink-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8a7 7 0 0114 0M5 16a7 7 0 0014 0"/></svg></div>
-          <h3>Fixed Supply, Revoked Authority</h3>
-          <p>1,000,000,000 ACT, permanently. Mint authority was revoked immediately after the single initial mint; no more can ever be created.</p>
-        </div>
-        <div class="diff-card" style="background:var(--cyan-soft);">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></div>
-          <h3>Milestone-Verified Disbursement</h3>
-          <p>Capital releases in tranches against independently verified progress, never a lump sum against a single approval.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ STATS + CATEGORY COLLAGE ============ -->
+  <!-- ============ FUNDING CATEGORIES (doola-style: centered header, pastel cards) ============ -->
   <section class="block alt" id="categories">
     <div class="wrap">
-      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); max-width:18ch;">See exactly where capital goes before it's disbursed.</h2>
-      <div class="stats-split">
-        <div>
-          <div class="stat-block">
-            <div class="stat-figure">1,000,000,000</div>
-            <div class="stat-label">Fixed ACT supply. Mint authority revoked immediately after the single initial mint.</div>
-          </div>
-          <div class="stat-block">
-            <div class="stat-figure">5</div>
-            <div class="stat-label">Funding categories, each held to a diligence standard appropriate to its specific claim.</div>
-          </div>
+      <div class="sec-head">
+        <div class="sec-eyebrow">Funding Categories</div>
+        <h2>See exactly where capital goes before it's disbursed.</h2>
+      </div>
+      <div class="cat-stats-row">
+        <div class="stat-block">
+          <div class="stat-figure">1,000,000,000</div>
+          <div class="stat-label">Fixed ACT supply. Mint authority revoked immediately after the single initial mint.</div>
         </div>
-        <div class="cat-collage">
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="3"/>
-                <path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/>
-                <rect x="6" y="16" width="12" height="6" rx="1"/>
-                <path d="M9 16v6M15 16v6M6 19h12"/>
-              </svg>
-            </span>
-            <span class="lb">Renewable Energy</span>
+        <div class="stat-block">
+          <div class="stat-figure">5</div>
+          <div class="stat-label">Funding categories, each held to a diligence standard appropriate to its specific claim.</div>
+        </div>
+      </div>
+      <div class="cat-grid">
+        <div class="cat-card" style="background:var(--blue-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3"/>
+              <path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/>
+              <rect x="6" y="16" width="12" height="6" rx="1"/>
+              <path d="M9 16v6M15 16v6M6 19h12"/>
+            </svg>
           </div>
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--green-soft); color:var(--green);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 6h7"/>
-                <path d="M5 6l.8 11a1 1 0 001 1h1.4"/>
-                <path d="M6.5 6l.4-1.6h2.2l.4 1.6"/>
-                <path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/>
-              </svg>
-            </span>
-            <span class="lb">Waste-to-Energy</span>
+          <div class="cat-name">Renewable Energy</div>
+        </div>
+        <div class="cat-card" style="background:var(--green-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h7"/>
+              <path d="M5 6l.8 11a1 1 0 001 1h1.4"/>
+              <path d="M6.5 6l.4-1.6h2.2l.4 1.6"/>
+              <path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/>
+            </svg>
           </div>
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--amber-soft); color:var(--amber);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/>
-                <path d="M12 20c-.7-5 .3-11 5-15.5"/>
-                <path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/>
-              </svg>
-            </span>
-            <span class="lb">Carbon Reduction</span>
+          <div class="cat-name">Waste-to-Energy</div>
+        </div>
+        <div class="cat-card" style="background:var(--amber-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/>
+              <path d="M12 20c-.7-5 .3-11 5-15.5"/>
+              <path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/>
+            </svg>
           </div>
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--pink-soft); color:var(--pink);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
-              </svg>
-            </span>
-            <span class="lb">Technical Assistance</span>
+          <div class="cat-name">Carbon Reduction</div>
+        </div>
+        <div class="cat-card" style="background:var(--pink-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/>
+            </svg>
           </div>
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--cyan-soft); color:var(--cyan);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
-                <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
-                <path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
-              </svg>
-            </span>
-            <span class="lb">Flood Management</span>
+          <div class="cat-name">Technical Assistance</div>
+        </div>
+        <div class="cat-card" style="background:var(--cyan-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>
+              <path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+              <path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/>
+            </svg>
           </div>
-          <div class="cat-chip">
-            <span class="ic" style="background:var(--blue-soft); color:var(--blue);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
-                <path d="M12 15v6"/>
-                <path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/>
-              </svg>
-            </span>
-            <span class="lb">Reforestation</span>
+          <div class="cat-name">Flood Management</div>
+        </div>
+        <div class="cat-card" style="background:var(--blue-soft);">
+          <div class="cat-tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/>
+              <path d="M12 15v6"/>
+              <path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/>
+            </svg>
           </div>
+          <div class="cat-name">Reforestation</div>
         </div>
       </div>
     </div>
@@ -812,28 +764,16 @@
     </div>
   </section>
 
-  <!-- ============ GET ACT ============ -->
-  <section class="block alt" id="buy">
-    <div class="wrap">
-      <div class="final-left" style="max-width:560px; margin:0 auto; text-align:center;">
-        <div style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px;">ACT</div>
-        <h2>ACT is the protocol's economic mechanism.</h2>
-        <p style="margin-left:auto; margin-right:auto;">ACT trades openly on Solana, no gatekeeping, no custom program required. It exists to fund the protocol described above, not the other way around.</p>
-        <div style="margin-top:26px;">
-          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ FINAL CTA (cream band, bookends the hero) ============ -->
-  <section class="block final-cta-band">
+  <!-- ============ FINAL CTA (cream band, bookends the hero; merges the old GET ACT section) ============ -->
+  <section class="block final-cta-band" id="buy">
     <div class="wrap">
       <div class="final-cta">
+        <div class="sec-eyebrow">ACT</div>
         <h2>Climate finance should be measurable. Capital should be accountable.</h2>
-        <p>Build with Aretia.</p>
+        <p>ACT is the protocol's economic mechanism: it trades openly on Solana, no gatekeeping, no custom program required, built to fund the protocol described above, not the other way around.</p>
         <div class="final-actions">
-          <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
+          <a class="pill-btn pill-ghost" href="apply.html">Apply for Funding</a>
           <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper</a>
         </div>
       </div>

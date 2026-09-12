@@ -15,6 +15,12 @@ wallets/
 # Dependencies
 node_modules/
 
+# Anchor/Rust build output (regeneratable, not source; program keypairs
+# under target/deploy/ are covered by the *-keypair.json rule above too)
+program/*/target/
+program/*/.anchor/
+program/*/Cargo.lock
+
 # Local Solana test validator data (large, regeneratable, not source)
 devnet/test-ledger/
 *.log

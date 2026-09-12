@@ -115,7 +115,18 @@ async function main() {
   // 3. Build the initialize_config instruction.
   //    Args: tiers: [u64; 5], duration_days: [u16; 4], duration_multiplier: [u16; 4]
   //    Fixed-size Rust arrays borsh-encode with NO length prefix.
-  const tiers = [0, 1_000_000, 5_000_000, 20_000_000, 75_000_000];
+  //
+  //    IMPORTANT: CAS (and therefore these thresholds) operates on raw
+  //    base units, not whole tokens. STAKING_DESIGN.md's table states
+  //    thresholds like "1,000,000" meaning 1,000,000 whole ACT (9
+  //    decimals) -- scale by 10^9 here or every stake instantly maxes
+  //    out the top tier. Confirmed the hard way: the very first devnet
+  //    initialize_config call used the unscaled numbers directly, and
+  //    stake-unstake-devnet-test.mjs caught it staking a mere 2 tokens
+  //    straight to tier 4. Fixed on devnet via
+  //    fix-tier-thresholds-devnet.mjs; fixed here so a future fresh
+  //    initialize_config doesn't repeat it.
+  const tiers = [0, 1_000_000, 5_000_000, 20_000_000, 75_000_000].map((t) => t * 1_000_000_000);
   const durationDays = [30, 90, 180, 365];
   const durationMultiplier = [100, 130, 175, 260];
 

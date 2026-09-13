@@ -85,11 +85,51 @@
   .lead-in { font-size: clamp(1.65rem, 3.2vw, 2.3rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.35; max-width: 78ch; color: var(--ink); }
   .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
 
-  .phase { display: grid; grid-template-columns: 64px 1fr; gap: 22px; padding: 32px 0; border-bottom: 1px solid var(--border-soft); }
+  /* -------- Road overview banner (desktop): a winding road, 5 stops, the
+     Aretia mark riding it as the "you are here, still moving" indicator -------- */
+  .road-banner { display: none; }
+  @media (min-width: 860px) {
+    .road-banner { display: block; padding: 10px 0 8px; }
+  }
+  .road-stage { position: relative; width: 100%; aspect-ratio: 1160 / 220; }
+  .road-stage svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .road-bed { fill: none; stroke: #EADCA9; stroke-width: 26; stroke-linecap: round; stroke-linejoin: round; }
+  .road-traveled { fill: none; stroke: var(--amber); stroke-width: 26; stroke-linecap: round; }
+  .road-centerline { fill: none; stroke: #FFFDF3; stroke-width: 3; stroke-dasharray: 14 16; stroke-linecap: round; opacity: 0.85; }
+  .road-stop { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; }
+  .road-stop.above { flex-direction: column-reverse; }
+  .road-dot { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 2.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); font-weight: 800; font-size: 14px; color: var(--ink-faint); box-shadow: 0 4px 10px -4px rgba(20,15,0,.2); transition: transform 160ms var(--ease); }
+  .road-stop:hover .road-dot { transform: scale(1.08); }
+  .road-dot.current { background: var(--amber); border-color: var(--amber); color: #fff; box-shadow: 0 0 0 6px var(--amber-soft), 0 6px 14px -4px rgba(20,15,0,.3); }
+  .road-dot.proposed { border-style: dashed; color: var(--ink-faint); background: #fff; }
+  .road-label { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; background: rgba(255,255,255,.88); padding: 3px 9px; border-radius: 8px; }
+  .road-car { position: absolute; transform: translate(-50%, -50%); z-index: 5; }
+  .road-car img { display: block; width: 46px; height: 46px; border-radius: 50%; box-shadow: 0 12px 22px -8px rgba(23,21,12,.5), 0 0 0 4px #fff; animation: roadDrive 2.6s ease-in-out infinite; }
+  .road-car .trail { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); display: flex; gap: 3px; margin-right: 7px; }
+  .road-car .trail span { display: block; width: 11px; height: 3px; border-radius: 2px; background: var(--amber); opacity: .5; }
+  .road-car .trail span:nth-child(2) { width: 8px; opacity: .32; }
+  .road-car .trail span:nth-child(3) { width: 5px; opacity: .18; }
+  @keyframes roadDrive { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+  @media (prefers-reduced-motion: reduce) { .road-car img { animation: none; } }
+  .road-legend { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--ink-faint); }
+  .road-legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .road-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .road-legend .lg-live { background: var(--amber); }
+  .road-legend .lg-next { background: #fff; border: 2px solid var(--border); }
+  .road-legend .lg-proposed { background: #fff; border: 2px dashed var(--ink-faint); }
+
+  /* -------- Phase list: the same road, threaded vertically, every width -------- */
+  .phase { display: grid; grid-template-columns: 44px 1fr; gap: 20px; padding: 32px 0; border-bottom: 1px solid var(--border-soft); }
   .phase:last-child { border-bottom: none; }
-  .phase-badge { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink-faint); }
-  .phase-badge .n { display: block; font-size: 28px; font-weight: 700; color: var(--border); line-height: 1; margin-bottom: 6px; font-family: var(--font-sans); }
-  .phase.current .phase-badge .n { color: var(--amber); }
+  .phase-badge { display: flex; flex-direction: column; align-items: center; }
+  .phase-badge .dot { width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--border); background: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); font-weight: 800; font-size: 15px; color: var(--ink-faint); flex: none; position: relative; z-index: 1; }
+  .phase-badge .dot img { width: 27px; height: 27px; border-radius: 50%; }
+  .phase-badge .dot.current { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 6px var(--amber-soft); animation: dotPulse 2.4s ease-in-out infinite; }
+  .phase-badge .dot.proposed { border-style: dashed; }
+  .phase-badge .line { width: 2px; flex: 1; min-height: 24px; background: var(--border); margin-top: 8px; }
+  .phase.current .phase-badge .line { background: linear-gradient(var(--amber), var(--border)); }
+  @keyframes dotPulse { 0%, 100% { box-shadow: 0 0 0 6px var(--amber-soft); } 50% { box-shadow: 0 0 0 10px var(--amber-soft); } }
+  @media (prefers-reduced-motion: reduce) { .phase-badge .dot.current { animation: none; } }
   .phase h3 { font-size: 17px; margin-bottom: 4px; }
   .phase .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: var(--amber-soft); padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
   .phase p.summary { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0 14px; max-width: 62ch; line-height: 1.6; }
@@ -102,7 +142,7 @@
   .item-list .code { font-family: var(--mono); font-size: 12px; background: var(--bg-alt); padding: 1px 6px; border-radius: 5px; }
   .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; margin-top: 8px; }
   .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
-  @media (max-width: 600px) { .phase { grid-template-columns: 1fr; } .phase-badge { display: flex; align-items: center; gap: 10px; } .phase-badge .n { margin-bottom: 0; } }
+  @media (max-width: 600px) { .phase { grid-template-columns: 34px 1fr; gap: 14px; } .phase-badge .dot { width: 34px; height: 34px; font-size: 12.5px; } .phase-badge .dot img { width: 20px; height: 20px; } }
 
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -163,11 +203,52 @@
     </div>
   </section>
 
+  <section class="road-banner">
+    <div class="wrap">
+      <div class="road-stage">
+        <svg viewBox="0 0 1160 220" aria-hidden="true">
+          <path class="road-bed" d="M70,150 C170,150 230,60 330,60 C430,60 500,150 600,150 C700,150 770,60 870,60 C970,60 1030,150 1090,150"/>
+          <path class="road-traveled" d="M70,150 C92,150 112,145.6 130,139"/>
+          <path class="road-centerline" d="M70,150 C170,150 230,60 330,60 C430,60 500,150 600,150 C700,150 770,60 870,60 C970,60 1030,150 1090,150"/>
+        </svg>
+        <div class="road-car" style="left:11.21%; top:63.18%;">
+          <span class="trail"><span></span><span></span><span></span></span>
+          <img src="assets/logo-mark.png" alt="">
+        </div>
+        <a href="#phase-1" class="road-stop below" style="left:6.03%; top:68.18%;">
+          <span class="road-dot current">01</span>
+          <span class="road-label">Foundation</span>
+        </a>
+        <a href="#phase-2" class="road-stop above" style="left:28.45%; top:27.27%;">
+          <span class="road-dot">02</span>
+          <span class="road-label">Climate finance</span>
+        </a>
+        <a href="#phase-3" class="road-stop below" style="left:51.72%; top:68.18%;">
+          <span class="road-dot">03</span>
+          <span class="road-label">MRV</span>
+        </a>
+        <a href="#phase-4" class="road-stop above" style="left:75%; top:27.27%;">
+          <span class="road-dot">04</span>
+          <span class="road-label">Global protocol</span>
+        </a>
+        <a href="#phase-5" class="road-stop below" style="left:93.97%; top:68.18%;">
+          <span class="road-dot proposed">05</span>
+          <span class="road-label">Capital marketplace</span>
+        </a>
+      </div>
+      <div class="road-legend">
+        <span><i class="lg-live"></i>Live now, moving</span>
+        <span><i class="lg-next"></i>Upcoming</span>
+        <span><i class="lg-proposed"></i>Proposed, not started</span>
+      </div>
+    </div>
+  </section>
+
   <section class="block alt">
     <div class="wrap">
 
-      <div class="phase current">
-        <div class="phase-badge"><span class="n">01</span>Current</div>
+      <div class="phase current" id="phase-1">
+        <div class="phase-badge"><span class="dot current"><img src="assets/logo-mark.png" alt=""></span><span class="line"></span></div>
         <div>
           <h3>Foundation <span class="phase-tag">In progress</span></h3>
           <p class="summary">Mostly what's already built: the token, the treasury, and the application intake are live. The public dashboard, on-chain governance, and a formal project registry are not yet.</p>
@@ -184,32 +265,32 @@
         </div>
       </div>
 
-      <div class="phase">
-        <div class="phase-badge"><span class="n">02</span></div>
+      <div class="phase" id="phase-2">
+        <div class="phase-badge"><span class="dot">02</span><span class="line"></span></div>
         <div>
           <h3>Climate finance</h3>
           <p class="summary">Project scoring (Layer 2), funding proposals, milestone-gated funding, and independent verification (Layer 3): turning the application intake into an actual funding pipeline.</p>
         </div>
       </div>
 
-      <div class="phase">
-        <div class="phase-badge"><span class="n">03</span></div>
+      <div class="phase" id="phase-3">
+        <div class="phase-badge"><span class="dot">03</span><span class="line"></span></div>
         <div>
           <h3>MRV</h3>
           <p class="summary">Project monitoring, climate-impact measurement, emissions accounting, satellite/geospatial data integration, climate-risk data, independent verification infrastructure, and incentive-token mechanics for ecosystem contributors.</p>
         </div>
       </div>
 
-      <div class="phase">
-        <div class="phase-badge"><span class="n">04</span></div>
+      <div class="phase" id="phase-4">
+        <div class="phase-badge"><span class="dot">04</span><span class="line"></span></div>
         <div>
           <h3>Global protocol</h3>
           <p class="summary">Multiple countries and project types, institutional participation, project developers, climate funds, NGOs, additional validators and verifiers, and potentially multi-chain deployment.</p>
         </div>
       </div>
 
-      <div class="phase">
-        <div class="phase-badge"><span class="n">05</span></div>
+      <div class="phase" id="phase-5">
+        <div class="phase-badge"><span class="dot proposed">05</span><span class="line"></span></div>
         <div>
           <h3>Climate capital marketplace <span class="phase-tag" style="background:var(--bg-alt); color:var(--ink-faint);">Proposed</span></h3>
           <p class="summary">A proposed second capital stage, described in full in <a href="whitepaper.html#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Part VIII of the whitepaper</a>: projects that complete a full Catalyst Fund cycle could graduate into a separately instrumented investment opportunity (an SPV, fund unit, or similar vehicle), with ACT staking gating priority visibility and access, never ownership of the project itself. The investment-vehicle side of this phase is explicitly not started and does not begin until five conditions are all met: Aretia's operating entity is actually and verifiably registered; liquidity is seeded and ACT is trading; at least one Phase 2 grant has completed a full cycle end to end; the independent program review referenced above is complete; and a single project investment vehicle has been structured once, properly, with qualified securities counsel. The staking mechanism this phase would eventually gate access through is a separate, earlier piece of work already underway: its formula and on-chain program are compiled and live on Solana devnet, with locking and unlocking tested there against real transactions, though not yet on mainnet or independently reviewed. See <a href="stake.html">Staking</a> for current status. Staking working does not mean, and is not treated as, any of the five conditions above being met.</p>

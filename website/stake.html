@@ -117,9 +117,10 @@
   .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: #fff; padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
   .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; }
   .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
-  .rule-box { background: #fff; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; display: flex; gap: 14px; align-items: flex-start; }
-  .rule-box .rn { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--black); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-  .rule-box p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .rule-box { position: relative; overflow: hidden; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; display: flex; gap: 14px; align-items: flex-start; }
+  .rule-box .rn { position: relative; z-index: 1; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--black); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .rule-box p { position: relative; z-index: 1; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .rule-box .rule-bleed { position: absolute; right: -18px; bottom: -18px; width: 90px; height: 90px; opacity: .14; pointer-events: none; }
   .rule-box strong { color: var(--ink); }
   .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 760px) { .rule-grid { grid-template-columns: 1fr; } }
@@ -127,10 +128,13 @@
   .steps { counter-reset: step; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
   @media (max-width: 980px) { .steps { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
-  .step { position: relative; padding-left: 2px; }
-  .step .sn { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--border); line-height: 1; margin-bottom: 10px; }
+  .step { position: relative; overflow: hidden; border-radius: var(--r-md); padding: 22px 20px 20px; }
+  .step .sn { position: relative; z-index: 1; font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--ink-faint); line-height: 1; }
+  .step .icon { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); margin: 10px 0 12px; }
+  .step h4, .step p { position: relative; z-index: 1; }
   .step h4 { font-size: 14.5px; margin-bottom: 6px; }
   .step p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+  .step .step-bleed { position: absolute; right: -18px; bottom: -18px; width: 90px; height: 90px; opacity: .14; pointer-events: none; }
 
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -280,25 +284,33 @@
     <div class="wrap">
       <div class="block-head"><h2>What happens when you stake</h2></div>
       <div class="steps">
-        <div class="step">
+        <div class="step" style="background:var(--green-soft);">
           <div class="sn">01</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
           <h4>Choose amount &amp; lock</h4>
           <p>Pick how much ACT to stake and one of four lock periods. Topping up an existing, still-locked position blends its age fairly rather than resetting the clock for free.</p>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
         </div>
-        <div class="step">
+        <div class="step" style="background:var(--blue-soft);">
           <div class="sn">02</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="3" y="10" width="18" height="10" rx="2"/><path d="M12 3v9M8 8l4-4 4 4"/></svg></div>
           <h4>ACT moves to the vault</h4>
           <p>Tokens transfer to a program-controlled vault, subject to the same transfer fee as any other ACT transfer. What's credited is the actual net amount received, not the amount you sent.</p>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="10" rx="2"/><path d="M12 3v9M8 8l4-4 4 4"/></svg>
         </div>
-        <div class="step">
+        <div class="step" style="background:var(--pink-soft);">
           <div class="sn">03</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M12 12l5-5"/><circle cx="12" cy="12" r="9"/><path d="M8 16a6 6 0 018-8"/></svg></div>
           <h4>Score &amp; tier compute automatically</h4>
           <p>CAS = amount × duration multiplier. The resulting tier is cached on your stake account, readable directly from the chain by any wallet or explorer.</p>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12l5-5"/><circle cx="12" cy="12" r="9"/><path d="M8 16a6 6 0 018-8"/></svg>
         </div>
-        <div class="step">
+        <div class="step" style="background:var(--amber-soft);">
           <div class="sn">04</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/></svg></div>
           <h4>Withdraw once the lock matures</h4>
           <p>Unstaking is only possible after the chosen lock period ends, and the return transfer is subject to the transfer fee like any other ACT movement.</p>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>
         </div>
       </div>
     </div>
@@ -311,13 +323,15 @@
         <p class="sub">Two rules from Section 30 of the whitepaper apply to this program without exception, and will keep applying no matter how the tier system is refined later.</p>
       </div>
       <div class="rule-grid">
-        <div class="rule-box">
+        <div class="rule-box" style="background:var(--amber-soft);">
           <div class="rn">1</div>
           <p><strong>No tier confers investor eligibility.</strong> A higher stake or a longer lock changes what a wallet can see and how early. It never changes whether that wallet is legally permitted to invest in anything. That's governed entirely by securities law in the holder's own jurisdiction, independent of anything staked.</p>
+          <svg class="rule-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7l-3 6a3 3 0 006 0z"/><path d="M19 7l-3 6a3 3 0 006 0z"/><path d="M5 7h14"/><path d="M8 21h8"/></svg>
         </div>
-        <div class="rule-box">
+        <div class="rule-box" style="background:var(--amber-soft);">
           <div class="rn">2</div>
           <p><strong>ACT's value is never tied to a gated project's returns.</strong> Staking ACT can grant visibility into a project's numbers. It never entitles a holder to a share of that project's cash flows, and ACT's own marketed value must never be represented as depending on how any gated project performs.</p>
+          <svg class="rule-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7l-3 6a3 3 0 006 0z"/><path d="M19 7l-3 6a3 3 0 006 0z"/><path d="M5 7h14"/><path d="M8 21h8"/></svg>
         </div>
       </div>
       <div class="warn-box" style="margin-top:20px;">

@@ -15,6 +15,7 @@
     --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
+    --brand: #190880; --brand-hover: #100553;
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
@@ -40,8 +41,8 @@
 
   .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
   .pill-btn:active { transform: scale(0.97); }
-  .pill-black { background: var(--black); color: #fff; }
-  .pill-black:hover { background: var(--black-hover); }
+  .pill-black { background: var(--brand); color: #fff; }
+  .pill-black:hover { background: var(--brand-hover); }
   .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
   .pill-ghost:hover { background: var(--bg-alt); }
 
@@ -75,7 +76,7 @@
   .dhero h1 .hl { color: #A9791B; }
   .dhero-sub { font-size: 15px; color: #4A4227; max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
-  .dhero .pill-black { background: #101114; }
+  .dhero .pill-black { background: var(--brand); }
   .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
   .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: #F0D879; }
   .dhero-visual img { width: 100%; height: 100%; min-height: 400px; object-fit: cover; display: block; }

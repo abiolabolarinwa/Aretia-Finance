@@ -15,6 +15,7 @@
     --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
+    --brand: #190880; --brand-hover: #100553;
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
@@ -42,8 +43,8 @@
 
   .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
   .pill-btn:active { transform: scale(0.97); }
-  .pill-black { background: var(--black); color: #fff; }
-  .pill-black:hover { background: var(--black-hover); }
+  .pill-black { background: var(--brand); color: #fff; }
+  .pill-black:hover { background: var(--brand-hover); }
   .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
   .pill-ghost:hover { background: var(--bg-alt); }
 
@@ -75,7 +76,7 @@
   .hero h1 .hl { color: #A9791B; }
   .hero-sub { font-size: 15.5px; color: #4A4227; max-width: 46ch; margin: 0 0 28px; line-height: 1.65; text-align: left; }
   .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; margin-bottom: 20px; }
-  .hero .pill-black { background: #101114; }
+  .hero .pill-black { background: var(--brand); }
   .hero .pill-ghost-link { font-size: 13px; font-weight: 600; color: #7A6420; text-decoration: underline; text-underline-offset: 3px; }
   .hero-trust { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #4A4227; font-weight: 600; }
   .hero-trust .dot-check { width: 16px; height: 16px; border-radius: 50%; background: #1E8A5F; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; flex: none; }

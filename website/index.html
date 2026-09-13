@@ -217,6 +217,8 @@
   .sec-head { text-align: center; max-width: 640px; margin: 0 auto 48px; }
   .sec-head h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); }
   .sec-head p { font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.65; }
+  .stake-priority-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; max-width: 920px; margin: 0 auto; }
+  @media (max-width: 760px) { .stake-priority-grid { grid-template-columns: 1fr; } }
   .pip-nowrap { white-space: nowrap; }
   @media (max-width: 860px) { .pip-nowrap { white-space: normal; } }
   .hl { color: var(--hero-amber); }
@@ -720,7 +722,39 @@
         <div class="hiw-step"><div class="hiw-badge">02</div><h3>Treasury</h3><p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p></div>
         <div class="hiw-step"><div class="hiw-badge">03</div><h3>Verification</h3><p>Projects clear category-specific diligence before reaching disbursement.</p></div>
         <div class="hiw-step"><div class="hiw-badge">04</div><h3>Disbursement</h3><p>Capital releases in tranches, each one a public, permanent transaction.</p></div>
-        <div class="hiw-step"><div class="hiw-badge">05</div><h3>Stake</h3><p>Holders can lock ACT to build a Capital Access Score for future tiered priority. In development, not live yet.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">05</div><h3>Stake</h3><p>Holders can lock ACT to build a Capital Access Score: the more staked and the longer it's locked, the earlier and deeper the priority access when catalyzed projects become investable. Tested on devnet, not live yet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STAKING -> PRIORITY ACCESS ============ -->
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Staking &amp; Access</div>
+        <h2>The more ACT you stake, the earlier you see what's investable.</h2>
+        <p>Projects that complete a full catalyst-fund cycle and clear underwriting are proposed to graduate into a separately instrumented investment opportunity, never routed through ACT itself. Staking tier decides who sees that opportunity first and in the most depth, not who's allowed to invest: eligibility to actually commit capital always depends on the holder's own jurisdiction and that instrument's own rules, never on ACT.</p>
+      </div>
+      <div class="stake-priority-grid">
+        <div style="background:var(--card); border:1px solid var(--border); border-radius:var(--r-lg); padding:26px 22px;">
+          <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">Step 1</div>
+          <h3 style="font-size:16px; margin-bottom:8px;">Lock ACT for a chosen duration</h3>
+          <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">Amount and duration together compute a Capital Access Score, verifiable on-chain by anyone.</p>
+        </div>
+        <div style="background:var(--card); border:1px solid var(--border); border-radius:var(--r-lg); padding:26px 22px;">
+          <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">Step 2</div>
+          <h3 style="font-size:16px; margin-bottom:8px;">Build tier standing early</h3>
+          <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">Staking now, before Stage Two exists, builds real duration credit a later staker simply won't have yet.</p>
+        </div>
+        <div style="background:var(--card); border:1px solid var(--border); border-radius:var(--r-lg); padding:26px 22px;">
+          <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">Step 3</div>
+          <h3 style="font-size:16px; margin-bottom:8px;">See catalyzed projects first</h3>
+          <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">Higher tiers get earlier notice and deeper access as projects clear underwriting, once this stage is built.</p>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:32px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+        <a class="pill-btn pill-black" href="stake.html">See the Staking Mechanics</a>
+        <a class="pill-btn pill-ghost" href="whitepaper.html#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Read Part VIII of the Whitepaper</a>
       </div>
     </div>
   </section>

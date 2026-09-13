@@ -122,6 +122,22 @@ pub mod act_staking {
         Ok(())
     }
 
+    /// Hands `config.authority` off to a new key, signed by the current
+    /// authority. Added after `initialize_config` shipped with no way to
+    /// ever move this authority once set -- confirmed the hard way on
+    /// devnet, where the config's authority sat on a throwaway deployer
+    /// key with no instruction able to fix it. This is exactly that fix,
+    /// deliberately narrow: it changes nothing else about the account.
+    pub fn set_config_authority(ctx: Context<UpdateConfig>, new_authority: Pubkey) -> Result<()> {
+        require_keys_neq!(
+            new_authority,
+            Pubkey::default(),
+            StakingError::InvalidNewAuthority
+        );
+        ctx.accounts.config.authority = new_authority;
+        Ok(())
+    }
+
     /// Lock `amount` (gross, pre-fee) ACT for `lock_days`. `lock_days`
     /// must match one of the four configured options. Topping up an
     /// existing, still-locked position blends the stake's age by a
@@ -144,8 +160,18 @@ pub mod act_staking {
         let has_existing = user_stake.amount > 0;
 
         if has_existing {
-            let remaining_days =
-                (user_stake.unlock_at.saturating_sub(now)).max(0) / SECONDS_PER_DAY;
+            // Ceiling division, not floor: with ~29 days 23 hours actually
+            // remaining, floor division reads 29 and would let lock_days=29
+            // pass the check below even though the resulting unlock_at lands
+            // nearly a full day earlier than the one already in force --
+            // shortening the lock by exactly the amount "cannot shorten"
+            // exists to prevent. Rounding the remaining time up to a whole
+            // day closes that gap.
+            let remaining_seconds = (user_stake.unlock_at.saturating_sub(now)).max(0);
+            let remaining_days = remaining_seconds
+                .checked_add(SECONDS_PER_DAY - 1)
+                .ok_or(StakingError::MathOverflow)?
+                / SECONDS_PER_DAY;
             require!(
                 (lock_days as i64) >= remaining_days,
                 StakingError::CannotShortenLock
@@ -446,4 +472,6 @@ pub enum StakingError {
     InvalidDurationTable,
     #[msg("Arithmetic overflow.")]
     MathOverflow,
+    #[msg("New authority cannot be the default (all-zero) pubkey.")]
+    InvalidNewAuthority,
 }

@@ -143,11 +143,12 @@
   .stat-figure { font-family: var(--mono); font-size: clamp(24px, 7vw, 38px); font-weight: 800; color: var(--ink); }
   .stat-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; max-width: 40ch; }
   .cat-card-featured { min-width: 0; border-radius: var(--r-lg); display: flex; flex-direction: row; align-items: stretch; text-align: left; overflow: hidden; }
-  .cat-card-featured .cat-tile { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
+  .cat-card-featured .cat-tile { position: relative; z-index: 1; width: 56px; height: 56px; border-radius: 16px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px -12px rgba(10,12,16,.18); flex: none; }
   .cat-card-featured .cat-tile svg { width: 26px; height: 26px; }
-  .cat-card-featured .cat-card-featured-text { flex: 1 1 42%; padding: 40px 44px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
-  .cat-card-featured .cat-name { text-align: left; font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 18px; }
-  .cat-card-desc { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 14px 0 0; text-align: left; max-width: 36ch; }
+  .cat-card-featured .cat-card-featured-text { position: relative; flex: 1 1 42%; padding: 40px 44px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+  .cat-card-featured .cat-bleed { position: absolute; right: -16px; bottom: -16px; width: 110px; height: 110px; opacity: .14; pointer-events: none; }
+  .cat-card-featured .cat-name { text-align: left; font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 18px; position: relative; z-index: 1; }
+  .cat-card-desc { position: relative; z-index: 1; font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 14px 0 0; text-align: left; max-width: 36ch; }
   .cat-card-desc strong { color: var(--ink); }
   .cat-card-img { flex: 1 1 55%; min-width: 0; }
   .cat-card-img img { width: 100%; height: 100%; min-height: 420px; object-fit: cover; display: block; }
@@ -170,11 +171,13 @@
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 52px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
-  .step-card { border-radius: var(--r-lg); padding: 36px 32px; }
-  .step-mock { background: #fff; border-radius: var(--r-sm); padding: 20px; margin-bottom: 24px; min-height: 120px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); font-size: 13px; }
+  .step-card { position: relative; overflow: hidden; border-radius: var(--r-lg); padding: 36px 32px; }
+  .step-mock { position: relative; z-index: 1; background: #fff; border-radius: var(--r-sm); padding: 20px; margin-bottom: 24px; min-height: 120px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); font-size: 13px; }
+  .step-card h3, .step-card p, .step-card .rm { position: relative; z-index: 1; }
   .step-card h3 { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 12px; }
   .step-card p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 18px; }
   .step-card .rm { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+  .step-card .step-bleed { position: absolute; right: -18px; bottom: -18px; width: 110px; height: 110px; opacity: .14; pointer-events: none; }
 
   /* -------- How it works (dotted-line steps) -------- */
   .hiw-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 56px; position: relative; }
@@ -271,14 +274,17 @@
   /* -------- Tokenomics "pricing-style" cards -------- */
   .tok-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   @media (max-width: 860px) { .tok-grid { grid-template-columns: 1fr; } }
-  .tok-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px 26px; background: #fff; position: relative; }
+  .tok-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px 26px; position: relative; overflow: hidden; }
   .tok-card.hl { border-color: var(--black); box-shadow: 0 20px 40px -28px rgba(10,12,16,.3); }
-  .tok-card .badge { position: absolute; top: -12px; left: 24px; background: var(--black); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 12px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .tok-card h3 { font-size: 15px; margin-bottom: 4px; }
+  .tok-card .badge { position: relative; z-index: 1; display: inline-block; margin-bottom: 14px; background: var(--black); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 12px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tok-card .tok-icon { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); margin-bottom: 14px; }
+  .tok-card h3, .tok-card .sub, .tok-card ul { position: relative; z-index: 1; }
+  .tok-card h3 { font-size: 15px; margin-bottom: 4px; color: var(--ink); }
   .tok-card .sub { font-size: 12px; color: var(--ink-faint); margin-bottom: 20px; }
   .tok-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
   .tok-card li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--ink-soft); }
   .tok-card li .tick { width: 16px; height: 16px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; flex: none; margin-top: 2px; }
+  .tok-card .tok-bleed { position: absolute; right: -18px; bottom: -18px; width: 100px; height: 100px; opacity: .14; pointer-events: none; }
 
   /* -------- FAQ accordion preview -------- */
   .faq-preview { max-width: 720px; margin: 0 auto; }
@@ -590,6 +596,7 @@
                   </div>
                   <div class="cat-name">Renewable Energy</div>
                   <p class="cat-card-desc">Aretia funds <strong>renewable energy</strong> projects verified against installed capacity and grid interconnection data before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3"/><path d="M12 2v1.4M12 12.6V14M6 8H4.6M19.4 8H18M7.8 3.8L6.8 2.8M17.2 3.8l1-1M7.8 12.2l-1 1M17.2 12.2l1 1"/><rect x="6" y="16" width="12" height="6" rx="1"/><path d="M9 16v6M15 16v6M6 19h12"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/solar-field.jpg" alt="Solar farm, a renewable energy project funded through Aretia's treasury"></div>
               </div>
@@ -607,6 +614,7 @@
                   </div>
                   <div class="cat-name">Waste-to-Energy</div>
                   <p class="cat-card-desc">Aretia funds <strong>waste-to-energy</strong> projects verified against processed tonnage and metered energy output before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h7"/><path d="M5 6l.8 11a1 1 0 001 1h1.4"/><path d="M6.5 6l.4-1.6h2.2l.4 1.6"/><path d="M13.5 7l-2.3 5h2.1l-1.1 5 4.4-6.8h-2.3z"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/waste-to-energy.jpg" alt="Waste-to-energy plant, a project category funded through Aretia's treasury"></div>
               </div>
@@ -623,6 +631,7 @@
                   </div>
                   <div class="cat-name">Carbon Reduction</div>
                   <p class="cat-card-desc">Aretia funds <strong>carbon reduction</strong> projects verified against independent, third-party emissions accounting before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21C6.5 19 5 13.5 6.5 8C9 3.5 13.5 2.5 18 4.5C17.7 10.5 15.5 17 12 21Z"/><path d="M12 20c-.7-5 .3-11 5-15.5"/><path d="M15.4 16.6l2.6 2.4M18 19v-2.6M18 19h-2.6"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/carbon-reduction.jpg" alt="Misty forest, a carbon reduction project category funded through Aretia's treasury"></div>
               </div>
@@ -637,6 +646,7 @@
                   </div>
                   <div class="cat-name">Technical Assistance</div>
                   <p class="cat-card-desc">Aretia funds <strong>technical assistance</strong> work verified against delivered training records and implementation outcomes before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a3.5 3.5 0 00-4.6 4.6L4.7 16.3a1.6 1.6 0 002.2 2.2l5.4-5.4a3.5 3.5 0 004.6-4.6l-2.4 2.4-2-2z"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/technical-assistance.jpg" alt="Technical assistance on solar infrastructure, a project category funded through Aretia's treasury"></div>
               </div>
@@ -653,6 +663,7 @@
                   </div>
                   <div class="cat-name">Flood Management</div>
                   <p class="cat-card-desc">Aretia funds <strong>flood management</strong> projects verified against completed mitigation infrastructure and hydrological monitoring data before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M6 13c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/><path d="M6 16c1.2-1 2.3-1 3.5 0s2.3 1 3.5 0 2.3-1 3.5 0"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/flood-management.jpg" alt="Flooded rural area, a flood management project category funded through Aretia's treasury"></div>
               </div>
@@ -669,6 +680,7 @@
                   </div>
                   <div class="cat-name">Reforestation</div>
                   <p class="cat-card-desc">Aretia funds <strong>reforestation</strong> projects verified against planted area and survival-rate monitoring before any capital moves.</p>
+                  <svg class="cat-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l3.6 4.5h-2.2l2.8 3.7H14l2.6 3.8H7.4L10 11.2H8.4l2.8-3.7H9z"/><path d="M12 15v6"/><path d="M12 21c-1.4-.9-2.4-.9-3.8 0M12 21c1.4-.9 2.4-.9 3.8 0"/></svg>
                 </div>
                 <div class="cat-card-img"><img src="assets/reforestation.jpg" alt="Reforestation work, a project category funded through Aretia's treasury"></div>
               </div>
@@ -695,18 +707,21 @@
           <h3>Apply</h3>
           <p>Project developers submit an application scoped to one of five funding categories.</p>
           <a class="rm" href="apply.html">Apply for Funding →</a>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         </div>
         <div class="step-card" style="background:var(--amber-soft);">
           <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
           <h3>Verify</h3>
           <p>A technical committee and independent verifier confirm each milestone before release.</p>
           <a class="rm" href="whitepaper.html">Read the Standards →</a>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
         </div>
         <div class="step-card" style="background:var(--green-soft);">
           <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
           <h3>Get Funded</h3>
           <p>Capital releases in tranches against verified progress, never a lump sum against a promise.</p>
           <a class="rm" href="verify.html">Verify a Disbursement →</a>
+          <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>
         </div>
       </div>
     </div>
@@ -767,7 +782,8 @@
         <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
       </div>
       <div class="tok-grid">
-        <div class="tok-card">
+        <div class="tok-card" style="background:var(--pink-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
           <h3>Fee Split</h3>
           <div class="sub">Every transfer, automatically</div>
           <ul>
@@ -776,9 +792,11 @@
             <li><span class="tick">✓</span>0.5% → Disclosed management fee</li>
             <li><span class="tick">✓</span>96.5% reaches the recipient net</li>
           </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
         </div>
-        <div class="tok-card hl">
+        <div class="tok-card hl" style="background:var(--blue-soft);">
           <span class="badge">Fixed Forever</span>
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
           <h3>Token</h3>
           <div class="sub">Solana · Token-2022</div>
           <ul>
@@ -787,8 +805,10 @@
             <li><span class="tick">✓</span>Freeze authority never granted</li>
             <li><span class="tick">✓</span>9 decimals</li>
           </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
         </div>
-        <div class="tok-card">
+        <div class="tok-card" style="background:var(--green-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg></div>
           <h3>Protocol</h3>
           <div class="sub">Custody &amp; governance</div>
           <ul>
@@ -797,6 +817,7 @@
             <li><span class="tick">✓</span>Milestone-verified disbursement</li>
             <li><span class="tick">✓</span>Live, independent verification tool</li>
           </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
         </div>
       </div>
       <div style="text-align:center; margin-top:32px;">

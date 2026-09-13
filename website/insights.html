@@ -19,6 +19,7 @@
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
+    --cyan: #0E7D8C; --cyan-soft: #DEF3F5;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -86,13 +87,16 @@
   .lead-in { font-size: clamp(1.65rem, 3.2vw, 2.3rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.35; max-width: 78ch; color: var(--ink); }
   .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
 
-  .insight-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 26px 28px; margin-bottom: 20px; }
+  .insight-card { position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 26px 28px; margin-bottom: 20px; }
+  .insight-card .icon { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .insight-card .tag, .insight-card h3, .insight-card p, .insight-card .ref { position: relative; z-index: 1; }
   .insight-card .tag { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: var(--amber-soft); padding: 4px 10px; border-radius: 8px; margin-bottom: 14px; }
   .insight-card h3 { font-size: 17px; margin-bottom: 10px; }
   .insight-card p { font-size: 14px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 12px; }
   .insight-card p:last-child { margin-bottom: 0; }
   .insight-card .ref { font-size: 12px; color: var(--ink-faint); }
   .insight-card a { color: var(--amber); font-weight: 600; }
+  .insight-card .insight-bleed { position: absolute; right: -20px; bottom: -20px; width: 110px; height: 110px; opacity: .08; pointer-events: none; }
 
   .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 4px 24px; }
   table.data-table { width: 100%; border-collapse: collapse; min-width: 480px; }
@@ -167,24 +171,30 @@
     <div class="wrap">
 
       <div class="insight-card">
+        <div class="icon" style="background:var(--blue-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
         <span class="tag">Fee incidence</span>
         <h3>Does a 3.5% fee meaningfully deter trading?</h3>
         <p>It's a real cost, and no trading history yet exists to measure the answer empirically. Two things are still worth noting. First, transfer fees in this general range aren't unusual among comparable Solana Token-2022 assets that have achieved meaningful volume; the fee alone isn't obviously prohibitive at this scale. Second, and more specific to this design: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms than the fee itself. A rational trader prices a known, fixed cost into their decision the same way they'd price any other one.</p>
         <p class="ref">Whitepaper §12.1</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
       </div>
 
       <div class="insight-card">
+        <div class="icon" style="background:var(--green-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5h.1a1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></div>
         <span class="tag">Mechanism design</span>
         <h3>Why "code-enforced" is a different claim than "we promise"</h3>
         <p>Economics has a name for the difference: cheap talk versus a credible commitment device. A stated intention the issuer could costlessly reverse, such as "we'll donate a share of proceeds," is cheap talk regardless of how sincerely it's made. A property enforced by an immutable, permissionless token standard, verifiable by anyone without trusting the issuer's account of it, is a credible commitment in the technical sense: the cost of reneging isn't just reputational, it's architectural, since reneging would require rewriting a mint configuration that no longer has an authority capable of rewriting it. That's what permanently revoking mint authority actually buys, at the cost of the immutability tradeoff described on the <a href="details.html">Details</a> and <a href="whitepaper.html">whitepaper</a> pages.</p>
         <p class="ref">Whitepaper §12.2</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5h.1a1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
       </div>
 
       <div class="insight-card">
+        <div class="icon" style="background:var(--cyan-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M12 3c3 4 6 7.5 6 11a6 6 0 01-12 0c0-3.5 3-7 6-11z"/></svg></div>
         <span class="tag">Liquidity</span>
         <h3>The catalyst fund only works if someone provides liquidity</h3>
         <p>Whoever eventually supplies the other side of the ACT-USDT pool bears impermanent loss, a standard, well-documented property of automated market making, not a feature specific to this token. It's worth stating plainly because the fund's continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place, which in turn depends on someone accepting that risk in exchange for a share of trading fees. As of this writing, no liquidity pool has been seeded yet; an initial, self-funded seed is planned, sized to deepen gradually rather than launch at full depth immediately. See the <a href="roadmap.html">roadmap</a>.</p>
         <p class="ref">Whitepaper §12.3</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 6 7.5 6 11a6 6 0 01-12 0c0-3.5 3-7 6-11z"/></svg>
       </div>
 
     </div>

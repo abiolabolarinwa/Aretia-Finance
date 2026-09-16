@@ -97,7 +97,7 @@
 
   /* -------- Pulse band: interactive skyline of bars + trading stats -------- */
   .pulse-band { position: relative; background: #F0D879; overflow: hidden; padding: 48px 0 0; }
-  .pulse-bars { position: relative; height: 280px; display: flex; align-items: flex-end; gap: 5px; padding: 0 4px; }
+  .pulse-bars { position: relative; height: 280px; display: flex; align-items: flex-end; gap: 1px; padding: 0 4px; }
   .pulse-bars .bar { flex: 1 1 0; min-width: 2px; border-radius: 0; background: linear-gradient(180deg, #6B4A0E 0%, #8C6212 45%, #A9791B 100%); opacity: .92; transform-origin: bottom; transition: height 320ms cubic-bezier(.16,1,.3,1), opacity 320ms ease; will-change: height; }
   .pulse-logos { position: relative; z-index: 2; display: flex; gap: 36px; flex-wrap: wrap; align-items: center; justify-content: center; padding: 24px 24px 44px; }
   .pulse-logos .logo-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 700; color: #3A2A05; opacity: .85; }
@@ -759,21 +759,6 @@
     </div>
   </section>
 
-  <!-- ============ HOW IT WORKS (dotted line) ============ -->
-  <section class="block" id="how" style="background:var(--hero-cream);">
-    <div class="wrap">
-      <h2 class="pip-nowrap" style="font-size:clamp(1.7rem,3vw,2.3rem); text-align:center; margin:0 auto;">Here's how the mechanism works.</h2>
-      <div class="hiw-row">
-        <div class="hiw-line"></div>
-        <div class="hiw-step"><div class="hiw-badge">01</div><h3>Transfer</h3><p>Every ACT transfer withholds 3.5%, automatically, at the protocol level.</p></div>
-        <div class="hiw-step"><div class="hiw-badge">02</div><h3>Treasury</h3><p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p></div>
-        <div class="hiw-step"><div class="hiw-badge">03</div><h3>Verification</h3><p>Projects clear category-specific diligence before reaching disbursement.</p></div>
-        <div class="hiw-step"><div class="hiw-badge">04</div><h3>Disbursement</h3><p>Capital releases in tranches, each one a public, permanent transaction.</p></div>
-        <div class="hiw-step"><div class="hiw-badge">05</div><h3>Stake</h3><p>Holders can lock ACT to build a Capital Access Score: the more staked and the longer it's locked, the earlier and deeper the priority access when catalyzed projects become investable. Tested on devnet, not live yet.</p></div>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ STAKING -> PRIORITY ACCESS ============ -->
   <section class="block">
     <div class="wrap">
@@ -802,58 +787,6 @@
       <div style="text-align:center; margin-top:32px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
         <a class="pill-btn pill-black" href="stake.html">See the Staking Mechanics</a>
         <a class="pill-btn pill-ghost" href="whitepaper.html#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Read Part VIII of the Whitepaper</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ TOKENOMICS AT A GLANCE ============ -->
-  <section class="block alt">
-    <div class="wrap">
-      <div class="sec-head">
-        <div class="sec-eyebrow">Tokenomics at a Glance</div>
-        <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
-      </div>
-      <div class="tok-grid">
-        <div class="tok-card" style="background:var(--pink-soft);">
-          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
-          <h3>Fee Split</h3>
-          <div class="sub">Every transfer, automatically</div>
-          <ul>
-            <li><span class="tick">✓</span>2.0% → Climate Catalyst Fund</li>
-            <li><span class="tick">✓</span>1.0% → Liquidity</li>
-            <li><span class="tick">✓</span>0.5% → Disclosed management fee</li>
-            <li><span class="tick">✓</span>96.5% reaches the recipient net</li>
-          </ul>
-          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
-        </div>
-        <div class="tok-card hl" style="background:var(--blue-soft);">
-          <span class="badge">Fixed Forever</span>
-          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
-          <h3>Token</h3>
-          <div class="sub">Solana · Token-2022</div>
-          <ul>
-            <li><span class="tick">✓</span>1,000,000,000 total supply</li>
-            <li><span class="tick">✓</span>Mint authority revoked</li>
-            <li><span class="tick">✓</span>Freeze authority never granted</li>
-            <li><span class="tick">✓</span>9 decimals</li>
-          </ul>
-          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
-        </div>
-        <div class="tok-card" style="background:var(--green-soft);">
-          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg></div>
-          <h3>Protocol</h3>
-          <div class="sub">Custody &amp; governance</div>
-          <ul>
-            <li><span class="tick">✓</span>Squads multisig, 2-of-3</li>
-            <li><span class="tick">✓</span>Governance phased in, layered</li>
-            <li><span class="tick">✓</span>Milestone-verified disbursement</li>
-            <li><span class="tick">✓</span>Live, independent verification tool</li>
-          </ul>
-          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
-        </div>
-      </div>
-      <div style="text-align:center; margin-top:32px;">
-        <a class="pill-btn pill-ghost" href="tokenomics.html">See the full breakdown →</a>
       </div>
     </div>
   </section>
@@ -1241,7 +1174,7 @@
     if (!field) return;
 
     var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var COUNT = 50;
+    var COUNT = 20;
     var bars = [];
     var bases = [];
 

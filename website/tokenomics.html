@@ -19,6 +19,7 @@
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
+    --pink: #C0447A; --pink-soft: #FCE7EF;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -86,6 +87,30 @@
 
   .block-head { margin-bottom: 32px; }
   .block-head h2 { font-size: clamp(2.1rem, 3.6vw, 2.8rem); }
+
+  /* -------- Mechanism steps (moved here from the homepage) -------- */
+  .hiw-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 8px; position: relative; }
+  .hiw-line { position: absolute; top: 19px; left: 60px; right: 60px; height: 0; border-top: 2px dashed var(--border); z-index: 0; }
+  @media (max-width: 760px) { .hiw-row { flex-direction: column; gap: 32px; } .hiw-line { display: none; } }
+  .hiw-step { position: relative; z-index: 1; flex: 1; text-align: center; padding: 0 16px; }
+  .hiw-badge { width: 38px; height: 38px; border-radius: 50%; background: var(--black); color: #fff; font-family: var(--mono); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+  .hiw-step h3 { font-size: 14.5px; color: var(--ink); margin-bottom: 8px; }
+  .hiw-step p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 26ch; margin: 0 auto; }
+
+  /* -------- Tokenomics at a Glance cards (moved here from the homepage) -------- */
+  .tok-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .tok-grid { grid-template-columns: 1fr; } }
+  .tok-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px 26px; position: relative; overflow: hidden; }
+  .tok-card.hl { border-color: var(--black); box-shadow: 0 20px 40px -28px rgba(10,12,16,.3); }
+  .tok-card .badge { position: relative; z-index: 1; display: inline-block; margin-bottom: 14px; background: var(--black); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 12px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tok-card .tok-icon { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); margin-bottom: 14px; }
+  .tok-card h3, .tok-card .sub, .tok-card ul { position: relative; z-index: 1; }
+  .tok-card h3 { font-size: 15px; margin-bottom: 4px; color: var(--ink); }
+  .tok-card .sub { font-size: 12px; color: var(--ink-faint); margin-bottom: 20px; }
+  .tok-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .tok-card li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--ink-soft); }
+  .tok-card li .tick { width: 16px; height: 16px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; flex: none; margin-top: 2px; }
+  .tok-card .tok-bleed { position: absolute; right: -18px; bottom: -18px; width: 100px; height: 100px; opacity: .14; pointer-events: none; }
   .status-value { font-size: clamp(2.3rem, 4.6vw, 3.1rem); font-weight: 800; letter-spacing: -0.03em; }
   .status-change { font-size: 14px; color: var(--ink-faint); margin-top: 6px; font-weight: 500; }
   .phase-pills { display: flex; gap: 8px; margin: 22px 0 8px; flex-wrap: wrap; }
@@ -157,6 +182,72 @@
         <div class="dhero-visual">
           <img src="assets/solar-field.jpg" alt="Renewable energy infrastructure funded through ACT's protocol-enforced fee split">
           <div class="dhero-badge"><span class="chk">✓</span>1,000,000,000 ACT, Fixed</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS (dotted line) ============ -->
+  <section class="block" id="how">
+    <div class="wrap">
+      <div class="block-head" style="text-align:center; max-width:640px; margin-left:auto; margin-right:auto;">
+        <h2 style="font-size:clamp(1.7rem,3vw,2.3rem);">Here's how the mechanism works.</h2>
+      </div>
+      <div class="hiw-row">
+        <div class="hiw-line"></div>
+        <div class="hiw-step"><div class="hiw-badge">01</div><h3>Transfer</h3><p>Every ACT transfer withholds 3.5%, automatically, at the protocol level.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">02</div><h3>Treasury</h3><p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">03</div><h3>Verification</h3><p>Projects clear category-specific diligence before reaching disbursement.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">04</div><h3>Disbursement</h3><p>Capital releases in tranches, each one a public, permanent transaction.</p></div>
+        <div class="hiw-step"><div class="hiw-badge">05</div><h3>Stake</h3><p>Holders can lock ACT to build a Capital Access Score: the more staked and the longer it's locked, the earlier and deeper the priority access when catalyzed projects become investable. Tested on devnet, not live yet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TOKENOMICS AT A GLANCE ============ -->
+  <section class="block alt">
+    <div class="wrap">
+      <div class="block-head">
+        <div class="eyebrow">Tokenomics at a Glance</div>
+        <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
+      </div>
+      <div class="tok-grid">
+        <div class="tok-card" style="background:var(--pink-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
+          <h3>Fee Split</h3>
+          <div class="sub">Every transfer, automatically</div>
+          <ul>
+            <li><span class="tick">✓</span>2.0% → Climate Catalyst Fund</li>
+            <li><span class="tick">✓</span>1.0% → Liquidity</li>
+            <li><span class="tick">✓</span>0.5% → Disclosed management fee</li>
+            <li><span class="tick">✓</span>96.5% reaches the recipient net</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
+        </div>
+        <div class="tok-card hl" style="background:var(--blue-soft);">
+          <span class="badge">Fixed Forever</span>
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
+          <h3>Token</h3>
+          <div class="sub">Solana · Token-2022</div>
+          <ul>
+            <li><span class="tick">✓</span>1,000,000,000 total supply</li>
+            <li><span class="tick">✓</span>Mint authority revoked</li>
+            <li><span class="tick">✓</span>Freeze authority never granted</li>
+            <li><span class="tick">✓</span>9 decimals</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        </div>
+        <div class="tok-card" style="background:var(--green-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg></div>
+          <h3>Protocol</h3>
+          <div class="sub">Custody &amp; governance</div>
+          <ul>
+            <li><span class="tick">✓</span>Squads multisig, 2-of-3</li>
+            <li><span class="tick">✓</span>Governance phased in, layered</li>
+            <li><span class="tick">✓</span>Milestone-verified disbursement</li>
+            <li><span class="tick">✓</span>Live, independent verification tool</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
         </div>
       </div>
     </div>

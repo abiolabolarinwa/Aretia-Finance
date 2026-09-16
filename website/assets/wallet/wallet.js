@@ -7,12 +7,18 @@
  * protocol is two window CustomEvents, so pulling in a package (and a
  * bundler this static site doesn't have) to do it buys nothing.
  *
- * This module ONLY establishes a connection and reads public balances.
- * It never requests a seed phrase or private key, never stores one, and
- * never signs or sends a transaction. Every wallet feature this file
- * calls is 'standard:connect', 'standard:disconnect', and
- * 'standard:events' -- account discovery and lifecycle, nothing that
- * moves funds.
+ * This module establishes a connection, reads public balances, and
+ * exposes the connected wallet's own signing features to the Jupiter
+ * Terminal swap widget already embedded on the homepage (see "Jupiter
+ * Terminal passthrough" below) -- so a user who connects here can trade
+ * without connecting a second time inside that widget. It never requests
+ * a seed phrase or private key, never stores one, and never signs or
+ * sends anything itself: every signature happens inside the wallet
+ * extension's own popup, only when the user explicitly approves a swap
+ * Jupiter's widget presents to them. Outside of that one bridge, every
+ * wallet feature this file calls on its own is 'standard:connect',
+ * 'standard:disconnect', and 'standard:events' -- account discovery and
+ * lifecycle, nothing that moves funds.
  *
  * Depends on the @solana/web3.js UMD build already loaded by the page
  * (window.solanaWeb3) -- no new dependency for RPC calls, reusing
@@ -300,6 +306,101 @@
   }
 
   // ------------------------------------------------------------------
+  // Jupiter Terminal passthrough -- lets the swap widget already embedded
+  // on the homepage (window.Jupiter, loaded from terminal.jup.ag) use this
+  // SAME connection instead of asking the user to connect a second time
+  // inside its own UI. This is the one place this file can produce a
+  // signature: signTransaction/signAllTransactions/signMessage below are
+  // wired to the wallet's own Wallet Standard signing features, but they
+  // are only ever invoked by Jupiter's widget, and only at the moment a
+  // user explicitly clicks "Swap" and approves the prompt in their own
+  // wallet extension. Nothing here signs or sends anything on its own,
+  // and nothing here ever touches a seed phrase or private key -- signing
+  // happens inside the wallet extension, not in this file.
+  // ------------------------------------------------------------------
+  function getStandardFeature(name) {
+    var wallet = state.connectedWallet;
+    if (!wallet || !wallet.features) return null;
+    return wallet.features[name] || null;
+  }
+
+  function toPublicKey() {
+    if (!state.account || !window.solanaWeb3) return null;
+    try { return new window.solanaWeb3.PublicKey(state.account.address); } catch (e) { return null; }
+  }
+
+  function isVersioned(tx) {
+    return typeof tx.version !== "undefined";
+  }
+
+  function signTransactionShim(tx) {
+    var feature = getStandardFeature("solana:signTransaction");
+    if (!feature || !state.account) return Promise.reject(new Error("wallet does not support signing"));
+    var bytes = isVersioned(tx) ? tx.serialize() : tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+    return feature
+      .signTransaction({ transaction: new Uint8Array(bytes), account: state.account })
+      .then(function (outputs) {
+        var signed = outputs[0].signedTransaction;
+        return isVersioned(tx) ? window.solanaWeb3.VersionedTransaction.deserialize(signed) : window.solanaWeb3.Transaction.from(signed);
+      });
+  }
+
+  function signAllTransactionsShim(txs) {
+    return Promise.all(txs.map(signTransactionShim));
+  }
+
+  function signMessageShim(message) {
+    var feature = getStandardFeature("solana:signMessage");
+    if (!feature || !state.account) return Promise.reject(new Error("wallet does not support signing"));
+    return feature.signMessage({ message: message, account: state.account }).then(function (outputs) {
+      return outputs[0].signature;
+    });
+  }
+
+  function sendTransactionShim(tx, connection, options) {
+    return signTransactionShim(tx).then(function (signed) {
+      return connection.sendRawTransaction(signed.serialize(), options);
+    });
+  }
+
+  function getWalletContextState() {
+    var connected = !!state.account;
+    return {
+      autoConnect: false, // Aretia never auto-connects in a way that could surprise a returning user; see attemptEagerReconnect
+      publicKey: toPublicKey(),
+      wallet: state.connectedWallet ? { adapter: { name: state.connectedWallet.name } } : null,
+      connected: connected,
+      connecting: state.connecting,
+      disconnecting: false,
+      wallets: [],
+      signIn: undefined,
+      // Wallet selection is handled entirely by Aretia's own Connect Wallet
+      // button; Jupiter's widget is configured (see index.html) to hide its
+      // own connect UI via enableWalletPassthrough, so this is only called
+      // if the widget falls back to it -- routing back to our own modal
+      // rather than opening a second, redundant wallet picker.
+      select: function () { onConnectButtonClick(); },
+      connect: function () { onConnectButtonClick(); return Promise.resolve(); },
+      disconnect: disconnectWallet,
+      signTransaction: connected ? signTransactionShim : undefined,
+      signAllTransactions: connected ? signAllTransactionsShim : undefined,
+      signMessage: connected ? signMessageShim : undefined,
+      sendTransaction: connected ? sendTransactionShim : undefined,
+    };
+  }
+
+  function syncJupiterPassthrough() {
+    if (window.Jupiter && typeof window.Jupiter.syncProps === "function") {
+      try {
+        window.Jupiter.syncProps({ passthroughWalletContextState: getWalletContextState() });
+      } catch (e) {
+        /* Jupiter Terminal not finished initializing yet, or rejected the shape -- not fatal */
+      }
+    }
+  }
+  listeners.push(syncJupiterPassthrough);
+
+  // ------------------------------------------------------------------
   // Balance retrieval -- reuses window.solanaWeb3 (already loaded) and
   // the same manual Token-2022 ATA read the homepage's live-data cards
   // use, since ACT's mint is Token-2022, which getParsedTokenAccountsByOwner
@@ -510,9 +611,40 @@
     return display;
   }
 
+  // Above this many entries, a search box appears (real Wallet Standard
+  // detection is usually a handful of wallets, but this scales cleanly if a
+  // browser ever has many installed at once).
+  var SEARCH_THRESHOLD = 6;
+  var VISIBLE = 4;
+
+  function buildItem(display, errorBox, autofocus) {
+    var li = document.createElement("li");
+    var item = document.createElement("button");
+    item.type = "button";
+    item.className = "aw-item";
+    if (autofocus) item.setAttribute("data-autofocus", "");
+    var iconSrc = display.icon;
+    item.innerHTML =
+      (iconSrc ? '<img class="aw-item-icon" src="' + iconSrc + '" alt="" />' : '<span class="aw-item-icon" aria-hidden="true"></span>') +
+      '<span class="aw-item-name">' + escapeHtml(display.name) + "</span>" +
+      '<span class="aw-item-state">' + (display.installed ? "" : "Not installed") + '</span>' +
+      '<span class="aw-item-chevron" aria-hidden="true">›</span>';
+    if (display.installed) {
+      item.addEventListener("click", function () {
+        handleWalletSelect(display.wallet, item, errorBox);
+      });
+    } else {
+      item.setAttribute("aria-label", display.name + " -- not installed, opens install page in a new tab");
+      item.addEventListener("click", function () {
+        window.open(display.installUrl, "_blank", "noopener");
+      });
+    }
+    li.appendChild(item);
+    return li;
+  }
+
   function renderWalletList() {
     var wallets = getDisplayWallets();
-    var VISIBLE = 4;
     var body = els.sheetBody;
     body.innerHTML = "";
 
@@ -535,63 +667,74 @@
       body.appendChild(note);
     }
 
+    var searchInput = null;
+    var showSearch = wallets.length > SEARCH_THRESHOLD;
+    if (showSearch) {
+      var searchWrap = document.createElement("div");
+      searchWrap.className = "aw-search-wrap";
+      searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.className = "aw-search";
+      searchInput.placeholder = "Search wallets";
+      searchInput.setAttribute("aria-label", "Search Solana wallets");
+      searchInput.setAttribute("data-autofocus", "");
+      searchWrap.appendChild(searchInput);
+      body.appendChild(searchWrap);
+    }
+
     var list = document.createElement("ul");
     list.className = "aw-list";
     body.appendChild(list);
 
-    var moreToggle = null;
-    var extraWrap = null;
+    var moreToggle = document.createElement("button");
+    moreToggle.type = "button";
+    moreToggle.className = "aw-more-toggle";
+    moreToggle.hidden = true;
+    var emptyMsg = document.createElement("p");
+    emptyMsg.className = "aw-sheet-sub";
+    emptyMsg.textContent = "No wallets match your search.";
+    emptyMsg.hidden = true;
 
-    wallets.forEach(function (display, index) {
-      var li = document.createElement("li");
-      var item = document.createElement("button");
-      item.type = "button";
-      item.className = "aw-item";
-      if (index === 0) item.setAttribute("data-autofocus", "");
-      var iconSrc = display.icon;
-      item.innerHTML =
-        (iconSrc ? '<img class="aw-item-icon" src="' + iconSrc + '" alt="" />' : '<span class="aw-item-icon" aria-hidden="true"></span>') +
-        '<span class="aw-item-name">' + escapeHtml(display.name) + "</span>" +
-        '<span class="aw-item-state">' + (display.installed ? "" : "Not installed") + '</span>' +
-        '<span class="aw-item-chevron" aria-hidden="true">›</span>';
-      if (display.installed) {
-        item.addEventListener("click", function () {
-          handleWalletSelect(display.wallet, item, errorBox);
-        });
-      } else {
-        item.setAttribute("aria-label", display.name + " -- not installed, opens install page in a new tab");
-        item.addEventListener("click", function () {
-          window.open(display.installUrl, "_blank", "noopener");
-        });
-      }
-      li.appendChild(item);
+    var expanded = false;
 
-      if (index < VISIBLE) {
-        list.appendChild(li);
+    function paint(filterText) {
+      list.innerHTML = "";
+      var query = (filterText || "").trim().toLowerCase();
+      var matches = query ? wallets.filter(function (w) { return w.name.toLowerCase().indexOf(query) !== -1; }) : wallets;
+
+      emptyMsg.hidden = matches.length > 0;
+
+      var shown = query || expanded ? matches : matches.slice(0, VISIBLE);
+      shown.forEach(function (display, index) {
+        list.appendChild(buildItem(display, errorBox, index === 0 && !searchInput));
+      });
+
+      var hiddenCount = query ? 0 : matches.length - shown.length;
+      if (hiddenCount > 0) {
+        moreToggle.hidden = false;
+        moreToggle.textContent = "More wallets (" + hiddenCount + ")";
+      } else if (!query && expanded && matches.length > VISIBLE) {
+        moreToggle.hidden = false;
+        moreToggle.textContent = "Show fewer wallets";
       } else {
-        if (!extraWrap) {
-          extraWrap = document.createElement("ul");
-          extraWrap.className = "aw-list";
-          extraWrap.hidden = true;
-          extraWrap.style.marginTop = "8px";
-        }
-        extraWrap.appendChild(li);
+        moreToggle.hidden = true;
       }
+    }
+
+    moreToggle.addEventListener("click", function () {
+      expanded = !expanded;
+      paint(searchInput ? searchInput.value : "");
     });
 
-    if (extraWrap) {
-      moreToggle = document.createElement("button");
-      moreToggle.type = "button";
-      moreToggle.className = "aw-more-toggle";
-      moreToggle.textContent = "More wallets";
-      moreToggle.addEventListener("click", function () {
-        var willShow = extraWrap.hidden;
-        extraWrap.hidden = !willShow;
-        moreToggle.textContent = willShow ? "Show fewer wallets" : "More wallets";
+    if (searchInput) {
+      searchInput.addEventListener("input", function () {
+        paint(searchInput.value);
       });
-      body.appendChild(moreToggle);
-      body.appendChild(extraWrap);
     }
+
+    paint("");
+    body.appendChild(emptyMsg);
+    body.appendChild(moreToggle);
 
     appendFoot(body);
   }
@@ -749,6 +892,12 @@
     buildDom(mount);
     updateButton();
     attemptEagerReconnect();
+    // Gives Jupiter Terminal a valid (if disconnected) passthrough state as
+    // soon as this file is ready, rather than only after the first real
+    // connect/disconnect/discovery event -- otherwise, on a page where no
+    // wallet extension is installed, syncJupiterPassthrough might never run
+    // at all and the widget would fall back to its own wallet UI.
+    syncJupiterPassthrough();
   }
 
   if (document.readyState === "loading") {
@@ -764,6 +913,11 @@
     init: init,
     getState: function () { return { account: state.account, connecting: state.connecting, wallets: state.wallets.map(function (w) { return w.name; }) }; },
     disconnect: disconnectWallet,
+    // For Jupiter Terminal's enableWalletPassthrough / passthroughWalletContextState
+    // (see index.html) -- kept up to date automatically on every connect/
+    // disconnect/account-change via the listeners array, but exposed here
+    // too for the widget's own initial Jupiter.init() call.
+    getWalletContextState: getWalletContextState,
     utils: {
       shortenAddress: shortenAddress,
       formatWalletError: formatWalletError,

@@ -146,6 +146,17 @@
 .aw-item-state[data-connecting="true"] { color: #fff; }
 .aw-item-chevron { flex: none; color: rgba(255,255,255,.35); font-size: 16px; line-height: 1; }
 
+.aw-search-wrap { margin-bottom: 10px; }
+.aw-search {
+  width: 100%; font: inherit; font-size: 14px; color: #fff;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+  border-radius: var(--r-sm, 10px); padding: 10px 12px;
+  transition: background 140ms var(--ease, ease), border-color 140ms var(--ease, ease);
+}
+.aw-search::placeholder { color: rgba(255,255,255,.4); }
+.aw-search:focus { outline: none; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.4); }
+.aw-search::-webkit-search-cancel-button { filter: invert(1) opacity(.6); }
+
 .aw-more-toggle {
   width: 100%; text-align: center; font-size: 12.5px; font-weight: 700;
   color: rgba(255,255,255,.6); background: none; border: none; cursor: pointer;

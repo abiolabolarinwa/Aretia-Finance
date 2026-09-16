@@ -890,10 +890,19 @@
       if (!window.Jupiter || typeof window.Jupiter.init !== "function") return false;
       var container = document.getElementById("jupiter-terminal");
       if (container) container.innerHTML = "";
+      // enableWalletPassthrough hides Jupiter's own wallet-connect UI and
+      // hands wallet control entirely to Aretia's Connect Wallet button, so
+      // a user never has to connect twice. passthroughWalletContextState
+      // may not exist yet this early (wallet.js loads later in the page);
+      // wallet.js calls window.Jupiter.syncProps(...) itself the moment
+      // it's ready and again on every connect/disconnect, so this only
+      // needs to be a reasonable starting value, not the final one.
       window.Jupiter.init({
         displayMode: "integrated",
         integratedTargetId: "jupiter-terminal",
         endpoint: RPC_ENDPOINT,
+        enableWalletPassthrough: true,
+        passthroughWalletContextState: window.AretiaWallet ? window.AretiaWallet.getWalletContextState() : undefined,
         formProps: {
           initialInputMint: SOL_MINT,
           initialOutputMint: ACT_MINT,

@@ -788,10 +788,27 @@
       '  <span class="aw-account-value" data-loading="true" id="aw-sol-balance">Loading…</span>' +
       "</div>" +
       '<div class="aw-account-actions">' +
+      '  <button type="button" class="aw-trade-btn">Buy / Sell ACT</button>' +
       '  <a class="aw-account-link" href="https://solscan.io/account/' + encodeURIComponent(address) + '" target="_blank" rel="noopener">View on Solscan ↗</a>' +
       '  <button type="button" class="aw-disconnect-btn">Disconnect</button>' +
       "</div>";
     body.appendChild(wrap);
+
+    // All ACT trading is meant to happen through the single Jupiter Terminal
+    // widget already embedded on the homepage (see index.html's trade
+    // drawer) rather than a second, duplicate swap surface -- this button
+    // is the wallet panel's entry point into that same widget. On the
+    // homepage it opens the drawer directly; anywhere else it navigates
+    // there and asks it to auto-open once loaded (see the hash check in
+    // index.html's trade-drawer script).
+    wrap.querySelector(".aw-trade-btn").addEventListener("click", function () {
+      if (typeof window.__aretiaOpenTradeDrawer === "function") {
+        closeModal();
+        window.__aretiaOpenTradeDrawer();
+      } else {
+        window.location.href = "/#trade-act";
+      }
+    });
 
     wrap.querySelector(".aw-copy-btn").addEventListener("click", function (e) {
       var el = e.currentTarget;

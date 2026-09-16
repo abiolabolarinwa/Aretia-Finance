@@ -206,6 +206,15 @@
 .aw-copy-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 .aw-account-actions { display: grid; gap: 8px; margin-top: 18px; }
+.aw-trade-btn {
+  display: block; width: 100%; text-align: center; font-size: 13.5px; font-weight: 700;
+  color: var(--brand, #190880); background: #fff; border: none;
+  border-radius: 980px; padding: 11px; cursor: pointer; font-family: inherit;
+  transition: background 140ms var(--ease, ease), transform 140ms var(--ease, ease);
+}
+.aw-trade-btn:hover { background: #F3F0FF; }
+.aw-trade-btn:active { transform: scale(0.98); }
+.aw-trade-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .aw-account-link {
   display: block; text-align: center; font-size: 13px; font-weight: 700;
   color: #fff; border: 1.5px solid rgba(255,255,255,.3);

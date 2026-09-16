@@ -69,7 +69,7 @@
   @media (max-width: 1120px) { .nav-links { display: none; } }
 
   /* -------- Hero (doola-style: cream/mustard, two-column) -------- */
-  .hero { position: relative; background: #F5EAB0; overflow: hidden; padding: 56px 0 0; }
+  .hero { position: relative; background: var(--hero-mustard); overflow: hidden; padding: 56px 0 0; }
   .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; padding-bottom: 24px; }
   @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 36px; } }
   .hero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 18px; }
@@ -82,7 +82,7 @@
   .hero-trust { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #4A4227; font-weight: 600; }
   .hero-trust .dot-check { width: 16px; height: 16px; border-radius: 50%; background: #1E8A5F; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; flex: none; }
 
-  .hero-visual { background: #F0D879; border-radius: 28px; padding: 26px; min-height: 340px; }
+  .hero-visual { background: var(--hero-cream); border-radius: 28px; padding: 26px; min-height: 340px; }
   .hv-photo-frame { position: relative; border-radius: 16px; overflow: hidden; height: 150px; margin-bottom: 6px; }
   .hv-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 700ms var(--ease); }
   .hv-photo.on { opacity: 1; }
@@ -958,6 +958,17 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeDrawer();
     });
+
+    // Single entry point for all ACT trading, per product decision: the
+    // wallet account panel's "Buy / Sell ACT" button calls this directly
+    // when already on this page, and links to /#trade-act from any other
+    // page when it isn't -- opening the same drawer either way rather than
+    // building a second swap surface.
+    window.__aretiaOpenTradeDrawer = function () { openDrawer(); };
+    if (window.location.hash === "#trade-act") {
+      openDrawer();
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
   })();
 </script>
 

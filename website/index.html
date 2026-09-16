@@ -94,12 +94,24 @@
   .hv-row .hv-fact { font-size: 14.5px; font-weight: 700; color: #17150C; }
   .hv-row .hv-pill { font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; background: #E1F5EC; color: #1E8A5F; white-space: nowrap; flex: none; }
 
-  .builton-card { background: #fff; border-radius: 24px; box-shadow: 0 24px 50px -30px rgba(20,15,0,.3); padding: 26px 36px; display: flex; align-items: center; justify-content: center; transform: translateY(30px); position: relative; z-index: 2; }
-  .builton-card .logos { display: flex; gap: 32px; flex-wrap: wrap; align-items: center; justify-content: center; }
-  .builton-card .logo-item { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; color: var(--ink-faint); }
-  .builton-card .logo-mark { width: 22px; height: 22px; flex: none; display: block; }
-  .builton-card .logo-mark-img { border-radius: 6px; }
-  @media (max-width: 640px) { .builton-card { transform: translateY(20px); } }
+  /* -------- Pulse band: interactive skyline of bars + trading stats -------- */
+  .pulse-band { position: relative; background: #14120B; overflow: hidden; padding: 48px 0 0; }
+  .pulse-bars { position: relative; height: 200px; display: flex; align-items: flex-end; gap: 3px; padding: 0 4px; }
+  .pulse-bars .bar { flex: 1 1 0; min-width: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #FBF3D0 0%, #E7C875 42%, #A9791B 78%, #6B4A0E 100%); opacity: .8; transform-origin: bottom; transition: height 320ms cubic-bezier(.16,1,.3,1), opacity 320ms ease; will-change: height; }
+  .pulse-logos { position: relative; z-index: 2; display: flex; gap: 36px; flex-wrap: wrap; align-items: center; justify-content: center; padding: 24px 24px 44px; }
+  .pulse-logos .logo-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 700; color: #E9DFC0; opacity: .8; }
+  .pulse-logos .logo-mark { width: 21px; height: 21px; flex: none; display: block; }
+  .pulse-logos .logo-mark-img { border-radius: 6px; }
+  .pulse-stats-wrap { padding-bottom: 56px; }
+  .pulse-stats-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: end; border-top: 1px solid rgba(245,234,176,.14); padding-top: 36px; }
+  @media (max-width: 760px) { .pulse-stats-grid { grid-template-columns: 1fr; gap: 26px; } }
+  .ps-label { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #C9B77E; margin-bottom: 10px; }
+  .pulse-stat-main .ps-value { font-size: clamp(2.6rem, 6vw, 4rem); font-weight: 800; letter-spacing: -.02em; color: #FBF3D0; line-height: 1; }
+  .pulse-stat-side { border-left: 1px solid rgba(245,234,176,.16); padding-left: 30px; }
+  @media (max-width: 760px) { .pulse-stat-side { border-left: none; padding-left: 0; border-top: 1px solid rgba(245,234,176,.16); padding-top: 22px; } }
+  .pulse-stat-side .ps-value { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 800; color: #FBF3D0; }
+  .ps-note { font-size: 12.5px; color: rgba(233,223,192,.62); margin-top: 8px; max-width: 46ch; line-height: 1.55; }
+  @media (max-width: 640px) { .pulse-bars { height: 140px; } }
 
   /* -------- Live stats section (moved below the cream hero band) -------- */
   .stats-section { padding: 56px 0 88px; }
@@ -372,38 +384,55 @@
           </div>
         </div>
       </div>
-      <div class="builton-card">
-        <div class="logos">
-          <span class="logo-item">
-            <svg class="logo-mark" viewBox="0 0 26 22.142" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path fill="url(#solanaGrad)" d="m25.033 17.458-4.087 4.382a.95.95 0 0 1-.692.302H.879a.476.476 0 0 1-.348-.798l4.082-4.382a.95.95 0 0 1 .692-.302H24.68a.473.473 0 0 1 .353.798m-4.087-8.827a.96.96 0 0 0-.692-.302H.879a.475.475 0 0 0-.348.798l4.082 4.385a.96.96 0 0 0 .692.302H24.68a.476.476 0 0 0 .346-.798zM.879 5.483h19.375a.95.95 0 0 0 .692-.302L25.033.798a.475.475 0 0 0-.09-.724A.47.47 0 0 0 24.68 0H5.305a.95.95 0 0 0-.692.302L.531 4.685a.475.475 0 0 0 .348.798"></path>
-              <defs><linearGradient id="solanaGrad" x1="2.494" x2="22.809" y1="22.671" y2="-0.233" gradientUnits="userSpaceOnUse"><stop offset="0.08" stop-color="#9945FF"></stop><stop offset="0.3" stop-color="#8752F3"></stop><stop offset="0.5" stop-color="#5497D5"></stop><stop offset="0.6" stop-color="#43B4CA"></stop><stop offset="0.72" stop-color="#28E0B9"></stop><stop offset="0.97" stop-color="#19FB9B"></stop></linearGradient></defs>
-            </svg>
-            Solana
-          </span>
-          <span class="logo-item">Token-2022</span>
-          <span class="logo-item">
-            <img class="logo-mark logo-mark-img" src="assets/logos/squads-icon.png" alt="Squads">
-            Squads
-          </span>
-          <span class="logo-item">
-            <svg class="logo-mark" viewBox="0 0 33 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M3.09074 25.1666C4.44267 27.0471 6.17683 28.6205 8.1795 29.7838C10.1822 30.947 12.4081 31.6738 14.7114 31.9165C13.5264 30.1333 11.8039 28.4928 9.65354 27.2438C7.50318 25.9948 5.22592 25.3125 3.09074 25.1666Z" fill="url(#jupGrad)"></path>
-              <path d="M12.543 22.2705C8.40015 19.8636 3.91612 19.2502 0.707663 20.3338C1.0174 21.3575 1.42589 22.3487 1.92738 23.2934C4.71498 23.2288 7.75856 23.9859 10.5906 25.6308C13.4227 27.2757 15.5888 29.5459 16.9143 32C17.9839 31.9672 19.0479 31.8309 20.0913 31.5932C19.4426 28.2698 16.6849 24.6779 12.543 22.2705Z" fill="url(#jupGrad)"></path>
-              <path d="M32.2852 12.5009C31.7585 10.3584 30.8054 8.34403 29.4829 6.57804C28.1604 4.81205 26.4956 3.33067 24.5879 2.22235C22.6802 1.11403 20.5687 0.401504 18.3796 0.127309C16.1904 -0.146885 13.9684 0.0228794 11.8463 0.626465C15.3915 1.06033 19.3267 2.39122 23.1859 4.63324C27.0452 6.87525 30.1533 9.63411 32.2852 12.5009Z" fill="url(#jupGrad)"></path>
-              <path d="M27.1271 20.3583C25.3124 17.3446 22.2038 14.4588 18.3743 12.2342C14.5449 10.0095 10.4991 8.7388 6.98531 8.65474C3.894 8.58152 1.57389 9.48017 0.621548 11.1197C0.616125 11.1294 0.608532 11.1386 0.602566 11.1484C0.516877 11.4559 0.44312 11.7639 0.37587 12.0731C1.70568 11.5481 3.24645 11.2558 4.95969 11.2232C8.76959 11.1517 13.0334 12.3703 16.9681 14.6562C20.9027 16.9422 24.0759 20.0438 25.9003 23.3878C26.7182 24.8944 27.2285 26.3777 27.4308 27.7948C27.6662 27.5844 27.8972 27.3669 28.1212 27.1408C28.1272 27.1305 28.131 27.1196 28.1369 27.1088C29.0893 25.4677 28.721 23.0076 27.1271 20.3583Z" fill="url(#jupGrad)"></path>
-              <path d="M15.4609 17.2485C9.59662 13.8416 3.11626 13.3079 0 15.6855C0.00612096 16.4297 0.0630166 17.1726 0.170292 17.9091C1.08699 17.6312 2.03177 17.4562 2.98718 17.3874C6.46952 17.1254 10.3087 18.0957 13.7927 20.1207C17.2766 22.1458 20.023 25.0018 21.5209 28.1543C21.935 29.018 22.2508 29.9254 22.4624 30.8595C23.1555 30.5878 23.8294 30.2694 24.4794 29.9066C25.0011 26.0213 21.3268 20.656 15.4609 17.2485Z" fill="url(#jupGrad)"></path>
-              <path d="M30.1434 15.3141C28.3082 12.3036 25.1724 9.40969 21.3158 7.17039C17.4593 4.93109 13.3977 3.64033 9.87257 3.53674C7.1853 3.45919 5.10382 4.11053 4.02457 5.34109C8.50588 4.58182 14.4168 5.85794 20.146 9.18625C25.8753 12.5146 29.9135 17.0181 31.4722 21.2868C32.0064 19.7406 31.5416 17.6098 30.1434 15.3141Z" fill="url(#jupGrad)"></path>
-              <defs><linearGradient id="jupGrad" x1="21.5" y1="6.5" x2="6.66667" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0.0001" stop-color="#C7F284"></stop><stop offset="1" stop-color="#00BEF0"></stop></linearGradient></defs>
-            </svg>
-            Jupiter
-          </span>
-          <span class="logo-item">
-            <svg class="logo-mark" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M9 402.313C9 458.146 37.7123 471 67.5731 471C130.74 471 178.211 413.56 206.541 368.171C203.095 378.212 201.181 388.254 201.181 397.895C201.181 424.405 215.729 443.284 244.441 443.284C283.872 443.284 325.984 407.133 347.805 368.171C346.274 373.794 345.508 379.016 345.508 383.836C345.508 402.313 355.462 413.962 375.752 413.962C439.684 413.962 504 295.467 504 191.834C504 111.097 464.951 40 366.947 40C194.673 40 9 260.119 9 402.313ZM307.608 182.997C307.608 162.913 318.327 148.855 334.023 148.855C349.336 148.855 360.056 162.913 360.056 182.997C360.056 203.081 349.336 217.541 334.023 217.541C318.327 217.541 307.608 203.081 307.608 182.997ZM389.534 182.997C389.534 162.913 400.253 148.855 415.949 148.855C431.262 148.855 441.981 162.913 441.981 182.997C441.981 203.081 431.262 217.541 415.949 217.541C400.253 217.541 389.534 203.081 389.534 182.997Z" fill="#AB9FF2"></path>
-            </svg>
-            Phantom
-          </span>
+    </div>
+  </section>
+
+  <!-- ============ PULSE BAND: interactive bar field + live-ish stats ============ -->
+  <section class="pulse-band" id="pulse">
+    <div class="pulse-bars" id="pulseBars" aria-hidden="true"></div>
+    <div class="pulse-logos">
+      <span class="logo-item">
+        <svg class="logo-mark" viewBox="0 0 26 22.142" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="url(#solanaGrad2)" d="m25.033 17.458-4.087 4.382a.95.95 0 0 1-.692.302H.879a.476.476 0 0 1-.348-.798l4.082-4.382a.95.95 0 0 1 .692-.302H24.68a.473.473 0 0 1 .353.798m-4.087-8.827a.96.96 0 0 0-.692-.302H.879a.475.475 0 0 0-.348.798l4.082 4.385a.96.96 0 0 0 .692.302H24.68a.476.476 0 0 0 .346-.798zM.879 5.483h19.375a.95.95 0 0 0 .692-.302L25.033.798a.475.475 0 0 0-.09-.724A.47.47 0 0 0 24.68 0H5.305a.95.95 0 0 0-.692.302L.531 4.685a.475.475 0 0 0 .348.798"></path>
+          <defs><linearGradient id="solanaGrad2" x1="2.494" x2="22.809" y1="22.671" y2="-0.233" gradientUnits="userSpaceOnUse"><stop offset="0.08" stop-color="#9945FF"></stop><stop offset="0.3" stop-color="#8752F3"></stop><stop offset="0.5" stop-color="#5497D5"></stop><stop offset="0.6" stop-color="#43B4CA"></stop><stop offset="0.72" stop-color="#28E0B9"></stop><stop offset="0.97" stop-color="#19FB9B"></stop></linearGradient></defs>
+        </svg>
+        Solana
+      </span>
+      <span class="logo-item">Token-2022</span>
+      <span class="logo-item">
+        <img class="logo-mark logo-mark-img" src="assets/logos/squads-icon.png" alt="Squads">
+        Squads
+      </span>
+      <span class="logo-item">
+        <svg class="logo-mark" viewBox="0 0 33 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M3.09074 25.1666C4.44267 27.0471 6.17683 28.6205 8.1795 29.7838C10.1822 30.947 12.4081 31.6738 14.7114 31.9165C13.5264 30.1333 11.8039 28.4928 9.65354 27.2438C7.50318 25.9948 5.22592 25.3125 3.09074 25.1666Z" fill="url(#jupGrad2)"></path>
+          <path d="M12.543 22.2705C8.40015 19.8636 3.91612 19.2502 0.707663 20.3338C1.0174 21.3575 1.42589 22.3487 1.92738 23.2934C4.71498 23.2288 7.75856 23.9859 10.5906 25.6308C13.4227 27.2757 15.5888 29.5459 16.9143 32C17.9839 31.9672 19.0479 31.8309 20.0913 31.5932C19.4426 28.2698 16.6849 24.6779 12.543 22.2705Z" fill="url(#jupGrad2)"></path>
+          <path d="M32.2852 12.5009C31.7585 10.3584 30.8054 8.34403 29.4829 6.57804C28.1604 4.81205 26.4956 3.33067 24.5879 2.22235C22.6802 1.11403 20.5687 0.401504 18.3796 0.127309C16.1904 -0.146885 13.9684 0.0228794 11.8463 0.626465C15.3915 1.06033 19.3267 2.39122 23.1859 4.63324C27.0452 6.87525 30.1533 9.63411 32.2852 12.5009Z" fill="url(#jupGrad2)"></path>
+          <path d="M27.1271 20.3583C25.3124 17.3446 22.2038 14.4588 18.3743 12.2342C14.5449 10.0095 10.4991 8.7388 6.98531 8.65474C3.894 8.58152 1.57389 9.48017 0.621548 11.1197C0.616125 11.1294 0.608532 11.1386 0.602566 11.1484C0.516877 11.4559 0.44312 11.7639 0.37587 12.0731C1.70568 11.5481 3.24645 11.2558 4.95969 11.2232C8.76959 11.1517 13.0334 12.3703 16.9681 14.6562C20.9027 16.9422 24.0759 20.0438 25.9003 23.3878C26.7182 24.8944 27.2285 26.3777 27.4308 27.7948C27.6662 27.5844 27.8972 27.3669 28.1212 27.1408C28.1272 27.1305 28.131 27.1196 28.1369 27.1088C29.0893 25.4677 28.721 23.0076 27.1271 20.3583Z" fill="url(#jupGrad2)"></path>
+          <path d="M15.4609 17.2485C9.59662 13.8416 3.11626 13.3079 0 15.6855C0.00612096 16.4297 0.0630166 17.1726 0.170292 17.9091C1.08699 17.6312 2.03177 17.4562 2.98718 17.3874C6.46952 17.1254 10.3087 18.0957 13.7927 20.1207C17.2766 22.1458 20.023 25.0018 21.5209 28.1543C21.935 29.018 22.2508 29.9254 22.4624 30.8595C23.1555 30.5878 23.8294 30.2694 24.4794 29.9066C25.0011 26.0213 21.3268 20.656 15.4609 17.2485Z" fill="url(#jupGrad2)"></path>
+          <path d="M30.1434 15.3141C28.3082 12.3036 25.1724 9.40969 21.3158 7.17039C17.4593 4.93109 13.3977 3.64033 9.87257 3.53674C7.1853 3.45919 5.10382 4.11053 4.02457 5.34109C8.50588 4.58182 14.4168 5.85794 20.146 9.18625C25.8753 12.5146 29.9135 17.0181 31.4722 21.2868C32.0064 19.7406 31.5416 17.6098 30.1434 15.3141Z" fill="url(#jupGrad2)"></path>
+          <defs><linearGradient id="jupGrad2" x1="21.5" y1="6.5" x2="6.66667" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0.0001" stop-color="#C7F284"></stop><stop offset="1" stop-color="#00BEF0"></stop></linearGradient></defs>
+        </svg>
+        Jupiter
+      </span>
+      <span class="logo-item">
+        <svg class="logo-mark" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M9 402.313C9 458.146 37.7123 471 67.5731 471C130.74 471 178.211 413.56 206.541 368.171C203.095 378.212 201.181 388.254 201.181 397.895C201.181 424.405 215.729 443.284 244.441 443.284C283.872 443.284 325.984 407.133 347.805 368.171C346.274 373.794 345.508 379.016 345.508 383.836C345.508 402.313 355.462 413.962 375.752 413.962C439.684 413.962 504 295.467 504 191.834C504 111.097 464.951 40 366.947 40C194.673 40 9 260.119 9 402.313ZM307.608 182.997C307.608 162.913 318.327 148.855 334.023 148.855C349.336 148.855 360.056 162.913 360.056 182.997C360.056 203.081 349.336 217.541 334.023 217.541C318.327 217.541 307.608 203.081 307.608 182.997ZM389.534 182.997C389.534 162.913 400.253 148.855 415.949 148.855C431.262 148.855 441.981 162.913 441.981 182.997C441.981 203.081 431.262 217.541 415.949 217.541C400.253 217.541 389.534 203.081 389.534 182.997Z" fill="#AB9FF2"></path>
+        </svg>
+        Phantom
+      </span>
+    </div>
+    <div class="wrap pulse-stats-wrap">
+      <div class="pulse-stats-grid">
+        <div class="pulse-stat-main">
+          <div class="ps-label">Trading Volume</div>
+          <div class="ps-value">$0</div>
+          <p class="ps-note">No liquidity pool has been seeded yet. ACT is not yet trading, so this is a fact, not a placeholder.</p>
+        </div>
+        <div class="pulse-stat-side">
+          <div class="ps-label">Active Users</div>
+          <div class="ps-value">0</div>
+          <p class="ps-note">Wallets that have traded ACT.</p>
         </div>
       </div>
     </div>
@@ -1199,6 +1228,67 @@
       index = (index + 1) % SLIDES.length;
       render(index);
     }, 4000);
+  })();
+</script>
+
+<!-- Pulse band: a skyline of bars that rise toward the cursor and settle back -->
+<script>
+  (function () {
+    var field = document.getElementById("pulseBars");
+    if (!field) return;
+
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var COUNT = 56;
+    var bars = [];
+    var bases = [];
+
+    for (var i = 0; i < COUNT; i++) {
+      var base = 14 + Math.random() * 46; // a varied, low skyline at rest
+      bases.push(base);
+      var bar = document.createElement("div");
+      bar.className = "bar";
+      bar.style.height = base + "%";
+      field.appendChild(bar);
+      bars.push(bar);
+    }
+
+    if (reduceMotion) return; // static skyline only, no cursor-follow motion
+
+    var pending = false;
+    var lastX = null;
+
+    function applyAt(clientX) {
+      var rect = field.getBoundingClientRect();
+      var relX = (clientX - rect.left) / rect.width;
+      var radius = 0.16;
+      for (var i = 0; i < COUNT; i++) {
+        var barCenter = (i + 0.5) / COUNT;
+        var d = Math.abs(barCenter - relX);
+        var boost = Math.max(0, 1 - d / radius);
+        boost = boost * boost; // ease the falloff so it reads as a soft hill, not a triangle
+        var h = bases[i] + boost * (94 - bases[i]);
+        bars[i].style.height = h + "%";
+        bars[i].style.opacity = String(0.6 + boost * 0.4);
+      }
+    }
+
+    function reset() {
+      for (var i = 0; i < COUNT; i++) {
+        bars[i].style.height = bases[i] + "%";
+        bars[i].style.opacity = "0.8";
+      }
+    }
+
+    field.addEventListener("mousemove", function (e) {
+      lastX = e.clientX;
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () {
+        applyAt(lastX);
+        pending = false;
+      });
+    });
+    field.addEventListener("mouseleave", reset);
   })();
 </script>
 </body>

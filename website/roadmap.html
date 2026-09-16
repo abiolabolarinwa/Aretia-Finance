@@ -64,7 +64,7 @@
   .topnav-cta { display: flex; align-items: center; gap: 10px; flex: none; }
   .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
-  @media (max-width: 400px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn { padding: 10px 16px; font-size: 12.5px; } }
+  @media (max-width: 480px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 12.5px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
 
   /* -------- Doola-style cream hero -------- */
   .dhero { position: relative; background: #F5EAB0; overflow: hidden; padding: 76px 0 96px; }
@@ -152,6 +152,7 @@
   .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
   .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
 </style>
+<link rel="stylesheet" href="assets/wallet/wallet.css">
 </head>
 <body>
 
@@ -174,6 +175,7 @@
       </div>
       <div class="topnav-cta">
         <span class="status-chip">Pre-Launch</span>
+        <div data-aretia-wallet-mount></div>
         <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
       </div>
     </div>
@@ -329,5 +331,7 @@
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="assets/wallet/wallet.js"></script>
 </body>
 </html>

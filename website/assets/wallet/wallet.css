@@ -1,0 +1,213 @@
+/* ==========================================================================
+   Aretia Finance -- Connect Wallet UI
+   Scoped entirely under .aw-* / #aw-* so it can never collide with a page's
+   own styles. Reuses the site's existing tokens (--ink, --border, --brand,
+   --r-sm/md/lg, --mono, --ease) rather than inventing a parallel palette.
+   ========================================================================== */
+
+.aw-connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 11px 20px;
+  border-radius: 980px;
+  white-space: nowrap;
+  border: 1.5px solid var(--border, #E7E7EC);
+  background: #fff;
+  color: var(--ink, #0E0F12);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease, ease), background 160ms var(--ease, ease), transform 140ms var(--ease, ease);
+  font-family: inherit;
+  line-height: 1.2;
+}
+.aw-connect-btn:hover { border-color: var(--ink-faint, #9497A3); background: #FBF9F2; }
+.aw-connect-btn:active { transform: scale(0.97); }
+.aw-connect-btn:focus-visible { outline: 2px solid var(--brand, #190880); outline-offset: 2px; }
+.aw-connect-btn[data-connected="true"] { font-family: var(--mono, ui-monospace, monospace); font-weight: 700; letter-spacing: .01em; }
+.aw-connect-btn .aw-icon { width: 16px; height: 16px; flex: none; display: none; }
+.aw-connect-btn .aw-dot { width: 7px; height: 7px; border-radius: 50%; background: #1E8A5F; flex: none; display: none; }
+.aw-connect-btn[data-connected="true"] .aw-dot { display: block; }
+.aw-connect-btn .aw-spinner { display: none; }
+.aw-connect-btn[data-loading="true"] .aw-spinner { display: inline-block; }
+.aw-connect-btn[data-loading="true"] .aw-label { opacity: .7; }
+
+@media (max-width: 400px) {
+  .aw-connect-btn { padding: 9px 14px; font-size: 12.5px; }
+}
+
+/* Below this width, the nav has two pills plus the brand mark competing for
+   room; the primary "Apply for Funding" CTA keeps its label, and this
+   secondary action collapses to an icon-only circular button rather than
+   letting the nav overflow. The account panel it opens is unaffected. */
+@media (max-width: 480px) {
+  .aw-connect-btn {
+    width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    justify-content: center; gap: 0;
+  }
+  .aw-connect-btn .aw-icon { display: block; }
+  .aw-connect-btn .aw-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .aw-connect-btn[data-connected="true"] { width: auto; height: auto; padding: 9px 12px; border-radius: 980px; }
+  .aw-connect-btn[data-connected="true"] .aw-icon { display: none; }
+  .aw-connect-btn[data-connected="true"] .aw-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: 11.5px; }
+}
+
+/* -------- Spinner -------- */
+.aw-spinner {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid rgba(14,15,18,.18);
+  border-top-color: currentColor;
+  animation: aw-spin 700ms linear infinite;
+}
+@keyframes aw-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .aw-spinner { animation-duration: 1400ms; } }
+
+/* -------- Overlay + sheet shell (shared by the wallet picker and the account panel) -------- */
+.aw-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(23, 21, 12, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  transition: opacity 180ms var(--ease, ease);
+}
+.aw-overlay[data-open="true"] { opacity: 1; }
+.aw-overlay[hidden] { display: none; }
+
+.aw-sheet {
+  background: var(--brand, #190880);
+  border-radius: var(--r-lg, 20px);
+  width: 100%;
+  max-width: 400px;
+  max-height: min(560px, 86dvh);
+  overflow-y: auto;
+  box-shadow: 0 30px 70px -30px rgba(10,5,40,.55);
+  padding: 24px;
+  transform: translateY(10px) scale(.98);
+  opacity: 0;
+  transition: transform 200ms var(--ease, ease), opacity 200ms var(--ease, ease);
+}
+.aw-overlay[data-open="true"] .aw-sheet { transform: translateY(0) scale(1); opacity: 1; }
+
+@media (max-width: 640px) {
+  .aw-overlay { align-items: flex-end; padding: 0; }
+  .aw-sheet {
+    max-width: none;
+    border-radius: 20px 20px 0 0;
+    max-height: 86dvh;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+  }
+  .aw-overlay[data-open="true"] .aw-sheet { transform: translateY(0); }
+  .aw-sheet::before {
+    content: "";
+    display: block;
+    width: 36px; height: 4px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.25);
+    margin: 0 auto 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aw-overlay, .aw-sheet { transition: none; }
+}
+
+.aw-sheet-header { display: flex; align-items: flex-start; justify-content: center; position: relative; gap: 12px; margin-bottom: 4px; }
+.aw-sheet-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: #fff; margin: 0; text-align: center; }
+.aw-sheet-close {
+  position: absolute; right: 0; top: -2px;
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: rgba(255,255,255,.6);
+  font-size: 18px; line-height: 1; cursor: pointer;
+  transition: background 140ms var(--ease, ease), color 140ms var(--ease, ease);
+}
+.aw-sheet-close:hover { background: rgba(255,255,255,.12); color: #fff; }
+.aw-sheet-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.aw-sheet-sub { font-size: 13px; color: rgba(255,255,255,.6); margin: 10px 0 18px; text-align: center; }
+
+/* -------- Wallet list -------- */
+.aw-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.aw-item {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 12px; border-radius: var(--r-sm, 10px);
+  border: none; background: rgba(255,255,255,.05);
+  cursor: pointer; text-align: left; font-family: inherit;
+  transition: background 140ms var(--ease, ease);
+}
+.aw-item:hover, .aw-item:focus-visible { background: rgba(255,255,255,.12); }
+.aw-item:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.aw-item:disabled { opacity: .55; cursor: default; }
+.aw-item-icon { width: 30px; height: 30px; border-radius: 8px; flex: none; display: block; object-fit: contain; background: rgba(255,255,255,.9); }
+.aw-item-name { font-size: 14px; font-weight: 600; color: #fff; flex: 1; }
+.aw-item-state { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.5); flex: none; }
+.aw-item-state[data-connecting="true"] { color: #fff; }
+.aw-item-chevron { flex: none; color: rgba(255,255,255,.35); font-size: 16px; line-height: 1; }
+
+.aw-more-toggle {
+  width: 100%; text-align: center; font-size: 12.5px; font-weight: 700;
+  color: rgba(255,255,255,.6); background: none; border: none; cursor: pointer;
+  padding: 10px 0 2px; font-family: inherit;
+}
+.aw-more-toggle:hover { color: #fff; }
+.aw-more-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 4px; }
+
+.aw-empty { text-align: center; padding: 20px 4px 8px; }
+.aw-empty p { font-size: 13.5px; color: rgba(255,255,255,.65); margin: 0 0 14px; line-height: 1.6; }
+.aw-empty-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.aw-empty-links a {
+  font-size: 12.5px; font-weight: 700; color: #fff;
+  border: 1.5px solid rgba(255,255,255,.3); border-radius: 980px; padding: 7px 14px;
+  text-decoration: none;
+}
+.aw-empty-links a:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
+.aw-empty-links a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.aw-foot {
+  font-size: 11px; color: rgba(255,255,255,.4); line-height: 1.55;
+  margin: 18px 0 0; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12);
+  text-align: center;
+}
+
+.aw-error {
+  font-size: 12.5px; color: #FFD9CC; background: rgba(255,255,255,.1); border-radius: var(--r-sm, 10px);
+  padding: 10px 12px; margin: 0 0 14px; line-height: 1.5;
+}
+.aw-error[hidden] { display: none; }
+
+/* -------- Account panel -------- */
+.aw-account-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.aw-account-row:last-of-type { border-bottom: none; }
+.aw-account-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: rgba(255,255,255,.5); }
+.aw-account-value { font-family: var(--mono, ui-monospace, monospace); font-size: 13.5px; font-weight: 700; color: #fff; text-align: right; }
+.aw-account-value[data-loading="true"] { color: rgba(255,255,255,.5); font-weight: 500; font-family: inherit; }
+.aw-copy-btn {
+  border: none; background: none; padding: 0; margin-left: 8px; cursor: pointer;
+  color: rgba(255,255,255,.5); font-size: 11px; font-weight: 700; text-decoration: underline;
+  font-family: inherit;
+}
+.aw-copy-btn:hover { color: #fff; }
+.aw-copy-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.aw-account-actions { display: grid; gap: 8px; margin-top: 18px; }
+.aw-account-link {
+  display: block; text-align: center; font-size: 13px; font-weight: 700;
+  color: #fff; border: 1.5px solid rgba(255,255,255,.3);
+  border-radius: 980px; padding: 10px; text-decoration: none;
+  transition: border-color 140ms var(--ease, ease), background 140ms var(--ease, ease);
+}
+.aw-account-link:hover { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
+.aw-account-link:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.aw-disconnect-btn {
+  display: block; width: 100%; text-align: center; font-size: 13px; font-weight: 700;
+  color: #fff; background: rgba(255,255,255,.1); border: none; border-radius: 980px; padding: 10px;
+  cursor: pointer; font-family: inherit; transition: background 140ms var(--ease, ease);
+}
+.aw-disconnect-btn:hover { background: rgba(255,255,255,.18); }
+.aw-disconnect-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.aw-disconnect-btn:disabled { opacity: .6; cursor: default; }

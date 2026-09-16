@@ -1212,18 +1212,35 @@
     var pending = false;
     var lastX = null;
 
+    var MAX_H = 96;
+    // Neighbor multipliers deliberately differ from each other (0 = stays at
+    // its own resting height, 1 = full height) so the two bars flanking the
+    // notch read as two distinct steps down from full height, not a
+    // symmetric dip -- "variant heights," not matching ones.
+    var LEFT_NEIGHBOR_MULT = 0.45;
+    var RIGHT_NEIGHBOR_MULT = 0.7;
+
     function applyAt(clientX) {
       var rect = field.getBoundingClientRect();
       var relX = (clientX - rect.left) / rect.width;
-      var radius = 0.16;
+      var centerIndex = Math.max(0, Math.min(COUNT - 1, Math.floor(relX * COUNT)));
       for (var i = 0; i < COUNT; i++) {
-        var barCenter = (i + 0.5) / COUNT;
-        var d = Math.abs(barCenter - relX);
-        var boost = Math.max(0, 1 - d / radius);
-        boost = boost * boost; // ease the falloff so it reads as a soft hill, not a triangle
-        var h = bases[i] + boost * (94 - bases[i]);
+        var h, o;
+        if (i === centerIndex) {
+          h = bases[i]; // the notch: the bar directly under the cursor drops to its resting height
+          o = 0.55;
+        } else if (i === centerIndex - 1) {
+          h = bases[i] + LEFT_NEIGHBOR_MULT * (MAX_H - bases[i]);
+          o = 0.8;
+        } else if (i === centerIndex + 1) {
+          h = bases[i] + RIGHT_NEIGHBOR_MULT * (MAX_H - bases[i]);
+          o = 0.9;
+        } else {
+          h = MAX_H; // every other bar rises to its highest height
+          o = 1;
+        }
         bars[i].style.height = h + "%";
-        bars[i].style.opacity = String(0.6 + boost * 0.4);
+        bars[i].style.opacity = String(o);
       }
     }
 

@@ -184,23 +184,6 @@
   .cat-dots button.active { background: var(--hero-amber); width: 24px; border-radius: 4px; }
   @media (max-width: 480px) { .cat-arrow { width: 36px; height: 36px; font-size: 17px; } .cat-arrow-prev { left: 10px; } .cat-arrow-next { right: 10px; } }
 
-  /* -------- Thesis band: rotating globe manifesto -------- */
-  .thesis-grid { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; min-height: 380px; }
-  .thesis-eyebrow { font-family: var(--font-sans); font-size: 14px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
-  .thesis-h { font-family: var(--font-sans); font-size: clamp(46px, 5.1vw, 80px); font-weight: 700; letter-spacing: -0.01em; line-height: 1.05; color: var(--ink); margin: 0; }
-  .thesis-col-right .thesis-h { color: var(--brand); font-size: clamp(37px, 4.2vw, 65px); }
-  .thesis-col-right { text-align: right; }
-  .thesis-globe-wrap { width: clamp(220px, 28vw, 400px); height: clamp(220px, 28vw, 400px); position: relative; }
-  .thesis-globe { width: 100%; height: 100%; cursor: grab; }
-  .thesis-body { max-width: 620px; font-family: var(--font-serif); font-size: clamp(18px, 1.35vw, 22px); color: var(--ink-soft); line-height: 1.6; margin: 40px 0 0; }
-  @media (max-width: 860px) {
-    .thesis-grid { grid-template-columns: 1fr; text-align: center; gap: 28px; min-height: 0; }
-    .thesis-col-left, .thesis-col-right { text-align: center; order: 1; }
-    .thesis-col-right { order: 3; }
-    .thesis-globe-wrap { width: min(64vw, 300px); height: min(64vw, 300px); margin: 0 auto; order: 2; }
-    .thesis-body { margin: 32px auto 0; text-align: center; }
-  }
-
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 52px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
@@ -1035,25 +1018,6 @@
     </div>
   </section>
 
-  <!-- ============ THESIS: rotating globe manifesto ============ -->
-  <section class="block" id="thesis">
-    <div class="wrap">
-      <div class="thesis-grid">
-        <div class="thesis-col thesis-col-left">
-          <div class="thesis-eyebrow">A message from Aretia</div>
-          <h2 class="thesis-h">We Believe In</h2>
-        </div>
-        <div class="thesis-globe-wrap">
-          <canvas id="thesis-globe" class="thesis-globe" aria-hidden="true"></canvas>
-        </div>
-        <div class="thesis-col thesis-col-right">
-          <h2 class="thesis-h">Provable Capital</h2>
-        </div>
-      </div>
-      <p class="thesis-body">We believe capital should move only when the outcome is proven: installed capacity, metered output, independently verified emissions. Every dollar Aretia deploys, and every ACT token in circulation, is anchored to that standard. That's how climate finance earns trust, not with a pitch, but with a receipt.</p>
-    </div>
-  </section>
-
   <!-- ============ 3 STEP CARDS ============ -->
   <section class="block">
     <div class="wrap">
@@ -1119,8 +1083,8 @@
     </div>
   </section>
 
-  <!-- ============ FAQ PREVIEW ============ -->
-  <section class="block">
+  <!-- ============ FAQ (merged in from the former FAQ page: Status, Token, Trust & Security groups) ============ -->
+  <section class="block" id="faq">
     <div class="wrap">
       <div class="sec-head">
         <div class="sec-eyebrow">Common Questions</div>
@@ -1129,23 +1093,40 @@
       <div class="faq-preview">
         <details open>
           <summary>Has ACT launched?</summary>
-          <div class="a">No. The mint is live on Solana mainnet and the treasury multisig is live and tested, but no liquidity pool has been seeded yet, so ACT is not currently tradeable on any exchange. An initial, self-funded liquidity seed is planned. See the <a href="roadmap.html" style="color:var(--blue); font-weight:600;">roadmap</a>.</div>
+          <div class="a">No. The mint is live on Solana mainnet and the treasury multisig is live and tested, but no liquidity pool has been seeded yet, so ACT is not currently tradeable on any exchange. An initial, self-funded liquidity seed is planned, intended to deepen over time rather than launch at full depth on day one. See the <a href="roadmap.html" style="color:var(--blue); font-weight:600;">roadmap</a> for what's built and what isn't.</div>
+        </details>
+        <details>
+          <summary>Is this financial advice, or an offer to sell a security?</summary>
+          <div class="a">No. Nothing on this site or in the whitepaper is investment advice, and this is not an offer or solicitation to buy or sell any security, token, or financial instrument in any jurisdiction where that would be unlawful. Aretia has not been registered under the securities laws of any jurisdiction.</div>
         </details>
         <details>
           <summary>Does ACT show a name or logo in my wallet?</summary>
-          <div class="a">Yes, a real name and logo are attached on-chain via a Token-2022 MetadataPointer extension, and that metadata is permanently locked at the Metaplex-program level once set. See the <a href="faq.html" style="color:var(--blue); font-weight:600;">full FAQ</a> for exactly how.</div>
+          <div class="a">Yes. ACT's name ("Aretia Finance Protocol") and logo are attached through a Token-2022 MetadataPointer extension referencing a separate Metaplex Token Metadata account, and display correctly in any wallet or block explorer that supports Token-2022 metadata. That metadata account's own update-authority field still names a single key, not the treasury multisig, but its <code>is_mutable</code> flag was permanently set to false at creation, which the Metaplex program itself enforces: no one, including that recorded authority, can change the name, symbol, or logo going forward. A name and logo displaying correctly doesn't make a token unique, though, since nothing stops a fraudulent mint from using a matching name and logo of its own; only the mint address is unique, which is why the <a href="#verify-live" style="color:var(--blue); font-weight:600;">Verify</a> section checks the address-level facts directly rather than asking you to trust a display name.</div>
         </details>
         <details>
-          <summary>Who controls the treasury?</summary>
-          <div class="a">No single party. The treasury is a Squads multisig requiring 2 of 3 independent signers to approve any outbound transaction, tested end to end with a real transaction on mainnet.</div>
+          <summary>Can the total supply ever increase?</summary>
+          <div class="a">No. Mint authority is revoked: there is no code path left by which more ACT can ever be created. Total supply is fixed at 1,000,000,000. Check it yourself in the <a href="#verify-live" style="color:var(--blue); font-weight:600;">Verify</a> section, live against mainnet.</div>
+        </details>
+        <details>
+          <summary>Can any wallet holding ACT be frozen?</summary>
+          <div class="a">No. Freeze authority was never granted on this mint, for any wallet, including Aretia Finance LLC's own.</div>
         </details>
         <details>
           <summary>Has Aretia been independently audited?</summary>
-          <div class="a">Not yet. No formal, independent security audit has been completed, and that's stated plainly here rather than implied otherwise. The <a href="#verify-live" style="color:var(--blue); font-weight:600;">Verify</a> tool is a free, instant first check, not a substitute for one.</div>
+          <div class="a">Not yet. No formal, independent security audit of the mint configuration or the off-chain scripts that build treasury transactions has been completed: that's stated plainly, not hidden. The <a href="#verify-live" style="color:var(--blue); font-weight:600;">Verify</a> tool is a free, instant, zero-trust first check; it is explicitly not a substitute for a real audit.</div>
+        </details>
+        <details>
+          <summary>Who controls the treasury?</summary>
+          <div class="a">No single party. The treasury is a Squads multisig requiring 2 of 3 independent signers to approve any outbound transaction, live on mainnet, with the full propose-approve-execute cycle already tested end to end with a real transaction. No key, including any held by Aretia Finance LLC, can move funds alone.</div>
+        </details>
+        <details>
+          <summary>How do I check any of this myself instead of trusting the site?</summary>
+          <div class="a">Use the <a href="#verify-live" style="color:var(--blue); font-weight:600;">Verify</a> section above. It queries Solana mainnet directly from your own browser (no Aretia server sits in the request path) and recomputes the mint's authorities, supply, decimals, transfer fee rate, fee authorities, and treasury balance live, showing the result next to the documented claim. The page's own source is visible via View Page Source, so you don't have to trust the verification tool either.</div>
         </details>
       </div>
-      <div style="text-align:center; margin-top:32px;">
-        <a class="pill-btn pill-ghost" href="faq.html">Read the full FAQ →</a>
+      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="details.html#faq">Fee &amp; funding questions →</a>
+        <a class="pill-btn pill-ghost" href="stake.html#faq">Staking questions →</a>
       </div>
     </div>
   </section>
@@ -1180,7 +1161,7 @@
           <li><a href="apply.html">Funding</a></li>
           <li><a href="whitepaper.html">Whitepaper</a></li>
           <li><a href="/#mission">About</a></li>
-          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="/#faq">FAQ</a></li>
         </ul>
       </div>
     </div>
@@ -1513,58 +1494,6 @@
       index = (index + 1) % SLIDES.length;
       render(index);
     }, 4000);
-  })();
-</script>
-
-<!-- Thesis globe: a rotating dot-matrix world, brand-purple, built with cobe (~5KB, canvas/WebGL) -->
-<script>
-  (function () {
-    var canvas = document.getElementById("thesis-globe");
-    if (!canvas || !window.WebGLRenderingContext) return;
-    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    import("https://cdn.jsdelivr.net/npm/cobe@2.0.1/dist/index.esm.min.js").then(function (mod) {
-      var createGlobe = mod.default;
-      var phi = 2;
-      var width = 0;
-
-      function onResize() {
-        width = canvas.offsetWidth;
-      }
-      window.addEventListener("resize", onResize);
-      onResize();
-
-      createGlobe(canvas, {
-        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
-        width: width * 2,
-        height: width * 2,
-        phi: 2,
-        theta: 0.3,
-        dark: 0.25,
-        diffuse: 1.25,
-        scale: 1,
-        mapSamples: 12000,
-        mapBrightness: 3,
-        baseColor: [0.85, 0.82, 0.96],
-        markerColor: [0.098, 0.031, 0.502],
-        glowColor: [0.78, 0.74, 0.94],
-        offset: [0, 0],
-        markers: [
-          { location: [28.6, 77.2], size: 0.09 },
-          { location: [-3.4, -62.2], size: 0.09 },
-          { location: [-1.3, 36.8], size: 0.09 },
-          { location: [23.7, 90.4], size: 0.09 },
-          { location: [-6.2, 106.8], size: 0.09 },
-          { location: [-1.0, 21.0], size: 0.09 }
-        ],
-        onRender: function (state) {
-          if (!reduced) phi += 0.0045;
-          state.phi = phi;
-          state.width = width * 2;
-          state.height = width * 2;
-        }
-      });
-    }).catch(function () {});
   })();
 </script>
 

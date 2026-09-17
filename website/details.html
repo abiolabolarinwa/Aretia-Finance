@@ -20,6 +20,7 @@
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
     --pink: #C0447A; --pink-soft: #FCE7EF;
+    --cyan: #0E7D8C; --cyan-soft: #DEF3F5;
     --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
     --mono: "DM Mono", ui-monospace, monospace;
@@ -141,6 +142,29 @@
   .tnum { font-variant-numeric: tabular-nums; }
   table.data-table tbody td:last-child.green { color: var(--green); }
   table.data-table .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 7px; vertical-align: 1px; }
+
+  /* -------- FAQ (merged in from the former FAQ page: Fee Mechanism, Funding & Governance groups) -------- */
+  .faq-preview { max-width: 720px; margin: 0 auto; }
+  .faq-preview details { border-bottom: 1px solid var(--border-soft); padding: 18px 0; }
+  .faq-preview summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq-preview summary::-webkit-details-marker { display: none; }
+  .faq-preview summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-faint); flex: none; }
+  .faq-preview details[open] summary::after { content: "\2013"; }
+  .faq-preview .a { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-top: 12px; max-width: 68ch; }
+
+  /* -------- Economics insight cards (merged in from the former Insights page) -------- */
+  .insight-card { position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 26px 28px; margin-bottom: 20px; }
+  .insight-card .icon { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .insight-card .tag, .insight-card h3, .insight-card p, .insight-card .ref { position: relative; z-index: 1; }
+  .insight-card .tag { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: var(--amber-soft); padding: 4px 10px; border-radius: 8px; margin-bottom: 14px; }
+  .insight-card h3 { font-size: 17px; margin-bottom: 10px; }
+  .insight-card p { font-size: 14px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 12px; }
+  .insight-card p:last-child { margin-bottom: 0; }
+  .insight-card .ref { font-size: 12px; color: var(--ink-faint); }
+  .insight-card a { color: var(--amber); font-weight: 600; }
+  .insight-card .insight-bleed { position: absolute; right: -20px; bottom: -20px; width: 110px; height: 110px; opacity: .08; pointer-events: none; }
+  .formula-box { background: var(--bg-alt); border: 1px solid var(--border-soft); border-radius: var(--r-sm); padding: 18px 22px; margin: 4px 0 20px; overflow-x: auto; }
+  .formula-box pre { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--ink); white-space: pre; }
 
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -288,6 +312,67 @@
     </div>
   </section>
 
+  <!-- ============ ECONOMICS (merged in from the former Insights page) ============ -->
+  <section class="block" id="economics">
+    <div class="wrap">
+      <div class="block-head">
+        <div class="eyebrow">The Economics Behind the Mechanism</div>
+        <h2>Not a forecast: the arithmetic and the incentives.</h2>
+        <p class="dek">Why the fee doesn't obviously kill trading, why the commitment is credible rather than cheap talk, and what the fund would actually generate at different levels of volume.</p>
+      </div>
+
+      <div class="insight-card">
+        <div class="icon" style="background:var(--blue-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
+        <span class="tag">Fee incidence</span>
+        <h3>Does a 3.5% fee meaningfully deter trading?</h3>
+        <p>It's a real cost, and no trading history yet exists to measure the answer empirically. Two things are still worth noting. First, transfer fees in this general range aren't unusual among comparable Solana Token-2022 assets that have achieved meaningful volume; the fee alone isn't obviously prohibitive at this scale. Second, and more specific to this design: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms than the fee itself. A rational trader prices a known, fixed cost into their decision the same way they'd price any other one.</p>
+        <p class="ref">Whitepaper §12.1</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
+      </div>
+
+      <div class="insight-card">
+        <div class="icon" style="background:var(--green-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5h.1a1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></div>
+        <span class="tag">Mechanism design</span>
+        <h3>Why "code-enforced" is a different claim than "we promise"</h3>
+        <p>Economics has a name for the difference: cheap talk versus a credible commitment device. A stated intention the issuer could costlessly reverse, such as "we'll donate a share of proceeds," is cheap talk regardless of how sincerely it's made. A property enforced by an immutable, permissionless token standard, verifiable by anyone without trusting the issuer's account of it, is a credible commitment in the technical sense: the cost of reneging isn't just reputational, it's architectural, since reneging would require rewriting a mint configuration that no longer has an authority capable of rewriting it. That's what permanently revoking mint authority actually buys, at the cost of the immutability tradeoff described in the tokenomics section above and the <a href="whitepaper.html">whitepaper</a>.</p>
+        <p class="ref">Whitepaper §12.2</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5h.1a1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      </div>
+
+      <div class="insight-card">
+        <div class="icon" style="background:var(--cyan-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M12 3c3 4 6 7.5 6 11a6 6 0 01-12 0c0-3.5 3-7 6-11z"/></svg></div>
+        <span class="tag">Liquidity</span>
+        <h3>The catalyst fund only works if someone provides liquidity</h3>
+        <p>Whoever eventually supplies the other side of the ACT-USDT pool bears impermanent loss, a standard, well-documented property of automated market making, not a feature specific to this token. It's worth stating plainly because the fund's continuous replenishment depends on trading volume, and trading volume depends on liquidity existing in the first place, which in turn depends on someone accepting that risk in exchange for a share of trading fees. As of this writing, no liquidity pool has been seeded yet; an initial, self-funded seed is planned, sized to deepen gradually rather than launch at full depth immediately. See the <a href="roadmap.html">roadmap</a>.</p>
+        <p class="ref">Whitepaper §12.3</p>
+        <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 6 7.5 6 11a6 6 0 01-12 0c0-3.5 3-7 6-11z"/></svg>
+      </div>
+
+      <div style="margin-top:36px;">
+        <div class="eyebrow">Illustrative calculation</div>
+        <h3 style="font-size:clamp(1.6rem,2.6vw,2rem); margin-bottom:14px; font-weight:800; letter-spacing:-0.03em;">What real volume would generate</h3>
+        <p style="font-size:14.5px; color:var(--ink-soft); max-width:70ch; margin:0 0 24px; line-height:1.65;">The output is arithmetic, not a forecast: these rows are round numbers chosen for illustration, not a projection of what volume will actually occur. For any aggregate transfer volume V occurring between harvests, before the maximum-fee cap applies to any individual transfer:</p>
+        <div class="formula-box">
+          <pre>catalyst fund accrual   = 0.02  × V
+liquidity accrual       = 0.01  × V
+management fee accrual  = 0.005 × V
+recipient net           = 0.965 × V</pre>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Aggregate volume</th><th>Catalyst fund</th><th>Liquidity</th><th>Management fee</th></tr></thead>
+            <tbody>
+              <tr><td>$10,000</td><td>$200</td><td>$100</td><td>$50</td></tr>
+              <tr><td>$100,000</td><td>$2,000</td><td>$1,000</td><td>$500</td></tr>
+              <tr><td>$1,000,000</td><td>$20,000</td><td>$10,000</td><td>$5,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="fine">No step in this computation depends on price, sentiment, or continued attention to the protocol's mission; it's a fixed function of transfer volume, computed identically whether that volume reflects one large trade or ten thousand small ones. This document makes no representation about which, if any, row above will resemble actual future volume.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="block alt">
     <div class="wrap">
       <div class="block-head">
@@ -393,6 +478,41 @@
     </div>
   </section>
 
+  <!-- ============ FAQ (merged in from the former FAQ page: Fee Mechanism, Funding & Governance groups) ============ -->
+  <section class="block" id="faq">
+    <div class="wrap">
+      <div class="block-head" style="text-align:center;">
+        <h2>Fee &amp; funding questions.</h2>
+      </div>
+      <div class="faq-preview">
+        <details open>
+          <summary>How much is the transfer fee, and where does it go?</summary>
+          <div class="a">350 basis points (3.5%) on every transfer, withheld automatically by the Token-2022 standard itself, not by any custom logic Aretia wrote. Of that: 96.5% of the original transfer reaches the recipient net; 2% funds the climate catalyst fund; 1% goes to the liquidity pool; 0.5% is a disclosed management fee that funds Aretia Finance LLC's operational costs of running the treasury. There is no burn allocation. Full breakdown in the <a href="#tokenomics" style="color:var(--brand); font-weight:600;">Tokenomics</a> section above.</div>
+        </details>
+        <details>
+          <summary>Can the team just decide not to route the fee where it says it will?</summary>
+          <div class="a">No, that's the specific distinction this project draws against tokens whose charitable commitments are a stated intention rather than a property of the code. The fee split is enforced by the mint's own on-chain configuration; there's no code path in which a transfer completes without it, and no policy step for anyone to skip.</div>
+        </details>
+        <details>
+          <summary>How does a project actually get funded?</summary>
+          <div class="a">Never as a single lump sum. An approved project's total commitment is divided into tranches, and each tranche releases only after independent verification confirms the prior milestone was actually met. See the milestone financing and governance sections above for the full lifecycle.</div>
+        </details>
+        <details>
+          <summary>Do token holders vote on which projects get funded?</summary>
+          <div class="a">Not directly, and not yet. Governance is layered rather than flat, specifically to avoid the failure mode where a well-organized proposal can extract funds from a naive one-holder-one-vote system. Token holders (Layer 1) set funding priorities and category weights, not individual payouts; a technical committee screens applications; independent verification confirms milestones; smart-contract execution releases funds only once both have signed off. Layer 1 activates once the holder base is large enough for a vote to be meaningful; until then, the treasury runs on team-curated grants under the same milestone-verification discipline.</div>
+        </details>
+        <details>
+          <summary>Can I apply for project funding?</summary>
+          <div class="a">Yes, the application intake is live. See <a href="apply.html" style="color:var(--brand); font-weight:600;">Apply for Funding</a>. Submissions are received and reviewed; automated scoring and milestone-gated disbursement are still being built (see the <a href="roadmap.html" style="color:var(--brand); font-weight:600;">roadmap</a>), so expect a real review period rather than an instant response.</div>
+        </details>
+      </div>
+      <div style="text-align:center; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="/#faq">General &amp; token questions →</a>
+        <a class="pill-btn pill-ghost" href="stake.html#faq">Staking questions →</a>
+      </div>
+    </div>
+  </section>
+
   <section class="block" style="text-align:center;">
     <div class="wrap" style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
       <a class="pill-btn pill-black" href="/#buy">Buy ACT</a>
@@ -407,9 +527,9 @@
     <div class="footer-links">
       <a href="whitepaper.html">Whitepaper</a>
       <a href="/#mission">About</a>
-      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html#tokenomics">Tokenomics</a>
       <a href="roadmap.html">Roadmap</a>
-      <a href="faq.html">FAQ</a>
+      <a href="/#faq">FAQ</a>
     </div>
     <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>
     <div class="footer-meta">© 2026 Aretia</div>

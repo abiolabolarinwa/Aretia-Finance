@@ -71,32 +71,45 @@
   .nav-links a:hover { color: var(--ink); }
   @media (max-width: 1120px) { .nav-links { display: none; } }
 
-  /* -------- Hero (doola-style: cream/mustard, two-column) -------- */
-  .hero { position: relative; background: var(--hero-mustard); overflow: hidden; padding: 56px 0 0; }
-  .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; padding-bottom: 24px; }
-  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 36px; } }
-  .hero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 18px; }
-  .hero h1 { font-size: clamp(3rem, 6.4vw, 4.6rem); line-height: 1.04; letter-spacing: -0.035em; color: #17150C; margin: 0 0 20px; text-align: left; }
-  .hero h1 .hl { color: #A9791B; }
-  .hero-sub { font-size: 17px; color: #4A4227; max-width: 46ch; margin: 0 0 28px; line-height: 1.65; text-align: left; }
-  .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; margin-bottom: 20px; }
-  .hero .pill-black { background: var(--brand); }
-  .hero .pill-ghost-link { font-size: 13px; font-weight: 600; color: #7A6420; text-decoration: underline; text-underline-offset: 3px; }
-  .hero-trust { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #4A4227; font-weight: 600; }
-  .hero-trust .dot-check { width: 16px; height: 16px; border-radius: 50%; background: #1E8A5F; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; flex: none; }
+  /* -------- Hero actions (Trade ACT CTA row) -------- */
+  .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; }
+  .pill-ghost-link { font-size: 13px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
 
-  .hero-visual { background: var(--hero-cream); border-radius: 28px; padding: 26px; min-height: 340px; }
-  .hv-photo-frame { position: relative; border-radius: 16px; overflow: hidden; height: 150px; margin-bottom: 6px; }
-  .hv-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 700ms var(--ease); }
-  .hv-photo.on { opacity: 1; }
-  .hv-photo-cat { position: absolute; top: 10px; left: 10px; background: rgba(23,21,12,.72); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; }
-  .hv-photo-credit { font-size: 9.5px; color: #8A7A3A; margin: 0 0 16px; text-align: right; }
-  .hv-tag { display: inline-block; background: #FBF3D0; color: #7A6420; font-size: 11px; font-weight: 700; padding: 6px 14px; border-radius: 980px; margin-bottom: 18px; }
-  .hv-row { background: #fff; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; box-shadow: 0 10px 24px -16px rgba(20,15,0,.25); }
-  .hv-row:last-child { margin-bottom: 0; }
-  .hv-row .hv-label { font-size: 10.5px; color: #8A7A3A; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
-  .hv-row .hv-fact { font-size: 14.5px; font-weight: 700; color: #17150C; }
-  .hv-row .hv-pill { font-size: 10.5px; font-weight: 700; padding: 5px 11px; border-radius: 980px; background: #E1F5EC; color: #1E8A5F; white-space: nowrap; flex: none; }
+  /* -------- Flux-style hero: big headline + two-card row + black steps band -------- */
+  .flux-hero { background: #fff; padding: 64px 0 0; }
+  .flux-hero .wrap { max-width: 1240px; }
+  .flux-hero-eyebrow { font-size: 13px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 20px; }
+  .flux-hero h1 { font-size: clamp(2.6rem, 5.6vw, 4.6rem); line-height: 1.02; letter-spacing: -0.035em; color: var(--ink); margin: 0 0 24px; max-width: 20ch; }
+  .flux-hero h1 .hl { color: var(--hero-amber); }
+  .flux-hero-sub { font-size: 17px; color: var(--ink-soft); max-width: 62ch; line-height: 1.6; margin: 0 0 40px; }
+  .flux-card-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; margin-bottom: 64px; }
+  @media (max-width: 900px) { .flux-card-row { grid-template-columns: 1fr; } }
+  .flux-card { border-radius: 24px; padding: 40px 40px 32px; display: flex; flex-direction: column; min-height: 320px; }
+  .flux-card-head { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 28px; }
+  .flux-card-head .flux-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .flux-card-purple { background: var(--brand); color: #fff; }
+  .flux-card-purple .flux-icon { background: rgba(255,255,255,.14); }
+  .flux-card-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; flex: 1; }
+  @media (max-width: 560px) { .flux-card-cols { grid-template-columns: 1fr; } }
+  .flux-card-purple .flux-card-cols p { font-size: 14.5px; line-height: 1.7; color: rgba(255,255,255,.88); margin: 0; }
+  .flux-card-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: #fff; margin-top: 28px; }
+  .flux-card-white { background: var(--bg-alt); color: var(--ink); }
+  .flux-card-white .flux-icon { background: #fff; box-shadow: 0 4px 10px -6px rgba(10,12,16,.2); }
+  .flux-card-white .flux-card-cols { grid-template-columns: 1fr 1fr; }
+  .flux-card-white .flux-blurb h4 { font-size: 14.5px; font-weight: 800; margin: 0 0 6px; color: var(--ink); }
+  .flux-card-white .flux-blurb p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin: 0; }
+  .flux-card-cta { margin-top: 28px; display: flex; justify-content: flex-end; }
+  @media (max-width: 560px) { .flux-card-cta { justify-content: flex-start; } }
+
+  .flux-steps-band { background: var(--black); color: #fff; padding: 56px 0 64px; }
+  .flux-steps-head { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 800; letter-spacing: -0.025em; margin: 0 0 44px; }
+  .flux-steps-row { display: flex; align-items: flex-start; justify-content: space-between; position: relative; }
+  .flux-steps-line { position: absolute; top: 19px; left: 60px; right: 60px; height: 0; border-top: 2px dashed rgba(255,255,255,.25); z-index: 0; }
+  @media (max-width: 760px) { .flux-steps-row { flex-direction: column; gap: 32px; } .flux-steps-line { display: none; } }
+  .flux-step { position: relative; z-index: 1; flex: 1; padding: 0 16px; }
+  .flux-step-badge { width: 38px; height: 38px; border-radius: 50%; background: #fff; color: var(--ink); font-family: var(--mono); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+  .flux-step h3 { font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 8px; }
+  .flux-step p { font-size: 13.5px; color: rgba(255,255,255,.65); line-height: 1.6; max-width: 30ch; margin: 0; }
 
   /* -------- Pulse band: interactive skyline of bars + trading stats -------- */
   .pulse-band { position: relative; background: #F0D879; overflow: hidden; padding: 48px 0 0; }
@@ -351,37 +364,71 @@
 <main>
 
   <!-- ============ HERO (doola-style: cream, two-column) ============ -->
-  <section class="hero" id="hero">
+  <section class="flux-hero" id="hero">
     <div class="wrap">
-      <div class="hero-grid">
-        <div>
-          <div class="hero-eyebrow">Live on Solana Mainnet.</div>
-          <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
-          <p class="hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved.</p>
-          <div class="hero-actions">
-            <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
-            <a class="pill-ghost-link" href="whitepaper.html">Read the Whitepaper before you do →</a>
+      <div class="flux-hero-eyebrow">Live on Solana Mainnet.</div>
+      <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
+      <p class="flux-hero-sub">Aretia turns a fixed share of ACT trading activity into climate capital, released only when independently verified climate project milestones are achieved.</p>
+      <div class="hero-actions" style="margin-bottom:40px;">
+        <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
+        <a class="pill-ghost-link" href="whitepaper.html">Read the Whitepaper before you do →</a>
+      </div>
+
+      <div class="flux-card-row">
+        <div class="flux-card flux-card-purple">
+          <div class="flux-card-head">
+            <span class="flux-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+            Verified Climate Capital
           </div>
-          <div class="hero-trust"><span class="dot-check">✓</span>Mint authority revoked · fixed 1,000,000,000 ACT supply</div>
+          <div class="flux-card-cols">
+            <p>ACT's only real collateral is proof: installed capacity, metered output, independently verified emissions before capital moves. Nothing is funded on a promise.</p>
+            <p>The treasury is a standing, continuously replenished catalyst fund, not a one-time grant round that has to be re-raised once it's spent.</p>
+          </div>
+          <a class="flux-card-link" href="details.html">Explore the Treasury ↗</a>
         </div>
-        <div class="hero-visual">
-          <div class="hv-photo-frame" id="hv-photo-frame">
-            <span class="hv-photo-cat" id="hv-photo-cat">Renewable Energy</span>
+        <div class="flux-card flux-card-white">
+          <div class="flux-card-head">
+            <span class="flux-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg></span>
+            The Most Transparent Token Design
           </div>
-          <div class="hv-photo-credit" id="hv-photo-credit">Photo: American Public Power Association · Unsplash</div>
-          <div class="hv-tag">Verified On-Chain</div>
-          <div class="hv-row">
-            <div><div class="hv-label">Mint Authority</div><div class="hv-fact">Revoked</div></div>
-            <span class="hv-pill">Verified</span>
+          <div class="flux-card-cols">
+            <div class="flux-blurb">
+              <h4>Battle-tested standard</h4>
+              <p>ACT's fee-on-transfer runs on Solana's own Token-2022 extension, not bespoke contract logic Aretia wrote and audited alone.</p>
+            </div>
+            <div class="flux-blurb">
+              <h4>Verify it yourself</h4>
+              <p>No formal audit yet, stated plainly. The live Verify tool checks mint authority, supply, and fee config directly against mainnet.</p>
+            </div>
           </div>
-          <div class="hv-row">
-            <div><div class="hv-label">Freeze Authority</div><div class="hv-fact">Never Granted</div></div>
-            <span class="hv-pill">Verified</span>
+          <div class="flux-card-cta">
+            <a class="pill-btn pill-black" href="verify.html">Run Verification →</a>
           </div>
-          <div class="hv-row">
-            <div><div class="hv-label">Treasury Custody</div><div class="hv-fact">2-of-3 Multisig</div></div>
-            <span class="hv-pill">Tested</span>
-          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW THE MECHANISM WORKS (black steps band, Flux-style) ============ -->
+  <section class="flux-steps-band">
+    <div class="wrap">
+      <h2 class="flux-steps-head">How the mechanism works</h2>
+      <div class="flux-steps-row">
+        <div class="flux-steps-line"></div>
+        <div class="flux-step">
+          <div class="flux-step-badge">1</div>
+          <h3>Transfer</h3>
+          <p>Every ACT transfer withholds 3.5%, automatically, at the protocol level.</p>
+        </div>
+        <div class="flux-step">
+          <div class="flux-step-badge">2</div>
+          <h3>Treasury</h3>
+          <p>Harvested fees settle into a 2-of-3 multisig, tested end to end on mainnet.</p>
+        </div>
+        <div class="flux-step">
+          <div class="flux-step-badge">3</div>
+          <h3>Disbursement</h3>
+          <p>Capital releases in tranches, each one a public, permanent transaction.</p>
         </div>
       </div>
     </div>
@@ -1078,53 +1125,6 @@
         if (target) target.classList.add('active');
       });
     });
-  })();
-</script>
-
-<!-- Hero photo rotator: cycles through Aretia's real funding categories -->
-<script>
-  (function () {
-    var SLIDES = [
-      { src: "assets/solar-field.jpg", cat: "Renewable Energy", credit: "Photo: American Public Power Association · Unsplash" },
-      { src: "assets/waste-to-energy.jpg", cat: "Waste-to-Energy", credit: "Photo: Rose Galloway Green · Unsplash" },
-      { src: "assets/carbon-reduction.jpg", cat: "Carbon Reduction", credit: "Photo: Paul Summers · Unsplash" },
-      { src: "assets/technical-assistance.jpg", cat: "Technical Assistance", credit: "Photo: Evgeniy Alyoshin · Unsplash" },
-      { src: "assets/flood-management.jpg", cat: "Flood Management", credit: "Photo: Mathis Mauprivez · Unsplash" },
-      { src: "assets/reforestation.jpg", cat: "Reforestation", credit: "Photo: Dmitry Dreyer · Unsplash" }
-    ];
-    var frame = document.getElementById("hv-photo-frame");
-    var catLabel = document.getElementById("hv-photo-cat");
-    var creditLabel = document.getElementById("hv-photo-credit");
-    if (!frame) return;
-
-    var imgA = document.createElement("img");
-    var imgB = document.createElement("img");
-    imgA.className = "hv-photo";
-    imgB.className = "hv-photo";
-    frame.insertBefore(imgA, catLabel);
-    frame.insertBefore(imgB, catLabel);
-
-    var index = 0;
-    var showingA = true;
-
-    function render(i) {
-      var slide = SLIDES[i];
-      var incoming = showingA ? imgB : imgA;
-      var outgoing = showingA ? imgA : imgB;
-      incoming.src = slide.src;
-      incoming.alt = slide.cat + ", one of the categories the catalyst fund is built to finance";
-      incoming.classList.add("on");
-      outgoing.classList.remove("on");
-      catLabel.textContent = slide.cat;
-      if (creditLabel) creditLabel.textContent = slide.credit;
-      showingA = !showingA;
-    }
-
-    render(index);
-    setInterval(function () {
-      index = (index + 1) % SLIDES.length;
-      render(index);
-    }, 4000);
   })();
 </script>
 

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Treasury &amp; Governance · Aretia (ACT)</title>
-<meta name="description" content="How the treasury, governance, milestone financing, project portfolio, and chain selection actually work.">
+<title>Climate Treasury · Aretia (ACT)</title>
+<meta name="description" content="Tokenomics, treasury custody, governance, milestone financing, project portfolio, and chain selection: how Aretia's climate capital is raised, held, and released.">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +19,7 @@
     --blue: #2A4BFF; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-soft: #FBEFD9;
+    --pink: #C0447A; --pink-soft: #FCE7EF;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -117,6 +118,29 @@
 
   .fine { font-size: 12.5px; color: var(--ink-faint); max-width: 76ch; margin-top: 16px; line-height: 1.6; }
 
+  /* -------- Tokenomics at a Glance cards (merged in from the former Tokenomics page) -------- */
+  .tok-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .tok-grid { grid-template-columns: 1fr; } }
+  .tok-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px 26px; position: relative; overflow: hidden; }
+  .tok-card.hl { border-color: var(--black); box-shadow: 0 20px 40px -28px rgba(10,12,16,.3); }
+  .tok-card .badge { position: relative; z-index: 1; display: inline-block; margin-bottom: 14px; background: var(--black); color: #fff; font-size: 10.5px; font-weight: 700; padding: 5px 12px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tok-card .tok-icon { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); margin-bottom: 14px; }
+  .tok-card h3, .tok-card .sub, .tok-card ul { position: relative; z-index: 1; }
+  .tok-card h3 { font-size: 15px; margin-bottom: 4px; color: var(--ink); }
+  .tok-card .sub { font-size: 12px; color: var(--ink-faint); margin-bottom: 20px; }
+  .tok-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .tok-card li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--ink-soft); }
+  .tok-card li .tick { width: 16px; height: 16px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; flex: none; margin-top: 2px; }
+  .tok-card .tok-bleed { position: absolute; right: -18px; bottom: -18px; width: 100px; height: 100px; opacity: .14; pointer-events: none; }
+  .status-value { font-size: clamp(2.3rem, 4.6vw, 3.1rem); font-weight: 800; letter-spacing: -0.03em; }
+  .status-change { font-size: 14px; color: var(--ink-faint); margin-top: 6px; font-weight: 500; }
+  .phase-pills { display: flex; gap: 8px; margin: 22px 0 8px; flex-wrap: wrap; }
+  .phase-pill { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 980px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+  .phase-pill.done { background: var(--green-soft); color: var(--green); border-color: transparent; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  table.data-table tbody td:last-child.green { color: var(--green); }
+  table.data-table .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 7px; vertical-align: 1px; }
+
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
   .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
@@ -138,13 +162,9 @@
       </a>
       <div class="nav-links">
         <a href="/">Home</a>
-        <a href="about.html">About</a>
-        <a href="tokenomics.html">Tokenomics</a>
+        <a href="details.html" class="active">Climate Treasury</a>
         <a href="stake.html">Staking</a>
-        <a href="details.html" class="active">Treasury</a>
-        <a href="verify.html">Verify</a>
         <a href="roadmap.html">Roadmap</a>
-        <a href="whitepaper.html">Whitepaper</a>
       </div>
       <div class="topnav-cta">
         <span class="status-chip">Pre-Launch</span>
@@ -160,9 +180,9 @@
     <div class="wrap">
       <div class="dhero-grid">
         <div>
-          <div class="dhero-eyebrow">Treasury &amp; Governance</div>
-          <h1>Treasury capital, <span class="hl">governed in layers.</span></h1>
-          <p class="dhero-sub">Tokenomics covers the fee split. This page covers what happens after a fee is collected: multisig custody, the four governance layers, how a project actually gets funded, and why Solana was chosen over the alternatives.</p>
+          <div class="dhero-eyebrow">Climate Treasury</div>
+          <h1>Fixed supply, <span class="hl">governed in layers.</span></h1>
+          <p class="dhero-sub">1,000,000,000 ACT, mint authority revoked, freeze authority never granted. Every trade splits automatically between the treasury, liquidity, and a disclosed management fee, then the treasury itself is held under multisig custody and released only against verified milestones.</p>
           <div class="dhero-actions">
             <a class="pill-btn pill-black" href="https://app.squads.so/squads/GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA" target="_blank" rel="noopener">View Treasury Multisig</a>
             <a class="pill-btn pill-ghost" href="whitepaper.html#15-treasury-custody">Read Governance Docs</a>
@@ -173,6 +193,96 @@
           <img src="assets/waste-to-energy.jpg" alt="Infrastructure funded through Aretia's milestone-verified treasury disbursements">
           <div class="dhero-badge"><span class="chk">✓</span>2-of-3 Multisig, Live on Mainnet</div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-bottom:24px;">
+    <div class="wrap">
+      <div class="eyebrow">Current Status</div>
+      <div class="status-value">Pre-Launch</div>
+      <div class="status-change">No live price: ACT has not launched on any exchange yet</div>
+      <div class="phase-pills">
+        <span class="phase-pill done">✓ Tokenomics locked</span>
+        <span class="phase-pill done">✓ Legal review</span>
+        <span class="phase-pill done">✓ Treasury live</span>
+        <span class="phase-pill done">✓ Mint live</span>
+        <span class="phase-pill">Public launch</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TOKENOMICS AT A GLANCE (merged in from the former Tokenomics page) ============ -->
+  <section class="block alt" id="tokenomics">
+    <div class="wrap">
+      <div class="block-head">
+        <div class="eyebrow">Tokenomics at a Glance</div>
+        <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
+      </div>
+      <div class="tok-grid">
+        <div class="tok-card" style="background:var(--pink-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
+          <h3>Fee Split</h3>
+          <div class="sub">Every transfer, automatically</div>
+          <ul>
+            <li><span class="tick">✓</span>2.0% → Climate Catalyst Fund</li>
+            <li><span class="tick">✓</span>1.0% → Liquidity</li>
+            <li><span class="tick">✓</span>0.5% → Disclosed management fee</li>
+            <li><span class="tick">✓</span>96.5% reaches the recipient net</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
+        </div>
+        <div class="tok-card hl" style="background:var(--blue-soft);">
+          <span class="badge">Fixed Forever</span>
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
+          <h3>Token</h3>
+          <div class="sub">Solana · Token-2022</div>
+          <ul>
+            <li><span class="tick">✓</span>1,000,000,000 total supply</li>
+            <li><span class="tick">✓</span>Mint authority revoked</li>
+            <li><span class="tick">✓</span>Freeze authority never granted</li>
+            <li><span class="tick">✓</span>9 decimals</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        </div>
+        <div class="tok-card" style="background:var(--green-soft);">
+          <div class="tok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg></div>
+          <h3>Protocol</h3>
+          <div class="sub">Custody &amp; governance</div>
+          <ul>
+            <li><span class="tick">✓</span>Squads multisig, 2-of-3</li>
+            <li><span class="tick">✓</span>Governance phased in, layered</li>
+            <li><span class="tick">✓</span>Milestone-verified disbursement</li>
+            <li><span class="tick">✓</span>Live, independent verification tool</li>
+          </ul>
+          <svg class="tok-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="block-head"><h2>Tokenomics</h2></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Category</th><th>Field</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3">Fee split</td><td><span class="sw" style="background:var(--blue);"></span>Treasury</td><td class="tnum">2%</td></tr>
+            <tr><td><span class="sw" style="background:var(--amber);"></span>Liquidity</td><td class="tnum">1%</td></tr>
+            <tr><td><span class="sw" style="background:var(--amber);"></span>Management</td><td class="tnum">0.5%</td></tr>
+            <tr><td rowspan="5">Token</td><td>Total supply</td><td class="tnum">1,000,000,000</td></tr>
+            <tr><td>Circulating supply</td><td>Not yet trading</td></tr>
+            <tr><td>Mint authority</td><td class="green">Revoked</td></tr>
+            <tr><td>Freeze authority</td><td class="green">Revoked</td></tr>
+            <tr><td>Decimals</td><td class="tnum">9</td></tr>
+            <tr><td rowspan="5">Protocol</td><td>Network</td><td>Solana</td></tr>
+            <tr><td>Token standard</td><td>Token-2022</td></tr>
+            <tr><td>Treasury custody</td><td>Squads multisig</td></tr>
+            <tr><td>Governance</td><td>Realms (phased in)</td></tr>
+            <tr><td>Trading pair</td><td>ACT / USDT</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>

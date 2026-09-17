@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
   :root {
@@ -20,9 +20,10 @@
     --blue: #2A4BFF; --blue-hover: #1B37D6; --blue-soft: #E7ECFF;
     --green: #1E8A5F; --green-soft: #E1F5EC;
     --amber: #B5790A; --amber-hover: #8C5D08; --amber-soft: #FBEFD9;
-    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
     --display: var(--font-sans);
-    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --mono: "DM Mono", ui-monospace, monospace;
     --ease: cubic-bezier(0.16, 1, 0.3, 1); --ease-out: var(--ease);
     --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
   }
@@ -39,6 +40,7 @@
   }
   a { color: inherit; text-decoration: none; }
   h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.02em; font-weight: 800; }
+  p { font-family: var(--font-serif); }
   .mono { font-family: var(--mono); }
   .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--black); outline-offset: 2px; }
@@ -56,7 +58,7 @@
   .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
   .nav-links { display: flex; align-items: center; gap: 16px; flex: 1; justify-content: center; }
-  .nav-links a { font-size: 13px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
+  .nav-links a { font-size: 14px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
   .nav-links a.active { color: var(--ink); font-weight: 700; }
   @media (max-width: 1120px) { .nav-links { display: none; } }

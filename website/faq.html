@@ -117,11 +117,11 @@
       </a>
       <div class="nav-links">
         <a href="/">Home</a>
-        <a href="about.html">About</a>
+        <a href="/#mission">About</a>
         <a href="tokenomics.html">Tokenomics</a>
         <a href="stake.html">Staking</a>
         <a href="details.html">Treasury</a>
-        <a href="verify.html">Verify</a>
+        <a href="/#verify-live">Verify</a>
         <a href="roadmap.html">Roadmap</a>
         <a href="whitepaper.html">Whitepaper</a>
       </div>
@@ -144,7 +144,7 @@
           <p class="dhero-sub">Every answer here traces back to something already stated in the whitepaper or verifiable on-chain right now. Nothing below is a new claim.</p>
           <div class="dhero-actions">
             <a class="pill-btn pill-black" href="whitepaper.html">Read the Whitepaper</a>
-            <a class="pill-btn pill-ghost" href="verify.html">Verify the Claims</a>
+            <a class="pill-btn pill-ghost" href="/#verify-live">Verify the Claims</a>
           </div>
           <div class="dhero-microcopy">No hidden terms, nothing off the record</div>
         </div>
@@ -175,11 +175,11 @@
         <div class="glabel">The token</div>
         <details class="faq-item">
           <summary>Does ACT show a name or logo in my wallet?</summary>
-          <div class="a">Yes. ACT's name ("Aretia Finance Protocol") and logo are attached through a Token-2022 MetadataPointer extension referencing a separate Metaplex Token Metadata account, and display correctly in any wallet or block explorer that supports Token-2022 metadata. That metadata account's own update-authority field still names a single key, not the treasury multisig, but its <code>is_mutable</code> flag was permanently set to false at creation, which the Metaplex program itself enforces: no one, including that recorded authority, can change the name, symbol, or logo going forward (see whitepaper Section 12). A name and logo displaying correctly doesn't make a token unique, though, since nothing stops a fraudulent mint from using a matching name and logo of its own; only the mint address is unique, which is why the <a href="verify.html">Verify</a> page checks the address-level facts directly rather than asking you to trust a display name.</div>
+          <div class="a">Yes. ACT's name ("Aretia Finance Protocol") and logo are attached through a Token-2022 MetadataPointer extension referencing a separate Metaplex Token Metadata account, and display correctly in any wallet or block explorer that supports Token-2022 metadata. That metadata account's own update-authority field still names a single key, not the treasury multisig, but its <code>is_mutable</code> flag was permanently set to false at creation, which the Metaplex program itself enforces: no one, including that recorded authority, can change the name, symbol, or logo going forward (see whitepaper Section 12). A name and logo displaying correctly doesn't make a token unique, though, since nothing stops a fraudulent mint from using a matching name and logo of its own; only the mint address is unique, which is why the <a href="/#verify-live">Verify</a> page checks the address-level facts directly rather than asking you to trust a display name.</div>
         </details>
         <details class="faq-item">
           <summary>Can the total supply ever increase?</summary>
-          <div class="a">No. Mint authority is revoked: there is no code path left by which more ACT can ever be created. Total supply is fixed at 1,000,000,000. Check it yourself on the <a href="verify.html">Verify</a> page, live against mainnet.</div>
+          <div class="a">No. Mint authority is revoked: there is no code path left by which more ACT can ever be created. Total supply is fixed at 1,000,000,000. Check it yourself on the <a href="/#verify-live">Verify</a> page, live against mainnet.</div>
         </details>
         <details class="faq-item">
           <summary>Can any wallet holding ACT be frozen?</summary>
@@ -203,7 +203,7 @@
         <div class="glabel">Trust &amp; security</div>
         <details class="faq-item">
           <summary>Has Aretia been independently audited?</summary>
-          <div class="a">Not yet. No formal, independent security audit of the mint configuration or the off-chain scripts that build treasury transactions has been completed: that's stated plainly, not hidden. The <a href="verify.html">Verify</a> tool is a free, instant, zero-trust first check; it is explicitly not a substitute for a real audit.</div>
+          <div class="a">Not yet. No formal, independent security audit of the mint configuration or the off-chain scripts that build treasury transactions has been completed: that's stated plainly, not hidden. The <a href="/#verify-live">Verify</a> tool is a free, instant, zero-trust first check; it is explicitly not a substitute for a real audit.</div>
         </details>
         <details class="faq-item">
           <summary>Who controls the treasury?</summary>
@@ -211,7 +211,7 @@
         </details>
         <details class="faq-item">
           <summary>How do I check any of this myself instead of trusting the site?</summary>
-          <div class="a">Use the <a href="verify.html">Verify</a> page. It queries Solana mainnet directly from your own browser (no Aretia server sits in the request path) and recomputes the mint's authorities, supply, decimals, transfer fee rate, fee authorities, and treasury balance live, showing the result next to the documented claim. The page's own source is visible via View Page Source, so you don't have to trust the verification tool either.</div>
+          <div class="a">Use the <a href="/#verify-live">Verify</a> page. It queries Solana mainnet directly from your own browser (no Aretia server sits in the request path) and recomputes the mint's authorities, supply, decimals, transfer fee rate, fee authorities, and treasury balance live, showing the result next to the documented claim. The page's own source is visible via View Page Source, so you don't have to trust the verification tool either.</div>
         </details>
       </div>
 
@@ -253,7 +253,7 @@
   <section class="block" style="padding-top:0; text-align:center;">
     <div class="wrap" style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; align-items:center;">
       <a class="pill-btn pill-black" href="whitepaper.html">Read the full whitepaper</a>
-      <a href="verify.html" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Verify the claims yourself →</a>
+      <a href="/#verify-live" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">Verify the claims yourself →</a>
     </div>
   </section>
 </main>
@@ -263,7 +263,7 @@
   <div class="wrap" style="max-width:1180px;">
     <div class="footer-links">
       <a href="whitepaper.html">Whitepaper</a>
-      <a href="about.html">About</a>
+      <a href="/#mission">About</a>
       <a href="tokenomics.html">Tokenomics</a>
       <a href="roadmap.html">Roadmap</a>
       <a href="faq.html">FAQ</a>

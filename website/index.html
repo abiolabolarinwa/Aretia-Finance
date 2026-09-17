@@ -181,6 +181,23 @@
   .cat-dots button.active { background: var(--hero-amber); width: 24px; border-radius: 4px; }
   @media (max-width: 480px) { .cat-arrow { width: 36px; height: 36px; font-size: 17px; } .cat-arrow-prev { left: 10px; } .cat-arrow-next { right: 10px; } }
 
+  /* -------- Thesis band: rotating globe manifesto -------- */
+  .thesis-grid { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; min-height: 340px; }
+  .thesis-eyebrow { font-size: 12px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .thesis-h { font-size: clamp(2rem, 4.2vw, 3.2rem); font-weight: 700; letter-spacing: -0.01em; line-height: 1.05; color: var(--ink); margin: 0; }
+  .thesis-col-right .thesis-h { color: var(--brand); }
+  .thesis-col-right { text-align: right; }
+  .thesis-globe-wrap { width: clamp(220px, 28vw, 400px); height: clamp(220px, 28vw, 400px); position: relative; }
+  .thesis-globe { width: 100%; height: 100%; cursor: grab; }
+  .thesis-body { max-width: 540px; font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; margin: 40px 0 0; }
+  @media (max-width: 860px) {
+    .thesis-grid { grid-template-columns: 1fr; text-align: center; gap: 28px; min-height: 0; }
+    .thesis-col-left, .thesis-col-right { text-align: center; order: 1; }
+    .thesis-col-right { order: 3; }
+    .thesis-globe-wrap { width: min(64vw, 300px); height: min(64vw, 300px); margin: 0 auto; order: 2; }
+    .thesis-body { margin: 32px auto 0; text-align: center; }
+  }
+
   /* -------- 3-step process with screenshots -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 52px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
@@ -727,6 +744,25 @@
     </div>
   </section>
 
+  <!-- ============ THESIS: rotating globe manifesto ============ -->
+  <section class="block" id="thesis">
+    <div class="wrap">
+      <div class="thesis-grid">
+        <div class="thesis-col thesis-col-left">
+          <div class="thesis-eyebrow">A message from Aretia</div>
+          <h2 class="thesis-h">We Believe In</h2>
+        </div>
+        <div class="thesis-globe-wrap">
+          <canvas id="thesis-globe" class="thesis-globe" aria-hidden="true"></canvas>
+        </div>
+        <div class="thesis-col thesis-col-right">
+          <h2 class="thesis-h">Provable Capital</h2>
+        </div>
+      </div>
+      <p class="thesis-body">We believe capital should move only when the outcome is proven: installed capacity, metered output, independently verified emissions. Every dollar Aretia deploys, and every ACT token in circulation, is anchored to that standard. That's how climate finance earns trust, not with a pitch, but with a receipt.</p>
+    </div>
+  </section>
+
   <!-- ============ 3 STEP CARDS ============ -->
   <section class="block">
     <div class="wrap">
@@ -857,6 +893,7 @@
         </ul>
       </div>
     </div>
+    <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>
     <div class="footer-bottom">
       <span class="footer-copy">© 2026 Aretia</span>
     </div>
@@ -1185,6 +1222,58 @@
       index = (index + 1) % SLIDES.length;
       render(index);
     }, 4000);
+  })();
+</script>
+
+<!-- Thesis globe: a rotating dot-matrix world, brand-purple, built with cobe (~5KB, canvas/WebGL) -->
+<script>
+  (function () {
+    var canvas = document.getElementById("thesis-globe");
+    if (!canvas || !window.WebGLRenderingContext) return;
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    import("https://cdn.jsdelivr.net/npm/cobe@2.0.1/dist/index.esm.min.js").then(function (mod) {
+      var createGlobe = mod.default;
+      var phi = 2;
+      var width = 0;
+
+      function onResize() {
+        width = canvas.offsetWidth;
+      }
+      window.addEventListener("resize", onResize);
+      onResize();
+
+      createGlobe(canvas, {
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        width: width * 2,
+        height: width * 2,
+        phi: 2,
+        theta: 0.3,
+        dark: 0.25,
+        diffuse: 1.25,
+        scale: 1,
+        mapSamples: 12000,
+        mapBrightness: 3,
+        baseColor: [0.85, 0.82, 0.96],
+        markerColor: [0.098, 0.031, 0.502],
+        glowColor: [0.78, 0.74, 0.94],
+        offset: [0, 0],
+        markers: [
+          { location: [28.6, 77.2], size: 0.09 },
+          { location: [-3.4, -62.2], size: 0.09 },
+          { location: [-1.3, 36.8], size: 0.09 },
+          { location: [23.7, 90.4], size: 0.09 },
+          { location: [-6.2, 106.8], size: 0.09 },
+          { location: [-1.0, 21.0], size: 0.09 }
+        ],
+        onRender: function (state) {
+          if (!reduced) phi += 0.0045;
+          state.phi = phi;
+          state.width = width * 2;
+          state.height = width * 2;
+        }
+      });
+    }).catch(function () {});
   })();
 </script>
 

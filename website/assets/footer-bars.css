@@ -32,3 +32,24 @@
 @media (max-width: 640px) {
   .footer-bars { height: 38px; margin-bottom: 22px; }
 }
+
+/* ==========================================================================
+   Footer wordmark -- a giant brand mark tucked between the footer's link
+   columns and its bottom copyright row, tinted close to the page background
+   so it reads as a faint watermark rather than a headline.
+   ========================================================================== */
+.footer-wordmark {
+  font-size: clamp(2.6rem, 10vw, 8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--border-soft, #EFEFF3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+  margin: 4px 0 32px;
+}
+@media (max-width: 640px) {
+  .footer-wordmark { font-size: clamp(1.7rem, 11vw, 2.6rem); margin: 4px 0 24px; }
+}

@@ -118,6 +118,15 @@
   .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: #fff; padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
   .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; }
   .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
+
+  /* -------- FAQ (merged in from the former FAQ page: Staking group) -------- */
+  .faq-preview { max-width: 720px; margin: 0 auto; }
+  .faq-preview details { border-bottom: 1px solid var(--border-soft); padding: 18px 0; }
+  .faq-preview summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq-preview summary::-webkit-details-marker { display: none; }
+  .faq-preview summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-faint); flex: none; }
+  .faq-preview details[open] summary::after { content: "\2013"; }
+  .faq-preview .a { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-top: 12px; max-width: 68ch; }
   .rule-box { position: relative; overflow: hidden; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; display: flex; gap: 14px; align-items: flex-start; }
   .rule-box .rn { position: relative; z-index: 1; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--black); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
   .rule-box p { position: relative; z-index: 1; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
@@ -340,6 +349,33 @@
     </div>
   </section>
 
+  <!-- ============ FAQ (merged in from the former FAQ page: Staking group) ============ -->
+  <section class="block" id="faq">
+    <div class="wrap">
+      <div class="block-head" style="text-align:center;">
+        <h2>Staking questions.</h2>
+      </div>
+      <div class="faq-preview">
+        <details open>
+          <summary>Can I stake ACT yet?</summary>
+          <div class="a">Not with real ACT. The program is compiled and live on Solana devnet, and locking/unlocking has been tested there with real transactions, but it has not been deployed to mainnet and hasn't been independently reviewed yet. No real ACT can be staked today.</div>
+        </details>
+        <details>
+          <summary>What does staking actually do?</summary>
+          <div class="a">Locking ACT for a chosen duration computes a Capital Access Score from the amount and time staked, which maps to a tier. The tier is proposed to gate priority visibility into a possible future project-finance marketplace (Part VIII of the whitepaper), a marketplace that does not exist yet, so staking today builds a verifiable on-chain score and unlocks nothing.</div>
+        </details>
+        <details>
+          <summary>Does staking pay a yield, or give me investor rights in a project?</summary>
+          <div class="a">No, and this is a hard rule rather than a current limitation: no staking tier confers investor eligibility, and ACT's value is never represented as depending on any gated project's returns. Staking changes what a wallet can see and how early, never what it's entitled to. See <a href="whitepaper.html#30-tiered-access-through-act-staking" style="color:var(--brand); font-weight:600;">Section 30 of the whitepaper</a>.</div>
+        </details>
+      </div>
+      <div style="text-align:center; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="/#faq">General &amp; token questions →</a>
+        <a class="pill-btn pill-ghost" href="details.html#faq">Fee &amp; funding questions →</a>
+      </div>
+    </div>
+  </section>
+
   <section class="block">
     <div class="wrap" style="text-align:center;">
       <div class="block-head" style="margin-bottom:20px;">
@@ -360,10 +396,10 @@
     <div class="footer-links">
       <a href="whitepaper.html">Whitepaper</a>
       <a href="/#mission">About</a>
-      <a href="tokenomics.html">Tokenomics</a>
+      <a href="details.html#tokenomics">Tokenomics</a>
       <a href="stake.html">Staking</a>
       <a href="roadmap.html">Roadmap</a>
-      <a href="faq.html">FAQ</a>
+      <a href="/#faq">FAQ</a>
     </div>
     <p class="legal">The staking program described on this page is under active development and is not yet deployed; no ACT can be staked today, and nothing described here has been independently reviewed or audited.</p>
     <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>

@@ -12,18 +12,18 @@
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
-    --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
+    --bg: #FAF9F5; --bg-alt: #F2F0EA; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
-    --brand: #190880; --brand-hover: #100553;
-    --blue: #2A4BFF; --blue-hover: #1B37D6; --blue-soft: #E7ECFF;
-    --green: #1E8A5F; --green-soft: #E1F5EC;
-    --amber: #B5790A; --amber-soft: #FBEFD9;
-    --pink: #C0447A; --pink-soft: #FCE7EF;
-    --cyan: #0E7D8C; --cyan-soft: #DEF3F5;
+    --brand: #190880; --brand-hover: #100553; --brand-soft: #ECE9F8;
+    --blue: var(--brand); --blue-hover: var(--brand-hover); --blue-soft: var(--brand-soft);
+    --green: var(--brand); --green-soft: var(--brand-soft);
+    --amber: var(--brand); --amber-soft: var(--brand-soft);
+    --pink: var(--brand); --pink-soft: var(--brand-soft);
+    --cyan: var(--brand); --cyan-soft: var(--brand-soft);
     --red: #B23B3B; --red-soft: #FBEAEA;
     --surface: var(--bg-alt);
-    --hero-cream: #F5EAB0; --hero-mustard: #F0D879; --hero-amber: #A9791B; --hero-ink: #17150C;
+    --hero-cream: var(--bg-alt); --hero-mustard: var(--border-soft); --hero-amber: var(--brand); --hero-ink: var(--ink);
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "Inter", ui-monospace, monospace;
@@ -93,8 +93,8 @@
   @media (max-width: 560px) { .flux-card-cols { grid-template-columns: 1fr; } }
   .flux-card-purple .flux-card-cols p { font-size: 14.5px; line-height: 1.7; color: rgba(255,255,255,.88); margin: 0; }
   .flux-card-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: #fff; margin-top: 28px; }
-  .flux-card-white { background: var(--bg-alt); color: var(--ink); }
-  .flux-card-white .flux-icon { background: #fff; box-shadow: 0 4px 10px -6px rgba(10,12,16,.2); }
+  .flux-card-white { background: var(--card); border: 1px solid var(--border); color: var(--ink); }
+  .flux-card-white .flux-icon { background: var(--bg-alt); box-shadow: 0 4px 10px -6px rgba(10,12,16,.2); }
   .flux-card-white .flux-card-cols { grid-template-columns: 1fr 1fr; }
   .flux-card-white .flux-blurb h4 { font-size: 14.5px; font-weight: 800; margin: 0 0 6px; color: var(--ink); }
   .flux-card-white .flux-blurb p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin: 0; }
@@ -112,21 +112,21 @@
   .flux-step p { font-size: 13.5px; color: rgba(255,255,255,.65); line-height: 1.6; max-width: 30ch; margin: 0; }
 
   /* -------- Pulse band: interactive skyline of bars + trading stats -------- */
-  .pulse-band { position: relative; background: #F0D879; overflow: hidden; padding: 48px 0 0; }
+  .pulse-band { position: relative; background: var(--bg-alt); overflow: hidden; padding: 48px 0 0; }
   .pulse-bars { position: relative; height: 360px; display: flex; align-items: flex-end; gap: 1px; padding: 0 4px; }
-  .pulse-bars .bar { flex: 1 1 0; min-width: 2px; border-radius: 0; background: linear-gradient(180deg, #6B4A0E 0%, #8C6212 45%, #A9791B 100%); opacity: .92; transform-origin: bottom; transition: height 320ms cubic-bezier(.16,1,.3,1), opacity 320ms ease; will-change: height; }
+  .pulse-bars .bar { flex: 1 1 0; min-width: 2px; border-radius: 0; background: linear-gradient(180deg, var(--ink) 0%, var(--black-hover) 45%, var(--ink-faint) 100%); opacity: .92; transform-origin: bottom; transition: height 320ms cubic-bezier(.16,1,.3,1), opacity 320ms ease; will-change: height; }
   .pulse-logos { position: relative; z-index: 2; display: flex; gap: 36px; flex-wrap: wrap; align-items: center; justify-content: center; padding: 24px 24px 44px; }
-  .pulse-logos .logo-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 700; color: #3A2A05; opacity: .85; }
+  .pulse-logos .logo-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 700; color: var(--ink-soft); opacity: .85; }
   .pulse-logos .logo-mark { width: 21px; height: 21px; flex: none; display: block; }
   .pulse-logos .logo-mark-img { border-radius: 6px; }
   .pulse-stats-wrap { padding-bottom: 56px; }
   .pulse-stats-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: end; border-top: 1px solid rgba(58,42,5,.16); padding-top: 36px; }
   @media (max-width: 760px) { .pulse-stats-grid { grid-template-columns: 1fr; gap: 26px; } }
-  .ps-label { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #7A5300; margin-bottom: 10px; }
-  .pulse-stat-main .ps-value { font-size: clamp(2.6rem, 6vw, 4rem); font-weight: 800; letter-spacing: -.02em; color: #17150C; line-height: 1; }
+  .ps-label { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .pulse-stat-main .ps-value { font-size: clamp(2.6rem, 6vw, 4rem); font-weight: 800; letter-spacing: -.02em; color: var(--ink); line-height: 1; }
   .pulse-stat-side { border-left: 1px solid rgba(58,42,5,.18); padding-left: 30px; }
   @media (max-width: 760px) { .pulse-stat-side { border-left: none; padding-left: 0; border-top: 1px solid rgba(58,42,5,.18); padding-top: 22px; } }
-  .pulse-stat-side .ps-value { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 800; color: #17150C; }
+  .pulse-stat-side .ps-value { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 800; color: var(--ink); }
   .ps-note { font-size: 12.5px; color: rgba(58,42,5,.72); margin-top: 8px; max-width: 46ch; line-height: 1.55; }
   @media (max-width: 640px) { .pulse-bars { height: 240px; } }
 
@@ -227,9 +227,9 @@
 
   /* -------- Final CTA -------- */
   .final-cta { text-align: center; padding: 84px 0; }
-  .final-cta-band { background: #F5EAB0; }
-  .final-cta-band .final-cta h2 { color: #17150C; }
-  .final-cta-band .final-cta p { color: #4A4227; }
+  .final-cta-band { background: var(--bg-alt); }
+  .final-cta-band .final-cta h2 { color: var(--ink); }
+  .final-cta-band .final-cta p { color: var(--ink-soft); }
   .final-cta-band .pill-ghost { background: #fff; }
   .final-cta h2 { font-size: clamp(2rem, 4vw, 2.9rem); color: var(--ink); max-width: 20ch; margin: 0 auto 14px; }
   .final-cta p { font-size: 14px; color: var(--ink-soft); margin-bottom: 32px; }
@@ -627,9 +627,9 @@
             <div class="mini-mock">
               <div class="mm-badge">3.5% Withheld Per Transfer</div>
               <div class="mm-fee-bar">
-                <span style="width:57.1%; background:var(--blue);"></span>
-                <span style="width:28.6%; background:var(--green);"></span>
-                <span style="width:14.3%; background:var(--amber);"></span>
+                <span style="width:57.1%; background:var(--black);"></span>
+                <span style="width:28.6%; background:var(--black-hover);"></span>
+                <span style="width:14.3%; background:var(--ink-faint);"></span>
               </div>
               <div class="mm-row" style="font-size:10.5px; color:var(--ink-faint);">2.0% Catalyst · 1.0% Liquidity · 0.5% Mgmt</div>
             </div>

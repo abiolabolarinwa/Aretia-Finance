@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
@@ -112,13 +113,46 @@
   .phase-pill { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 980px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
   .phase-pill.done { background: var(--green-soft); color: var(--green); border-color: transparent; }
 
-  /* -------- CAS stat cards (Ondo-dashboard-style figures) -------- */
-  .cas-group-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin-bottom: 14px; }
-  .cas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
-  .cas-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 22px 20px; box-shadow: 0 10px 24px -18px rgba(16,17,20,.25); }
-  .cas-card .cas-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: 14px; }
-  .cas-card .cas-value { font-size: clamp(1.35rem, 2.6vw, 1.7rem); font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
-  .cas-card .cas-sub { font-size: 12px; color: var(--ink-faint); margin-top: 8px; line-height: 1.5; }
+  /* -------- Capital Access Score: bento-box explainer -------- */
+  .cas-shell { max-width: 1180px; margin: 0 auto; padding: 12px; border-radius: 32px; background: rgba(16,17,20,.04); display: grid; grid-template-columns: 1.08fr 1.45fr; gap: 12px; }
+  .cas-intro, .cas-card { background: var(--card); border-radius: 25px; }
+  .cas-intro { padding: 44px 44px; display: flex; flex-direction: column; }
+  .cas-eyebrow { color: var(--brand); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; }
+  .cas-intro h2 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.08; letter-spacing: -0.03em; margin: 0; }
+  .cas-intro .cas-lede { max-width: 480px; color: var(--ink-soft); font-size: 14.5px; line-height: 1.7; margin: 22px 0 0; }
+  .cas-formula { margin-top: auto; padding-top: 28px; }
+  .cas-formula-box { border-radius: 19px; background: var(--black); color: #fff; padding: 24px 26px; }
+  .cas-formula-box span { display: block; color: rgba(255,255,255,.55); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .cas-formula-box strong { font-family: "Playfair Display", Georgia, serif; font-size: 24px; font-weight: 500; display: block; margin-top: 8px; letter-spacing: -0.01em; }
+  .cas-content { display: grid; gap: 12px; }
+  .cas-hero { padding: 28px 32px; position: relative; overflow: hidden; }
+  .cas-hero::after { content: "CAS"; position: absolute; color: var(--brand-soft); font: 600 130px/1 "Playfair Display", Georgia, serif; right: 18px; bottom: -34px; letter-spacing: -.05em; pointer-events: none; }
+  .cas-hero .cas-hero-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .11em; color: var(--brand); position: relative; z-index: 1; }
+  .cas-hero h3 { font: 500 clamp(26px, 3vw, 36px)/1.1 "Playfair Display", Georgia, serif; margin: 12px 0 0; letter-spacing: -.02em; max-width: 480px; position: relative; z-index: 1; }
+  .cas-hero p { font-size: 13px; max-width: 460px; line-height: 1.6; color: var(--ink-soft); position: relative; z-index: 1; margin: 14px 0 0; }
+  .cas-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .cas-tables { grid-template-columns: 1fr; } }
+  .cas-table-card { padding: 25px 26px 14px; }
+  .cas-table-card h4 { margin: 0 0 18px; font-size: 15px; letter-spacing: -.01em; }
+  .cas-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .cas-table th { color: var(--ink-faint); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; text-align: left; font-weight: 800; padding: 0 0 12px; }
+  .cas-table td { border-top: 1px solid var(--border); padding: 14px 0; color: var(--ink-soft); }
+  .cas-table td:last-child { color: var(--ink); text-align: right; font-family: "DM Mono", monospace; font-size: 11px; font-weight: 500; }
+  .cas-table.cas-tiers th:last-child, .cas-table.cas-tiers td:last-child { text-align: right; }
+  .cas-table.cas-tiers td:nth-child(2) { color: var(--brand); font-family: "DM Mono", monospace; font-size: 11px; }
+  .cas-table.cas-tiers td:first-child { width: 30%; }
+  .cas-footnote { font-size: 10.5px; color: var(--ink-faint); margin: 14px 0 0; }
+  @media (max-width: 900px) {
+    .cas-shell { grid-template-columns: 1fr; }
+    .cas-hero { min-height: 190px; }
+  }
+  @media (max-width: 480px) {
+    .cas-shell { padding: 7px; gap: 7px; }
+    .cas-intro, .cas-card { border-radius: 19px; }
+    .cas-intro { padding: 28px 22px; }
+    .cas-hero, .cas-table-card { padding-left: 22px; padding-right: 22px; }
+    .cas-hero::after { font-size: 100px; }
+  }
 
   .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
   @media (max-width: 980px) { .value-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -308,56 +342,54 @@
   </section>
 
   <section class="block alt" id="formula">
-    <div class="wrap">
-      <div class="block-head">
+    <div class="cas-shell">
+      <section class="cas-intro">
+        <p class="cas-eyebrow">Aretia Finance / Governance</p>
         <h2>How the Capital Access Score works</h2>
-        <p class="sub">One formula, two inputs. Both tables below live in a governance-controlled config account on-chain: the treasury multisig can recalibrate the numbers later without redeploying the program, which matters because there's no real holder-distribution data to calibrate against yet. Treat every number here as a documented starting point, not a permanent constant.</p>
-      </div>
-      <div class="cas-group-label">Lock Period → Duration Multiplier</div>
-      <div class="cas-grid" style="margin-bottom:28px;">
-        <div class="cas-card">
-          <div class="cas-label">30 Days</div>
-          <div class="cas-value">1.00×</div>
+        <p class="cas-lede">One formula, two inputs. Both tables here live in a governance-controlled config account on-chain: the treasury multisig can recalibrate the numbers later without redeploying the program, which matters because there's no real holder-distribution data to calibrate against yet.</p>
+        <div class="cas-formula">
+          <div class="cas-formula-box">
+            <span>Starting point</span>
+            <strong>Capital × duration = access</strong>
+          </div>
         </div>
-        <div class="cas-card">
-          <div class="cas-label">90 Days</div>
-          <div class="cas-value">1.30×</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">180 Days</div>
-          <div class="cas-value">1.75×</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">365 Days</div>
-          <div class="cas-value">2.60×</div>
-        </div>
-      </div>
-      <div class="cas-group-label">Tier → CAS Threshold</div>
-      <div class="cas-grid">
-        <div class="cas-card">
-          <div class="cas-label">Tier 0 · Public</div>
-          <div class="cas-value">Below 1,000,000</div>
-          <div class="cas-sub">n/a supply at 30-day lock</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">Tier 1 · Observer</div>
-          <div class="cas-value">≥ 1,000,000</div>
-          <div class="cas-sub">≈ 0.10% supply at 30-day lock</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">Tier 2 · Participant</div>
-          <div class="cas-value">≥ 5,000,000</div>
-          <div class="cas-sub">≈ 0.50% supply at 30-day lock</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">Tier 3 · Partner</div>
-          <div class="cas-value">≥ 20,000,000</div>
-          <div class="cas-sub">≈ 2.00% supply at 30-day lock</div>
-        </div>
-        <div class="cas-card">
-          <div class="cas-label">Tier 4 · Anchor</div>
-          <div class="cas-value">≥ 75,000,000</div>
-          <div class="cas-sub">≈ 7.50% supply at 30-day lock</div>
+      </section>
+
+      <div class="cas-content">
+        <section class="cas-card cas-hero">
+          <div class="cas-hero-label">Capital Access Score</div>
+          <h3>One formula. Two inputs.</h3>
+          <p>Your lock period sets a duration multiplier, while the ACT you lock determines the tier available to you. Treat every number here as a documented starting point, not a permanent constant.</p>
+        </section>
+
+        <div class="cas-tables">
+          <section class="cas-card cas-table-card">
+            <h4>Duration multiplier</h4>
+            <table class="cas-table" aria-label="Lock period duration multiplier">
+              <thead><tr><th>Lock period</th><th>Multiplier</th></tr></thead>
+              <tbody>
+                <tr><td>30 days</td><td>1.00×</td></tr>
+                <tr><td>90 days</td><td>1.30×</td></tr>
+                <tr><td>180 days</td><td>1.75×</td></tr>
+                <tr><td>365 days</td><td>2.60×</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="cas-card cas-table-card">
+            <h4>Capital tiers</h4>
+            <table class="cas-table cas-tiers" aria-label="Capital access tiers">
+              <thead><tr><th>Tier</th><th>≈ Supply at 30-day lock</th><th>CAS threshold</th></tr></thead>
+              <tbody>
+                <tr><td>0 (Public)</td><td>n/a</td><td>below 1,000,000</td></tr>
+                <tr><td>1 (Observer)</td><td>0.10%</td><td>≥ 1,000,000</td></tr>
+                <tr><td>2 (Participant)</td><td>0.50%</td><td>≥ 5,000,000</td></tr>
+                <tr><td>3 (Partner)</td><td>2.00%</td><td>≥ 20,000,000</td></tr>
+                <tr><td>4 (Anchor)</td><td>7.50%</td><td>≥ 75,000,000</td></tr>
+              </tbody>
+            </table>
+            <p class="cas-footnote">Values shown are documented defaults and can be updated by governance.</p>
+          </section>
         </div>
       </div>
     </div>

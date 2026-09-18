@@ -406,7 +406,7 @@ The following addresses are referenced throughout this paper by description rath
 | Token-2022 program | `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` |
 | Treasury multisig (Squads) | `5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr` |
 | Treasury vault | `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` |
-| Management fee wallet | *To be confirmed; not yet addressed as part of this rebuild.* |
+| Management fee wallet | `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2` |
 
 ## Notes
 

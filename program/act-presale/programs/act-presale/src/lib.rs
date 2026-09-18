@@ -42,18 +42,26 @@
 //! take whichever mint/vault pair the caller is using and validate it
 //! matches one of the two configured pairs by index.
 //!
-//! SOL is deliberately **not** implemented yet. SOL floats against USD,
-//! so pricing a SOL contribution in ACT correctly requires a live
-//! on-chain price oracle (e.g. Pyth or Switchboard) read at the moment of
-//! purchase -- a wrong, stale, or unverified oracle account is a direct
-//! path to buyers minting ACT allocations at whatever price that account
-//! reports, including something close to zero. `buy_with_sol` exists as
-//! an explicit stub that always errors, rather than either omitting SOL
-//! silently or wiring in an oracle address that hasn't actually been
-//! verified against a real devnet feed. Enabling it needs: (1) a choice
-//! of oracle provider, (2) that provider's verified devnet *and* mainnet
-//! SOL/USD feed account addresses, (3) staleness and confidence-interval
-//! checks on the feed, not just a price read.
+//! SOL is accepted via `buy_with_sol`, priced against Pyth's SOL/USD pull
+//! oracle (feed ID confirmed live against Pyth's own Hermes API and the
+//! `pyth-solana-receiver-sdk` crate's own doc-comment example -- not
+//! guessed). The caller supplies a `PriceUpdateV2` account (posted
+//! on-chain moments earlier, in the same or a preceding transaction, via
+//! Pyth's standard pull-oracle flow); this program validates it against
+//! the fixed `SOL_USD_FEED_ID` and rejects anything older than
+//! `MAX_PRICE_STALENESS_SECONDS`. Because SOL floats against USD (unlike
+//! USDC/USDT), its contribution is converted to a USD-equivalent amount
+//! at the live price and folded into the *same* combined
+//! `total_raised_payment`/min-buy/max-buy/hard-cap accounting USDC and
+//! USDT already share -- `BuyerAccount.sol_usd_value_contributed` tracks
+//! that USD-equivalent for cap purposes, while
+//! `BuyerAccount.sol_lamports_contributed` separately tracks the exact
+//! lamports paid, so a refund returns precisely what was paid regardless
+//! of how the price has moved since. SOL is escrowed as native lamports
+//! directly on the `vault_authority` PDA (no separate vault account or
+//! wrapping into wSOL needed) and swept/refunded via ordinary System
+//! Program transfers signed the same way every other `vault_authority`
+//! CPI in this program already is.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_2022::spl_token_2022::extension::{
@@ -63,6 +71,7 @@ use anchor_spl::token_2022::spl_token_2022::state::Mint as SplMint;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 // Generated via `solana-keygen new` on this machine (see Anchor.toml). Not yet deployed.
 declare_id!("5hmgnujNib14NDkEgRsLpY3H8SBDCsLryiymNKY6fWku");
@@ -86,6 +95,23 @@ pub const NUM_PAYMENT_CURRENCIES: usize = 2;
 pub const STATUS_ACTIVE: u8 = 0;
 pub const STATUS_FINALIZED: u8 = 1;
 pub const STATUS_REFUNDING: u8 = 2;
+
+/// Pyth's SOL/USD price feed ID (not an account address -- pull-oracle
+/// price accounts are ephemeral). Confirmed live via Pyth's own Hermes
+/// API (`GET https://hermes.pyth.network/v2/price_feeds?query=SOL/USD`,
+/// description "SOLANA / US DOLLAR") and cross-checked against this
+/// exact byte array appearing as `pyth-solana-receiver-sdk`'s own
+/// `get_feed_id_from_hex` test fixture for "0xef0d8b6f...b56d" -- not
+/// guessed or hand-typed from hex.
+pub const SOL_USD_FEED_ID: [u8; 32] = [
+    239, 13, 139, 111, 218, 44, 235, 164, 29, 161, 93, 64, 149, 209, 218, 57, 42, 13, 47, 142, 208,
+    198, 199, 188, 15, 76, 250, 200, 194, 128, 181, 109,
+];
+/// Reject any Pyth price update older than this. 60s is generous enough
+/// that a normal pull-then-consume transaction never fails on staleness
+/// under ordinary network conditions, while still rejecting a price an
+/// attacker captured long ago and is replaying.
+pub const MAX_PRICE_STALENESS_SECONDS: u64 = 60;
 
 #[program]
 pub mod act_presale {
@@ -138,6 +164,7 @@ pub mod act_presale {
         config.treasury_payment_accounts = [Pubkey::default(); NUM_PAYMENT_CURRENCIES];
         config.act_vault = ctx.accounts.act_vault.key();
         config.treasury_act_account = ctx.accounts.treasury_act_account.key();
+        config.treasury_sol_account = ctx.accounts.treasury_sol_account.key();
         config.price_micro_payment_per_act = price_micro_payment_per_act;
         config.start_ts = start_ts;
         config.end_ts = end_ts;
@@ -266,6 +293,8 @@ pub mod act_presale {
             .payment_contributed
             .iter()
             .try_fold(0u64, |acc, &v| acc.checked_add(v))
+            .ok_or(PresaleError::MathOverflow)?
+            .checked_add(buyer_account.sol_usd_value_contributed)
             .ok_or(PresaleError::MathOverflow)?;
         if total_contributed_before == 0 {
             require!(
@@ -343,11 +372,150 @@ pub mod act_presale {
         Ok(())
     }
 
-    /// Stub. SOL is not yet an accepted presale currency -- see the
-    /// module-level "Payment currencies" doc comment for exactly what's
-    /// needed before this can be implemented for real. Always errors.
-    pub fn buy_with_sol(_ctx: Context<BuyWithSol>, _lamports: u64) -> Result<()> {
-        err!(PresaleError::SolPaymentNotYetSupported)
+    /// Public. Buys ACT with native SOL, priced against the live Pyth
+    /// SOL/USD feed the caller supplies via `price_update` (see the
+    /// module-level "Payment currencies" doc comment). Applies the same
+    /// window/pause/min-first-buy/max-cumulative/hard-cap rules as `buy`,
+    /// combined across all three currencies via each side's USD-
+    /// equivalent value.
+    pub fn buy_with_sol(ctx: Context<BuyWithSol>, lamports: u64) -> Result<()> {
+        let config = &ctx.accounts.config;
+        require!(config.status == STATUS_ACTIVE, PresaleError::PresaleNotActive);
+        require!(!config.paused, PresaleError::PresalePaused);
+        require!(lamports > 0, PresaleError::ZeroAmount);
+
+        let now = Clock::get()?.unix_timestamp;
+        require!(now >= config.start_ts, PresaleError::PresaleNotStarted);
+        require!(now < config.end_ts, PresaleError::PresaleEnded);
+
+        let price = ctx
+            .accounts
+            .price_update
+            .get_price_no_older_than(&Clock::get()?, MAX_PRICE_STALENESS_SECONDS, &SOL_USD_FEED_ID)
+            .map_err(|_| PresaleError::InvalidOraclePrice)?;
+        require!(price.price > 0, PresaleError::InvalidOraclePrice);
+
+        let payment_amount = lamports_to_payment_units(lamports, price.price, price.exponent)?;
+        require!(payment_amount > 0, PresaleError::ZeroAmount);
+
+        let buyer_account = &ctx.accounts.buyer_account;
+        let total_contributed_before: u64 = buyer_account
+            .payment_contributed
+            .iter()
+            .try_fold(0u64, |acc, &v| acc.checked_add(v))
+            .ok_or(PresaleError::MathOverflow)?
+            .checked_add(buyer_account.sol_usd_value_contributed)
+            .ok_or(PresaleError::MathOverflow)?;
+        if total_contributed_before == 0 {
+            require!(
+                payment_amount >= config.min_buy_payment,
+                PresaleError::BelowMinBuy
+            );
+        }
+
+        let new_total_for_buyer = total_contributed_before
+            .checked_add(payment_amount)
+            .ok_or(PresaleError::MathOverflow)?;
+        require!(
+            new_total_for_buyer <= config.max_buy_payment,
+            PresaleError::AboveMaxBuy
+        );
+
+        let new_total_raised = config
+            .total_raised_payment
+            .checked_add(payment_amount)
+            .ok_or(PresaleError::MathOverflow)?;
+        require!(
+            new_total_raised <= config.hard_cap_payment,
+            PresaleError::HardCapExceeded
+        );
+
+        // Balance-delta, same discipline as every other transfer in this
+        // program, even though a native System transfer has no analogue
+        // to a token's transfer fee -- this just confirms the CPI moved
+        // exactly what was requested.
+        let balance_before = ctx.accounts.vault_authority.lamports();
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer {
+                from: ctx.accounts.buyer.to_account_info(),
+                to: ctx.accounts.vault_authority.to_account_info(),
+            },
+        );
+        anchor_lang::system_program::transfer(cpi_ctx, lamports)?;
+        let balance_after = ctx.accounts.vault_authority.lamports();
+        let net_received = balance_after
+            .checked_sub(balance_before)
+            .ok_or(PresaleError::MathOverflow)?;
+        require!(net_received == lamports, PresaleError::MathOverflow);
+
+        let act_net: u64 = (payment_amount as u128)
+            .checked_mul(10u128.pow(ACT_DECIMALS))
+            .ok_or(PresaleError::MathOverflow)?
+            .checked_div(config.price_micro_payment_per_act as u128)
+            .ok_or(PresaleError::MathOverflow)?
+            .try_into()
+            .map_err(|_| PresaleError::MathOverflow)?;
+        require!(act_net > 0, PresaleError::ZeroAmount);
+
+        let buyer_account = &mut ctx.accounts.buyer_account;
+        buyer_account.owner = ctx.accounts.buyer.key();
+        buyer_account.sol_lamports_contributed = buyer_account
+            .sol_lamports_contributed
+            .checked_add(lamports)
+            .ok_or(PresaleError::MathOverflow)?;
+        buyer_account.sol_usd_value_contributed = buyer_account
+            .sol_usd_value_contributed
+            .checked_add(payment_amount)
+            .ok_or(PresaleError::MathOverflow)?;
+        buyer_account.act_allocated_net = buyer_account
+            .act_allocated_net
+            .checked_add(act_net)
+            .ok_or(PresaleError::MathOverflow)?;
+        buyer_account.bump = ctx.bumps.buyer_account;
+
+        let config = &mut ctx.accounts.config;
+        config.total_raised_payment = new_total_raised;
+        config.total_act_sold_net = config
+            .total_act_sold_net
+            .checked_add(act_net)
+            .ok_or(PresaleError::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Buyer-callable, only once `status == Refunding`. Mirrors `refund`
+    /// but for the native-SOL leg: returns exactly the lamports this
+    /// wallet paid via `buy_with_sol`, regardless of how SOL/USD has
+    /// moved since (the refund is sized off `sol_lamports_contributed`,
+    /// never re-priced).
+    pub fn refund_sol(ctx: Context<RefundSol>) -> Result<()> {
+        require!(
+            ctx.accounts.config.status == STATUS_REFUNDING,
+            PresaleError::NotRefunding
+        );
+        require!(!ctx.accounts.buyer_account.sol_refunded, PresaleError::AlreadyRefunded);
+        let amount = ctx.accounts.buyer_account.sol_lamports_contributed;
+        require!(amount > 0, PresaleError::NothingToRefund);
+
+        let bump = ctx.accounts.config.vault_authority_bump;
+        let seeds: &[&[u8]] = &[b"vault_authority", &[bump]];
+        let signer_seeds: &[&[&[u8]]] = &[seeds];
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer {
+                from: ctx.accounts.vault_authority.to_account_info(),
+                to: ctx.accounts.buyer.to_account_info(),
+            },
+            signer_seeds,
+        );
+        anchor_lang::system_program::transfer(cpi_ctx, amount)?;
+
+        let buyer_account = &mut ctx.accounts.buyer_account;
+        buyer_account.sol_refunded = true;
+        buyer_account.act_allocated_net = 0;
+
+        Ok(())
     }
 
     /// Authority-gated. Callable once the sale window has ended, or
@@ -402,6 +570,24 @@ pub mod act_presale {
                     signer_seeds,
                 );
                 transfer_checked(cpi_ctx, usdt_amount, ctx.accounts.usdt_mint.decimals)?;
+            }
+
+            // SOL escrow lives directly on vault_authority's own lamport
+            // balance (see the module-level doc comment); sweeping its
+            // full balance is safe -- nothing else in this program ever
+            // sends it lamports, and a fully-drained system-owned account
+            // simply ceases to exist, which is fine here.
+            let sol_amount = ctx.accounts.vault_authority.lamports();
+            if sol_amount > 0 {
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: ctx.accounts.vault_authority.to_account_info(),
+                        to: ctx.accounts.treasury_sol_account.to_account_info(),
+                    },
+                    signer_seeds,
+                );
+                anchor_lang::system_program::transfer(cpi_ctx, sol_amount)?;
             }
 
             let config = &mut ctx.accounts.config;
@@ -744,6 +930,43 @@ fn grossed_up_amount(mint_account_info: &AccountInfo, net_amount: u64) -> Result
     Ok(gross)
 }
 
+/// Converts a lamport amount to the same USD-equivalent 6-decimal unit
+/// USDC/USDT payments already use, given a Pyth `Price` (`price *
+/// 10^exponent` is the real USD price of 1 SOL). Read generically off
+/// whatever `exponent` the live feed reports rather than assuming the
+/// commonly-seen -8, mirroring this program's own policy elsewhere of
+/// reading live state instead of hardcoding an assumption about it.
+fn lamports_to_payment_units(lamports: u64, price: i64, expo: i32) -> Result<u64> {
+    require!(price > 0, PresaleError::InvalidOraclePrice);
+    let price_u128 = price as u128;
+    let lamports_u128 = lamports as u128;
+    // usd_6dp = lamports * price * 10^expo * 10^6 / 10^9
+    //         = lamports * price * 10^(expo - 3)
+    let total_expo = expo - 3;
+    let value: u128 = if total_expo >= 0 {
+        lamports_u128
+            .checked_mul(price_u128)
+            .ok_or(PresaleError::MathOverflow)?
+            .checked_mul(
+                10u128
+                    .checked_pow(total_expo as u32)
+                    .ok_or(PresaleError::MathOverflow)?,
+            )
+            .ok_or(PresaleError::MathOverflow)?
+    } else {
+        lamports_u128
+            .checked_mul(price_u128)
+            .ok_or(PresaleError::MathOverflow)?
+            .checked_div(
+                10u128
+                    .checked_pow((-total_expo) as u32)
+                    .ok_or(PresaleError::MathOverflow)?,
+            )
+            .ok_or(PresaleError::MathOverflow)?
+    };
+    u64::try_from(value).map_err(|_| PresaleError::MathOverflow.into())
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct PresaleConfig {
@@ -757,6 +980,8 @@ pub struct PresaleConfig {
     pub treasury_payment_accounts: [Pubkey; NUM_PAYMENT_CURRENCIES],
     pub act_vault: Pubkey,
     pub treasury_act_account: Pubkey,
+    /// Destination for swept SOL contributions on a successful `finalize`.
+    pub treasury_sol_account: Pubkey,
     /// Price in the payment token's smallest unit, per whole ACT (1e9 raw
     /// units). E.g. USDC/USDT (6 decimals) at $0.01/ACT = 10_000.
     pub price_micro_payment_per_act: u64,
@@ -797,6 +1022,16 @@ pub struct BuyerAccount {
     pub act_claimed_net: u64,
     /// Index-matched to `PresaleConfig.accepted_mints`.
     pub refunded: [bool; NUM_PAYMENT_CURRENCIES],
+    /// Exact lamports paid via `buy_with_sol`, summed across every call --
+    /// used for `refund_sol` so a refund returns precisely what was paid
+    /// regardless of how SOL/USD has moved since.
+    pub sol_lamports_contributed: u64,
+    /// USD-equivalent value of `sol_lamports_contributed`, computed from
+    /// the live oracle price *at the time of each contribution* and
+    /// summed -- this, not the lamports figure, is what counts toward the
+    /// combined min-buy/max-buy/hard-cap accounting shared with USDC/USDT.
+    pub sol_usd_value_contributed: u64,
+    pub sol_refunded: bool,
     pub bump: u8,
 }
 
@@ -833,6 +1068,10 @@ pub struct InitializePresale<'info> {
     /// CHECK: destination for unsold ACT via `sweep_unsold_act`; not
     /// touched by this instruction.
     pub treasury_act_account: UncheckedAccount<'info>,
+
+    /// CHECK: destination for swept SOL contributions on a successful
+    /// `finalize`; not touched by this instruction.
+    pub treasury_sol_account: UncheckedAccount<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
@@ -951,14 +1190,71 @@ pub struct Buy<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Stub accounts for the not-yet-implemented `buy_with_sol`. Deliberately
-/// minimal -- this will be replaced, not extended, once an oracle
-/// provider and a verified feed address are chosen.
 #[derive(Accounts)]
 pub struct BuyWithSol<'info> {
+    #[account(mut)]
     pub buyer: Signer<'info>,
-    #[account(seeds = [b"presale_config"], bump = config.bump)]
+
+    #[account(
+        mut,
+        seeds = [b"presale_config"],
+        bump = config.bump,
+    )]
     pub config: Box<Account<'info, PresaleConfig>>,
+
+    #[account(
+        init_if_needed,
+        payer = buyer,
+        space = 8 + BuyerAccount::INIT_SPACE,
+        seeds = [b"presale_buyer", buyer.key().as_ref()],
+        bump
+    )]
+    pub buyer_account: Account<'info, BuyerAccount>,
+
+    /// CHECK: escrows native SOL contributions directly as this PDA's own
+    /// lamport balance -- the same authority PDA the token vaults use,
+    /// verified by seeds; holds no data of its own.
+    #[account(mut, seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    /// Pyth price update for SOL/USD, posted by the caller (or their
+    /// frontend) immediately before this instruction. Anchor's
+    /// `Account<'info, PriceUpdateV2>` already checks the discriminator
+    /// and that it's owned by the real Pyth receiver program; this
+    /// instruction additionally validates the feed ID and staleness.
+    pub price_update: Account<'info, PriceUpdateV2>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RefundSol<'info> {
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+
+    #[account(
+        seeds = [b"presale_config"],
+        bump = config.bump,
+    )]
+    pub config: Box<Account<'info, PresaleConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"presale_buyer", buyer.key().as_ref()],
+        bump = buyer_account.bump,
+        has_one = owner @ PresaleError::InvalidBuyerAccount
+    )]
+    pub buyer_account: Account<'info, BuyerAccount>,
+    /// CHECK: only used for the has_one check above via `owner`; the real
+    /// authority check is `buyer` being the transaction signer.
+    #[account(constraint = owner.key() == buyer.key() @ PresaleError::InvalidBuyerAccount)]
+    pub owner: UncheckedAccount<'info>,
+
+    /// CHECK: PDA holding the escrowed SOL, verified by seeds.
+    #[account(mut, seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -973,10 +1269,20 @@ pub struct Finalize<'info> {
     )]
     pub config: Box<Account<'info, PresaleConfig>>,
 
-    /// CHECK: PDA signer for the payment vaults -> treasury transfers,
-    /// verified by seeds.
-    #[account(seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
+    /// CHECK: PDA signer for the payment vaults -> treasury transfers, and
+    /// for the SOL escrow -> treasury sweep; verified by seeds.
+    #[account(mut, seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
     pub vault_authority: UncheckedAccount<'info>,
+
+    /// CHECK: destination for swept SOL contributions on a successful
+    /// finalize; verified directly against `config.treasury_sol_account`.
+    #[account(
+        mut,
+        address = config.treasury_sol_account @ PresaleError::MismatchedPaymentVault
+    )]
+    pub treasury_sol_account: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 
     // Boxed throughout, same reason as InitializePresale: too many typed
     // accounts for one unboxed try_accounts stack frame under the SBF
@@ -1203,8 +1509,8 @@ pub enum PresaleError {
     UnsupportedPaymentMint,
     #[msg("This vault does not match the configured vault for this payment mint.")]
     MismatchedPaymentVault,
-    #[msg("SOL is not yet an accepted presale payment currency -- see the module-level doc comment.")]
-    SolPaymentNotYetSupported,
+    #[msg("The SOL/USD oracle price is invalid, stale, or for the wrong feed.")]
+    InvalidOraclePrice,
     #[msg("Arithmetic overflow.")]
     MathOverflow,
     #[msg("New authority cannot be the default (all-zero) pubkey.")]

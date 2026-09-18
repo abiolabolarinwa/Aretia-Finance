@@ -3,15 +3,16 @@
 //! Public presale for ACT: Oct 1 - Dec 1 2026, 100,000,000 ACT (net) at
 //! $0.01/ACT, $1,000,000 hard cap, $500,000 soft cap, $10 min / $10,000
 //! max per wallet, 25% unlocked at TGE with the remaining 75% vesting
-//! linearly over 180 days. See PRESALE_DESIGN.md for the full design
-//! record and ACT_PRESALE_IMPLEMENTATION_REPORT.md for the audit this
-//! was built against. Devnet only -- not yet deployed anywhere, and not
-//! to be deployed to mainnet without separate explicit approval.
+//! linearly over 180 days. Accepts USDC and USDT (see "Payment
+//! currencies" below for why SOL is not yet wired in). See
+//! PRESALE_DESIGN.md for the full design record. Devnet only -- not yet
+//! deployed anywhere, and not to be deployed to mainnet without separate
+//! explicit approval.
 //!
 //! This program is deliberately separate from act-staking: a presale
 //! raises initial capital to launch ACT, the 3.5% transfer fee is the
 //! recurring mechanism that funds the Climate Catalyst Fund. These two
-//! concepts must never be merged (see PRESALE_DESIGN.md §16 analog).
+//! concepts must never be merged.
 //!
 //! ACT's 3.5% Token-2022 transfer fee applies to every transfer this
 //! program makes, including the ones that move ACT into and out of this
@@ -30,6 +31,29 @@
 //!    same "how much do I send so the recipient nets X" problem the
 //!    whitepaper's §14.5 management-fee gross-up already solves, applied
 //!    here to per-claim vesting payouts instead of a single transfer.
+//!
+//! ## Payment currencies
+//!
+//! USDC and USDT are both handled by the *same* generic code path: both
+//! are plain SPL Token, 6 decimals, $1-pegged, so the same
+//! `price_micro_payment_per_act` conversion is correct for either. A
+//! presale instance is configured with both accepted mints up front
+//! (`PresaleConfig.accepted_mints`/`accepted_vaults`); `buy`/`refund`
+//! take whichever mint/vault pair the caller is using and validate it
+//! matches one of the two configured pairs by index.
+//!
+//! SOL is deliberately **not** implemented yet. SOL floats against USD,
+//! so pricing a SOL contribution in ACT correctly requires a live
+//! on-chain price oracle (e.g. Pyth or Switchboard) read at the moment of
+//! purchase -- a wrong, stale, or unverified oracle account is a direct
+//! path to buyers minting ACT allocations at whatever price that account
+//! reports, including something close to zero. `buy_with_sol` exists as
+//! an explicit stub that always errors, rather than either omitting SOL
+//! silently or wiring in an oracle address that hasn't actually been
+//! verified against a real devnet feed. Enabling it needs: (1) a choice
+//! of oracle provider, (2) that provider's verified devnet *and* mainnet
+//! SOL/USD feed account addresses, (3) staleness and confidence-interval
+//! checks on the feed, not just a price read.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_2022::spl_token_2022::extension::{
@@ -55,6 +79,9 @@ pub const SECONDS_PER_DAY: i64 = 86_400;
 
 pub const ACT_DECIMALS: u32 = 9;
 pub const BPS_DENOMINATOR: u64 = 10_000;
+/// USDC and USDT, index-matched against `PresaleConfig.accepted_mints` /
+/// `accepted_vaults` / `treasury_payment_accounts`.
+pub const NUM_PAYMENT_CURRENCIES: usize = 2;
 
 pub const STATUS_ACTIVE: u8 = 0;
 pub const STATUS_FINALIZED: u8 = 1;
@@ -66,9 +93,13 @@ pub mod act_presale {
 
     /// One-time setup. `authority` should be the treasury multisig (see
     /// TREASURY_V2.md), not a personal key, mirroring act-staking. Creates
-    /// the config PDA plus the ACT and payment-token vault ATAs, both
-    /// owned by this program's `vault_authority` PDA. Does not move any
-    /// tokens -- see `fund_act_reserve` for that.
+    /// the config PDA and the ACT vault ATA, owned by this program's
+    /// `vault_authority` PDA. Does not move any tokens -- see
+    /// `fund_act_reserve` for that. `accepted_mints`/`accepted_vaults`/
+    /// `treasury_payment_accounts` start zeroed; call
+    /// `initialize_payment_currency` twice (once for USDC, once for USDT)
+    /// to fill them in -- see that instruction's doc comment for why this
+    /// is three instructions instead of one.
     #[allow(clippy::too_many_arguments)]
     pub fn initialize_presale(
         ctx: Context<InitializePresale>,
@@ -102,10 +133,10 @@ pub mod act_presale {
         let config = &mut ctx.accounts.config;
         config.authority = ctx.accounts.authority.key();
         config.act_mint = ctx.accounts.act_mint.key();
-        config.payment_mint = ctx.accounts.payment_mint.key();
+        config.accepted_mints = [Pubkey::default(); NUM_PAYMENT_CURRENCIES];
+        config.accepted_vaults = [Pubkey::default(); NUM_PAYMENT_CURRENCIES];
+        config.treasury_payment_accounts = [Pubkey::default(); NUM_PAYMENT_CURRENCIES];
         config.act_vault = ctx.accounts.act_vault.key();
-        config.payment_vault = ctx.accounts.payment_vault.key();
-        config.treasury_payment_account = ctx.accounts.treasury_payment_account.key();
         config.treasury_act_account = ctx.accounts.treasury_act_account.key();
         config.price_micro_payment_per_act = price_micro_payment_per_act;
         config.start_ts = start_ts;
@@ -125,6 +156,46 @@ pub mod act_presale {
         config.paused = false;
         config.bump = ctx.bumps.config;
         config.vault_authority_bump = ctx.bumps.vault_authority;
+
+        Ok(())
+    }
+
+    /// Authority-gated. Registers one accepted payment currency (USDC or
+    /// USDT) at slot `index` (0 or 1) and creates its vault ATA. Called
+    /// twice, once per currency -- `initialize_presale` originally tried
+    /// to create the config, the ACT vault, *and* both payment vaults in
+    /// one instruction, and its generated `try_accounts` function
+    /// overflowed the SBF VM's 4096-byte stack frame limit (each `init`
+    /// associated-token-account constraint expands into real PDA/CPI
+    /// code, and three of them in one function was too much even after
+    /// boxing every account). Splitting to one `init` per instruction is
+    /// the fix, not a workaround -- `act-staking`'s single-vault
+    /// `initialize_config` never hit this limit for the same reason.
+    /// `index` must not already be set (re-registering a slot is not
+    /// supported; deploy a new presale instance instead).
+    pub fn initialize_payment_currency(
+        ctx: Context<InitializePaymentCurrency>,
+        index: u8,
+    ) -> Result<()> {
+        let idx = index as usize;
+        require!(idx < NUM_PAYMENT_CURRENCIES, PresaleError::InvalidCurrencyIndex);
+        require!(
+            ctx.accounts.config.accepted_mints[idx] == Pubkey::default(),
+            PresaleError::CurrencySlotAlreadySet
+        );
+        for i in 0..NUM_PAYMENT_CURRENCIES {
+            if i != idx {
+                require!(
+                    ctx.accounts.config.accepted_mints[i] != ctx.accounts.mint.key(),
+                    PresaleError::DuplicatePaymentMint
+                );
+            }
+        }
+
+        let config = &mut ctx.accounts.config;
+        config.accepted_mints[idx] = ctx.accounts.mint.key();
+        config.accepted_vaults[idx] = ctx.accounts.vault.key();
+        config.treasury_payment_accounts[idx] = ctx.accounts.treasury_payment_account.key();
 
         Ok(())
     }
@@ -166,11 +237,14 @@ pub mod act_presale {
         Ok(())
     }
 
-    /// Public. Buys ACT with `payment_amount` of the configured payment
-    /// token (recorded in escrow, not swept to treasury, until
-    /// `finalize` -- so a soft-cap miss can actually be refunded).
-    /// `min_buy_payment` applies only to a wallet's first contribution;
-    /// `max_buy_payment` applies to the cumulative total per wallet.
+    /// Public. Buys ACT with `payment_amount` of whichever accepted
+    /// currency (USDC or USDT) the passed `payment_mint`/`payment_vault`
+    /// pair identifies (validated against `config.accepted_mints` /
+    /// `accepted_vaults` by matching index). Funds are recorded in escrow
+    /// (not swept to treasury) until `finalize`, so a soft-cap miss can
+    /// actually be refunded. `min_buy_payment` applies only to a wallet's
+    /// first contribution *in either currency combined*; `max_buy_payment`
+    /// applies to the cumulative total across both currencies.
     pub fn buy(ctx: Context<Buy>, payment_amount: u64) -> Result<()> {
         let config = &ctx.accounts.config;
         require!(config.status == STATUS_ACTIVE, PresaleError::PresaleNotActive);
@@ -181,17 +255,26 @@ pub mod act_presale {
         require!(now >= config.start_ts, PresaleError::PresaleNotStarted);
         require!(now < config.end_ts, PresaleError::PresaleEnded);
 
+        let idx = payment_currency_index(
+            config,
+            &ctx.accounts.payment_mint.key(),
+            &ctx.accounts.payment_vault.key(),
+        )?;
+
         let buyer_account = &ctx.accounts.buyer_account;
-        let is_first_contribution = buyer_account.payment_contributed == 0;
-        if is_first_contribution {
+        let total_contributed_before: u64 = buyer_account
+            .payment_contributed
+            .iter()
+            .try_fold(0u64, |acc, &v| acc.checked_add(v))
+            .ok_or(PresaleError::MathOverflow)?;
+        if total_contributed_before == 0 {
             require!(
                 payment_amount >= config.min_buy_payment,
                 PresaleError::BelowMinBuy
             );
         }
 
-        let new_total_for_buyer = buyer_account
-            .payment_contributed
+        let new_total_for_buyer = total_contributed_before
             .checked_add(payment_amount)
             .ok_or(PresaleError::MathOverflow)?;
         require!(
@@ -208,9 +291,9 @@ pub mod act_presale {
             PresaleError::HardCapExceeded
         );
 
-        // Balance-delta: correct even if the payment token itself ever
-        // carries a transfer fee (it doesn't today -- USDC is plain SPL
-        // Token -- but this makes no silent assumption either way).
+        // Balance-delta: correct even if a payment token ever carries a
+        // transfer fee (neither USDC nor USDT do today -- both are plain
+        // SPL Token -- but this makes no silent assumption either way).
         let balance_before = ctx.accounts.payment_vault.amount;
 
         let cpi_accounts = TransferChecked {
@@ -241,7 +324,9 @@ pub mod act_presale {
 
         let buyer_account = &mut ctx.accounts.buyer_account;
         buyer_account.owner = ctx.accounts.buyer.key();
-        buyer_account.payment_contributed = new_total_for_buyer;
+        buyer_account.payment_contributed[idx] = buyer_account.payment_contributed[idx]
+            .checked_add(net_received)
+            .ok_or(PresaleError::MathOverflow)?;
         buyer_account.act_allocated_net = buyer_account
             .act_allocated_net
             .checked_add(act_net)
@@ -258,11 +343,19 @@ pub mod act_presale {
         Ok(())
     }
 
+    /// Stub. SOL is not yet an accepted presale currency -- see the
+    /// module-level "Payment currencies" doc comment for exactly what's
+    /// needed before this can be implemented for real. Always errors.
+    pub fn buy_with_sol(_ctx: Context<BuyWithSol>, _lamports: u64) -> Result<()> {
+        err!(PresaleError::SolPaymentNotYetSupported)
+    }
+
     /// Authority-gated. Callable once the sale window has ended, or
     /// earlier if the hard cap has already been reached. Soft cap met:
-    /// sweeps escrowed payment funds to the treasury and starts vesting
-    /// (`tge_ts = now`). Soft cap missed: moves to `Refunding` and moves
-    /// no funds -- each buyer pulls their own refund via `refund`.
+    /// sweeps both escrowed payment-currency vaults to their respective
+    /// treasury accounts and starts vesting (`tge_ts = now`). Soft cap
+    /// missed: moves to `Refunding` and moves no funds -- each buyer
+    /// pulls their own refund via `refund`, once per currency they used.
     pub fn finalize(ctx: Context<Finalize>) -> Result<()> {
         let config = &ctx.accounts.config;
         require!(config.status == STATUS_ACTIVE, PresaleError::PresaleNotActive);
@@ -275,15 +368,16 @@ pub mod act_presale {
         );
 
         if config.total_raised_payment >= config.soft_cap_payment {
-            let amount = ctx.accounts.payment_vault.amount;
-            if amount > 0 {
-                let bump = config.vault_authority_bump;
-                let seeds: &[&[u8]] = &[b"vault_authority", &[bump]];
-                let signer_seeds: &[&[&[u8]]] = &[seeds];
+            let bump = config.vault_authority_bump;
+            let seeds: &[&[u8]] = &[b"vault_authority", &[bump]];
+            let signer_seeds: &[&[&[u8]]] = &[seeds];
+
+            let usdc_amount = ctx.accounts.usdc_vault.amount;
+            if usdc_amount > 0 {
                 let cpi_accounts = TransferChecked {
-                    from: ctx.accounts.payment_vault.to_account_info(),
-                    mint: ctx.accounts.payment_mint.to_account_info(),
-                    to: ctx.accounts.treasury_payment_account.to_account_info(),
+                    from: ctx.accounts.usdc_vault.to_account_info(),
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                    to: ctx.accounts.treasury_usdc_account.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 };
                 let cpi_ctx = CpiContext::new_with_signer(
@@ -291,7 +385,23 @@ pub mod act_presale {
                     cpi_accounts,
                     signer_seeds,
                 );
-                transfer_checked(cpi_ctx, amount, ctx.accounts.payment_mint.decimals)?;
+                transfer_checked(cpi_ctx, usdc_amount, ctx.accounts.usdc_mint.decimals)?;
+            }
+
+            let usdt_amount = ctx.accounts.usdt_vault.amount;
+            if usdt_amount > 0 {
+                let cpi_accounts = TransferChecked {
+                    from: ctx.accounts.usdt_vault.to_account_info(),
+                    mint: ctx.accounts.usdt_mint.to_account_info(),
+                    to: ctx.accounts.treasury_usdt_account.to_account_info(),
+                    authority: ctx.accounts.vault_authority.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    ctx.accounts.payment_token_program.to_account_info(),
+                    cpi_accounts,
+                    signer_seeds,
+                );
+                transfer_checked(cpi_ctx, usdt_amount, ctx.accounts.usdt_mint.decimals)?;
             }
 
             let config = &mut ctx.accounts.config;
@@ -305,17 +415,31 @@ pub mod act_presale {
         Ok(())
     }
 
-    /// Buyer-callable, only once `status == Refunding`. Returns exactly
-    /// what this wallet contributed and zeroes its allocation so it can
-    /// never also call `claim`.
+    /// Buyer-callable, only once `status == Refunding`. Refunds whatever
+    /// this wallet contributed in the *specific* currency identified by
+    /// the passed `payment_mint`/`payment_vault` pair -- call it once per
+    /// currency actually used. Zeroes the wallet's ACT allocation on the
+    /// first call regardless of currency (claim is separately blocked by
+    /// `status != Finalized` the moment a presale enters `Refunding`, so
+    /// this is defense in depth, not the only thing preventing a double
+    /// claim).
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
         require!(
             ctx.accounts.config.status == STATUS_REFUNDING,
             PresaleError::NotRefunding
         );
-        require!(!ctx.accounts.buyer_account.refunded, PresaleError::AlreadyRefunded);
 
-        let amount = ctx.accounts.buyer_account.payment_contributed;
+        let idx = payment_currency_index(
+            &ctx.accounts.config,
+            &ctx.accounts.payment_mint.key(),
+            &ctx.accounts.payment_vault.key(),
+        )?;
+
+        require!(
+            !ctx.accounts.buyer_account.refunded[idx],
+            PresaleError::AlreadyRefunded
+        );
+        let amount = ctx.accounts.buyer_account.payment_contributed[idx];
         require!(amount > 0, PresaleError::NothingToRefund);
 
         let bump = ctx.accounts.config.vault_authority_bump;
@@ -335,7 +459,7 @@ pub mod act_presale {
         transfer_checked(cpi_ctx, amount, ctx.accounts.payment_mint.decimals)?;
 
         let buyer_account = &mut ctx.accounts.buyer_account;
-        buyer_account.refunded = true;
+        buyer_account.refunded[idx] = true;
         buyer_account.act_allocated_net = 0;
 
         Ok(())
@@ -370,27 +494,56 @@ pub mod act_presale {
         // Gross up claimable_net against the mint's current transfer-fee
         // epoch so the buyer nets (at least) claimable_net after the
         // vault -> buyer transfer itself gets taxed 3.5% by the mint.
-        let gross_amount = grossed_up_amount(&ctx.accounts.act_mint.to_account_info(), claimable_net)?;
-
+        //
+        // `calculate_inverse_epoch_fee`'s estimate is confirmed (via a real
+        // devnet transfer -- see PRESALE_DESIGN.md's "calculate_inverse_
+        // epoch_fee correctness" open item) to sometimes leave a residual
+        // shortfall of a few raw base units against Token-2022's actual
+        // fee-rounding direction. Rather than trust the estimate blindly or
+        // loosen the >= check below, top up with additional grossed-up
+        // transfers -- each sized off the real balance-delta shortfall, not
+        // off the first estimate -- until the buyer has actually received
+        // at least claimable_net. Bounded so a genuinely broken fee config
+        // can't loop forever; in practice this residual is small enough
+        // that it closes within one extra iteration.
         let balance_before = ctx.accounts.buyer_act_account.amount;
 
         let bump = config.vault_authority_bump;
         let seeds: &[&[u8]] = &[b"vault_authority", &[bump]];
         let signer_seeds: &[&[&[u8]]] = &[seeds];
-        let cpi_accounts = TransferChecked {
-            from: ctx.accounts.act_vault.to_account_info(),
-            mint: ctx.accounts.act_mint.to_account_info(),
-            to: ctx.accounts.buyer_act_account.to_account_info(),
-            authority: ctx.accounts.vault_authority.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            signer_seeds,
-        );
-        transfer_checked(cpi_ctx, gross_amount, ACT_DECIMALS as u8)?;
 
-        ctx.accounts.buyer_act_account.reload()?;
+        for _ in 0..4 {
+            let net_received_so_far = ctx
+                .accounts
+                .buyer_act_account
+                .amount
+                .checked_sub(balance_before)
+                .ok_or(PresaleError::MathOverflow)?;
+            if net_received_so_far >= claimable_net {
+                break;
+            }
+            let still_needed = claimable_net
+                .checked_sub(net_received_so_far)
+                .ok_or(PresaleError::MathOverflow)?;
+            let gross_amount =
+                grossed_up_amount(&ctx.accounts.act_mint.to_account_info(), still_needed)?;
+
+            let cpi_accounts = TransferChecked {
+                from: ctx.accounts.act_vault.to_account_info(),
+                mint: ctx.accounts.act_mint.to_account_info(),
+                to: ctx.accounts.buyer_act_account.to_account_info(),
+                authority: ctx.accounts.vault_authority.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                signer_seeds,
+            );
+            transfer_checked(cpi_ctx, gross_amount, ACT_DECIMALS as u8)?;
+            ctx.accounts.act_vault.reload()?;
+            ctx.accounts.buyer_act_account.reload()?;
+        }
+
         let balance_after = ctx.accounts.buyer_act_account.amount;
         let net_received = balance_after
             .checked_sub(balance_before)
@@ -426,10 +579,24 @@ pub mod act_presale {
             .total_act_sold_net
             .checked_sub(config.total_act_claimed_net)
             .ok_or(PresaleError::MathOverflow)?;
+        // `grossed_up_amount`'s estimate has a confirmed (real devnet
+        // transfer) residual imprecision of a few raw base units against
+        // Token-2022's actual fee-rounding direction -- `claim` corrects
+        // for it with a top-up retry against its own balance-delta, but
+        // this instruction has no such buyer-side delta to retry against.
+        // Add a fixed safety margin here instead, so an underestimate can
+        // never cause this sweep to strand a future claimant short of
+        // funds. GROSS_UP_SAFETY_MARGIN raw units is many orders of
+        // magnitude larger than the observed residual (single-digit raw
+        // units) while still being economically negligible against any
+        // real reserve size.
+        const GROSS_UP_SAFETY_MARGIN: u64 = 100_000;
         let needed_gross = if remaining_owed_net == 0 {
             0
         } else {
             grossed_up_amount(&ctx.accounts.act_mint.to_account_info(), remaining_owed_net)?
+                .checked_add(GROSS_UP_SAFETY_MARGIN)
+                .ok_or(PresaleError::MathOverflow)?
         };
 
         let vault_balance = ctx.accounts.act_vault.amount;
@@ -475,6 +642,28 @@ pub mod act_presale {
         ctx.accounts.config.authority = new_authority;
         Ok(())
     }
+}
+
+/// Finds which of `config.accepted_mints`/`accepted_vaults` the passed
+/// mint/vault pair matches. Errors if neither slot matches, or if the
+/// mint matches one slot but the vault matches a different one (a
+/// mismatched pair, which would otherwise let a caller move funds
+/// through the wrong vault for the mint they claim to be using).
+fn payment_currency_index(
+    config: &PresaleConfig,
+    mint: &Pubkey,
+    vault: &Pubkey,
+) -> Result<usize> {
+    for i in 0..NUM_PAYMENT_CURRENCIES {
+        if config.accepted_mints[i] == *mint {
+            require!(
+                config.accepted_vaults[i] == *vault,
+                PresaleError::MismatchedPaymentVault
+            );
+            return Ok(i);
+        }
+    }
+    err!(PresaleError::UnsupportedPaymentMint)
 }
 
 /// TGE unlocks `tge_bps` of `allocated_net` immediately; the remainder
@@ -537,8 +726,20 @@ fn grossed_up_amount(mint_account_info: &AccountInfo, net_amount: u64) -> Result
         .map_err(|_| PresaleError::MissingTransferFeeConfig)?;
 
     let epoch = Clock::get()?.epoch;
+    // NOTE: `TransferFeeConfig::calculate_inverse_epoch_fee` returns the FEE
+    // that would be withheld to net `net_amount` -- NOT the gross amount to
+    // send (confirmed by reading spl-token-2022's actual source: it's
+    // `get_epoch_fee(epoch).calculate_fee(calculate_pre_fee_amount(..))`,
+    // i.e. the fee computed on the pre-fee amount, not the pre-fee amount
+    // itself). Using it directly as "the amount to transfer" was the root
+    // cause of a real `GrossUpShortfall` on a real devnet claim -- it sent
+    // roughly just the fee portion (~3.6% of what was needed at 350 bps)
+    // instead of the full gross amount. The actual gross (pre-fee) amount
+    // is `TransferFee::calculate_pre_fee_amount`, called on the fee struct
+    // for the correct epoch via `get_epoch_fee`.
     let gross = fee_config
-        .calculate_inverse_epoch_fee(epoch, net_amount)
+        .get_epoch_fee(epoch)
+        .calculate_pre_fee_amount(net_amount)
         .ok_or(PresaleError::MathOverflow)?;
     Ok(gross)
 }
@@ -548,13 +749,16 @@ fn grossed_up_amount(mint_account_info: &AccountInfo, net_amount: u64) -> Result
 pub struct PresaleConfig {
     pub authority: Pubkey,
     pub act_mint: Pubkey,
-    pub payment_mint: Pubkey,
+    /// [USDC mint, USDT mint].
+    pub accepted_mints: [Pubkey; NUM_PAYMENT_CURRENCIES],
+    /// [USDC vault, USDT vault], index-matched to `accepted_mints`.
+    pub accepted_vaults: [Pubkey; NUM_PAYMENT_CURRENCIES],
+    /// [treasury USDC account, treasury USDT account], index-matched.
+    pub treasury_payment_accounts: [Pubkey; NUM_PAYMENT_CURRENCIES],
     pub act_vault: Pubkey,
-    pub payment_vault: Pubkey,
-    pub treasury_payment_account: Pubkey,
     pub treasury_act_account: Pubkey,
     /// Price in the payment token's smallest unit, per whole ACT (1e9 raw
-    /// units). E.g. USDC (6 decimals) at $0.01/ACT = 10_000.
+    /// units). E.g. USDC/USDT (6 decimals) at $0.01/ACT = 10_000.
     pub price_micro_payment_per_act: u64,
     pub start_ts: i64,
     pub end_ts: i64,
@@ -562,6 +766,9 @@ pub struct PresaleConfig {
     pub tge_ts: i64,
     pub tge_bps: u16,
     pub vesting_duration_seconds: i64,
+    /// All payment-related caps/totals are combined across both accepted
+    /// currencies, in the smallest unit of either (they share the same
+    /// 6 decimals, so this is a simple sum, not a weighted one).
     pub hard_cap_payment: u64,
     pub soft_cap_payment: u64,
     pub min_buy_payment: u64,
@@ -584,10 +791,12 @@ pub struct PresaleConfig {
 #[derive(InitSpace)]
 pub struct BuyerAccount {
     pub owner: Pubkey,
-    pub payment_contributed: u64,
+    /// Index-matched to `PresaleConfig.accepted_mints`: [USDC, USDT].
+    pub payment_contributed: [u64; NUM_PAYMENT_CURRENCIES],
     pub act_allocated_net: u64,
     pub act_claimed_net: u64,
-    pub refunded: bool,
+    /// Index-matched to `PresaleConfig.accepted_mints`.
+    pub refunded: [bool; NUM_PAYMENT_CURRENCIES],
     pub bump: u8,
 }
 
@@ -603,15 +812,14 @@ pub struct InitializePresale<'info> {
         seeds = [b"presale_config"],
         bump
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     /// CHECK: PDA used only as the vaults' token authority; holds no data
     /// of its own, verified by seeds.
     #[account(seeds = [b"vault_authority"], bump)]
     pub vault_authority: UncheckedAccount<'info>,
 
-    pub act_mint: InterfaceAccount<'info, Mint>,
-    pub payment_mint: InterfaceAccount<'info, Mint>,
+    pub act_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         init,
@@ -620,27 +828,52 @@ pub struct InitializePresale<'info> {
         associated_token::authority = vault_authority,
         associated_token::token_program = token_program
     )]
-    pub act_vault: InterfaceAccount<'info, TokenAccount>,
+    pub act_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// CHECK: destination for unsold ACT via `sweep_unsold_act`; not
+    /// touched by this instruction.
+    pub treasury_act_account: UncheckedAccount<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+/// See `initialize_payment_currency`'s doc comment for why this is its
+/// own instruction rather than folded into `InitializePresale`.
+#[derive(Accounts)]
+pub struct InitializePaymentCurrency<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"presale_config"],
+        bump = config.bump,
+        has_one = authority
+    )]
+    pub config: Box<Account<'info, PresaleConfig>>,
+
+    /// CHECK: PDA used only as the vault's token authority; holds no data
+    /// of its own, verified by seeds.
+    #[account(seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         init,
         payer = authority,
-        associated_token::mint = payment_mint,
+        associated_token::mint = mint,
         associated_token::authority = vault_authority,
         associated_token::token_program = payment_token_program
     )]
-    pub payment_vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: destination for swept presale proceeds on a successful
-    /// finalize; not touched by this instruction, existence/ownership
-    /// checked by the associated-token constraints where it's actually
-    /// used (`finalize`).
+    /// CHECK: destination for this currency's swept proceeds on a
+    /// successful finalize; not touched by this instruction.
     pub treasury_payment_account: UncheckedAccount<'info>,
-    /// CHECK: destination for unsold ACT via `sweep_unsold_act`; same
-    /// note as above.
-    pub treasury_act_account: UncheckedAccount<'info>,
 
-    pub token_program: Interface<'info, TokenInterface>,
     pub payment_token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -659,7 +892,7 @@ pub struct FundActReserve<'info> {
         has_one = act_mint,
         has_one = act_vault
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     pub act_mint: InterfaceAccount<'info, Mint>,
 
@@ -686,10 +919,8 @@ pub struct Buy<'info> {
         mut,
         seeds = [b"presale_config"],
         bump = config.bump,
-        has_one = payment_mint,
-        has_one = payment_vault
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     #[account(
         init_if_needed,
@@ -700,6 +931,9 @@ pub struct Buy<'info> {
     )]
     pub buyer_account: Account<'info, BuyerAccount>,
 
+    /// Must be one of `config.accepted_mints`; checked at runtime in
+    /// `payment_currency_index` rather than via `has_one`, since either
+    /// of two mints is valid here.
     pub payment_mint: InterfaceAccount<'info, Mint>,
 
     #[account(mut)]
@@ -717,6 +951,16 @@ pub struct Buy<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Stub accounts for the not-yet-implemented `buy_with_sol`. Deliberately
+/// minimal -- this will be replaced, not extended, once an oracle
+/// provider and a verified feed address are chosen.
+#[derive(Accounts)]
+pub struct BuyWithSol<'info> {
+    pub buyer: Signer<'info>,
+    #[account(seeds = [b"presale_config"], bump = config.bump)]
+    pub config: Box<Account<'info, PresaleConfig>>,
+}
+
 #[derive(Accounts)]
 pub struct Finalize<'info> {
     pub authority: Signer<'info>,
@@ -726,24 +970,43 @@ pub struct Finalize<'info> {
         seeds = [b"presale_config"],
         bump = config.bump,
         has_one = authority,
-        has_one = payment_mint,
-        has_one = payment_vault,
-        has_one = treasury_payment_account
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
-    /// CHECK: PDA signer for the payment_vault -> treasury transfer,
+    /// CHECK: PDA signer for the payment vaults -> treasury transfers,
     /// verified by seeds.
     #[account(seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
     pub vault_authority: UncheckedAccount<'info>,
 
-    pub payment_mint: InterfaceAccount<'info, Mint>,
+    // Boxed throughout, same reason as InitializePresale: too many typed
+    // accounts for one unboxed try_accounts stack frame under the SBF
+    // VM's 4096-byte limit.
+    #[account(address = config.accepted_mints[0] @ PresaleError::UnsupportedPaymentMint)]
+    pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(address = config.accepted_mints[1] @ PresaleError::UnsupportedPaymentMint)]
+    pub usdt_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(mut)]
-    pub payment_vault: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        address = config.accepted_vaults[0] @ PresaleError::MismatchedPaymentVault
+    )]
+    pub usdc_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = config.accepted_vaults[1] @ PresaleError::MismatchedPaymentVault
+    )]
+    pub usdt_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
-    pub treasury_payment_account: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        address = config.treasury_payment_accounts[0] @ PresaleError::MismatchedPaymentVault
+    )]
+    pub treasury_usdc_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = config.treasury_payment_accounts[1] @ PresaleError::MismatchedPaymentVault
+    )]
+    pub treasury_usdt_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub payment_token_program: Interface<'info, TokenInterface>,
 }
@@ -756,10 +1019,8 @@ pub struct Refund<'info> {
     #[account(
         seeds = [b"presale_config"],
         bump = config.bump,
-        has_one = payment_mint,
-        has_one = payment_vault
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     #[account(
         mut,
@@ -799,12 +1060,13 @@ pub struct Claim<'info> {
     pub buyer: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [b"presale_config"],
         bump = config.bump,
         has_one = act_mint,
         has_one = act_vault
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     #[account(
         mut,
@@ -850,7 +1112,7 @@ pub struct SweepUnsoldAct<'info> {
         has_one = act_vault,
         has_one = treasury_act_account
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
 
     /// CHECK: PDA signer for the act_vault -> treasury transfer, verified by seeds.
     #[account(seeds = [b"vault_authority"], bump = config.vault_authority_bump)]
@@ -875,7 +1137,7 @@ pub struct UpdateConfig<'info> {
         bump = config.bump,
         has_one = authority
     )]
-    pub config: Account<'info, PresaleConfig>,
+    pub config: Box<Account<'info, PresaleConfig>>,
     pub authority: Signer<'info>,
 }
 
@@ -891,6 +1153,12 @@ pub enum PresaleError {
     InvalidVestingConfig,
     #[msg("price_micro_payment_per_act must be greater than zero.")]
     InvalidPrice,
+    #[msg("USDC and USDT mints must be different accounts.")]
+    DuplicatePaymentMint,
+    #[msg("index must be 0 or 1.")]
+    InvalidCurrencyIndex,
+    #[msg("This currency slot has already been initialized.")]
+    CurrencySlotAlreadySet,
     #[msg("Amount must be greater than zero.")]
     ZeroAmount,
     #[msg("The presale is not currently active.")]
@@ -911,9 +1179,9 @@ pub enum PresaleError {
     PresaleStillOpen,
     #[msg("The presale is not in a refunding state.")]
     NotRefunding,
-    #[msg("This wallet has already been refunded.")]
+    #[msg("This wallet has already been refunded for this currency.")]
     AlreadyRefunded,
-    #[msg("There is nothing to refund for this wallet.")]
+    #[msg("There is nothing to refund for this wallet in this currency.")]
     NothingToRefund,
     #[msg("The presale has not been finalized.")]
     NotFinalized,
@@ -931,6 +1199,12 @@ pub enum PresaleError {
     MissingTransferFeeConfig,
     #[msg("The grossed-up transfer amount still fell short of the net entitlement.")]
     GrossUpShortfall,
+    #[msg("This mint is not an accepted presale payment currency.")]
+    UnsupportedPaymentMint,
+    #[msg("This vault does not match the configured vault for this payment mint.")]
+    MismatchedPaymentVault,
+    #[msg("SOL is not yet an accepted presale payment currency -- see the module-level doc comment.")]
+    SolPaymentNotYetSupported,
     #[msg("Arithmetic overflow.")]
     MathOverflow,
     #[msg("New authority cannot be the default (all-zero) pubkey.")]

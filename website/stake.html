@@ -12,14 +12,14 @@
 <style>
   :root {
     --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
-    --bg: #FFFFFF; --bg-alt: #FBF3D0; --card: #FFFFFF;
+    --bg: #FAF9F5; --bg-alt: #F2F0EA; --card: #FFFFFF;
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
-    --brand: #190880; --brand-hover: #100553;
-    --blue: #2A4BFF; --blue-soft: #E7ECFF;
-    --green: #1E8A5F; --green-soft: #E1F5EC;
-    --amber: #B5790A; --amber-soft: #FBEFD9;
-    --pink: #C0447A; --pink-soft: #FCE7EF;
+    --brand: #190880; --brand-hover: #100553; --brand-soft: #ECE9F8;
+    --blue: var(--brand); --blue-soft: var(--brand-soft);
+    --green: var(--brand); --green-soft: var(--brand-soft);
+    --amber: var(--brand); --amber-soft: var(--brand-soft);
+    --pink: var(--brand); --pink-soft: var(--brand-soft);
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "Inter", ui-monospace, monospace;
@@ -72,17 +72,17 @@
   @media (max-width: 480px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 12.5px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
 
   /* -------- Doola-style cream hero -------- */
-  .dhero { position: relative; background: #F5EAB0; overflow: hidden; padding: 76px 0 96px; }
+  .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
   .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
   @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
-  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: #7A6420; margin-bottom: 16px; }
-  .dhero h1 { font-size: clamp(2.6rem, 5.2vw, 3.8rem); line-height: 1.08; letter-spacing: -0.03em; color: #17150C; margin: 0 0 18px; text-align: left; }
-  .dhero h1 .hl { color: #A9791B; }
-  .dhero-sub { font-size: 15px; color: #4A4227; max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
+  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(2.6rem, 5.2vw, 3.8rem); line-height: 1.08; letter-spacing: -0.03em; color: var(--ink); margin: 0 0 18px; text-align: left; }
+  .dhero h1 .hl { color: var(--brand); }
+  .dhero-sub { font-size: 15px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
   .dhero .pill-black { background: var(--brand); }
-  .dhero-microcopy { font-size: 12.5px; color: #7A6420; font-weight: 600; }
-  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: #F0D879; display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .dhero-microcopy { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: var(--border-soft); display: flex; align-items: center; justify-content: center; padding: 32px; }
   .cas-tile { background: #fff; border-radius: 20px; padding: 32px; width: 100%; box-shadow: 0 20px 44px -20px rgba(20,15,0,.35); }
   .cas-tile .cas-label { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
   .cas-tile .cas-formula { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); background: var(--bg-alt); border-radius: 10px; padding: 14px 16px; line-height: 1.6; }
@@ -123,7 +123,7 @@
 
   .phase-tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); background: #fff; padding: 3px 9px; border-radius: 8px; margin-left: 10px; vertical-align: 2px; }
   .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; }
-  .warn-box p { font-size: 13.5px; color: #6B5530; margin: 0; line-height: 1.65; }
+  .warn-box p { font-size: 13.5px; color: var(--ink-soft); margin: 0; line-height: 1.65; }
 
   /* -------- FAQ (merged in from the former FAQ page: Staking group) -------- */
   .faq-preview { max-width: 720px; margin: 0 auto; }

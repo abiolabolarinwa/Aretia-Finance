@@ -3,8 +3,8 @@
    scaled down and muted for the footer context. Same notch-on-hover
    interaction (every bar jumps up except the one under the cursor and its
    two neighbors), but shorter, thinner, and resting in a neutral border
-   tone instead of the loud cream/amber gradient, brightening to amber only
-   on the bars the hover raises. Shared across every page's footer via one
+   tone, darkening to black only on the bars the hover raises. Shared across
+   every page's footer via one
    file rather than duplicating this into each page's own <style>.
    ========================================================================== */
 .footer-bars {
@@ -26,7 +26,7 @@
   will-change: height;
 }
 .footer-bars .fbar.hi {
-  background: var(--amber, #B5790A);
+  background: var(--black, #101114);
   opacity: 1;
 }
 @media (max-width: 640px) {

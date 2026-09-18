@@ -78,10 +78,12 @@
   /* -------- Flux-style hero: big headline + two-card row + black steps band -------- */
   .flux-hero { background: #fff; padding: 64px 0 0; }
   .flux-hero .wrap { max-width: 1240px; }
+  .flux-hero .wrap { text-align: center; }
+  .flux-hero .hero-actions { justify-content: center; }
   .flux-hero-eyebrow { font-size: 13px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 20px; }
-  .flux-hero h1 { font-size: clamp(2.6rem, 5.6vw, 4.6rem); line-height: 1.02; letter-spacing: -0.035em; color: var(--ink); margin: 0 0 24px; max-width: 20ch; }
+  .flux-hero h1 { font-size: clamp(2.6rem, 5.6vw, 4.6rem); line-height: 1.02; letter-spacing: -0.035em; color: var(--ink); margin: 0 auto 24px; max-width: 20ch; }
   .flux-hero h1 .hl { color: var(--hero-amber); }
-  .flux-hero-sub { font-size: 17px; color: var(--ink-soft); max-width: 62ch; line-height: 1.6; margin: 0 0 40px; }
+  .flux-hero-sub { font-size: 17px; color: var(--ink-soft); max-width: 62ch; line-height: 1.6; margin: 0 auto 40px; }
   .flux-card-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; margin-bottom: 64px; }
   @media (max-width: 900px) { .flux-card-row { grid-template-columns: 1fr; } }
   .flux-card { border-radius: 24px; padding: 40px 40px 32px; display: flex; flex-direction: column; min-height: 320px; }

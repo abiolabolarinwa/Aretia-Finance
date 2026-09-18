@@ -139,11 +139,21 @@ async function main() {
 
   console.log("\n=== Conclusion ===");
   const logsText = (sim.value.logs || []).join("\n");
+  const lamportsMatch = logsText.match(/insufficient lamports (\d+), need (\d+)/);
   if (!sim.value.err) {
     console.log("The real-ACT pool-creation instruction simulated successfully against real mainnet state, including the real ACT mint's MetadataPointer extension (not present on the devnet test-ACT mint used elsewhere in this repo).");
-  } else if (logsText.includes("insufficient lamports")) {
-    console.log("The simulation stopped on the real Squads vault's real SOL balance being too low to pay rent for a new USDC token account (~0.0009 SOL on hand, ~0.0015 SOL needed) -- a genuine, unrelated real-world funding fact about that wallet, not anything about ACT or Token-2022.");
-    console.log("This is the natural stopping point for a simulate-only, no-real-funds check: getting further would mean actually sending real SOL to that vault, which is out of scope here. Nothing observed so far indicates any ACT-specific (TransferFeeConfig + MetadataPointer) incompatibility with Raydium's CPMM pool-creation instruction.");
+    console.log("This is the strongest confirmation possible without actually spending funds: Raydium's CPMM pool-creation logic is fully compatible with the real ACT mint's exact extension set.");
+  } else if (lamportsMatch) {
+    const have = Number(lamportsMatch[1]);
+    const need = Number(lamportsMatch[2]);
+    const shortfallSol = (need - have) / 1e9;
+    console.log(
+      `The simulation stopped on the real Squads vault's real SOL balance being too low to pay rent for the next account this instruction needs to create ` +
+      `(has ${(have / 1e9).toFixed(6)} SOL, needs ${(need / 1e9).toFixed(6)} SOL here -- short by ~${shortfallSol.toFixed(6)} SOL) -- ` +
+      `a genuine, unrelated real-world funding fact about that wallet, not anything about ACT or Token-2022.`
+    );
+    console.log("Raydium CPMM's createPool instruction creates several accounts (pool state, LP mint, observation state, two token vaults) in sequence, each needing its own rent -- this may not be the last such shortfall even after topping up by exactly this amount.");
+    console.log("This is the natural stopping point for a simulate-only, no-real-funds check: getting further would mean actually sending more real SOL to that vault. Nothing observed so far, across all instructions that DID execute, indicates any ACT-specific (TransferFeeConfig + MetadataPointer) incompatibility.");
   } else {
     console.log("The real-ACT pool-creation instruction did NOT simulate cleanly, and not for an obviously funding-related reason. This is a real finding -- see logs above.");
     process.exit(1);

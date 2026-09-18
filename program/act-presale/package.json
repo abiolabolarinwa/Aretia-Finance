@@ -7,8 +7,10 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
+    "@raydium-io/raydium-sdk-v2": "^0.2.70-alpha",
     "@solana/spl-token": "^0.4.15",
-    "@solana/web3.js": "^1.99.0"
+    "@solana/web3.js": "^1.99.0",
+    "bn.js": "^5.2.5"
   },
   "devDependencies": {
     "@types/chai": "^4.3.16",

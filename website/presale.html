@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presale · Aretia (ACT)</title>
+<meta name="description" content="ACT's public presale: parameters, vesting schedule, accepted currencies, and current build status. Devnet-verified end to end; not yet live on mainnet.">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0E0F12; --ink-soft: #5B5D68; --ink-faint: #9497A3;
+    --bg: #FAF9F5; --bg-alt: #F2F0EA; --card: #FFFFFF;
+    --border: #E7E7EC; --border-soft: #EFEFF3;
+    --black: #101114; --black-hover: #26272C;
+    --brand: #190880; --brand-hover: #100553; --brand-soft: #ECE9F8;
+    --blue: var(--brand); --blue-soft: var(--brand-soft);
+    --green: var(--brand); --green-soft: var(--brand-soft);
+    --amber: var(--brand); --amber-soft: var(--brand-soft);
+    --pink: var(--brand); --pink-soft: var(--brand-soft);
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Inter", ui-monospace, monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--black); color: #fff; }
+  a { color: inherit; text-decoration: none; }
+  img, svg { max-width: 100%; display: block; }
+  .mono { font-family: var(--mono); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 640px) { .wrap { padding: 0 20px; } }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--black); outline-offset: 3px; }
+  h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -0.03em; text-wrap: balance; }
+  p { margin: 0; font-family: var(--font-serif); }
+
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
+  .pill-btn:active { transform: scale(0.97); }
+  .pill-black { background: var(--brand); color: #fff; }
+  .pill-black:hover { background: var(--brand-hover); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
+  .pill-ghost:hover { background: var(--bg-alt); }
+
+  section.block { padding: 72px 0; }
+  @media (max-width: 860px) { section.block { padding: 48px 0; } }
+  section.block.alt { background: var(--bg-alt); }
+  .eyebrow { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
+
+  .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
+  .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 20px; color: var(--ink); flex: none; }
+  .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
+  .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
+  .nav-links { display: flex; align-items: center; gap: 16px; flex: 1; justify-content: center; }
+  .nav-links a { font-size: 14px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { color: var(--ink); font-weight: 700; }
+  @media (max-width: 1120px) { .nav-links { display: none; } }
+
+  .topnav-dark { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: none; padding: 18px 0; }
+  .topnav-dark .topnav-inner { background: var(--brand); border-radius: 980px; padding: 8px 10px 8px 24px; box-shadow: 0 14px 30px -16px rgba(25,8,128,.4); }
+  .topnav-dark .brand { color: #fff; }
+  .topnav-dark .nav-links a { color: rgba(255,255,255,.68); }
+  .topnav-dark .nav-links a:hover, .topnav-dark .nav-links a.active { color: #fff; }
+  .topnav-dark .pill-black { background: #fff; color: var(--ink); }
+  .topnav-dark .pill-black:hover { background: #EFEFF3; }
+  .topnav-dark .pill-ghost { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.3); color: #fff; }
+  .topnav-dark .pill-ghost:hover { background: rgba(255,255,255,.2); }
+  .topnav-dark .aw-connect-btn { background: transparent; border-color: rgba(255,255,255,.3); color: #fff; }
+  .topnav-dark .aw-connect-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.55); }
+  @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
+  .topnav-cta { display: flex; align-items: center; gap: 10px; flex: none; }
+  .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
+  @media (max-width: 480px) { .status-chip { display: none; } }
+  @media (max-width: 480px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 12.5px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
+
+  .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
+  .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
+  @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(2.6rem, 5.2vw, 3.8rem); line-height: 1.08; letter-spacing: -0.03em; color: var(--ink); margin: 0 0 18px; text-align: left; }
+  .dhero h1 .hl { color: var(--brand); }
+  .dhero-sub { font-size: 15px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
+  .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dhero .pill-black { background: var(--brand); }
+  .dhero-microcopy { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+  .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: var(--border-soft); display: flex; align-items: center; justify-content: center; padding: 32px; }
+  @media (max-width: 480px) { .dhero-visual { min-height: 220px; padding: 20px; } }
+
+  .cas-tile { background: #fff; border-radius: 20px; padding: 32px; width: 100%; box-shadow: 0 20px 44px -20px rgba(20,15,0,.35); }
+  .cas-tile .cas-label { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .cas-tile .cas-note { font-size: 12px; color: var(--ink-faint); margin-top: 14px; line-height: 1.6; }
+
+  .block-head { margin-bottom: 32px; }
+  .block-head h2 { font-size: clamp(2.1rem, 3.6vw, 2.8rem); }
+  .block-head p.sub { font-size: 15px; color: var(--ink-soft); max-width: 68ch; margin-top: 12px; line-height: 1.65; }
+  .status-value { font-size: clamp(2.3rem, 4.6vw, 3.1rem); font-weight: 800; letter-spacing: -0.03em; }
+  .status-change { font-size: 14px; color: var(--ink-faint); margin-top: 6px; font-weight: 500; }
+  .phase-pills { display: flex; gap: 8px; margin: 22px 0 8px; flex-wrap: wrap; }
+  .phase-pill { font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 980px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+  .phase-pill.done { background: var(--green-soft); color: var(--green); border-color: transparent; }
+
+  .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 4px 24px; }
+  table.data-table { width: 100%; border-collapse: collapse; min-width: 420px; }
+  table.data-table th, table.data-table td { border: none; border-bottom: 1px solid var(--border-soft); padding: 15px 12px; font-size: 13.5px; text-align: left; vertical-align: top; }
+  table.data-table thead th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); padding-top: 20px; padding-bottom: 12px; }
+  table.data-table tbody td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; padding-left: 0; }
+  table.data-table tbody td { color: var(--ink-soft); }
+  table.data-table tbody tr:last-child td { border-bottom: none; }
+
+  .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 980px) { .value-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .value-grid { grid-template-columns: 1fr; } }
+  .value-card { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-md); padding: 26px 22px; }
+  .value-card .vc-icon { position: relative; z-index: 1; width: 38px; height: 38px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 16px; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); }
+  .value-card h3, .value-card p { position: relative; z-index: 1; }
+  .value-card h3 { font-size: 15.5px; margin-bottom: 8px; }
+  .value-card p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .value-card .vc-bleed { position: absolute; right: -20px; bottom: -20px; width: 100px; height: 100px; opacity: .16; pointer-events: none; }
+
+  .steps { counter-reset: step; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 980px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+  .step { position: relative; overflow: hidden; border-radius: var(--r-md); padding: 22px 20px 20px; }
+  .step .sn { position: relative; z-index: 1; font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--ink-faint); line-height: 1; }
+  .step .icon { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -6px rgba(10,12,16,.25); margin: 10px 0 12px; }
+  .step h4, .step p { position: relative; z-index: 1; }
+  .step h4 { font-size: 14.5px; margin-bottom: 6px; }
+  .step p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+  .step .step-bleed { position: absolute; right: -18px; bottom: -18px; width: 90px; height: 90px; opacity: .14; pointer-events: none; }
+
+  .warn-box { background: var(--amber-soft); border-radius: var(--r-sm); padding: 20px 24px; }
+  .warn-box p { font-size: 13.5px; color: var(--ink-soft); margin: 0; line-height: 1.65; }
+  .rule-box { position: relative; overflow: hidden; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 22px 24px; display: flex; gap: 14px; align-items: flex-start; }
+  .rule-box .rn { position: relative; z-index: 1; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--black); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .rule-box p { position: relative; z-index: 1; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .rule-box strong { color: var(--ink); }
+  .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .rule-grid { grid-template-columns: 1fr; } }
+
+  .faq-preview { max-width: 720px; margin: 0 auto; }
+  .faq-preview details { border-bottom: 1px solid var(--border-soft); padding: 18px 0; }
+  .faq-preview summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq-preview summary::-webkit-details-marker { display: none; }
+  .faq-preview summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-faint); flex: none; }
+  .faq-preview details[open] summary::after { content: "\2013"; }
+  .faq-preview .a { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; margin-top: 12px; max-width: 68ch; }
+
+  footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
+  .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
+  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .footer-links a:hover { color: var(--ink); }
+  .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
+</style>
+<link rel="stylesheet" href="assets/wallet/wallet.css">
+<link rel="stylesheet" href="assets/footer-bars.css">
+</head>
+<body>
+
+<nav class="topnav topnav-dark">
+  <div class="wrap" style="max-width:1180px;">
+    <div class="topnav-inner">
+      <a href="/" class="brand">
+        <span class="mark"><img src="assets/logo-mark.png" alt="Aretia"></span>
+        Aretia Finance
+      </a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="details.html">Treasury</a>
+        <a href="presale.html" class="active">Presale</a>
+        <a href="stake.html">Staking</a>
+        <a href="roadmap.html">Roadmap</a>
+      </div>
+      <div class="topnav-cta">
+        <span class="status-chip">Pre-Launch</span>
+        <div data-aretia-wallet-mount></div>
+        <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="dhero">
+    <div class="wrap">
+      <div class="dhero-grid">
+        <div>
+          <div class="dhero-eyebrow">Presale · Devnet-Verified</div>
+          <h1>ACT public presale. <span class="hl">Built, tested, not live yet.</span></h1>
+          <p class="dhero-sub">Every instruction -- buying with USDC, USDT, or SOL, claiming vested tokens, and refunding if the soft cap is missed -- has been run for real against a live devnet deployment. The program has not been deployed to mainnet, and no real ACT can be purchased today.</p>
+          <div class="dhero-actions">
+            <a class="pill-btn pill-black" href="#parameters">See the Parameters</a>
+            <a class="pill-btn pill-ghost" href="whitepaper.html">Read the Whitepaper</a>
+          </div>
+          <div class="dhero-microcopy">Not live yet; see build status below</div>
+        </div>
+        <div class="dhero-visual">
+          <div class="cas-tile">
+            <div class="cas-label">Presale at a glance</div>
+            <div style="font-family:var(--mono); font-size:14px; font-weight:600; color:var(--ink); background:var(--bg-alt); border-radius:10px; padding:14px 16px; line-height:1.9;">
+              $0.01 / ACT<br>
+              $500K soft cap · $1M hard cap<br>
+              25% at TGE, 75% vested over 180 days
+            </div>
+            <div class="cas-note">Accepts USDC, USDT, and native SOL (priced live against Pyth's oracle).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-bottom:24px;">
+    <div class="wrap">
+      <div class="eyebrow">Build Status</div>
+      <div class="status-value">Verified on Devnet</div>
+      <div class="status-change">Program is compiled and live on Solana devnet. The full lifecycle -- buying in all three accepted currencies, finalizing on either a hard-cap hit or soft-cap miss, claiming vested tokens across multiple checkpoints, and refunding -- has each been tested against real devnet transactions. Nothing here has touched mainnet or real ACT.</div>
+      <div class="phase-pills">
+        <span class="phase-pill done">✓ Program written &amp; compiled</span>
+        <span class="phase-pill done">✓ Deployed to devnet</span>
+        <span class="phase-pill done">✓ Buy (USDC / USDT / SOL) tested</span>
+        <span class="phase-pill done">✓ Finalize, claim &amp; refund tested</span>
+        <span class="phase-pill done">✓ Independent review</span>
+        <span class="phase-pill">Mainnet, real ACT</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="parameters">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>Presale parameters</h2>
+        <p class="sub">Fixed, disclosed terms -- the same numbers the on-chain program itself enforces, not a marketing rounding of them.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <tbody>
+            <tr><td>Price</td><td>$0.01 / ACT</td></tr>
+            <tr><td>Hard cap</td><td>$1,000,000</td></tr>
+            <tr><td>Soft cap</td><td>$500,000 (refund everyone if missed)</td></tr>
+            <tr><td>Min. first buy</td><td>$10</td></tr>
+            <tr><td>Max. per wallet</td><td>$10,000 cumulative</td></tr>
+            <tr><td>Vesting</td><td>25% unlocked at TGE, remaining 75% linear over 180 days</td></tr>
+            <tr><td>Accepted currencies</td><td>USDC, USDT, and native SOL (priced live via Pyth)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:16px;">If the soft cap isn't reached by the end of the window, nobody's funds ever leave escrow for a project -- every contributor calls a refund instruction themselves and gets back exactly what they put in, in the currency they used.</p>
+    </div>
+  </section>
+
+  <section class="block alt">
+    <div class="wrap">
+      <div class="block-head"><h2>What happens when you buy</h2></div>
+      <div class="steps">
+        <div class="step" style="background:var(--green-soft);">
+          <div class="sn">01</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
+          <h4>Contribute USDC, USDT, or SOL</h4>
+          <p>Funds are escrowed on-chain, not swept anywhere, until the sale actually finalizes.</p>
+        </div>
+        <div class="step" style="background:var(--blue-soft);">
+          <div class="sn">02</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="3" y="10" width="18" height="10" rx="2"/><path d="M12 3v9M8 8l4-4 4 4"/></svg></div>
+          <h4>Window closes or hard cap hits</h4>
+          <p>Soft cap met: escrow sweeps to the real treasury and vesting starts. Soft cap missed: everyone can refund.</p>
+        </div>
+        <div class="step" style="background:var(--pink-soft);">
+          <div class="sn">03</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M12 12l5-5"/><circle cx="12" cy="12" r="9"/><path d="M8 16a6 6 0 018-8"/></svg></div>
+          <h4>25% unlocks immediately</h4>
+          <p>The remaining 75% of your allocation vests linearly over the following 180 days from TGE.</p>
+        </div>
+        <div class="step" style="background:var(--amber-soft);">
+          <div class="sn">04</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/></svg></div>
+          <h4>Claim as it vests</h4>
+          <p>Claim any time; the program pays out whatever portion has vested since your last claim, net of the transfer fee.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>How this differs from the transfer fee</h2>
+        <p class="sub">Two separate mechanisms this project is careful never to conflate.</p>
+      </div>
+      <div class="rule-grid">
+        <div class="rule-box" style="background:var(--blue-soft);">
+          <div class="rn">1</div>
+          <p><strong>The presale raises initial capital</strong> to launch ACT and seed liquidity -- a one-time event with a fixed window and fixed terms.</p>
+        </div>
+        <div class="rule-box" style="background:var(--blue-soft);">
+          <div class="rn">2</div>
+          <p><strong>The 3.5% transfer fee is the ongoing mechanism</strong> that funds the climate catalyst fund on every trade thereafter, indefinitely, independent of whether the presale happened at all.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt" id="faq">
+    <div class="wrap">
+      <div class="block-head" style="text-align:center;">
+        <h2>Presale questions.</h2>
+      </div>
+      <div class="faq-preview">
+        <details open>
+          <summary>Can I buy ACT in the presale yet?</summary>
+          <div class="a">Not yet. The program is compiled and live on Solana devnet, and every instruction (buying, finalizing, claiming, refunding) has been tested there with real transactions, but it has not been deployed to mainnet. No real ACT can be purchased today.</div>
+        </details>
+        <details>
+          <summary>What happens to my money if the soft cap isn't reached?</summary>
+          <div class="a">You get back exactly what you put in. Funds sit in on-chain escrow until the sale finalizes; if the $500,000 soft cap isn't met by the end of the window, the sale flips to a refunding state and each contributor calls a refund instruction themselves -- proven on devnet, including the case of a second refund attempt being correctly rejected.</div>
+        </details>
+        <details>
+          <summary>Why does the vesting matter?</summary>
+          <div class="a">25% of your allocation unlocks immediately at the token generation event; the remaining 75% unlocks linearly over 180 days. This has been tested across multiple claim checkpoints on devnet, confirming the cumulative claimed amount tracks correctly and nothing is either double-paid or left stranded once fully vested.</div>
+        </details>
+      </div>
+      <div style="text-align:center; margin-top:32px;">
+        <a class="pill-btn pill-ghost" href="/#faq">General &amp; token questions →</a>
+        <a class="pill-btn pill-ghost" href="stake.html#faq">Staking questions →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap" style="text-align:center;">
+      <div class="block-head" style="margin-bottom:20px;">
+        <h2>Follow the build</h2>
+        <p class="sub" style="margin-left:auto; margin-right:auto;">The program's full design record and devnet verification history is public in the project repository, alongside a TypeScript SDK for anyone building against it.</p>
+      </div>
+      <div class="dhero-actions" style="justify-content:center;">
+        <a class="pill-btn pill-black" href="https://github.com/abiolabolarinwa/Aretia-Finance" target="_blank" rel="noopener">View on GitHub</a>
+        <a class="pill-btn pill-ghost" href="roadmap.html">See the Roadmap</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="footer-bars" data-aretia-footer-bars aria-hidden="true"></div>
+  <div class="wrap" style="max-width:1180px;">
+    <div class="footer-links">
+      <a href="whitepaper.html">Whitepaper</a>
+      <a href="/#mission">About</a>
+      <a href="details.html#tokenomics">Tokenomics</a>
+      <a href="presale.html">Presale</a>
+      <a href="stake.html">Staking</a>
+      <a href="roadmap.html">Roadmap</a>
+      <a href="/#faq">FAQ</a>
+    </div>
+    <p class="legal">The presale program described on this page is tested on devnet and has been independently reviewed, but is not yet deployed to mainnet; no real ACT can be purchased today. Nothing on this page is investment advice or an offer to sell a security.</p>
+    <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>
+    <div class="footer-meta">© 2026 Aretia</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="assets/wallet/wallet.js"></script>
+<script src="assets/footer-bars.js"></script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

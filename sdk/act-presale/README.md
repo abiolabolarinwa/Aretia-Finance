@@ -1,6 +1,6 @@
 # @aretiafinance/act-presale-sdk
 
-Unofficial TypeScript client for Aretia Finance's `act-presale` Solana program. **Not published to npm** -- use it by cloning the repo and building it, or copying `src/client.ts` directly.
+Unofficial TypeScript client for Aretia Finance's `act-presale` Solana program. Published to npm as [`@aretiafinance/act-presale-sdk`](https://www.npmjs.com/package/@aretiafinance/act-presale-sdk) -- `npm install @aretiafinance/act-presale-sdk`, or clone this repo and build it yourself (see below).
 
 **Status: devnet-verified, not yet on mainnet.** See [`../../PRESALE_DESIGN.md`](../../PRESALE_DESIGN.md) for the full verification history, the deployment sequence, and exactly what "explicit, separate approval" gate still stands between this and mainnet before you rely on it for anything real.
 

@@ -2,7 +2,7 @@
 
 **Status:** ✅ Wallet designated, 3 Sept 2026. Not yet funded — no fees have accrued, since ACT has no live liquidity pool and isn't trading yet.
 
-**6 Sept 2026 update:** the management fee is raised from 0.1% to 0.5% of transfer volume, and the 1% burn allocation is removed (total transfer fee: 4.1% → 3.5%). Approved 2-of-3 and executed on-chain the same day — see `MINT.md`'s fee-authority section for the transaction and current status (scheduled for epoch 1031; check there before assuming 3.5% is already the rate being charged). This is also the fee stream `ATTORNEY_BRIEF.md` §4 Q3 asked counsel about at the old 0.1% figure; that question is reopened at 0.5% and hasn't been re-reviewed.
+**6 Sept 2026 update:** the management fee is raised from 0.1% to 0.5% of transfer volume, and the 1% burn allocation is removed (total transfer fee: 4.1% → 3.5%). Approved 2-of-3 and executed on-chain the same day — see `MINT.md`'s fee-authority section for the transaction and current status (scheduled for epoch 1031; check there before assuming 3.5% is already the rate being charged). This is also the fee stream counsel was previously asked about at the old 0.1% figure; that question is reopened at 0.5% and hasn't been re-reviewed.
 
 **7 Sept 2026 update:** a second, separate revenue stream into this wallet was added — a project-registration fee, paid by project developers when applying for catalyst-fund financing (raised from an initial 1,000 ACT to **5,000 ACT** the same day). See "Project registration fee" below. Not yet reviewed by counsel.
 

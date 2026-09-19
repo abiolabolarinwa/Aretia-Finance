@@ -4,7 +4,7 @@
 
 The devnet run used throwaway test-ACT/test-USDC/test-USDT mints, with the treasury destinations wired to the **real mainnet Squads vault** (`GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA`) — devnet ATAs owned by that address, which has no signing authority on devnet, so nothing could be spent from them; the point was only to prove `finalize`/`sweep_unsold_act` route to the correct address, which they do.
 
-**Legal status:** `ATTORNEY_BRIEF.md` §4 Q6 was scoped against "no presale or private offering planned." Counsel's 1 Sept 2026 approval of the entity structure and securities framing was given on that premise, not against a presale. Per this project's own confirmation, legal has since reviewed and cleared proceeding with a presale under this structure. That clearance is recorded the same way the two prior addenda in `ATTORNEY_BRIEF.md` (management-fee increase, registration-fee mechanism) are treated: as its own dated note, not folded silently into the original brief.
+**Legal status:** counsel's original review of the entity structure and securities framing was scoped against "no presale or private offering planned," not against a presale. Per this project's own confirmation, legal has since reviewed and cleared proceeding with a presale under this structure. That clearance is recorded as its own dated note, consistent with how other post-review changes (management-fee increase, registration-fee mechanism) have been treated — not folded silently into the original review.
 
 **Independent security review:** confirmed by the project owner (18 Sept 2026) as done/cleared. Recorded here as self-reported, per this file's own convention for legal/review sign-offs — not independently re-verified by this session.
 

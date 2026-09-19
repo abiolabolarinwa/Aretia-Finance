@@ -19,7 +19,7 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 
 ## 3. Decide the GitHub setup and push the code
 
-- [x] Created `abiolabolarinwa/Aretia-Finance` on GitHub, set to **Private** — the right call given `LIQUIDITY_ONE_PAGER.md`, `FOUNDATION_BRIEF.md`, `ATTORNEY_BRIEF.md`, and `ENTITY_RENAME_BRIEF.md` all contain internal or not-yet-reviewed content.
+- [x] Created `abiolabolarinwa/Aretia-Finance` on GitHub, set to **Private** — the right call given `LIQUIDITY_ONE_PAGER.md`, `FOUNDATION_BRIEF.md`, and `ENTITY_RENAME_BRIEF.md` all contain internal or not-yet-reviewed content. (`ATTORNEY_BRIEF.md` has since been removed entirely ahead of going public.)
 - [x] Remote set, initial commit pushed, 5 Sept 2026. `main` branch tracking `origin/main`.
 
 ## 4. Choose hosting and connect it to the repo
@@ -38,7 +38,7 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 
 - [ ] **Confirm the Delaware entity amendment.** Every document currently says "Aretia Finance LLC — Delaware amendment in progress." Before the site is genuinely public, confirm with your registered agent whether that amendment has actually been filed and is effective, and update the status lines in `WHITEPAPER.md`, `TOKENOMICS.md`, `PROTOCOL.md`, `MINT.md`, and the site accordingly.
 - [ ] **Fix the Formspree placeholder** in `apply.html` — it still has a literal `YOUR_FORM_ID` placeholder, so the project-funding application form does not currently deliver submissions anywhere. Needs a real Formspree (or equivalent) endpoint before the "Apply for Funding" page goes live.
-- [ ] **Decide the whitepaper's permanent home.** It currently lives at a private Claude Artifact URL (`claude.ai/code/artifact/...`). That's fine for internal use, but a live public site pointing its primary CTA at a Claude-branded link is a weaker look than hosting the whitepaper at `aretiafinance.org/whitepaper` now that the domain exists. Consider exporting it as a page in the site itself rather than linking out.
+- [x] ~~**Decide the whitepaper's permanent home.**~~ **Resolved.** The whitepaper is now a page in the site itself (`website/whitepaper.html`), not an external link.
 - [ ] Do one final proofread pass across the site now that the domain is real — addresses, entity name, ticker should already all read "ACT" / "Aretia Finance LLC" correctly from the 4 Sept rename pass, but worth a last check since this is the point where it becomes genuinely public.
 
 ## 7. Deploy and verify against the real domain

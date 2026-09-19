@@ -43,7 +43,7 @@ import crypto from "node:crypto";
 
 const PROGRAM_ID = new PublicKey("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 const DEPLOYER_KEYPAIR_PATH =
-  path.join(os.tmpdir(), "claude-devnet-deployer", "deployer.json");
+  path.join(os.tmpdir(), "aretia-devnet-deployer", "deployer.json");
 const RPC_URL = "https://api.devnet.solana.com";
 
 function loadKeypair(path) {

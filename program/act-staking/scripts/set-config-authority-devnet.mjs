@@ -42,7 +42,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PROGRAM_ID = new PublicKey("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 const DEPLOYER_KEYPAIR_PATH =
-  path.join(os.tmpdir(), "claude-devnet-deployer", "deployer.json");
+  path.join(os.tmpdir(), "aretia-devnet-deployer", "deployer.json");
 const NEW_AUTHORITY_KEYPAIR_PATH =
   path.resolve(__dirname, "../devnet-upgrade-authority-keypair.json");
 const RPC_URL = "https://api.devnet.solana.com";

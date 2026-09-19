@@ -123,11 +123,10 @@ pub mod act_staking {
     }
 
     /// Hands `config.authority` off to a new key, signed by the current
-    /// authority. Added after `initialize_config` shipped with no way to
-    /// ever move this authority once set -- confirmed the hard way on
-    /// devnet, where the config's authority sat on a throwaway deployer
-    /// key with no instruction able to fix it. This is exactly that fix,
-    /// deliberately narrow: it changes nothing else about the account.
+    /// authority. Lets the authority move from an initial deployer key
+    /// onto the treasury multisig (or any other durable key) without a
+    /// program redeploy. Deliberately narrow: it changes nothing else
+    /// about the account.
     pub fn set_config_authority(ctx: Context<UpdateConfig>, new_authority: Pubkey) -> Result<()> {
         require_keys_neq!(
             new_authority,

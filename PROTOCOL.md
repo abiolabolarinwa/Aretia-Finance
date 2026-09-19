@@ -59,7 +59,7 @@ Eight modules, plus the chain they run on. Not all eight exist yet — see Secti
 |---|---|
 | Ticker | **ACT** |
 | Chain | Solana (SPL Token-2022) |
-| Total supply | **100,000,000**, fixed — minted once, mint authority revoked |
+| Total supply | **1,000,000,000**, fixed — minted once, mint authority revoked |
 | Freeze authority | Never granted |
 | Transaction allocation | **3.5%** total, protocol-enforced via the native transfer-fee extension |
 

@@ -17,7 +17,7 @@ ACT is an SPL **Token-2022** asset that trades on the open market — priced aga
 | Parameter | Value |
 |---|---|
 | Ticker | **ACT** |
-| Total supply | **100,000,000** (fixed) |
+| Total supply | **1,000,000,000** (fixed) |
 | Mint authority | **Revoked** after initial mint — supply can never increase |
 | Freeze authority | **Revoked** — no wallet can ever be frozen |
 | Network | Solana — build and test on **devnet** before mainnet |

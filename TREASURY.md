@@ -1,6 +1,8 @@
-# Aretia Treasury — Live Multisig Record
+# Aretia Treasury v1 — Superseded Multisig Record (historical)
 
-**Status:** ✅ Created on **Solana mainnet**, 1 Sept 2026.
+> ⚠️ **Superseded.** This is the original ("v1") treasury multisig, retired as part of the ACT v2 rebuild and replaced by the v2 treasury documented in [`TREASURY_V2.md`](TREASURY_V2.md) — that document describes the real, currently-live treasury. This file is kept as an accurate historical record, consistent with this project's transparency commitments; it does not describe current on-chain state.
+
+**Status (historical):** Created on **Solana mainnet**, 1 Sept 2026.
 
 | Field | Value |
 |---|---|

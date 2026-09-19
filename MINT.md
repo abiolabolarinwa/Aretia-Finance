@@ -1,6 +1,8 @@
-# ACT — Live Mainnet Mint Record
+# ACT v1 — Superseded Mint Record (historical)
 
-**Status:** ✅ Live on Solana mainnet, 2 Sept 2026. All parameters locked and verified on-chain. Deployed under the ticker ACC and issued by Aretia Climate Coin LLC; both renamed 4 Sept 2026 to ACT / Aretia Finance LLC (Delaware amendment in progress). No on-chain metadata was ever set for the old symbol, so nothing about the deployment below changes; this is a documentation and legal-name update only.
+> ⚠️ **Superseded.** This is the original ("v1") mint, replaced on 10 Sept 2026 by the v2 mint documented in [`MINT_V2.md`](MINT_V2.md) — that document describes the real, currently-live ACT mint. This file is kept as an accurate historical record of what was deployed, reviewed, and verified at the time, consistent with this project's transparency commitments; it does not describe current on-chain state.
+
+**Status (historical):** Live on Solana mainnet, 2 Sept 2026, at the time this record was written. All parameters locked and verified on-chain. Deployed under the ticker ACC and issued by Aretia Climate Coin LLC; both renamed 4 Sept 2026 to ACT / Aretia Finance LLC (Delaware amendment in progress). No on-chain metadata was ever set for the old symbol, so nothing about the deployment below changes; this is a documentation and legal-name update only.
 
 | Field | Value |
 |---|---|

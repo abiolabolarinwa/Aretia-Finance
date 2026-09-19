@@ -96,7 +96,7 @@ The treasury functions as Aretia's **climate catalyst fund** — standing capita
 
 **How money enters:** the 2% treasury share of every trade's transfer fee, routed automatically by the Token-2022 transfer-fee extension into a Squads multisig.
 
-**How money is stored:** a Solana multisig (Squads), requiring multiple independent signers. **Live as of 1 Sept 2026:** `3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg`, 2-of-3 threshold, real independent co-signers — see `TREASURY.md`. This satisfies Section 13's requirement below; it is no longer a single-signer placeholder.
+**How money is stored:** a Solana multisig (Squads), requiring multiple independent signers. **Live:** vault `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA`, 2-of-3 threshold, real independent co-signers — see `TREASURY_V2.md`. This satisfies Section 13's requirement below; it is no longer a single-signer placeholder.
 
 **How money leaves:** only through the governed project-financing pipeline (Section 8) — application, screening, approval, milestone-gated release. Never a direct discretionary transfer.
 
@@ -205,7 +205,7 @@ Project documents:     [link]
 ## 17. Roadmap — four phases, not one launch
 
 **Phase 1 — Foundation** *(current phase; mostly what's already built)*
-- ✅ Token (ACT) — **live on Solana mainnet**, `BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT`, fixed 100M supply, mint authority revoked, fee authorities on the treasury vault. See `MINT.md`.
+- ✅ Token (ACT) — **live on Solana mainnet**, `7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`, fixed 1B supply, mint authority revoked, fee authorities on the treasury vault. See `MINT_V2.md`.
 - ✅ Entity formation and initial legal review
 - ✅ Treasury multisig with real independent signers — live on mainnet, 2-of-3, tested end-to-end
 - ⬜ Transparent transaction allocation live on a public dashboard

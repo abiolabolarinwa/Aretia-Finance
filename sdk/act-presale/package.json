@@ -2,12 +2,22 @@
   "name": "@aretia/act-presale-sdk",
   "version": "0.1.0",
   "private": false,
-  "description": "TypeScript client for Aretia Finance's act-presale Solana program (unofficial, community SDK -- not published to npm yet). Devnet-verified only; see PRESALE_DESIGN.md before using this against anything but devnet.",
+  "description": "TypeScript client for Aretia Finance's act-presale Solana program. Devnet-verified only; see README.md before using this against anything but devnet.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist", "README.md"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abiolabolarinwa/Aretia-Finance.git",
+    "directory": "sdk/act-presale"
+  },
+  "homepage": "https://github.com/abiolabolarinwa/Aretia-Finance/tree/main/sdk/act-presale",
+  "keywords": ["solana", "anchor", "presale", "aretia"],
+  "publishConfig": { "access": "public" },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.15",

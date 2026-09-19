@@ -2,12 +2,22 @@
   "name": "@aretia/act-staking-sdk",
   "version": "0.1.0",
   "private": false,
-  "description": "TypeScript client for Aretia Finance's act-staking Solana program (unofficial, community SDK -- not published to npm yet). See README.md before using this against anything but devnet.",
+  "description": "TypeScript client for Aretia Finance's act-staking Solana program. Devnet-verified only -- see README.md before using this against anything but devnet.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist", "README.md"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abiolabolarinwa/Aretia-Finance.git",
+    "directory": "sdk/act-staking"
+  },
+  "homepage": "https://github.com/abiolabolarinwa/Aretia-Finance/tree/main/sdk/act-staking",
+  "keywords": ["solana", "anchor", "staking", "aretia"],
+  "publishConfig": { "access": "public" },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.15",

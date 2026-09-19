@@ -37,7 +37,7 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 ## 6. Pre-launch content pass — fix what's still placeholder or unresolved
 
 - [ ] **Confirm the Delaware entity amendment.** Every document currently says "Aretia Finance LLC — Delaware amendment in progress." Before the site is genuinely public, confirm with your registered agent whether that amendment has actually been filed and is effective, and update the status lines in `WHITEPAPER.md`, `TOKENOMICS.md`, `PROTOCOL.md`, `MINT.md`, and the site accordingly.
-- [ ] **Fix the Formspree placeholder** in `apply.html` — it still has a literal `YOUR_FORM_ID` placeholder, so the project-funding application form does not currently deliver submissions anywhere. Needs a real Formspree (or equivalent) endpoint before the "Apply for Funding" page goes live.
+- [x] ~~**Fix the Formspree placeholder**~~ **Resolved.** `apply.html` posts to a real Formspree endpoint.
 - [x] ~~**Decide the whitepaper's permanent home.**~~ **Resolved.** The whitepaper is now a page in the site itself (`website/whitepaper.html`), not an external link.
 - [ ] Do one final proofread pass across the site now that the domain is real — addresses, entity name, ticker should already all read "ACT" / "Aretia Finance LLC" correctly from the 4 Sept rename pass, but worth a last check since this is the point where it becomes genuinely public.
 

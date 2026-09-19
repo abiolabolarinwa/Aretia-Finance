@@ -3,11 +3,11 @@
 //! Public presale for ACT: Oct 1 - Dec 1 2026, 100,000,000 ACT (net) at
 //! $0.01/ACT, $1,000,000 hard cap, $500,000 soft cap, $10 min / $10,000
 //! max per wallet, 25% unlocked at TGE with the remaining 75% vesting
-//! linearly over 180 days. Accepts USDC and USDT (see "Payment
-//! currencies" below for why SOL is not yet wired in). See
-//! PRESALE_DESIGN.md for the full design record. Devnet only -- not yet
-//! deployed anywhere, and not to be deployed to mainnet without separate
-//! explicit approval.
+//! linearly over 180 days. Accepts USDC and USDT, plus native SOL via
+//! `buy_with_sol` (see "Payment currencies" below). See
+//! PRESALE_DESIGN.md for the full design record. Deployed and verified
+//! on devnet; not to be deployed to mainnet without separate explicit
+//! approval.
 //!
 //! This program is deliberately separate from act-staking: a presale
 //! raises initial capital to launch ACT, the 3.5% transfer fee is the
@@ -26,7 +26,7 @@
 //!    in *net* terms (the ACT amount they were actually sold), but the
 //!    vault-to-buyer transfer at claim time is itself fee-bearing. This
 //!    program reads the ACT mint's live TransferFeeConfig extension and
-//!    calls `calculate_inverse_epoch_fee` to work out the gross amount to
+//!    calls `calculate_pre_fee_amount` to work out the gross amount to
 //!    send so the buyer receives (at least) their net entitlement, the
 //!    same "how much do I send so the recipient nets X" problem the
 //!    whitepaper's §14.5 management-fee gross-up already solves, applied
@@ -912,17 +912,10 @@ fn grossed_up_amount(mint_account_info: &AccountInfo, net_amount: u64) -> Result
         .map_err(|_| PresaleError::MissingTransferFeeConfig)?;
 
     let epoch = Clock::get()?.epoch;
-    // NOTE: `TransferFeeConfig::calculate_inverse_epoch_fee` returns the FEE
-    // that would be withheld to net `net_amount` -- NOT the gross amount to
-    // send (confirmed by reading spl-token-2022's actual source: it's
-    // `get_epoch_fee(epoch).calculate_fee(calculate_pre_fee_amount(..))`,
-    // i.e. the fee computed on the pre-fee amount, not the pre-fee amount
-    // itself). Using it directly as "the amount to transfer" was the root
-    // cause of a real `GrossUpShortfall` on a real devnet claim -- it sent
-    // roughly just the fee portion (~3.6% of what was needed at 350 bps)
-    // instead of the full gross amount. The actual gross (pre-fee) amount
-    // is `TransferFee::calculate_pre_fee_amount`, called on the fee struct
-    // for the correct epoch via `get_epoch_fee`.
+    // `TransferFee::calculate_pre_fee_amount` is the actual inverse of the
+    // fee function: given a target net amount, it returns the gross
+    // (pre-fee) amount that nets exactly that after the current epoch's
+    // fee is withheld.
     let gross = fee_config
         .get_epoch_fee(epoch)
         .calculate_pre_fee_amount(net_amount)

@@ -681,9 +681,7 @@ pub mod act_presale {
         // epoch so the buyer nets (at least) claimable_net after the
         // vault -> buyer transfer itself gets taxed 3.5% by the mint.
         //
-        // `calculate_inverse_epoch_fee`'s estimate is confirmed (via a real
-        // devnet transfer -- see PRESALE_DESIGN.md's "calculate_inverse_
-        // epoch_fee correctness" open item) to sometimes leave a residual
+        // `grossed_up_amount`'s estimate can occasionally leave a residual
         // shortfall of a few raw base units against Token-2022's actual
         // fee-rounding direction. Rather than trust the estimate blindly or
         // loosen the >= check below, top up with additional grossed-up

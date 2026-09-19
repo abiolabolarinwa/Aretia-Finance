@@ -19,7 +19,7 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 
 ## 3. Decide the GitHub setup and push the code
 
-- [x] Created `abiolabolarinwa/Aretia-Finance` on GitHub, set to **Private** — the right call given `LIQUIDITY_ONE_PAGER.md`, `FOUNDATION_BRIEF.md`, and `ENTITY_RENAME_BRIEF.md` all contain internal or not-yet-reviewed content. (`ATTORNEY_BRIEF.md` has since been removed entirely ahead of going public.)
+- [x] Created `abiolabolarinwa/Aretia-Finance` on GitHub, initially set to **Private** given several documents contained internal or not-yet-reviewed legal/business content. Those documents (attorney brief, foundation-structure memo, liquidity ask one-pager, entity-rename memo) have since been removed entirely, along with their history, ahead of going public.
 - [x] Remote set, initial commit pushed, 5 Sept 2026. `main` branch tracking `origin/main`.
 
 ## 4. Choose hosting and connect it to the repo
@@ -54,4 +54,4 @@ Status: drafted 4 Sept 2026. Step 1 complete. Steps 2 through 8 not yet executed
 
 ---
 
-*This is a sequencing document, not a legal or financial one — none of the entity-name, tax, or securities questions elsewhere in this repo are resolved by completing this checklist. See `ENTITY_RENAME_BRIEF.md`, `FOUNDATION_BRIEF.md`, and `WHITEPAPER.md` §12 for those.*
+*This is a sequencing document, not a legal or financial one — none of the entity-name, tax, or securities questions elsewhere in this repo are resolved by completing this checklist. See `WHITEPAPER.md` §12 for those.*

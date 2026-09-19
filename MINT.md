@@ -1,6 +1,6 @@
 # ACT — Live Mainnet Mint Record
 
-**Status:** ✅ Live on Solana mainnet, 2 Sept 2026. All parameters locked and verified on-chain. Deployed under the ticker ACC and issued by Aretia Climate Coin LLC; both renamed 4 Sept 2026 to ACT / Aretia Finance LLC (Delaware amendment in progress — see `ENTITY_RENAME_BRIEF.md`). No on-chain metadata was ever set for the old symbol, so nothing about the deployment below changes; this is a documentation and legal-name update only.
+**Status:** ✅ Live on Solana mainnet, 2 Sept 2026. All parameters locked and verified on-chain. Deployed under the ticker ACC and issued by Aretia Climate Coin LLC; both renamed 4 Sept 2026 to ACT / Aretia Finance LLC (Delaware amendment in progress). No on-chain metadata was ever set for the old symbol, so nothing about the deployment below changes; this is a documentation and legal-name update only.
 
 | Field | Value |
 |---|---|

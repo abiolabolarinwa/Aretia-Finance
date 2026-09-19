@@ -1,5 +1,5 @@
 {
-  "name": "@aretia/act-staking-sdk",
+  "name": "@aretiafinance/act-staking-sdk",
   "version": "0.1.0",
   "private": false,
   "description": "TypeScript client for Aretia Finance's act-staking Solana program. Devnet-verified only -- see README.md before using this against anything but devnet.",

@@ -1,5 +1,5 @@
 {
-  "name": "@aretia/act-presale-sdk",
+  "name": "@aretiafinance/act-presale-sdk",
   "version": "0.1.0",
   "private": false,
   "description": "TypeScript client for Aretia Finance's act-presale Solana program. Devnet-verified only; see README.md before using this against anything but devnet.",

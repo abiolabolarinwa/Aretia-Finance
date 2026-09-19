@@ -1,4 +1,4 @@
-# @aretia/act-staking-sdk
+# @aretiafinance/act-staking-sdk
 
 Unofficial TypeScript client for Aretia Finance's `act-staking` Solana program. **Not published to npm** -- use it by cloning the repo and building it, or copying `src/client.ts` directly.
 

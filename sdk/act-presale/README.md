@@ -1,4 +1,4 @@
-# @aretia/act-presale-sdk
+# @aretiafinance/act-presale-sdk
 
 Unofficial TypeScript client for Aretia Finance's `act-presale` Solana program. **Not published to npm** -- use it by cloning the repo and building it, or copying `src/client.ts` directly.
 

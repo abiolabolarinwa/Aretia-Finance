@@ -338,7 +338,7 @@
         <div class="road-car" style="left:16.38%; top:50.45%;">
           <span class="trail"><span></span><span></span><span></span></span>
           <img src="assets/logo-mark.png" alt="">
-          <span class="road-car-badge">4/8 done</span>
+          <span class="road-car-badge">8/13 done</span>
         </div>
         <a href="#phase-1" class="road-stop below" style="left:6.03%; top:68.18%;">
           <span class="road-dot current">01</span>
@@ -375,12 +375,17 @@
         <div class="phase-badge"><span class="dot current"><img src="assets/logo-mark.png" alt=""></span><span class="line"></span></div>
         <div>
           <h3>Foundation <span class="phase-tag">In progress</span></h3>
-          <p class="summary">Mostly what's already built: the token, the treasury, and the application intake are live. The public dashboard, on-chain governance, and a formal project registry are not yet.</p>
+          <p class="summary">More is built than not: the token, the treasury, the application intake, and both the staking and presale programs (devnet-verified, with published SDKs) are done, and the repo is now open source. Mainnet deployment of staking/presale, the public dashboard, on-chain governance, and a formal project registry are not yet.</p>
           <ul class="item-list">
             <li><span class="mark done">✓</span>Token (ACT): live on Solana mainnet, fixed 1,000,000,000 supply, mint authority revoked, fee authorities on the treasury vault. See <a href="whitepaper.html">the whitepaper</a>.</li>
             <li><span class="mark done">✓</span>Entity formation and initial legal review</li>
             <li><span class="mark done">✓</span>Treasury multisig with real independent signers, live on mainnet, 2-of-3, tested end to end</li>
             <li><span class="mark done">✓</span>Project application intake (<span class="code">apply.html</span>), built ahead of schedule. Screening and milestone-gated funding aren't automated yet; submissions are received, not yet processed.</li>
+            <li><span class="mark done">✓</span><span class="code">act-staking</span> program: written, compiled, and tested end to end against real transactions on devnet. See <a href="stake.html">Staking</a>.</li>
+            <li><span class="mark done">✓</span><span class="code">act-presale</span> program: written, compiled, and tested end to end on devnet across all three accepted currencies (USDC, USDT, SOL). See <a href="presale.html">Presale</a>.</li>
+            <li><span class="mark done">✓</span>Open-source TypeScript SDKs and Anchor IDLs for both programs, published to npm as <span class="code">@aretiafinance/act-staking-sdk</span> and <span class="code">@aretiafinance/act-presale-sdk</span>.</li>
+            <li><span class="mark done">✓</span>GitHub repository open-sourced and made public.</li>
+            <li><span class="mark pending">○</span>Mainnet deployment of the staking and presale programs -- both are devnet-verified only; neither has touched mainnet or real ACT yet.</li>
             <li><span class="mark pending">○</span>Initial liquidity pool: planned as a small, self-funded seed, not yet live. Intended to deepen over time from further contributions and harvested trading fees rather than launch at full depth on day one.</li>
             <li><span class="mark pending">○</span>Transparent transaction allocation live on a public dashboard</li>
             <li><span class="mark pending">○</span>Basic governance (even if team-curated at first)</li>

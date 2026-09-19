@@ -45,11 +45,12 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import fs from "node:fs";
+import os from "node:os";
 import crypto from "node:crypto";
 
 const PROGRAM_ID = new PublicKey("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/AppData/Local/Temp/claude-devnet-deployer/deployer.json";
+  path.join(os.tmpdir(), "claude-devnet-deployer", "deployer.json");
 const RPC_URL = "https://api.devnet.solana.com";
 
 // Reused from the earlier initialize_config run -- the config PDA is a

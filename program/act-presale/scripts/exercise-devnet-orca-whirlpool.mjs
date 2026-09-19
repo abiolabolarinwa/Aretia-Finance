@@ -33,6 +33,8 @@ import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAccount } from "@solana/spl
 import { Wallet, BN } from "@coral-xyz/anchor";
 import Decimal from "decimal.js";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   WhirlpoolContext,
   buildWhirlpoolClient,
@@ -49,9 +51,11 @@ import {
 } from "@orca-so/whirlpools-sdk";
 import { Percentage } from "@orca-so/common-sdk";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/devnet/deployer-keypair.json";
+  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
 const DEVNET_WHIRLPOOLS_CONFIG = new PublicKey("FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR");
 
 function loadKeypair(path) {

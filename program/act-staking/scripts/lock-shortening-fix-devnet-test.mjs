@@ -51,6 +51,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import fs from "node:fs";
+import os from "node:os";
 import crypto from "node:crypto";
 
 const PROGRAM_ID = new PublicKey("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
@@ -59,7 +60,7 @@ const RPC_URL = "https://api.devnet.solana.com";
 // an earlier session's throwaway deployer key, not the current
 // devnet/deployer-keypair.json (confirmed via getMint: mintAuthority ==
 // this key's pubkey). Used only to mint tokens here, not as the staker.
-const MINT_AUTHORITY_KEYPAIR_PATH = "C:/Users/USER PC/AppData/Local/Temp/claude-devnet-deployer/deployer.json";
+const MINT_AUTHORITY_KEYPAIR_PATH = path.join(os.tmpdir(), "claude-devnet-deployer", "deployer.json");
 // Fresh keypair with no existing user_stake position, funded with 0.1
 // devnet SOL from devnet/deployer-keypair.json for this test's fees.
 const STAKER_KEYPAIR_PATH = "C:/Users/USERPC~1/AppData/Local/Temp/act_staking_fresh_staker.json";

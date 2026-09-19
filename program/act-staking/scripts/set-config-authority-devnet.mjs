@@ -33,13 +33,18 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PROGRAM_ID = new PublicKey("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/AppData/Local/Temp/claude-devnet-deployer/deployer.json";
+  path.join(os.tmpdir(), "claude-devnet-deployer", "deployer.json");
 const NEW_AUTHORITY_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/program/act-staking/devnet-upgrade-authority-keypair.json";
+  path.resolve(__dirname, "../devnet-upgrade-authority-keypair.json");
 const RPC_URL = "https://api.devnet.solana.com";
 
 function loadKeypair(path) {

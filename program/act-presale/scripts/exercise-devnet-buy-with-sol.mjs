@@ -48,12 +48,16 @@ import { Wallet } from "@coral-xyz/anchor";
 import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 import { HermesClient } from "@pythnetwork/hermes-client";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PROGRAM_ID = new PublicKey("7N3YGkjbJBX9NyjQLdTV2JuDUBnAuUCcw6cDuRuJWN2k");
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/devnet/deployer-keypair.json";
+  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
 const SOL_USD_FEED_ID_HEX = "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
 const REAL_TREASURY_VAULT = new PublicKey("GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA");
 

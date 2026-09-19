@@ -42,12 +42,16 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PROGRAM_ID = new PublicKey("5zT4oG1qBMPjdvA6QZ16pX12eFjbH1znUtvUEdD8UCe8");
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/devnet/deployer-keypair.json";
+  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
 
 function loadKeypair(path) {
   const raw = JSON.parse(fs.readFileSync(path, "utf8"));

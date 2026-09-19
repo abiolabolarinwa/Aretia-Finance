@@ -48,10 +48,14 @@ import {
   mintTo,
 } from "@solana/spl-token";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/devnet/deployer-keypair.json";
+  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
 
 // The REAL mainnet Squads treasury vault -- fee-config-authority and
 // withdraw-withheld-authority on the real ACT mint, and the address that

@@ -22,7 +22,7 @@
 $ErrorActionPreference = "Stop"
 $env:PATH = "$env:USERPROFILE\.local\share\solana\install\active_release\bin;$env:PATH"
 
-$DevnetDir   = "C:\Users\USER PC\OneDrive - Furst Peak Solutions\My Stuff\Folders\2026\Aretia Climate App\aretia-climate-coin\devnet"
+$DevnetDir   = $PSScriptRoot
 $DeployerKey = "$DevnetDir\deployer-keypair.json"
 $RecipientKey = "$DevnetDir\test-recipient-keypair.json"
 

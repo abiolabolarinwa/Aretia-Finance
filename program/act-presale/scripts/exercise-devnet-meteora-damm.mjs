@@ -28,6 +28,8 @@ import { Connection, Keypair, PublicKey, sendAndConfirmTransaction } from "@sola
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import BN from "bn.js";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CpAmm,
   CP_AMM_PROGRAM_ID,
@@ -42,9 +44,11 @@ import {
   MAX_SQRT_PRICE,
 } from "@meteora-ag/cp-amm-sdk";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  "C:/Users/USER PC/OneDrive - Furst Peak Solutions/My Stuff/Folders/2026/Aretia Climate App/aretia-finance/devnet/deployer-keypair.json";
+  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
 
 function loadKeypair(path) {
   const raw = JSON.parse(fs.readFileSync(path, "utf8"));

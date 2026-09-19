@@ -42,7 +42,7 @@ The uncapped maximum fee means every transfer this program makes — funding the
 | Soft cap | $500,000 (refund everyone if missed) |
 | Min buy | $10 (first contribution only; not re-checked on top-ups) |
 | Max buy | $10,000 cumulative per wallet |
-| Vesting | 25% at TGE, 75% linear over 180 days |
+| Vesting | 25% at TGE, 75% linear over 48 hours |
 | Payment token | USDC and USDT (both accepted; index-matched arrays in config), plus SOL via `buy_with_sol` (priced live against Pyth's SOL/USD pull oracle) |
 | Liquidity target | 80% of net proceeds, scaling with actual raise, not a fixed dollar promise |
 

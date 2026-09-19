@@ -3,7 +3,7 @@
 //! Public presale for ACT: Oct 1 - Dec 1 2026, 100,000,000 ACT (net) at
 //! $0.01/ACT, $1,000,000 hard cap, $500,000 soft cap, $10 min / $10,000
 //! max per wallet, 25% unlocked at TGE with the remaining 75% vesting
-//! linearly over 180 days. Accepts USDC and USDT, plus native SOL via
+//! linearly over 48 hours. Accepts USDC and USDT, plus native SOL via
 //! `buy_with_sol` (see "Payment currencies" below). See
 //! PRESALE_DESIGN.md for the full design record. Deployed and verified
 //! on devnet; not to be deployed to mainnet without separate explicit

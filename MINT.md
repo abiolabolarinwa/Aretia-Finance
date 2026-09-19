@@ -64,7 +64,7 @@ A `SetTransferFee` proposal (`scripts/management-fee-proposal/propose-fee-change
 - `newerTransferFee`: epoch 1031, 350 bps (takes effect automatically once the network reaches that epoch — Token-2022 never applies a fee change retroactively or instantly)
 - At the time of execution, current epoch was 1029; rough estimate ~1-2 days until epoch 1031 based on recent slot times, not a guarantee
 
-`website/verify.html`'s fee-rate check was updated to be epoch-aware (it previously always read the "newer" scheduled config unconditionally, which would have shown a premature "pass" before the new rate actually took effect). Until epoch 1031 arrives, it correctly reports the live rate as 410 bps with a note explaining the scheduled change — that's accurate, not a bug. Once the epoch turns over, re-run `check-fee-authority.mjs` to confirm 350 bps is actually active before treating this section as fully closed.
+`website/verify.html`'s fee-rate check is epoch-aware: until epoch 1031 arrives, it correctly reports the live rate as 410 bps with a note explaining the scheduled change. Once the epoch turns over, re-run `check-fee-authority.mjs` to confirm 350 bps is actually active before treating this section as fully closed.
 
 This also reopened `ATTORNEY_BRIEF.md` §4 Q3, which asked counsel about the management fee specifically at the 0.1% figure; it has not been re-reviewed at 0.5%, and that on-chain execution happened before that legal question was resolved.
 

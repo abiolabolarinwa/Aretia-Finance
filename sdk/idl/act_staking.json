@@ -1,0 +1,223 @@
+{
+  "address": "DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH",
+  "metadata": {
+    "name": "act_staking",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Aretia Finance -- ACT staking (Part VIII Sec. 30 infrastructure). Hand-authored against programs/act-staking/programs/act-staking/src/lib.rs, since no Anchor CLI was available in the environment this program was built in to auto-generate this file via `anchor build`. Discriminators are computed programmatically (sha256(\"global:<name>\")[0..8] / sha256(\"account:<name>\")[0..8]), matching Anchor's own convention exactly, not hand-typed. Verify against the source before trusting this for anything consequential."
+  },
+  "instructions": [
+    {
+      "name": "initialize_config",
+      "docs": [
+        "One-time setup. `authority` should be the treasury multisig's vault PDA, not a personal key."
+      ],
+      "discriminator": [208, 127, 21, 1, 194, 190, 196, 70],
+      "accounts": [
+        { "name": "authority", "writable": true, "signer": true },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
+          }
+        },
+        { "name": "mint" },
+        { "name": "vault", "writable": true },
+        { "name": "token_program" },
+        { "name": "associated_token_program" },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "tiers", "type": { "array": ["u64", 5] } },
+        { "name": "duration_days", "type": { "array": ["u16", 4] } },
+        { "name": "duration_multiplier", "type": { "array": ["u16", 4] } }
+      ]
+    },
+    {
+      "name": "update_tier_config",
+      "docs": [
+        "Authority-gated; replaces the tier thresholds and/or duration multipliers without a program redeploy."
+      ],
+      "discriminator": [125, 187, 7, 205, 23, 68, 225, 184],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [
+        { "name": "tiers", "type": { "array": ["u64", 5] } },
+        { "name": "duration_days", "type": { "array": ["u16", 4] } },
+        { "name": "duration_multiplier", "type": { "array": ["u16", 4] } }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "docs": ["Authority-gated circuit breaker. When paused, `stake` is rejected but `unstake` still works."],
+      "discriminator": [91, 60, 125, 192, 176, 225, 166, 218],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [{ "name": "paused", "type": "bool" }]
+    },
+    {
+      "name": "set_config_authority",
+      "docs": ["Hands `config.authority` to a new key, signed by the current authority."],
+      "discriminator": [16, 200, 212, 18, 95, 43, 107, 89],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [{ "name": "new_authority", "type": "pubkey" }]
+    },
+    {
+      "name": "stake",
+      "docs": [
+        "Lock `amount` (gross, pre-fee) ACT for `lock_days`. Topping up an existing, still-locked position blends the stake's age by a weighted average and requires the new `lock_days` to be at least the days remaining on the existing lock."
+      ],
+      "discriminator": [206, 176, 202, 18, 200, 209, 179, 108],
+      "accounts": [
+        { "name": "owner", "writable": true, "signer": true },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "user_stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [117, 115, 101, 114, 95, 115, 116, 97, 107, 101] },
+              { "kind": "account", "path": "owner" }
+            ]
+          }
+        },
+        { "name": "mint" },
+        { "name": "vault", "writable": true },
+        { "name": "user_token_account", "writable": true },
+        { "name": "token_program" },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "lock_days", "type": "u16" }
+      ]
+    },
+    {
+      "name": "unstake",
+      "docs": [
+        "Withdraws the full staked position, only once the lock has matured. The return transfer is itself subject to ACT's transfer fee -- this instruction does NOT gross up: the staker nets deposit_amount * 0.965^2 across both the deposit and withdrawal legs (documented, deliberate)."
+      ],
+      "discriminator": [90, 95, 107, 42, 205, 124, 50, 225],
+      "accounts": [
+        { "name": "owner", "writable": true, "signer": true },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "user_stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [117, 115, 101, 114, 95, 115, 116, 97, 107, 101] },
+              { "kind": "account", "path": "owner" }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
+          }
+        },
+        { "name": "mint" },
+        { "name": "vault", "writable": true },
+        { "name": "user_token_account", "writable": true },
+        { "name": "token_program" }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    { "name": "StakeConfig", "discriminator": [238, 151, 43, 3, 11, 151, 63, 176] },
+    { "name": "UserStake", "discriminator": [102, 53, 163, 107, 9, 138, 87, 153] }
+  ],
+  "errors": [
+    { "code": 6000, "name": "StakingPaused", "msg": "Staking is currently paused." },
+    { "code": 6001, "name": "ZeroAmount", "msg": "Amount must be greater than zero." },
+    { "code": 6002, "name": "InvalidLockDuration", "msg": "lock_days does not match a configured duration option." },
+    { "code": 6003, "name": "CannotShortenLock", "msg": "A new lock must be at least as long as the time remaining on the existing lock." },
+    { "code": 6004, "name": "NothingStaked", "msg": "Nothing is staked for this wallet." },
+    { "code": 6005, "name": "StillLocked", "msg": "This position's lock has not yet matured." },
+    { "code": 6006, "name": "InvalidTierTable", "msg": "Tier thresholds must start at 0 and strictly increase." },
+    { "code": 6007, "name": "InvalidDurationTable", "msg": "Duration options must be non-zero days with a multiplier of at least 1.00x." },
+    { "code": 6008, "name": "MathOverflow", "msg": "Arithmetic overflow." },
+    { "code": 6009, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." }
+  ],
+  "types": [
+    {
+      "name": "StakeConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "total_staked", "type": "u64" },
+          { "name": "tiers", "type": { "array": ["u64", 5] } },
+          { "name": "duration_days", "type": { "array": ["u16", 4] } },
+          { "name": "duration_multiplier", "type": { "array": ["u16", 4] } },
+          { "name": "paused", "type": "bool" },
+          { "name": "bump", "type": "u8" },
+          { "name": "vault_authority_bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "UserStake",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "owner", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "lock_days", "type": "u16" },
+          { "name": "staked_at", "type": "i64" },
+          { "name": "unlock_at", "type": "i64" },
+          { "name": "tier", "type": "u8" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ]
+}

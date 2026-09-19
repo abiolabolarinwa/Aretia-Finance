@@ -21,6 +21,9 @@ program/*/target/
 program/*/.anchor/
 program/*/Cargo.lock
 
+# SDK build output (regeneratable via `npm run build`, not source)
+sdk/*/dist/
+
 # Local Solana test validator data (large, regeneratable, not source)
 devnet/test-ledger/
 *.log

@@ -1,0 +1,295 @@
+{
+  "address": "5hmgnujNib14NDkEgRsLpY3H8SBDCsLryiymNKY6fWku",
+  "metadata": {
+    "name": "act_presale",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Aretia Finance -- ACT public presale. Hand-authored against programs/act-presale/programs/act-presale/src/lib.rs, since no Anchor CLI was available in the environment this program was built in to auto-generate this file via `anchor build`. Discriminators are computed programmatically (sha256(\"global:<name>\")[0..8] / sha256(\"account:<name>\")[0..8]), matching Anchor's own convention exactly, not hand-typed. Verify against the source before trusting this for anything consequential. Devnet-verified only; not yet deployed to mainnet."
+  },
+  "instructions": [
+    {
+      "name": "initialize_presale",
+      "docs": ["One-time setup. Creates the config PDA and the ACT vault ATA. Does not move any tokens or register payment currencies -- see initialize_payment_currency for that."],
+      "discriminator": [9, 174, 12, 126, 150, 119, 68, 100],
+      "accounts": [
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "vault_authority", "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "act_mint" },
+        { "name": "act_vault", "writable": true },
+        { "name": "treasury_act_account", "docs": ["Destination for unsold ACT via sweep_unsold_act; not touched by this instruction."] },
+        { "name": "treasury_sol_account", "docs": ["Destination for swept SOL contributions on a successful finalize; not touched by this instruction."] },
+        { "name": "token_program" },
+        { "name": "associated_token_program" },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "price_micro_payment_per_act", "type": "u64" },
+        { "name": "start_ts", "type": "i64" },
+        { "name": "end_ts", "type": "i64" },
+        { "name": "hard_cap_payment", "type": "u64" },
+        { "name": "soft_cap_payment", "type": "u64" },
+        { "name": "min_buy_payment", "type": "u64" },
+        { "name": "max_buy_payment", "type": "u64" },
+        { "name": "tge_bps", "type": "u16" },
+        { "name": "vesting_duration_days", "type": "u32" }
+      ]
+    },
+    {
+      "name": "initialize_payment_currency",
+      "docs": ["Authority-gated. Registers one accepted payment currency (USDC or USDT) at slot `index` (0 or 1) and creates its vault ATA. Called twice, once per currency -- split from initialize_presale because folding all three `init` constraints into one instruction overflowed the SBF VM's 4096-byte stack frame."],
+      "discriminator": [108, 143, 142, 183, 83, 122, 233, 9],
+      "accounts": [
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "vault_authority", "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "mint" },
+        { "name": "vault", "writable": true },
+        { "name": "treasury_payment_account", "docs": ["Destination for this currency's swept proceeds on a successful finalize; not touched by this instruction."] },
+        { "name": "payment_token_program" },
+        { "name": "associated_token_program" },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [{ "name": "index", "type": "u8" }]
+    },
+    {
+      "name": "fund_act_reserve",
+      "docs": ["Authority-gated. Tops up the ACT vault vesting claims are paid from. Uses balance-delta accounting, so the recorded amount is net of this transfer's own fee."],
+      "discriminator": [213, 53, 97, 217, 183, 69, 253, 46],
+      "accounts": [
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "act_mint" },
+        { "name": "act_vault", "writable": true },
+        { "name": "authority_act_account", "writable": true },
+        { "name": "token_program" }
+      ],
+      "args": [{ "name": "amount", "type": "u64" }]
+    },
+    {
+      "name": "buy",
+      "docs": ["Public. Buys ACT with `payment_amount` of whichever accepted currency (USDC or USDT) the passed payment_mint/payment_vault pair identifies. Funds are escrowed, not swept, until finalize."],
+      "discriminator": [102, 6, 61, 18, 1, 218, 235, 234],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "buyer_account", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 98, 117, 121, 101, 114] }, { "kind": "account", "path": "buyer" }] } },
+        { "name": "payment_mint", "docs": ["Must be one of config.accepted_mints; checked at runtime, not a static constraint, since either of two mints is valid here."] },
+        { "name": "payment_vault", "writable": true },
+        { "name": "buyer_payment_account", "writable": true },
+        { "name": "payment_token_program" },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [{ "name": "payment_amount", "type": "u64" }]
+    },
+    {
+      "name": "buy_with_sol",
+      "docs": ["Public. Buys ACT with native SOL, priced against the live Pyth SOL/USD feed the caller supplies via price_update. Same window/pause/min/max/hard-cap rules as buy, combined via USD-equivalent value."],
+      "discriminator": [49, 57, 124, 194, 240, 20, 216, 102],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "buyer_account", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 98, 117, 121, 101, 114] }, { "kind": "account", "path": "buyer" }] } },
+        { "name": "vault_authority", "writable": true, "docs": ["Escrows native SOL contributions directly as this PDA's own lamport balance."], "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "price_update", "docs": ["Pyth PriceUpdateV2 account for SOL/USD, posted by the caller (or their frontend) immediately before this instruction."] },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [{ "name": "lamports", "type": "u64" }]
+    },
+    {
+      "name": "refund_sol",
+      "docs": ["Buyer-callable, only once status == Refunding. Returns exactly the lamports this wallet paid via buy_with_sol, regardless of how SOL/USD has moved since."],
+      "discriminator": [158, 68, 131, 114, 106, 77, 56, 13],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "config", "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "buyer_account", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 98, 117, 121, 101, 114] }, { "kind": "account", "path": "buyer" }] } },
+        { "name": "owner", "docs": ["Only used for the has_one check on buyer_account; the real authority check is buyer being the transaction signer."] },
+        { "name": "vault_authority", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize",
+      "docs": ["Authority-gated. Callable once the sale window has ended, or earlier if the hard cap has been reached. Soft cap met: sweeps escrowed funds to treasury and starts vesting. Soft cap missed: moves to Refunding."],
+      "discriminator": [171, 61, 218, 56, 127, 115, 12, 217],
+      "accounts": [
+        { "name": "authority", "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "vault_authority", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "treasury_sol_account", "writable": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" },
+        { "name": "usdc_mint", "docs": ["Must equal config.accepted_mints[0], checked at runtime."] },
+        { "name": "usdt_mint", "docs": ["Must equal config.accepted_mints[1], checked at runtime."] },
+        { "name": "usdc_vault", "writable": true },
+        { "name": "usdt_vault", "writable": true },
+        { "name": "treasury_usdc_account", "writable": true },
+        { "name": "treasury_usdt_account", "writable": true },
+        { "name": "payment_token_program" }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund",
+      "docs": ["Buyer-callable, only once status == Refunding. Refunds whatever this wallet contributed in the specific currency identified by payment_mint/payment_vault -- call once per currency actually used."],
+      "discriminator": [2, 96, 183, 251, 63, 208, 46, 46],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "config", "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "buyer_account", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 98, 117, 121, 101, 114] }, { "kind": "account", "path": "buyer" }] } },
+        { "name": "owner" },
+        { "name": "vault_authority", "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "payment_mint" },
+        { "name": "payment_vault", "writable": true },
+        { "name": "buyer_payment_account", "writable": true },
+        { "name": "payment_token_program" }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "docs": ["Buyer-callable, only once status == Finalized and TGE has occurred. Pays out whatever portion of this wallet's net allocation has vested and hasn't yet been claimed, grossed up so the buyer nets at least that amount after the mint's transfer fee."],
+      "discriminator": [62, 198, 214, 193, 213, 159, 108, 210],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "buyer_account", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 98, 117, 121, 101, 114] }, { "kind": "account", "path": "buyer" }] } },
+        { "name": "owner" },
+        { "name": "vault_authority", "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "act_mint" },
+        { "name": "act_vault", "writable": true },
+        { "name": "buyer_act_account", "writable": true },
+        { "name": "token_program" }
+      ],
+      "args": []
+    },
+    {
+      "name": "sweep_unsold_act",
+      "docs": ["Authority-gated, callable any time after Finalized. Sends whatever ACT is left in the vault beyond what's still owed to remaining claimants back to the treasury."],
+      "discriminator": [203, 127, 31, 72, 229, 124, 108, 208],
+      "accounts": [
+        { "name": "authority", "signer": true },
+        { "name": "config", "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "vault_authority", "pda": { "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] } },
+        { "name": "act_mint" },
+        { "name": "act_vault", "writable": true },
+        { "name": "treasury_act_account", "writable": true },
+        { "name": "token_program" }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_paused",
+      "docs": ["Authority-gated circuit breaker. When paused, buy and buy_with_sol are rejected; claim and refund are never affected."],
+      "discriminator": [91, 60, 125, 192, 176, 225, 166, 218],
+      "accounts": [
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [{ "name": "paused", "type": "bool" }]
+    },
+    {
+      "name": "set_config_authority",
+      "docs": ["Hands config.authority to a new key, signed by the current authority."],
+      "discriminator": [16, 200, 212, 18, 95, 43, 107, 89],
+      "accounts": [
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [{ "name": "new_authority", "type": "pubkey" }]
+    }
+  ],
+  "accounts": [
+    { "name": "PresaleConfig", "discriminator": [115, 71, 85, 233, 246, 108, 30, 3] },
+    { "name": "BuyerAccount", "discriminator": [132, 99, 140, 101, 194, 67, 194, 66] }
+  ],
+  "errors": [
+    { "code": 6000, "name": "InvalidWindow", "msg": "start_ts must be before end_ts." },
+    { "code": 6001, "name": "InvalidCaps", "msg": "Soft cap must be greater than zero and no more than the hard cap." },
+    { "code": 6002, "name": "InvalidBuyLimits", "msg": "min_buy_payment must be greater than zero and no more than max_buy_payment." },
+    { "code": 6003, "name": "InvalidVestingConfig", "msg": "tge_bps must be 10000 or less, and vesting_duration_days must be greater than zero." },
+    { "code": 6004, "name": "InvalidPrice", "msg": "price_micro_payment_per_act must be greater than zero." },
+    { "code": 6005, "name": "DuplicatePaymentMint", "msg": "USDC and USDT mints must be different accounts." },
+    { "code": 6006, "name": "InvalidCurrencyIndex", "msg": "index must be 0 or 1." },
+    { "code": 6007, "name": "CurrencySlotAlreadySet", "msg": "This currency slot has already been initialized." },
+    { "code": 6008, "name": "ZeroAmount", "msg": "Amount must be greater than zero." },
+    { "code": 6009, "name": "PresaleNotActive", "msg": "The presale is not currently active." },
+    { "code": 6010, "name": "PresalePaused", "msg": "The presale is paused." },
+    { "code": 6011, "name": "PresaleNotStarted", "msg": "The presale has not started yet." },
+    { "code": 6012, "name": "PresaleEnded", "msg": "The presale has already ended." },
+    { "code": 6013, "name": "BelowMinBuy", "msg": "This purchase is below the minimum first-time contribution." },
+    { "code": 6014, "name": "AboveMaxBuy", "msg": "This purchase would exceed the maximum per-wallet contribution." },
+    { "code": 6015, "name": "HardCapExceeded", "msg": "This purchase would exceed the presale hard cap." },
+    { "code": 6016, "name": "PresaleStillOpen", "msg": "The presale window is still open and the hard cap has not been reached." },
+    { "code": 6017, "name": "NotRefunding", "msg": "The presale is not in a refunding state." },
+    { "code": 6018, "name": "AlreadyRefunded", "msg": "This wallet has already been refunded for this currency." },
+    { "code": 6019, "name": "NothingToRefund", "msg": "There is nothing to refund for this wallet in this currency." },
+    { "code": 6020, "name": "NotFinalized", "msg": "The presale has not been finalized." },
+    { "code": 6021, "name": "BeforeTge", "msg": "The token generation event has not occurred yet." },
+    { "code": 6022, "name": "NothingClaimable", "msg": "Nothing is currently claimable for this wallet." },
+    { "code": 6023, "name": "NothingToSweep", "msg": "There is no unsold ACT to sweep." },
+    { "code": 6024, "name": "InvalidBuyerAccount", "msg": "This buyer account does not belong to the signer." },
+    { "code": 6025, "name": "InvalidMint", "msg": "Could not read the ACT mint's account data." },
+    { "code": 6026, "name": "MissingTransferFeeConfig", "msg": "The ACT mint has no TransferFeeConfig extension." },
+    { "code": 6027, "name": "GrossUpShortfall", "msg": "The grossed-up transfer amount still fell short of the net entitlement." },
+    { "code": 6028, "name": "UnsupportedPaymentMint", "msg": "This mint is not an accepted presale payment currency." },
+    { "code": 6029, "name": "MismatchedPaymentVault", "msg": "This vault does not match the configured vault for this payment mint." },
+    { "code": 6030, "name": "InvalidOraclePrice", "msg": "The SOL/USD oracle price is invalid, stale, or for the wrong feed." },
+    { "code": 6031, "name": "MathOverflow", "msg": "Arithmetic overflow." },
+    { "code": 6032, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." }
+  ],
+  "types": [
+    {
+      "name": "PresaleConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "act_mint", "type": "pubkey" },
+          { "name": "accepted_mints", "docs": ["[USDC mint, USDT mint]"], "type": { "array": ["pubkey", 2] } },
+          { "name": "accepted_vaults", "docs": ["[USDC vault, USDT vault], index-matched to accepted_mints"], "type": { "array": ["pubkey", 2] } },
+          { "name": "treasury_payment_accounts", "docs": ["[treasury USDC account, treasury USDT account], index-matched"], "type": { "array": ["pubkey", 2] } },
+          { "name": "act_vault", "type": "pubkey" },
+          { "name": "treasury_act_account", "type": "pubkey" },
+          { "name": "treasury_sol_account", "type": "pubkey" },
+          { "name": "price_micro_payment_per_act", "docs": ["Price in the payment token's smallest unit per whole ACT (1e9 raw units)."], "type": "u64" },
+          { "name": "start_ts", "type": "i64" },
+          { "name": "end_ts", "type": "i64" },
+          { "name": "tge_ts", "docs": ["Set by finalize; 0 until then."], "type": "i64" },
+          { "name": "tge_bps", "type": "u16" },
+          { "name": "vesting_duration_seconds", "type": "i64" },
+          { "name": "hard_cap_payment", "type": "u64" },
+          { "name": "soft_cap_payment", "type": "u64" },
+          { "name": "min_buy_payment", "type": "u64" },
+          { "name": "max_buy_payment", "type": "u64" },
+          { "name": "total_raised_payment", "type": "u64" },
+          { "name": "total_act_sold_net", "type": "u64" },
+          { "name": "total_act_claimed_net", "type": "u64" },
+          { "name": "act_reserve_net", "type": "u64" },
+          { "name": "status", "docs": ["0=Active, 1=Finalized, 2=Refunding"], "type": "u8" },
+          { "name": "paused", "type": "bool" },
+          { "name": "bump", "type": "u8" },
+          { "name": "vault_authority_bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "BuyerAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "owner", "type": "pubkey" },
+          { "name": "payment_contributed", "docs": ["Index-matched to PresaleConfig.accepted_mints: [USDC, USDT]"], "type": { "array": ["u64", 2] } },
+          { "name": "act_allocated_net", "type": "u64" },
+          { "name": "act_claimed_net", "type": "u64" },
+          { "name": "refunded", "docs": ["Index-matched to PresaleConfig.accepted_mints"], "type": { "array": ["bool", 2] } },
+          { "name": "sol_lamports_contributed", "type": "u64" },
+          { "name": "sol_usd_value_contributed", "type": "u64" },
+          { "name": "sol_refunded", "type": "bool" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ]
+}

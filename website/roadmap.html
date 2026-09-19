@@ -117,9 +117,9 @@
   .road-dot { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 2.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); font-weight: 800; font-size: 14px; color: var(--ink-faint); box-shadow: 0 4px 10px -4px rgba(20,15,0,.2); transition: transform 160ms var(--ease); }
   .road-stop:hover .road-dot { transform: scale(1.08); }
   .road-dot.current { background: var(--black); border-color: var(--black); color: #fff; box-shadow: 0 0 0 6px var(--border-soft), 0 6px 14px -4px rgba(20,15,0,.3); }
-  .road-dot.proposed { border-style: dashed; color: var(--ink-faint); background: #fff; }
   .road-label { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; background: rgba(255,255,255,.88); padding: 3px 9px; border-radius: 8px; }
   .road-car { position: absolute; transform: translate(-50%, -50%); z-index: 5; }
+  .road-car-badge { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; color: #fff; background: var(--black); padding: 3px 9px; border-radius: 980px; white-space: nowrap; box-shadow: 0 4px 10px -4px rgba(20,15,0,.4); }
   .road-car img { display: block; width: 46px; height: 46px; border-radius: 50%; box-shadow: 0 12px 22px -8px rgba(23,21,12,.5), 0 0 0 4px #fff; animation: roadDrive 2.6s ease-in-out infinite; }
   .road-car .trail { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); display: flex; gap: 3px; margin-right: 7px; }
   .road-car .trail span { display: block; width: 11px; height: 3px; border-radius: 2px; background: var(--black); opacity: .5; }
@@ -132,7 +132,6 @@
   .road-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
   .road-legend .lg-live { background: var(--black); }
   .road-legend .lg-next { background: #fff; border: 2px solid var(--border); }
-  .road-legend .lg-proposed { background: #fff; border: 2px dashed var(--ink-faint); }
 
   /* -------- Phase list: the same road, threaded vertically, every width -------- */
   .phase { display: grid; grid-template-columns: 44px 1fr; gap: 20px; padding: 32px 0; border-bottom: 1px solid var(--border-soft); }
@@ -141,7 +140,6 @@
   .phase-badge .dot { width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--border); background: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); font-weight: 800; font-size: 15px; color: var(--ink-faint); flex: none; position: relative; z-index: 1; }
   .phase-badge .dot img { width: 27px; height: 27px; border-radius: 50%; }
   .phase-badge .dot.current { background: var(--black); border-color: var(--black); box-shadow: 0 0 0 6px var(--border-soft); animation: dotPulse 2.4s ease-in-out infinite; }
-  .phase-badge .dot.proposed { border-style: dashed; }
   .phase-badge .line { width: 2px; flex: 1; min-height: 24px; background: var(--border); margin-top: 8px; }
   .phase.current .phase-badge .line { background: linear-gradient(var(--black), var(--border)); }
   @keyframes dotPulse { 0%, 100% { box-shadow: 0 0 0 6px var(--border-soft); } 50% { box-shadow: 0 0 0 10px var(--border-soft); } }
@@ -267,7 +265,6 @@
         <a href="roadmap.html" class="active">Roadmap</a>
       </div>
       <div class="topnav-cta">
-        <span class="status-chip">Pre-Launch</span>
         <div data-aretia-wallet-mount></div>
         <button type="button" id="presale-golden-badge" class="presale-golden-badge" hidden>
           <span class="presale-golden-badge-dot"></span> Presale: <span id="presale-golden-badge-time">--</span>
@@ -335,12 +332,13 @@
       <div class="road-stage">
         <svg viewBox="0 0 1160 220" aria-hidden="true">
           <path class="road-bed" d="M70,150 C170,150 230,60 330,60 C430,60 500,150 600,150 C700,150 770,60 870,60 C970,60 1030,150 1090,150"/>
-          <path class="road-traveled" d="M70,150 C92,150 112,145.6 130,139"/>
+          <path class="road-traveled" d="M70,150 C110,150 150,130 190,111"/>
           <path class="road-centerline" d="M70,150 C170,150 230,60 330,60 C430,60 500,150 600,150 C700,150 770,60 870,60 C970,60 1030,150 1090,150"/>
         </svg>
-        <div class="road-car" style="left:11.21%; top:63.18%;">
+        <div class="road-car" style="left:16.38%; top:50.45%;">
           <span class="trail"><span></span><span></span><span></span></span>
           <img src="assets/logo-mark.png" alt="">
+          <span class="road-car-badge">4/8 done</span>
         </div>
         <a href="#phase-1" class="road-stop below" style="left:6.03%; top:68.18%;">
           <span class="road-dot current">01</span>
@@ -359,14 +357,13 @@
           <span class="road-label">Global protocol</span>
         </a>
         <a href="#phase-5" class="road-stop below" style="left:93.97%; top:68.18%;">
-          <span class="road-dot proposed">05</span>
+          <span class="road-dot">05</span>
           <span class="road-label">Capital marketplace</span>
         </a>
       </div>
       <div class="road-legend">
         <span><i class="lg-live"></i>Live now, moving</span>
-        <span><i class="lg-next"></i>Upcoming</span>
-        <span><i class="lg-proposed"></i>Proposed, not started</span>
+        <span><i class="lg-next"></i>Planned</span>
       </div>
     </div>
   </section>
@@ -417,10 +414,10 @@
       </div>
 
       <div class="phase" id="phase-5">
-        <div class="phase-badge"><span class="dot proposed">05</span><span class="line"></span></div>
+        <div class="phase-badge"><span class="dot">05</span><span class="line"></span></div>
         <div>
-          <h3>Climate capital marketplace <span class="phase-tag" style="background:var(--bg-alt); color:var(--ink-faint);">Proposed</span></h3>
-          <p class="summary">A proposed second capital stage, described in full in <a href="whitepaper.html#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Part VIII of the whitepaper</a>: projects that complete a full Catalyst Fund cycle could graduate into a separately instrumented investment opportunity (an SPV, fund unit, or similar vehicle), with ACT staking gating priority visibility and access, never ownership of the project itself. The investment-vehicle side of this phase is explicitly not started and does not begin until five conditions are all met: Aretia's operating entity is actually and verifiably registered; liquidity is seeded and ACT is trading; at least one Phase 2 grant has completed a full cycle end to end; the independent program review referenced above is complete; and a single project investment vehicle has been structured once, properly, with qualified securities counsel. The staking mechanism this phase would eventually gate access through is a separate, earlier piece of work already underway: its formula and on-chain program are compiled and live on Solana devnet, with locking and unlocking tested there against real transactions, though not yet on mainnet or independently reviewed. See <a href="stake.html">Staking</a> for current status. Staking working does not mean, and is not treated as, any of the five conditions above being met.</p>
+          <h3>Climate capital marketplace <span class="phase-tag" style="background:var(--bg-alt); color:var(--ink-faint);">Planned</span></h3>
+          <p class="summary">A planned second capital stage, described in full in <a href="whitepaper.html#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Part VIII of the whitepaper</a>: projects that complete a full Catalyst Fund cycle graduate into a separately instrumented investment opportunity (an SPV, fund unit, or similar vehicle), with ACT staking gating priority visibility and access, never ownership of the project itself. This is on the committed roadmap, not a maybe -- but the investment-vehicle side of it does not begin until five conditions are all met: Aretia's operating entity is actually and verifiably registered; liquidity is seeded and ACT is trading; at least one Phase 2 grant has completed a full cycle end to end; the independent program review referenced above is complete; and a single project investment vehicle has been structured once, properly, with qualified securities counsel. The staking mechanism this phase would eventually gate access through is a separate, earlier piece of work already underway: its formula and on-chain program are compiled and live on Solana devnet, with locking and unlocking tested there against real transactions, though not yet on mainnet or independently reviewed. See <a href="stake.html">Staking</a> for current status. Staking working does not mean, and is not treated as, any of the five conditions above being met.</p>
         </div>
       </div>
 

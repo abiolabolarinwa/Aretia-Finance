@@ -112,6 +112,86 @@
   .footer-links a:hover { color: var(--ink); }
   .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
   .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
+
+  /* ============ PRESALE COUNTDOWN MODAL + GOLDEN BADGE ============ */
+  .presale-countdown-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: rgba(10,8,30,.62);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 220ms var(--ease);
+  }
+  .presale-countdown-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .presale-countdown-modal {
+    position: relative;
+    width: 100%; max-width: 440px;
+    background: var(--bg, #FAF9F5);
+    border: 1px solid var(--border-soft, rgba(0,0,0,.1));
+    border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(10,8,30,.35);
+    padding: 32px 28px 26px;
+    text-align: center;
+    transform: translateY(10px) scale(.98);
+    transition: transform 220ms var(--ease);
+  }
+  .presale-countdown-overlay.is-visible .presale-countdown-modal { transform: translateY(0) scale(1); }
+  .presale-countdown-close {
+    position: absolute; top: 12px; right: 14px;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--border-soft, rgba(0,0,0,.12));
+    background: transparent; color: var(--ink, #190880);
+    font-size: 18px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 160ms var(--ease);
+  }
+  .presale-countdown-close:hover { background: rgba(0,0,0,.06); }
+  .presale-countdown-eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--brand, #190880); margin-bottom: 8px;
+  }
+  .presale-countdown-modal h2 { font-size: 22px; margin: 0 0 18px; }
+  .presale-countdown-clock { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+  .presale-countdown-unit {
+    flex: 1; max-width: 74px;
+    background: var(--brand, #190880); color: #fff;
+    border-radius: 10px; padding: 10px 4px;
+  }
+  .presale-countdown-unit span { display: block; font-family: var(--mono); font-size: 22px; font-weight: 700; }
+  .presale-countdown-unit small { display: block; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-top: 2px; }
+  .presale-countdown-price { text-align: left; border-top: 1px solid var(--border-soft, rgba(0,0,0,.1)); border-bottom: 1px solid var(--border-soft, rgba(0,0,0,.1)); padding: 14px 0; margin-bottom: 18px; }
+  .presale-countdown-price-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--ink-soft, #444); }
+  .presale-countdown-price-row strong { color: var(--ink, #190880); }
+  .presale-countdown-cta { display: inline-flex; width: 100%; justify-content: center; margin-bottom: 16px; }
+  .presale-countdown-social { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .presale-countdown-social a {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border-soft, rgba(0,0,0,.12)); color: var(--ink, #190880);
+    text-decoration: none; transition: background 160ms var(--ease), color 160ms var(--ease);
+  }
+  .presale-golden-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    padding: 8px 14px; border-radius: 999px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, #fff3c4 0%, #f0c14b 35%, #b8860b 70%, #f7dc6f 100%);
+    background-size: 220% 220%;
+    color: #4a2e00;
+    box-shadow: 0 2px 10px rgba(184,134,11,.45), inset 0 1px 0 rgba(255,255,255,.6);
+    animation: presale-golden-shimmer 3.2s ease infinite;
+  }
+  .presale-golden-badge:hover { filter: brightness(1.05); }
+  .presale-golden-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #4a2e00; display: inline-block; }
+  @keyframes presale-golden-shimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @media (max-width: 640px) {
+    .presale-countdown-unit { padding: 8px 2px; }
+    .presale-countdown-unit span { font-size: 18px; }
+    .presale-golden-badge { font-size: 11px; padding: 6px 10px; }
+  }
 </style>
 <link rel="stylesheet" href="assets/wallet/wallet.css">
 <link rel="stylesheet" href="assets/footer-bars.css">
@@ -135,11 +215,44 @@
       <div class="topnav-cta">
         <span class="status-chip">Pre-Launch</span>
         <div data-aretia-wallet-mount></div>
+        <button type="button" id="presale-golden-badge" class="presale-golden-badge" hidden>
+          <span class="presale-golden-badge-dot"></span> Presale: <span id="presale-golden-badge-time">--</span>
+        </button>
         <a class="pill-btn pill-black" href="apply.html">Apply for Funding</a>
       </div>
     </div>
   </div>
 </nav>
+
+<!-- ============ PRESALE COUNTDOWN MODAL ============ -->
+<div id="presale-countdown-overlay" class="presale-countdown-overlay" hidden>
+  <div class="presale-countdown-modal" role="dialog" aria-modal="true" aria-labelledby="presale-countdown-title">
+    <button type="button" id="presale-countdown-close" class="presale-countdown-close" aria-label="Close">&times;</button>
+    <div class="presale-countdown-eyebrow">ACT Presale</div>
+    <h2 id="presale-countdown-title">Presale opens in</h2>
+    <div class="presale-countdown-clock">
+      <div class="presale-countdown-unit"><span id="pc-days">00</span><small>Days</small></div>
+      <div class="presale-countdown-unit"><span id="pc-hours">00</span><small>Hours</small></div>
+      <div class="presale-countdown-unit"><span id="pc-mins">00</span><small>Mins</small></div>
+      <div class="presale-countdown-unit"><span id="pc-secs">00</span><small>Secs</small></div>
+    </div>
+    <div class="presale-countdown-price">
+      <div class="presale-countdown-price-row"><span>Price</span><strong>$0.01 / ACT</strong></div>
+      <div class="presale-countdown-price-row"><span>Min buy</span><strong>$10</strong></div>
+      <div class="presale-countdown-price-row"><span>Max buy</span><strong>$10,000</strong></div>
+      <div class="presale-countdown-price-row"><span>Vesting</span><strong>25% TGE, 75% over 180 days</strong></div>
+      <div class="presale-countdown-price-row"><span>Accepts</span><strong>USDC · USDT · SOL</strong></div>
+    </div>
+    <a href="presale.html" class="pill-btn pill-black presale-countdown-cta">See presale details</a>
+    <div class="presale-countdown-social">
+      <a href="https://x.com/AretiaFinance" target="_blank" rel="noopener" aria-label="X (Twitter)">X</a>
+      <a href="https://discord.gg/fDXvn2nHf" target="_blank" rel="noopener" aria-label="Discord">Discord</a>
+      <a href="https://t.me/+MWgiRISNMWM2NmI0" target="_blank" rel="noopener" aria-label="Telegram">Telegram</a>
+      <a href="https://github.com/abiolabolarinwa/Aretia-Finance" target="_blank" rel="noopener" aria-label="GitHub">GitHub</a>
+    </div>
+  </div>
+</div>
+
 
 <main>
   <section class="dhero">
@@ -245,6 +358,92 @@
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 <script src="assets/wallet/wallet.js"></script>
 <script src="assets/footer-bars.js"></script>
+  <script>
+  (function () {
+    var PRESALE_OPEN = new Date("2026-10-01T00:00:00Z").getTime();
+    var STORAGE_KEY = "aretia-presale-countdown-dismissed";
+
+    var overlay = document.getElementById("presale-countdown-overlay");
+    var closeBtn = document.getElementById("presale-countdown-close");
+    var badge = document.getElementById("presale-golden-badge");
+    var badgeTime = document.getElementById("presale-golden-badge-time");
+    if (!overlay || !badge) return;
+
+    var dEl = document.getElementById("pc-days");
+    var hEl = document.getElementById("pc-hours");
+    var mEl = document.getElementById("pc-mins");
+    var sEl = document.getElementById("pc-secs");
+
+    var timerId = null;
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+
+    function formatRemaining() {
+      var diff = PRESALE_OPEN - Date.now();
+      if (diff < 0) diff = 0;
+      var days = Math.floor(diff / 86400000);
+      var hours = Math.floor((diff % 86400000) / 3600000);
+      var mins = Math.floor((diff % 3600000) / 60000);
+      var secs = Math.floor((diff % 60000) / 1000);
+      return { days: days, hours: hours, mins: mins, secs: secs };
+    }
+
+    function tick() {
+      var t = formatRemaining();
+      if (dEl) dEl.textContent = pad(t.days);
+      if (hEl) hEl.textContent = pad(t.hours);
+      if (mEl) mEl.textContent = pad(t.mins);
+      if (sEl) sEl.textContent = pad(t.secs);
+      if (badgeTime) badgeTime.textContent = t.days + "d " + pad(t.hours) + "h";
+      if (PRESALE_OPEN - Date.now() <= 0 && timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    }
+
+    function isDismissed() {
+      try { return localStorage.getItem(STORAGE_KEY) === "1"; } catch (e) { return false; }
+    }
+
+    function setDismissed() {
+      try { localStorage.setItem(STORAGE_KEY, "1"); } catch (e) { /* ignore */ }
+    }
+
+    function showBadge() {
+      badge.hidden = false;
+    }
+
+    function showModal() {
+      overlay.hidden = false;
+      requestAnimationFrame(function () { overlay.classList.add("is-visible"); });
+    }
+
+    function hideModal() {
+      overlay.classList.remove("is-visible");
+      setTimeout(function () { overlay.hidden = true; }, 220);
+      setDismissed();
+      showBadge();
+    }
+
+    tick();
+    timerId = setInterval(tick, 1000);
+
+    if (isDismissed()) {
+      showBadge();
+    } else {
+      setTimeout(showModal, 2000);
+    }
+
+    closeBtn.addEventListener("click", hideModal);
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) hideModal();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && overlay.classList.contains("is-visible")) hideModal();
+    });
+    badge.addEventListener("click", showModal);
+  })();
+</script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

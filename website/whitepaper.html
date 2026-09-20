@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Whitepaper · Aretia (ACT)</title>
-<meta name="description" content="The full Aretia whitepaper: the catalyst fund, the transfer-fee mechanism, treasury custody, and governance, on-page and downloadable as PDF.">
+<meta name="description" content="Aretia Finance, explained in plain language: how the token's fee works, who controls the treasury, how projects get paid, and the honest risks. A 10-14 page read, no crypto jargon required.">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,35 +17,38 @@
     --border: #E7E7EC; --border-soft: #EFEFF3;
     --black: #101114; --black-hover: #26272C;
     --brand: #190880; --brand-hover: #100553; --brand-soft: #ECE9F8;
-    --blue: var(--brand); --blue-hover: var(--brand-hover); --blue-soft: var(--brand-soft);
-    --green: var(--brand); --green-soft: var(--brand-soft);
     --amber: var(--brand); --amber-soft: var(--brand-soft);
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --sans: var(--font-sans); --display: var(--font-sans);
     --mono: "Inter", ui-monospace, monospace;
-    --ease: cubic-bezier(0.16, 1, 0.3, 1); --ease-out: var(--ease);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
     --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
   }
-  .kicker { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
-  .bnum { font-family: var(--mono); font-weight: 600; color: var(--ink-faint); }
-  .lead-in { font-family: var(--display); font-size: clamp(1.55rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -.025em; line-height: 1.38; max-width: 78ch; }
-  .lead-in .dim { font-weight: 400; color: var(--ink-soft); }
-  .btn-dark { background: var(--brand); color: #fff; padding: 13px 24px; border-radius: 980px; font-weight: 600; font-size: 13.5px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease), transform 160ms var(--ease); }
-  .btn-dark:hover { background: var(--brand-hover); } .btn-dark:active { transform: scale(0.97); }
-  * { box-sizing: border-box; } html { scroll-behavior: smooth; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
   ::selection { background: var(--black); color: #fff; }
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--display); }
-  h1, h2 { font-weight: 800; letter-spacing: -0.03em; } h3 { font-weight: 700; letter-spacing: -0.01em; }
-  p { font-family: var(--font-serif); }
-  .mono { font-family: var(--mono); }
+  img, svg { max-width: 100%; display: block; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
   @media (max-width: 640px) { .wrap { padding: 0 20px; } }
-  img, svg { max-width: 100%; }
-  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--black); outline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--black); outline-offset: 3px; }
+  h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -0.03em; text-wrap: balance; }
+  p { margin: 0; font-family: var(--font-serif); }
+  .mono { font-family: var(--mono); }
+
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease); border: 1.5px solid transparent; }
+  .pill-btn:active { transform: scale(0.97); }
+  .pill-black { background: var(--brand); color: #fff; }
+  .pill-black:hover { background: var(--brand-hover); }
+  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
+  .pill-ghost:hover { background: var(--surface); }
+
+  section.block { padding: 72px 0; }
+  @media (max-width: 860px) { section.block { padding: 48px 0; } }
+  section.block.alt { background: var(--bg-alt); }
+
   .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
   .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
   .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 20px; color: var(--ink); flex: none; }
@@ -60,7 +63,6 @@
   .nav-links a.active { color: var(--ink); font-weight: 700; }
   @media (max-width: 1120px) { .nav-links { display: none; } }
 
-  /* -------- Ondo-style floating pill navbar, tinted with the brand colour -------- */
   .topnav-dark { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: none; padding: 18px 0; }
   .topnav-dark .topnav-inner { background: var(--brand); border-radius: 980px; padding: 8px 10px 8px 24px; box-shadow: 0 14px 30px -16px rgba(25,8,128,.4); }
   .topnav-dark .brand { color: #fff; }
@@ -70,36 +72,12 @@
   .topnav-dark .pill-black:hover { background: #EFEFF3; }
   .topnav-dark .pill-ghost { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.3); color: #fff; }
   .topnav-dark .pill-ghost:hover { background: rgba(255,255,255,.2); }
-  .topnav-dark .aw-connect-btn { background: transparent; border-color: rgba(255,255,255,.3); color: #fff; }
-  .topnav-dark .aw-connect-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.55); }
   @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
   .topnav-cta { display: flex; align-items: center; gap: 10px; flex: none; }
-  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease); border: 1.5px solid transparent; }
-  .pill-btn:active { transform: scale(0.97); }
-  .pill-black { background: var(--brand); color: #fff; }
-  .pill-black:hover { background: var(--brand-hover); }
-  .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
-  .pill-ghost:hover { background: var(--surface); }
   .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
   @media (max-width: 480px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 12.5px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
-  section.block { padding: 72px 0; }
-  @media (max-width: 860px) { section.block { padding: 48px 0; } }
-  section.block.alt { background: var(--bg-alt); }
-  .block-head { margin-bottom: 32px; }
-  .block-head h2 { font-size: clamp(2.1rem, 3.6vw, 2.8rem); font-weight: 800; letter-spacing: -.03em; }
-  .info-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 18px 20px; max-width: 640px; }
-  .info-box .label { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-  .info-box .label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
-  .info-box p { font-size: 13px; color: var(--ink-soft); margin: 0; line-height: 1.6; }
-  footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
-  .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
-  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
-  .footer-links a:hover { color: var(--ink); }
-  .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
-  .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
 
-  /* -------- Doola-style cream hero -------- */
   .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
   .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
   @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
@@ -108,58 +86,51 @@
   .dhero h1 .hl { color: var(--brand); }
   .dhero-sub { font-size: 15px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
-  .dhero .pill-black { background: var(--brand); }
   .dhero-microcopy { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
   .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: var(--border-soft); }
   .dhero-visual img { width: 100%; height: 100%; min-height: 400px; object-fit: cover; display: block; }
   .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: var(--ink); max-width: calc(100% - 40px); }
   .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
   @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
-  .wp-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-  .btn-outline { border: 1px solid var(--border); color: var(--ink); padding: 9px 18px; border-radius: 980px; font-weight: 600; font-size: 13.5px; display: inline-flex; align-items: center; gap: 7px; transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out); }
-  .btn-outline:hover { background: var(--surface); border-color: var(--ink-faint); }
-  .toc-card { background: var(--surface); border-radius: var(--r-md); padding: 28px 32px; max-width: 760px; margin: 0 auto; }
-  .toc-card .kicker { margin-bottom: 10px; }
-  .paper-sheet { max-width: 760px; margin: 0 auto; }
-  .paper-sheet h2 { font-size: 1.35rem; margin: 56px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-  .paper-sheet h2:first-of-type { margin-top: 0; }
-  .paper-sheet h2 .num { font-family: "JetBrains Mono", monospace; font-size: .7em; font-weight: 500; color: var(--amber); margin-right: 10px; }
-  .paper-sheet h2.part-heading { font-size: 1rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--amber); border-bottom: none; border-top: 2px solid var(--amber); padding-top: 28px; margin: 72px 0 -8px; }
-  .paper-sheet h2.part-heading:first-of-type { margin-top: 40px; }
-  .paper-sheet h3 { font-size: 1.02rem; margin: 30px 0 12px; }
-  .paper-sheet p { font-size: 15px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 16px; }
-  .paper-sheet p strong { color: var(--ink); }
-  .paper-sheet p.byline { text-align: center; font-size: 13.5px; color: var(--ink-faint); margin: 0 0 4px; }
-  .paper-sheet p.byline strong { color: var(--ink-soft); }
-  .paper-sheet p.byline code { background: var(--surface); padding: 2px 7px; border-radius: 6px; font-size: 12.5px; }
-  .paper-sheet p.version-notice { font-size: 13px; font-style: italic; color: var(--ink-faint); margin: 18px 0 8px; line-height: 1.65; }
-  .paper-sheet p.disclaimer { font-size: 12.5px; font-style: italic; color: var(--ink-faint); border-top: 1px solid var(--border); padding-top: 20px; margin-top: 40px; }
-  .paper-sheet code { font-family: "JetBrains Mono", monospace; font-size: .88em; background: var(--surface); padding: 1px 6px; border-radius: 5px; word-break: break-all; }
-  .paper-sheet .formula { background: var(--surface); border-radius: var(--r-sm); padding: 16px 20px; margin: 16px 0 20px; overflow-x: auto; }
-  .paper-sheet .formula pre { margin: 0; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.8; color: var(--ink); white-space: pre; }
-  .paper-sheet table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 20px; display: block; overflow-x: auto; }
-  .paper-sheet table th, .paper-sheet table td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border-soft); }
-  .paper-sheet table th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); white-space: nowrap; }
-  .paper-sheet ol.risks { list-style: none; margin: 0; padding: 0; counter-reset: risk; }
-  .paper-sheet ol.risks li { counter-increment: risk; display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); font-size: 14px; color: var(--ink-soft); }
-  .paper-sheet ol.risks li::before { content: counter(risk) "."; font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--amber); flex: none; width: 1.4em; }
-  .paper-sheet sup.fnref { font-size: .72em; line-height: 0; }
-  .paper-sheet sup.fnref a { color: var(--amber); text-decoration: none; font-weight: 600; padding: 0 1px; }
-  .paper-sheet sup.fnref a:hover { text-decoration: underline; }
-  .paper-sheet ol.footnotes { list-style: decimal; margin: 4px 0 24px; padding-left: 22px; border-top: 1px solid var(--border); padding-top: 16px; }
-  .paper-sheet ol.footnotes li { font-size: 12.5px; color: var(--ink-faint); line-height: 1.6; margin-bottom: 8px; }
-  .paper-sheet ol.footnotes li:last-child { margin-bottom: 0; }
-  .paper-sheet a.fnback { color: var(--amber); text-decoration: none; font-size: 11px; margin-left: 2px; }
-  .paper-sheet a.fnback:hover { text-decoration: underline; }
-  .paper-toc { columns: 2; column-gap: 28px; margin: 24px 0 0; padding: 0; list-style: none; }
-  .paper-toc li { break-inside: avoid; margin-bottom: 8px; font-size: 13.5px; }
-  .paper-toc a { color: var(--ink-soft); }
-  .paper-toc a:hover { color: var(--amber); }
-  .paper-toc li.toc-part { margin-top: 16px; }
-  .paper-toc li.toc-part:first-child { margin-top: 0; }
-  .paper-toc li.toc-part a { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--amber); }
+
+  /* -------- Contents card -------- */
+  .toc-section { padding-top: 56px; }
+  .toc-card { background: var(--surface); border-radius: var(--r-md); padding: 32px 36px; max-width: 760px; margin: 0 auto; }
+  .toc-card .kicker { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+  .paper-toc { columns: 2; column-gap: 32px; margin: 0; padding: 0; list-style: none; }
+  .paper-toc li { break-inside: avoid; margin-bottom: 12px; font-size: 14px; }
+  .paper-toc li a { color: var(--ink-soft); font-weight: 500; transition: color 160ms var(--ease); }
+  .paper-toc li a:hover { color: var(--brand); }
+  .paper-toc li .n { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-right: 6px; }
   @media (max-width: 560px) { .paper-toc { columns: 1; } }
-  @media (max-width: 700px) { .paper-sheet table { font-size: 12.5px; } }
+
+  /* -------- Paper prose -------- */
+  .paper-sheet { max-width: 720px; margin: 0 auto; }
+  .paper-sheet h2 { font-size: 1.55rem; margin: 52px 0 16px; padding-bottom: 12px; border-bottom: 2px solid var(--brand-soft); color: var(--ink); }
+  .paper-sheet > .paper-sheet-block:first-child h2 { margin-top: 0; }
+  .paper-sheet h3 { font-size: 1.08rem; margin: 26px 0 10px; color: var(--brand); }
+  .paper-sheet p { font-size: 15.5px; color: var(--ink-soft); line-height: 1.75; margin: 0 0 16px; }
+  .paper-sheet p strong { color: var(--ink); }
+  .paper-sheet p.lede { font-size: 17px; color: var(--ink); line-height: 1.8; }
+  .paper-sheet p.byline { text-align: center; font-size: 14px; color: var(--ink-faint); margin: 0 0 4px; }
+  .paper-sheet p.url { text-align: center; font-family: var(--mono); font-size: 13px; color: var(--ink-faint); margin: 0 0 32px; }
+  .paper-sheet p.disclaimer, .paper-sheet p.closing-note { font-size: 13px; font-style: italic; color: var(--ink-faint); border-top: 1px solid var(--border); padding-top: 20px; margin-top: 32px; line-height: 1.7; }
+  .paper-sheet code { font-family: "JetBrains Mono", monospace; font-size: .88em; background: var(--surface); padding: 1px 6px; border-radius: 5px; word-break: break-all; }
+  .paper-sheet table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 4px 0 22px; display: block; overflow-x: auto; }
+  .paper-sheet table th, .paper-sheet table td { text-align: left; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .paper-sheet table th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); white-space: nowrap; }
+  .paper-sheet ul.plain, .paper-sheet ol.plain { margin: 0 0 18px; padding-left: 22px; }
+  .paper-sheet ul.plain li, .paper-sheet ol.plain li { font-size: 15.5px; color: var(--ink-soft); line-height: 1.7; margin-bottom: 8px; }
+  .paper-sheet ul.plain li strong, .paper-sheet ol.plain li strong { color: var(--ink); }
+  .paper-sheet .faq-q { font-size: 15.5px; font-weight: 700; color: var(--ink); margin: 20px 0 6px; }
+  .paper-sheet .faq-q:first-of-type { margin-top: 0; }
+
+  footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
+  .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
+  .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .footer-links a:hover { color: var(--ink); }
+  .legal { font-size: 10.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: var(--mono); font-size: 10.5px; margin-top: 16px; color: var(--ink-faint); }
 </style>
 <link rel="stylesheet" href="assets/wallet/wallet.css">
 <link rel="stylesheet" href="assets/footer-bars.css">
@@ -170,7 +141,7 @@
   <div class="wrap" style="max-width:1180px;">
     <div class="topnav-inner">
       <a href="/" class="brand">
-        <span class="mark"><img src="data:image/png;base64,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" alt="Aretia"></span>
+        <span class="mark"><img src="assets/logo-mark.png" alt="Aretia"></span>
         <span class="brand-word"><span class="bw-1">Aretia</span><span class="bw-2">Finance</span></span>
       </a>
       <div class="nav-links">
@@ -195,268 +166,247 @@
       <div class="dhero-grid">
         <div>
           <div class="dhero-eyebrow">Whitepaper</div>
-          <h1>A protocol-enforced <span class="hl">climate catalyst fund.</span></h1>
-          <p class="dhero-sub">The full technical and economic case: the fee mechanism, treasury custody, milestone-verified disbursement, and governance, all reproducible against the public ledger.</p>
+          <h1>Aretia, explained <span class="hl">without the jargon.</span></h1>
+          <p class="dhero-sub">How the fee works, who controls the treasury, how a project actually gets paid, and the honest risks -- in plain language, no crypto glossary required.</p>
           <div class="dhero-actions">
             <a class="pill-btn pill-black" href="aretia-whitepaper.pdf" target="_blank" rel="noopener">Download PDF</a>
-            <a class="pill-btn pill-ghost" href="#abstract">Read on This Page</a>
+            <a class="pill-btn pill-ghost" href="#in-short">Read on This Page</a>
           </div>
-          <div class="dhero-microcopy">33 sections across 8 parts, fully reproducible on-chain</div>
+          <div class="dhero-microcopy">About a 10-minute read -- easy to share with a friend</div>
         </div>
         <div class="dhero-visual">
-          <img src="assets/technical-assistance.jpg" alt="The technical due diligence documented in the Aretia whitepaper">
+          <img src="assets/technical-assistance.jpg" alt="A project team reviewing plans, representing the technical assistance Aretia funds">
           <div class="dhero-badge"><span class="chk">✓</span>Every Claim Independently Checkable</div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="block" style="padding-top:0;">
+  <section class="block toc-section">
     <div class="wrap">
       <div class="toc-card">
         <div class="kicker">Contents</div>
         <ul class="paper-toc">
-<li><a href="#abstract">Abstract</a></li>
-<li class="toc-part"><a href="#part-i-the-financing-challenge-for-climate-mitigation-and-adaptation-projects">Part I. The Financing Challenge for Climate Mitigation and Adaptation Projects</a></li>
-<li><a href="#1-the-de-risking-gap-in-climate-mitigation-and-adaptation-finance">1. The De-Risking Gap in Climate Mitigation and Adaptation Finance</a></li>
-<li><a href="#2-why-existing-approaches-fall-short">2. Why Existing Approaches Fall Short</a></li>
-<li class="toc-part"><a href="#part-ii-liquidity-availability-through-emerging-financial-instruments-and-digital-assets">Part II. Liquidity Availability through Emerging Financial Instruments and Digital Assets</a></li>
-<li><a href="#3-permissionless-trading-as-an-untapped-capital-source">3. Permissionless Trading as an Untapped Capital Source</a></li>
-<li><a href="#4-contributions-and-organization-of-this-paper">4. Contributions and Organization of This Paper</a></li>
-<li class="toc-part"><a href="#part-iii-the-logic-of-the-catalyst-fund">Part III. The Logic of the Catalyst Fund</a></li>
-<li><a href="#5-theory-of-change">5. Theory of Change</a></li>
-<li><a href="#6-definition-and-structural-properties">6. Definition and Structural Properties</a></li>
-<li><a href="#7-continuous-replenishment">7. Continuous Replenishment</a></li>
-<li><a href="#8-non-discretionary-capitalization">8. Non-Discretionary Capitalization</a></li>
-<li><a href="#9-relationship-to-catalytic-capital-in-blended-finance-theory">9. Relationship to Catalytic Capital in Blended Finance Theory</a></li>
-<li class="toc-part"><a href="#part-iv-the-token-protocol">Part IV. The Token Protocol</a></li>
-<li><a href="#10-token-design-overview">10. Token Design Overview</a></li>
-<li><a href="#11-supply-and-authority-structure">11. Supply and Authority Structure</a></li>
-<li><a href="#12-immutability-as-a-design-choice-and-its-costs">12. Immutability as a Design Choice, and Its Costs</a></li>
-<li><a href="#13-market-access-and-permissionless-trading">13. Market Access and Permissionless Trading</a></li>
-<li><a href="#14-the-transfer-fee-mechanism">14. The Transfer-Fee Mechanism</a></li>
-<li><a href="#15-treasury-custody">15. Treasury Custody</a></li>
-<li class="toc-part"><a href="#part-v-project-selection-and-governance">Part V. Project Selection and Governance</a></li>
-<li><a href="#16-milestone-verified-disbursement">16. Milestone-Verified Disbursement</a></li>
-<li><a href="#17-project-selection-and-diligence">17. Project Selection and Diligence</a></li>
-<li><a href="#18-governance">18. Governance</a></li>
-<li class="toc-part"><a href="#part-vi-economic-and-social-analysis">Part VI. Economic and Social Analysis</a></li>
-<li><a href="#19-network-selection">19. Network Selection</a></li>
-<li><a href="#20-economic-analysis">20. Economic Analysis</a></li>
-<li><a href="#21-social-dimensions-of-project-selection">21. Social Dimensions of Project Selection</a></li>
-<li><a href="#22-risks-and-limitations">22. Risks and Limitations</a></li>
-<li><a href="#23-legal-and-regulatory-status">23. Legal and Regulatory Status</a></li>
-<li class="toc-part"><a href="#part-vii-impact-documentation-and-management">Part VII. Impact Documentation and Management</a></li>
-<li><a href="#24-transparency-and-independent-verifiability">24. Transparency and Independent Verifiability</a></li>
-<li><a href="#25-illustrative-calculation">25. Illustrative Calculation</a></li>
-<li><a href="#26-conclusion">26. Conclusion</a></li>
-<li class="toc-part"><a href="#part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage">Part VIII. Toward a Climate Capital Marketplace: A Proposed Second Stage</a></li>
-<li><a href="#27-motivation-and-scope-of-this-part">27. Motivation and Scope of This Part</a></li>
-<li><a href="#28-the-two-stage-capital-model">28. The Two-Stage Capital Model</a></li>
-<li><a href="#29-structural-separation-between-act-the-project-participation-instrument-and-the-underlying-project">29. Structural Separation Between ACT, the Project Participation Instrument, and the Underlying Project</a></li>
-<li><a href="#30-tiered-access-through-act-staking">30. Tiered Access Through ACT Staking</a></li>
-<li><a href="#31-related-work-and-positioning-against-prior-art">31. Related Work and Positioning Against Prior Art</a></li>
-<li><a href="#32-prerequisites-and-sequencing">32. Prerequisites and Sequencing</a></li>
-<li><a href="#33-legal-treatment-of-the-proposed-second-stage">33. Legal Treatment of the Proposed Second Stage</a></li>
-<li><a href="#appendix-a-on-chain-reference-addresses">Appendix A: On-Chain Reference Addresses</a></li>
-<li><a href="#notes">Notes</a></li>
-</ul>
+          <li><a href="#in-short">In short</a></li>
+          <li><span class="n">1</span><a href="#p1">The problem this is trying to solve</a></li>
+          <li><span class="n">2</span><a href="#p2">What Aretia does differently</a></li>
+          <li><span class="n">3</span><a href="#p3">The token: ACT</a></li>
+          <li><span class="n">4</span><a href="#p4">Who controls the money</a></li>
+          <li><span class="n">5</span><a href="#p5">How a project actually gets paid</a></li>
+          <li><span class="n">6</span><a href="#p6">Who decides which projects get funded</a></li>
+          <li><span class="n">7</span><a href="#p7">Getting involved: presale and staking</a></li>
+          <li><span class="n">8</span><a href="#p8">What's built today, and what's ahead</a></li>
+          <li><span class="n">9</span><a href="#p9">Being honest about the risks</a></li>
+          <li><span class="n">10</span><a href="#p10">Questions a friend would ask</a></li>
+          <li><span class="n">11</span><a href="#p11">The legal part, in plain terms</a></li>
+          <li><span class="n">12</span><a href="#p12">Don't take our word for it</a></li>
+          <li><a href="#closing">A closing note</a></li>
+        </ul>
       </div>
     </div>
   </section>
 
-  <section class="block" style="padding-top:8px;">
+  <section class="block alt">
     <div class="wrap">
       <div class="paper-sheet">
-<p class="byline">A Protocol-Enforced Climate Catalyst Fund</p>
-<p class="byline"><code>aretiafinance.org</code></p>
-<h2 id="abstract">Abstract</h2>
-<p>Financing climate mitigation and adaptation is not primarily a shortage of global capital; it is a shortage of capital willing to underwrite these projects at their riskiest, least-proven stage. The world requires an estimated $5.93 trillion a year in climate investment to stay on a 1.5&deg;C-consistent path, a gap that has widened in relative terms even as total tracked climate finance more than doubled between 2018 and 2022, because concessional, risk-absorbing capital remains roughly 11 percent of that total and tracked adaptation finance specifically has plateaued near $64 billion a year.<sup class="fnref"><a id="fnref-11-1" href="#fn-11">11</a></sup> The deficit concentrates exactly where individual mitigation and adaptation projects are too small, too early, or too unproven for commercial and institutional capital to underwrite at acceptable risk-adjusted terms, which is precisely the gap that catalytic capital, capital that accepts disproportionate risk or concessionary terms specifically to unlock third-party investment that would not otherwise occur, is designed to close.<sup class="fnref"><a id="fnref-12-1" href="#fn-12">12</a></sup> This paper describes a protocol whose climate treasury is built to function as exactly this kind of catalytic fund: financing climate mitigation and adaptation projects through their highest-risk, least-bankable stage so that verified progress, rather than a developer's own account of it, becomes the basis on which commercial investors can eventually underwrite the same project on ordinary terms. The treasury is capitalized continuously by a protocol-enforced fee on ordinary, permissionless trading activity unconnected to any climate purpose, converting a fixed share of that activity into standing, de-risking capital rather than a one-time grant round that has to be re-raised. The conversion is enforced by the token's own transfer-fee extension rather than by policy, so the property holds by construction rather than by an operator's good conduct; that immutability applies to the aggregate fee rate specifically, a distinction Section 14 makes precise. Capital leaves the fund only against independently verified project milestones, because a catalytic claim is only as credible as the proof behind it: a fund cannot be said to have de-risked a project if its own account of that project's progress cannot be independently checked. Every step from withholding to disbursement is visible on a public ledger and independently reproducible by any observer. What follows sets out the theory of change, the token protocol and its arithmetic, project selection and governance, an economic and legal analysis, and an impact-documentation framework, closing with a proposed and explicitly unbuilt second capital stage in which projects the treasury has de-risked graduate toward commercial investment, gated by participation in ACT but never routed through the token itself, subject to prerequisites this paper states plainly rather than assumes.</p>
-<h2 id="part-i-the-financing-challenge-for-climate-mitigation-and-adaptation-projects" class="part-heading">Part I. The Financing Challenge for Climate Mitigation and Adaptation Projects</h2>
-<h2 id="1-the-de-risking-gap-in-climate-mitigation-and-adaptation-finance"><span class="num">1</span>The De-Risking Gap in Climate Mitigation and Adaptation Finance</h2>
-<p>Climate mitigation and adaptation projects fail to reach financial close for a reason that predates any question of verification: at the stage a project most needs capital, a first-of-kind technology deployment, an unproven developer, a small ticket size in a market institutional investors don't yet cover, the risk-adjusted return does not clear the threshold commercial and institutional capital requires. This is a de-risking problem, not fundamentally a capital-scarcity problem in the aggregate. Blended-finance practice defines the response directly: catalytic capital is capital, debt, equity, or guarantees, that accepts disproportionate risk or concessionary terms relative to a conventional investment specifically to improve a project's risk-return profile enough that private, commercial capital will then invest alongside or after it, on terms it otherwise would not have accepted.<sup class="fnref"><a id="fnref-12-2" href="#fn-12">12</a></sup> A 2023 Harvard Kennedy School working paper from the Mossavar-Rahmani Center for Business and Government treats thoughtful catalytic capital deployment as a precondition for mobilizing the private investment climate mitigation now requires, not an optional supplement to it.<sup class="fnref"><a id="fnref-13-1" href="#fn-13">13</a></sup> The scale of the gap this literature is responding to is not abstract: concessional, catalytic capital was roughly 11 percent of a global climate finance flow that itself covers barely a sixth of what a 1.5&deg;C-consistent path requires each year.<sup class="fnref"><a id="fnref-11-2" href="#fn-11">11</a></sup></p>
-<p>Verification enters this picture as the mechanism that makes a catalytic claim checkable rather than as the paper's starting diagnosis. A capital provider claiming to have de-risked a project by financing it through its riskiest stage is making an empirical claim, that the milestones it funded were actually met, that can be true or false; if that claim cannot be independently checked, the same failure mode that has long undermined climate philanthropy and the voluntary carbon market reappears in catalytic form. Corporate climate commitments rose roughly 227 percent in the eighteen months to mid-2025, even as voluntary carbon credit retirements, the step that proves a credit was actually used rather than banked and forgotten, fell 7 percent over the same period.<sup class="fnref"><a id="fnref-1-2" href="#fn-1">1</a></sup> Commitment outpaced proof, and the divergence is itself the diagnostic. More recent data suggests the gap is narrowing, but from the supply side: first-half 2026 retirements held near 98 million credits while new issuance fell 31.9 percent year over year, to about 96.8 million.<sup class="fnref"><a id="fnref-2-1" href="#fn-2">2</a></sup> Supply and demand moved closer together, but a smaller, better-balanced market is not the same claim as a more reliably verified one.</p>
-<p>The mechanisms conventionally available to deploy catalytic capital, grants, offset purchases, corporate pledges, share a common defect: each depends on a promise being honored after money or intent has already moved, and a grantor rarely audits its own grantee with the rigor an adversary would apply, so the catalytic claim behind the capital is asserted rather than demonstrated. A related but distinct problem affects projects that have already cleared their technical risk: a pilot with no doubt about its underlying engineering frequently cannot secure capital to scale, because conventional catalytic vehicles are capitalized through discrete fundraising events poorly suited to incremental, milestone-based de-risking. A fund capitalized continuously, rather than through periodic raises, is structurally better matched to that need than either a one-time grant or a loan sized for a single disbursement.</p>
-<p>None of this presumes bad faith on the part of existing catalytic or philanthropic capital providers. It is a claim about incentive structure: a system in which the proof behind a de-risking claim is optional, delayed, and self-administered will tend, in aggregate, toward exactly the pattern the data already shows. The correction is not moral exhortation but mechanism design. If a catalytic claim cannot reliably be verified by voluntary conduct, it must be verified by structure, a requirement Section 9 returns to directly in defining this fund's own catalytic role and the metric against which that role should eventually be judged.</p>
-<h2 id="2-why-existing-approaches-fall-short"><span class="num">2</span>Why Existing Approaches Fall Short</h2>
-<p>A mechanism paper is incomplete if it does not explain what it is not. Four existing categories each address part of the de-risking gap, not the whole of it.</p>
-<h3>2.1 Voluntary Carbon Markets and the Retirement Gap</h3>
-<p>Registries such as Verra and Gold Standard supply real methodological rigor to whether a reduction occurred; the market's weakness is follow-through, not measurement. A credit can be purchased and never retired, satisfying a buyer's internal accounting without completing the act that proves use. This protocol does not replace carbon registries; Section 17 treats registry-issued credits as one valid form of verified output. What it adds is a disbursement mechanism, described in Section 16, that does not depend on a purchaser's later discretion to complete a retirement step.</p>
-<h3>2.2 Traditional Grant-Based Climate Philanthropy</h3>
-<p>Grant philanthropy typically disburses in large tranches against a proposal and a narrative report authored substantially by the grantee itself. Considerable expertise goes into grant selection, but verification and disbursement are not architecturally coupled: a grant can be fully paid before a deliverable is confirmed, and the confirmation, when it occurs, is rarely independent of the party being evaluated. Section 16 describes a disbursement process in which that coupling is structural: a tranche is an instruction that will not execute until independent verification has already occurred on-chain.</p>
-<h3>2.3 Blended and Catalytic Finance</h3>
-<p>Catalytic capital, introduced in Section 1 and extended in Part III, denotes capital placed to unlock activity that would not otherwise be financed on commercial terms, a first mover rather than the entire bankroll. Existing catalytic vehicles are capitalized through discrete fundraising events, requiring a fresh campaign each time a facility is deployed. The contribution here is narrow: whether such a vehicle can be capitalized continuously, as a structural property of an unrelated economic activity, rather than periodically. Section 6 makes this precise; Section 9 addresses whether the fund is catalytic in the stronger, measurable sense the term implies in that literature.</p>
-<h3>2.4 Token-Based Fundraising Without Enforcement</h3>
-<p>A number of tokens describe themselves as supporting a cause through a stated intention to donate trading fees or treasury holdings at the team's discretion. A token, for readers unfamiliar with the term, is a digital record of ownership on a public ledger, transferable without a bank or broker, its rules defined in code that runs on the ledger itself, a smart contract or, on Solana, a program.<sup class="fnref"><a id="fnref-3-1" href="#fn-3">3</a></sup> The distinguishing weakness of the charitable-token category is that the donation commitment is policy, not a property of the code: a team can simply not honor it without violating any smart contract, and an outside observer has no way to detect the omission besides the team's own disclosure. Sections 10 through 15 specify a token whose aggregate fee is a property of the mint's own on-chain configuration, verifiable without trusting the issuer's representation of it, a distinction this paper treats as load-bearing. Several existing environmental tokens illustrate the pattern being distinguished from: an intended percentage is publicized at launch but never implemented as an enforced, on-chain rule.<sup class="fnref"><a id="fnref-4-1" href="#fn-4">4</a></sup></p>
-<h2 id="part-ii-liquidity-availability-through-emerging-financial-instruments-and-digital-assets" class="part-heading">Part II. Liquidity Availability through Emerging Financial Instruments and Digital Assets</h2>
-<h2 id="3-permissionless-trading-as-an-untapped-capital-source"><span class="num">3</span>Permissionless Trading as an Untapped Capital Source</h2>
-<p>Permissionless trading on major blockchain networks moves substantial capital daily for reasons unrelated to climate objectives. On Solana, permissionless community tokens reached a combined market capitalization near $40 billion by mid-2026, with Solana decentralized-exchange volume alone near $3.01 billion across a single 24-hour window.<sup class="fnref"><a id="fnref-5-1" href="#fn-5">5</a></sup> BNB Chain processed a comparable $1.25 billion in the same kind of window, with a July 2026 surge lifting BNB Chain volume 45 percent and Solana activity 38 percent.<sup class="fnref"><a id="fnref-6-1" href="#fn-6">6</a></sup> On Ethereum, individual permissionless tokens in this category carry market capitalizations in the low billions, within a combined cross-chain category exceeding $30 billion as of September 2026.<sup class="fnref"><a id="fnref-7-1" href="#fn-7">7</a></sup> This volume is not solicited; it is a byproduct of ordinary markets that would exist regardless of any climate-linked project.</p>
-<p>The observation at the center of this paper is that three facts, a de-risking gap that keeps commercial capital out of early-stage climate projects, a verification gap that keeps catalytic claims from being checkable, and an untapped, purpose-agnostic capital flow, can be connected mechanically rather than rhetorically. A protocol-level fee, enforced the way a transfer-fee extension is enforced (automatically, on every transfer, by the token standard itself) converts a fixed share of activity that already exists into climate capital independent of anyone continuing to believe in the underlying mission. The mechanism does not ask traders to care; it asks the token standard to do arithmetic, which it does regardless of sentiment. This does not, on its own, establish that meaningful volume will in fact materialize for this specific token; Section 20 returns to that question directly.</p>
-<h2 id="4-contributions-and-organization-of-this-paper"><span class="num">4</span>Contributions and Organization of This Paper</h2>
-<p>This paper defines the climate catalyst fund as a catalytic, de-risking capital vehicle, structurally distinguished by continuous replenishment and non-discretionary capitalization, built to finance climate mitigation and adaptation projects through their highest-risk stage so that verified progress can prepare them for commercial investment; specifies the token protocol and fee arithmetic in full, including which parts are enforced by immutable code and which remain subject to treasury governance; specifies a milestone-verified disbursement process and a category-specific diligence framework; presents a four-layer governance architecture designed against the failure mode of flat, one-holder-one-vote systems; offers a comparative economic analysis including where demand for the token itself might or might not come from; and states its own risks, limitations, and open legal questions rather than leaving them to be inferred.</p>
-<p>The paper is organized into six further parts. Part III defines the catalyst fund and its theory of change. Part IV specifies the token protocol. Part V specifies project selection and governance. Part VI offers economic and social analysis, network selection, and legal status. Part VII addresses transparency, impact documentation, and illustrative arithmetic, followed by a conclusion. Part VIII departs from the rest of the paper's convention of describing only what is live or fully specified, proposing a second capital stage and stating what would need to be true before any part of it is built. An appendix of on-chain addresses follows.</p>
-<h2 id="part-iii-the-logic-of-the-catalyst-fund" class="part-heading">Part III. The Logic of the Catalyst Fund</h2>
-<h2 id="5-theory-of-change"><span class="num">5</span>Theory of Change</h2>
-<p>The causal chain runs as follows. Permissionless activity that already exists, and would exist regardless of this protocol, passes through a protocol-enforced fee at the moment of transfer. That fee produces continuous capital formation in a treasury-held fund without a discrete fundraising event. Capital is allocated to projects through a selection process independent of the treasury. Disbursement proceeds only in milestone-based tranches, each confirmed by verification independent of both this protocol's team and the project developer. Verified milestones produce climate outputs, connected category by category to climate outcomes, a distinction Section 17 draws precisely, and where a project's category permits it, verified outcomes are positioned to help mobilize additional capital, the sense in which the fund aims to be catalytic, a claim Section 9 treats as a target to be measured rather than a result already demonstrated.</p>
-<p>Every link up to and including milestone-based disbursement is either already live on Solana mainnet or specified precisely enough to be built and independently checked. The final two links, that verified outputs correspond to genuine outcomes and that those outcomes mobilize further capital, depend on facts about the physical world and other actors' behavior that no protocol can guarantee by construction. Section 22 states directly what this mechanism does not, and cannot, guarantee.</p>
-<h2 id="6-definition-and-structural-properties"><span class="num">6</span>Definition and Structural Properties</h2>
-<p>The catalyst fund is a treasury-held pool of capital that is, first, capitalized continuously by protocol-enforced fees rather than periodic fundraising; second, held under multi-party custody rather than any single controller; and third, disbursed only against independently verified milestones. Each property is structural, guaranteed by the system's design rather than by any party's conduct, a distinction Section 20.2 elaborates.</p>
-<h2 id="7-continuous-replenishment"><span class="num">7</span>Continuous Replenishment</h2>
-<p>Let F(t) denote the fund balance at time t:</p>
-<div class="formula"><pre>F(t) = F(0) + Σ [0.02 × Vᵢ]   for every harvested transfer i occurring in (0, t]</pre></div>
-<p>where Vᵢ is the value of transfer i. F(t) is non-decreasing in trading activity and requires no fundraising event to increase, unlike a grant pool, whose balance is a step function, flat between raises and discontinuous at them. This says nothing about how large or frequent harvested transfers will be in practice; Section 20 treats that dependence explicitly.</p>
-<h2 id="8-non-discretionary-capitalization"><span class="num">8</span>Non-Discretionary Capitalization</h2>
-<p>No signer decides whether a given transfer contributes to F(t); the transfer-fee extension withholds at the protocol level, with no code path for a transfer to complete without it. A fund could in principle be replenished continuously by a party who nonetheless retained discretion over honoring that replenishment; this fund does not possess that discretion. Non-discretionary capitalization means whether a given transfer contributes cannot be revisited transaction by transaction; it does not mean the rate can never be revisited at all, a distinction Section 14 addresses, since the aggregate fee rate remains subject to treasury governance.</p>
-<h2 id="9-relationship-to-catalytic-capital-in-blended-finance-theory"><span class="num">9</span>Relationship to Catalytic Capital in Blended Finance Theory</h2>
-<p>As Section 2.3 notes, catalytic capital denotes capital deployed to de-risk activity that would not otherwise clear commercial financing thresholds. This fund occupies that position, seeding climate work in verified tranches rather than functioning as a passive reserve or a lump-sum pool. The extension proposed is substituting continuous, code-enforced capitalization for the periodic, discretion-dependent capitalization that characterizes catalytic vehicles today.</p>
-<p>That extension addresses how the fund is capitalized, not whether its deployments are catalytic in the stronger sense the literature intends: capital that demonstrably unlocks additional financing, rather than capital simply granted toward an outcome that would not otherwise have been financed. This paper's own grants are catalytic in intent without yet being catalytic in demonstrated leverage, since no funded project has yet reached completion. To make the term measurable, this paper adopts a catalytic leverage ratio:</p>
-<div class="formula"><pre>CLR = (Total external capital mobilized) / (Aretia capital deployed)</pre></div>
-<p>A CLR of 1 indicates a project received no additional financing beyond the fund's grant; a CLR of 4 indicates four additional dollars followed each dollar of catalyst-fund capital. No CLR is reported here, since no project has yet reached the disbursement process in Part V against which one could be measured; it is stated as a target this protocol commits to tracking once real disbursements occur.</p>
-<h2 id="part-iv-the-token-protocol" class="part-heading">Part IV. The Token Protocol</h2>
-<p>The preceding parts describe why this mechanism exists. This part specifies how it is implemented: the token, its fee, the authorities that govern that fee, and the custody arrangement holding what the fee collects. Readers interested primarily in motivation and governance may proceed directly to Part V.</p>
-<h2 id="10-token-design-overview"><span class="num">10</span>Token Design Overview</h2>
-<p>A token's design refers to the fixed parameters set at creation: how many units will ever exist, who if anyone can change that later, and what is automatically deducted from every transfer. These choices are recorded permanently on the ledger and independently checkable by anyone. Not every choice is equally permanent; Section 11 is explicit about which are and which are not.</p>
-<h2 id="11-supply-and-authority-structure"><span class="num">11</span>Supply and Authority Structure</h2>
-<p>ACT is a Solana SPL Token-2022 asset. A Token-2022 mint carries several distinct on-chain authorities, each independently revocable or retainable; treating "immutable" as one property of the token obscures which specific capability is fixed. The table states the current status of every authority relevant to this protocol.</p>
-<table><thead><tr><th>Authority</th><th>Current holder</th><th>Can modify?</th><th>Revoked?</th></tr></thead><tbody><tr><td>Mint authority</td><td>None</td><td>No</td><td>Yes, permanently, following the single initial mint</td></tr><tr><td>Freeze authority</td><td>None</td><td>No</td><td>Yes, never granted at deployment</td></tr><tr><td>Transfer-fee-config authority</td><td>Treasury multisig (2-of-3 Squads)</td><td>Yes, with 2-of-3 signer approval</td><td>No</td></tr><tr><td>Withdraw-withheld authority</td><td>Treasury multisig (2-of-3 Squads)</td><td>Yes, with 2-of-3 signer approval</td><td>No</td></tr><tr><td>Metadata (Metaplex account, via MetadataPointer)</td><td>A single deployer-held key remains recorded as update authority</td><td>No, in practice</td><td>Not formally revoked, but the account's own <code>is_mutable</code> flag is permanently false, which the Metaplex program enforces as a lock independent of who holds that recorded authority</td></tr><tr><td>Treasury (vault) authority</td><td>Treasury multisig (2-of-3 Squads)</td><td>Yes, with 2-of-3 signer approval</td><td>No, and not intended to be</td></tr></tbody></table>
-<p>Total supply, 1,000,000,000 units at 9 decimals, and the impossibility of freezing any account are fixed absolutely. Mint authority was permanently revoked immediately after the single initial mint, which deposited the full supply into the treasury vault; no wallet has held newly created ACT outside that mint. Freeze authority was never granted.</p>
-<p>The transfer-fee-config and withdraw-withheld authorities are, by contrast, deliberately retained by the treasury multisig, both requiring the same 2-of-3 approval that governs every treasury action in Section 15. This is not theoretical: the fee rate stated throughout this paper, 3.5 percent, was arrived at through exactly this mechanism, changed from an earlier 4.1 percent by a 2-of-3 approved transaction, with Token-2022 requiring the change take effect only from a future epoch. Section 14 states precisely what this means for which parts of the fee mechanism are and are not immutable. On-chain addresses are collected in Appendix A.</p>
-<h2 id="12-immutability-as-a-design-choice-and-its-costs"><span class="num">12</span>Immutability as a Design Choice, and Its Costs</h2>
-<p>Irrevocability is a deliberate tradeoff, not a costless guarantee. Permanently revoking mint authority forecloses any future adjustment to total supply, including one motivated by a need this paper cannot anticipate today, such as a security remediation requiring a supply migration; once revoked, that authority cannot be reinstated by any party. Freeze authority carries a parallel cost: never having been granted forecloses any future ability to freeze a compromised or implicated account, a capability some other deployments retain deliberately for that scenario. This paper treats both as acceptable costs of a stronger guarantee elsewhere, a non-discretionary supply and a non-discretionary account status, rather than as costless.</p>
-<p>Metadata is governed separately and is not subject to the same tradeoff. ACT's name, symbol, and logo are attached through a Token-2022 MetadataPointer extension referencing a separate Metaplex Token Metadata account, populated at deployment; ACT displays a name and logo in any wallet or explorer supporting Token-2022 metadata. That account's own update-authority field still names a single key, not the treasury multisig, but its <code>is_mutable</code> flag was set to false at creation, a setting the Metaplex program itself enforces: no further update to the name, symbol, or logo is possible for any party, including that recorded authority. Metadata is accordingly immutable in practice despite a single key remaining nominally on record as its authority.</p>
-<h2 id="13-market-access-and-permissionless-trading"><span class="num">13</span>Market Access and Permissionless Trading</h2>
-<p>ACT trades on the open market against USDT, with no permission requirement. Any Solana wallet or exchange capable of handling a standard Token-2022 asset can transact it without protocol-specific integration, a property inherited from the token standard.</p>
-<h2 id="14-the-transfer-fee-mechanism"><span class="num">14</span>The Transfer-Fee Mechanism</h2>
-<h3>14.1 The Withholding Function</h3>
-<p>Token-2022's native transfer fee extension withholds a percentage of every transfer at the protocol level, before the recipient's balance is credited, up to a configured maximum. The rate is 350 basis points, 3.5 percent, as of the epoch at which it last took effect.</p>
-<h3>14.2 What Is Protocol-Enforced and What Is Treasury Policy</h3>
-<p>This distinction governs how every other claim about the fee should be read. What Token-2022 enforces, without exception, is that the aggregate withheld amount is computed and withheld correctly at whatever rate is configured. What it does not enforce is any particular destination for that withheld amount once harvested, nor that the rate stays fixed forever, since the transfer-fee-config authority retains the power to change it under 2-of-3 approval and Token-2022's mandatory future-epoch delay. The protocol's strongest accurate claim is that it mechanically withholds 3.5 percent of every transfer, and that the treasury subsequently routes harvested fees per the split below; it is not accurate to state the protocol automatically sends any share directly to climate projects, since routing is treasury procedure under multisig approval, not a second on-chain-enforced ratio.</p>
-<h3>14.3 Fee Allocation</h3>
-<p>96.5 percent of every transfer reaches the recipient net of the fee. Of the 3.5 percent withheld, 2.0 percentage points (about 57.1 percent of the withheld amount) route to the catalyst fund, 1.0 point (28.6 percent) to liquidity, and 0.5 points (14.3 percent) to protocol management, once harvested. Only the 3.5 percent aggregate is on-chain enforced; the destination split is the treasury's own procedure, applied consistently under the custody described in Section 15.</p>
-<h3>14.4 The Two-Phase Withhold-and-Harvest Design</h3>
-<p>A withheld amount does not move automatically at transfer time. It accumulates inside the recipient's own account as a publicly readable running balance; a separate "harvest" instruction later sweeps accumulated amounts into the treasury. This two-phase design lets every wallet and exchange already supporting Token-2022 handle ACT correctly with no protocol-specific integration; the complexity is confined to the harvest step, executed only by the treasury multisig.</p>
-<h3>14.5 Management-Fee Delivery and the Gross-Up Problem</h3>
-<p>The management fee wallet is held separately from the treasury multisig, so operational compensation can never be commingled with catalyst fund capital structurally. Delivering it requires a second transfer that itself incurs the same withholding. To land a net amount N after that transfer's own fee, the treasury must send a gross amount G satisfying:</p>
-<div class="formula"><pre>G − fee(G) = N
-G × (1 − b) = N     [when fee(G) &lt; M]
-G = N / (1 − b) = N / 0.965</pre></div>
-<p>where b is the fee rate and M the mint's configured maximum fee. To deliver 1,000 ACT net, the treasury sends approximately 1,036.27 ACT, of which about 36.27 re-enters the fee split. A treasury operator who failed to account for this would systematically underdeliver intended compensation.</p>
-<h2 id="15-treasury-custody"><span class="num">15</span>Treasury Custody</h2>
-<h3>15.1 Multisignature Custody Model</h3>
-<p>Harvested fees settle into a Solana multisig using the Squads protocol, live on mainnet. The multisig defines three signers and a threshold of two; no single key, including any held by this protocol's operating entity, can move capital or change the transfer-fee rate unilaterally.</p>
-<h3>15.2 Threshold Selection: Why Two of Three</h3>
-<p>Two of three is the smallest configuration eliminating unilateral control while remaining operationally practical at this scale, consistent with Squads' own guidance. Section 18's governance architecture is the mechanism by which this parameter could be revisited as the system matures.</p>
-<h3>15.3 Signer Identity and Independence</h3>
-<p class="disclaimer"><em>[Placeholder: this subsection will state, for each of the three signers, their role, independence from one another, jurisdiction, conflict-of-interest policy, replacement procedure, and key-security practices. Institutional counterparties will expect this in full, and this section is left open pending that disclosure rather than answered with generic assurances.]</em></p>
-<h3>15.4 Operational Verification</h3>
-<p>The propose, review, approve, execute cycle has been tested end to end with a real mainnet transaction, approved independently by two of three signers: the transfer-fee rate change in Section 11 is itself an example of this cycle exercised for real, not merely configured.</p>
-<h2 id="part-v-project-selection-and-governance" class="part-heading">Part V. Project Selection and Governance</h2>
-<h2 id="16-milestone-verified-disbursement"><span class="num">16</span>Milestone-Verified Disbursement</h2>
-<h3>16.1 Forms of Disbursement</h3>
-<p>Capital leaves the fund primarily as a grant to a vetted project partner not itself tokenized. On-chain retirement of tokenized carbon credits is recorded here as a form the protocol may adopt should that infrastructure mature, not as a mechanism presently in use.</p>
-<h3>16.2 Tranche Structure and the Sequencing Problem</h3>
-<p>An approved project's commitment is divided into tranches, each releasing only after independent verification confirms the preceding milestone was met. This sequencing prevents "the fund financed a project" from silently meaning, in a given instance, "the fund sent money to a project that failed to complete its work," a failure mode Section 2.2 identified as endemic where verification and payment are not architecturally coupled.</p>
-<h3>16.3 On-Chain Auditability of Disbursements</h3>
-<p>Every disbursement is a public on-chain transaction from the known treasury address, representable to any observer only as what the chain state shows it to be.</p>
-<h2 id="17-project-selection-and-diligence"><span class="num">17</span>Project Selection and Diligence</h2>
-<h3>17.1 Category Taxonomy</h3>
-<p>The fund finances five categories: renewable energy, waste-to-energy, carbon reduction, technical assistance, and flood management and reforestation, each held to a diligence standard appropriate to its claim, applied by the technical committee in Section 18.</p>
-<h3>17.2 Levels of Verification: Activity, Output, and Outcome</h3>
-<p>Three levels matter throughout this Part. Activity describes what work was performed. Output describes what that activity directly produced, typically what Section 17.3's standards verify. Outcome describes the underlying climate result the output is evidence of, which usually requires an additional inferential step, metered generation implies avoided emissions only via an assumption about displaced energy sources; hectares planted imply removed carbon only via registry-governed assumptions about growth and survival. This protocol's disbursement process verifies activity and output directly; outcome claims rely on established third-party methodologies rather than an independent claim this protocol makes itself.</p>
-<h3>17.3 Category-Specific Diligence Standards</h3>
-<table><thead><tr><th>Category</th><th>Verified output</th><th>Diligence standard</th></tr></thead><tbody><tr><td>Renewable energy</td><td>Metered generation capacity added</td><td>Independent engineering certification; interconnection or off-take documentation</td></tr><tr><td>Waste-to-energy management</td><td>Waste diverted and energy generated</td><td>Operating permits, throughput metering, emissions monitored against a baseline</td></tr><tr><td>Carbon reduction</td><td>Emissions avoided or removed</td><td>Registry-issued credits or an equivalent third-party MRV protocol</td></tr><tr><td>Technical assistance</td><td>Capacity delivered: studies, training, MRV systems</td><td>Deliverable-based milestones; independent review of the work product itself</td></tr><tr><td>Flood management and reforestation</td><td>Hectares restored; flood-risk reduction</td><td>Remote-sensing canopy verification; hydrological modeling or post-event assessment</td></tr></tbody></table>
-<p>Each row verifies an output in the Section 17.2 sense; translating it into a quantified outcome depends on the category-appropriate third-party methodology referenced, reported as such rather than independently verified by this protocol.</p>
-<h3>17.4 The Special Case of Technical Assistance</h3>
-<p>Technical assistance differs in kind, not degree: it funds the capacity that makes a future project bankable, a feasibility study or an MRV system a smaller developer could not otherwise build, rather than producing a physical or registry-verifiable output of its own. Its diligence is oriented around the work product actually delivered, since no physical asset yet exists to inspect.</p>
-<h3>17.5 Portfolio Weighting as a Governance Parameter</h3>
-<p>Category determines diligence standard; it does not alter the milestone-release mechanism in Section 16, which governs every category identically. Relative category weighting is a Layer 1 governance parameter under Section 18, not fixed by this document.</p>
-<h2 id="18-governance"><span class="num">18</span>Governance</h2>
-<h3>18.1 The Failure Mode of Flat Token-Holder Voting</h3>
-<p>A flat, one-holder-one-vote system governing individual disbursements fails once a treasury is large enough to be worth attacking: a well-organized proposal can extract funds from a naive vote regardless of its formal legitimacy. This is a general property of systems concentrating decision authority in a single mechanism with no independent check on substance.</p>
-<h3>18.2 A Four-Layer Architecture</h3>
-<p>Governance is layered across four functions. Community governance, exercised through Realms, sets funding priorities and treasury allocation weights but does not vote on individual disbursements. A technical committee screens applications for scientific credibility, MRV soundness, and financial feasibility. Independent verification confirms, at each milestone, that a party independent of both this protocol's team and the developer has verified claimed progress. Smart-contract execution releases funds only once both layers have signed off, with no human discretion at the point of transfer.</p>
-<h3>18.3 Appointment Independence</h3>
-<p>Layering discretion introduces a narrower version of the same problem one level removed if the community layer alone appoints the technical committee and the committee alone appoints verifiers: the checking layers could become answerable only to each other. Appointment to the technical committee and the verifier pool runs through a nomination process kept structurally distinct from both the community vote and the treasury's operating entity, so neither owes its position to the party whose work it evaluates.</p>
-<h3>18.4 Phased Activation</h3>
-<p>Governance is phased in against real participation. Layer 1 activates once the holder base is large enough for a vote to carry genuine information content. Layers 2 through 4 build out across subsequent roadmap phases. Until Layer 1 is live, the treasury operates on team-curated grants under the identical milestone-verification discipline in Section 16.</p>
-<h3>18.5 Comparison to Single-Signer and DAO-Only Models</h3>
-<p>A single-signer model offers speed at the cost of the non-discretionary property this paper emphasizes throughout. A DAO-only model, voting directly on every disbursement, reintroduces Section 18.1's failure mode: a coordinated plurality can vote to disburse the treasury to itself. The four-layer architecture is designed to occupy neither extreme.</p>
-<h2 id="part-vi-economic-and-social-analysis" class="part-heading">Part VI. Economic and Social Analysis</h2>
-<h2 id="19-network-selection"><span class="num">19</span>Network Selection</h2>
-<h3>19.1 Requirements for the Underlying Ledger</h3>
-<p>This mechanism requires transaction costs low enough for routine operations to remain economical, a native protocol-level fee-on-transfer primitive, and sufficient stable-asset liquidity to support the trading pair in Section 13.</p>
-<h3>19.2 Comparative Analysis</h3>
-<table><thead><tr><th>Network</th><th>Fee per transfer</th><th>Native fee-on-transfer support</th><th>USDT liquidity</th></tr></thead><tbody><tr><td>Solana</td><td>approximately $0.0003</td><td>Yes, via the Token-2022 extension</td><td>Native SPL USDT, deep on Raydium and Orca</td></tr><tr><td>Base</td><td>approximately $0.01 to $0.05</td><td>No, requires custom contract logic</td><td>Bridged USDT</td></tr><tr><td>BNB Chain</td><td>approximately $0.10 to $0.30</td><td>No, requires custom contract logic</td><td>Deep, but with more centralized custody risk</td></tr><tr><td>Ethereum L1</td><td>$2 to $30 or more</td><td>No, requires custom contract logic</td><td>Deepest overall, but expensive to disburse from frequently</td></tr></tbody></table>
-<h3>19.3 The Cost of Bespoke Fee Logic</h3>
-<p>The deciding factor is native fee-on-transfer support. On any chain lacking it, the withholding mechanism in Part IV would require bespoke program logic, an added attack surface reviewed separately from the token standard itself. Token-2022's extension is shared infrastructure already implemented correctly by every Solana wallet and exchange, built once for the whole ecosystem rather than once per project.</p>
-<h2 id="20-economic-analysis"><span class="num">20</span>Economic Analysis</h2>
-<h3>20.1 Fee Incidence and Trading Behavior</h3>
-<p>A 350-basis-point fee is a real cost, and whether it meaningfully deters the trading it depends on is an open empirical question this paper does not claim to have resolved, since no ACT trading history yet exists. What can be stated is narrower: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, which vary with trade size and are often larger in absolute terms. Once real trading exists, this protocol commits to measuring and disclosing volume, unique holders, transfer frequency, realized fee revenue, liquidity, slippage, and retention.</p>
-<h3>20.2 Credible Commitment Through Mechanism Design</h3>
-<p>Section 2.4's distinction between a policy commitment and a code-enforced property has a formal name: the difference between cheap talk and a credible commitment device. A statement of intent the issuer could costlessly reverse is cheap talk regardless of sincerity. A property enforced by an immutable, permissionless standard is a credible commitment in the technical sense, since reneging would require an authority that no longer exists. Sections 11 and 12 describe the specific mechanism, permanent revocation, by which this is made costly to break for supply and freezing specifically; Section 14.2 is explicit that this property applies to the aggregate rate's correct withholding, not to the rate's value remaining fixed forever or to the destination split, both of which remain governed rather than immutable.</p>
-<h3>20.3 Liquidity Provision Incentives and Impermanent Loss</h3>
-<p>Whoever supplies the other side of the ACT-USDT pool bears impermanent loss, a standard property of automated market making, not a feature specific to this token. The fund's replenishment depends on trading volume, which depends on liquidity existing in the first place, which depends on some party accepting that risk for a share of trading fees.</p>
-<h3>20.4 Sources of Demand for ACT</h3>
-<p>This mechanism explains how trading activity generates climate capital; it does not explain why sustained trading in ACT specifically should occur, and these are two separate questions. The first is answered mechanically by Sections 7 and 8, regardless of who trades or why. The second is unresolved and cannot be resolved by this document; it depends on market conditions this protocol does not control, and the paper's own conclusion already names scale as the primary remaining challenge.</p>
-<p>Five things are commonly conflated under "why buy the token." Protocol utility is what ACT does inside the system: the asset whose transfers trigger the fee. The economic mechanism is what happens at transfer: a fixed percentage withheld and routed per Section 14. Governance rights are what holders eventually control once Layer 1 activates: funding priorities, not individual disbursements. Impact utility is what the resulting activity finances. Speculative demand is whatever the market independently creates around price, which this protocol neither engineers nor controls. This paper does not claim climate impact automatically creates token value, and does not require that claim: the fee-generation arithmetic in Section 7 operates on transfer activity itself, not price appreciation, and produces identical inflows whether ACT's price rises, falls, or stays flat, given the same transfer volume.</p>
-<h2 id="21-social-dimensions-of-project-selection"><span class="num">21</span>Social Dimensions of Project Selection</h2>
-<p>The five-category taxonomy deliberately includes technical assistance because that category serves developers with a credible technical approach but insufficient resources to produce the feasibility studies or MRV systems that would make a capital request bankable elsewhere. A diligence framework calibrated only to well-resourced applicants would exclude exactly the applicants a catalyst fund of this kind is best positioned to serve. Whether the process in practice remains accessible to smaller developers, rather than only those best able to navigate a formal review, is an open item this paper does not consider settled.</p>
-<h2 id="22-risks-and-limitations"><span class="num">22</span>Risks and Limitations</h2>
-<p>Insufficient trading volume is the most direct risk: inflow is a fixed percentage of activity, and if that activity stays small the fund stays small regardless of mechanism soundness. A fee-induced reduction in volume is a related but distinct risk this paper commits to measuring rather than assuming an answer to. Liquidity risk and price volatility apply to ACT without qualification. Smart-contract and token-standard risk exists at the infrastructure level: this protocol's own harvest-and-route code has not yet undergone the independent review noted as outstanding in Section 26. Governance capture is a risk the four-layer architecture is designed to resist, not eliminate; verifier conflicts, undisclosed relationships between a nominally independent verifier and a project, would undermine the sequencing guarantee without being visible from the on-chain record alone. Project failure is inherent to project financing generally. Regulatory uncertainty could constrain participation or operation in ways this paper cannot predict. Climate-impact measurement uncertainty means even a fully successful disbursement process produces outputs whose translation into outcomes still depends on methodologies this protocol does not control.</p>
-<p>None of this is hypothetical in the sense of unlikely; several, including insufficient volume and the absence of a completed review, are simply true of the mechanism's current stage.</p>
-<h2 id="23-legal-and-regulatory-status"><span class="num">23</span>Legal and Regulatory Status</h2>
-<p>This paper does not attempt a legal classification of ACT, since that requires jurisdiction-specific analysis it is not positioned to provide. ACT is a blockchain-based digital asset native to this protocol. Nothing here constitutes an offer of securities, investment advice, or a representation that ACT is classified identically across jurisdictions, whether as a utility token, payment token, investment contract, governance token, commodity-like asset, or otherwise. Treatment may differ by jurisdiction and depends on circumstances including some that have not yet occurred. Prospective holders should seek jurisdiction-specific legal advice rather than rely on this document as a substitute for it.</p>
-<h2 id="part-vii-impact-documentation-and-management" class="part-heading">Part VII. Impact Documentation and Management</h2>
-<h2 id="24-transparency-and-independent-verifiability"><span class="num">24</span>Transparency and Independent Verifiability</h2>
-<h3>24.1 On-Chain and Off-Chain Verification</h3>
-<p>On-chain claims, the mint's fixed supply and authorities, the fee configuration, the multisig threshold, every disbursement, describe chain state any party can independently recompute from the Solana ledger. Off-chain claims, the climate statistics cited in Part I, engineering certifications, a funded project's real-world performance, cannot be verified from the ledger, which records that the protocol did what it claims, not independently whether the underlying real-world claim is itself true. The ledger verifies protocol behavior, not physical reality.</p>
-<h3>24.2 The Transparency Dashboard</h3>
-<p>A public dashboard indexing inflow, disbursement, and running totals is in development and not yet live.</p>
-<h3>24.3 Client-Side Self-Verification</h3>
-<p>A client-side verification tool, already deployed at this protocol's website, queries Solana mainnet directly from the visitor's own browser and independently recomputes the on-chain claims in Sections 11 and 14.3, displaying the live result beside the documented claim. The tool's own source is visible in the page it runs from, so a skeptical visitor need not trust the tool either. This is a genuine mitigation against a specific risk rather than a substitute for it: a name, symbol, and logo, however accurately displayed for the genuine ACT mint per Section 12, are not unique to it, since nothing prevents a fraudulent mint from using a matching name and logo of its own; only the mint address itself is unique, which is why this tool verifies address-level facts directly rather than asking a visitor to trust a display name. It verifies only the on-chain category of claim in Section 24.1, not the off-chain category.</p>
-<h2 id="25-illustrative-calculation"><span class="num">25</span>Illustrative Calculation</h2>
-<p>The mechanism's output is arithmetic, not a forecast. For any aggregate ACT transfer volume V between harvests, before the maximum-fee cap in Section 14.1 applies to any individual transfer:</p>
-<table><thead><tr><th>Aggregate volume V</th><th>Catalyst fund (2.0%)</th><th>Liquidity (1.0%)</th><th>Management fee (0.5%)</th></tr></thead><tbody><tr><td>$10,000</td><td>$200</td><td>$100</td><td>$50</td></tr><tr><td>$100,000</td><td>$2,000</td><td>$1,000</td><td>$500</td></tr><tr><td>$1,000,000</td><td>$20,000</td><td>$10,000</td><td>$5,000</td></tr></tbody></table>
-<p>Applied to illustrative annual volume rather than a single harvest:</p>
-<table><thead><tr><th>Illustrative annual transfer volume</th><th>Illustrative annual catalyst-fund capital</th></tr></thead><tbody><tr><td>$1,000,000</td><td>$20,000</td></tr><tr><td>$10,000,000</td><td>$200,000</td></tr><tr><td>$50,000,000</td><td>$1,000,000</td></tr><tr><td>$100,000,000</td><td>$2,000,000</td></tr><tr><td>$500,000,000</td><td>$10,000,000</td></tr><tr><td>$1,000,000,000</td><td>$20,000,000</td></tr></tbody></table>
-<p>Neither table is a projection of ACT's actual future volume, which is presently unknown. No step depends on price or sentiment; each is a fixed function of transfer volume, identical whether that volume reflects one large trade or many small ones.</p>
-<h2 id="26-conclusion"><span class="num">26</span>Conclusion</h2>
-<p>This paper has described a mechanism converting a fixed, protocol-enforced share of ordinary token-transfer activity into standing climate capital, one that requires no renewed pledge, no trust in any party's discretion, and no step from withholding through disbursement that cannot be independently checked against the public ledger. The mechanism, as distinct from its eventual scale, is live: ACT is deployed on Solana mainnet with supply fixed and mint authority permanently revoked, and the treasury multisig operates under tested, exercised custody rather than merely configured custody. This paper has been explicit about what remains outside its guarantees: the fee rate and destination split remain governed rather than immutable; sustained demand for ACT is an open question Section 20.4 does not resolve; legal characterization varies by jurisdiction and is not settled here; and the risks in Section 22 are properties of the mechanism's current stage, not remote possibilities.</p>
-<p>What remains is scale: real trading volume, a seeded liquidity pool, an independent program review, a live dashboard, disclosed signer identities, and a first slate of verified project partners against which the catalytic leverage ratio can finally be measured rather than only defined. None of this requires trusting a new promise; each is a specific piece of work whose completion will be as verifiable as everything already described. This protocol does not ask any party to promise that climate finance will happen; it attempts to encode the financing mechanism into the infrastructure that generates the capital, keeping generation, selection, verification, and disbursement structurally separate, while stating precisely where its guarantees end and an open question begins. Part VIII sets out, separately and with its own prerequisites, a proposed extension toward a second capital stage; nothing above presumes it will be built, and nothing in it should be read as already true of the protocol today.</p>
-<h2 id="part-viii-toward-a-climate-capital-marketplace-a-proposed-second-stage" class="part-heading">Part VIII. Toward a Climate Capital Marketplace: A Proposed Second Stage</h2>
-<h2 id="27-motivation-and-scope-of-this-part"><span class="num">27</span>Motivation and Scope of This Part</h2>
-<p>Everything in Parts I through VII is either live on Solana mainnet or specified precisely enough to be built and checked against that specification. This Part departs from that convention deliberately: every claim in Sections 28 through 33 describes proposed architecture, none of it live, none of it committed to a deployment date, all of it conditional on the prerequisites in Section 32. This Part states plainly that the mechanism itself does not yet exist. It is included because the question motivating it, whether the catalyst fund can extend beyond a one-way grant into a mechanism that also connects verified projects to larger pools of investment capital, is a natural continuation of the theory of change in Section 5, and because naming a proposed extension explicitly is preferable to leaving it undocumented while informally shaping the protocol's direction. Readers interested only in what this protocol does today may skip to Appendix A without loss of continuity.</p>
-<h2 id="28-the-two-stage-capital-model"><span class="num">28</span>The Two-Stage Capital Model</h2>
-<h3>28.1 Stage One: Catalyst Capital</h3>
-<p>Stage One is the mechanism already specified in Parts III through V, a continuously replenished fund disbursing milestone-verified grants to projects screened against Section 17.3's standards, restated here only to give Stage Two a fixed point to build from.</p>
-<h3>28.2 Stage Two: Aretia Project Finance</h3>
-<p>A project that has completed a full Stage One cycle would become eligible for project-finance underwriting against standard metrics: internal rate of return, net present value, debt-service coverage, and cash-flow projections under base, upside, and downside cases. A project clearing underwriting could then list on a proposed Aretia Project Marketplace, raising growth or construction capital through a project-specific vehicle, not through ACT. Stage One capital carries no expectation of financial return; Stage Two capital, by construction, does, priced and structured accordingly by the vehicle in Section 29. No project has reached this process to date, a status this Part treats as the specific, named prerequisite in Section 32 rather than a gap to gloss over.</p>
-<h2 id="29-structural-separation-between-act-the-project-participation-instrument-and-the-underlying-project"><span class="num">29</span>Structural Separation Between ACT, the Project Participation Instrument, and the Underlying Project</h2>
-<p>The central design constraint on Stage Two is that ACT must not itself become a claim on any project's cash flows, which would function as an investment contract and alter ACT's legal position in ways Section 23 does not anticipate. The proposed structure separates three layers. ACT remains exactly what Sections 10 through 15 specify, a liquid, permissionlessly traded token whose transfer generates the fee in Section 14 and confers, under Section 30, tiered priority for visibility into Stage Two opportunities. A project participation instrument, legally distinct from ACT, would be created separately for each project reaching Stage Two, an SPV interest, fund unit, or structured note, whichever form a qualified securities counsel determines fits that project. The underlying project itself sits beneath that instrument. An investor's capital flows into the participation instrument, never into the ACT mint or treasury; no code path proposed in this Part routes investment capital through the token contract itself.</p>
-<h2 id="30-tiered-access-through-act-staking"><span class="num">30</span>Tiered Access Through ACT Staking</h2>
-<p>Subject to the separation above, ACT staking is proposed as the mechanism determining a holder's visibility into, and priority for, Stage Two opportunities, not their financial return, which under Section 29 is governed entirely by the participation instrument. A holder who stakes or locks ACT would gain a higher tier of information and, at higher tiers, priority allocation and earlier notice. Staking amount and duration are proposed as inputs, on the reasoning that longer commitment represents a more durable form of participation; contribution or reputation within the ecosystem is named as a candidate third input left unspecified pending a concrete, non-discretionary way to measure it. This paper deliberately does not publish a weighted formula combining these inputs into a single access score, of the kind informally called a Capital Access Score during this design's development. Publishing specific weights ahead of real data to calibrate them against would present a precision the model does not yet possess; Section 32 states this as a prerequisite rather than a stylistic preference. Two properties hold regardless of how the formula is eventually specified. No tier confers investor eligibility: a holder's ability to actually commit capital remains governed by the securities law of that holder's own jurisdiction and the eligibility rules of that project's specific instrument, and staking expands what a holder can see, not whether they are legally permitted to invest. ACT's own marketed value must never be represented as a function of any gated project's financial performance; conflating the two would reintroduce, informally, the expectation-of-profit-from-others'-efforts structure Section 29's separation exists to avoid.</p>
-<h2 id="31-related-work-and-positioning-against-prior-art"><span class="num">31</span>Related Work and Positioning Against Prior Art</h2>
-<p>No individual piece of this model is without precedent. Tiered staking that gates priority access to a separate offering is established in token-launch infrastructure, as with Polkastarter and DAO Maker.<sup class="fnref"><a id="fnref-8-1" href="#fn-8">8</a></sup> Special-purpose-vehicle-per-asset structures paired with independent underwriting and investor tranching are the operating model of Centrifuge's Tinlake platform.<sup class="fnref"><a id="fnref-9-1" href="#fn-9">9</a></sup> Crypto-denominated, project-linked investment in African renewable energy has already been attempted at meaningful scale by Sun Exchange, which subsequently shifted its own model from individual crowdfunding toward institutional funders, a data point this paper treats as a reason for caution about Stage Two's investor base rather than evidence against the model in principle.<sup class="fnref"><a id="fnref-10-1" href="#fn-10">10</a></sup> Verified-output marketplaces connecting a confirmed environmental result to a buyer are the operating model of Regen Network's marketplace for ecological credits. What this paper proposes as a combination, not as any one component, is a single protocol in which the early, unbankable stage of a project's life is financed non-discretionarily by the fee in Part IV, and graduation into an underwritten, separately instrumented opportunity is gated by participation in the same token that funded the earlier stage. This paper claims only that it has not, to the authors' knowledge, been assembled from these specific pieces in this specific sequence, with the same caution Section 20 applies elsewhere to competitive claims.</p>
-<h2 id="32-prerequisites-and-sequencing"><span class="num">32</span>Prerequisites and Sequencing</h2>
-<p>This Part is a proposal, not a roadmap with a date attached, and states the specific conditions that would need to be true before any part of Stage Two begins to be built, in order. First, the protocol's operating entity must be actually and verifiably registered in whatever jurisdiction is ultimately selected, a condition distinct from, and presently unmet relative to, any statement elsewhere describing entity formation as complete; this document does not represent that condition as satisfied as of publication. Second, the liquidity pool referenced in Section 22 must be seeded and ACT actually trading. Third, at least one project must complete a full Stage One cycle as specified in Section 16, so the mechanism is demonstrated in practice and the catalytic leverage ratio in Section 9 can be measured at least once. Fourth, the independent program review named as outstanding in Sections 22 and 26 must be completed, since Stage Two involves materially larger sums. Fifth, a single project participation instrument must be structured completely with qualified securities counsel in every relevant jurisdiction, as a proof of structure rather than a template for immediate replication. Only once all five are met does this paper consider it appropriate to generalize the pattern into a scored marketplace or any automated version of the discovery-through-exit lifecycle this design's working materials describe informally. Building the scoring layer or the marketplace interface ahead of that sequence would produce a polished pipeline with no completed deals inside it, a failure mode named here so it can be checked against directly.</p>
-<h2 id="33-legal-treatment-of-the-proposed-second-stage"><span class="num">33</span>Legal Treatment of the Proposed Second Stage</h2>
-<p>Section 23's disclaimer applies here without qualification. A participation instrument structured to carry an expectation of return generated substantially by a developer's or this protocol's own efforts is likely to fall within securities regulation in most relevant jurisdictions, an outcome this paper anticipates rather than designs around; Section 32's fifth prerequisite exists so that structuring happens once, correctly, with qualified counsel, before it happens again. ACT staking under Section 30 is intended to be documented, from the point any part of this Part is built, as protocol access and participation, not as an investment or a security, consistent with Section 23's treatment of ACT itself. As with Section 23, this paper does not attempt a jurisdiction-specific classification of any future instrument, since none has been created and no jurisdiction selected; any party evaluating a real instrument created under this model should treat that instrument's own offering documents as authoritative, not this Part's description of the general model.</p>
-<h2 id="appendix-a-on-chain-reference-addresses">Appendix A: On-Chain Reference Addresses</h2>
-<p>The following addresses are referenced throughout this paper by description rather than repeated inline.</p>
-<table><thead><tr><th>Reference</th><th>Address / Identifier</th></tr></thead><tbody><tr><td>ACT mint address</td><td><code>7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG</code></td></tr><tr><td>Metaplex metadata account</td><td><code>7YeVTArd3DZ7aMJs46ZYZDSZiY8seB6g9h2geL4UvW4f</code></td></tr><tr><td>Token-2022 program</td><td><code>TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb</code></td></tr><tr><td>Treasury multisig (Squads)</td><td><code>5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr</code></td></tr><tr><td>Treasury vault</td><td><code>GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA</code></td></tr><tr><td>Management fee wallet</td><td><code>2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2</code></td></tr></tbody></table>
-<h2 id="notes">Notes</h2>
-<ol class="footnotes"><li id="fn-1">Corporate climate commitment growth and 2025 voluntary carbon credit retirement figures per the Science Based Targets initiative (SBTi), as reported in Carbon Direct, "Key Trends in the 2026 Voluntary Carbon Market" (2026). <a href="#fnref-1-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-2">First-half 2026 voluntary carbon market issuance and retirement volumes per Sylvera, "Q2 2026 Carbon Data Snapshot," and Climate Focus, "Carbon Markets 2026 H1: Review and Outlook" (2026). <a href="#fnref-2-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-3">A general, simplified account for readers unfamiliar with blockchain terminology, not a technical or legal definition. <a href="#fnref-3-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-4">This paper does not name specific charitable or environmental tokens for comparison, since the point is structural rather than an evaluation of any named project's conduct. <a href="#fnref-4-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-5">Solana permissionless-token category market capitalization and volume, and Solana decentralized-exchange 24-hour volume, as of mid-2026, per CoinGecko-sourced reporting. <a href="#fnref-5-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-6">BNB Chain decentralized-exchange volume, and July 2026 volume and active-address growth for BNB Chain and Solana respectively, per CryptoRank.io, "Meme Coin Trading Lifts Solana Addresses 38%, BNB Chain Volume 45%" (2026). <a href="#fnref-6-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-7">Ethereum-based permissionless-token market capitalizations and aggregate cross-chain category market capitalization, as of September 2026, per CoinGecko and CoinMarketCap-sourced reporting. <a href="#fnref-7-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-8">Tiered stake-for-allocation mechanics as documented in Polkastarter's and DAO Maker's own public platform documentation. <a href="#fnref-8-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-9">Centrifuge's Tinlake platform structure, including per-pool special-purpose vehicles and its two-tranche investor return model, per Centrifuge's own protocol documentation. <a href="#fnref-9-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-10">Sun Exchange's peer-funded, bitcoin-payable solar cell financing model across Africa, including its Nhimbe Fresh project in Zimbabwe, and its subsequent shift toward institutional funders, per pv magazine, TechCrunch, CoinDesk, and ITWeb reporting on Sun Exchange between 2020 and 2024. <a href="#fnref-10-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-11">Annual global climate investment need, the concessional-finance share of total tracked climate finance, and the plateau in tracked adaptation finance near $64 billion, per Climate Policy Initiative, "Global Landscape of Climate Finance 2024" and related CPI publications on concessional climate finance. <a href="#fnref-11-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-12">Definition of catalytic capital as capital, debt, equity, or guarantees, accepting disproportionate risk or concessionary returns relative to a conventional investment to generate positive impact and enable third-party investment that would not otherwise be possible, per the Catalytic Capital Consortium (a collaboration of the John D. and Catherine T. MacArthur Foundation, the Rockefeller Foundation, and Omidyar Network, launched 2019); consistent with Convergence Blended Finance's treatment of blended finance as the use of catalytic capital to improve a project's risk-return profile enough to mobilize private co-investment. <a href="#fnref-12-1" class="fnback" aria-label="Back to text">↩</a></li><li id="fn-13">Andrea Boza Zanatta, "Advancing Equity in Climate Investments with Catalytic Capital," M-RCBG Associate Working Paper No. 215, Mossavar-Rahmani Center for Business and Government, Harvard Kennedy School (2023), prepared for Prime Coalition. <a href="#fnref-13-1" class="fnback" aria-label="Back to text">↩</a></li></ol>
-<p class="disclaimer"><em>The comparative trading-volume and market-capitalization figures in footnotes 5 through 7 are drawn from third-party market-data aggregators accessible at the time of writing, are subject to constant change, and have not been independently re-verified against primary on-chain data by this paper's authors.</em></p>
-<p class="disclaimer"><em>This whitepaper is preliminary and subject to change. It does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. This protocol has not been registered under the securities laws of any jurisdiction. Prospective holders should conduct their own research and consult independent advisors before making any decision related to ACT.</em></p>
+
+        <p class="byline"><strong>Aretia Finance</strong> &middot; A plain-language guide to how it works</p>
+        <p class="url">aretiafinance.org</p>
+
+        <div class="paper-sheet-block" id="in-short">
+          <h2>In short</h2>
+          <p class="lede">Climate projects usually can't get funded at the exact moment they need it most: early, unproven, and too small or risky for a bank or investor to take a chance on. Aretia Finance is built to close that gap. Every time people trade its token, ACT, a small fee is automatically taken out and set aside. Part of that fee builds into a fund that pays real climate projects, in stages, and only after someone independent confirms the work actually happened. Nothing here requires trusting a promise: the fee is enforced by the token's own code, the money is held where no single person can move it alone, and anyone can check the real numbers themselves on Solana's public blockchain. This document explains all of it without the technical jargon, in about ten minutes of reading.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p1">
+          <h2>1. The problem this is trying to solve</h2>
+          <p>Say a small team wants to build a solar farm, restore a mangrove forest, or turn a town's waste into electricity. The plan is solid. The people are capable. But no bank or investor will fund it yet, because nobody has proven it works. And nobody can prove it works without money to actually build it.</p>
+          <p>That's the trap. It isn't that the world lacks money for climate projects overall -- climate-finance researchers estimate trillions of dollars move through climate investment every year. It's that almost none of that money is willing to go first, into the riskiest, least-proven stage, where a project most needs it. The gap is worst exactly where good ideas die: too early, too small, too unproven for anyone else to take the first risk.</p>
+          <p>The people who try to fill that gap today mostly do it through grants and pledges. Both have the same weak point: the money moves first, and the proof that it was used well comes later, if it comes at all, usually written by the same people who received it. Nobody is required to check.</p>
+          <p>The same weak point shows up in the voluntary carbon market too. A company can buy a carbon credit to offset its emissions, and that purchase looks good in an annual report whether or not the credit is ever actually "retired," the final step that proves it was used rather than quietly banked and forgotten. In recent years, corporate climate pledges have grown much faster than the number of credits actually being retired. That gap between what's promised and what's proven is exactly the pattern Aretia is built to avoid.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p2">
+          <h2>2. What Aretia does differently</h2>
+          <p>Aretia turns an activity that has nothing to do with climate work, people simply trading a token, into a steady source of funding for projects that do.</p>
+          <p>Here's the chain, in order:</p>
+          <ol class="plain">
+            <li>People trade ACT, the token behind Aretia, for whatever reason people trade any token.</li>
+            <li>Every trade automatically sets aside a small fee. This isn't a request or a suggestion -- it's built into the token itself, the same way a vending machine won't give you a snack without the coin.</li>
+            <li>Part of that fee flows into a fund, growing continuously as trading happens, with no need to run a new fundraiser each time.</li>
+            <li>That fund pays real climate projects, but never all at once. Payments are split into stages, and each stage only unlocks after someone independent of both Aretia and the project confirms the previous stage was actually completed.</li>
+          </ol>
+          <p>The result: a fund that grows on its own as long as people trade the token, and that can't quietly send money to a project that never delivered.</p>
+          <h3>Why does this need a blockchain at all?</h3>
+          <p>A fair question. The honest answer: it doesn't <em>have</em> to, in theory, but a blockchain makes two specific things easy that would otherwise require a lot of trust. First, the fee isn't something Aretia promises to collect and set aside honestly, it's built directly into the token, the same way a soda machine physically won't dispense a can without a coin going in first. Nobody has to trust that a person remembered to do it correctly, or did it at all. Second, everything the fund does, every fee collected and every payment made, is recorded on a public ledger anyone can look up, forever, with nothing hidden in a private spreadsheet. A blockchain isn't magic here; it's just a public, tamper-resistant record book that also happens to enforce a simple rule automatically.</p>
+          <h3>A worked example</h3>
+          <p>None of this depends on ACT's price. It depends only on how much gets traded. Here's what the fund would collect at different levels of trading activity, before anything else happens:</p>
+          <table>
+            <thead><tr><th>If this much ACT trades in a year</th><th>The climate fund collects roughly</th></tr></thead>
+            <tbody>
+              <tr><td>$1,000,000</td><td>$20,000</td></tr>
+              <tr><td>$10,000,000</td><td>$200,000</td></tr>
+              <tr><td>$100,000,000</td><td>$2,000,000</td></tr>
+              <tr><td>$1,000,000,000</td><td>$20,000,000</td></tr>
+            </tbody>
+          </table>
+          <p>These are illustrations of the math, not a prediction of what will actually happen. Nobody knows in advance how much ACT will be traded; the table just shows that the fund's growth is a fixed, predictable share of activity, whatever that activity turns out to be.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p3">
+          <h2>3. The token: ACT</h2>
+          <p>ACT is Aretia's token, built on Solana, a fast, low-cost blockchain. A few facts about it are fixed and cannot be changed by anyone, including the team that built it:</p>
+          <ul class="plain">
+            <li><strong>There will only ever be 1,000,000,000 ACT.</strong> The ability to create more was permanently switched off right after they were made. Nobody, ever, can print more.</li>
+            <li><strong>Nobody can freeze your ACT.</strong> That ability was never turned on in the first place, so it can't be misused later.</li>
+          </ul>
+          <p>One thing is deliberately <em>not</em> fixed forever, and it's worth being upfront about: the exact fee percentage. Right now it's set at <strong>3.5% of every transfer</strong>. That rate can only change if the three people who jointly control the treasury agree (more on that below), and any change is public and delayed, never instant or hidden. As proof this isn't just a claim, the rate has already been changed once for real, from an earlier 4.1% down to the current 3.5%, using that exact process.</p>
+          <p>Here's where that 3.5% goes:</p>
+          <table>
+            <thead><tr><th>Share of every transfer</th><th>Where it goes</th></tr></thead>
+            <tbody>
+              <tr><td>96.5%</td><td>The person receiving the transfer, as normal</td></tr>
+              <tr><td>2.0%</td><td>The climate fund</td></tr>
+              <tr><td>1.0%</td><td>Keeping trading smooth (liquidity)</td></tr>
+              <tr><td>0.5%</td><td>Running costs</td></tr>
+            </tbody>
+          </table>
+          <p>No one has to remember to do this. It happens automatically, on every single transfer, whether the price is up, down, or flat, and whether anyone involved even knows the fund exists.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p4">
+          <h2>4. Who controls the money</h2>
+          <p>Fees collected from trading settle into a shared treasury account. That account is set up so that <strong>no single person can move money out of it alone</strong> -- it takes two of three trusted signers agreeing together. This isn't a policy anyone promised to follow; it's how the account is technically built, using a well-established multi-signature system already used across the Solana ecosystem.</p>
+          <p>This has been tested for real, not just set up and left untouched: the fee-rate change mentioned above was itself carried out through this exact two-of-three approval process, on Solana's live network, with real signatures.</p>
+          <p>Why two of three, and not just one person, or five? One person in control defeats the entire point, since a single signer could move funds unilaterally no matter what anyone else agreed to. Requiring every single signer to agree would make the treasury slow and fragile, since losing access to even one signer's key would freeze it completely. Two of three is the smallest setup that removes any one person's ability to act alone, while staying practical enough to actually operate day to day.</p>
+          <p>One thing we're not going to pretend is finished: full public details about who the three signers are, how independent they are from each other, and how they'd be replaced if needed, are still being prepared. Institutional partners will expect this in full, and it's coming -- we'd rather leave it visibly open than paper over it with vague reassurance.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p5">
+          <h2>5. How a project actually gets paid</h2>
+          <p>Money never leaves the fund in one lump sum. It's split into stages, and each stage has to clear a check before the next one is released:</p>
+          <ol class="plain">
+            <li>A project applies and is reviewed.</li>
+            <li>If approved, it receives funding in stages, not all at once.</li>
+            <li>Before each new stage is released, someone independent of both Aretia and the project confirms the previous stage's work was genuinely completed.</li>
+            <li>Only then does the next payment go out. If the proof isn't there, it doesn't.</li>
+          </ol>
+          <p>This is the part that stops "we funded a climate project" from quietly meaning "we sent money to a project that didn't deliver."</p>
+          <p>Aretia funds five kinds of projects today:</p>
+          <ul class="plain">
+            <li><strong>Renewable energy</strong> (like solar and wind installations)</li>
+            <li><strong>Waste-to-energy</strong> (turning waste into usable power)</li>
+            <li><strong>Carbon reduction</strong> (projects that avoid or remove emissions)</li>
+            <li><strong>Technical assistance</strong> (helping smaller, capable teams become fundable in the first place, by paying for the studies and paperwork they can't otherwise afford)</li>
+            <li><strong>Flood management and reforestation</strong> (restoring land and reducing flood risk)</li>
+          </ul>
+          <p>For anything involving a specific climate claim, like how much carbon was actually avoided, Aretia doesn't invent its own scoring system. It relies on the same independent, established standards and registries the wider climate industry already uses, so the numbers mean the same thing here as they do everywhere else.</p>
+          <h3>A simple example</h3>
+          <p>Imagine a small cooperative wants to install solar panels for a rural community that isn't connected to reliable power. They apply, and their plan is approved for funding in three stages.</p>
+          <ul class="plain">
+            <li><strong>Stage one</strong> pays for the panels and installation. Before stage two is released, an independent engineer confirms the panels are actually installed and generating power, not just that a check was written.</li>
+            <li><strong>Stage two</strong> pays for connecting the system to the community's grid. Again, independent confirmation is required before the next stage unlocks.</li>
+            <li><strong>Stage three</strong> covers the final handover and a few months of monitoring, confirmed the same way.</li>
+          </ul>
+          <p>If the cooperative had instead disappeared after stage one with half-installed panels, no further money would ever go out, because there would be nothing for an independent party to confirm. That's the entire point of splitting funding into stages instead of handing it over all at once.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p6">
+          <h2>6. Who decides which projects get funded</h2>
+          <p>Right now, while the community is still small, funding decisions are made by the Aretia team, under the exact same "prove it before you get paid" rule described above -- no special treatment, no shortcuts.</p>
+          <p>As the community grows, the plan is to hand more of this over to ACT holders, but carefully. Token holders would help set overall funding priorities, like which categories of project deserve more attention, not vote on approving individual payments one by one. That distinction matters: letting any large group vote directly on individual payouts is exactly the kind of setup that can be captured by a coordinated group voting to send the treasury to themselves. Keeping "what to prioritize" and "did this specific payment actually earn its release" as two separate questions, answered by two different processes, is a deliberate safeguard, not an accident.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p7">
+          <h2>7. Getting involved: presale and staking</h2>
+          <p>Two ways to get ACT are being built. As of this writing, both are fully built and tested on a practice network, but <strong>neither is live for real money yet.</strong></p>
+          <p><strong>The presale</strong> is a limited window where people can buy ACT directly, before it's available on the open market:</p>
+          <ul class="plain">
+            <li>Price: $0.01 per ACT</li>
+            <li>Minimum purchase: $10. Maximum per person: $10,000</li>
+            <li>Accepted currencies: USDC, USDT, or SOL</li>
+            <li>If you buy in, 25% of what you bought is available right away, and the rest unlocks over the following 48 hours</li>
+            <li>The sale only goes through if enough people join by the end of the window. If it falls short, the sale is cancelled automatically and everyone gets back exactly what they put in -- nobody's money is ever at risk of just disappearing into a failed raise</li>
+          </ul>
+          <p><strong>Staking</strong> lets anyone already holding ACT lock it up for a set period in exchange for more ACT back later. The longer you're willing to lock it up, the bigger the bonus.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p8">
+          <h2>8. What's built today, and what's still ahead</h2>
+          <p>Aretia is being built in stages, on purpose, so that each one is solid before the next begins.</p>
+          <ol class="plain">
+            <li><strong>Foundation</strong> <em>(mostly built)</em> -- the token, the treasury, and the process for projects to apply for funding are live today. What's still missing at this stage: a public dashboard showing fund activity in real time, some form of community input into decisions, and a simple registry listing every project that's applied and where it stands.</li>
+            <li><strong>Climate finance</strong> -- turning applications into an actual funding pipeline. This means building out project scoring, a clear process for proposals, and making the independent-verification step described in Section 5 a routine, repeatable part of every funding decision rather than a one-off.</li>
+            <li><strong>Monitoring and verification</strong> -- better tools for actually measuring a funded project's real-world impact. This includes satellite and geospatial data for things like reforestation, and stronger independent verification infrastructure generally, so claims about impact keep getting easier to check, not harder.</li>
+            <li><strong>Going global</strong> -- expanding to more countries and more project types, and bringing in bigger institutional partners like development funds and larger NGOs. This phase may also involve making the system available on more than one blockchain, not just Solana.</li>
+            <li><strong>A future idea, not yet built</strong> -- projects that prove themselves through the process above could eventually be introduced to real outside investors, through a completely separate legal structure, never through the ACT token itself. This is explicitly just an idea today. It won't be built until several things are true first: Aretia's own operating company is properly and verifiably registered, ACT is actually trading with real liquidity, at least one project has been funded successfully from start to finish, and the whole system has been reviewed by independent outside experts. None of that is true yet, and we're saying so plainly rather than implying otherwise.</li>
+          </ol>
+          <p>Each stage is meant to be genuinely finished before the next one begins in earnest. Building the fancier, later-stage tools before the foundation is solid would be building on sand: a public dashboard means nothing if the treasury behind it isn't real, and a global expansion means nothing if the verification step hasn't been proven at a small scale first.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p9">
+          <h2>9. Being honest about the risks</h2>
+          <ul class="plain">
+            <li><strong>The fund's size depends entirely on trading activity.</strong> If not enough people trade ACT, the fund grows slowly, no matter how sound the mechanism is.</li>
+            <li><strong>ACT's price can rise or fall, sometimes sharply</strong>, like any crypto asset. Nothing here protects against that.</li>
+            <li><strong>The code hasn't yet been reviewed by an independent outside security firm.</strong> That review is planned, not done.</li>
+            <li><strong>Real-world projects can still fail</strong>, even when funded honestly and in good faith. Funding well doesn't guarantee an outcome.</li>
+            <li><strong>Crypto regulation is still evolving</strong> in most countries, and future rules could affect how this works where you live.</li>
+            <li><strong>Measuring real climate impact is genuinely hard.</strong> Aretia relies on existing, independent measurement standards rather than claiming to have solved this itself.</li>
+          </ul>
+          <p>None of this is a remote, hypothetical worry. Several of these are simply true of where the project stands right now.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p10">
+          <h2>10. Questions a friend would probably ask</h2>
+          <p class="faq-q">Is this just another crypto coin trying to sound good by mentioning climate change?</p>
+          <p>Fair skepticism, given how common that's been. The difference Aretia is trying to prove out is that the "give a share to charity" part isn't a policy anyone could quietly ignore, it's built into the token's own code, checkable by anyone, at any time, without needing to trust a team's word for it.</p>
+          <p class="faq-q">Can I get rich from this?</p>
+          <p>Nobody should buy ACT expecting a guaranteed return. It's a real crypto asset, and its price can go up or down like any other. Section 9 lays out the risks plainly; please actually read it before buying anything.</p>
+          <p class="faq-q">What happens if Aretia the company disappears one day?</p>
+          <p>The token itself would keep working exactly as coded, since its supply and fee rules don't depend on any company existing. What would stop is anything that requires active human decisions, like approving new projects or updating the fee split. This is a real limitation worth naming honestly, not something the token's design alone solves.</p>
+          <p class="faq-q">Why should I trust that the fund actually pays real projects, and doesn't just sit there?</p>
+          <p>You don't have to take that on faith. Every fee collected and every payment made is a public transaction on Solana, and the verification step in Section 5 means a payment only goes out once someone independent has confirmed real progress. Section 12 shows you exactly where to check this yourself.</p>
+          <p class="faq-q">Is my money safe if I join the presale?</p>
+          <p>As safe as the design can make it: your funds sit untouched until the sale either succeeds or fails. If it fails, you get every cent back automatically. Nobody can spend presale funds on anything before the sale actually succeeds.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p11">
+          <h2>11. The legal part, in plain terms</h2>
+          <p>Nothing in this document is financial or investment advice, and nothing here is an offer to sell a security anywhere that would be against the law. ACT has not been formally registered as a security in any country, and how it's treated legally can vary a lot from place to place. If you're thinking about buying or holding ACT, talk to your own independent advisor first, especially if you live somewhere with strict rules around crypto assets.</p>
+        </div>
+
+        <div class="paper-sheet-block" id="p12">
+          <h2>12. Don't take our word for it</h2>
+          <p>Aretia's website has a built-in tool that checks Solana's real, public blockchain directly, live, while you watch. It shows the actual token supply, the actual fee configuration, and the actual treasury setup, straight from the source, not just numbers typed into a webpage. The full project code is also open source and publicly viewable, so nothing here depends on taking our description on faith.</p>
+          <p>If you want to verify things yourself, here's where to look:</p>
+          <table>
+            <thead><tr><th>What</th><th>Address</th></tr></thead>
+            <tbody>
+              <tr><td>ACT token</td><td><code>7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG</code></td></tr>
+              <tr><td>Treasury (shared account)</td><td><code>5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr</code></td></tr>
+              <tr><td>Treasury vault</td><td><code>GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="paper-sheet-block" id="closing">
+          <h2>A closing note</h2>
+          <p>Aretia doesn't ask anyone to simply believe that climate funding will happen. It tries to build the funding mechanism directly into the infrastructure that generates the money, keep every step checkable, and say clearly where the guarantees end and the open questions begin.</p>
+          <p class="closing-note">For readers who want the full, heavily detailed version of this document, with academic citations, formulas, and a more technical breakdown of every mechanism, it's kept in the project's public GitHub repository as <code>WHITEPAPER_TECHNICAL.md</code>. This document is the everyday version, meant to be read in one sitting and shared with a friend without a glossary.</p>
+          <p class="disclaimer">This document is preliminary and subject to change. It does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia has not been registered under the securities laws of any jurisdiction. Prospective holders should conduct their own research and consult independent advisors before making any decision related to ACT.</p>
+        </div>
 
       </div>
     </div>
   </section>
 
-  <section class="block alt" style="text-align:center;">
-    <div class="wrap" style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-      <a class="pill-btn pill-black" href="aretia-whitepaper.pdf" target="_blank" rel="noopener">↓ Download the PDF</a>
-      <a class="btn-outline" style="padding:11px 22px; font-size:14px;" href="/#buy">Buy ACT</a>
+  <section class="block" style="text-align:center;">
+    <div class="wrap">
+      <div class="dhero-actions" style="justify-content:center;">
+        <a class="pill-btn pill-black" href="aretia-whitepaper.pdf" target="_blank" rel="noopener">↓ Download the PDF</a>
+        <a class="pill-btn pill-ghost" href="https://github.com/abiolabolarinwa/Aretia-Finance" target="_blank" rel="noopener">View the code on GitHub</a>
+      </div>
     </div>
   </section>
 </main>
@@ -469,15 +419,16 @@ G = N / (1 − b) = N / 0.965</pre></div>
       <a href="/#mission">About</a>
       <a href="details.html#tokenomics">Tokenomics</a>
       <a href="presale.html">Presale</a>
+      <a href="stake.html">Staking</a>
       <a href="roadmap.html">Roadmap</a>
       <a href="/#faq">FAQ</a>
     </div>
+    <p class="legal">This page is a plain-language summary of Aretia Finance, not a legal or offering document. Nothing here is investment advice or an offer to sell a security. See Section 11 above for the full legal note.</p>
     <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>
     <div class="footer-meta">© 2026 Aretia</div>
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 <script src="assets/wallet/wallet.js"></script>
 <script src="assets/footer-bars.js"></script>
   <script defer src="/_vercel/insights/script.js"></script>

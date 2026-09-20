@@ -137,8 +137,8 @@
   /* -------- Two projects per row -------- */
   .projects-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
   .projects-2col .mp-project:nth-child(n+3) { margin-top: 0; }
-  .profile-grid.compact { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 140px; }
-  .profile-grid.compact .pf-1 { grid-column: span 2; grid-row: span 1; min-height: 210px; }
+  .profile-grid.compact { grid-template-columns: repeat(2, 1fr); grid-template-rows: 230px; grid-auto-rows: 140px; }
+  .profile-grid.compact .pf-1 { grid-column: span 2; grid-row: 1; min-height: 0; }
   .profile-grid.compact .pf-2, .profile-grid.compact .pf-3, .profile-grid.compact .pf-4, .profile-grid.compact .pf-5 { grid-column: span 1; grid-row: span 1; }
   .profile-grid.compact .pf-6 { grid-column: span 2; grid-row: span 1; flex-direction: column; align-items: flex-start; height: auto; padding: 20px 22px; gap: 12px; }
   @media (max-width: 900px) {

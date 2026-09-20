@@ -134,6 +134,17 @@
     .pf-1 { grid-row: span 1; min-height: 260px; }
   }
 
+  /* -------- Two projects per row -------- */
+  .projects-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+  .projects-2col .mp-project:nth-child(n+3) { margin-top: 0; }
+  .profile-grid.compact { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 140px; }
+  .profile-grid.compact .pf-1 { grid-column: span 2; grid-row: span 1; min-height: 210px; }
+  .profile-grid.compact .pf-2, .profile-grid.compact .pf-3, .profile-grid.compact .pf-4, .profile-grid.compact .pf-5 { grid-column: span 1; grid-row: span 1; }
+  .profile-grid.compact .pf-6 { grid-column: span 2; grid-row: span 1; flex-direction: column; align-items: flex-start; height: auto; padding: 20px 22px; gap: 12px; }
+  @media (max-width: 900px) {
+    .projects-2col { grid-template-columns: 1fr; gap: 0; }
+  }
+
   footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
   .footer-links { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 22px; }
   .footer-links a { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
@@ -188,6 +199,8 @@
         <p><strong>These are four illustrative examples, not real listings.</strong> None of these projects exist, no capital has been raised for any of them, and nothing on this page can be invested in. They exist to show the shape and depth a real profile would have, at different stages of readiness.</p>
       </div>
 
+      <div class="projects-2col">
+      <div class="mp-project">
       <!-- Example 1: Solar ABC -->
       <div class="profile-head">
         <div class="tag">Illustrative example 1 of 4</div>
@@ -195,7 +208,7 @@
         <p>A 2.5MW solar installation serving a rural microgrid community with no reliable grid connection. Catalyst-funded, verified, and ready for its next stage of capital.</p>
       </div>
 
-      <div class="profile-grid">
+      <div class="profile-grid compact">
         <div class="pf-card pf-1" style="background-image:url('assets/solar-field.jpg');">
           <div class="pf-1-body">
             <span class="pf-1-tag">Renewable energy · Illustrative</span>
@@ -246,15 +259,17 @@
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="mp-project">
       <!-- Example 2: Highland Reforestation Co-op -->
-      <div class="profile-head" style="margin-top:64px;">
+      <div class="profile-head">
         <div class="tag">Illustrative example 2 of 4</div>
         <h2>Highland Reforestation Co-op</h2>
         <p>1,200 hectares of degraded farmland being restored to native forest, with canopy cover tracked independently via satellite.</p>
       </div>
 
-      <div class="profile-grid">
+      <div class="profile-grid compact">
         <div class="pf-card pf-1" style="background-image:url('assets/reforestation.jpg');">
           <div class="pf-1-body">
             <span class="pf-1-tag">Reforestation · Illustrative</span>
@@ -305,15 +320,19 @@
           </div>
         </div>
       </div>
+      </div>
+      </div>
 
+      <div class="projects-2col" style="margin-top:64px;">
+      <div class="mp-project">
       <!-- Example 3: Coastal Flood Shield -->
-      <div class="profile-head" style="margin-top:64px;">
+      <div class="profile-head">
         <div class="tag">Illustrative example 3 of 4</div>
         <h2>Coastal Flood Shield</h2>
         <p>Mangrove restoration and a flood barrier system protecting a coastal community of roughly 3,000 residents.</p>
       </div>
 
-      <div class="profile-grid">
+      <div class="profile-grid compact">
         <div class="pf-card pf-1" style="background-image:url('assets/flood-management.jpg');">
           <div class="pf-1-body">
             <span class="pf-1-tag">Flood management · Illustrative</span>
@@ -364,15 +383,17 @@
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="mp-project">
       <!-- Example 4: WastePower Collective -->
-      <div class="profile-head" style="margin-top:64px;">
+      <div class="profile-head">
         <div class="tag">Illustrative example 4 of 4</div>
         <h2>WastePower Collective</h2>
         <p>Converts municipal organic waste into biogas power for a small industrial park.</p>
       </div>
 
-      <div class="profile-grid">
+      <div class="profile-grid compact">
         <div class="pf-card pf-1" style="background-image:url('assets/waste-to-energy.jpg');">
           <div class="pf-1-body">
             <span class="pf-1-tag">Waste-to-energy · Illustrative</span>
@@ -422,6 +443,8 @@
             <div class="pf-6-item"><span class="dot"></span><span>Off-take <strong>in negotiation</strong></span></div>
           </div>
         </div>
+      </div>
+      </div>
       </div>
     </div>
   </section>

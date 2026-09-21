@@ -47,7 +47,7 @@
   .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--black); outline-offset: 2px; }
 
-  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }
   .pill-btn:active { transform: scale(0.97); }
   .pill-black { background: var(--brand); color: #fff; }
   .pill-black:hover { background: var(--brand-hover); }
@@ -56,14 +56,14 @@
 
   .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
   .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
-  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 20px; color: var(--ink); flex: none; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17.5px; color: var(--ink); flex: none; }
   .brand-word { display: flex; flex-direction: column; line-height: 1; font-family: "Playfair Display", Georgia, serif; }
   .brand-word .bw-1 { font-size: 1em; font-weight: 700; letter-spacing: -0.01em; }
   .brand-word .bw-2 { font-size: 0.56em; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.72; margin-top: 3px; }
   .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
   .nav-links { display: flex; align-items: center; gap: 16px; flex: 1; justify-content: center; }
-  .nav-links a { font-size: 14px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
+  .nav-links a { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
   .nav-links a.active { color: var(--ink); font-weight: 700; }
   @media (max-width: 1120px) { .nav-links { display: none; } }
@@ -82,56 +82,56 @@
   .topnav-dark .aw-connect-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.55); }
   @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
   .topnav-cta { display: flex; align-items: center; gap: 10px; flex: none; }
-  .status-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
+  .status-chip { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
-  @media (max-width: 480px) { .brand { font-size: 16px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 12.5px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
+  @media (max-width: 480px) { .brand { font-size: 14px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 11px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
 
-  .kicker { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
+  .kicker { font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 16px; }
 
-  .status-note { margin-top: 24px; padding: 14px 18px; border: 1px solid var(--amber); background: var(--amber-soft); border-radius: 8px; font-size: 13px; color: var(--amber); max-width: 62ch; }
+  .status-note { margin-top: 24px; padding: 14px 18px; border: 1px solid var(--amber); background: var(--amber-soft); border-radius: 8px; font-size: 11.5px; color: var(--amber); max-width: 62ch; }
 
   /* -------- How Funding Works (merged in from the homepage) -------- */
   .step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
   @media (max-width: 860px) { .step-cards { grid-template-columns: 1fr; } }
   .step-card { position: relative; overflow: hidden; border-radius: var(--r-lg); padding: 36px 32px; }
-  .step-mock { position: relative; z-index: 1; background: #fff; border-radius: var(--r-sm); padding: 20px; margin-bottom: 24px; min-height: 120px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); font-size: 13px; }
+  .step-mock { position: relative; z-index: 1; background: #fff; border-radius: var(--r-sm); padding: 20px; margin-bottom: 24px; min-height: 120px; box-shadow: 0 8px 20px -16px rgba(10,12,16,.2); font-size: 11.5px; }
   .step-card h3, .step-card p, .step-card .rm { position: relative; z-index: 1; }
-  .step-card h3 { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 12px; }
-  .step-card p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 18px; }
-  .step-card .rm { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+  .step-card h3 { font-size: 19.5px; font-weight: 800; color: var(--ink); margin-bottom: 12px; }
+  .step-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 18px; }
+  .step-card .rm { font-size: 12px; font-weight: 800; color: var(--ink); }
   .step-card .step-bleed { position: absolute; right: -18px; bottom: -18px; width: 110px; height: 110px; opacity: .14; pointer-events: none; }
 
   /* -------- Doola-style cream hero -------- */
   .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
   .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
   @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
-  .dhero-eyebrow { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 16px; }
-  .dhero h1 { font-size: clamp(2.6rem, 5.2vw, 3.8rem); line-height: 1.08; letter-spacing: -0.03em; color: var(--ink); margin: 0 0 18px; text-align: left; }
+  .dhero-eyebrow { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 16px; }
+  .dhero h1 { font-size: clamp(2.29rem, 4.58vw, 3.34rem); line-height: 1.08; letter-spacing: -0.03em; color: var(--ink); margin: 0 0 18px; text-align: left; }
   .dhero h1 .hl { color: var(--brand); }
-  .dhero-sub { font-size: 15px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 22px; line-height: 1.65; text-align: left; }
+  .dhero-sub { font-size: 13px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 22px; line-height: 1.65; text-align: left; }
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
   .dhero .pill-black { background: var(--brand); }
-  .dhero-microcopy { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+  .dhero-microcopy { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
   .dhero-visual { position: relative; border-radius: 26px; overflow: hidden; min-height: 400px; background: var(--border-soft); }
   .dhero-visual img { width: 100%; height: 100%; min-height: 400px; object-fit: cover; display: block; }
-  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 13px; font-weight: 700; color: var(--ink); max-width: calc(100% - 40px); }
-  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .dhero-badge { position: absolute; left: 20px; bottom: 20px; background: #fff; border-radius: 980px; padding: 8px 16px 8px 8px; display: flex; align-items: center; gap: 9px; box-shadow: 0 14px 30px -16px rgba(20,15,0,.35); font-size: 11.5px; font-weight: 700; color: var(--ink); max-width: calc(100% - 40px); }
+  .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10.5px; flex: none; }
   @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
   .dhero .status-note { max-width: 100%; }
 
   form { padding: 44px 0 80px; }
   fieldset { border: none; padding: 0; margin: 0 0 40px; }
-  legend { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); margin-bottom: 20px; padding: 0; }
+  legend { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); margin-bottom: 20px; padding: 0; }
   .field { margin-bottom: 20px; }
-  .field label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
-  .field .hint { font-size: 12px; color: var(--ink-faint); margin-top: 5px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .field .hint { font-size: 10.5px; color: var(--ink-faint); margin-top: 5px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   @media (max-width: 640px) { .field-row { grid-template-columns: 1fr; } }
 
   input[type=text], input[type=email], input[type=number], input[type=url], select, textarea {
     width: 100%;
     font: inherit;
-    font-size: 14px;
+    font-size: 12.5px;
     padding: 10px 13px;
     border: 1px solid var(--border);
     border-radius: 7px;
@@ -145,42 +145,42 @@
 
   .checkbox-field { display: flex; align-items: flex-start; gap: 10px; margin-top: 28px; }
   .checkbox-field input { margin-top: 3px; }
-  .checkbox-field label { font-size: 13px; color: var(--ink-soft); }
+  .checkbox-field label { font-size: 11.5px; color: var(--ink-soft); }
 
-  .submit-btn { background: var(--amber); color: #fff; border: none; padding: 13px 28px; border-radius: 7px; font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+  .submit-btn { background: var(--amber); color: #fff; border: none; padding: 13px 28px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 160ms var(--ease-out), transform 160ms var(--ease-out); }
   .submit-btn:hover { background: var(--amber-hover); }
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .fee-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px 26px; margin: 44px 0 0; }
   .fee-box .fee-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
-  .fee-box .fee-title { font-size: 15px; font-weight: 700; }
-  .fee-box .fee-amount { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--amber); }
-  .fee-box p.fee-note { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 18px; }
+  .fee-box .fee-title { font-size: 13px; font-weight: 700; }
+  .fee-box .fee-amount { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--amber); }
+  .fee-box p.fee-note { font-size: 11.5px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 18px; }
   .fee-box .fee-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .wallet-btn { background: var(--ink); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .wallet-btn { background: var(--ink); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .wallet-btn:hover { background: var(--black-hover); }
   .wallet-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .pay-btn { background: var(--amber); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .pay-btn { background: var(--amber); color: #fff; border: none; padding: 10px 18px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .pay-btn:hover { background: var(--amber-hover); }
   .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .wallet-info { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
-  .fee-status { font-size: 13px; color: var(--ink-soft); margin-top: 12px; line-height: 1.6; }
+  .wallet-info { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); }
+  .fee-status { font-size: 11.5px; color: var(--ink-soft); margin-top: 12px; line-height: 1.6; }
   .fee-status a { color: var(--amber); font-weight: 600; }
   .fee-status.error { color: var(--red); }
   .fee-status.success { color: var(--green); }
   #wallet-picker { display: flex; gap: 8px; flex-wrap: wrap; }
   .wallet-btn.detected { outline: 2px solid var(--amber); outline-offset: 1px; }
   #no-wallet-note a { color: var(--amber); font-weight: 600; }
-  #submit-gate-note { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
+  #submit-gate-note { font-size: 11px; color: var(--ink-faint); margin-top: 10px; }
 
-  #form-success, #form-error { display: none; padding: 18px 20px; border-radius: 8px; font-size: 14px; margin-bottom: 28px; }
+  #form-success, #form-error { display: none; padding: 18px 20px; border-radius: 8px; font-size: 12.5px; margin-bottom: 28px; }
   #form-success { background: var(--green-soft); color: var(--green); border: 1px solid var(--green); }
   #form-error { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
 
   footer { padding: 40px 0 56px; border-top: 1px solid var(--border); }
-  .legal { font-size: 11.5px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
-  .footer-meta { font-family: var(--mono); font-size: 11px; margin-top: 18px; color: var(--ink-faint); }
+  .legal { font-size: 10px; line-height: 1.7; max-width: 82ch; color: var(--ink-faint); }
+  .footer-meta { font-family: var(--mono); font-size: 9.5px; margin-top: 18px; color: var(--ink-faint); }
 
   /* ============ PRESALE COUNTDOWN MODAL + GOLDEN BADGE ============ */
   .presale-countdown-overlay {
@@ -211,37 +211,37 @@
     width: 30px; height: 30px; border-radius: 50%;
     border: 1px solid var(--border-soft, rgba(0,0,0,.12));
     background: transparent; color: var(--ink, #190880);
-    font-size: 18px; line-height: 1; cursor: pointer;
+    font-size: 16px; line-height: 1; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: background 160ms var(--ease);
   }
   .presale-countdown-close:hover { background: rgba(0,0,0,.06); }
   .presale-countdown-eyebrow {
-    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
     color: var(--brand, #190880); margin-bottom: 8px;
   }
-  .presale-countdown-modal h2 { font-size: 22px; margin: 0 0 18px; }
+  .presale-countdown-modal h2 { font-size: 19.5px; margin: 0 0 18px; }
   .presale-countdown-clock { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
   .presale-countdown-unit {
     flex: 1; max-width: 74px;
     background: var(--brand, #190880); color: #fff;
     border-radius: 10px; padding: 10px 4px;
   }
-  .presale-countdown-unit span { display: block; font-family: var(--mono); font-size: 22px; font-weight: 700; }
-  .presale-countdown-unit small { display: block; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-top: 2px; }
+  .presale-countdown-unit span { display: block; font-family: var(--mono); font-size: 19.5px; font-weight: 700; }
+  .presale-countdown-unit small { display: block; font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-top: 2px; }
   .presale-countdown-price { text-align: left; border-top: 1px solid var(--border-soft, rgba(0,0,0,.1)); border-bottom: 1px solid var(--border-soft, rgba(0,0,0,.1)); padding: 14px 0; margin-bottom: 18px; }
-  .presale-countdown-price-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--ink-soft, #444); }
+  .presale-countdown-price-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 4px 0; color: var(--ink-soft, #444); }
   .presale-countdown-price-row strong { color: var(--ink, #190880); }
   .presale-countdown-cta { display: inline-flex; width: 100%; justify-content: center; margin-bottom: 16px; }
   .presale-countdown-social { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
   .presale-countdown-social a {
-    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
     border: 1px solid var(--border-soft, rgba(0,0,0,.12)); color: var(--ink, #190880);
     text-decoration: none; transition: background 160ms var(--ease), color 160ms var(--ease);
   }
   .presale-golden-badge {
     display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
     padding: 8px 14px; border-radius: 999px; border: none; cursor: pointer;
     background: linear-gradient(135deg, #fff3c4 0%, #f0c14b 35%, #b8860b 70%, #f7dc6f 100%);
     background-size: 220% 220%;
@@ -258,8 +258,8 @@
   }
   @media (max-width: 640px) {
     .presale-countdown-unit { padding: 8px 2px; }
-    .presale-countdown-unit span { font-size: 18px; }
-    .presale-golden-badge { font-size: 11px; padding: 6px 10px; }
+    .presale-countdown-unit span { font-size: 16px; }
+    .presale-golden-badge { font-size: 9.5px; padding: 6px 10px; }
   }
 </style>
 <link rel="stylesheet" href="assets/wallet/wallet.css">
@@ -351,24 +351,24 @@
 <!-- ============ HOW FUNDING WORKS (merged in from the homepage) ============ -->
 <div class="wrap" style="margin-top:56px;">
   <div class="kicker">How Funding Works</div>
-  <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); margin-bottom:32px;">One simple path from application to verified impact.</h2>
+  <h2 style="font-size: clamp(1.5rem, 2.64vw, 2.02rem); margin-bottom:32px;">One simple path from application to verified impact.</h2>
   <div class="step-cards">
     <div class="step-card" style="background:var(--blue-soft);">
-      <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
+      <div class="step-mock mono" style="font-size: 12px; font-weight:700; color:var(--ink-soft);">01 · APPLICATION<br><br>Project category, milestones, and diligence documentation submitted for review.</div>
       <h3>Apply</h3>
       <p>Project developers submit an application scoped to one of five funding categories.</p>
       <a class="rm" href="#apply-form">Start below →</a>
       <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
     </div>
     <div class="step-card" style="background:var(--amber-soft);">
-      <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
+      <div class="step-mock mono" style="font-size: 12px; font-weight:700; color:var(--ink-soft);">02 · DILIGENCE<br><br>Independent review against a category-specific verification standard.</div>
       <h3>Verify</h3>
       <p>A technical committee and independent verifier confirm each milestone before release.</p>
       <a class="rm" href="whitepaper">Read the Standards →</a>
       <svg class="step-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
     </div>
     <div class="step-card" style="background:var(--green-soft);">
-      <div class="step-mock mono" style="font-size:13.5px; font-weight:700; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
+      <div class="step-mock mono" style="font-size: 12px; font-weight:700; color:var(--ink-soft);">03 · DISBURSEMENT<br><br>Tranche released from the treasury multisig, visible on-chain immediately.</div>
       <h3>Get Funded</h3>
       <p>Capital releases in tranches against verified progress, never a lump sum against a promise.</p>
       <a class="rm" href="verify">Verify a Disbursement →</a>
@@ -494,7 +494,7 @@
         <span id="wallet-info" class="wallet-info"></span>
         <button type="button" id="pay-fee-btn" class="pay-btn" disabled>Pay 5,000 ACT Registration Fee</button>
       </div>
-      <div id="no-wallet-note" style="display:none; font-size:12.5px; margin-top:8px;">
+      <div id="no-wallet-note" style="display:none; font-size: 11px; margin-top:8px;">
         No supported wallet found in this browser. Install
         <a href="https://phantom.app/" target="_blank" rel="noopener">Phantom</a>,
         <a href="https://solflare.com/" target="_blank" rel="noopener">Solflare</a>, or
@@ -503,11 +503,11 @@
       <div id="fee-status" class="fee-status"></div>
 
       <details style="margin-top:18px;">
-        <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-soft);">Paid another way? (Trust Wallet, a CEX withdrawal, a different device)</summary>
+        <summary style="cursor:pointer; font-size: 11.5px; font-weight:600; color:var(--ink-soft);">Paid another way? (Trust Wallet, a CEX withdrawal, a different device)</summary>
         <div style="margin-top:14px;">
           <p class="fee-note" style="margin-bottom:12px;">If you already sent 5,000 ACT to the management wallet above by some other means (Trust Wallet, an exchange withdrawal, a different browser or device), paste the transaction signature here. This page will look it up on Solana directly and confirm the payment on its own; it doesn't just take your word for it.</p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <input type="text" id="manual-sig-input" placeholder="Transaction signature" style="flex:1; min-width:220px; font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:10px 12px; border:1px solid var(--border); border-radius:7px; background:var(--bg-alt); color:var(--ink);">
+            <input type="text" id="manual-sig-input" placeholder="Transaction signature" style="flex:1; min-width:220px; font-family:'JetBrains Mono', monospace; font-size: 11px; padding:10px 12px; border:1px solid var(--border); border-radius:7px; background:var(--bg-alt); color:var(--ink);">
             <button type="button" id="verify-sig-btn" class="wallet-btn">Verify Payment</button>
           </div>
         </div>

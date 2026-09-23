@@ -92,31 +92,14 @@
   .pill-ghost-link { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
 
   /* -------- Flux-style hero: big headline + two-card row + black steps band -------- */
-  .flux-hero { background: #fff; position: relative; overflow: hidden; min-height: 92vh; display: flex; align-items: center; padding: 140px 0 100px; }
-  .flux-hero .wrap { max-width: 1240px; position: relative; z-index: 1; width: 100%; }
-  .flux-hero .hero-head { text-align: left; max-width: 640px; }
-  .flux-hero .hero-actions { justify-content: flex-start; margin-bottom: 0; }
-  .hero-ribbon-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-  .flux-hero-eyebrow { font-size: 13px; font-weight: 500; color: var(--ink-faint); margin-bottom: 22px; }
-  .flux-hero h1 { font-size: clamp(2.6rem, 5vw, 4.2rem); line-height: 1.05; letter-spacing: -0.035em; margin: 0 0 26px; max-width: 15ch;
-    background-image: radial-gradient(420px 260px at var(--hx, 20%) var(--hy, -10%), var(--brand) 0%, var(--ink) 60%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
+  .flux-hero { background: #fff; padding: 64px 0 0; }
+  .flux-hero .wrap { max-width: 1240px; }
+  .flux-hero .wrap { text-align: center; }
+  .flux-hero .hero-actions { justify-content: center; }
+  .flux-hero-eyebrow { font-size: 11.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 20px; }
+  .flux-hero h1 { font-size: clamp(2.29rem, 4.93vw, 4.05rem); line-height: 1.02; letter-spacing: -0.035em; color: var(--ink); margin: 0 auto 24px; max-width: 20ch; }
   .flux-hero h1 .hl { color: var(--hero-amber); }
-  .flux-hero-sub { font-size: 16px; color: var(--ink-soft); max-width: 46ch; line-height: 1.65; margin: 0 0 40px; }
-  @media (prefers-reduced-motion: reduce) {
-    .flux-hero h1 { background-image: none; color: var(--ink); }
-  }
-  @media (max-width: 900px) {
-    .flux-hero { min-height: 0; padding: 64px 0 56px; }
-    .flux-hero .hero-head { max-width: none; text-align: center; }
-    .flux-hero .hero-actions { justify-content: center; }
-    .flux-hero h1 { max-width: none; margin-left: auto; margin-right: auto; }
-    .flux-hero-sub { max-width: 52ch; margin-left: auto; margin-right: auto; }
-  }
-  @media (max-width: 720px) {
-    .hero-ribbon-canvas { display: none; }
-  }
+  .flux-hero-sub { font-size: 15px; color: var(--ink-soft); max-width: 62ch; line-height: 1.6; margin: 0 auto 40px; }
   .flux-card-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; margin-bottom: 64px; }
   @media (max-width: 900px) { .flux-card-row { grid-template-columns: 1fr; } }
   .flux-card { border-radius: 24px; padding: 40px 40px 32px; display: flex; flex-direction: column; min-height: 320px; }
@@ -585,26 +568,18 @@
 
 <main>
 
-  <!-- ============ HERO (Aurora-style: tall, wide diagonal ribbon, left-aligned) ============ -->
+  <!-- ============ HERO (doola-style: cream, two-column) ============ -->
   <section class="flux-hero" id="hero">
-    <canvas class="hero-ribbon-canvas" aria-hidden="true"></canvas>
     <div class="wrap">
-      <div class="hero-head">
-        <div class="flux-hero-eyebrow">Live on Solana · Built to be checked, not trusted.</div>
-        <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
-        <p class="flux-hero-sub">Every ACT trade automatically funds real climate projects -- but the money only moves once someone independent confirms the work actually happened.</p>
-        <div class="hero-actions">
-          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
-          <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
-          <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
-        </div>
+      <div class="flux-hero-eyebrow">Live on Solana · Built to be checked, not trusted.</div>
+      <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
+      <p class="flux-hero-sub">Every ACT trade automatically funds real climate projects -- but the money only moves once someone independent confirms the work actually happened.</p>
+      <div class="hero-actions" style="margin-bottom:40px;">
+        <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
+        <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
+        <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
       </div>
-    </div>
-  </section>
 
-  <!-- ============ APPROACH (two-card row, moved out from under the hero ribbon) ============ -->
-  <section class="block" id="approach" style="padding-top:0;">
-    <div class="wrap">
       <div class="flux-card-row">
         <div class="flux-card flux-card-purple">
           <div class="flux-card-head">
@@ -1619,157 +1594,6 @@
       el.classList.add("reveal");
       io.observe(el);
     });
-  }
-})();
-</script>
-<script>
-(function(){
-  var canvas = document.querySelector(".hero-ribbon-canvas");
-  var section = document.querySelector(".flux-hero");
-  var h1 = document.querySelector(".flux-hero h1");
-  if (!canvas || !section) return;
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var ctx = canvas.getContext("2d");
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var W = 0, H = 0;
-
-  function resize() {
-    var rect = section.getBoundingClientRect();
-    W = rect.width; H = rect.height;
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-  resize();
-  window.addEventListener("resize", resize, { passive: true });
-
-  // -------- shared pointer state: drives both the ribbon bend and the headline gradient --------
-  var hasPointer = false;
-  var pxTarget = 0, pyTarget = 0, pxCur = 0, pyCur = 0; // -1..1, relative to the whole section
-  var hxTarget = 20, hyTarget = -10, hxCur = 20, hyCur = -10; // %, relative to the h1
-  var idle = 0;
-
-  section.addEventListener("pointermove", function (e) {
-    var rect = section.getBoundingClientRect();
-    pxTarget = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pyTarget = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-    if (h1) {
-      var hr = h1.getBoundingClientRect();
-      hxTarget = ((e.clientX - hr.left) / hr.width) * 100;
-      hyTarget = ((e.clientY - hr.top) / hr.height) * 100;
-    }
-    hasPointer = true;
-  }, { passive: true });
-  section.addEventListener("pointerleave", function () { hasPointer = false; }, { passive: true });
-
-  function ribbonPath(x0, y0, x1, y1, x2, y2, offset) {
-    ctx.beginPath();
-    ctx.moveTo(x0 + offset, y0);
-    ctx.quadraticCurveTo(x1 + offset, y1, x2 + offset, y2);
-  }
-
-  var STRANDS = 46;        // thin parallel strokes woven across the ribbon's width
-  var RIBBON_W = 0.20;     // total width as a fraction of canvas width
-  var STOPS = [
-    { p: 0,    c: [240, 193, 75] },   // gold
-    { p: 0.3,  c: [25, 8, 128] },     // brand purple
-    { p: 0.62, c: [122, 92, 224] },   // periwinkle
-    { p: 1,    c: [236, 233, 248] }   // pale lavender
-  ];
-  function colorAt(p) {
-    p = Math.max(0, Math.min(1, p));
-    for (var i = 0; i < STOPS.length - 1; i++) {
-      var a = STOPS[i], b = STOPS[i + 1];
-      if (p >= a.p && p <= b.p) {
-        var f = (p - a.p) / (b.p - a.p || 1);
-        return [
-          Math.round(a.c[0] + (b.c[0] - a.c[0]) * f),
-          Math.round(a.c[1] + (b.c[1] - a.c[1]) * f),
-          Math.round(a.c[2] + (b.c[2] - a.c[2]) * f)
-        ];
-      }
-    }
-    return STOPS[STOPS.length - 1].c;
-  }
-
-  function drawRibbon(time) {
-    ctx.clearRect(0, 0, W, H);
-    var t = time * 0.00002;
-
-    var bendX = pxCur * 46, bendY = pyCur * 30;
-    var x0 = W * 0.56 + Math.sin(t) * 22 + bendX * 0.3, y0 = -H * 0.12;
-    var x1 = W * 0.94 + Math.cos(t * 1.3) * 20 + bendX,      y1 = H * 0.42 + bendY;
-    var x2 = W * 0.58 + Math.sin(t * 0.8) * 22 + bendX * 0.4, y2 = H * 1.08;
-
-    // soft outer glow
-    ctx.save();
-    if ("filter" in ctx) ctx.filter = "blur(46px)";
-    ribbonPath(x0, y0, x1, y1, x2, y2, 0);
-    var glow = ctx.createLinearGradient(x0, y0, x2, y2);
-    glow.addColorStop(0, "rgba(240,193,75,0.30)");
-    glow.addColorStop(0.4, "rgba(25,8,128,0.32)");
-    glow.addColorStop(1, "rgba(140,120,220,0.24)");
-    ctx.strokeStyle = glow;
-    ctx.lineWidth = W * RIBBON_W * 1.5;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.restore();
-
-    // woven core: many thin parallel strands, each a slightly different shade + alpha,
-    // giving the brushed / silk-ribbon striping instead of one flat gradient fill
-    var half = (W * RIBBON_W) / 2;
-    for (var i = 0; i < STRANDS; i++) {
-      var f = i / (STRANDS - 1);           // 0..1 across the ribbon's width
-      var offset = -half + f * (half * 2);
-      var band = colorAt(f);
-      var wobble = Math.sin(f * 26 + t * 40) * 0.14 + 0.86; // subtle brightness ripple = sheen
-      ctx.beginPath();
-      ribbonPath(x0, y0, x1, y1, x2, y2, offset);
-      ctx.strokeStyle = "rgba(" + band[0] + "," + band[1] + "," + band[2] + "," + (0.75 * wobble) + ")";
-      ctx.lineWidth = (W * RIBBON_W * 2.2) / STRANDS;
-      ctx.lineCap = "round";
-      ctx.stroke();
-    }
-
-    // bright sheen highlight, offset toward one edge
-    ribbonPath(x0, y0, x1, y1, x2, y2, -half * 0.72);
-    ctx.strokeStyle = "rgba(255,255,255,0.5)";
-    ctx.lineWidth = W * 0.012;
-    ctx.stroke();
-
-    var mask = ctx.createLinearGradient(0, 0, 0, H);
-    mask.addColorStop(0, "rgba(0,0,0,1)");
-    mask.addColorStop(0.82, "rgba(0,0,0,1)");
-    mask.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.fillStyle = mask;
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "source-over";
-  }
-
-  function loop(t) {
-    pxCur += (pxTarget - pxCur) * 0.05;
-    pyCur += (pyTarget - pyCur) * 0.05;
-    drawRibbon(t);
-
-    if (h1) {
-      if (!hasPointer) {
-        idle += 0.006;
-        hxTarget = 24 + Math.sin(idle) * 20;
-        hyTarget = -10 + Math.cos(idle * 0.7) * 16;
-      }
-      hxCur += (hxTarget - hxCur) * 0.06;
-      hyCur += (hyTarget - hyCur) * 0.06;
-      h1.style.setProperty("--hx", hxCur.toFixed(2) + "%");
-      h1.style.setProperty("--hy", hyCur.toFixed(2) + "%");
-    }
-    requestAnimationFrame(loop);
-  }
-
-  if (reduceMotion) {
-    drawRibbon(0);
-  } else {
-    requestAnimationFrame(loop);
   }
 })();
 </script>

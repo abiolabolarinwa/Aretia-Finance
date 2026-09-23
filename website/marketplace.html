@@ -177,16 +177,10 @@
   /* -------- Gravity letters (marketplace hero h1) -------- */
   .mp-hero h1.gravity-ready { visibility: hidden; }
   .mp-hero h1 .gw { display: inline-block; white-space: nowrap; }
-  .mp-hero h1 .gl { display: inline-block; opacity: 0; transform: translateY(-90px) rotate(-8deg); animation: gravityDrop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; animation-delay: calc(var(--i, 0) * 26ms); }
-  @keyframes gravityDrop {
-    0% { opacity: 0; transform: translateY(-90px) rotate(-8deg); }
-    60% { opacity: 1; transform: translateY(6px) rotate(1deg); }
-    80% { transform: translateY(-3px) rotate(-0.5deg); }
-    100% { opacity: 1; transform: translateY(0) rotate(0); }
-  }
+  .mp-hero h1 .gl { display: inline-block; opacity: 0; will-change: transform, opacity; }
   @media (prefers-reduced-motion: reduce) {
     .mp-hero h1.gravity-ready { visibility: visible; }
-    .mp-hero h1 .gl { opacity: 1; transform: none; animation: none; }
+    .mp-hero h1 .gl { opacity: 1; transform: none; }
   }
 </style>
 <link rel="stylesheet" href="assets/wallet/wallet.css">
@@ -571,7 +565,6 @@
 
   var heroH1 = document.querySelector(".mp-hero h1");
   if (heroH1 && !reduceMotion) {
-    var letterIndex = 0;
     var wrapText = function(text) {
       var out = document.createDocumentFragment();
       var words = text.split(" ");
@@ -582,7 +575,6 @@
           for (var c = 0; c < word.length; c++) {
             var letter = document.createElement("span");
             letter.className = "gl";
-            letter.style.setProperty("--i", letterIndex++);
             letter.textContent = word[c];
             wordSpan.appendChild(letter);
           }
@@ -607,6 +599,85 @@
     heroH1.innerHTML = "";
     heroH1.appendChild(newContent);
     heroH1.classList.remove("gravity-ready");
+
+    // -------- Gravity physics: real acceleration, one bounce, spin-to-rest, squash on landing --------
+    var GRAVITY = 2600;      // px/s^2
+    var BOUNCE = 0.26;       // restitution on first impact
+    var BOUNCE_MIN_VY = 220; // px/s -- below this, land instead of bouncing
+    var STAGGER_MS = 32;     // cascade delay per letter, left to right
+
+    var squash = function (el) {
+      if (!el.animate) return;
+      el.animate(
+        [{ transform: el._restTransform ? el._restTransform + " scaleY(0.8)" : "scaleY(0.8)" },
+         { transform: el._restTransform || "none" }],
+        { duration: 170, easing: "cubic-bezier(0.215,0.61,0.355,1)" }
+      );
+    };
+
+    var bodies = Array.prototype.slice.call(heroH1.querySelectorAll(".gl")).map(function (el, i) {
+      return {
+        el: el,
+        y: -(60 + Math.random() * 50),
+        vy: 0,
+        rot: (Math.random() * 2 - 1) * 16,
+        vr: (Math.random() * 2 - 1) * 110,
+        restTilt: (Math.random() * 2 - 1) * 6,
+        bounced: false,
+        active: false,
+        done: false,
+        startAt: i * STAGGER_MS,
+        last: 0
+      };
+    });
+
+    var t0 = null;
+    var tick = function (now) {
+      if (t0 === null) t0 = now;
+      var elapsed = now - t0;
+      var pending = false;
+
+      bodies.forEach(function (b) {
+        if (b.done) return;
+        if (elapsed < b.startAt) { pending = true; return; }
+        if (!b.active) {
+          b.active = true;
+          b.el.style.opacity = "1";
+          b.last = now;
+        }
+        var dt = Math.min((now - b.last) / 1000, 1 / 30);
+        b.last = now;
+
+        b.vy += GRAVITY * dt;
+        b.y += b.vy * dt;
+        b.rot += b.vr * dt;
+
+        if (b.y >= 0) {
+          b.y = 0;
+          if (!b.bounced && b.vy > BOUNCE_MIN_VY) {
+            b.bounced = true;
+            b.vy = -b.vy * BOUNCE;
+            b.el.style.transform = "translate3d(0,0,0) rotate(" + b.rot.toFixed(2) + "deg)";
+            squash(b.el);
+          } else {
+            b.vy = 0;
+            b.rot = b.restTilt;
+            b.done = true;
+            var rest = "rotate(" + b.rot.toFixed(2) + "deg)";
+            b.el._restTransform = rest;
+            b.el.style.transition = "transform 160ms ease-out";
+            b.el.style.transform = rest;
+            squash(b.el);
+          }
+        } else {
+          b.el.style.transform = "translate3d(0," + b.y.toFixed(2) + "px,0) rotate(" + b.rot.toFixed(2) + "deg)";
+        }
+        pending = pending || !b.done;
+      });
+
+      if (pending) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   var nav = document.querySelector(".topnav");

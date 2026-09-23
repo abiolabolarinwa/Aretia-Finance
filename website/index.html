@@ -92,23 +92,23 @@
   .pill-ghost-link { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
 
   /* -------- Flux-style hero: big headline + two-card row + black steps band -------- */
-  .flux-hero { background: #fff; padding: 88px 0 0; position: relative; overflow: hidden; min-height: 640px; }
-  .flux-hero .wrap { max-width: 1240px; position: relative; z-index: 1; }
+  .flux-hero { background: #fff; position: relative; overflow: hidden; min-height: 92vh; display: flex; align-items: center; padding: 140px 0 100px; }
+  .flux-hero .wrap { max-width: 1240px; position: relative; z-index: 1; width: 100%; }
   .flux-hero .hero-head { text-align: left; max-width: 640px; }
-  .flux-hero .hero-actions { justify-content: flex-start; }
+  .flux-hero .hero-actions { justify-content: flex-start; margin-bottom: 0; }
   .hero-ribbon-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-  .flux-hero-eyebrow { font-size: 11.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 20px; }
-  .flux-hero h1 { font-size: clamp(2.29rem, 4.4vw, 3.55rem); line-height: 1.06; letter-spacing: -0.035em; margin: 0 0 24px; max-width: 15ch;
+  .flux-hero-eyebrow { font-size: 13px; font-weight: 500; color: var(--ink-faint); margin-bottom: 22px; }
+  .flux-hero h1 { font-size: clamp(2.6rem, 5vw, 4.2rem); line-height: 1.05; letter-spacing: -0.035em; margin: 0 0 26px; max-width: 15ch;
     background-image: radial-gradient(420px 260px at var(--hx, 20%) var(--hy, -10%), var(--brand) 0%, var(--ink) 60%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   .flux-hero h1 .hl { color: var(--hero-amber); }
-  .flux-hero-sub { font-size: 15px; color: var(--ink-soft); max-width: 46ch; line-height: 1.6; margin: 0 0 40px; }
+  .flux-hero-sub { font-size: 16px; color: var(--ink-soft); max-width: 46ch; line-height: 1.65; margin: 0 0 40px; }
   @media (prefers-reduced-motion: reduce) {
     .flux-hero h1 { background-image: none; color: var(--ink); }
   }
   @media (max-width: 900px) {
-    .flux-hero { min-height: 0; }
+    .flux-hero { min-height: 0; padding: 64px 0 56px; }
     .flux-hero .hero-head { max-width: none; text-align: center; }
     .flux-hero .hero-actions { justify-content: center; }
     .flux-hero h1 { max-width: none; margin-left: auto; margin-right: auto; }
@@ -585,7 +585,7 @@
 
 <main>
 
-  <!-- ============ HERO (doola-style: cream, two-column) ============ -->
+  <!-- ============ HERO (Aurora-style: tall, wide diagonal ribbon, left-aligned) ============ -->
   <section class="flux-hero" id="hero">
     <canvas class="hero-ribbon-canvas" aria-hidden="true"></canvas>
     <div class="wrap">
@@ -593,13 +593,18 @@
         <div class="flux-hero-eyebrow">Live on Solana · Built to be checked, not trusted.</div>
         <h1>Finance that funds progress, <span class="hl">not promises.</span></h1>
         <p class="flux-hero-sub">Every ACT trade automatically funds real climate projects -- but the money only moves once someone independent confirms the work actually happened.</p>
-        <div class="hero-actions" style="margin-bottom:40px;">
+        <div class="hero-actions">
           <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
           <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
           <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
         </div>
       </div>
+    </div>
+  </section>
 
+  <!-- ============ APPROACH (two-card row, moved out from under the hero ribbon) ============ -->
+  <section class="block" id="approach" style="padding-top:0;">
+    <div class="wrap">
       <div class="flux-card-row">
         <div class="flux-card flux-card-purple">
           <div class="flux-card-head">
@@ -1691,10 +1696,8 @@
     ctx.stroke();
 
     var mask = ctx.createLinearGradient(0, 0, 0, H);
-    var s = Math.min(1, 600 / H), e = Math.min(1, 900 / H);
     mask.addColorStop(0, "rgba(0,0,0,1)");
-    mask.addColorStop(s, "rgba(0,0,0,1)");
-    mask.addColorStop(e, "rgba(0,0,0,0)");
+    mask.addColorStop(0.82, "rgba(0,0,0,1)");
     mask.addColorStop(1, "rgba(0,0,0,0)");
     ctx.globalCompositeOperation = "destination-in";
     ctx.fillStyle = mask;

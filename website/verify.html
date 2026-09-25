@@ -30,9 +30,15 @@
     --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; overflow-x: hidden; }
+  /* overflow-x: hidden (not clip) on both html and body forces the other
+     axis to compute as overflow-y: auto per spec, which silently breaks
+     .topnav's position: sticky once the page has enough content to
+     actually engage that auto scrollport. overflow-x: clip clips the
+     same way without triggering that (see index.html for how this was
+     actually found, not assumed). */
+  html { scroll-behavior: smooth; overflow-x: clip; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: clip; }
   ::selection { background: var(--black); color: #fff; }
   a { color: inherit; text-decoration: none; }
   img, svg { max-width: 100%; display: block; }

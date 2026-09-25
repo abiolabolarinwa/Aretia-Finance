@@ -32,9 +32,15 @@
     --r-lg: 20px; --r-md: 16px; --r-sm: 10px;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; overflow-x: hidden; }
+  /* overflow-x: hidden (not clip) on both html and body forces the other
+     axis to compute as overflow-y: auto per spec, which silently breaks
+     .topnav's position: sticky once the page has enough content to
+     actually engage that auto scrollport (found by scrolling well past
+     the hero and watching the navbar fail to stay pinned -- not assumed).
+     overflow-x: clip clips the same way without triggering that. */
+  html { scroll-behavior: smooth; overflow-x: clip; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: clip; }
   ::selection { background: var(--black); color: #fff; }
   a { color: inherit; text-decoration: none; }
   img, svg { max-width: 100%; display: block; }
@@ -89,6 +95,7 @@
   .gooey-nav-item.is-active { background: #fff; }
   .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: #fff; transition: color 260ms var(--ease); }
   .gooey-nav-item.is-active .gooey-nav-label { color: var(--brand); }
+  .gooey-nav-btn { background: none; border: none; cursor: pointer; font-family: inherit; }
   /* Connect Wallet / Presale / Apply for Funding: each already renders its
      own fully-opaque pill (white or gold), so the segment's own
      background/color never actually shows behind them -- they still take
@@ -149,69 +156,56 @@
   .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; }
   .pill-ghost-link { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
 
-  /* -------- Flux-style hero: big headline + two-card row + black steps band -------- */
-  .flux-hero { background: #fff; padding: 64px 0 0; }
-  .flux-hero .wrap { max-width: 1240px; }
-  .flux-hero .wrap { text-align: center; }
-  .flux-hero .hero-actions { justify-content: center; }
-  .flux-hero-eyebrow { font-size: 11.5px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 20px; }
-  .flux-hero h1 { font-size: clamp(2.29rem, 4.93vw, 4.05rem); line-height: 1.02; letter-spacing: -0.035em; color: var(--ink); margin: 0 auto 24px; max-width: 20ch; }
-  .flux-hero h1 .hl { color: var(--hero-amber); }
-  .flux-hero-sub { font-size: 15px; color: var(--ink-soft); max-width: 62ch; line-height: 1.6; margin: 0 auto 40px; }
-  .flux-card-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; margin-bottom: 64px; }
+  /* -------- Flux-style two-card row (unchanged, still sits below the hero) -------- */
+  .flux-hero { background: #fff; padding: 56px 0 0; }
+  .flux-card-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; margin: 0 0 64px; }
   @media (max-width: 900px) { .flux-card-row { grid-template-columns: 1fr; } }
 
-  /* -------- Prismatic hero: a wide-margin, edge-to-edge hero on a sharp
-     white ground. Two animated layers, both cursor-reactive: a big soft
-     CSS "ribbon" blob (conic-gradient, blurred, parallaxed by pointermove
-     via --ribbon-x/--ribbon-y) sitting behind a <canvas> aurora of ~40
-     overlapping bezier strands redrawn every frame. See the script near
-     the end of body for both. -------- */
-  .prism-hero { position: relative; isolation: isolate; overflow: hidden; min-height: 86vh; display: flex; align-items: flex-end; padding: clamp(24px, 4vw, 72px); background: #fff; }
+  /* -------- Prism hero: wide-margin, full-bleed hero with a cursor-aware
+     aurora behind a bottom-anchored headline. Two layers build the aurora:
+     .prism-ribbon is a single huge blurred conic-gradient blob (CSS only,
+     a slow ambient float via @keyframes plus a pointer-driven parallax
+     offset written to --ribbon-x/y in JS); #aurora-strands is a <canvas>
+     of ~40 flowing bezier "strands" redrawn every frame, blended with
+     screen compositing so overlaps brighten instead of muddying. Adapted
+     from a reference "Prismatic Hero" the user supplied, restyled to
+     Aretia's palette (gold/pink/violet/blue/cyan, echoing --brand) with
+     Aretia's own copy -- see the script near the end of body. -------- */
+  .prism-hero { position: relative; isolation: isolate; background: #fff; min-height: min(860px, 92svh); padding: clamp(24px, 4vw, 72px); display: flex; align-items: flex-end; }
+  /* .prism-stage is what actually clips the oversized ribbon/canvas -- it's
+     a child of .prism-hero, NOT an ancestor of <nav>, specifically so the
+     sticky navbar's own stacking/clipping is never touched by this. It
+     starts `--nav-h` above the hero's own top edge (a value the script
+     measures from the real navbar and writes onto :root) so the aurora
+     paints behind the navbar's whole height too -- the navbar itself has
+     no background of its own, so it just floats on top of the aurora. */
+  .prism-stage { position: absolute; left: 0; right: 0; bottom: 0; top: calc(-1 * var(--nav-h, 78px)); overflow: hidden; z-index: -1; pointer-events: none; }
   .prism-ribbon {
-    position: absolute; z-index: -1; top: -48vmax; right: -11vmax; width: 76vmax; height: 94vmax;
+    position: absolute; top: -46vmax; right: -14vmax; width: 74vmax; height: 90vmax;
     border-radius: 48% 52% 44% 56% / 38% 48% 52% 62%;
-    transform: rotate(27deg) translate3d(var(--ribbon-x, 0), var(--ribbon-y, 0), 0);
-    transform-origin: center;
-    background: conic-gradient(from 205deg at 43% 49%, #ffb385, #ff617b 8%, #ef57d3 20%, #a06cff 37%, #69aaff 51%, #9beaf4 61%, #e9fbff 70%, #ffb385 82%);
-    filter: saturate(128%) contrast(105%);
-    transition: transform 950ms var(--ease);
-    animation: prism-float 12s ease-in-out infinite alternate;
-    box-shadow: inset -6vmax 0 8vmax rgba(255,255,255,.3), inset 5vmax 0 8vmax rgba(45,22,170,.16);
+    transform: rotate(23deg) translate3d(var(--ribbon-x, 0), var(--ribbon-y, 0), 0);
+    background: conic-gradient(from 205deg at 43% 49%, #ffd08a, #ff8fb0 10%, #e864dd 24%, #9b6bff 42%, #6fa8ff 58%, #7EE7F0 70%, #eafcff 82%, #ffd08a 100%);
+    filter: saturate(122%);
+    transition: transform 950ms cubic-bezier(0.23, 1, 0.32, 1);
+    animation: prism-float 13s ease-in-out infinite alternate;
   }
-  .prism-ribbon::before, .prism-ribbon::after { content: ""; position: absolute; border-radius: inherit; }
-  .prism-ribbon::before {
-    inset: 9%;
-    background: repeating-linear-gradient(98deg, transparent 0 2px, rgba(255,255,255,.44) 3px 4px, transparent 6px 11px),
-                linear-gradient(112deg, transparent 22%, rgba(255,255,255,.65) 44%, transparent 58%);
-    mix-blend-mode: screen; opacity: .73; animation: prism-shimmer 8s ease-in-out infinite alternate;
-  }
-  .prism-ribbon::after {
-    inset: 17%;
-    background: radial-gradient(ellipse at 18% 67%, rgba(255,238,197,.88), transparent 27%),
-                radial-gradient(ellipse at 74% 35%, rgba(129,240,255,.7), transparent 25%);
-    filter: blur(24px); opacity: .75; animation: prism-glow 10s ease-in-out infinite alternate;
-  }
-  .prism-grain { pointer-events: none; position: absolute; inset: 0; z-index: -1; opacity: .1; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
-  #prism-aurora { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .prism-copy { position: relative; max-width: 1080px; padding-bottom: clamp(8px, 2vh, 24px); }
-  .prism-eyebrow { margin: 0 0 20px; color: var(--ink-soft); font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-  .prism-hero h1 { max-width: 15ch; margin: 0 0 28px; font-size: clamp(2.6rem, 6vw, 5.6rem); line-height: 0.98; letter-spacing: -0.035em; font-weight: 800; color: var(--ink); }
-  .prism { background: linear-gradient(100deg, #1c2939 0%, #576b85 26%, #7e48f2 58%, #ec55ca 96%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .prism-copy .flux-hero-sub { text-align: left; margin: 0 0 36px; max-width: 50ch; }
-  .prism-copy .hero-actions { justify-content: flex-start; }
-  .prism-footer-tag { position: absolute; right: clamp(24px, 4vw, 72px); bottom: clamp(24px, 4vw, 48px); display: flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 12.5px; font-weight: 600; }
-  .prism-footer-tag .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 5.5px rgba(25,8,128,.13); }
-  @keyframes prism-float { from { margin-top: 0; rotate: 0deg; } to { margin-top: 2.7vmax; rotate: -2deg; } }
-  @keyframes prism-shimmer { from { transform: translateX(-2%) scale(1); opacity: .45; } to { transform: translateX(5%) scale(1.06); opacity: .9; } }
-  @keyframes prism-glow { from { transform: translate(-3%, 2%) scale(.9); } to { transform: translate(6%, -4%) scale(1.12); } }
+  .prism-grain { pointer-events: none; position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
+  #aurora-strands { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  @keyframes prism-float { from { margin-top: 0; rotate: 0deg; } to { margin-top: 2.4vmax; rotate: -2deg; } }
+  @media (prefers-reduced-motion: reduce) { .prism-ribbon { animation: none; transition: none; } }
+
+  .prism-copy { position: relative; z-index: 1; max-width: 680px; padding-bottom: clamp(8px, 6vh, 32px); }
+  .prism-eyebrow { margin: 0 0 20px; color: var(--ink-soft); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+  .prism-copy h1 { max-width: 12ch; margin: 0 0 28px; font-size: clamp(3.2rem, 8vw, 6.8rem); line-height: 0.95; letter-spacing: -0.04em; font-weight: 800; color: var(--ink); }
+  .prism-copy h1 .prism { background: linear-gradient(100deg, var(--brand) 0%, #7e48f2 40%, #ec55ca 82%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .prism-sub { position: relative; z-index: 1; font-size: 15px; color: var(--ink-soft); max-width: 52ch; line-height: 1.6; margin: 0 0 36px; }
+  .prism-actions { position: relative; z-index: 1; }
   @media (max-width: 700px) {
-    .prism-hero { align-items: center; min-height: 46rem; }
+    .prism-hero { flex-direction: column; align-items: flex-start; justify-content: center; min-height: 46rem; }
     .prism-ribbon { top: -25vmax; right: -38vmax; width: 85vmax; height: 102vmax; }
     .prism-copy { padding-bottom: 0; }
-    .prism-footer-tag { bottom: 20px; left: clamp(24px, 4vw, 72px); right: auto; }
   }
-  @media (prefers-reduced-motion: reduce) { .prism-ribbon { animation: none; transition: none; } }
+
   .flux-card { border-radius: 24px; padding: 40px 40px 32px; display: flex; flex-direction: column; min-height: 320px; }
   .flux-card-head { display: flex; align-items: center; gap: 12px; font-size: 19.5px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 28px; }
   .flux-card-head .flux-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex: none; }
@@ -670,6 +664,13 @@
             </svg>
             <a href="marketplace" class="gooey-nav-label">Capital Marketplace</a>
           </li>
+          <li class="gooey-nav-item" data-index="7">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-7" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-7)"/>
+            </svg>
+            <button type="button" class="gooey-nav-label gooey-nav-btn js-open-trade">Trade ACT</button>
+          </li>
         </ul>
       </nav>
     </div>
@@ -707,26 +708,28 @@
 
 <main>
 
-  <!-- ============ HERO (prismatic: cursor-aware aurora ribbon behind a bottom-aligned headline) ============ -->
-  <section class="flux-hero" id="hero">
-    <div class="prism-hero" id="prism-hero">
-      <div class="prism-ribbon" aria-hidden="true"></div>
-      <canvas id="prism-aurora" aria-hidden="true"></canvas>
-      <div class="prism-grain" aria-hidden="true"></div>
-      <div class="prism-copy">
-        <p class="prism-eyebrow">Live on Solana · Built to be checked, not trusted.</p>
-        <h1>Finance that funds <span class="prism">progress,</span><br>not promises.</h1>
-        <p class="flux-hero-sub">Every ACT trade automatically funds real climate projects -- but the money only moves once someone independent confirms the work actually happened.</p>
-        <div class="hero-actions" style="margin-bottom:0;">
-          <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
-          <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
-        </div>
-        <div class="hero-actions" style="margin-top:18px;">
-          <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
-        </div>
-      </div>
-      <div class="prism-footer-tag"><span class="dot"></span>Live on Solana mainnet</div>
+  <!-- ============ HERO (prism: wide-margin aurora hero, bottom-anchored headline) ============ -->
+  <section class="prism-hero" id="hero">
+    <div class="prism-stage" aria-hidden="true">
+      <div class="prism-ribbon"></div>
+      <div class="prism-grain"></div>
+      <canvas id="aurora-strands"></canvas>
     </div>
+    <div class="prism-copy">
+      <p class="prism-eyebrow">Live on Solana · Now funding verified climate work</p>
+      <h1>Put climate capital <span class="prism">on-chain.</span></h1>
+      <p class="prism-sub">A blockchain-powered financial ecosystem connecting capital, climate projects, verified impact, and the people funding the transition -- designed so every ACT trade automatically funds real climate projects.</p>
+      <div class="hero-actions prism-actions" style="margin-bottom:0;">
+        <button type="button" class="pill-btn pill-black js-open-trade">Trade ACT</button>
+        <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
+      </div>
+      <div class="hero-actions prism-actions" style="margin-top:18px;">
+        <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="flux-hero">
     <div class="wrap">
       <div class="flux-card-row">
         <div class="flux-card flux-card-purple">
@@ -1735,96 +1738,134 @@
 })();
 </script>
 <script>
-// Prismatic hero background: two cursor-aware animated layers, no libraries.
-// (1) .prism-ribbon is a plain CSS blob (conic-gradient + border-radius),
-// parallaxed by --ribbon-x/--ribbon-y on pointermove -- pure CSS, no canvas.
-// (2) #prism-aurora is a <canvas> of ~40 overlapping bezier strands redrawn
-// every frame: two blurred, additively-blended passes fuse them into a
-// silky field, then a third sharp pass draws each strand's core so the
-// motion still reads as individual threads up close. Strand position bends
-// slightly toward the pointer; everything freezes on prefers-reduced-motion.
+// Prism hero background: two layers, no libraries. (1) .prism-ribbon is a
+// single huge blurred conic-gradient blob, purely CSS -- this script only
+// writes a small pointer-driven parallax offset to --ribbon-x/y (gated
+// behind prefers-reduced-motion, and off entirely on touch since there's
+// no hover to drive it). (2) #aurora-strands is a <canvas> of ~40 flowing
+// bezier "strands" redrawn every frame: two blurred passes fuse them into
+// a soft luminous field, then a third crisp pass draws bright hairlines on
+// top so the aurora still reads as individual strands up close, not just
+// a blob. Composited with "screen" so overlapping strands brighten instead
+// of muddying, matching how real aurora light behaves.
 (function () {
-  var hero = document.getElementById("prism-hero");
-  var canvas = document.getElementById("prism-aurora");
-  if (!hero || !canvas) return;
+  var hero = document.getElementById("hero");
+  var navEl = document.querySelector(".topnav");
+  if (!hero) return;
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var canHover = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  // The aurora's clipping box (.prism-stage) starts this many px above the
+  // hero's own top edge so it reaches up behind the navbar too -- measured
+  // from the real navbar rather than hardcoded, since its height changes
+  // at the 480px breakpoint.
+  var navH = 78;
+  function measureNav() {
+    if (navEl) navH = navEl.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--nav-h", navH + "px");
+  }
+  measureNav();
+  window.addEventListener("resize", measureNav);
+
+  if (!reduced && canHover) {
+    hero.addEventListener("pointermove", function (e) {
+      var x = (e.clientX / window.innerWidth - 0.5) * 22;
+      var y = (e.clientY / window.innerHeight - 0.5) * 16;
+      hero.style.setProperty("--ribbon-x", x + "px");
+      hero.style.setProperty("--ribbon-y", y + "px");
+    });
+    hero.addEventListener("pointerleave", function () {
+      hero.style.setProperty("--ribbon-x", "0px");
+      hero.style.setProperty("--ribbon-y", "0px");
+    });
+  }
+
+  var canvas = document.getElementById("aurora-strands");
+  if (!canvas) return;
   var ctx = canvas.getContext("2d");
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
-
-  hero.addEventListener("pointermove", function (event) {
-    if (reduceMotion.matches) return;
-    var x = (event.clientX / window.innerWidth - 0.5) * 22;
-    var y = (event.clientY / window.innerHeight - 0.5) * 16;
-    hero.style.setProperty("--ribbon-x", x + "px");
-    hero.style.setProperty("--ribbon-y", y + "px");
-  });
-  hero.addEventListener("pointerleave", function () {
-    hero.style.setProperty("--ribbon-x", "0px");
-    hero.style.setProperty("--ribbon-y", "0px");
-  });
-
-  var width = 0, height = 0, mouseX = 0.5, mouseY = 0.5;
-  var palette = ["#ff6b9d", "#f54ee8", "#a46cff", "#6689ff", "#4fd5f0", "#b7f8ff"];
-  function mix(a, b, n) { return a + (b - a) * n; }
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var w = 0, h = 0;
+  var mouseX = 0.5, mouseY = 0.5;
+  var PALETTE = ["#ffb385", "#ff6b9d", "#e864dd", "#9b6bff", "#6fa8ff", "#7ee7f0"];
+  var COUNT = 36;
 
   function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    width = hero.clientWidth;
-    height = hero.clientHeight;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var rect = hero.getBoundingClientRect();
+    w = rect.width;
+    h = rect.height;
+    // The canvas itself covers .prism-stage's taller box (hero height plus
+    // the navH strip above it); drawing still happens in hero-relative
+    // coordinates via the ctx.translate(0, navH) in draw() below, so all
+    // the proportions in pathFor() (based on hero's own w/h) stay correct.
+    canvas.width = Math.round(w * DPR);
+    canvas.height = Math.round((h + navH) * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  if (!reduced && canHover) {
+    hero.addEventListener("pointermove", function (e) {
+      var rect = hero.getBoundingClientRect();
+      mouseX = (e.clientX - rect.left) / w;
+      mouseY = (e.clientY - rect.top) / h;
+    });
   }
 
-  function pathFor(index, total, time) {
+  function pathFor(index, total, t) {
     var lane = index / (total - 1) - 0.5;
-    var sway = Math.sin(time * 0.00025 + index * 0.44) * 48;
-    var startX = width * (0.47 + lane * 0.42), startY = -height * 0.18;
-    var endX = width * (0.96 + lane * 0.38), endY = height * 1.1;
-    var bend = width * (0.50 + lane * 0.26) + (mouseX - 0.5) * 95;
-    var lift = height * (0.24 + Math.sin(time * 0.00033 + index) * 0.07) + (mouseY - 0.5) * 55;
+    var sway = Math.sin(t * 0.00025 + index * 0.44) * 48;
+    var startX = w * (0.6 + lane * 0.42), startY = -h * 0.15;
+    var endX = w * (1.05 + lane * 0.3), endY = h * 1.05;
+    var bend = w * (0.72 + lane * 0.24) + (mouseX - 0.5) * 90;
+    var lift = h * (0.32 + Math.sin(t * 0.00033 + index) * 0.07) + (mouseY - 0.5) * 50;
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(bend + sway, lift, bend - sway, height * 0.71, endX, endY);
+    ctx.bezierCurveTo(bend + sway, lift, bend - sway, h * 0.78, endX, endY);
   }
 
-  function draw(time) {
-    ctx.clearRect(0, 0, width, height);
-    var count = 42;
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h + navH);
+    ctx.save();
+    ctx.translate(0, navH);
+
     for (var pass = 0; pass < 2; pass++) {
       ctx.globalCompositeOperation = pass ? "screen" : "source-over";
-      ctx.filter = pass ? "blur(24px)" : "blur(8px)";
-      for (var i = 0; i < count; i++) {
-        ctx.strokeStyle = palette[(i + 3) % palette.length];
-        ctx.globalAlpha = pass ? 0.12 : 0.17;
-        ctx.lineWidth = pass ? 68 : 34;
-        pathFor(i, count, time);
+      ctx.filter = pass ? "blur(26px)" : "blur(9px)";
+      for (var i = 0; i < COUNT; i++) {
+        ctx.strokeStyle = PALETTE[(i + 3) % PALETTE.length];
+        ctx.globalAlpha = pass ? 0.11 : 0.15;
+        ctx.lineWidth = pass ? 62 : 30;
+        pathFor(i, COUNT, t);
         ctx.stroke();
       }
     }
+
     ctx.filter = "none";
     ctx.globalCompositeOperation = "screen";
-    for (var j = 0; j < count; j++) {
-      var hue = mix(316, 192, j / (count - 1));
-      ctx.strokeStyle = "hsla(" + hue + ", 94%, " + mix(67, 78, j / (count - 1)) + "%, .7)";
-      ctx.globalAlpha = 0.72;
-      ctx.lineWidth = 1.4 + (j % 6) * 0.8;
-      pathFor(j, count, time);
+    for (var j = 0; j < COUNT; j++) {
+      var hue = 330 - (330 - 195) * (j / (COUNT - 1));
+      ctx.strokeStyle = "hsla(" + hue + ", 92%, " + (66 + (j / (COUNT - 1)) * 12) + "%, .7)";
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = 1.2 + (j % 6) * 0.7;
+      pathFor(j, COUNT, t);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
-    if (!reduceMotion.matches) requestAnimationFrame(draw);
+    ctx.restore();
   }
 
-  hero.addEventListener("pointermove", function (event) {
-    var rect = hero.getBoundingClientRect();
-    mouseX = (event.clientX - rect.left) / width;
-    mouseY = (event.clientY - rect.top) / height;
-  });
+  if (reduced) {
+    draw(0);
+    return;
+  }
 
-  window.addEventListener("resize", resize);
-  resize();
-  requestAnimationFrame(draw);
+  function frame(now) {
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();
 </script>
 <script>

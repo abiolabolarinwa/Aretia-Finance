@@ -191,7 +191,9 @@
   }
   .prism-grain { pointer-events: none; position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
   #aurora-strands { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  @keyframes prism-float { from { margin-top: 0; rotate: 0deg; } to { margin-top: 2.4vmax; rotate: -2deg; } }
+  /* translate (not margin-top) -- margin animates layout every frame for
+     13s on loop on a huge element; translate/rotate are compositor-only. */
+  @keyframes prism-float { from { translate: 0 0; rotate: 0deg; } to { translate: 0 2.4vmax; rotate: -2deg; } }
   @media (prefers-reduced-motion: reduce) { .prism-ribbon { animation: none; transition: none; } }
 
   .prism-copy { position: relative; z-index: 1; max-width: 680px; padding-bottom: clamp(8px, 6vh, 32px); }
@@ -1783,6 +1785,16 @@
   var canvas = document.getElementById("aurora-strands");
   if (!canvas) return;
   var ctx = canvas.getContext("2d");
+  // ctx.filter re-rasterizes the blur over the WHOLE canvas on every single
+  // draw call it wraps -- the original version set it once per pass but
+  // then called ctx.stroke() 36 times inside that pass, which is 36 full-
+  // canvas blurs, not one (72/frame across both passes). That's what made
+  // this feel heavy (found by profiling frame time, not assumed). Fix:
+  // draw all 36 strands unblurred onto an offscreen buffer, then blur that
+  // buffer exactly once per pass with a single drawImage -- 2 blurs/frame
+  // instead of 72, ~36x less blur work for the same look.
+  var off = document.createElement("canvas");
+  var offCtx = off.getContext("2d");
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
   var w = 0, h = 0;
   var mouseX = 0.5, mouseY = 0.5;
@@ -1799,7 +1811,10 @@
     // the proportions in pathFor() (based on hero's own w/h) stay correct.
     canvas.width = Math.round(w * DPR);
     canvas.height = Math.round((h + navH) * DPR);
+    off.width = canvas.width;
+    off.height = canvas.height;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    offCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
   resize();
   window.addEventListener("resize", resize);
@@ -1812,43 +1827,56 @@
     });
   }
 
-  function pathFor(index, total, t) {
+  function pathFor(c, index, total, t) {
     var lane = index / (total - 1) - 0.5;
     var sway = Math.sin(t * 0.00025 + index * 0.44) * 48;
     var startX = w * (0.6 + lane * 0.42), startY = -h * 0.15;
     var endX = w * (1.05 + lane * 0.3), endY = h * 1.05;
     var bend = w * (0.72 + lane * 0.24) + (mouseX - 0.5) * 90;
     var lift = h * (0.32 + Math.sin(t * 0.00033 + index) * 0.07) + (mouseY - 0.5) * 50;
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(bend + sway, lift, bend - sway, h * 0.78, endX, endY);
+    c.beginPath();
+    c.moveTo(startX, startY);
+    c.bezierCurveTo(bend + sway, lift, bend - sway, h * 0.78, endX, endY);
   }
 
   function draw(t) {
     ctx.clearRect(0, 0, w, h + navH);
-    ctx.save();
-    ctx.translate(0, navH);
 
     for (var pass = 0; pass < 2; pass++) {
-      ctx.globalCompositeOperation = pass ? "screen" : "source-over";
-      ctx.filter = pass ? "blur(26px)" : "blur(9px)";
+      offCtx.clearRect(0, 0, w, h + navH);
+      offCtx.save();
+      offCtx.translate(0, navH);
+      offCtx.globalAlpha = pass ? 0.11 : 0.15;
+      offCtx.lineWidth = pass ? 62 : 30;
       for (var i = 0; i < COUNT; i++) {
-        ctx.strokeStyle = PALETTE[(i + 3) % PALETTE.length];
-        ctx.globalAlpha = pass ? 0.11 : 0.15;
-        ctx.lineWidth = pass ? 62 : 30;
-        pathFor(i, COUNT, t);
-        ctx.stroke();
+        offCtx.strokeStyle = PALETTE[(i + 3) % PALETTE.length];
+        pathFor(offCtx, i, COUNT, t);
+        offCtx.stroke();
       }
+      offCtx.restore();
+
+      // Draw the already-rasterized buffer with identity transform (off's
+      // pixel size already matches canvas's device pixels 1:1), so the
+      // blur radius needs to be scaled by DPR to look the same size as
+      // it did when the old code blurred under a DPR-scaled transform.
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = pass ? "screen" : "source-over";
+      ctx.filter = "blur(" + (pass ? 26 : 9) * DPR + "px)";
+      ctx.drawImage(off, 0, 0);
+      ctx.restore();
     }
 
     ctx.filter = "none";
     ctx.globalCompositeOperation = "screen";
+    ctx.save();
+    ctx.translate(0, navH);
     for (var j = 0; j < COUNT; j++) {
       var hue = 330 - (330 - 195) * (j / (COUNT - 1));
       ctx.strokeStyle = "hsla(" + hue + ", 92%, " + (66 + (j / (COUNT - 1)) * 12) + "%, .7)";
       ctx.globalAlpha = 0.6;
       ctx.lineWidth = 1.2 + (j % 6) * 0.7;
-      pathFor(j, COUNT, t);
+      pathFor(ctx, j, COUNT, t);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;

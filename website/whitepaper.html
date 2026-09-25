@@ -93,19 +93,33 @@
   .dhero-badge .chk { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10.5px; flex: none; }
   @media (max-width: 480px) { .dhero-visual { min-height: 220px; } .dhero-visual img { min-height: 220px; } }
 
-  /* -------- Contents card -------- */
-  .toc-section { padding-top: 56px; }
-  .toc-card { background: var(--surface); border-radius: var(--r-md); padding: 32px 36px; max-width: 760px; margin: 0 auto; }
-  .toc-card .kicker { font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
-  .paper-toc { columns: 2; column-gap: 32px; margin: 0; padding: 0; list-style: none; }
-  .paper-toc li { break-inside: avoid; margin-bottom: 12px; font-size: 12.5px; }
-  .paper-toc li a { color: var(--ink-soft); font-weight: 500; transition: color 160ms var(--ease); }
-  .paper-toc li a:hover { color: var(--brand); }
-  .paper-toc li .n { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-right: 6px; }
-  @media (max-width: 560px) { .paper-toc { columns: 1; } }
+  /* -------- Whitepaper layout: sticky hook-sidebar + prose -------- */
+  .paper-section { padding-top: 56px; }
+  .paper-layout { display: grid; grid-template-columns: 230px minmax(0, 720px); gap: 56px; justify-content: center; align-items: start; }
+  @media (max-width: 980px) { .paper-layout { display: block; } .paper-nav { display: none; } }
+
+  .paper-nav { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto; padding: 4px 8px 24px 0; }
+  .paper-nav-kicker { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; padding-left: 20px; }
+  .paper-nav-list { position: relative; display: flex; flex-direction: column; gap: 1px; }
+  .paper-nav-item { position: relative; display: block; padding: 6px 8px 6px 20px; border-radius: 8px; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--ink-faint); transition: color 200ms var(--ease); }
+  .paper-nav-item:hover { color: var(--ink-soft); }
+  .paper-nav-item.is-active { color: var(--ink); font-weight: 700; }
+  .paper-nav-item .n { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-right: 5px; }
+
+  /* The "hook" rail: a dashed vertical line that runs down to the active/hovered item, then curves right into it -- two independent rails (accent = actually active section, faint = pointer hover) that slide via top/height transitions rather than being redrawn. */
+  .paper-nav-rail { position: absolute; inset: 0; pointer-events: none; }
+  .rail { position: absolute; inset: 0; opacity: 0; transition: opacity 180ms var(--ease); }
+  .rail.is-visible { opacity: 1; }
+  .rail-hover { color: var(--ink-faint); }
+  .rail-hover.is-visible { opacity: 0.55; }
+  .rail-active { color: var(--brand); }
+  .rail-line { position: absolute; left: 2px; top: 0; width: 1px; height: 0; background-image: repeating-linear-gradient(to top, transparent 0 2px, currentColor 2px 4px); transition: top 380ms cubic-bezier(0.34, 1.56, 0.4, 1), height 380ms cubic-bezier(0.34, 1.56, 0.4, 1); }
+  .rail-corner { position: absolute; left: 2px; top: 0; transition: top 380ms cubic-bezier(0.34, 1.56, 0.4, 1); }
+  @media (prefers-reduced-motion: reduce) { .rail-line, .rail-corner { transition: none; } }
 
   /* -------- Paper prose -------- */
   .paper-sheet { max-width: 720px; margin: 0 auto; }
+  @media (min-width: 981px) { .paper-sheet { margin: 0; } }
   .paper-sheet h2 { font-size: 1.55rem; margin: 52px 0 16px; padding-bottom: 12px; border-bottom: 2px solid var(--brand-soft); color: var(--ink); }
   .paper-sheet > .paper-sheet-block:first-child h2 { margin-top: 0; }
   .paper-sheet h3 { font-size: 1.08rem; margin: 26px 0 10px; color: var(--brand); }
@@ -194,33 +208,33 @@
     </div>
   </section>
 
-  <section class="block toc-section">
+  <section class="block alt paper-section">
     <div class="wrap">
-      <div class="toc-card">
-        <div class="kicker">Contents</div>
-        <ul class="paper-toc">
-          <li><a href="#in-short">In short</a></li>
-          <li><span class="n">1</span><a href="#p1">The problem this is trying to solve</a></li>
-          <li><span class="n">2</span><a href="#p2">What Aretia does differently</a></li>
-          <li><span class="n">3</span><a href="#p3">The token: ACT</a></li>
-          <li><span class="n">4</span><a href="#p4">Who controls the money</a></li>
-          <li><span class="n">5</span><a href="#p5">How a project actually gets paid</a></li>
-          <li><span class="n">6</span><a href="#p6">Who decides which projects get funded</a></li>
-          <li><span class="n">7</span><a href="#p7">Getting involved: presale and staking</a></li>
-          <li><span class="n">8</span><a href="#p8">What's built today, and what's ahead</a></li>
-          <li><span class="n">9</span><a href="#p9">Being honest about the risks</a></li>
-          <li><span class="n">10</span><a href="#p10">Questions a friend would ask</a></li>
-          <li><span class="n">11</span><a href="#p11">The legal part, in plain terms</a></li>
-          <li><span class="n">12</span><a href="#p12">Don't take our word for it</a></li>
-          <li><a href="#closing">A closing note</a></li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section class="block alt">
-    <div class="wrap">
-      <div class="paper-sheet">
+      <div class="paper-layout">
+        <aside class="paper-nav" aria-label="Whitepaper sections">
+          <span class="paper-nav-kicker">Contents</span>
+          <div class="paper-nav-list">
+            <div class="paper-nav-rail" aria-hidden="true">
+              <span class="rail rail-hover"><span class="rail-line"></span><svg class="rail-corner" width="12" height="7" viewBox="0 0 12 7" fill="none"><path d="M0.5 0a6 6 0 0 0 6 6H12" stroke="currentColor" stroke-dasharray="2 2"/></svg></span>
+              <span class="rail rail-active"><span class="rail-line"></span><svg class="rail-corner" width="12" height="7" viewBox="0 0 12 7" fill="none"><path d="M0.5 0a6 6 0 0 0 6 6H12" stroke="currentColor" stroke-dasharray="2 2"/></svg></span>
+            </div>
+            <a class="paper-nav-item" data-target="in-short" href="#in-short">In short</a>
+            <a class="paper-nav-item" data-target="p1" href="#p1"><span class="n">1</span>The problem this is trying to solve</a>
+            <a class="paper-nav-item" data-target="p2" href="#p2"><span class="n">2</span>What Aretia does differently</a>
+            <a class="paper-nav-item" data-target="p3" href="#p3"><span class="n">3</span>The token: ACT</a>
+            <a class="paper-nav-item" data-target="p4" href="#p4"><span class="n">4</span>Who controls the money</a>
+            <a class="paper-nav-item" data-target="p5" href="#p5"><span class="n">5</span>How a project actually gets paid</a>
+            <a class="paper-nav-item" data-target="p6" href="#p6"><span class="n">6</span>Who decides which projects get funded</a>
+            <a class="paper-nav-item" data-target="p7" href="#p7"><span class="n">7</span>Getting involved: presale and staking</a>
+            <a class="paper-nav-item" data-target="p8" href="#p8"><span class="n">8</span>What's built today, and what's ahead</a>
+            <a class="paper-nav-item" data-target="p9" href="#p9"><span class="n">9</span>Being honest about the risks</a>
+            <a class="paper-nav-item" data-target="p10" href="#p10"><span class="n">10</span>Questions a friend would ask</a>
+            <a class="paper-nav-item" data-target="p11" href="#p11"><span class="n">11</span>The legal part, in plain terms</a>
+            <a class="paper-nav-item" data-target="p12" href="#p12"><span class="n">12</span>Don't take our word for it</a>
+            <a class="paper-nav-item" data-target="closing" href="#closing">A closing note</a>
+          </div>
+        </aside>
+        <div class="paper-sheet">
 
         <p class="byline"><strong>Aretia Finance</strong> &middot; A plain-language guide to how it works</p>
         <p class="url">aretiafinance.org</p>
@@ -409,6 +423,7 @@
           <p class="disclaimer">This document is preliminary and subject to change. It does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia has not been registered under the securities laws of any jurisdiction. Prospective holders should conduct their own research and consult independent advisors before making any decision related to ACT.</p>
         </div>
 
+        </div>
       </div>
     </div>
   </section>
@@ -472,6 +487,89 @@
       io.observe(el);
     });
   }
+})();
+</script>
+<script>
+// Hook-sidebar: sticky whitepaper nav with an animated accent rail that
+// tracks the current section (scroll) and, separately, whatever item the
+// pointer is over -- same two-rail idea as the React HookSidebar component
+// this was adapted from, rebuilt in plain JS since this site has no build
+// step/framework.
+(function () {
+  var nav = document.querySelector(".paper-nav");
+  if (!nav) return;
+
+  var items = Array.prototype.slice.call(nav.querySelectorAll(".paper-nav-item"));
+  var railActive = nav.querySelector(".rail-active");
+  var railHover = nav.querySelector(".rail-hover");
+  var activeLine = railActive.querySelector(".rail-line");
+  var activeCorner = railActive.querySelector(".rail-corner");
+  var hoverLine = railHover.querySelector(".rail-line");
+  var hoverCorner = railHover.querySelector(".rail-corner");
+  var CORNER = 6;
+
+  var centers = [];
+  function measure() {
+    centers = items.map(function (el) { return el.offsetTop + el.offsetHeight / 2; });
+  }
+
+  function setRail(lineEl, cornerEl, y, from) {
+    var top = Math.max(0, from);
+    lineEl.style.top = top + "px";
+    lineEl.style.height = Math.max(0, y - CORNER - top) + "px";
+    cornerEl.style.top = (y - CORNER) + "px";
+  }
+
+  var activeIndex = -1;
+  function setActive(index) {
+    if (index === activeIndex) return;
+    if (activeIndex >= 0) items[activeIndex].classList.remove("is-active");
+    activeIndex = index;
+    if (index >= 0 && centers[index] !== undefined) {
+      items[index].classList.add("is-active");
+      railActive.classList.add("is-visible");
+      setRail(activeLine, activeCorner, centers[index], 0);
+    } else {
+      railActive.classList.remove("is-visible");
+    }
+  }
+
+  items.forEach(function (item, index) {
+    item.addEventListener("mouseenter", function () {
+      if (centers[index] === undefined) return;
+      // Above the active row, the accent rail already covers that span --
+      // only draw the hover rail's own corner, not a redundant full line.
+      var activeY = activeIndex >= 0 ? centers[activeIndex] : null;
+      var from = activeY !== null && centers[index] <= activeY ? Math.max(0, centers[index] - CORNER) : 0;
+      railHover.classList.add("is-visible");
+      setRail(hoverLine, hoverCorner, centers[index], from);
+    });
+  });
+  nav.addEventListener("mouseleave", function () {
+    railHover.classList.remove("is-visible");
+  });
+
+  var sections = items
+    .map(function (item) { return document.getElementById(item.getAttribute("data-target")); })
+    .filter(Boolean);
+
+  function updateActiveFromScroll() {
+    var pos = window.scrollY + 140; // roughly where the sticky topnav ends
+    var current = 0;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].offsetTop <= pos) current = i;
+      else break;
+    }
+    setActive(current);
+  }
+
+  measure();
+  updateActiveFromScroll();
+  window.addEventListener("scroll", updateActiveFromScroll, { passive: true });
+  window.addEventListener("resize", function () {
+    measure();
+    updateActiveFromScroll();
+  });
 })();
 </script>
 </body>

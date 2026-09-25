@@ -85,9 +85,9 @@
      a CSS transition can do. -------- */
   .gooey-nav { flex: 1; display: flex; justify-content: center; min-width: 0; }
   .gooey-nav-list { position: relative; display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
-  .gooey-nav-item { position: relative; display: flex; align-items: center; background: var(--border-soft); transition: background-color 260ms var(--ease); }
+  .gooey-nav-item { position: relative; display: flex; align-items: center; background: var(--brand); transition: background-color 260ms var(--ease); }
   .gooey-nav-item.is-active { background: #fff; }
-  .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); transition: color 260ms var(--ease); }
+  .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: #fff; transition: color 260ms var(--ease); }
   .gooey-nav-item.is-active .gooey-nav-label { color: var(--brand); }
   /* Connect Wallet / Presale / Apply for Funding: each already renders its
      own fully-opaque pill (white or gold), so the segment's own
@@ -153,7 +153,7 @@
      against that white segment background (found by actually hovering it,
      not assumed). */
   .topnav-dark .gooey-nav-item .aw-connect-btn {
-    background: transparent; border: none; color: var(--ink-soft);
+    background: transparent; border: none; color: #fff;
     padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; border-radius: 0;
   }
   .topnav-dark .gooey-nav-item .aw-connect-btn:hover { background: transparent; border: none; }
@@ -1735,7 +1735,7 @@
   var NECK_BREAK = 0.22; // the neck has pinched fully shut by the time the gap is this fraction open
   var SPRING = { stiffness: 200, damping: 28, mass: 1 };
   var ACTIVE_COLOR = "#ffffff";
-  var BAR_COLOR = "#EFEFF3"; // matches --border-soft, the resting segment background
+  var BAR_COLOR = "#190880"; // matches --brand, the resting segment background
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var items = Array.prototype.slice.call(nav.querySelectorAll(".gooey-nav-item"));

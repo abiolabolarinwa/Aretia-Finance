@@ -483,6 +483,12 @@
     }, { threshold: 0.12, rootMargin: "0px 0px -60px 0px" });
     targets.forEach(function(el, i){
       if (i === 0) return; // don't hide the first section (hero) on load
+      // The whitepaper body is a single, very long (8000px+) block -- fading
+      // in a section that tall on scroll risks a stuck/blank paint on some
+      // browsers (reported: page renders blank below the hero). Simplest
+      // fix: never hide it in the first place, rather than debug exactly
+      // which browser/GPU combination mishandles the animated layer.
+      if (el.classList.contains("paper-section")) return;
       el.classList.add("reveal");
       io.observe(el);
     });

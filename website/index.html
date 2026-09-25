@@ -98,20 +98,32 @@
   .gooey-nav-item-inset { padding: 0 5px; }
   .gooey-neck { position: absolute; top: 0; right: 100%; height: 100%; width: 20px; pointer-events: none; }
   /* Below 1120px only the plain nav-LINKS disappear (same breakpoint the
-     old .nav-links used) -- Connect Wallet, Presale, and Apply for Funding
-     stay visible and usable, just as plain buttons again rather than gooey
-     segments (there's no room for the liquid-pill effect at this width,
-     but hiding the whole .gooey-nav would wrongly take those three
-     actions away on mobile, since they're real actions, not decoration). */
+     old .nav-links used) -- Connect Wallet, Presale, Apply for Funding, and
+     Capital Marketplace stay visible and usable, just as plain buttons
+     again rather than gooey segments (there's no room for the liquid-pill
+     effect at this width, but hiding the whole .gooey-nav would wrongly
+     take those actions away on mobile, since they're real actions, not
+     decoration). They wrap onto a second line rather than overflow --
+     Capital Marketplace in particular used to get its own row below the
+     pill in the pre-gooey layout, and going off-screen unreachable instead
+     would be a real regression, not just a cosmetic one. */
   @media (max-width: 1120px) {
     /* Without this, .gooey-nav's own justify-content:center (meant for
-       centering the full 7-item track on desktop) centers the now-much-
-       narrower 3-item content inside the WIDER flex-basis space it still
-       reserves as flex:1 -- found by actually inspecting it, not assumed:
-       the oversized centered box bled out both sides, overlapping the
-       brand on the left and clipping off the viewport on the right. */
-    .gooey-nav { flex: none; justify-content: flex-start; }
-    .gooey-nav-list { gap: 8px; }
+       centering the full 8-item track on desktop) centers the now-much-
+       narrower row of plain buttons inside the WIDER flex-basis space it
+       still reserves as flex:1 -- found by actually inspecting it, not
+       assumed: the oversized centered box bled out both sides, overlapping
+       the brand on the left and clipping off the viewport on the right. */
+    /* Letting the actions wrap INLINE next to the brand (same row) put the
+       brand's own align-items:center smack in the middle of a 3-line
+       stack, since flexbox centers each item vertically by its own height
+       -- found by actually looking at it, not assumed. Simplest fix: give
+       the brand its own row, and let the actions wrap as a block below it,
+       same shape the old pre-gooey mobile layout had (brand row, then
+       action buttons). */
+    .topnav-inner { flex-wrap: wrap; row-gap: 8px; }
+    .gooey-nav { flex: 0 0 100%; justify-content: flex-start; order: 2; }
+    .gooey-nav-list { flex-wrap: wrap; row-gap: 8px; gap: 8px; min-width: 0; }
     .gooey-nav-item:not(.gooey-nav-item-inset) { display: none; }
     .gooey-nav-item.gooey-nav-item-inset {
       background: transparent !important;
@@ -539,16 +551,13 @@
     .presale-golden-badge { font-size: 9.5px; padding: 6px 10px; }
   }
 
-  /* ============ MARKETPLACE NAV BUTTON (outside the pill) ============ */
-  .topnav-outer { max-width: 1360px; display: flex; align-items: center; gap: 18px; }
-  .topnav-outer .topnav-inner { flex: 1; min-width: 0; }
-  .marketplace-btn { flex: none; border: 1.5px solid var(--brand); color: var(--brand); background: #fff; }
+  /* ============ Capital Marketplace: now a gooey segment, not a
+     separate button outside the pill -- .topnav-outer is kept only
+     because .wrap already centers/constrains it; it no longer needs to
+     arrange two side-by-side elements. ============ */
+  .topnav-outer { max-width: 1360px; }
+  .marketplace-btn { border: 1.5px solid var(--brand); color: var(--brand); background: #fff; }
   .marketplace-btn:hover { background: var(--bg-alt); }
-  @media (max-width: 900px) {
-    .topnav-outer { flex-wrap: wrap; justify-content: center; }
-    .topnav-outer .topnav-inner { flex: none; width: 100%; }
-    .marketplace-btn { order: 2; }
-  }
   @media (max-width: 480px) {
     .marketplace-btn { padding: 10px 14px; font-size: 11px; }
   }
@@ -624,10 +633,16 @@
             </svg>
             <a class="pill-btn pill-black" href="apply">Apply for Funding</a>
           </li>
+          <li class="gooey-nav-item gooey-nav-item-inset" data-index="7">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-7" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-7)"/>
+            </svg>
+            <a class="pill-btn marketplace-btn" href="marketplace">Capital Marketplace</a>
+          </li>
         </ul>
       </nav>
     </div>
-    <a class="pill-btn marketplace-btn" href="marketplace">Capital Marketplace</a>
   </div>
 </nav>
 

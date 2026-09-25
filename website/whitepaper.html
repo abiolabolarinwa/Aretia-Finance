@@ -49,34 +49,92 @@
   @media (max-width: 860px) { section.block { padding: 48px 0; } }
   section.block.alt { background: var(--bg-alt); }
 
+  /* -------- Nav -------- */
   .topnav { border-bottom: 1px solid var(--border-soft); background: rgba(255,255,255,0.9); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); position: sticky; top: 0; z-index: 60; }
   .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; }
-  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17.5px; color: var(--ink); flex: none; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17.5px; color: var(--ink); }
   .brand-word { display: flex; flex-direction: column; line-height: 1; font-family: "Playfair Display", Georgia, serif; }
   .brand-word .bw-1 { font-size: 1em; font-weight: 700; letter-spacing: -0.01em; }
   .brand-word .bw-2 { font-size: 0.56em; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.72; margin-top: 3px; }
+  @media (max-width: 480px) { .brand { font-size: 14px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-inner { gap: 6px; } .topnav-inner > .pill-btn, .topnav-inner .gooey-nav-item-inset .pill-btn { padding: 10px 14px; font-size: 11px; } }
   .brand .mark { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .mark img { width: 100%; height: 100%; object-fit: cover; }
   .nav-links { display: flex; align-items: center; gap: 16px; flex: 1; justify-content: center; }
   .nav-links a { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; transition: color 160ms var(--ease); }
   .nav-links a:hover { color: var(--ink); }
-  .nav-links a.active { color: var(--ink); font-weight: 700; }
   @media (max-width: 1120px) { .nav-links { display: none; } }
 
+  /* -------- Gooey nav (landing page primary nav): a liquid pill that
+     detaches from the surrounding translucent track and "melts" over to
+     whichever item is active. The connecting blob (.gooey-neck) is a real
+     spring-integrated SVG path, driven frame-by-frame in JS alongside the
+     same spring value that moves the item's margin -- see the script near
+     the end of body. CSS here only sets the steady-state look; the motion
+     itself needs JS since animating an SVG path's shape isn't something
+     a CSS transition can do. -------- */
+  .gooey-nav { flex: 1; display: flex; justify-content: center; min-width: 0; }
+  .gooey-nav-list { position: relative; display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
+  .gooey-nav-item { position: relative; display: flex; align-items: center; background: var(--brand); transition: background-color 260ms var(--ease); }
+  .gooey-nav-item.is-active { background: #fff; }
+  .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: #fff; transition: color 260ms var(--ease); }
+  .gooey-nav-item.is-active .gooey-nav-label { color: var(--brand); }
+  /* Connect Wallet / Presale / Apply for Funding: each already renders its
+     own fully-opaque pill (white or gold), so the segment's own
+     background/color never actually shows behind them -- they still take
+     part in the same margin/gap/neck mechanic (the bar "breathes" open
+     around whichever one is hovered), just wrapped with a little breathing
+     room instead of merging edge-to-edge like the plain text links do. */
+  .gooey-nav-item-inset { padding: 0 5px; }
+  .gooey-neck { position: absolute; top: 0; right: 100%; height: 100%; width: 20px; pointer-events: none; }
+  /* Below 1120px, every segment (plain links, Connect Wallet, Apply for
+     Funding, Capital Marketplace) disappears -- there's no mobile menu
+     yet, so the nav is desktop-only for now. */
+  @media (max-width: 1120px) {
+    .gooey-nav { flex: none; justify-content: flex-start; }
+    .gooey-nav-item { display: none; }
+    .gooey-neck { display: none; }
+  }
+
+  /* -------- Ondo-style floating black pill navbar (landing page only) -------- */
   .topnav-dark { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: none; padding: 18px 0; }
-  .topnav-dark .topnav-inner { background: var(--brand); border-radius: 980px; padding: 8px 10px 8px 24px; box-shadow: 0 14px 30px -16px rgba(25,8,128,.4); }
-  .topnav-dark .brand { color: #fff; }
+  /* No bar/pill container background at all now -- each segment already
+     carries its own grey/white/gold fill, so the row floats directly on
+     the page instead of sitting inside a tinted glass pill. */
+  .topnav-dark .topnav-inner {
+    background: none;
+    border: none;
+    border-radius: 980px;
+    padding: 8px 10px 8px 24px;
+    box-shadow: none;
+  }
+  /* The brand sits directly on the page now that .topnav-inner has no
+     background of its own -- white text (meant for the old solid-purple
+     pill) was nearly invisible against the light page (found by actually
+     checking its computed color/contrast, not assumed). */
+  .topnav-dark .brand { color: var(--ink); }
   .topnav-dark .nav-links a { color: rgba(255,255,255,.68); }
   .topnav-dark .nav-links a:hover, .topnav-dark .nav-links a.active { color: #fff; }
   .topnav-dark .pill-black { background: #fff; color: var(--ink); }
   .topnav-dark .pill-black:hover { background: #EFEFF3; }
-  .topnav-dark .pill-ghost { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.3); color: #fff; }
-  .topnav-dark .pill-ghost:hover { background: rgba(255,255,255,.2); }
+  .topnav-dark .aw-connect-btn { background: transparent; border-color: rgba(255,255,255,.3); color: #fff; }
+  .topnav-dark .aw-connect-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.55); }
+  /* Inside the gooey track, Connect Wallet should look exactly like the
+     plain text segments (Treasury/Staking/Roadmap) -- same padding, size,
+     weight, no border/pill of its own -- with the SEGMENT (not this
+     button) owning the background that turns solid white when active/
+     hovered. Without the color override here the button kept its
+     dark-navbar-only white text from the rule above, which went invisible
+     against that white segment background (found by actually hovering it,
+     not assumed). */
+  .topnav-dark .gooey-nav-item .aw-connect-btn {
+    background: transparent; border: none; color: #fff;
+    padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; border-radius: 0;
+  }
+  .topnav-dark .gooey-nav-item .aw-connect-btn:hover { background: transparent; border: none; }
+  .topnav-dark .gooey-nav-item.is-active .aw-connect-btn { color: var(--brand); }
   @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
-  .topnav-cta { display: flex; align-items: center; gap: 10px; flex: none; }
   .status-chip { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background: var(--amber-soft); padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
   @media (max-width: 480px) { .status-chip { display: none; } }
-  @media (max-width: 480px) { .brand { font-size: 14px; gap: 8px; } .brand .mark { width: 28px; height: 28px; } .topnav-cta .pill-btn, .topnav-inner > .pill-btn { padding: 10px 14px; font-size: 11px; } .topnav-inner { gap: 8px; } .topnav-cta { gap: 6px; } }
 
   .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
   .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
@@ -164,24 +222,59 @@
 <body>
 
 <nav class="topnav topnav-dark">
-  <div class="wrap">
+  <div class="wrap topnav-outer">
     <div class="topnav-inner">
       <a href="/" class="brand">
         <span class="mark"><img src="assets/logo-mark.png" alt="Aretia"></span>
         <span class="brand-word"><span class="bw-1">Aretia</span><span class="bw-2">Finance</span></span>
       </a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="details">Treasury</a>
-        <a href="presale">Presale</a>
-        <a href="stake">Staking</a>
-        <a href="roadmap">Roadmap</a>
-      </div>
-      <div class="topnav-cta">
-        <span class="status-chip">Pre-Launch</span>
-        <div data-aretia-wallet-mount></div>
-        <a class="pill-btn pill-black" href="apply">Apply for Funding</a>
-      </div>
+      <nav class="gooey-nav" aria-label="Primary">
+        <ul class="gooey-nav-list">
+          <li class="gooey-nav-item" data-index="0"><a href="/" class="gooey-nav-label">Home</a></li>
+          <li class="gooey-nav-item" data-index="1">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-1" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-1)"/>
+            </svg>
+            <a href="details" class="gooey-nav-label">Treasury</a>
+          </li>
+          <li class="gooey-nav-item" data-index="2">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-2" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-2)"/>
+            </svg>
+            <a href="stake" class="gooey-nav-label">Staking</a>
+          </li>
+          <li class="gooey-nav-item" data-index="3">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-3" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-3)"/>
+            </svg>
+            <a href="roadmap" class="gooey-nav-label">Roadmap</a>
+          </li>
+          <li class="gooey-nav-item" data-index="4">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-4" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-4)"/>
+            </svg>
+            <div data-aretia-wallet-mount></div>
+          </li>
+          <li class="gooey-nav-item" data-index="5">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-5" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-5)"/>
+            </svg>
+            <a href="apply" class="gooey-nav-label">Apply for Funding</a>
+          </li>
+          <li class="gooey-nav-item" data-index="6">
+            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
+              <defs><linearGradient id="gooey-neck-6" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
+              <path class="gooey-neck-path" fill="url(#gooey-neck-6)"/>
+            </svg>
+            <a href="marketplace" class="gooey-nav-label">Capital Marketplace</a>
+          </li>
+        </ul>
+      </nav>
     </div>
   </div>
 </nav>
@@ -575,6 +668,170 @@
   window.addEventListener("resize", function () {
     measure();
     updateActiveFromScroll();
+  });
+})();
+</script>
+<script>
+// Gooey nav: a liquid pill that detaches from the translucent track and
+// "melts" toward whichever item is active, adapted from a React/Framer
+// Motion GooeyNav component since this site has no build step. The neck
+// (the connecting blob between two adjacent tiles) is an SVG path whose
+// shape depends on the live, still-animating gap between them -- that
+// can't be expressed as a CSS transition (you can't tween an arbitrary
+// path shape with CSS), so this runs its own small critically-damped
+// spring integrator per frame, exactly mirroring what the React version's
+// `useSpring`/`useTransform` did, and writes both the item's margin and
+// the neck's `d` from the same spring value every frame so they never
+// drift out of sync.
+(function () {
+  var nav = document.querySelector(".gooey-nav");
+  if (!nav) return;
+
+  var SEPARATION = 20; // px gap between tiles when open -- matches the neck svg's viewBox width
+  var CORNER = 999; // full pill corners
+  var NECK_H = 100; // nominal viewBox height the neck path is drawn in
+  var NECK_BREAK = 0.22; // the neck has pinched fully shut by the time the gap is this fraction open
+  var SPRING = { stiffness: 200, damping: 28, mass: 1 };
+  var ACTIVE_COLOR = "#ffffff";
+  var BAR_COLOR = "#190880"; // matches --brand, the resting segment background
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var items = Array.prototype.slice.call(nav.querySelectorAll(".gooey-nav-item"));
+  var total = items.length;
+  var active = items.findIndex(function (li) { return li.classList.contains("is-active"); });
+  if (active === -1) active = 0;
+  // Hovering ANY segment -- including Connect Wallet / Presale / Apply --
+  // previews the goo moving there without changing which page is actually
+  // "current"; it reverts to `active` on mouseleave. Only an actual link
+  // click (a real page change) updates `active` itself.
+  var previewIndex = null;
+  function current() { return previewIndex === null ? active : previewIndex; }
+
+  // One spring per seam (the gap to the LEFT of item i, i>0) -- item 0 never moves.
+  var springs = items.map(function () {
+    return { value: 0, velocity: 0, target: 0 };
+  });
+
+  function isOpen(seam) {
+    var c = current();
+    return seam === 0 || seam === total || seam - 1 === c || seam === c;
+  }
+
+  // Connect Wallet / Presale / Apply already render their own fully-opaque
+  // pill, so they never need to merge invisibly into their neighbors the
+  // way the plain text links do -- closing their gap fully (-1, like the
+  // text links) would visually collide two bordered/colored buttons edge to
+  // edge. Give any boundary touching one of them a bit of resting room instead.
+  function closedGap(seam) {
+    var a = items[seam - 1], b = items[seam];
+    var touchesInset = (a && a.classList.contains("gooey-nav-item-inset")) || (b && b.classList.contains("gooey-nav-item-inset"));
+    return touchesInset ? 10 : -1;
+  }
+
+  function neckPath(gap, span) {
+    if (!(gap > 0) || !(span > 0)) return "";
+    var waist = NECK_H * (1 - gap / (span * NECK_BREAK));
+    if (waist <= 0) return "";
+    var start = span - gap;
+    var mid = start + gap / 2;
+    return (
+      "M" + start + " 0" +
+      " Q" + mid + " " + (NECK_H - waist) + " " + span + " 0" +
+      " L" + span + " " + NECK_H +
+      " Q" + mid + " " + waist + " " + start + " " + NECK_H + " Z"
+    );
+  }
+
+  var raf = null;
+  function tick(now) {
+    var dt = Math.min(0.05, (tick.last ? now - tick.last : 16) / 1000);
+    tick.last = now;
+    var settled = true;
+
+    for (var i = 1; i < total; i++) {
+      var s = springs[i];
+      var force = -SPRING.stiffness * (s.value - s.target);
+      var damp = -SPRING.damping * s.velocity;
+      s.velocity += ((force + damp) / SPRING.mass) * dt;
+      s.value += s.velocity * dt;
+      if (Math.abs(s.value - s.target) > 0.05 || Math.abs(s.velocity) > 0.05) settled = false;
+      else { s.value = s.target; s.velocity = 0; }
+
+      items[i].style.marginLeft = s.value + "px";
+      var path = items[i].querySelector(".gooey-neck-path");
+      if (path) path.setAttribute("d", neckPath(s.value, SEPARATION));
+    }
+
+    if (!settled) raf = requestAnimationFrame(tick);
+    else { raf = null; tick.last = null; }
+  }
+
+  function applyState(instant) {
+    var c = current();
+    items.forEach(function (li, i) {
+      li.classList.toggle("is-active", i === c);
+      var leftOpen = isOpen(i);
+      var rightOpen = isOpen(i + 1);
+      li.style.borderTopLeftRadius = li.style.borderBottomLeftRadius = leftOpen ? CORNER + "px" : "0";
+      li.style.borderTopRightRadius = li.style.borderBottomRightRadius = rightOpen ? CORNER + "px" : "0";
+
+      if (i > 0) {
+        var target = isOpen(i) ? SEPARATION : closedGap(i);
+        springs[i].target = target;
+        // On first paint (page load) and whenever motion is reduced, jump
+        // straight to the target -- the neck is only ever visible mid-
+        // spring anyway (it's fully pinched shut at either steady state),
+        // so there's nothing lost by skipping the animation here.
+        if (instant || reduced) {
+          springs[i].value = target;
+          springs[i].velocity = 0;
+          li.style.marginLeft = target + "px";
+          var path = li.querySelector(".gooey-neck-path");
+          if (path) path.setAttribute("d", "");
+        }
+        var stopA = li.querySelector(".gooey-stop-a");
+        var stopB = li.querySelector(".gooey-stop-b");
+        if (stopA) stopA.setAttribute("stop-color", i - 1 === c ? ACTIVE_COLOR : BAR_COLOR);
+        if (stopB) stopB.setAttribute("stop-color", i === c ? ACTIVE_COLOR : BAR_COLOR);
+      }
+    });
+    if (!instant && !reduced && raf === null) raf = requestAnimationFrame(tick);
+  }
+
+  // Initial paint: jump straight to the right shape, no animation on page load.
+  applyState(true);
+
+  items.forEach(function (li, i) {
+    li.addEventListener("mouseenter", function () {
+      if (previewIndex === i) return;
+      previewIndex = i;
+      applyState();
+    });
+
+    // A real navigation (any <a> in this segment -- a nav link, or the
+    // Apply for Funding CTA) updates which item is actually "current" so it
+    // stays put if the mouse moves away before the page finishes loading.
+    // Presale/Connect Wallet are <button>s that open a modal rather than
+    // navigate, so they only ever get the hover preview above, never a
+    // persistent active state -- moving off them always returns the goo to
+    // the real current page.
+    var link = li.querySelector("a");
+    if (link) {
+      link.addEventListener("click", function () {
+        if (active === i) return;
+        active = i;
+        previewIndex = null;
+        applyState();
+        // No preventDefault: the link navigates normally: this just gives
+        // the pill somewhere to animate toward in the moment before it does.
+      });
+    }
+  });
+
+  nav.addEventListener("mouseleave", function () {
+    if (previewIndex === null) return;
+    previewIndex = null;
+    applyState();
   });
 })();
 </script>

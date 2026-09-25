@@ -117,7 +117,18 @@
 
   /* -------- Ondo-style floating black pill navbar (landing page only) -------- */
   .topnav-dark { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: none; padding: 18px 0; }
-  .topnav-dark .topnav-inner { background: var(--brand); border-radius: 980px; padding: 8px 10px 8px 24px; box-shadow: 0 14px 30px -16px rgba(25,8,128,.4); }
+  /* Glass pill instead of a solid fill: translucent brand tint + blur, so
+     it still separates from the page (and keeps the white nav text
+     readable) without the flat solid-purple look. */
+  .topnav-dark .topnav-inner {
+    background: rgba(25, 8, 128, 0.55);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 980px;
+    padding: 8px 10px 8px 24px;
+    box-shadow: 0 14px 30px -16px rgba(25,8,128,.35);
+  }
   .topnav-dark .brand { color: #fff; }
   .topnav-dark .nav-links a { color: rgba(255,255,255,.68); }
   .topnav-dark .nav-links a:hover, .topnav-dark .nav-links a.active { color: #fff; }

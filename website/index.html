@@ -96,28 +96,13 @@
      around whichever one is hovered), just wrapped with a little breathing
      room instead of merging edge-to-edge like the plain text links do. */
   .gooey-nav-item-inset { padding: 0 5px; }
-  /* Match the plain segments' fixed 16px line-height so every item lines
-     up at the same height regardless of its own font-size -- without this,
-     Presale's smaller mono font (and Connect Wallet's own line-height from
-     wallet.css) made those two segments visibly shorter than the rest
-     (found by actually measuring their rendered heights, not assumed). */
-  .gooey-nav-item .presale-golden-badge { line-height: 16px; }
   .gooey-neck { position: absolute; top: 0; right: 100%; height: 100%; width: 20px; pointer-events: none; }
-  /* Below 1120px, Connect Wallet, Apply for Funding, and Capital
-     Marketplace now disappear along with the plain nav links (Treasury/
-     Staking/Roadmap) -- same breakpoint, same treatment, since they're
-     styled identically to those links now. Only the Presale countdown
-     badge (still its own gold/inset segment, not part of this request)
-     stays visible as a real mobile action. */
+  /* Below 1120px, every segment (plain links, Connect Wallet, Apply for
+     Funding, Capital Marketplace) disappears -- there's no mobile menu
+     yet, so the nav is desktop-only for now. */
   @media (max-width: 1120px) {
     .gooey-nav { flex: none; justify-content: flex-start; }
-    .gooey-nav-item:not(.gooey-nav-item-inset) { display: none; }
-    .gooey-nav-item.gooey-nav-item-inset {
-      background: transparent !important;
-      margin-left: 0 !important;
-      border-radius: 0 !important;
-      padding: 0;
-    }
+    .gooey-nav-item { display: none; }
     .gooey-neck { display: none; }
   }
 
@@ -632,15 +617,6 @@
               <path class="gooey-neck-path" fill="url(#gooey-neck-6)"/>
             </svg>
             <a href="marketplace" class="gooey-nav-label">Capital Marketplace</a>
-          </li>
-          <li class="gooey-nav-item gooey-nav-item-inset" data-index="7" hidden>
-            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
-              <defs><linearGradient id="gooey-neck-7" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
-              <path class="gooey-neck-path" fill="url(#gooey-neck-7)"/>
-            </svg>
-            <button type="button" id="presale-golden-badge" class="presale-golden-badge">
-              <span class="presale-golden-badge-dot"></span> Presale: <span id="presale-golden-badge-time">--</span>
-            </button>
           </li>
         </ul>
       </nav>
@@ -1598,9 +1574,7 @@
 
     var overlay = document.getElementById("presale-countdown-overlay");
     var closeBtn = document.getElementById("presale-countdown-close");
-    var badge = document.getElementById("presale-golden-badge");
-    var badgeTime = document.getElementById("presale-golden-badge-time");
-    if (!overlay || !badge) return;
+    if (!overlay) return;
 
     var dEl = document.getElementById("pc-days");
     var hEl = document.getElementById("pc-hours");
@@ -1627,7 +1601,6 @@
       if (hEl) hEl.textContent = pad(t.hours);
       if (mEl) mEl.textContent = pad(t.mins);
       if (sEl) sEl.textContent = pad(t.secs);
-      if (badgeTime) badgeTime.textContent = t.days + "d " + pad(t.hours) + "h";
       if (PRESALE_OPEN - Date.now() <= 0 && timerId) {
         clearInterval(timerId);
         timerId = null;
@@ -1642,15 +1615,6 @@
       try { localStorage.setItem(STORAGE_KEY, "1"); } catch (e) { /* ignore */ }
     }
 
-    function showBadge() {
-      badge.hidden = false;
-      // The badge now lives inside a gooey-nav segment (its <li> wrapper
-      // starts hidden too, so an empty segment doesn't leave a stray gap
-      // in the bar before the countdown is ready to show).
-      var li = badge.closest(".gooey-nav-item");
-      if (li) li.hidden = false;
-    }
-
     function showModal() {
       overlay.hidden = false;
       requestAnimationFrame(function () { overlay.classList.add("is-visible"); });
@@ -1660,15 +1624,12 @@
       overlay.classList.remove("is-visible");
       setTimeout(function () { overlay.hidden = true; }, 220);
       setDismissed();
-      showBadge();
     }
 
     tick();
     timerId = setInterval(tick, 1000);
 
-    if (isDismissed()) {
-      showBadge();
-    } else {
+    if (!isDismissed()) {
       setTimeout(showModal, 2000);
     }
 
@@ -1679,7 +1640,6 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && overlay.classList.contains("is-visible")) hideModal();
     });
-    badge.addEventListener("click", showModal);
   })();
 </script>
   <script defer src="/_vercel/insights/script.js"></script>

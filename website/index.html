@@ -87,7 +87,7 @@
   .gooey-nav-list { position: relative; display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
   .gooey-nav-item { position: relative; display: flex; align-items: center; background: var(--border-soft); transition: background-color 260ms var(--ease); }
   .gooey-nav-item.is-active { background: #fff; }
-  .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); transition: color 260ms var(--ease); }
+  .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); transition: color 260ms var(--ease); }
   .gooey-nav-item.is-active .gooey-nav-label { color: var(--brand); }
   /* Connect Wallet / Presale / Apply for Funding: each already renders its
      own fully-opaque pill (white or gold), so the segment's own
@@ -96,6 +96,12 @@
      around whichever one is hovered), just wrapped with a little breathing
      room instead of merging edge-to-edge like the plain text links do. */
   .gooey-nav-item-inset { padding: 0 5px; }
+  /* Match the plain segments' fixed 16px line-height so every item lines
+     up at the same height regardless of its own font-size -- without this,
+     Presale's smaller mono font (and Connect Wallet's own line-height from
+     wallet.css) made those two segments visibly shorter than the rest
+     (found by actually measuring their rendered heights, not assumed). */
+  .gooey-nav-item .presale-golden-badge { line-height: 16px; }
   .gooey-neck { position: absolute; top: 0; right: 100%; height: 100%; width: 20px; pointer-events: none; }
   /* Below 1120px, Connect Wallet, Apply for Funding, and Capital
      Marketplace now disappear along with the plain nav links (Treasury/
@@ -117,19 +123,21 @@
 
   /* -------- Ondo-style floating black pill navbar (landing page only) -------- */
   .topnav-dark { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: none; padding: 18px 0; }
-  /* Glass pill instead of a solid fill: translucent brand tint + blur, so
-     it still separates from the page (and keeps the white nav text
-     readable) without the flat solid-purple look. */
+  /* No bar/pill container background at all now -- each segment already
+     carries its own grey/white/gold fill, so the row floats directly on
+     the page instead of sitting inside a tinted glass pill. */
   .topnav-dark .topnav-inner {
-    background: rgba(25, 8, 128, 0.55);
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: none;
+    border: none;
     border-radius: 980px;
     padding: 8px 10px 8px 24px;
-    box-shadow: 0 14px 30px -16px rgba(25,8,128,.35);
+    box-shadow: none;
   }
-  .topnav-dark .brand { color: #fff; }
+  /* The brand sits directly on the page now that .topnav-inner has no
+     background of its own -- white text (meant for the old solid-purple
+     pill) was nearly invisible against the light page (found by actually
+     checking its computed color/contrast, not assumed). */
+  .topnav-dark .brand { color: var(--ink); }
   .topnav-dark .nav-links a { color: rgba(255,255,255,.68); }
   .topnav-dark .nav-links a:hover, .topnav-dark .nav-links a.active { color: #fff; }
   .topnav-dark .pill-black { background: #fff; color: var(--ink); }
@@ -145,10 +153,10 @@
      against that white segment background (found by actually hovering it,
      not assumed). */
   .topnav-dark .gooey-nav-item .aw-connect-btn {
-    background: transparent; border-color: transparent; color: var(--ink-soft);
-    padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 0;
+    background: transparent; border: none; color: var(--ink-soft);
+    padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; border-radius: 0;
   }
-  .topnav-dark .gooey-nav-item .aw-connect-btn:hover { background: transparent; border-color: transparent; }
+  .topnav-dark .gooey-nav-item .aw-connect-btn:hover { background: transparent; border: none; }
   .topnav-dark .gooey-nav-item.is-active .aw-connect-btn { color: var(--brand); }
   @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
 
@@ -611,28 +619,28 @@
             </svg>
             <div data-aretia-wallet-mount></div>
           </li>
-          <li class="gooey-nav-item gooey-nav-item-inset" data-index="5" hidden>
+          <li class="gooey-nav-item" data-index="5">
             <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
               <defs><linearGradient id="gooey-neck-5" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
               <path class="gooey-neck-path" fill="url(#gooey-neck-5)"/>
             </svg>
-            <button type="button" id="presale-golden-badge" class="presale-golden-badge">
-              <span class="presale-golden-badge-dot"></span> Presale: <span id="presale-golden-badge-time">--</span>
-            </button>
+            <a href="apply" class="gooey-nav-label">Apply for Funding</a>
           </li>
           <li class="gooey-nav-item" data-index="6">
             <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
               <defs><linearGradient id="gooey-neck-6" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
               <path class="gooey-neck-path" fill="url(#gooey-neck-6)"/>
             </svg>
-            <a href="apply" class="gooey-nav-label">Apply for Funding</a>
+            <a href="marketplace" class="gooey-nav-label">Capital Marketplace</a>
           </li>
-          <li class="gooey-nav-item" data-index="7">
+          <li class="gooey-nav-item gooey-nav-item-inset" data-index="7" hidden>
             <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
               <defs><linearGradient id="gooey-neck-7" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
               <path class="gooey-neck-path" fill="url(#gooey-neck-7)"/>
             </svg>
-            <a href="marketplace" class="gooey-nav-label">Capital Marketplace</a>
+            <button type="button" id="presale-golden-badge" class="presale-golden-badge">
+              <span class="presale-golden-badge-dot"></span> Presale: <span id="presale-golden-badge-time">--</span>
+            </button>
           </li>
         </ul>
       </nav>

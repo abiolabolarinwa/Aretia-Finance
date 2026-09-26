@@ -145,8 +145,38 @@
   @media (max-width: 480px) { .status-chip { display: none; } }
 
   /* -------- Doola-style cream hero -------- */
-  .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
-  .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
+  /* Same aurora wash/ribbon/grain as the homepage hero (minus the WebGL
+     canvas -- that stays a homepage-only flourish), so this page's hero
+     visually blends with the landing page instead of sitting on a flat
+     cream block. No nav-overlap concern here (this page's nav isn't
+     floating/transparent), so no navH offset is needed like the homepage's
+     .prism-stage uses. */
+  .dhero { position: relative; background: #fff; overflow: hidden; isolation: isolate; padding: 76px 0 96px; }
+  .dhero-stage { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  .dhero-wash {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(60% 70% at 18% 15%, rgba(255,208,138,.30), transparent 60%),
+      radial-gradient(65% 75% at 55% 0%, rgba(232,100,221,.26), transparent 62%),
+      radial-gradient(70% 80% at 85% 30%, rgba(155,107,255,.28), transparent 62%),
+      radial-gradient(65% 70% at 100% 70%, rgba(126,231,240,.30), transparent 60%),
+      radial-gradient(55% 60% at 40% 90%, rgba(255,143,176,.20), transparent 60%);
+    filter: blur(90px);
+  }
+  .dhero-ribbon {
+    position: absolute; top: -46vmax; right: -14vmax; width: 74vmax; height: 90vmax;
+    border-radius: 48% 52% 44% 56% / 38% 48% 52% 62%;
+    transform: rotate(23deg) translate3d(var(--ribbon-x, 0), var(--ribbon-y, 0), 0);
+    background: conic-gradient(from 205deg at 43% 49%, #ffd08a, #ff8fb0 10%, #e864dd 24%, #9b6bff 42%, #6fa8ff 58%, #7EE7F0 70%, #eafcff 82%, #ffd08a 100%);
+    filter: saturate(122%) blur(48px);
+    transition: transform 950ms cubic-bezier(0.23, 1, 0.32, 1);
+    animation: dhero-float 13s ease-in-out infinite alternate;
+  }
+  .dhero-grain { pointer-events: none; position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
+  @keyframes dhero-float { from { translate: 0 0; rotate: 0deg; } to { translate: 0 2.4vmax; rotate: -2deg; } }
+  @media (prefers-reduced-motion: reduce) { .dhero-ribbon { animation: none; transition: none; } }
+  @media (max-width: 700px) { .dhero-ribbon { top: -25vmax; right: -38vmax; width: 85vmax; height: 102vmax; } }
+  .dhero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
   @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
   .dhero-eyebrow { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--ink-soft); background: #fff; border: 1px solid var(--border); padding: 7px 16px; border-radius: 980px; margin-bottom: 20px; }
   .dhero h1 { font-size: clamp(2.29rem, 4.58vw, 3.34rem); line-height: 1.08; letter-spacing: -0.02em; font-weight: 800; color: var(--ink); margin: 0 0 18px; text-align: left; }
@@ -462,6 +492,11 @@
 
 <main>
   <section class="dhero">
+    <div class="dhero-stage" aria-hidden="true">
+      <div class="dhero-wash"></div>
+      <div class="dhero-ribbon"></div>
+      <div class="dhero-grain"></div>
+    </div>
     <div class="wrap">
       <div class="dhero-grid">
         <div>

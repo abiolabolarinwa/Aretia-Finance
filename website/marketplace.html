@@ -137,8 +137,35 @@
   .topnav-dark .gooey-nav-item.is-active .aw-connect-btn { color: var(--brand); }
   @media (max-width: 480px) { .topnav-dark .topnav-inner { padding: 8px 8px 8px 16px; } }
 
-  /* -------- Simple centered hero -------- */
-  .mp-hero { padding: 72px 0 56px; text-align: center; }
+  /* -------- Simple centered hero, now with the same aurora wash/ribbon/
+     grain as the homepage hero (minus the WebGL canvas, a homepage-only
+     flourish) so this page blends with the landing page instead of
+     sitting on a flat white block. -------- */
+  .mp-hero { position: relative; background: #fff; overflow: hidden; isolation: isolate; padding: 72px 0 56px; text-align: center; }
+  .mp-hero > .wrap { position: relative; z-index: 1; }
+  .mp-hero-stage { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  .mp-hero-wash {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(60% 70% at 18% 15%, rgba(255,208,138,.30), transparent 60%),
+      radial-gradient(65% 75% at 55% 0%, rgba(232,100,221,.26), transparent 62%),
+      radial-gradient(70% 80% at 85% 30%, rgba(155,107,255,.28), transparent 62%),
+      radial-gradient(65% 70% at 100% 70%, rgba(126,231,240,.30), transparent 60%),
+      radial-gradient(55% 60% at 40% 90%, rgba(255,143,176,.20), transparent 60%);
+    filter: blur(90px);
+  }
+  .mp-hero-ribbon {
+    position: absolute; top: -46vmax; right: -14vmax; width: 74vmax; height: 90vmax;
+    border-radius: 48% 52% 44% 56% / 38% 48% 52% 62%;
+    transform: rotate(23deg);
+    background: conic-gradient(from 205deg at 43% 49%, #ffd08a, #ff8fb0 10%, #e864dd 24%, #9b6bff 42%, #6fa8ff 58%, #7EE7F0 70%, #eafcff 82%, #ffd08a 100%);
+    filter: saturate(122%) blur(48px);
+    animation: mp-hero-float 13s ease-in-out infinite alternate;
+  }
+  .mp-hero-grain { pointer-events: none; position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
+  @keyframes mp-hero-float { from { translate: 0 0; rotate: 0deg; } to { translate: 0 2.4vmax; rotate: -2deg; } }
+  @media (prefers-reduced-motion: reduce) { .mp-hero-ribbon { animation: none; } }
+  @media (max-width: 700px) { .mp-hero-ribbon { top: -25vmax; right: -38vmax; width: 85vmax; height: 102vmax; } }
   .mp-hero-eyebrow { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--ink-soft); background: #fff; border: 1px solid var(--border); padding: 7px 16px; border-radius: 980px; margin-bottom: 20px; }
   .mp-hero h1 { font-size: clamp(1.76rem, 3.52vw, 2.46rem); line-height: 1.12; letter-spacing: -0.02em; font-weight: 800; color: var(--ink); margin: 0 auto 18px; max-width: 20ch; }
   .mp-hero h1 .hl { color: var(--brand); }
@@ -310,6 +337,11 @@
 
 <main>
   <section class="mp-hero">
+    <div class="mp-hero-stage" aria-hidden="true">
+      <div class="mp-hero-wash"></div>
+      <div class="mp-hero-ribbon"></div>
+      <div class="mp-hero-grain"></div>
+    </div>
     <div class="wrap">
       <div class="mp-hero-eyebrow">Climate Mitigation &amp; Adaptation Projects</div>
       <h1>Where funded projects meet <span class="hl">real investment.</span></h1>

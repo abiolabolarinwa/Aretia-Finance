@@ -26,7 +26,7 @@ Note on the address that appears in the Squads UI's own URL bar (e.g. `/squads/G
 
 ## Still open
 
-- [ ] This multisig is not yet referenced as the transfer-fee-config / withdraw-withheld authority for any mint — that only happens once the v2 mint-creation script actually runs (see `scripts/rebuild-mint/`).
+- [x] ~~This multisig is not yet referenced as the transfer-fee-config / withdraw-withheld authority for any mint~~ **Resolved.** The v2 mint-creation script ran 10 Sept 2026 (see `MINT_V2.md`); confirmed directly on-chain 26 Sept 2026 that this vault (`GtKGE6mQRj...bryZnA`) is both the mint's `transfer_fee_config_authority` and `withdraw_withheld_authority`.
 - [ ] Signer identity, independence, jurisdiction, and conflict-of-interest disclosure — same open item as `WHITEPAPER.md` §15.3's placeholder for v1, and equally unresolved here since it's the same three people.
 - [ ] v1 retirement plan (what happens to the v1 mint, its 100M supply currently sitting in the v1 vault, and the v1 multisig itself once v2 is live) — not yet written.
 

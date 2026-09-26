@@ -1,7 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+// Repointed to the v2 mint, 26 Sept 2026 (was the retired v1 mint,
+// BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT -- see MINT_V2.md).
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-rpc.publicnode.com";
-const MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
+const MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
 const METADATA_POINTER = 18;
 const TOKEN_METADATA = 19;
 

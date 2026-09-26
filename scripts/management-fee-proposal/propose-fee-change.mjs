@@ -6,17 +6,22 @@
  *
  * Background: the ACT mint's transfer_fee_config_authority is the treasury
  * Squads multisig itself (verified in check-fee-authority.mjs, documented
- * in MINT.md), so a rate change requires the same 2-of-3 approval as any
+ * in MINT_V2.md), so a rate change requires the same 2-of-3 approval as any
  * other treasury action — no single key, including the founder's, can do
  * this alone.
+ *
+ * 26 Sept 2026: repointed at the v2 mint/vault/multisig (the v1 mint this
+ * script originally targeted is retired -- see MINT_V2.md). The v2 mint
+ * launched already set to 350 bps directly, so there's nothing to change
+ * today; this stays here as the general-purpose tool for whenever
+ * governance next wants a different rate.
  *
  * What it does:
  *   1. Reads the mint's LIVE transfer-fee config (never hardcodes it).
  *   2. Builds ONE SetTransferFee instruction moving the rate from whatever
- *      it currently is to NEW_BPS below (350 = 3.5%, per TOKENOMICS.md
- *      SS01's 6 Sept 2026 update: burn removed, management raised to 0.5%).
- *      maximumFee is left exactly as it currently is on-chain -- this
- *      script only ever changes the percentage, never the cap.
+ *      it currently is to NEW_BPS below. maximumFee is left exactly as it
+ *      currently is on-chain -- this script only ever changes the
+ *      percentage, never the cap.
  *   3. Wraps it in a Squads vault transaction and drafts it as a PROPOSAL.
  *   4. Prints a link. A real signer still has to open Squads and approve +
  *      execute it. This script never gains, and never needs, fund-moving
@@ -33,8 +38,8 @@
  *   after execution; verify them yourself rather than trusting a
  *   remembered rule of thumb, including mine.
  *
- * After it lands on-chain, update MINT.md's "live" row and remove the
- * "not yet executed" framing there and in TOKENOMICS.md/PROTOCOL.md --
+ * After it lands on-chain, update MINT_V2.md's "live" row and
+ * TOKENOMICS.md/PROTOCOL.md to reflect the new rate --
  * website/verify.html needs no code change, it already checks live state
  * and will simply stop reporting a mismatch.
  *
@@ -72,11 +77,14 @@ import {
 } from "@solana/spl-token";
 import * as multisig from "@sqds/multisig";
 
-// ---- Verified constants (see MINT.md and check-fee-authority.mjs for how each was confirmed) ----
+// ---- Verified constants (see MINT_V2.md and check-fee-authority.mjs for how each was confirmed) ----
+// Repointed to v2, 26 Sept 2026 (was the retired v1 mint/vault/multisig:
+// BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT / 3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg /
+// AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX -- see MINT.md/TREASURY.md).
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-rpc.publicnode.com";
-const ACT_MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
-const TREASURY_VAULT = new PublicKey("3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg"); // vault index 0; also the transfer_fee_config_authority
-const MULTISIG_PDA = new PublicKey("AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX"); // verified: derives vault index 0 == TREASURY_VAULT above
+const ACT_MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
+const TREASURY_VAULT = new PublicKey("GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA"); // vault index 0; also the transfer_fee_config_authority
+const MULTISIG_PDA = new PublicKey("5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr"); // verified: derives vault index 0 == TREASURY_VAULT above
 const VAULT_INDEX = 0;
 
 // The target rate. Change this constant (and re-read the header comment's
@@ -84,7 +92,7 @@ const VAULT_INDEX = 0;
 // pass a number on the command line, this value needs to match what's
 // documented in TOKENOMICS.md/WHITEPAPER.md or the docs and the mint will
 // disagree with each other.
-const NEW_BPS = 350; // 3.5%, per TOKENOMICS.md SS01, 6 Sept 2026
+const NEW_BPS = 350; // 3.5% -- already the live v2 rate as of 26 Sept 2026; update this before the next real change
 
 const EXECUTE = process.argv.includes("--execute");
 
@@ -107,7 +115,7 @@ async function main() {
     throw new Error(
       `transfer_fee_config_authority is ${configAuthority ? configAuthority.toBase58() : "None"}, ` +
       `not the treasury vault (${TREASURY_VAULT.toBase58()}) this script assumes. Stopping - do not proceed ` +
-      `without re-checking MINT.md and check-fee-authority.mjs first.`
+      `without re-checking MINT_V2.md and check-fee-authority.mjs first.`
     );
   }
 

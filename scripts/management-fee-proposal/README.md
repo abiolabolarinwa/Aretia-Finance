@@ -1,5 +1,7 @@
 # Treasury Multisig Proposal Scripts
 
+**26 Sept 2026:** repointed at the v2 mint, vault, and multisig (`MINT_V2.md` / `TREASURY_V2.md`) — the v1 mint these scripts originally targeted is retired. Re-verified against live mainnet the same day: all three read-only checks and both dry-runs ran clean against v2.
+
 This folder holds three kinds of scripts against the live ACT mint and its treasury Squads multisig:
 
 - **Read-only checks** (`check-metadata.mjs`, `check-fee-authority.mjs`, `verify-proposal.mjs`) — query mainnet, print findings, never send a transaction.
@@ -73,7 +75,7 @@ node verify-proposal.mjs <transactionIndex>
 
 (The transaction index is printed by `propose-fee-change.mjs --execute` as "Next Squads transaction index".) This fetches the real on-chain vault-transaction account and decodes the instruction inside it directly — program ID, accounts, and the raw `SetTransferFee` bytes — rather than trusting what any proposal script printed about what it submitted. Confirm it shows exactly one instruction, targeting the ACT mint, with the basis-points value you expect.
 
-**After it's approved and executed in Squads**, update `MINT.md`'s "live" row and remove the "not yet executed" framing there and in `TOKENOMICS.md`/`PROTOCOL.md`. `website/verify.html` needs no code change — it already checks live state and will simply stop reporting a mismatch once the new rate takes effect.
+**After it's approved and executed in Squads**, update `MINT_V2.md`'s "live" row and `TOKENOMICS.md`/`PROTOCOL.md` to reflect the new rate. `website/verify.html` needs no code change — it already checks live state and will simply stop reporting a mismatch once the new rate takes effect.
 
 ## Common to all of these
 

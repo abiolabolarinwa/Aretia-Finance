@@ -1,7 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
+// Repointed to the v2 mint, 26 Sept 2026 (was the retired v1 mint,
+// BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT -- see MINT_V2.md).
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-rpc.publicnode.com";
-const MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
+const MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
 const TRANSFER_FEE_CONFIG = 1;
 
 function readU16LE(bytes, offset) {
@@ -76,7 +78,7 @@ async function main() {
 
   console.log(`\n--- Conclusion ---`);
   if (!configAuthority) {
-    console.log("transfer_fee_config_authority is None: the 4.1% (or whatever basis-points value is live) fee rate is PERMANENTLY FIXED on-chain. Nobody — not the team, not a future governance vote — can ever change it again, the same way mint authority being revoked makes supply permanently fixed.");
+    console.log("transfer_fee_config_authority is None: the 3.5% (or whatever basis-points value is live) fee rate is PERMANENTLY FIXED on-chain. Nobody — not the team, not a future governance vote — can ever change it again, the same way mint authority being revoked makes supply permanently fixed.");
   } else {
     console.log(`transfer_fee_config_authority is set to ${configAuthority}. Whoever controls that key/account CAN change the fee rate (subject to Token-2022's mandatory scheduling: a new rate only becomes effective from a future epoch onward, never retroactively). This is not permanently fixed.`);
   }

@@ -12,9 +12,11 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import * as multisig from "@sqds/multisig";
 
+// Repointed to the v2 mint/multisig, 26 Sept 2026 (was the retired v1
+// pair -- see MINT_V2.md / TREASURY_V2.md).
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://api.mainnet-beta.solana.com";
-const MULTISIG_PDA = new PublicKey("AF8qvhgkZJJE6ascFN4MAwWSEGKpyi6oW6Ht9CySgkmX");
-const ACT_MINT = new PublicKey("BmaBEY6NDbLevUcU59Fgie8JHeqD4UjEFJda8LuSS2yT");
+const MULTISIG_PDA = new PublicKey("5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr");
+const ACT_MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
 
 const index = BigInt(process.argv[2] || "1");
 

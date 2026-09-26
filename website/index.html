@@ -1837,16 +1837,18 @@
 })();
 </script>
 <script>
-// Prism hero background: two layers, no libraries. (1) .prism-ribbon is a
-// single huge blurred conic-gradient blob, purely CSS -- this script only
-// writes a small pointer-driven parallax offset to --ribbon-x/y (gated
-// behind prefers-reduced-motion, and off entirely on touch since there's
-// no hover to drive it). (2) #aurora-strands is a <canvas> of ~40 flowing
-// bezier "strands" redrawn every frame: two blurred passes fuse them into
-// a soft luminous field, then a third crisp pass draws bright hairlines on
-// top so the aurora still reads as individual strands up close, not just
-// a blob. Composited with "screen" so overlapping strands brighten instead
-// of muddying, matching how real aurora light behaves.
+// Prism hero background: two layers. (1) .prism-ribbon is a single huge
+// blurred conic-gradient blob, purely CSS -- this script only writes a
+// small pointer-driven parallax offset to --ribbon-x/y (gated behind
+// prefers-reduced-motion, and off entirely on touch since there's no
+// hover to drive it). (2) #aurora-strands is a WebGL canvas rendering an
+// original, from-scratch domain-warped noise flow field -- a single-level
+// "warped fbm" (the classic, widely-published procedural-noise pattern;
+// this implementation is written fresh for this effect, not copied from
+// anywhere) coloured across Aretia's own brand gradient stops. This
+// replaces the old per-frame bezier-strand canvas with something
+// genuinely silkier/more continuous; falls back to just the CSS
+// wash/ribbon/grain layers if WebGL isn't available.
 (function () {
   var hero = document.getElementById("hero");
   var navEl = document.querySelector(".topnav");
@@ -1881,37 +1883,126 @@
 
   var canvas = document.getElementById("aurora-strands");
   if (!canvas) return;
-  var ctx = canvas.getContext("2d");
-  // ctx.filter re-rasterizes the blur over the WHOLE canvas on every single
-  // draw call it wraps -- the original version set it once per pass but
-  // then called ctx.stroke() 36 times inside that pass, which is 36 full-
-  // canvas blurs, not one (72/frame across both passes). That's what made
-  // this feel heavy (found by profiling frame time, not assumed). Fix:
-  // draw all 36 strands unblurred onto an offscreen buffer, then blur that
-  // buffer exactly once per pass with a single drawImage -- 2 blurs/frame
-  // instead of 72, ~36x less blur work for the same look.
-  var off = document.createElement("canvas");
-  var offCtx = off.getContext("2d");
-  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: true }) ||
+           canvas.getContext("experimental-webgl", { alpha: true, premultipliedAlpha: true, antialias: true });
+  if (!gl) return; // no WebGL -- the CSS wash/ribbon/grain layers still work fine on their own
+
+  var VERT = "attribute vec2 a_pos;\n" +
+    "void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }";
+
+  // Value noise (hash-based, 4 corner samples + smoothstep interpolation)
+  // fed through one level of domain warping: sample the field, use that
+  // to displace the coordinates fed into a second sample. Kept to a single
+  // warp level and 4 fbm octaves specifically to stay cheap enough for a
+  // full-hero-sized fragment shader at 60fps -- a fuller 2-level warp
+  // looks marginally silkier but roughly doubles the cost for a background
+  // detail most visitors will only see in motion, not scrutinise.
+  var FRAG = [
+    "precision mediump float;",
+    "uniform vec2 u_resolution;",
+    "uniform float u_time;",
+    "uniform vec2 u_mouse;",
+    "float hash(vec2 p) {",
+    "  p = fract(p * vec2(123.34, 456.21));",
+    "  p += dot(p, p + 45.32);",
+    "  return fract(p.x * p.y);",
+    "}",
+    "float noise(vec2 p) {",
+    "  vec2 i = floor(p), f = fract(p);",
+    "  vec2 u = f * f * (3.0 - 2.0 * f);",
+    "  float a = hash(i), b = hash(i + vec2(1.0, 0.0));",
+    "  float c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));",
+    "  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);",
+    "}",
+    "float fbm(vec2 p) {",
+    "  float v = 0.0, amp = 0.55;",
+    "  for (int i = 0; i < 4; i++) { v += amp * noise(p); p *= 2.0; amp *= 0.5; }",
+    "  return v;",
+    "}",
+    "void main() {",
+    "  vec2 uv = gl_FragCoord.xy / u_resolution.xy;",
+    "  vec2 p = uv * vec2(u_resolution.x / u_resolution.y, 1.0) * 2.4;",
+    "  vec2 mouseOffset = (u_mouse - 0.5) * 0.5;",
+    "  float t = u_time * 0.06;",
+    "  vec2 warp = vec2(fbm(p + t + mouseOffset), fbm(p + vec2(3.7, 1.9) - t));",
+    "  float f = fbm(p + warp * 1.6);",
+    "  vec3 c1 = vec3(1.000, 0.816, 0.541);",
+    "  vec3 c2 = vec3(1.000, 0.561, 0.690);",
+    "  vec3 c3 = vec3(0.910, 0.392, 0.867);",
+    "  vec3 c4 = vec3(0.608, 0.420, 1.000);",
+    "  vec3 c5 = vec3(0.435, 0.659, 1.000);",
+    "  vec3 c6 = vec3(0.494, 0.906, 0.941);",
+    "  float band = fract(f * 1.6 + warp.x * 0.5);",
+    "  vec3 color = band < 0.2 ? mix(c1, c2, band / 0.2)",
+    "             : band < 0.4 ? mix(c2, c3, (band - 0.2) / 0.2)",
+    "             : band < 0.6 ? mix(c3, c4, (band - 0.4) / 0.2)",
+    "             : band < 0.8 ? mix(c4, c5, (band - 0.6) / 0.2)",
+    "             :              mix(c5, c6, (band - 0.8) / 0.2);",
+    // Kept deliberately restrained (max ~45% opacity) since the hero copy
+    // is centred across the full width now, not off to one side -- this
+    // needs to read as a soft shimmer under the text everywhere, not a
+    // bold field that could fight legibility.
+    "  float alpha = clamp(f, 0.0, 1.0) * 0.45;",
+    "  gl_FragColor = vec4(color * alpha, alpha);",
+    "}"
+  ].join("\n");
+
+  function compile(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.warn("aurora shader failed:", gl.getShaderInfoLog(s));
+      gl.deleteShader(s);
+      return null;
+    }
+    return s;
+  }
+  var vs = compile(gl.VERTEX_SHADER, VERT);
+  var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) return;
+  var program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.warn("aurora program failed:", gl.getProgramInfoLog(program));
+    return;
+  }
+  gl.useProgram(program);
+
+  var posBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  // One oversized triangle covering the whole clip-space square -- cheaper
+  // than a quad, no diagonal seam to worry about.
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  var posLoc = gl.getAttribLocation(program, "a_pos");
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+  var u_resolution = gl.getUniformLocation(program, "u_resolution");
+  var u_time = gl.getUniformLocation(program, "u_time");
+  var u_mouse = gl.getUniformLocation(program, "u_mouse");
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+  // A soft blurry flow field doesn't need retina sharpness, so the render
+  // target stays capped well below actual device pixels -- keeps the
+  // fragment shader's per-pixel noise cost bounded on wide/high-DPR
+  // heroes instead of scaling with the full DPR (same "the expensive part
+  // shouldn't scale with DPR" idea as the old canvas's blur-radius fix).
+  var DPR = Math.min(window.devicePixelRatio || 1, 1.25);
   var w = 0, h = 0;
-  var mouseX = 0.5, mouseY = 0.5;
-  var PALETTE = ["#ffb385", "#ff6b9d", "#e864dd", "#9b6bff", "#6fa8ff", "#7ee7f0"];
-  var COUNT = 36;
+  var mouseX = 0.5, mouseY = 0.5, mouseTX = 0.5, mouseTY = 0.5;
 
   function resize() {
     var rect = hero.getBoundingClientRect();
     w = rect.width;
-    h = rect.height;
-    // The canvas itself covers .prism-stage's taller box (hero height plus
-    // the navH strip above it); drawing still happens in hero-relative
-    // coordinates via the ctx.translate(0, navH) in draw() below, so all
-    // the proportions in pathFor() (based on hero's own w/h) stay correct.
+    h = rect.height + navH;
     canvas.width = Math.round(w * DPR);
-    canvas.height = Math.round((h + navH) * DPR);
-    off.width = canvas.width;
-    off.height = canvas.height;
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    offCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    canvas.height = Math.round(h * DPR);
+    gl.viewport(0, 0, canvas.width, canvas.height);
   }
   resize();
   window.addEventListener("resize", resize);
@@ -1919,66 +2010,22 @@
   if (!reduced && canHover) {
     hero.addEventListener("pointermove", function (e) {
       var rect = hero.getBoundingClientRect();
-      mouseX = (e.clientX - rect.left) / w;
-      mouseY = (e.clientY - rect.top) / h;
+      mouseTX = (e.clientX - rect.left) / w;
+      mouseTY = (e.clientY - rect.top + navH) / h;
     });
   }
 
-  function pathFor(c, index, total, t) {
-    var lane = index / (total - 1) - 0.5;
-    var sway = Math.sin(t * 0.00025 + index * 0.44) * 48;
-    var startX = w * (0.6 + lane * 0.42), startY = -h * 0.15;
-    var endX = w * (1.05 + lane * 0.3), endY = h * 1.05;
-    var bend = w * (0.72 + lane * 0.24) + (mouseX - 0.5) * 90;
-    var lift = h * (0.32 + Math.sin(t * 0.00033 + index) * 0.07) + (mouseY - 0.5) * 50;
-    c.beginPath();
-    c.moveTo(startX, startY);
-    c.bezierCurveTo(bend + sway, lift, bend - sway, h * 0.78, endX, endY);
-  }
-
   function draw(t) {
-    ctx.clearRect(0, 0, w, h + navH);
-
-    for (var pass = 0; pass < 2; pass++) {
-      offCtx.clearRect(0, 0, w, h + navH);
-      offCtx.save();
-      offCtx.translate(0, navH);
-      offCtx.globalAlpha = pass ? 0.11 : 0.15;
-      offCtx.lineWidth = pass ? 62 : 30;
-      for (var i = 0; i < COUNT; i++) {
-        offCtx.strokeStyle = PALETTE[(i + 3) % PALETTE.length];
-        pathFor(offCtx, i, COUNT, t);
-        offCtx.stroke();
-      }
-      offCtx.restore();
-
-      // Draw the already-rasterized buffer with identity transform (off's
-      // pixel size already matches canvas's device pixels 1:1), so the
-      // blur radius needs to be scaled by DPR to look the same size as
-      // it did when the old code blurred under a DPR-scaled transform.
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = pass ? "screen" : "source-over";
-      ctx.filter = "blur(" + (pass ? 26 : 9) * DPR + "px)";
-      ctx.drawImage(off, 0, 0);
-      ctx.restore();
-    }
-
-    ctx.filter = "none";
-    ctx.globalCompositeOperation = "screen";
-    ctx.save();
-    ctx.translate(0, navH);
-    for (var j = 0; j < COUNT; j++) {
-      var hue = 330 - (330 - 195) * (j / (COUNT - 1));
-      ctx.strokeStyle = "hsla(" + hue + ", 92%, " + (66 + (j / (COUNT - 1)) * 12) + "%, .7)";
-      ctx.globalAlpha = 0.6;
-      ctx.lineWidth = 1.2 + (j % 6) * 0.7;
-      pathFor(ctx, j, COUNT, t);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.restore();
+    // Lerp toward the latest pointer position rather than jumping straight
+    // to it -- raw pointer deltas fed directly into a warp this strong
+    // read as jittery; easing it in reads as fluid drag instead.
+    mouseX += (mouseTX - mouseX) * 0.06;
+    mouseY += (mouseTY - mouseY) * 0.06;
+    gl.uniform2f(u_resolution, canvas.width, canvas.height);
+    gl.uniform1f(u_time, t * 0.001);
+    gl.uniform2f(u_mouse, mouseX, mouseY);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
   if (reduced) {
@@ -1986,14 +2033,13 @@
     return;
   }
 
-  // The draw loop is genuinely heavy (36 strands x 2 blur passes + 1 crisp
-  // pass, every frame) and was running unconditionally forever, even with
-  // the hero scrolled far off-screen -- that's main-thread work competing
-  // with scroll input/compositing on every page, which is what made
-  // scrolling anywhere on the site feel slow/skippy, not just near the
-  // hero. Pause the rAF loop entirely once the hero leaves the viewport
-  // (plus a margin so it's already running again just before it re-enters)
-  // and only resume it then.
+  // The draw loop was running unconditionally forever, even with the hero
+  // scrolled far off-screen -- that's main-thread/GPU work competing with
+  // scroll input/compositing on every page, which is what made scrolling
+  // anywhere on the site feel slow/skippy, not just near the hero. Pause
+  // the rAF loop entirely once the hero leaves the viewport (plus a margin
+  // so it's already running again just before it re-enters) and only
+  // resume it then.
   var auroraPaused = false;
   function frame(now) {
     draw(now);

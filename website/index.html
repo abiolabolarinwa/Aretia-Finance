@@ -626,18 +626,26 @@
 
   /* -------- FAQ accordion preview -------- */
 
-  /* -------- Footer -------- */
-  footer { padding: 56px 0 36px; border-top: 1px solid var(--border-soft); }
-  .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; margin-bottom: 44px; }
-  @media (max-width: 700px) { .footer-top { grid-template-columns: 1fr; gap: 26px; } }
-  .footer-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; color: var(--ink); margin-bottom: 10px; }
-  .footer-brand .mark { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+  /* -------- Footer (San Diego-template style: bold columns, a CTA column,
+     underline-reveal link hovers, a big background wordmark) -------- */
+  footer { padding: 88px 0 36px; border-top: 1px solid var(--border-soft); overflow: hidden; }
+  .footer-top { display: grid; grid-template-columns: 1.3fr 0.8fr 0.8fr 1fr; gap: 40px; margin-bottom: 44px; }
+  @media (max-width: 860px) { .footer-top { grid-template-columns: 1fr 1fr; row-gap: 36px; } }
+  @media (max-width: 560px) { .footer-top { grid-template-columns: 1fr; gap: 30px; } }
+  .footer-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 14px; }
+  .footer-brand .mark { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; }
   .footer-brand .mark img { width: 100%; height: 100%; object-fit: cover; }
-  .footer-contact p { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 4px; }
-  .footer-col .h { font-size: 10.5px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
-  .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
-  .footer-col a { font-size: 11.5px; color: var(--ink-soft); transition: color 160ms var(--ease); }
+  .footer-contact p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin-bottom: 6px; max-width: 32ch; }
+  .footer-col .h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink); margin-bottom: 16px; }
+  .footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .footer-col a { position: relative; display: inline-block; font-size: 12.5px; color: var(--ink-soft); transition: color 160ms var(--ease); }
+  .footer-col a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform 220ms var(--ease); }
   .footer-col a:hover { color: var(--ink); }
+  .footer-col a:hover::after { transform: scaleX(1); }
+  .footer-cta .pill-btn { width: fit-content; }
+  .footer-cta-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .footer-cta-actions .pill-btn { padding: 10px 20px; font-size: 11.5px; }
+  .footer-wordmark { font-size: clamp(48px, 10vw, 128px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--ink); opacity: .05; white-space: nowrap; margin: 8px 0 28px; pointer-events: none; user-select: none; }
   .footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 26px; border-top: 1px solid var(--border-soft); }
   .legal { font-size: 9px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
   .footer-copy { font-family: var(--mono); font-size: 9px; color: var(--ink-faint); white-space: nowrap; }
@@ -1430,6 +1438,13 @@
           <li><a href="/#mission">About</a></li>
           <li><a href="faq">FAQ</a></li>
         </ul>
+      </div>
+      <div class="footer-col footer-cta">
+        <div class="h">Ready to get started?</div>
+        <div class="footer-cta-actions">
+          <a class="pill-btn pill-black" href="presale">Join the Presale</a>
+          <a class="pill-btn pill-ghost" href="apply">Apply for Funding</a>
+        </div>
       </div>
     </div>
     <div class="footer-wordmark" aria-hidden="true">Aretia Finance</div>

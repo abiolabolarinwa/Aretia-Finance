@@ -200,6 +200,16 @@
      paints behind the navbar's whole height too -- the navbar itself has
      no background of its own, so it just floats on top of the aurora. */
   .prism-stage { position: absolute; left: 0; right: 0; bottom: 0; top: calc(-1 * var(--nav-h, 78px)); overflow: hidden; z-index: -1; pointer-events: none; }
+  /* .prism-backdrop: a plain white fill for the WHOLE stage, painted first
+     (behind wash/ribbon/canvas). Without this, the sliver of stage that
+     reaches up above the hero's own box (behind the floating nav) had
+     nothing behind it but the page's cream body background, while the
+     hero itself is pure white -- a ~2% brightness step that read as a
+     hairline seam right under the navbar. This scrolls away with the hero
+     like the rest of .prism-stage, so it never shows behind the nav once
+     a different (e.g. dark) section is underneath it further down the
+     page. */
+  .prism-backdrop { position: absolute; inset: 0; background: #fff; }
   /* .prism-wash: a big, heavily-blurred multi-stop radial blend that fills
      the WHOLE stage (not just the top-right corner the ribbon occupies),
      so the aurora's colours read as one continuous blended field behind
@@ -783,6 +793,7 @@
   <!-- ============ HERO (prism: wide-margin aurora hero, centered headline) ============ -->
   <section class="prism-hero" id="hero">
     <div class="prism-stage" aria-hidden="true">
+      <div class="prism-backdrop"></div>
       <div class="prism-wash"></div>
       <div class="prism-ribbon"></div>
       <div class="prism-grain"></div>
@@ -1965,11 +1976,29 @@
     return;
   }
 
+  // The draw loop is genuinely heavy (36 strands x 2 blur passes + 1 crisp
+  // pass, every frame) and was running unconditionally forever, even with
+  // the hero scrolled far off-screen -- that's main-thread work competing
+  // with scroll input/compositing on every page, which is what made
+  // scrolling anywhere on the site feel slow/skippy, not just near the
+  // hero. Pause the rAF loop entirely once the hero leaves the viewport
+  // (plus a margin so it's already running again just before it re-enters)
+  // and only resume it then.
+  var auroraPaused = false;
   function frame(now) {
     draw(now);
-    requestAnimationFrame(frame);
+    if (!auroraPaused) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      var nowVisible = entries[entries.length - 1].isIntersecting;
+      var wasPaused = auroraPaused;
+      auroraPaused = !nowVisible;
+      if (wasPaused && nowVisible) requestAnimationFrame(frame);
+    }, { rootMargin: "200px 0px" }).observe(hero);
+  }
 })();
 </script>
 <script>

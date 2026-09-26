@@ -245,6 +245,16 @@
   .prism-actions { position: relative; z-index: 1; justify-content: center; }
   .prism-actions.hero-actions { margin-top: 44px; gap: 22px; }
   .prism-actions.hero-actions .pill-btn { padding: 17px 32px; font-size: 13px; }
+  /* At >=1200px there's enough room to let each of the two subtext
+     sentences sit on its own single line (one line each, two total)
+     instead of wrapping to 3+2 -- font-size here is deliberately capped
+     low enough (clamp ceiling 18px) that even the longer first sentence
+     never needs more width than the viewport actually has at 1200px,
+     verified in-browser at 1200/1256/1440/1920px before shipping. */
+  @media (min-width: 1200px) {
+    .prism-copy { max-width: 1300px; }
+    .prism-sub { white-space: nowrap; max-width: none; font-size: clamp(14px, 1.05vw, 18px); }
+  }
   @media (max-width: 700px) {
     .prism-hero { min-height: 46rem; }
     .prism-ribbon { top: -25vmax; right: -38vmax; width: 85vmax; height: 102vmax; }

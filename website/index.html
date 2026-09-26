@@ -366,6 +366,18 @@
   .community-orb { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; background: var(--brand); }
   .community-orb-1 { width: 420px; height: 420px; top: -180px; right: -120px; opacity: .35; }
   .community-orb-2 { width: 320px; height: 320px; bottom: -160px; left: -100px; opacity: .22; }
+
+  /* -------- Dark CTA band (San Diego "Download San Diego Now!" style) --------
+     Same big-bold-headline-on-dark energy as the reference's download/CTA
+     band, but built around Aretia's own real conversion actions (Presale +
+     Whitepaper, same pill styles as the hero) rather than an email-capture
+     form -- there's no newsletter backend on this site, so a "subscribe"
+     input here would just be a dead form nobody should see live. */
+  .cta-band { position: relative; overflow: hidden; background: var(--black); color: #fff; padding: 96px 0; text-align: center; }
+  .cta-band-head { position: relative; z-index: 1; font-size: clamp(1.8rem, 4vw, 3.2rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 0 auto 20px; max-width: 720px; }
+  .cta-band-head .prism { background: linear-gradient(100deg, #9b6bff 0%, #7e48f2 40%, #ec55ca 82%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .cta-band-sub { position: relative; z-index: 1; font-size: clamp(15px, 1.6vw, 18px); color: rgba(255,255,255,.65); max-width: 520px; margin: 0 auto 40px; line-height: 1.6; }
+  .cta-band .hero-actions { position: relative; z-index: 1; justify-content: center; }
   .community-eyebrow { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.55); margin: 0 0 28px; }
   .community-eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(236,233,248,.2); }
   .community-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 40px; }
@@ -1297,6 +1309,23 @@
           <button type="button" class="cat-arrow cat-arrow-next" id="cat-next" aria-label="Next category">›</button>
         </div>
         <div class="cat-dots" id="cat-dots"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DARK CTA BAND (San Diego "Download Now" style) ============ -->
+  <section class="cta-band">
+    <div class="community-orb community-orb-1" aria-hidden="true"></div>
+    <div class="community-orb community-orb-2" aria-hidden="true"></div>
+    <div class="wrap">
+      <h2 class="cta-band-head">Ready to <span class="prism">fund the transition</span>?</h2>
+      <p class="cta-band-sub">ACT's presale is live. Every trade that follows withholds a fee, automatically, straight into the treasury.</p>
+      <div class="hero-actions">
+        <a class="pill-btn presale-golden-badge presale-golden-badge-lg aurora-arrow-btn" href="presale">
+          Presale
+          <svg class="aurora-arrow" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M0.5 5.5h7"/><path d="M5.5 1.5l4 4-4 4"/></svg>
+        </a>
+        <a class="pill-btn pill-glass" href="whitepaper">Read the Whitepaper</a>
       </div>
     </div>
   </section>

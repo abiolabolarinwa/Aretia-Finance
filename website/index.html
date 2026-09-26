@@ -320,6 +320,24 @@
   .flux-hero .flux-card-white .flux-blurb p { font-size: 12.5px; }
   @media (max-width: 560px) { .flux-hero .flux-card { min-height: 0; padding: 36px 32px 32px; } }
 
+  /* -------- Big scroll-tied gradient text (San Diego-template style) --------
+     Pure CSS, no JS: the gradient is background-attachment:fixed and
+     clipped to the text shape, sized to the viewport height, so as the
+     page scrolls the text (which moves with the document) reveals
+     different vertical slices of that viewport-fixed gradient -- each
+     line shifts colour as it travels up through the screen. Same
+     technique as the reference section, but using an actual CSS gradient
+     in Aretia's own palette (the same stops as the hero's aurora) rather
+     than importing their background image asset. */
+  .big-text-section { text-align: center; padding: 14vh 0; }
+  .big-text-section .big-text { max-width: 1080px; margin: 0 auto; font-size: clamp(26px, 4.4vw, 54px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.4;
+    background-image: linear-gradient(180deg, var(--brand) 0%, #7e48f2 16%, #ec55ca 32%, #ff8fb0 48%, #ffd08a 64%, #7ee7f0 80%, var(--brand) 100%);
+    background-attachment: fixed; background-size: 100% 100vh;
+    -webkit-background-clip: text; background-clip: text; color: var(--ink); -webkit-text-fill-color: transparent;
+  }
+  .big-text-section .big-text + .big-text { margin-top: 1.4em; }
+  @media (max-width: 760px) { .big-text-section { padding: 8vh 0; } .big-text-section .big-text { font-size: clamp(21px, 6vw, 32px); } }
+
   .flux-steps-band { background: var(--black); color: #fff; padding: 56px 0 64px; }
   .flux-steps-head { font-size: clamp(1.5rem, 2.64vw, 2.02rem); font-weight: 800; letter-spacing: -0.025em; margin: 0 0 44px; }
   .flux-steps-row { display: flex; align-items: flex-start; justify-content: space-between; position: relative; }
@@ -857,6 +875,14 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ BIG SCROLL-TIED GRADIENT TEXT (San Diego-template style) ============ -->
+  <section class="big-text-section">
+    <div class="wrap">
+      <h2 class="big-text">Catalytic capital that de-risks climate projects for commercial investment.</h2>
+      <h2 class="big-text">Designed so every ACT trade automatically funds real climate projects.</h2>
     </div>
   </section>
 

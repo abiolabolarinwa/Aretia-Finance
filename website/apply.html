@@ -45,6 +45,13 @@
   p { font-family: var(--font-serif); }
   .mono { font-family: var(--mono); }
   .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+  /* The nav bar's own wrap (class="wrap topnav-outer" in the markup below)
+     needs to be much wider than this page's narrow content column -- with
+     7 items (Home/Treasury/Staking/Roadmap/Connect Wallet/Apply for
+     Funding/Capital Marketplace), the nav overflows and overlaps the brand
+     logo if it's constrained to 860px. Matches index.html's own override
+     for the identical nav-wrap pattern. */
+  .topnav-outer { max-width: 1360px; }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--black); outline-offset: 2px; }
 
   .pill-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; padding: 13px 24px; border-radius: 980px; white-space: nowrap; transition: background 180ms var(--ease), color 180ms var(--ease), transform 140ms var(--ease), border-color 180ms var(--ease); border: 1.5px solid transparent; }

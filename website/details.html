@@ -37,6 +37,12 @@
   img, svg { max-width: 100%; display: block; }
   .mono { font-family: var(--mono); }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  /* The nav bar's own wrap (class="wrap topnav-outer" in the markup below)
+     needs to be wide enough for 7 items (Home/Treasury/Staking/Roadmap/
+     Connect Wallet/Apply for Funding/Capital Marketplace) -- without this
+     override it overflows and overlaps the brand logo. Matches
+     index.html's own override for the identical nav-wrap pattern. */
+  .topnav-outer { max-width: 1360px; }
   @media (max-width: 640px) { .wrap { padding: 0 20px; } }
   a:focus-visible, button:focus-visible { outline: 2px solid var(--black); outline-offset: 3px; }
   h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -0.03em; text-wrap: balance; }

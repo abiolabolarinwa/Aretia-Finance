@@ -627,7 +627,9 @@
   /* -------- FAQ accordion preview -------- */
 
   /* -------- Footer (San Diego-template style: bold columns, a CTA column,
-     underline-reveal link hovers, a big background wordmark) -------- */
+     underline-reveal link hovers). The big background wordmark itself is
+     governed by the shared assets/footer-bars.css, loaded on every page --
+     not redefined here, to avoid the two rules fighting over specificity. -------- */
   footer { padding: 88px 0 36px; border-top: 1px solid var(--border-soft); overflow: hidden; }
   .footer-top { display: grid; grid-template-columns: 1.3fr 0.8fr 0.8fr 1fr; gap: 40px; margin-bottom: 44px; }
   @media (max-width: 860px) { .footer-top { grid-template-columns: 1fr 1fr; row-gap: 36px; } }
@@ -645,7 +647,6 @@
   .footer-cta .pill-btn { width: fit-content; }
   .footer-cta-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
   .footer-cta-actions .pill-btn { padding: 10px 20px; font-size: 11.5px; }
-  .footer-wordmark { font-size: clamp(48px, 10vw, 128px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--ink); opacity: .05; white-space: nowrap; margin: 8px 0 28px; pointer-events: none; user-select: none; }
   .footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 26px; border-top: 1px solid var(--border-soft); }
   .legal { font-size: 9px; line-height: 1.7; max-width: 74ch; color: var(--ink-faint); }
   .footer-copy { font-family: var(--mono); font-size: 9px; color: var(--ink-faint); white-space: nowrap; }

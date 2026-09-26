@@ -55,6 +55,8 @@
   .pill-black:hover { background: var(--brand-hover); }
   .pill-ghost { border-color: var(--border); color: var(--ink); background: #fff; }
   .pill-ghost:hover { background: var(--bg-alt); }
+  .aurora-arrow { transition: transform 200ms var(--ease); }
+  .aurora-arrow-btn:hover .aurora-arrow { transform: translateX(3px); }
   .btn-blue { background: var(--blue); color: #fff; padding: 10px 20px; border-radius: 980px; font-weight: 600; font-size: 12px; white-space: nowrap; display: inline-block; transition: background 160ms var(--ease), transform 160ms var(--ease); }
   .btn-blue:hover { background: var(--blue-hover); } .btn-blue:active { transform: scale(0.97); }
 
@@ -155,8 +157,8 @@
   .dhero { position: relative; background: var(--bg-alt); overflow: hidden; padding: 76px 0 96px; }
   .dhero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; }
   @media (max-width: 900px) { .dhero-grid { grid-template-columns: 1fr; gap: 32px; } }
-  .dhero-eyebrow { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 16px; }
-  .dhero h1 { font-size: clamp(2.11rem, 4.4vw, 3.17rem); line-height: 1.1; letter-spacing: -0.03em; color: var(--ink); margin: 0 0 18px; text-align: left; }
+  .dhero-eyebrow { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--ink-soft); background: #fff; border: 1px solid var(--border); padding: 7px 16px; border-radius: 980px; margin-bottom: 20px; }
+  .dhero h1 { font-size: clamp(2.11rem, 4.4vw, 3.17rem); line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; color: var(--ink); margin: 0 0 18px; text-align: left; }
   .dhero h1 .hl { color: var(--brand); }
   .dhero-sub { font-size: 14px; color: var(--ink-soft); max-width: 50ch; margin: 0 0 26px; line-height: 1.65; text-align: left; }
   .dhero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -422,7 +424,10 @@
           <h1>Verify, <span class="hl">don't trust.</span></h1>
           <p class="dhero-sub">Every check on this page queries Solana mainnet directly from your own browser, live, right now. Nothing is fetched from an Aretia server; there isn't one in this loop.</p>
           <div class="dhero-actions">
-            <a class="pill-btn pill-black" href="#verify-rerun">Run Checks Now</a>
+            <a class="pill-btn pill-black aurora-arrow-btn" href="#verify-rerun">
+              Run Checks Now
+              <svg class="aurora-arrow" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M0.5 5.5h7"/><path d="M5.5 1.5l4 4-4 4"/></svg>
+            </a>
             <a class="pill-btn pill-ghost" href="whitepaper">Read the Whitepaper</a>
           </div>
           <div class="dhero-microcopy">Zero-trust, client-side, no wallet connection</div>

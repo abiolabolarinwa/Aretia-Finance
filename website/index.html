@@ -437,14 +437,16 @@
   .pulse-logos .logo-mark { width: 21px; height: 21px; flex: none; display: block; }
   .pulse-logos .logo-mark-img { border-radius: 6px; }
   .pulse-stats-wrap { padding-bottom: 56px; }
-  .pulse-stats-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: end; border-top: 1px solid rgba(58,42,5,.16); padding-top: 36px; }
-  @media (max-width: 760px) { .pulse-stats-grid { grid-template-columns: 1fr; gap: 26px; } }
-  .ps-label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  /* San Diego-style pricing cards: plain white, big rounded corners, soft
+     drop shadow, huge bold number -- swapped in for the old
+     divider-line/border layout the two stats used to share. */
+  .pulse-stats-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; align-items: stretch; margin-top: 8px; }
+  @media (max-width: 760px) { .pulse-stats-grid { grid-template-columns: 1fr; gap: 20px; } }
+  .pulse-stat-main, .pulse-stat-side { background: #fff; border-radius: 32px; padding: 36px 40px; box-shadow: 0 24px 60px -28px rgba(20,15,0,.18); border: none; }
+  .ps-label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
   .pulse-stat-main .ps-value { font-size: clamp(2.29rem, 5.28vw, 3.52rem); font-weight: 800; letter-spacing: -.02em; color: var(--ink); line-height: 1; }
-  .pulse-stat-side { border-left: 1px solid rgba(58,42,5,.18); padding-left: 30px; }
-  @media (max-width: 760px) { .pulse-stat-side { border-left: none; padding-left: 0; border-top: 1px solid rgba(58,42,5,.18); padding-top: 22px; } }
   .pulse-stat-side .ps-value { font-size: clamp(1.5rem, 2.99vw, 2.11rem); font-weight: 800; color: var(--ink); }
-  .ps-note { font-size: 11px; color: rgba(58,42,5,.72); margin-top: 8px; max-width: 46ch; line-height: 1.55; }
+  .ps-note { font-size: 11px; color: var(--ink-soft); margin-top: 10px; max-width: 46ch; line-height: 1.55; }
   @media (max-width: 640px) { .pulse-bars { height: 240px; } }
 
   /* -------- Live stats section (moved below the cream hero band) -------- */

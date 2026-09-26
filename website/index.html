@@ -171,6 +171,15 @@
   /* -------- Hero actions (Trade ACT CTA row) -------- */
   .hero-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-start; }
   .pill-ghost-link { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
+  /* Frosted-glass secondary pill + arrow-nudge micro-interaction, values
+     matched from a reference "Aurora" hero's own compiled CSS (solid dark
+     primary / translucent-blurred secondary, arrow translates +3px on
+     hover) -- adapted to Aretia's existing pill shape/colours rather than
+     their black-on-white palette. */
+  .pill-glass { background: rgba(255,255,255,.7); border: 1px solid rgba(10,10,10,.14); color: var(--ink); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background-color 200ms var(--ease), border-color 200ms var(--ease), transform 140ms var(--ease); }
+  .pill-glass:hover { background: rgba(255,255,255,.95); border-color: rgba(10,10,10,.28); }
+  .aurora-arrow { transition: transform 200ms var(--ease); }
+  .aurora-arrow-btn:hover .aurora-arrow { transform: translateX(3px); }
 
   /* -------- Flux-style two-card row (unchanged, still sits below the hero) -------- */
   /* A soft echo of the hero's aurora palette fading to white, so the page
@@ -805,10 +814,11 @@
       <p class="prism-sub">A blockchain-powered financial ecosystem connecting capital, climate projects, verified impact, and the people funding the transition</p>
       <p class="prism-sub">Designed so every ACT trade automatically funds real climate projects.</p>
       <div class="hero-actions prism-actions" style="margin-bottom:0;">
-        <a class="pill-btn presale-golden-badge presale-golden-badge-lg" href="presale">Presale</a>
-      </div>
-      <div class="hero-actions prism-actions" style="margin-top:26px;">
-        <a class="pill-ghost-link" href="whitepaper">Read the Whitepaper before you do →</a>
+        <a class="pill-btn presale-golden-badge presale-golden-badge-lg aurora-arrow-btn" href="presale">
+          Presale
+          <svg class="aurora-arrow" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M0.5 5.5h7"/><path d="M5.5 1.5l4 4-4 4"/></svg>
+        </a>
+        <a class="pill-btn pill-glass" href="whitepaper">Read the Whitepaper before you do</a>
       </div>
     </div>
   </section>

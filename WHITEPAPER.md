@@ -196,7 +196,3 @@ If you want to verify things yourself, here's where to look:
 Aretia doesn't ask anyone to simply believe that climate funding will happen. It tries to build the funding mechanism directly into the infrastructure that generates the money, keep every step checkable, and say clearly where the guarantees end and the open questions begin.
 
 For readers who want the full, heavily detailed version of this document, with academic citations, formulas, and a more technical breakdown of every mechanism, it's kept in the project's public GitHub repository as `WHITEPAPER_TECHNICAL.md`. This document is the everyday version, meant to be read in one sitting and shared with a friend without a glossary.
-
----
-
-*This document is preliminary and subject to change. It does not constitute an offer or solicitation to buy or sell any security, token, or other financial instrument in any jurisdiction where such offer or solicitation would be unlawful. Aretia has not been registered under the securities laws of any jurisdiction. Prospective holders should conduct their own research and consult independent advisors before making any decision related to ACT.*

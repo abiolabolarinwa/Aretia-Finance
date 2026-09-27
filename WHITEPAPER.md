@@ -173,11 +173,7 @@ You don't have to take that on faith. Every fee collected and every payment made
 **Is my money safe if I join the presale?**
 As safe as the design can make it: your funds sit untouched until the sale either succeeds or fails. If it fails, you get every cent back automatically. Nobody can spend presale funds on anything before the sale actually succeeds.
 
-## 11. The legal part, in plain terms
-
-Nothing in this document is financial or investment advice, and nothing here is an offer to sell a security anywhere that would be against the law. ACT has not been formally registered as a security in any country, and how it's treated legally can vary a lot from place to place. If you're thinking about buying or holding ACT, talk to your own independent advisor first, especially if you live somewhere with strict rules around crypto assets.
-
-## 12. Don't take our word for it
+## 11. Don't take our word for it
 
 Aretia's website has a built-in tool that checks Solana's real, public blockchain directly, live, while you watch. It shows the actual token supply, the actual fee configuration, and the actual treasury setup, straight from the source, not just numbers typed into a webpage. The full project code is also open source and publicly viewable, so nothing here depends on taking our description on faith.
 

@@ -54,4 +54,4 @@ Status: drafted 4 Sept 2026. **Updated 26 Sept 2026** — steps 1 through 5 and 
 
 ---
 
-*This is a sequencing document, not a legal or financial one — none of the entity-name, tax, or securities questions elsewhere in this repo are resolved by completing this checklist. See `WHITEPAPER.md` §12 for those.*
+*This is a sequencing document, not a legal or financial one — none of the entity-name, tax, or securities questions elsewhere in this repo are resolved by completing this checklist. See `PROTOCOL.md` §16 for those (the whitepaper's own plain-language legal section was removed 27 Sept 2026).*

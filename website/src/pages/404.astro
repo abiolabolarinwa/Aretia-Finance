@@ -1,0 +1,24 @@
+---
+import Base from '../layouts/Base.astro';
+import Button from '../components/buttons/Button.astro';
+---
+
+<Base title="Page not found" description="This page doesn't exist." ctaBands={false}>
+  <section class="nf">
+    <div class="container nf__inner">
+      <p class="eyebrow eyebrow--gold">404</p>
+      <h1 class="display">This route doesn't exist.</h1>
+      <p class="lead">The page may have moved in the redesign. Try search, or head back home.</p>
+      <div class="nf__actions">
+        <Button href="/" arrow>Home</Button>
+        <Button href="/search" variant="secondary">Search</Button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .nf { min-height: 80svh; display: flex; align-items: center; padding-top: var(--nav-height); }
+  .nf__inner { display: grid; gap: var(--space-md); justify-items: start; }
+  .nf__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+</style>

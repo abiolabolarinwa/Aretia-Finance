@@ -1,0 +1,95 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import ProductSection from '../components/product/ProductSection.astro';
+import WalletMock from '../components/wallet/WalletMock.astro';
+import UniversalVisual from '../components/universal/UniversalVisual.astro';
+import ShieldVisual from '../components/shield/ShieldVisual.astro';
+import IntentVisual from '../components/intent/IntentVisual.astro';
+import PayVisual from '../components/pay/PayVisual.astro';
+import ActSection from '../components/token/ActSection.astro';
+import ClimateSection from '../components/climate/ClimateSection.astro';
+import InfoGrid from '../components/cards/InfoGrid.astro';
+import { PRODUCTS, SECURITY, DEVELOPERS } from '../data/site';
+
+const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
+const index = [
+  ['#wallet', 'Multichain Wallet'], ['#universal', 'Universal'], ['#pay', 'Pay'], ['#shield', 'Shield'],
+  ['#intent', 'Intent'], ['#act', 'ACT'], ['#climate', 'Climate Treasury'], ['#security', 'Security'], ['#developers', 'Developers'],
+];
+---
+
+<Base title="Features" description="Everything Aretia does today, and what is on the roadmap: multichain wallet, Universal, Pay, Shield, Intent, ACT, the Climate Treasury, security and developer infrastructure.">
+  <PageHero
+    eyebrow="Features"
+    title="Everything Aretia does, in one place."
+    lead="What is built today, what runs on testnet, and what is still on the roadmap, labelled plainly on every feature."
+  >
+    <nav class="toc" aria-label="On this page" data-reveal>
+      {index.map(([href, label]) => <a href={href}>{label}</a>)}
+    </nav>
+  </PageHero>
+
+  <ProductSection
+    id="wallet"
+    eyebrow="Multichain Wallet"
+    title="One recovery phrase.<br />Five networks."
+    lead={p.wallet!.summary}
+    status={p.wallet!.status}
+    statusNote={p.wallet!.statusNote}
+    points={p.wallet!.today}
+    roadmap={p.wallet!.roadmap}
+  >
+    <div class="panel panel--glow-indigo wallet-visual" data-tilt-zone><WalletMock /></div>
+  </ProductSection>
+
+  <ProductSection id="universal" eyebrow="Aretia Universal" title="Move value without thinking about the chain." lead={p.universal!.summary} status={p.universal!.status} points={p.universal!.today} roadmap={p.universal!.roadmap} reverse>
+    <UniversalVisual />
+  </ProductSection>
+
+  <ProductSection id="pay" eyebrow="Aretia Pay" title="Payments without<br />the friction." lead={p.pay!.summary} status={p.pay!.status} points={p.pay!.today} roadmap={p.pay!.roadmap}>
+    <PayVisual />
+  </ProductSection>
+
+  <ProductSection id="shield" eyebrow="Aretia Shield" title="Know before<br />you sign." lead={p.shield!.summary} status={p.shield!.status} points={p.shield!.today} roadmap={p.shield!.roadmap} statusNote={p.shield!.statusNote} reverse>
+    <ShieldVisual />
+  </ProductSection>
+
+  <ProductSection id="intent" eyebrow="Aretia Intent" title="Tell Aretia what you want.<br />Review it, then sign." lead={p.intent!.summary} status={p.intent!.status} points={p.intent!.today} roadmap={p.intent!.roadmap} statusNote={p.intent!.statusNote}>
+    <IntentVisual />
+  </ProductSection>
+
+  <ActSection />
+  <ClimateSection />
+
+  <section class="section" id="security" aria-labelledby="security-title">
+    <div class="container stack">
+      <header class="stack__head">
+        <p class="eyebrow" data-reveal>Security</p>
+        <h2 id="security-title" class="heading" data-split>Self-custody, taken seriously.</h2>
+        <p class="lead" data-reveal>Your keys never leave your device, and nothing is signed without an explicit review.</p>
+      </header>
+      <InfoGrid items={SECURITY} />
+    </div>
+  </section>
+
+  <section class="section" id="developers" aria-labelledby="dev-title">
+    <div class="container stack">
+      <header class="stack__head">
+        <p class="eyebrow" data-reveal>Developer infrastructure</p>
+        <h2 id="dev-title" class="heading" data-split>Built on open standards.</h2>
+        <p class="lead" data-reveal>Aretia speaks the interfaces dApps already use, so integrating needs no Aretia-specific code.</p>
+      </header>
+      <InfoGrid items={DEVELOPERS.map((d) => ({ ...d, href: '/docs' }))} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: var(--space-md); }
+  .toc a { padding: 0.5rem 0.95rem; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), border-color var(--duration-fast), background-color var(--duration-fast); }
+  .toc a:hover { color: var(--color-white); border-color: var(--color-border-strong); background: rgba(255, 255, 255, 0.04); }
+  .wallet-visual { display: grid; place-items: center; min-height: 520px; }
+  .stack { display: grid; gap: var(--space-2xl); }
+  .stack__head { display: grid; gap: var(--space-md); max-width: 46rem; }
+</style>

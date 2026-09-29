@@ -1,0 +1,68 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Architecture, { type MapNode } from '../components/ecosystem/Architecture.astro';
+import InfoGrid from '../components/cards/InfoGrid.astro';
+import { PRODUCTS, STATUS_LABEL } from '../data/site';
+
+const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
+const node = (id: string, label: string, x: number, y: number, kind: MapNode['kind']): MapNode => ({
+  id, label, x, y, kind, text: p[id]!.summary, status: STATUS_LABEL[p[id]!.status],
+});
+
+const nodes: MapNode[] = [
+  node('wallet', 'Aretia Wallet', 50, 8, 'core'),
+  node('shield', 'Shield', 18, 14, 'product'),
+  node('intent', 'Intent', 82, 14, 'product'),
+  node('universal', 'Aretia Universal', 50, 30, 'core'),
+  node('pay', 'Pay', 82, 30, 'product'),
+  { id: 'act', label: 'ACT', x: 18, y: 30, kind: 'act', text: 'Aretia’s token, live on Solana mainnet, with a 3.5% on-chain transfer fee.', status: 'Live' },
+  { id: 'solana', label: 'Solana', x: 32, y: 48, kind: 'chain', text: 'ACT’s home chain and the NTT hub for bridging.', status: 'Supported' },
+  { id: 'ethereum', label: 'Ethereum', x: 68, y: 48, kind: 'chain', text: 'EVM destination for bridged ACT (testnet today) and home of ENS names.', status: 'Supported' },
+  { id: 'climate', label: 'Climate Treasury', x: 22, y: 64, kind: 'climate', text: 'Receives 2% of every ACT transfer. A 2-of-3 multisig catalyst fund for climate projects.', status: 'Live' },
+  { id: 'projects', label: 'Climate projects', x: 62, y: 64, kind: 'climate', text: 'Mitigation and adaptation projects apply through the Capital Marketplace for catalyst funding.', status: 'Applications open' },
+];
+const edges: [string, string][] = [
+  ['wallet', 'shield'], ['wallet', 'intent'], ['wallet', 'universal'], ['wallet', 'pay'],
+  ['universal', 'solana'], ['universal', 'ethereum'], ['pay', 'ethereum'],
+  ['act', 'solana'], ['act', 'universal'], ['act', 'climate'], ['climate', 'projects'],
+];
+
+const layers = [
+  { title: 'Wallet layer', detail: 'Aretia Wallet holds keys and assets across Solana and EVM networks, and is where every product surfaces.', href: '/wallet' },
+  { title: 'Product layer', detail: 'Shield, Intent and Pay make transactions safer and easier to express, all inside the wallet.', href: '/features' },
+  { title: 'Interoperability layer', detail: 'Universal moves ACT between chains over Wormhole Native Token Transfers.', href: '/features#universal' },
+  { title: 'Token layer', detail: 'ACT’s on-chain transfer fee funds the treasury, liquidity and operations.', href: '/token' },
+  { title: 'Climate layer', detail: 'The Climate Treasury finances projects that apply through the Capital Marketplace.', href: '/details' },
+  { title: 'Projects', detail: 'Browse projects seeking capital, or submit your own for catalyst funding.', href: '/marketplace' },
+];
+---
+
+<Base title="Ecosystem" description="How Aretia fits together: wallet, products, interoperability, ACT, the Climate Treasury and the climate projects it funds.">
+  <PageHero
+    eyebrow="Ecosystem"
+    title="Every part, connected."
+    lead="Explore how the wallet, its products, ACT and the Climate Treasury relate. Hover or tap any node to see its connections."
+  />
+  <section class="section eco-map" aria-label="Ecosystem map">
+    <div class="container" data-reveal="scale">
+      <Architecture
+        id="ecosystem-map"
+        nodes={nodes}
+        edges={edges}
+        intro={{ title: 'The Aretia ecosystem', text: 'Value flows from the wallet through Universal across chains; ACT’s fee flows into the Climate Treasury and on to projects.' }}
+      />
+    </div>
+  </section>
+  <section class="section" aria-labelledby="layers-title">
+    <div class="container layers">
+      <h2 id="layers-title" class="heading" data-split>Six layers, one system.</h2>
+      <InfoGrid items={layers} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .eco-map { padding-top: 0; }
+  .layers { display: grid; gap: var(--space-2xl); }
+</style>

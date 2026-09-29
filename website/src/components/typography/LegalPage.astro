@@ -1,0 +1,41 @@
+---
+import Base from '../../layouts/Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  updated: string;
+}
+const { title, description, updated } = Astro.props;
+---
+
+<Base title={title} description={description} ctaBands={false}>
+  <header class="lh">
+    <div class="container">
+      <p class="eyebrow">Legal</p>
+      <h1 class="display">{title}</h1>
+      <p class="lh__meta">Last updated {updated}</p>
+      <p class="lh__draft" role="note">
+        Draft pending legal review. Sections marked <em>[Legal review required]</em> are placeholders and are not yet final terms.
+      </p>
+    </div>
+  </header>
+  <div class="container">
+    <div class="legal"><slot /></div>
+  </div>
+</Base>
+
+<style>
+  .lh { padding-top: calc(var(--nav-height) + clamp(3rem, 8vw, 6rem)); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-2xl); }
+  .lh .container { display: grid; gap: var(--space-sm); }
+  .lh__meta { color: var(--color-faint); font-size: var(--text-small); }
+  .lh__draft { margin-top: var(--space-sm); max-width: 44rem; padding: 14px 18px; border-radius: var(--radius-md); border: 1px solid rgba(245, 184, 75, 0.35); background: rgba(245, 184, 75, 0.06); color: var(--color-warn); font-size: var(--text-small); }
+  .legal { max-width: 46rem; padding-bottom: var(--space-3xl); color: var(--color-muted); line-height: 1.75; }
+  .legal :global(h2) { font-size: 1.5rem; letter-spacing: -0.02em; margin: 2.5rem 0 0.75rem; scroll-margin-top: calc(var(--nav-height) + 16px); }
+  .legal :global(p), .legal :global(ul) { margin: 0 0 1rem; }
+  .legal :global(ul) { padding-left: 1.2rem; }
+  .legal :global(li) { margin-bottom: 0.4rem; }
+  .legal :global(em) { color: var(--color-warn); font-style: normal; font-weight: 600; }
+  .legal :global(strong) { color: var(--color-text); }
+  .legal :global(a) { color: var(--color-gold-bright); text-decoration: underline; text-underline-offset: 3px; }
+</style>

@@ -1,14 +1,27 @@
 ---
 import { PRODUCTS, STATUS_LABEL } from '../../data/site';
 
+export interface MapNode {
+  id: string;
+  label: string;
+  x: number;
+  /** 0–72, in the map's coordinate space. */
+  y: number;
+  kind: 'core' | 'product' | 'act' | 'chain' | 'climate';
+  text: string;
+  status: string;
+}
+
 interface Props {
   id?: string;
+  nodes?: MapNode[];
+  edges?: [string, string][];
+  intro?: { title: string; text: string };
 }
-const { id = 'architecture' } = Astro.props;
 
 const byId = Object.fromEntries(PRODUCTS.map((p) => [p.slug, p]));
 
-const nodes = [
+const defaultNodes: MapNode[] = [
   { id: 'wallet', label: 'Aretia Wallet', x: 50, y: 12, kind: 'core', text: byId.wallet!.summary, status: STATUS_LABEL[byId.wallet!.status] },
   { id: 'universal', label: 'Aretia Universal', x: 50, y: 44, kind: 'core', text: byId.universal!.summary, status: STATUS_LABEL[byId.universal!.status] },
   { id: 'shield', label: 'Shield', x: 14, y: 22, kind: 'product', text: byId.shield!.summary, status: STATUS_LABEL[byId.shield!.status] },
@@ -20,11 +33,18 @@ const nodes = [
   { id: 'evm', label: 'Base · BNB · Polygon', x: 80, y: 64, kind: 'chain', text: 'Additional EVM networks the wallet supports from the same account.', status: 'Supported' },
 ];
 
-const edges: [string, string][] = [
+const defaultEdges: [string, string][] = [
   ['wallet', 'universal'], ['wallet', 'shield'], ['wallet', 'intent'], ['wallet', 'pay'],
   ['universal', 'solana'], ['universal', 'ethereum'], ['wallet', 'evm'],
   ['act', 'solana'], ['act', 'universal'], ['pay', 'ethereum'],
 ];
+
+const {
+  id = 'architecture',
+  nodes = defaultNodes,
+  edges = defaultEdges,
+  intro = { title: 'Aretia architecture', text: 'Every Aretia product plugs into one wallet; Universal carries ACT between chains.' },
+} = Astro.props;
 const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
 ---
 
@@ -55,8 +75,8 @@ const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
   </div>
   <div class="arch__detail" id={`${id}-detail`} aria-live="polite">
     <span class="arch__detail-status" data-detail-status>Hover or tap a component</span>
-    <b data-detail-title>Aretia architecture</b>
-    <p data-detail-text>Every Aretia product plugs into one wallet; Universal carries ACT between chains.</p>
+    <b data-detail-title>{intro.title}</b>
+    <p data-detail-text>{intro.text}</p>
   </div>
 </div>
 
@@ -71,6 +91,7 @@ const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
   .arch__node--core { padding: 14px 22px; font-size: 14px; background: var(--color-indigo); border-color: rgba(107, 92, 255, 0.6); color: var(--color-white); box-shadow: 0 0 40px -10px rgba(107, 92, 255, 0.7); }
   .arch__node--act { color: var(--color-gold-bright); border-color: rgba(201, 164, 92, 0.5); background: var(--color-gold-soft); }
   .arch__node--chain { background: var(--color-ink); }
+  .arch__node--climate { color: #86efac; border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.08); }
   .arch__node:hover, .arch__node:focus-visible, .arch__node.is-active { transform: scale(1.08); border-color: var(--color-gold); }
   .arch.has-focus .arch__node:not(.is-active):not(.is-linked) { opacity: 0.4; }
   .arch__detail { display: grid; gap: 6px; padding: 20px 22px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); min-height: 118px; }

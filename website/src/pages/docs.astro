@@ -1,0 +1,98 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import { DOCS } from '../data/help';
+---
+
+<Base title="Docs" description="Aretia developer and user documentation: wallet, ACT, Universal, Shield, Intent, Pay, developer APIs, smart contracts and security.">
+  <PageHero eyebrow="Documentation" title="Build with Aretia." lead="How every part of Aretia works: the wallet, ACT, Universal, Shield, Intent, Pay, the standard interfaces dApps use, and the contracts underneath." />
+
+  <section class="section docs">
+    <div class="container docs__grid">
+      <nav class="docs__nav" aria-label="Documentation sections">
+        <p class="eyebrow">Contents</p>
+        <ol>
+          {DOCS.map((d) => <li><a href={`#${d.id}`} data-doc-link={d.id}>{d.title}</a></li>)}
+        </ol>
+      </nav>
+
+      <div class="docs__body">
+        <ul class="docs__cards" data-reveal>
+          {
+            DOCS.map((d, i) => (
+              <li>
+                <a href={`#${d.id}`} class="dcard">
+                  <span class="dcard__n tnum">{String(i + 1).padStart(2, '0')}</span>
+                  <b>{d.title}</b>
+                  <span>{d.summary}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+
+        {
+          DOCS.map((d) => (
+            <section class="doc" id={d.id} aria-labelledby={`${d.id}-h`} data-doc>
+              <h2 id={`${d.id}-h`}>{d.title}</h2>
+              <p class="doc__summary">{d.summary}</p>
+              {d.body.map((para) => <p>{para}</p>)}
+              {d.links && (
+                <ul class="doc__links">
+                  {d.links.map((l) => (
+                    <li>
+                      <a href={l.href} {...(l.href.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>{l.label} →</a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .docs { padding-top: 0; }
+  .docs__grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-2xl); align-items: start; }
+  .docs__nav { position: sticky; top: calc(var(--nav-height) + 24px); display: grid; gap: var(--space-sm); }
+  .docs__nav ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border-left: 1px solid var(--color-border); }
+  .docs__nav a { display: block; padding: 6px 14px; margin-left: -1px; border-left: 1px solid transparent; font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), border-color var(--duration-fast); }
+  .docs__nav a:hover { color: var(--color-white); }
+  .docs__nav a.is-current { color: var(--color-gold); border-left-color: var(--color-gold); }
+  .docs__cards { list-style: none; margin: 0 0 var(--space-2xl); padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .dcard { display: grid; gap: 6px; height: 100%; padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-ink); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out); }
+  .dcard:hover { border-color: rgba(201, 164, 92, 0.45); transform: translateY(-3px); }
+  .dcard__n { font-size: var(--text-micro); color: var(--color-gold); }
+  .dcard b { color: var(--color-white); }
+  .dcard span:last-child { font-size: var(--text-small); color: var(--color-muted); }
+  .doc { padding: var(--space-xl) 0; border-top: 1px solid var(--color-border); scroll-margin-top: calc(var(--nav-height) + 16px); max-width: 44rem; }
+  .doc h2 { font-size: clamp(1.75rem, 3vw, 2.5rem); margin-bottom: 0.5rem; }
+  .doc__summary { color: var(--color-gold); font-weight: 500; margin-bottom: 1rem; }
+  .doc p { color: var(--color-muted); line-height: 1.75; margin-bottom: 1rem; overflow-wrap: anywhere; }
+  .doc__links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1.25rem; }
+  .doc__links a { font-size: var(--text-small); font-weight: 600; color: var(--color-white); }
+  .doc__links a:hover { color: var(--color-gold-bright); }
+  @media (max-width: 900px) {
+    .docs__grid { grid-template-columns: minmax(0, 1fr); }
+    .docs__nav { display: none; }
+  }
+</style>
+
+<script>
+  // Highlight the section currently in view in the side contents.
+  const links = new Map([...document.querySelectorAll<HTMLAnchorElement>('[data-doc-link]')].map((a) => [a.dataset.docLink, a]));
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        links.forEach((a) => a.classList.remove('is-current'));
+        links.get(e.target.id)?.classList.add('is-current');
+      });
+    },
+    { rootMargin: '-30% 0px -60% 0px' },
+  );
+  document.querySelectorAll('[data-doc]').forEach((s) => io.observe(s));
+</script>

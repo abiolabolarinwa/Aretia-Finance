@@ -1,0 +1,122 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+import { FAQS, SUPPORT_CATEGORIES } from '../data/help';
+---
+
+<Base title="Support" description="Answers about Aretia Wallet, transactions, ACT, bridging, Shield, Pay, Intent and security.">
+  <PageHero eyebrow="Support" title="Help &amp; support" lead="Search the questions people ask most, or browse by topic." align="center">
+    <form class="sbox" role="search" data-reveal onsubmit="return false">
+      <label for="faq-search" class="sr-only">Search support</label>
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="m14 14 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+      <input id="faq-search" type="search" placeholder="Search: bridge, fees, recovery phrase…" autocomplete="off" data-faq-search />
+    </form>
+  </PageHero>
+
+  <section class="section support" aria-label="Frequently asked questions">
+    <div class="container">
+      <div class="chips" role="group" aria-label="Filter by topic" data-reveal>
+        <button type="button" class="chip" aria-pressed="true" data-cat="all">All</button>
+        {SUPPORT_CATEGORIES.map((c) => <button type="button" class="chip" aria-pressed="false" data-cat={c}>{c}</button>)}
+      </div>
+      <p class="count" aria-live="polite" data-faq-count></p>
+      <div class="faqs" data-faq-list>
+        {
+          FAQS.map((f) => (
+            <details class="faq" id={f.id} data-faq data-cat={f.category}>
+              <summary>
+                <span class="faq__cat">{f.category}</span>
+                <span class="faq__q">{f.q}</span>
+                <span class="faq__icon" aria-hidden="true" />
+              </summary>
+              <p class="faq__a">{f.a}</p>
+            </details>
+          ))
+        }
+      </div>
+      <div class="none" hidden data-faq-none>
+        <p>No answers match that search.</p>
+      </div>
+
+      <div class="still" data-reveal>
+        <h2 class="subheading">Not finding what you're looking for?</h2>
+        <p class="muted">Send us a message. We never ask for your recovery phrase or private keys.</p>
+        <Button href="/contact?category=Support" arrow>Contact support</Button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .sbox { display: flex; align-items: center; gap: 12px; width: min(100%, 560px); margin-top: var(--space-md); padding: 0 18px; height: 56px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: rgba(255, 255, 255, 0.03); color: var(--color-muted); transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+  .sbox:focus-within { border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(201, 164, 92, 0.12); }
+  .sbox input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-size: 1rem; color: var(--color-white); }
+  .support { padding-top: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+  .chip { padding: 0.5rem 1rem; min-height: 40px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast), border-color var(--duration-fast); }
+  .chip:hover { color: var(--color-white); border-color: var(--color-border-strong); }
+  .chip[aria-pressed='true'] { color: var(--color-black); background: var(--color-white); border-color: var(--color-white); }
+  .count { text-align: center; font-size: var(--text-small); color: var(--color-faint); margin: var(--space-md) 0; }
+  .faqs { max-width: 52rem; margin-inline: auto; border-top: 1px solid var(--color-border); }
+  .faq { border-bottom: 1px solid var(--color-border); }
+  .faq summary { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 20px; align-items: center; gap: 1rem; padding: 1.3rem 0; cursor: pointer; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq__cat { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
+  .faq__q { font-size: 1.05rem; font-weight: 600; color: var(--color-white); transition: color var(--duration-fast); }
+  .faq summary:hover .faq__q { color: var(--color-gold-bright); }
+  .faq__icon { position: relative; width: 14px; height: 14px; justify-self: end; }
+  .faq__icon::before, .faq__icon::after { content: ''; position: absolute; left: 0; top: 6px; width: 14px; height: 1.5px; background: var(--color-muted); transition: transform var(--duration-base) var(--ease-out); }
+  .faq__icon::after { transform: rotate(90deg); }
+  .faq[open] .faq__icon::after { transform: rotate(0); }
+  .faq__a { padding: 0 0 1.4rem 8.5rem; color: var(--color-muted); max-width: 46rem; }
+  .faq[open] .faq__a { animation: faq-in 400ms var(--ease-out); }
+  @keyframes faq-in { from { opacity: 0; transform: translateY(-4px); } }
+  .none { text-align: center; color: var(--color-faint); padding: var(--space-xl) 0; }
+  .still { display: grid; justify-items: center; gap: var(--space-sm); text-align: center; margin-top: var(--space-3xl); }
+  @media (max-width: 640px) {
+    .faq summary { grid-template-columns: minmax(0, 1fr) 20px; }
+    .faq__cat { grid-column: 1 / -1; }
+    .faq__a { padding-left: 0; }
+  }
+</style>
+
+<script>
+  const input = document.querySelector<HTMLInputElement>('[data-faq-search]')!;
+  const chips = [...document.querySelectorAll<HTMLButtonElement>('.chip')];
+  const faqs = [...document.querySelectorAll<HTMLDetailsElement>('[data-faq]')];
+  const none = document.querySelector<HTMLElement>('[data-faq-none]')!;
+  const count = document.querySelector<HTMLElement>('[data-faq-count]')!;
+  let category = 'all';
+
+  const apply = () => {
+    const terms = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    faqs.forEach((f) => {
+      const text = f.textContent?.toLowerCase() ?? '';
+      const match = (category === 'all' || f.dataset.cat === category) && terms.every((t) => text.includes(t));
+      f.hidden = !match;
+      if (match) shown++;
+      if (terms.length && match) f.open = true;
+    });
+    none.hidden = shown > 0;
+    count.textContent = `${shown} ${shown === 1 ? 'answer' : 'answers'}`;
+  };
+
+  chips.forEach((chip) =>
+    chip.addEventListener('click', () => {
+      category = chip.dataset.cat ?? 'all';
+      chips.forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+      apply();
+    }),
+  );
+  input.addEventListener('input', apply);
+
+  const q = new URLSearchParams(location.search).get('q');
+  if (q) input.value = q;
+  apply();
+  if (location.hash) {
+    const target = document.querySelector<HTMLDetailsElement>(location.hash);
+    if (target) target.open = true;
+  }
+</script>

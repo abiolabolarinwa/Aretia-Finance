@@ -1,0 +1,150 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import ActSection from '../components/token/ActSection.astro';
+import Button from '../components/buttons/Button.astro';
+import StatusBadge from '../components/ui/StatusBadge.astro';
+import { ACT, LINKS } from '../data/site';
+
+const pct = (n: number) => (n / ACT.totalSupply) * 100;
+const liquiditySeed = 5_000_000;
+const segments = [
+  { label: 'Presale', amount: ACT.presaleAllocation, status: 'in-development' as const, note: 'Presale program deployed and tested on devnet; not on mainnet.' },
+  { label: 'Liquidity seed', amount: liquiditySeed, status: 'roadmap' as const, note: 'Planned Raydium pool seed; not yet funded.' },
+  { label: 'Treasury-held, allocation to be published', amount: ACT.totalSupply - ACT.presaleAllocation - liquiditySeed, status: undefined, note: 'Held in the 2-of-3 treasury multisig. No further allocation has been published.' },
+];
+const facts = [
+  { k: 'Network', v: `${ACT.network} mainnet` },
+  { k: 'Standard', v: ACT.standard },
+  { k: 'Decimals', v: '9' },
+  { k: 'Mint authority', v: ACT.mintAuthority },
+  { k: 'Freeze authority', v: ACT.freezeAuthority },
+  { k: 'Fee authority', v: 'Treasury 2-of-3 multisig' },
+];
+---
+
+<Base title="ACT Token" description="ACT: Aretia's ecosystem token on Solana. Fixed 1,000,000,000 supply, 3.5% on-chain transfer fee funding the Climate Treasury, verified mint details.">
+  <PageHero
+    eyebrow="Token"
+    title="ACT"
+    size="mega"
+    lead="Aretia's ecosystem token. A fixed-supply SPL Token-2022 mint on Solana, with a transfer fee enforced by the token program itself."
+  />
+
+  <section class="section tk-facts" aria-labelledby="supply-title">
+    <div class="container">
+      <div class="supply">
+        <div class="supply__head">
+          <h2 id="supply-title" class="eyebrow">Total supply</h2>
+          <p class="supply__big tnum" data-count={ACT.totalSupply}>{ACT.totalSupply.toLocaleString('en-US')}</p>
+          <p class="muted">Minted once, in a single instruction. Mint authority revoked: the supply can never increase.</p>
+        </div>
+
+        <div class="bar" data-reveal role="img" aria-label="ACT supply: 10% planned for presale, 0.5% planned liquidity seed, 89.5% held in the treasury multisig with allocation to be published">
+          {segments.map((s, i) => <span class={`bar__seg bar__seg--${i}`} style={`--w:${pct(s.amount)}%`} />)}
+        </div>
+        <ul class="legend">
+          {
+            segments.map((s, i) => (
+              <li data-reveal>
+                <span class={`legend__dot bar__seg--${i}`} />
+                <div>
+                  <b>{s.label}</b>
+                  <span class="tnum">{s.amount.toLocaleString('en-US')} ACT · {pct(s.amount).toLocaleString('en-US', { maximumFractionDigits: 1 })}%</span>
+                  <small>{s.note}</small>
+                </div>
+                {s.status && <StatusBadge status={s.status} />}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="contract" data-reveal>
+        <h2 class="eyebrow">Contract</h2>
+        <div class="contract__mint">
+          <span class="mono" data-mint>{ACT.mint}</span>
+          <button type="button" class="contract__copy" data-copy={ACT.mint} aria-label="Copy mint address">Copy</button>
+        </div>
+        <dl class="contract__facts">
+          {facts.map((f) => <div><dt>{f.k}</dt><dd>{f.v}</dd></div>)}
+        </dl>
+        <div class="contract__actions">
+          <Button href={LINKS.explorerMint} variant="secondary" external arrow>View on Solscan</Button>
+          <Button href="/verify" variant="ghost">Verify on-chain</Button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="fees"><ActSection /></div>
+
+  <section class="section" aria-labelledby="presale-title">
+    <div class="container presale" data-reveal="scale">
+      <div>
+        <p class="eyebrow eyebrow--gold">Presale</p>
+        <h2 id="presale-title" class="heading">{ACT.presaleAllocation.toLocaleString('en-US')} ACT</h2>
+      </div>
+      <div class="presale__copy">
+        <p class="lead">Net to purchasers, with a {`$${ACT.presaleHardCapUsd.toLocaleString('en-US')}`} hard cap and linear vesting. The presale program has been deployed and exercised on devnet; it is not live on mainnet.</p>
+        <Button href="/presale" variant="gold" arrow>Presale details</Button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section disclaimer" aria-label="Important information">
+    <div class="container">
+      <p>ACT is a utility token for the Aretia ecosystem. Nothing on this page is an offer, investment advice or a promise of value, returns or price. Digital assets are volatile and you can lose everything you put in. Read the <a href="/terms#risk">risk disclosure</a>.</p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .tk-facts .container { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--space-xl); align-items: start; }
+  .supply { display: grid; gap: var(--space-lg); }
+  .supply__head { display: grid; gap: var(--space-xs); }
+  .supply__big { font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 600; letter-spacing: -0.04em; color: var(--color-white); line-height: 1; }
+  .bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.05); gap: 2px; }
+  .bar__seg { width: var(--w); min-width: 6px; }
+  .bar__seg--0 { background: var(--color-gold); }
+  .bar__seg--1 { background: var(--color-indigo-bright); }
+  .bar__seg--2 { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0 6px, rgba(255, 255, 255, 0.05) 6px 12px); }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; }
+  .legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 0; border-top: 1px solid var(--color-border); }
+  .legend__dot { width: 12px; height: 12px; border-radius: 3px; margin-top: 4px; }
+  .legend div { display: grid; gap: 2px; }
+  .legend b { color: var(--color-white); font-size: 15px; }
+  .legend span { font-size: var(--text-small); color: var(--color-muted); }
+  .legend small { font-size: var(--text-micro); color: var(--color-faint); }
+  .contract { display: grid; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); }
+  .contract__mint { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--color-border); }
+  .contract__mint .mono { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; color: var(--color-gold-bright); }
+  .contract__copy { flex: none; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border-strong); transition: background-color var(--duration-fast); min-height: 32px; }
+  .contract__copy:hover { background: rgba(255, 255, 255, 0.06); }
+  .contract__facts { margin: 0; display: grid; }
+  .contract__facts div { display: flex; justify-content: space-between; gap: 1rem; padding: 10px 0; border-top: 1px solid var(--color-border); font-size: var(--text-small); }
+  .contract__facts dt { color: var(--color-faint); }
+  .contract__facts dd { margin: 0; color: var(--color-text); text-align: right; }
+  .contract__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .presale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xl); align-items: end; padding: clamp(2rem, 5vw, 4rem); border-radius: var(--radius-xl); border: 1px solid rgba(201, 164, 92, 0.25); background: radial-gradient(80% 120% at 0% 100%, rgba(201, 164, 92, 0.1), transparent 60%), var(--color-ink); }
+  .presale__copy { display: grid; gap: var(--space-md); justify-items: start; }
+  .disclaimer p { font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
+  .disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
+  @media (max-width: 1023px) {
+    .tk-facts .container, .presale { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy ?? '');
+        btn.textContent = 'Copied';
+        window.setTimeout(() => (btn.textContent = 'Copy'), 1600);
+      } catch {
+        btn.textContent = 'Select & copy';
+      }
+    });
+  });
+</script>

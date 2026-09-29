@@ -141,17 +141,37 @@ export const CLIMATE = {
   allocationNote: 'Illustrative starting weights; governance can revise them.',
 };
 
-export const NETWORKS = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
+export const SECURITY = [
+  { title: 'Encrypted on your device', detail: 'Your recovery phrase is encrypted with AES-256-GCM using a key derived from your password (PBKDF2-HMAC-SHA256). It never leaves the browser.' },
+  { title: 'Every request needs you', detail: 'Connections, signatures and transactions from websites wait in an approval queue until you accept or reject them.' },
+  { title: 'Per-site permissions', detail: 'Each website sees only the accounts you connected it to, and you can revoke a site at any time.' },
+  { title: 'Auto-lock', detail: 'The wallet locks itself after a period of inactivity.' },
+  { title: 'Readable review screens', detail: 'Transactions are decoded before you sign; anything the wallet cannot decode is labelled as such, never guessed.' },
+  { title: 'Aretia Shield', detail: 'Recipient checks and approval warnings before you send.' },
+];
+
+export const DEVELOPERS = [
+  { title: 'EVM provider', status: 'built' as Status, detail: 'EIP-1193 provider, discoverable through EIP-6963 alongside other installed wallets.' },
+  { title: 'Solana Wallet Standard', status: 'built' as Status, detail: 'Connect, sign transactions, sign-and-send and sign messages through the standard Solana wallet interface.' },
+  { title: 'Pluggable bridge providers', status: 'built' as Status, detail: 'A provider-agnostic bridge interface: integrations hand back unsigned transactions; they never hold keys.' },
+  { title: 'Verifiable token', status: 'live' as Status, detail: 'ACT is a standard SPL Token-2022 mint: supply, authorities and fee configuration are readable on-chain.' },
+  { title: 'Public APIs & SDKs', status: 'roadmap' as Status, detail: 'Developer APIs for Aretia services.' },
+];
+
+export const NETWORKS =['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 
 export const LINKS = {
   launchWallet: '/wallet/app',
-  buyAct: '/presale',
+  buyAct: '/buy',
   whitepaper: '/whitepaper',
   github: 'https://github.com/abiolabolarinwa/Aretia-Finance',
   telegram: 'https://t.me/+MWgiRISNMWM2NmI0',
   discord: 'https://discord.gg/fDXvn2nHf',
   x: 'https://x.com/AretiaFinance',
   explorerMint: `https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`,
+  // Shares the project-application Formspree form for now (messages are
+  // tagged "Website contact" in the subject). Swap for a dedicated form ID.
+  contactForm: 'https://formspree.io/f/xaeypjob',
 };
 
 export interface NavGroup {
@@ -184,6 +204,7 @@ export const NAV: NavGroup[] = [
     label: 'ACT',
     items: [
       { label: 'Token', href: '/token', description: 'Supply, fees and utility' },
+      { label: 'Buy ACT', href: '/buy', description: 'Swap into ACT via Jupiter' },
       { label: 'Presale', href: '/presale', description: 'Presale details' },
       { label: 'Staking', href: '/stake', description: 'Capital Access Score' },
       { label: 'Verify', href: '/verify', description: 'Check the mint on-chain' },

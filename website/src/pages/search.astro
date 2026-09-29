@@ -1,0 +1,122 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+import { DOCS, FAQS } from '../data/help';
+import { PRODUCTS } from '../data/site';
+import { getPublishedPosts } from '../lib/blog';
+
+const posts = await getPublishedPosts();
+const pages = [
+  { title: 'Aretia Wallet', text: 'Multichain self-custody wallet for Solana and EVM networks.', url: '/wallet' },
+  { title: 'Features', text: 'Wallet, Universal, Pay, Shield, Intent, ACT, Climate Treasury, security, developers.', url: '/features' },
+  { title: 'ACT token', text: 'Supply, transfer fee, utility, presale and mint verification.', url: '/token' },
+  { title: 'Ecosystem', text: 'How the wallet, products, ACT and Climate Treasury connect.', url: '/ecosystem' },
+  { title: 'Climate Treasury', text: 'The catalyst fund financed by ACT transfer fees.', url: '/details' },
+  { title: 'Capital Marketplace', text: 'Climate projects seeking capital.', url: '/marketplace' },
+  { title: 'Presale', text: 'ACT presale details and status.', url: '/presale' },
+  { title: 'Staking', text: 'Capital Access Score and staking status.', url: '/stake' },
+  { title: 'Verify', text: 'Verify the ACT mint on-chain.', url: '/verify' },
+  { title: 'Roadmap', text: 'What ships next.', url: '/roadmap' },
+  { title: 'Whitepaper', text: 'The protocol design.', url: '/whitepaper' },
+  { title: 'About', text: 'Why Aretia exists.', url: '/about' },
+  ...PRODUCTS.map((p) => ({ title: p.name, text: `${p.role}. ${p.summary}`, url: `/features#${p.slug}` })),
+];
+
+const index = [
+  ...pages.map((p) => ({ type: 'Page', ...p })),
+  ...DOCS.map((d) => ({ type: 'Docs', title: d.title, text: `${d.summary} ${d.body.join(' ')}`, url: `/docs#${d.id}` })),
+  ...FAQS.map((f) => ({ type: 'Support', title: f.q, text: f.a, url: `/support#${f.id}` })),
+  ...posts.map((p) => ({ type: 'Blog', title: p.data.title, text: `${p.data.category}. ${p.data.description}`, url: `/blog/${p.id}` })),
+];
+---
+
+<Base title="Search" description="Search Aretia Finance: pages, documentation, support answers and blog articles.">
+  <PageHero eyebrow="Search" title="Search Aretia" align="center">
+    <form class="sbox" role="search" action="/search" data-reveal>
+      <label for="site-search" class="sr-only">Search the site</label>
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="m14 14 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+      <input id="site-search" name="q" type="search" placeholder="Search docs, support, blog…" autocomplete="off" data-search />
+    </form>
+  </PageHero>
+
+  <section class="section results-wrap" aria-label="Search results">
+    <div class="container">
+      <p class="count" aria-live="polite" data-count></p>
+      <ol class="results" data-results></ol>
+      <div class="still" data-reveal>
+        <h2 class="subheading">Still need a hand?</h2>
+        <Button href="/contact?category=Support" variant="secondary" arrow>Contact us</Button>
+      </div>
+    </div>
+  </section>
+
+  <script type="application/json" id="search-index" set:html={JSON.stringify(index)} />
+</Base>
+
+<style>
+  .sbox { display: flex; align-items: center; gap: 12px; width: min(100%, 620px); margin-top: var(--space-md); padding: 0 18px; height: 58px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: rgba(255, 255, 255, 0.03); color: var(--color-muted); transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+  .sbox:focus-within { border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(201, 164, 92, 0.12); }
+  .sbox input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-size: 1.05rem; color: var(--color-white); }
+  .results-wrap { padding-top: 0; }
+  .count { text-align: center; font-size: var(--text-small); color: var(--color-faint); margin-bottom: var(--space-md); min-height: 1.4em; }
+  .results { list-style: none; margin: 0 auto; padding: 0; max-width: 50rem; }
+  .results :global(li) { border-top: 1px solid var(--color-border); }
+  .results :global(a) { display: grid; gap: 4px; padding: 1.25rem 0.25rem; transition: background-color var(--duration-fast); }
+  .results :global(a:hover .r-title) { color: var(--color-gold-bright); }
+  .results :global(.r-type) { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
+  .results :global(.r-title) { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-white); transition: color var(--duration-fast); }
+  .results :global(.r-text) { font-size: var(--text-small); color: var(--color-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .results :global(mark) { background: var(--color-gold-soft); color: var(--color-gold-bright); border-radius: 3px; padding: 0 2px; }
+  .still { display: grid; justify-items: center; gap: var(--space-sm); text-align: center; margin-top: var(--space-3xl); }
+</style>
+
+<script>
+  interface Entry { type: string; title: string; text: string; url: string }
+  const index: Entry[] = JSON.parse(document.getElementById('search-index')!.textContent ?? '[]');
+  const input = document.querySelector<HTMLInputElement>('[data-search]')!;
+  const list = document.querySelector<HTMLOListElement>('[data-results]')!;
+  const count = document.querySelector<HTMLElement>('[data-count]')!;
+
+  const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  // One combined pattern, so a later term can never match inside a <mark> an earlier term inserted.
+  const highlight = (text: string, terms: string[]) => {
+    const re = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+    return escape(text).replace(re, '<mark>$1</mark>');
+  };
+
+  const run = () => {
+    const q = input.value.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter((t) => t.length > 1).map(escape);
+    list.innerHTML = '';
+    if (!terms.length) {
+      count.textContent = 'Type to search pages, docs, support and the blog.';
+      return;
+    }
+    const scored = index
+      .map((e) => {
+        const title = e.title.toLowerCase();
+        const text = e.text.toLowerCase();
+        if (!terms.every((t) => title.includes(t) || text.includes(t))) return null;
+        const score = terms.reduce((s, t) => s + (title.includes(t) ? 3 : 0) + (text.includes(t) ? 1 : 0), 0);
+        return { e, score };
+      })
+      .filter((x): x is { e: Entry; score: number } => !!x)
+      .sort((a, b) => b.score - a.score);
+    count.textContent = `${scored.length} ${scored.length === 1 ? 'result' : 'results'} for “${input.value.trim()}”`;
+    list.innerHTML = scored
+      .map(({ e }) => `<li><a href="${escape(e.url)}"><span class="r-type">${escape(e.type)}</span><span class="r-title">${highlight(e.title, terms)}</span><span class="r-text">${highlight(e.text, terms)}</span></a></li>`)
+      .join('');
+  };
+
+  const initial = new URLSearchParams(location.search).get('q');
+  if (initial) input.value = initial;
+  input.addEventListener('input', () => {
+    run();
+    const url = new URL(location.href);
+    if (input.value.trim()) url.searchParams.set('q', input.value.trim());
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+  });
+  run();
+</script>

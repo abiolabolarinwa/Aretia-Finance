@@ -1,0 +1,29 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PageHero from '../../../components/typography/PageHero.astro';
+import CategoryNav from '../../../components/blog/CategoryNav.astro';
+import PostList from '../../../components/blog/PostList.astro';
+import { BLOG_CATEGORIES } from '../../../content.config';
+import { categorySlug, getPublishedPosts } from '../../../lib/blog';
+
+export function getStaticPaths() {
+  return BLOG_CATEGORIES.map((category) => ({ params: { category: categorySlug(category) }, props: { category } }));
+}
+
+const { category } = Astro.props;
+const posts = (await getPublishedPosts()).filter((p) => p.data.category === category);
+---
+
+<Base title={`${category} · Blog`} description={`Aretia Finance articles about ${category.toLowerCase()}.`}>
+  <PageHero eyebrow="Blog category" title={category} />
+  <section class="section cat-list">
+    <div class="container">
+      <CategoryNav active={category} />
+      <PostList posts={posts} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .cat-list { padding-top: 0; }
+</style>

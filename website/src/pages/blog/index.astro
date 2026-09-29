@@ -1,0 +1,23 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/typography/PageHero.astro';
+import CategoryNav from '../../components/blog/CategoryNav.astro';
+import PostList from '../../components/blog/PostList.astro';
+import { getPublishedPosts } from '../../lib/blog';
+
+const posts = await getPublishedPosts();
+---
+
+<Base title="Blog" description="Notes from the Aretia Finance team on the protocol, the wallet, interoperability, payments, ACT and climate finance.">
+  <PageHero eyebrow="Blog" title="Notes from the protocol." lead="How Aretia works, what we are building, and why." />
+  <section class="section blog-list">
+    <div class="container">
+      <CategoryNav />
+      <PostList posts={posts} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .blog-list { padding-top: 0; }
+</style>

@@ -1,0 +1,102 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+import StatusBadge from '../components/ui/StatusBadge.astro';
+import { ACT } from '../data/site';
+---
+
+<Base title="Buy ACT" description="Trade ACT on Solana through the Jupiter swap widget, or read about the ACT presale.">
+  <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />
+  <PageHero eyebrow="Buy ACT" title="Get ACT." lead="Swap into ACT on Solana through Jupiter, connected to the wallet you already use. Always check you are receiving the real mint." />
+
+  <section class="section buy">
+    <div class="container buy__grid">
+      <div class="buy__widget panel" data-reveal="scale">
+        <div class="buy__head">
+          <div>
+            <p class="eyebrow eyebrow--gold">Trade ACT</p>
+            <StatusBadge status="roadmap" />
+          </div>
+          <div class="buy__connect" data-aretia-wallet-mount></div>
+        </div>
+        <p class="buy__status">Pre-launch: ACT’s liquidity pool is planned but not yet funded, so swaps may find no route until it is.</p>
+        <div id="jupiter-terminal" class="buy__terminal"><span class="buy__loading">Loading swap widget…</span></div>
+      </div>
+
+      <aside class="buy__side">
+        <div class="buy__card" data-reveal>
+          <p class="eyebrow">Real ACT mint</p>
+          <p class="mono buy__mint">{ACT.mint}</p>
+          <p class="muted">Tokens with the same name or ticker can be fakes. Only this mint is ACT.</p>
+          <Button href="/verify" variant="secondary" arrow>Verify on-chain</Button>
+        </div>
+        <div class="buy__card" data-reveal>
+          <p class="eyebrow">Presale</p>
+          <p class="muted">{ACT.presaleAllocation.toLocaleString('en-US')} ACT, deployed and tested on devnet; not live on mainnet.</p>
+          <Button href="/presale" variant="gold" arrow>Presale details</Button>
+        </div>
+        <div class="buy__card" data-reveal>
+          <p class="eyebrow">Know the fee</p>
+          <p class="muted">Every ACT transfer, including a swap, has a {ACT.transferFee.totalPercent}% fee withheld on-chain. <a href="/token#fees">How it’s split →</a></p>
+        </div>
+      </aside>
+    </div>
+    <div class="container">
+      <p class="buy__disclaimer">Swaps are executed by Jupiter and signed in your own wallet. Nothing here is investment advice; digital assets can lose all their value. Read the <a href="/terms#risk">risk disclosure</a>.</p>
+    </div>
+  </section>
+
+  <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+  <script is:inline src="https://terminal.jup.ag/main-v4.js" data-preload></script>
+  <script is:inline src="/assets/wallet/wallet.js"></script>
+  <script is:inline>
+    (function () {
+      const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
+      const SOL_MINT = 'So11111111111111111111111111111111111111112';
+      const RPC_ENDPOINT = 'https://solana-rpc.publicnode.com';
+      // Same integration as the previous homepage: wallet.js keeps the
+      // widget's wallet in sync via window.Jupiter.syncProps on every
+      // connect/disconnect, so a visitor never connects twice.
+      function initTerminal() {
+        if (!window.Jupiter || typeof window.Jupiter.init !== 'function') return false;
+        window.Jupiter.init({
+          displayMode: 'integrated',
+          integratedTargetId: 'jupiter-terminal',
+          endpoint: RPC_ENDPOINT,
+          enableWalletPassthrough: true,
+          passthroughWalletContextState: window.AretiaWallet ? window.AretiaWallet.getWalletContextState() : undefined,
+          formProps: { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false },
+        });
+        return true;
+      }
+      if (!initTerminal()) {
+        let attempts = 0;
+        const poll = setInterval(function () {
+          attempts += 1;
+          if (initTerminal() || attempts > 100) clearInterval(poll);
+        }, 100);
+      }
+    })();
+  </script>
+</Base>
+
+<style>
+  .buy { padding-top: 0; }
+  .buy__grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-xl); align-items: start; }
+  .buy__widget { display: grid; gap: var(--space-md); }
+  .buy__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-sm); flex-wrap: wrap; }
+  .buy__head > div:first-child { display: grid; gap: 0.6rem; justify-items: start; }
+  .buy__status { font-size: var(--text-small); color: var(--color-warn); }
+  .buy__terminal { min-height: 520px; border-radius: var(--radius-lg); overflow: hidden; background: rgba(255, 255, 255, 0.02); display: grid; }
+  .buy__loading { place-self: center; color: var(--color-faint); font-size: var(--text-small); }
+  .buy__side { display: grid; gap: var(--space-md); }
+  .buy__card { display: grid; gap: 0.75rem; justify-items: start; padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); }
+  .buy__card a:not(.btn) { color: var(--color-gold-bright); }
+  .buy__mint { font-size: 13px; color: var(--color-gold-bright); overflow-wrap: anywhere; }
+  .buy__disclaimer { margin-top: var(--space-xl); font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
+  .buy__disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
+  @media (max-width: 1023px) {
+    .buy__grid { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

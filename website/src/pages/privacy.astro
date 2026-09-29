@@ -1,0 +1,25 @@
+---
+import LegalPage from '../components/typography/LegalPage.astro';
+---
+
+<LegalPage title="Privacy" description="How the Aretia Finance website and Aretia Wallet handle personal data." updated="29 September 2026">
+  <h2>What this covers</h2>
+  <p>This page describes what information the aretiafinance.org website and the Aretia Wallet browser extension handle. <em>[Legal review required: controller identity, jurisdiction and contact details for data requests.]</em></p>
+
+  <h2>The website</h2>
+  <ul>
+    <li><strong>Analytics:</strong> the site uses Vercel Web Analytics to count page views. <em>[Legal review required: confirm data collected and retention.]</em></li>
+    <li><strong>Forms:</strong> the contact and project-application forms are processed by Formspree. What you submit (name, email, message) is used only to respond to you.</li>
+    <li><strong>Wallet connection:</strong> connecting a wallet shares your public address with the page so it can read public balances from the blockchain. The site never receives your recovery phrase or private keys.</li>
+    <li><strong>Local storage:</strong> the site may remember which wallet you last connected, in your own browser only.</li>
+  </ul>
+
+  <h2>Aretia Wallet</h2>
+  <p>Your recovery phrase and keys are encrypted and stored on your device. Aretia Finance never receives them and cannot recover them. To show balances and send transactions, the wallet sends requests, including your public addresses, to blockchain RPC providers and to services such as name resolvers and price or swap APIs. <em>[Legal review required: list third-party providers.]</em></p>
+
+  <h2>Public blockchains</h2>
+  <p>Transactions on Solana, Ethereum and other networks are public and permanent. Aretia cannot delete or hide on-chain data.</p>
+
+  <h2>Your rights</h2>
+  <p><em>[Legal review required: access, correction and deletion rights applicable to the operating entity’s jurisdiction, and how to exercise them.]</em> In the meantime, contact us through the <a href="/contact">contact page</a>.</p>
+</LegalPage>

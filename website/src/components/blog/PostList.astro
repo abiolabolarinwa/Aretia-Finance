@@ -1,0 +1,60 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  posts: CollectionEntry<'blog'>[];
+}
+const { posts } = Astro.props;
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+---
+
+{
+  posts.length === 0 ? (
+    <p class="empty">No articles in this category yet.</p>
+  ) : (
+    <ul class="posts">
+      {posts.map((post, i) => (
+        <li data-reveal class:list={[{ 'posts__feature': i === 0 }]}>
+          <a href={`/blog/${post.id}`} class="post">
+            <div class="post__art" aria-hidden="true">
+              <span class="post__art-orb" />
+              <span class="post__art-cat">{post.data.category}</span>
+            </div>
+            <div class="post__body">
+              <div class="post__meta">
+                <span class="post__cat">{post.data.category}</span>
+                <time datetime={post.data.date.toISOString()}>{fmt(post.data.date)}</time>
+              </div>
+              <h2 class="post__title">{post.data.title}</h2>
+              <p class="post__desc">{post.data.description}</p>
+              <span class="post__read">Read article →</span>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+<style>
+  .posts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+  .posts__feature { grid-column: 1 / -1; }
+  .post { display: grid; gap: var(--space-md); height: 100%; }
+  .posts__feature .post { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: center; gap: var(--space-xl); }
+  .post__art { position: relative; aspect-ratio: 16 / 10; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--color-border); background: var(--color-ink); isolation: isolate; }
+  .post__art-orb { position: absolute; inset: 15% 25%; border-radius: 50%; background: radial-gradient(closest-side, rgba(107, 92, 255, 0.45), rgba(201, 164, 92, 0.12) 60%, transparent 75%); filter: blur(6px); transition: transform 900ms var(--ease-out); }
+  .post:hover .post__art-orb { transform: scale(1.15) translateY(-4%); }
+  .post__art-cat { position: absolute; left: 20px; bottom: 16px; font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; color: rgba(255, 255, 255, 0.85); }
+  .post__body { display: grid; gap: 0.7rem; align-content: start; }
+  .post__meta { display: flex; gap: 1rem; font-size: var(--text-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-faint); }
+  .post__cat { color: var(--color-gold); }
+  .post__title { font-size: clamp(1.4rem, 2.4vw, 2rem); letter-spacing: -0.025em; line-height: 1.15; transition: color var(--duration-base); }
+  .post:hover .post__title { color: var(--color-gold-bright); }
+  .post__desc { color: var(--color-muted); }
+  .post__read { font-size: var(--text-small); font-weight: 600; color: var(--color-white); }
+  .empty { color: var(--color-faint); padding-block: var(--space-xl); }
+  @media (max-width: 800px) {
+    .posts { grid-template-columns: minmax(0, 1fr); }
+    .posts__feature .post { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

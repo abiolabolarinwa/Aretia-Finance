@@ -1,0 +1,73 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Button from '../../components/buttons/Button.astro';
+import { categorySlug, getPublishedPosts } from '../../lib/blog';
+
+export async function getStaticPaths() {
+  const posts = await getPublishedPosts();
+  return posts.map((post, i) => ({ params: { slug: post.id }, props: { post, next: posts[i + 1] ?? posts[0] } }));
+}
+
+const { post, next } = Astro.props;
+const { Content } = await render(post);
+const date = post.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+---
+
+<Base title={post.data.title} description={post.data.description}>
+  <article>
+    <header class="ah">
+      <div class="ah__glow" aria-hidden="true"></div>
+      <div class="container ah__inner">
+        <div class="ah__meta" data-reveal>
+          <a href={`/blog/category/${categorySlug(post.data.category)}`} class="ah__cat">{post.data.category}</a>
+          <span>·</span>
+          <time datetime={post.data.date.toISOString()}>{date}</time>
+          <span>·</span>
+          <span>{post.data.author}</span>
+        </div>
+        <h1 class="ah__title" data-split="load">{post.data.title}</h1>
+        <p class="lead ah__lead" data-reveal>{post.data.description}</p>
+      </div>
+    </header>
+    <div class="container">
+      <div class="prose" data-reveal>
+        <Content />
+      </div>
+    </div>
+  </article>
+
+  {
+    next && next.id !== post.id && (
+      <aside class="section next" aria-label="Next article">
+        <div class="container next__inner" data-reveal>
+          <p class="eyebrow">Read next</p>
+          <a href={`/blog/${next.id}`} class="next__title">{next.data.title}</a>
+          <Button href="/blog" variant="secondary">All articles</Button>
+        </div>
+      </aside>
+    )
+  }
+</Base>
+
+<style>
+  .ah { position: relative; overflow: hidden; isolation: isolate; padding-top: calc(var(--nav-height) + clamp(4rem, 10vw, 7rem)); padding-bottom: var(--space-2xl); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-2xl); }
+  .ah__glow { position: absolute; z-index: -1; inset: -20% 10% auto; height: 120%; background: radial-gradient(40% 50% at 50% 40%, rgba(107, 92, 255, 0.18), transparent 70%); }
+  .ah__inner { display: grid; gap: var(--space-md); max-width: 60rem; }
+  .ah__meta { display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: var(--text-small); color: var(--color-faint); }
+  .ah__cat { color: var(--color-gold); }
+  .ah__title { font-size: clamp(2.5rem, 6vw, 5rem); }
+  .prose { max-width: 42rem; margin-inline: auto; padding-bottom: var(--space-2xl); font-size: 1.0625rem; line-height: 1.75; color: var(--color-text); }
+  .prose :global(h2) { font-size: 1.75rem; letter-spacing: -0.025em; margin: 2.5rem 0 1rem; }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(ul) { margin: 0 0 1.25rem; padding-left: 1.2rem; }
+  .prose :global(li) { margin-bottom: 0.5rem; }
+  .prose :global(li::marker) { color: var(--color-gold); }
+  .prose :global(strong) { color: var(--color-white); }
+  .prose :global(a) { color: var(--color-gold-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .prose :global(code) { font-family: var(--font-mono); font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 6px; background: rgba(255, 255, 255, 0.06); overflow-wrap: anywhere; }
+  .next { border-top: 1px solid var(--color-border); }
+  .next__inner { display: grid; gap: var(--space-md); justify-items: start; max-width: 50rem; }
+  .next__title { font-family: var(--font-display); font-size: var(--text-subheading); font-weight: 600; letter-spacing: -0.03em; color: var(--color-white); transition: color var(--duration-base); }
+  .next__title:hover { color: var(--color-gold-bright); }
+</style>

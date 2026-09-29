@@ -1,0 +1,169 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import { LINKS } from '../data/site';
+
+const categories = ['General', 'Partnerships', 'Developers', 'Ecosystem', 'Press', 'Support'];
+---
+
+<Base title="Contact" description="Get in touch with Aretia Finance about partnerships, development, the ecosystem, press or support.">
+  <PageHero eyebrow="Contact" title="Let's talk." lead="Partnerships, developers, press or support. Tell us what you need and we'll route it to the right people." />
+
+  <section class="section contact">
+    <div class="container contact__grid">
+      <form class="form" action={LINKS.contactForm} method="POST" novalidate data-contact>
+        <input type="hidden" name="_subject" value="Website contact" data-subject />
+        <input type="text" name="_gotcha" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+        <fieldset class="field">
+          <legend>Topic</legend>
+          <div class="topics">
+            {
+              categories.map((c, i) => (
+                <label class="topic">
+                  <input type="radio" name="category" value={c} checked={i === 0} />
+                  <span>{c}</span>
+                </label>
+              ))
+            }
+          </div>
+        </fieldset>
+
+        <div class="row">
+          <div class="field">
+            <label for="c-name">Name</label>
+            <input id="c-name" name="name" type="text" autocomplete="name" required aria-describedby="c-name-err" />
+            <p class="err" id="c-name-err" data-err></p>
+          </div>
+          <div class="field">
+            <label for="c-email">Email</label>
+            <input id="c-email" name="email" type="email" autocomplete="email" required aria-describedby="c-email-err" />
+            <p class="err" id="c-email-err" data-err></p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="c-subject">Subject</label>
+          <input id="c-subject" name="subject" type="text" required maxlength="140" aria-describedby="c-subject-err" />
+          <p class="err" id="c-subject-err" data-err></p>
+        </div>
+        <div class="field">
+          <label for="c-message">Message</label>
+          <textarea id="c-message" name="message" rows="6" required minlength="10" aria-describedby="c-message-err"></textarea>
+          <p class="err" id="c-message-err" data-err></p>
+        </div>
+
+        <p class="warn">Never include a recovery phrase or private key. Aretia will never ask for one.</p>
+        <button type="submit" class="submit" data-submit>Send message</button>
+        <p class="status" role="status" aria-live="polite" data-status></p>
+      </form>
+
+      <aside class="contact__side">
+        <div>
+          <p class="eyebrow">Community</p>
+          <ul>
+            <li><a href={LINKS.telegram} target="_blank" rel="noopener">Telegram →</a></li>
+            <li><a href={LINKS.discord} target="_blank" rel="noopener">Discord →</a></li>
+            <li><a href={LINKS.x} target="_blank" rel="noopener">X →</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="eyebrow">Looking for answers?</p>
+          <ul><li><a href="/support">Support center →</a></li><li><a href="/docs">Documentation →</a></li></ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .contact { padding-top: 0; }
+  .contact__grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--space-2xl); align-items: start; }
+  .form { display: grid; gap: var(--space-md); }
+  .hp { position: absolute; left: -9999px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+  .field { display: grid; gap: 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  .field label, .field legend { font-size: var(--text-small); font-weight: 600; color: var(--color-text); padding: 0; margin-bottom: 0; }
+  .field input, .field textarea { width: 100%; padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: rgba(255, 255, 255, 0.02); color: var(--color-white); font-size: 1rem; transition: border-color var(--duration-fast), box-shadow var(--duration-fast); resize: vertical; }
+  .field input:focus, .field textarea:focus { outline: none; border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(201, 164, 92, 0.12); }
+  .field input[aria-invalid='true'], .field textarea[aria-invalid='true'] { border-color: #f87171; }
+  .err { font-size: var(--text-micro); color: #f87171; min-height: 1em; }
+  .topics { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 8px; }
+  .topic { position: relative; }
+  .topic input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .topic span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 1rem; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast), border-color var(--duration-fast); }
+  .topic input:checked + span { color: var(--color-black); background: var(--color-white); border-color: var(--color-white); }
+  .topic input:focus-visible + span { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+  .warn { font-size: var(--text-small); color: var(--color-warn); }
+  .submit { justify-self: start; height: 54px; padding: 0 2rem; border-radius: var(--radius-pill); background: var(--color-white); color: var(--color-black); font-weight: 600; transition: background-color var(--duration-base); }
+  .submit:hover { background: var(--color-gold-bright); }
+  .submit[disabled] { opacity: 0.6; cursor: default; }
+  .status { font-size: var(--text-small); min-height: 1.2em; }
+  .status.is-ok { color: var(--color-ok); }
+  .status.is-err { color: #f87171; }
+  .contact__side { display: grid; gap: var(--space-xl); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); }
+  .contact__side ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+  .contact__side a { color: var(--color-white); font-weight: 500; }
+  .contact__side a:hover { color: var(--color-gold-bright); }
+  @media (max-width: 900px) {
+    .contact__grid, .row { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-contact]')!;
+  const status = form.querySelector<HTMLElement>('[data-status]')!;
+  const submit = form.querySelector<HTMLButtonElement>('[data-submit]')!;
+  const subject = form.querySelector<HTMLInputElement>('[data-subject]')!;
+
+  const preset = new URLSearchParams(location.search).get('category');
+  if (preset) {
+    const radio = form.querySelector<HTMLInputElement>(`input[name="category"][value="${CSS.escape(preset)}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  const messages: Record<string, (el: HTMLInputElement | HTMLTextAreaElement) => string> = {
+    name: (el) => (el.value.trim() ? '' : 'Please enter your name.'),
+    email: (el) => (!el.value.trim() ? 'Please enter your email.' : el.validity.typeMismatch ? 'That doesn’t look like an email address.' : ''),
+    subject: (el) => (el.value.trim() ? '' : 'Please add a subject.'),
+    message: (el) => (el.value.trim().length >= 10 ? '' : 'Please write at least 10 characters.'),
+  };
+
+  const validate = (el: HTMLInputElement | HTMLTextAreaElement): boolean => {
+    const check = messages[el.name];
+    if (!check) return true;
+    const msg = check(el);
+    el.setAttribute('aria-invalid', String(!!msg));
+    const err = document.getElementById(el.getAttribute('aria-describedby') ?? '');
+    if (err) err.textContent = msg;
+    return !msg;
+  };
+
+  const fields = [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[required], textarea[required]')];
+  fields.forEach((el) => el.addEventListener('blur', () => validate(el)));
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const results = fields.map(validate);
+    if (results.includes(false)) {
+      fields[results.indexOf(false)]?.focus();
+      return;
+    }
+    const category = form.querySelector<HTMLInputElement>('input[name="category"]:checked')?.value ?? 'General';
+    subject.value = `Website contact · ${category}`;
+    submit.disabled = true;
+    status.className = 'status';
+    status.textContent = 'Sending…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(String(res.status));
+      form.reset();
+      status.classList.add('is-ok');
+      status.textContent = 'Thanks. Your message has been sent. We’ll reply by email.';
+    } catch {
+      status.classList.add('is-err');
+      status.textContent = 'Something went wrong sending your message. Please try again, or reach us on Telegram.';
+    } finally {
+      submit.disabled = false;
+    }
+  });
+</script>

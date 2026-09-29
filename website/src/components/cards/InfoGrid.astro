@@ -1,0 +1,54 @@
+---
+import StatusBadge from '../ui/StatusBadge.astro';
+import type { Status } from '../../data/site';
+
+interface Item {
+  title: string;
+  detail: string;
+  status?: Status;
+  href?: string;
+}
+interface Props {
+  items: Item[];
+  columns?: 2 | 3;
+}
+const { items, columns = 3 } = Astro.props;
+---
+
+<ul class:list={['ig', `ig--${columns}`]}>
+  {
+    items.map((item, i) => {
+      const Tag = item.href ? 'a' : 'div';
+      return (
+        <li data-reveal>
+          <Tag class="ig__card" {...(item.href ? { href: item.href } : {})}>
+            <span class="ig__index tnum">{String(i + 1).padStart(2, '0')}</span>
+            <h3 class="ig__title">{item.title}</h3>
+            <p class="ig__detail">{item.detail}</p>
+            {item.status && <StatusBadge status={item.status} class="ig__badge" />}
+            <span class="ig__corner" aria-hidden="true" />
+          </Tag>
+        </li>
+      );
+    })
+  }
+</ul>
+
+<style>
+  .ig { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--color-border); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+  .ig--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ig--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ig li { display: flex; background: var(--color-black); }
+  .ig__card { position: relative; flex: 1; display: grid; align-content: start; gap: 0.75rem; padding: clamp(1.5rem, 3vw, 2.25rem); background: var(--color-black); transition: background-color var(--duration-base) var(--ease-out); }
+  .ig__card:hover { background: var(--color-ink); }
+  .ig__index { font-family: var(--font-display); font-size: var(--text-small); color: var(--color-faint); transition: color var(--duration-base); }
+  .ig__card:hover .ig__index { color: var(--color-gold); }
+  .ig__title { font-size: 1.25rem; letter-spacing: -0.02em; line-height: 1.25; transition: transform var(--duration-base) var(--ease-out); }
+  .ig__card:hover .ig__title { transform: translateX(4px); }
+  .ig__detail { color: var(--color-muted); font-size: var(--text-small); line-height: 1.6; }
+  .ig__card :global(.ig__badge) { justify-self: start; margin-top: 0.25rem; }
+  .ig__corner { position: absolute; top: 18px; right: 18px; width: 10px; height: 10px; border-top: 1px solid var(--color-gold); border-right: 1px solid var(--color-gold); opacity: 0; transform: translate(-4px, 4px); transition: opacity var(--duration-base), transform var(--duration-base) var(--ease-out); }
+  .ig__card:hover .ig__corner { opacity: 1; transform: none; }
+  @media (max-width: 960px) { .ig--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .ig--3, .ig--2 { grid-template-columns: minmax(0, 1fr); } }
+</style>

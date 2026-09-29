@@ -1,0 +1,98 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+
+const chapters = [
+  {
+    n: '01',
+    label: 'Why Aretia exists',
+    title: 'Good climate projects die too early.',
+    body: [
+      'A small team wants to build a solar farm, restore a mangrove forest or turn a town’s waste into electricity. The plan is solid and the people are capable, but no bank or investor will fund it until it has been proven. And it cannot be proven without money to build it.',
+      'It is not that the world lacks climate capital. Almost none of it is willing to go first, into the earliest, smallest, least-proven stage where projects need it most. Aretia exists to fund that stage.',
+    ],
+  },
+  {
+    n: '02',
+    label: 'The problem',
+    title: 'Digital finance is fragmented.',
+    body: [
+      'Assets live on different chains, behind different wallets, addressed by 44-character strings. Transactions are hard to read before you sign them, and moving value between networks means learning each one’s plumbing.',
+      'That friction keeps people out, and it makes mistakes (a wrong address, a malicious approval) far too easy.',
+    ],
+  },
+  {
+    n: '03',
+    label: 'The architecture',
+    title: 'One wallet at the centre.',
+    body: [
+      'Aretia Wallet holds your assets across Solana and EVM networks. Around it: Pay lets you send to names instead of addresses, Shield checks recipients before you sign, Intent turns plain phrases into reviewable transactions, and Universal carries ACT across chains.',
+      'Each piece is labelled on this site with its real status: built, on testnet, or on the roadmap.',
+    ],
+  },
+  {
+    n: '04',
+    label: 'The role of ACT',
+    title: 'A fee built into the token itself.',
+    body: [
+      'Every ACT transfer has a 3.5% fee withheld by the Solana token program, not by a promise. 2% flows to the Climate Treasury, a 2-of-3 multisig catalyst fund; 1% to liquidity; 0.5% to the operational work of running the treasury honestly.',
+      'The fund grows as the token moves, without running a new fundraiser each time.',
+    ],
+  },
+  {
+    n: '05',
+    label: 'The long view',
+    title: 'Money that can’t quietly go missing.',
+    body: [
+      'The treasury is designed to pay projects in stages, each unlocking only after someone independent of both Aretia and the project confirms the previous stage was delivered. That verification layer, governance and mainnet interoperability are still being built.',
+      'The goal is simple to state: everyday financial activity that steadily, verifiably funds real climate work.',
+    ],
+  },
+];
+---
+
+<Base title="About" description="Why Aretia Finance exists: funding the earliest stage of climate projects, and making multichain finance safer and simpler.">
+  <PageHero eyebrow="About Aretia" title="Finance that funds what comes first." lead="Aretia Finance builds a multichain wallet and a token whose every transfer funds a catalyst fund for early-stage climate projects." />
+
+  <div class="chapters">
+    {
+      chapters.map((c) => (
+        <section class="chapter" aria-labelledby={`ch-${c.n}`}>
+          <div class="container chapter__grid">
+            <div class="chapter__label">
+              <span class="chapter__n tnum">{c.n}</span>
+              <span class="eyebrow">{c.label}</span>
+            </div>
+            <div class="chapter__body">
+              <h2 id={`ch-${c.n}`} class="heading" data-split>{c.title}</h2>
+              {c.body.map((p) => <p data-reveal>{p}</p>)}
+            </div>
+          </div>
+        </section>
+      ))
+    }
+  </div>
+
+  <section class="section">
+    <div class="container about-links" data-reveal>
+      <Button href="/whitepaper" variant="secondary" arrow>Read the whitepaper</Button>
+      <Button href="/details" variant="ghost">How the Climate Treasury works</Button>
+      <Button href="/roadmap" variant="ghost">Roadmap</Button>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .chapter { border-top: 1px solid var(--color-border); padding-block: clamp(4rem, 9vw, 8rem); }
+  .chapter__grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); gap: var(--space-xl); }
+  .chapter__label { position: sticky; top: calc(var(--nav-height) + 32px); align-self: start; display: grid; gap: var(--space-sm); }
+  .chapter__n { font-family: var(--font-display); font-size: clamp(3rem, 7vw, 6rem); font-weight: 600; letter-spacing: -0.05em; line-height: 0.9; color: transparent; -webkit-text-stroke: 1px rgba(201, 164, 92, 0.6); }
+  .chapter__body { display: grid; gap: var(--space-md); max-width: 44rem; }
+  .chapter__body p { font-size: var(--text-lead); color: var(--color-muted); line-height: 1.7; }
+  .about-links { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  @media (max-width: 800px) {
+    .chapter__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+    .chapter__label { position: static; }
+  }
+</style>

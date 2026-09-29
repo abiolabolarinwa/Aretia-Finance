@@ -78,6 +78,7 @@ import Button from '../buttons/Button.astro';
 <style>
   .nav { position: fixed; inset: 0 0 auto; z-index: 50; transition: background-color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), backdrop-filter var(--duration-base); border-bottom: 1px solid transparent; }
   .nav.is-scrolled, .nav.is-open { background: rgba(6, 6, 8, 0.72); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); border-bottom-color: var(--color-border); }
+  .nav.is-open { background: rgba(6, 6, 8, 0.97); }
   .nav.is-hidden { transform: translateY(-100%); }
   .nav { transition: transform 450ms var(--ease-out), background-color var(--duration-base), border-color var(--duration-base); }
   .nav__bar { display: flex; align-items: center; gap: var(--space-lg); height: var(--nav-height); max-width: 1360px; }

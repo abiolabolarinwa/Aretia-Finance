@@ -44,6 +44,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       })();
     </script>
     {import.meta.env.PROD && <script defer is:inline src="/_vercel/insights/script.js" />}
+    <slot name="head" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>

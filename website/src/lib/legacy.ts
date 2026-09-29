@@ -20,13 +20,13 @@ export interface LegacyPage {
 // Bundled by Vite at build time, so this works regardless of the process's working directory.
 const SOURCES = import.meta.glob<string>('../../legacy/pages/*.html', { query: '?raw', import: 'default', eager: true });
 
-/** Dark values for the legacy pages' own design variables. */
-const DARK_VARS = `
-  --ink: #f2f2f6; --ink-soft: #a3a3b1; --ink-faint: #6e6e7c;
-  --bg: #060608; --bg-alt: #0b0b0f; --card: #111116;
-  --border: rgba(255,255,255,0.1); --border-soft: rgba(255,255,255,0.06);
-  --black: #1c1c24; --black-hover: #26262f;
-  --brand: #6b5cff; --brand-hover: #5a4bec; --brand-soft: rgba(107,92,255,0.14);
+/** Site-palette values for the legacy pages' own design variables (Apple-style light system). */
+const THEME_VARS = `
+  --ink: #1d1d1f; --ink-soft: #6e6e73; --ink-faint: #86868b;
+  --bg: #ffffff; --bg-alt: #f5f5f7; --card: #ffffff;
+  --border: #d2d2d7; --border-soft: #e8e8ed;
+  --black: #1d1d1f; --black-hover: #3a3a3c;
+  --brand: #190880; --brand-hover: #100553; --brand-soft: rgba(25,8,128,0.06);
   --font-sans: 'Inter Variable', system-ui, sans-serif;
   --font-serif: 'Inter Variable', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
@@ -69,15 +69,15 @@ function transformCss(css: string): string {
       decl.value = decl.value.replace(/#fff(fff)?\b|\bwhite\b|#faf9f5|#f2f0ea|#efeff3|#e7e7ec/gi, (m) => LIGHT_BACKGROUNDS[m.toLowerCase()] ?? m);
     });
   });
-  // The page's own :root variables now live on .legacy; the dark overrides come last so they win.
+  // The page's own :root variables now live on .legacy; the site palette comes last so it wins.
   return `${root.toString()}
-.legacy { ${DARK_VARS} }
+.legacy { ${THEME_VARS} }
 .legacy h1, .legacy h2, .legacy h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; }
-.legacy ::selection { background: var(--color-gold); color: var(--color-black); }
-/* The pastel aurora hero belongs to the old light theme: keep it as a faint glow. */
+.legacy ::selection { background: var(--color-gold); color: var(--color-bg); }
+/* Keep the pastel aurora hero as a soft wash, not a loud gradient. */
 .legacy .dhero, .legacy .mp-hero { background: transparent; padding-top: calc(var(--nav-height) + 64px); }
-.legacy .dhero-ribbon, .legacy .mp-hero-ribbon { opacity: 0.14; filter: saturate(70%) blur(80px); }
-.legacy .dhero-wash, .legacy .mp-hero-wash { opacity: 0.3; }
+.legacy .dhero-ribbon, .legacy .mp-hero-ribbon { opacity: 0.22; filter: saturate(60%) blur(90px); }
+.legacy .dhero-wash, .legacy .mp-hero-wash { opacity: 0.45; }
 .legacy .dhero-grain, .legacy .mp-hero-grain { opacity: 0.03; }
 .legacy [id] { scroll-margin-top: calc(var(--nav-height) + 16px); }
 /* Pre-existing: roadmap's 1fr column couldn't shrink below its content on phones. */

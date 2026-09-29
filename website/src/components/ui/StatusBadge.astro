@@ -18,13 +18,13 @@ const { status, class: className } = Astro.props;
     display: inline-flex; align-items: center; gap: 0.45rem;
     padding: 0.28rem 0.7rem; border-radius: var(--radius-pill);
     font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.04em;
-    border: 1px solid var(--color-border); color: var(--color-muted); background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border); color: var(--color-muted); background: rgba(0, 0, 0, 0.02);
     white-space: nowrap;
   }
   .badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge--live { color: var(--color-ok); border-color: rgba(74, 222, 128, 0.25); }
-  .badge--built { color: var(--color-indigo-bright); border-color: rgba(107, 92, 255, 0.3); }
-  .badge--testnet, .badge--in-development { color: var(--color-warn); border-color: rgba(245, 184, 75, 0.25); }
+  .badge--live { color: var(--color-ok); border-color: rgba(27, 138, 75, 0.25); }
+  .badge--built { color: var(--color-indigo-bright); border-color: rgba(61, 43, 214, 0.3); }
+  .badge--testnet, .badge--in-development { color: var(--color-warn); border-color: rgba(178, 94, 9, 0.25); }
   .badge--roadmap { color: var(--color-muted); border-style: dashed; }
   .badge--roadmap .badge__dot { background: transparent; border: 1px solid currentColor; }
 </style>

@@ -80,9 +80,9 @@ const split = ACT.transferFee.split;
   .act__flow { display: grid; gap: var(--space-md); }
   .act__flow-title { font-size: var(--text-small); font-weight: 600; color: var(--color-muted); }
   .flow { display: grid; justify-items: center; gap: 0; }
-  .flow__node { display: grid; justify-items: center; gap: 4px; padding: 14px 22px; border-radius: var(--radius-md); background: var(--color-surface-2); border: 1px solid var(--color-border); font-size: 14px; font-weight: 600; color: var(--color-white); text-align: center; }
+  .flow__node { display: grid; justify-items: center; gap: 4px; padding: 14px 22px; border-radius: var(--radius-md); background: var(--color-surface-2); border: 1px solid var(--color-border); font-size: 14px; font-weight: 600; color: var(--color-strong); text-align: center; }
   .flow__node small { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-faint); font-weight: 600; }
-  .flow__node--fee { border-color: rgba(201, 164, 92, 0.45); background: var(--color-gold-soft); }
+  .flow__node--fee { border-color: rgba(160, 122, 44, 0.45); background: var(--color-gold-soft); }
   .flow__node--fee b { font-family: var(--font-display); font-size: 28px; color: var(--color-gold-bright); line-height: 1; }
   .flow__pipe { position: relative; width: 2px; height: 42px; background: var(--color-border-strong); overflow: hidden; }
   .flow__pipe span { position: absolute; left: 0; width: 2px; height: 14px; background: var(--color-gold-bright); box-shadow: 0 0 10px var(--color-gold); animation: drip 1.8s var(--ease-in-out) infinite; }
@@ -93,17 +93,17 @@ const split = ACT.transferFee.split;
   .flow__dest::before { content: ''; position: absolute; top: -14px; left: 50%; width: 1px; height: 14px; background: var(--color-border-strong); }
   .flow__dest b { font-family: var(--font-display); font-size: 22px; color: var(--color-gold-bright); }
   .flow__dest span { font-size: 12px; color: var(--color-muted); }
-  .flow__dest.is-lit, .flow__dest:hover { border-color: rgba(201, 164, 92, 0.5); background: var(--color-gold-soft); transform: translateY(-3px); }
+  .flow__dest.is-lit, .flow__dest:hover { border-color: rgba(160, 122, 44, 0.5); background: var(--color-gold-soft); transform: translateY(-3px); }
   .act__flow-note { font-size: var(--text-micro); color: var(--color-faint); }
   .act__side { display: grid; gap: var(--space-lg); }
   .act__facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
   .act__facts dt { font-size: var(--text-micro); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--color-faint); font-weight: 600; }
-  .act__facts dd { margin: 6px 0 4px; font-family: var(--font-display); font-size: clamp(1.5rem, 2.6vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; color: var(--color-white); }
+  .act__facts dd { margin: 6px 0 4px; font-family: var(--font-display); font-size: clamp(1.5rem, 2.6vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
   .act__facts p { font-size: var(--text-small); color: var(--color-muted); }
   .act__utilities { list-style: none; margin: 0; padding: 0; display: grid; }
   .act__utilities li { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-sm); padding: 16px 0; border-top: 1px solid var(--color-border); }
   .act__utilities li div { display: grid; gap: 2px; }
-  .act__utilities b { font-size: 15px; color: var(--color-white); }
+  .act__utilities b { font-size: 15px; color: var(--color-strong); }
   .act__utilities span { font-size: var(--text-small); color: var(--color-muted); }
   .act__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   @media (max-width: 1023px) {

@@ -42,17 +42,17 @@ const stages = ['Asset', 'Routing', 'Execution', 'Destination'];
   .uv__node { position: absolute; top: 50%; translate: -50% -50%; display: grid; justify-items: center; gap: 8px; text-align: center; transition: transform var(--duration-base) var(--ease-out); }
   .uv__node:hover { transform: scale(1.06); }
   .uv__node small { font-size: 11px; color: var(--color-faint); white-space: nowrap; }
-  .uv__chain { padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-white); }
+  .uv__chain { padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-strong); }
   .uv__node--sol .uv__chain { box-shadow: 0 0 30px -8px rgba(20, 241, 149, 0.5); }
   .uv__node--eth .uv__chain { box-shadow: 0 0 30px -8px rgba(98, 126, 234, 0.6); }
   .uv__node--hub { top: 50%; }
-  .uv__hub { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--color-indigo); border: 1px solid rgba(107, 92, 255, 0.6); box-shadow: 0 0 50px -6px rgba(107, 92, 255, 0.7); }
+  .uv__hub { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--color-indigo); border: 1px solid rgba(61, 43, 214, 0.6); box-shadow: 0 0 50px -6px rgba(61, 43, 214, 0.7); }
   .uv__hub img { border-radius: 7px; }
   .uv__node--hub small { position: absolute; top: calc(100% + 10px); }
   .uv__stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
   .uv__stages li { display: grid; gap: 4px; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); font-size: 13px; font-weight: 600; color: var(--color-muted); transition: color var(--duration-base), border-color var(--duration-base), background-color var(--duration-base); }
   .uv__stages li span { font-size: 11px; color: var(--color-faint); font-weight: 500; }
-  .uv__stages li.is-on { color: var(--color-white); border-color: rgba(107, 92, 255, 0.5); background: var(--color-indigo-soft); }
+  .uv__stages li.is-on { color: var(--color-strong); border-color: rgba(61, 43, 214, 0.5); background: var(--color-indigo-soft); }
   .uv__caption { font-size: var(--text-micro); color: var(--color-faint); }
   @media (max-width: 560px) {
     .uv__node small { display: none; }

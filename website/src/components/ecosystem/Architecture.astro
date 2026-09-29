@@ -84,19 +84,19 @@ const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
   .arch { display: grid; gap: var(--space-lg); }
   .arch__map { position: relative; aspect-ratio: 100 / 72; }
   .arch__lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .arch__lines line { stroke: rgba(255, 255, 255, 0.12); stroke-width: 1; transition: stroke var(--duration-base), stroke-width var(--duration-base); }
+  .arch__lines line { stroke: rgba(0, 0, 0, 0.12); stroke-width: 1; transition: stroke var(--duration-base), stroke-width var(--duration-base); }
   .arch__lines line.is-lit { stroke: var(--color-gold); stroke-width: 1.6; }
-  .arch.has-focus .arch__lines line:not(.is-lit) { stroke: rgba(255, 255, 255, 0.05); }
+  .arch.has-focus .arch__lines line:not(.is-lit) { stroke: rgba(0, 0, 0, 0.05); }
   .arch__node { position: absolute; translate: -50% -50%; padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--color-text); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); transition: transform var(--duration-base) var(--ease-out), border-color var(--duration-base), background-color var(--duration-base), opacity var(--duration-base), box-shadow var(--duration-base); }
-  .arch__node--core { padding: 14px 22px; font-size: 14px; background: var(--color-indigo); border-color: rgba(107, 92, 255, 0.6); color: var(--color-white); box-shadow: 0 0 40px -10px rgba(107, 92, 255, 0.7); }
-  .arch__node--act { color: var(--color-gold-bright); border-color: rgba(201, 164, 92, 0.5); background: var(--color-gold-soft); }
-  .arch__node--chain { background: var(--color-ink); }
-  .arch__node--climate { color: #86efac; border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.08); }
+  .arch__node--core { padding: 14px 22px; font-size: 14px; background: var(--color-indigo); border-color: rgba(61, 43, 214, 0.5); color: #ffffff; box-shadow: 0 0 40px -10px rgba(61, 43, 214, 0.7); }
+  .arch__node--act { color: var(--color-gold-bright); border-color: rgba(160, 122, 44, 0.5); background: var(--color-gold-soft); }
+  .arch__node--chain { background: var(--color-bg-alt); }
+  .arch__node--climate { color: #86efac; border-color: rgba(27, 138, 75, 0.4); background: rgba(27, 138, 75, 0.08); }
   .arch__node:hover, .arch__node:focus-visible, .arch__node.is-active { transform: scale(1.08); border-color: var(--color-gold); }
   .arch.has-focus .arch__node:not(.is-active):not(.is-linked) { opacity: 0.4; }
-  .arch__detail { display: grid; gap: 6px; padding: 20px 22px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); min-height: 118px; }
+  .arch__detail { display: grid; gap: 6px; padding: 20px 22px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); min-height: 118px; }
   .arch__detail-status { font-size: var(--text-micro); font-weight: 600; letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--color-gold); }
-  .arch__detail b { font-family: var(--font-display); font-size: 1.25rem; color: var(--color-white); letter-spacing: -0.02em; }
+  .arch__detail b { font-family: var(--font-display); font-size: 1.25rem; color: var(--color-strong); letter-spacing: -0.02em; }
   .arch__detail p { color: var(--color-muted); font-size: var(--text-small); }
   @media (max-width: 720px) {
     .arch__map { aspect-ratio: 100 / 110; }

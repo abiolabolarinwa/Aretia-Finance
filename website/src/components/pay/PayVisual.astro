@@ -34,12 +34,12 @@
   .pv { display: grid; place-items: center; min-height: 420px; }
   .pv__card { width: min(100%, 340px); display: grid; gap: 14px; padding: 20px; }
   .pv__head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--color-muted); }
-  .pv__net { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); }
-  .pv__amount { font-family: var(--font-display); font-size: 42px; font-weight: 600; letter-spacing: -0.03em; color: var(--color-white); }
+  .pv__net { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: rgba(0, 0, 0, 0.05); }
+  .pv__amount { font-family: var(--font-display); font-size: 42px; font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
   .pv__amount span { font-size: 18px; color: var(--color-faint); }
-  .pv__field { display: grid; gap: 4px; padding: 12px; border-radius: 14px; border: 1px solid var(--color-border-strong); background: rgba(255, 255, 255, 0.03); }
+  .pv__field { display: grid; gap: 4px; padding: 12px; border-radius: 14px; border: 1px solid var(--color-border-strong); background: rgba(0, 0, 0, 0.03); }
   .pv__field small, .pv__resolved small { font-size: 11px; color: var(--color-faint); }
-  .pv__name { font-size: 15px; font-weight: 600; color: var(--color-white); }
+  .pv__name { font-size: 15px; font-weight: 600; color: var(--color-strong); }
   .pv__resolve { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-muted); }
   .pv__spinner { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--color-border-strong); border-top-color: var(--color-gold); animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -49,9 +49,9 @@
   .pv__rows div { display: flex; justify-content: space-between; }
   .pv__rows dt { color: var(--color-faint); }
   .pv__rows dd { margin: 0; color: var(--color-text); }
-  .pv__btn { height: 44px; border-radius: 999px; font-weight: 600; font-size: 14px; background: var(--color-white); color: var(--color-black); cursor: default; }
+  .pv__btn { height: 44px; border-radius: 999px; font-weight: 600; font-size: 14px; background: var(--color-strong); color: var(--color-bg); cursor: default; }
   .pv__done { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--color-ok); }
-  .pv__tick { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(74, 222, 128, 0.14); }
+  .pv__tick { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(27, 138, 75, 0.14); }
   :global(html.motion-ok) .pv [data-pay-step] { display: none; }
   :global(html.motion-ok) .pv [data-pay-step].is-shown { display: revert; animation: pay-in 450ms var(--ease-out); }
   :global(html.motion-ok) .pv .pv__resolve.is-shown, :global(html.motion-ok) .pv .pv__done.is-shown { display: flex; }

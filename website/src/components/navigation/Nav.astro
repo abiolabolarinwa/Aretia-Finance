@@ -85,33 +85,33 @@ const { walletConnect = false } = Astro.props;
 
 <style>
   .nav { position: fixed; inset: 0 0 auto; z-index: 50; transition: background-color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), backdrop-filter var(--duration-base); border-bottom: 1px solid transparent; }
-  .nav.is-scrolled, .nav.is-open { background: rgba(6, 6, 8, 0.72); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); border-bottom-color: var(--color-border); }
-  .nav.is-open { background: rgba(6, 6, 8, 0.97); }
+  .nav.is-scrolled, .nav.is-open { background: rgba(255, 255, 255, 0.72); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); border-bottom-color: var(--color-border); }
+  .nav.is-open { background: rgba(255, 255, 255, 0.98); }
   .nav.is-hidden { transform: translateY(-100%); }
   .nav { transition: transform 450ms var(--ease-out), background-color var(--duration-base), border-color var(--duration-base); }
   .nav__bar { display: flex; align-items: center; gap: var(--space-lg); height: var(--nav-height); max-width: 1360px; }
-  .nav__brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--color-white); flex: none; }
+  .nav__brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--color-strong); flex: none; }
   .nav__brand img { width: 28px; height: 28px; border-radius: 8px; }
   .nav__menu { flex: 1; }
   .nav__groups { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0; }
   .nav__group { position: relative; }
   .nav__trigger { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 500; color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast); }
-  .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-white); background: rgba(255, 255, 255, 0.05); }
+  .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-strong); background: rgba(0, 0, 0, 0.05); }
   .nav__trigger svg { transition: transform var(--duration-base) var(--ease-out); }
   .nav__trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
-  .nav__panel { position: absolute; top: calc(100% + 10px); left: -0.5rem; min-width: 300px; padding: 0.5rem; background: rgba(17, 17, 22, 0.96); backdrop-filter: blur(20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); transform-origin: top left; }
+  .nav__panel { position: absolute; top: calc(100% + 10px); left: -0.5rem; min-width: 300px; padding: 0.5rem; background: rgba(255, 255, 255, 0.96); backdrop-filter: saturate(180%) blur(20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-float); transform-origin: top left; }
   .nav__panel:not([hidden]) { animation: panel-in 380ms var(--ease-out); }
   @keyframes panel-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
   .nav__panel ul { list-style: none; margin: 0; padding: 0; }
   .nav__item { display: flex; flex-direction: column; gap: 2px; padding: 0.7rem 0.85rem; border-radius: var(--radius-md); transition: background-color var(--duration-fast); }
-  .nav__item:hover { background: rgba(255, 255, 255, 0.05); }
-  .nav__item-label { font-size: 0.9rem; font-weight: 600; color: var(--color-white); }
+  .nav__item:hover { background: rgba(0, 0, 0, 0.05); }
+  .nav__item-label { font-size: 0.9rem; font-weight: 600; color: var(--color-strong); }
   .nav__item-desc { font-size: 0.8rem; color: var(--color-faint); }
   .nav__actions { display: flex; align-items: center; gap: 0.9rem; flex: none; }
   .nav__buy { font-size: 0.875rem; font-weight: 600; color: var(--color-gold); padding: 0.5rem; transition: color var(--duration-fast); }
   .nav__buy:hover { color: var(--color-gold-bright); }
   .nav__toggle { display: none; width: 44px; height: 44px; margin-left: auto; position: relative; }
-  .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-white); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
+  .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-strong); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
   .nav__toggle span:first-child { top: 18px; }
   .nav__toggle span:last-child { top: 25px; }
   .nav.is-open .nav__toggle span:first-child { top: 21.5px; transform: rotate(45deg); }
@@ -121,7 +121,7 @@ const { walletConnect = false } = Astro.props;
   .mobile__inner { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-lg); min-height: 100%; padding-block: var(--space-md) var(--space-lg); }
   .mobile__groups { list-style: none; margin: 0; padding: 0; }
   .mobile__group { border-bottom: 1px solid var(--color-border); }
-  .mobile summary { display: flex; justify-content: space-between; align-items: center; list-style: none; padding: 1.1rem 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-white); cursor: pointer; min-height: 44px; }
+  .mobile summary { display: flex; justify-content: space-between; align-items: center; list-style: none; padding: 1.1rem 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-strong); cursor: pointer; min-height: 44px; }
   .mobile summary::-webkit-details-marker { display: none; }
   .mobile summary::after { content: '+'; font-weight: 400; color: var(--color-faint); transition: transform var(--duration-base) var(--ease-out); }
   .mobile details[open] summary::after { transform: rotate(45deg); }

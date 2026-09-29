@@ -12,16 +12,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0B0B10; --panel: #13131B; --panel-2: #191923; --hover: #1F1F2B;
-    --border: #25252F; --border-soft: #1C1C25;
-    --text: #F2F2F7; --text-soft: #A3A3B5; --text-faint: #6E6E82;
-    --brand: #190880; --brand-hover: #22109E; --brand-line: #3B2BB5; --accent: #9C8FFF;
-    --ok: #4ADE80; --warn: #FBBF24; --err: #F87171;
+    /* Apple-style light system, matching the rest of aretiafinance.org. */
+    --bg: #F5F5F7; --panel: #FFFFFF; --panel-2: #F5F5F7; --hover: #EDEDF0;
+    --border: #E5E5EA; --border-soft: #EDEDF0;
+    --text: #1D1D1F; --text-soft: #6E6E73; --text-faint: #86868B;
+    --brand: #190880; --brand-hover: #22109E; --brand-line: #190880; --accent: #3D2BD6;
+    --ok: #1B8A4B; --warn: #B25E09; --err: #D70015;
     --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
     --r-lg: 16px; --r-md: 12px; --r-sm: 8px;
     --sidebar: 248px;
-    color-scheme: dark;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -51,7 +52,7 @@
   .sidebar-foot { margin-top: auto; }
   .conn { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); }
   .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: none; }
-  .conn[data-state="connected"] .conn-dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15); }
+  .conn[data-state="connected"] .conn-dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(27, 138, 75, 0.15); }
   .conn-text { min-width: 0; flex: 1; }
   .conn-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-sub { font-size: 12px; color: var(--text-faint); }
@@ -87,8 +88,8 @@
   .holding { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
   .token-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
   .token-icon.act { background: var(--brand); border: 1px solid var(--brand-line); color: #fff; }
-  .token-icon.sol { background: linear-gradient(135deg, #9945FF, #14F195); color: #0B0B10; }
-  .token-icon.eth { background: #2A2F45; color: #C9D1F2; }
+  .token-icon.sol { background: linear-gradient(135deg, #9945FF, #14F195); color: #FFFFFF; }
+  .token-icon.eth { background: #E8E8ED; color: #3C4A8F; }
   .holding-name { font-weight: 600; }
   .holding-sub { font-size: 12px; color: var(--text-faint); }
   .holding-amt { text-align: right; font-weight: 600; }
@@ -110,8 +111,8 @@
   .addr a { color: var(--text-soft); }
   .addr a:hover { color: var(--accent); }
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--panel-2); color: var(--text-soft); }
-  .badge.ok { color: var(--ok); background: rgba(74, 222, 128, 0.08); }
-  .badge.err { color: var(--err); background: rgba(248, 113, 113, 0.08); }
+  .badge.ok { color: var(--ok); background: rgba(27, 138, 75, 0.08); }
+  .badge.err { color: var(--err); background: rgba(215, 0, 21, 0.08); }
   .empty { padding: 28px 20px; text-align: center; color: var(--text-faint); }
   .table-scroll { overflow-x: auto; }
 
@@ -120,7 +121,7 @@
   .main[data-locked="true"] .dashboard { filter: blur(6px) saturate(0.6); opacity: 0.45; pointer-events: none; user-select: none; }
   .gate { position: absolute; inset: 0; display: none; align-items: flex-start; justify-content: center; padding: 120px 20px 20px; z-index: 5; }
   .main[data-locked="true"] .gate { display: flex; }
-  .gate-card { width: 100%; max-width: 440px; padding: 28px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55); }
+  .gate-card { width: 100%; max-width: 440px; padding: 28px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04); }
   .gate-card img { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 18px; }
   .gate-card h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
   .gate-card p { margin: 0 0 22px; color: var(--text-soft); }

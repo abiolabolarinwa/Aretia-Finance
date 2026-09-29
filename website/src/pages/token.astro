@@ -103,30 +103,30 @@ const facts = [
   .tk-facts .container { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--space-xl); align-items: start; }
   .supply { display: grid; gap: var(--space-lg); }
   .supply__head { display: grid; gap: var(--space-xs); }
-  .supply__big { font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 600; letter-spacing: -0.04em; color: var(--color-white); line-height: 1; }
-  .bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.05); gap: 2px; }
+  .supply__big { font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 600; letter-spacing: -0.04em; color: var(--color-strong); line-height: 1; }
+  .bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: rgba(0, 0, 0, 0.05); gap: 2px; }
   .bar__seg { width: var(--w); min-width: 6px; }
   .bar__seg--0 { background: var(--color-gold); }
   .bar__seg--1 { background: var(--color-indigo-bright); }
-  .bar__seg--2 { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0 6px, rgba(255, 255, 255, 0.05) 6px 12px); }
+  .bar__seg--2 { background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.14) 0 6px, rgba(0, 0, 0, 0.05) 6px 12px); }
   .legend { list-style: none; margin: 0; padding: 0; display: grid; }
   .legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 0; border-top: 1px solid var(--color-border); }
   .legend__dot { width: 12px; height: 12px; border-radius: 3px; margin-top: 4px; }
   .legend div { display: grid; gap: 2px; }
-  .legend b { color: var(--color-white); font-size: 15px; }
+  .legend b { color: var(--color-strong); font-size: 15px; }
   .legend span { font-size: var(--text-small); color: var(--color-muted); }
   .legend small { font-size: var(--text-micro); color: var(--color-faint); }
-  .contract { display: grid; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); }
-  .contract__mint { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--color-border); }
+  .contract { display: grid; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
+  .contract__mint { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(0, 0, 0, 0.03); border: 1px solid var(--color-border); }
   .contract__mint .mono { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; color: var(--color-gold-bright); }
   .contract__copy { flex: none; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border-strong); transition: background-color var(--duration-fast); min-height: 32px; }
-  .contract__copy:hover { background: rgba(255, 255, 255, 0.06); }
+  .contract__copy:hover { background: rgba(0, 0, 0, 0.06); }
   .contract__facts { margin: 0; display: grid; }
   .contract__facts div { display: flex; justify-content: space-between; gap: 1rem; padding: 10px 0; border-top: 1px solid var(--color-border); font-size: var(--text-small); }
   .contract__facts dt { color: var(--color-faint); }
   .contract__facts dd { margin: 0; color: var(--color-text); text-align: right; }
   .contract__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .presale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xl); align-items: end; padding: clamp(2rem, 5vw, 4rem); border-radius: var(--radius-xl); border: 1px solid rgba(201, 164, 92, 0.25); background: radial-gradient(80% 120% at 0% 100%, rgba(201, 164, 92, 0.1), transparent 60%), var(--color-ink); }
+  .presale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xl); align-items: end; padding: clamp(2rem, 5vw, 4rem); border-radius: var(--radius-xl); border: 1px solid rgba(160, 122, 44, 0.25); background: radial-gradient(80% 120% at 0% 100%, rgba(160, 122, 44, 0.1), transparent 60%), var(--color-bg-alt); }
   .presale__copy { display: grid; gap: var(--space-md); justify-items: start; }
   .disclaimer p { font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
   .disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }

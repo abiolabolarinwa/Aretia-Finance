@@ -17,7 +17,7 @@ const { id, eyebrow, title, lead, status, statusNote, points = [], roadmap = [],
 const headingId = id ? `${id}-title` : undefined;
 ---
 
-<section class:list={['ps section', { 'ps--reverse': reverse }]} id={id} aria-labelledby={headingId}>
+<section class:list={['ps section', { 'ps--reverse': reverse, 'section--alt': reverse }]} id={id} aria-labelledby={headingId}>
   <div class="container ps__grid">
     <div class="ps__copy">
       <div class="ps__meta" data-reveal>

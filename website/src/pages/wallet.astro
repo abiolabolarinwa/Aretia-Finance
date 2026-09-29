@@ -97,9 +97,9 @@ const capabilities: { title: string; body: string; status: Status; href?: string
   .rail__viewport::-webkit-scrollbar { display: none; }
   .rail__track { list-style: none; margin: 0; padding: 0; display: flex; gap: 1rem; width: max-content; }
   .rail__item { scroll-snap-align: start; }
-  .rail__card { display: grid; align-content: start; gap: 0.9rem; width: clamp(260px, 26vw, 340px); min-height: 320px; padding: 1.75rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-ink); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out), background-color var(--duration-base); }
+  .rail__card { display: grid; align-content: start; gap: 0.9rem; width: clamp(260px, 26vw, 340px); min-height: 320px; padding: 1.75rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out), background-color var(--duration-base); }
   a.rail__card:hover { border-color: var(--color-border-strong); transform: translateY(-4px); background: var(--color-surface); }
-  .rail__num { font-family: var(--font-display); font-size: 3rem; font-weight: 600; letter-spacing: -0.04em; color: rgba(255, 255, 255, 0.08); line-height: 1; }
+  .rail__num { font-family: var(--font-display); font-size: 3rem; font-weight: 600; letter-spacing: -0.04em; color: rgba(0, 0, 0, 0.08); line-height: 1; }
   .rail__title { font-size: 1.5rem; letter-spacing: -0.02em; }
   .rail__card p { color: var(--color-muted); font-size: var(--text-small); }
   .rail__card :global(.badge) { justify-self: start; margin-top: auto; }

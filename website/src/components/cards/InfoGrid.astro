@@ -38,9 +38,9 @@ const { items, columns = 3 } = Astro.props;
   .ig { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--color-border); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
   .ig--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ig--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ig li { display: flex; background: var(--color-black); }
-  .ig__card { position: relative; flex: 1; display: grid; align-content: start; gap: 0.75rem; padding: clamp(1.5rem, 3vw, 2.25rem); background: var(--color-black); transition: background-color var(--duration-base) var(--ease-out); }
-  .ig__card:hover { background: var(--color-ink); }
+  .ig li { display: flex; background: var(--color-bg); }
+  .ig__card { position: relative; flex: 1; display: grid; align-content: start; gap: 0.75rem; padding: clamp(1.5rem, 3vw, 2.25rem); background: var(--color-bg); transition: background-color var(--duration-base) var(--ease-out); }
+  .ig__card:hover { background: var(--color-bg-alt); }
   .ig__index { font-family: var(--font-display); font-size: var(--text-small); color: var(--color-faint); transition: color var(--duration-base); }
   .ig__card:hover .ig__index { color: var(--color-gold); }
   .ig__title { font-size: 1.25rem; letter-spacing: -0.02em; line-height: 1.25; transition: transform var(--duration-base) var(--ease-out); }

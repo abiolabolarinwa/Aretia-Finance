@@ -49,21 +49,21 @@ import { FAQS, SUPPORT_CATEGORIES } from '../data/help';
 </Base>
 
 <style>
-  .sbox { display: flex; align-items: center; gap: 12px; width: min(100%, 560px); margin-top: var(--space-md); padding: 0 18px; height: 56px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: rgba(255, 255, 255, 0.03); color: var(--color-muted); transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
-  .sbox:focus-within { border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(201, 164, 92, 0.12); }
-  .sbox input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-size: 1rem; color: var(--color-white); }
+  .sbox { display: flex; align-items: center; gap: 12px; width: min(100%, 560px); margin-top: var(--space-md); padding: 0 18px; height: 56px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: rgba(0, 0, 0, 0.03); color: var(--color-muted); transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+  .sbox:focus-within { border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(160, 122, 44, 0.12); }
+  .sbox input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-size: 1rem; color: var(--color-strong); }
   .support { padding-top: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
   .chip { padding: 0.5rem 1rem; min-height: 40px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast), border-color var(--duration-fast); }
-  .chip:hover { color: var(--color-white); border-color: var(--color-border-strong); }
-  .chip[aria-pressed='true'] { color: var(--color-black); background: var(--color-white); border-color: var(--color-white); }
+  .chip:hover { color: var(--color-strong); border-color: var(--color-border-strong); }
+  .chip[aria-pressed='true'] { color: var(--color-bg); background: var(--color-strong); border-color: var(--color-strong); }
   .count { text-align: center; font-size: var(--text-small); color: var(--color-faint); margin: var(--space-md) 0; }
   .faqs { max-width: 52rem; margin-inline: auto; border-top: 1px solid var(--color-border); }
   .faq { border-bottom: 1px solid var(--color-border); }
   .faq summary { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 20px; align-items: center; gap: 1rem; padding: 1.3rem 0; cursor: pointer; list-style: none; }
   .faq summary::-webkit-details-marker { display: none; }
   .faq__cat { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
-  .faq__q { font-size: 1.05rem; font-weight: 600; color: var(--color-white); transition: color var(--duration-fast); }
+  .faq__q { font-size: 1.05rem; font-weight: 600; color: var(--color-strong); transition: color var(--duration-fast); }
   .faq summary:hover .faq__q { color: var(--color-gold-bright); }
   .faq__icon { position: relative; width: 14px; height: 14px; justify-self: end; }
   .faq__icon::before, .faq__icon::after { content: ''; position: absolute; left: 0; top: 6px; width: 14px; height: 1.5px; background: var(--color-muted); transition: transform var(--duration-base) var(--ease-out); }

@@ -5,7 +5,7 @@ import { ACT, CLIMATE } from '../../data/site';
 const treasuryShare = ACT.transferFee.split.find((s) => s.label === 'Climate Treasury')!.percent;
 ---
 
-<section class="climate section" id="climate" aria-labelledby="climate-title">
+<section class="climate section section--alt" id="climate" aria-labelledby="climate-title">
   <div class="climate__bg" aria-hidden="true"></div>
   <div class="container climate__grid">
     <div class="climate__copy">
@@ -44,21 +44,21 @@ const treasuryShare = ACT.transferFee.split.find((s) => s.label === 'Climate Tre
 
 <style>
   .climate { overflow: hidden; }
-  .climate__bg { position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 50% at 80% 50%, rgba(74, 222, 128, 0.05), transparent 70%), linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.015) 50%, transparent); }
+  .climate__bg { position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 50% at 80% 50%, rgba(27, 138, 75, 0.05), transparent 70%), linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.015) 50%, transparent); }
   .climate__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2.5rem, 6vw, 6rem); align-items: center; }
   .climate__copy { display: grid; gap: var(--space-md); justify-items: start; }
   .cflow { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-  .cflow__step { position: relative; display: grid; gap: 4px; padding: 18px 22px 18px 56px; border-left: 1px solid var(--color-border-strong); margin-left: 18px; font-size: 15px; font-weight: 600; color: var(--color-white); }
+  .cflow__step { position: relative; display: grid; gap: 4px; padding: 18px 22px 18px 56px; border-left: 1px solid var(--color-border-strong); margin-left: 18px; font-size: 15px; font-weight: 600; color: var(--color-strong); }
   .cflow__step small { position: absolute; left: -18px; top: 16px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-muted); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); }
-  .cflow__step--gold small { color: var(--color-black); background: var(--color-gold); border-color: var(--color-gold); }
+  .cflow__step--gold small { color: var(--color-bg); background: var(--color-gold); border-color: var(--color-gold); }
   .cflow__step--gold b { font-family: var(--font-display); font-size: 1.6rem; color: var(--color-gold-bright); line-height: 1; }
   .cflow__step:last-child { border-left-color: transparent; }
   .cflow__bars { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
   .cflow__bars li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 2.8rem; align-items: center; gap: 12px; font-size: 13px; font-weight: 500; }
   .cflow__label { color: var(--color-muted); }
-  .cflow__pct { text-align: right; color: var(--color-white); }
-  .cflow__bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
-  .cflow__bar span { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, rgba(74, 222, 128, 0.7), var(--color-gold)); transform-origin: left; }
+  .cflow__pct { text-align: right; color: var(--color-strong); }
+  .cflow__bar { height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
+  .cflow__bar span { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, rgba(27, 138, 75, 0.7), var(--color-gold)); transform-origin: left; }
   :global(html.motion-ok) .cflow__bar span { transform: scaleX(0); transition: transform 1.4s var(--ease-out); }
   :global(html.motion-ok) .climate__visual.is-in .cflow__bar span { transform: scaleX(1); }
   .cflow__note { margin-top: 10px; font-size: var(--text-micro); color: var(--color-faint); font-weight: 400; }

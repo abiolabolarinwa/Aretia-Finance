@@ -64,23 +64,23 @@ const scenarios = [
 <style>
   .sv { display: grid; place-items: center; min-height: 420px; }
   .sv__geo { position: absolute; width: 58%; max-width: 330px; left: 50%; top: 50%; translate: -50% -50%; z-index: -1; opacity: 0.5; }
-  .sv__geo path { fill: none; stroke: rgba(74, 222, 128, 0.35); stroke-width: 1; }
+  .sv__geo path { fill: none; stroke: rgba(27, 138, 75, 0.35); stroke-width: 1; }
   .sv__geo path:last-child { stroke-dasharray: 4 6; animation: spin-dash 18s linear infinite; }
   @keyframes spin-dash { to { stroke-dashoffset: -200; } }
   .sv__card { width: min(100%, 360px); padding: 20px; display: grid; gap: 16px; }
   .sv__head { display: flex; justify-content: space-between; align-items: center; }
-  .sv__title { font-size: 14px; font-weight: 600; color: var(--color-white); }
-  .sv__badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: var(--color-ok); background: rgba(74, 222, 128, 0.1); }
-  .sv__to { display: grid; gap: 4px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--color-border); }
+  .sv__title { font-size: 14px; font-weight: 600; color: var(--color-strong); }
+  .sv__badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
+  .sv__to { display: grid; gap: 4px; padding: 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.03); border: 1px solid var(--color-border); }
   .sv__to small { font-size: 11px; color: var(--color-faint); }
-  .sv__to b { font-size: 14px; color: var(--color-white); }
+  .sv__to b { font-size: 14px; color: var(--color-strong); }
   .sv__to .mono { color: var(--color-muted); font-size: 12px; }
   .sv__checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .sv__checks li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text); }
-  .sv__icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--color-ok); background: rgba(74, 222, 128, 0.12); flex: none; }
-  .is-warn .sv__icon { color: var(--color-warn); background: rgba(245, 184, 75, 0.14); }
-  .sv__verdict { font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 12px; color: var(--color-ok); background: rgba(74, 222, 128, 0.08); }
-  .sv__verdict.is-warn { color: var(--color-warn); background: rgba(245, 184, 75, 0.1); }
+  .sv__icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--color-ok); background: rgba(27, 138, 75, 0.12); flex: none; }
+  .is-warn .sv__icon { color: var(--color-warn); background: rgba(178, 94, 9, 0.14); }
+  .sv__verdict { font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 12px; color: var(--color-ok); background: rgba(27, 138, 75, 0.08); }
+  .sv__verdict.is-warn { color: var(--color-warn); background: rgba(178, 94, 9, 0.1); }
   :global(html.motion-ok) .sv [data-check] { opacity: 0; transform: translateX(-8px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); }
   :global(html.motion-ok) .sv [data-check].is-shown { opacity: 1; transform: none; }
 </style>

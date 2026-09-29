@@ -1,25 +1,27 @@
 :root {
-  /* Color: near-black base, restrained gold for the ACT/fee layer, Aretia
-     indigo as the core brand accent. */
-  --color-black: #060608;
-  --color-ink: #0b0b0f;
-  --color-surface: #111116;
-  --color-surface-2: #17171e;
-  --color-surface-3: #1e1e27;
-  --color-white: #f5f5f7;
-  --color-text: #e8e8ee;
-  --color-muted: #9b9ba8;
-  --color-faint: #62626e;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
-  --color-gold: #c9a45c;
-  --color-gold-bright: #e2c282;
-  --color-gold-soft: rgba(201, 164, 92, 0.12);
+  /* Color: an Apple-style light system: bright white canvas, off-white and
+     light-grey surfaces, near-black type. Aretia indigo is the primary
+     accent; gold is reserved for the ACT / fee layer. */
+  --color-bg: #ffffff;
+  --color-bg-alt: #f5f5f7;
+  --color-offwhite: #fbfbfd;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f5f7;
+  --color-surface-3: #e8e8ed;
+  --color-strong: #1d1d1f;
+  --color-text: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-faint: #86868b;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.14);
+  --color-gold: #a07a2c;
+  --color-gold-bright: #8a6620;
+  --color-gold-soft: rgba(160, 122, 44, 0.09);
   --color-indigo: #190880;
-  --color-indigo-bright: #6b5cff;
-  --color-indigo-soft: rgba(107, 92, 255, 0.14);
-  --color-ok: #4ade80;
-  --color-warn: #f5b84b;
+  --color-indigo-bright: #3d2bd6;
+  --color-indigo-soft: rgba(61, 43, 214, 0.07);
+  --color-ok: #1b8a4b;
+  --color-warn: #b25e09;
 
   /* Type: Poppins for display (the reference's editorial hierarchy), Inter
      for everything read at length. */
@@ -66,6 +68,8 @@
   --duration-base: 320ms;
   --duration-slow: 700ms;
 
-  --shadow-float: 0 40px 120px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  /* Soft, layered, Apple-style elevation: a wide ambient shadow plus a hairline. */
+  --shadow-float: 0 30px 80px -24px rgba(0, 0, 0, 0.16), 0 8px 24px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-soft: 0 12px 40px -16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --nav-height: 72px;
 }

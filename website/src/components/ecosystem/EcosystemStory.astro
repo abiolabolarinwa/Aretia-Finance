@@ -138,7 +138,7 @@ const chains = [
   .stage__progress span { display: block; height: 100%; width: 100%; background: var(--color-gold); transform-origin: left; transform: scaleX(0); }
   .stage__lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .stage__ring { fill: none; stroke: var(--color-border); stroke-dasharray: 2 6; }
-  .stage__link { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.2s var(--ease-out); }
+  .stage__link { stroke: rgba(0, 0, 0, 0.18); stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.2s var(--ease-out); }
   .stage__route { fill: none; stroke: var(--color-indigo-bright); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.4s var(--ease-out); }
   .stage__particle { fill: var(--color-gold-bright); opacity: 0; offset-path: path('M 0 -210 C 180 -220 250 -140 199.7 -64.9'); }
   .stage__fee-ring { fill: none; stroke: var(--color-gold); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.6s var(--ease-out); transform: rotate(-90deg); }
@@ -149,17 +149,17 @@ const chains = [
   .stage__chain, .stage__bubble, .stage__fee, .stage__core, .stage__shield, .stage__card-status { opacity: 0; transition: opacity 600ms var(--ease-out), transform 700ms var(--ease-out); }
   .stage__chain { position: absolute; translate: -50% -50%; padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-text); transform: scale(0.8); }
   .stage__core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; transform: scale(0.9); }
-  .stage__card { position: relative; width: 210px; padding: 16px; border-radius: 22px; background: linear-gradient(180deg, #18181f, #0f0f14); box-shadow: var(--shadow-float); display: grid; gap: 10px; }
+  .stage__card { position: relative; width: 210px; padding: 16px; border-radius: 22px; background: var(--color-surface); box-shadow: var(--shadow-float); display: grid; gap: 10px; }
   .stage__card-row { display: flex; align-items: center; gap: 10px; }
   .stage__card-row span:last-child { display: grid; }
-  .stage__card-row b { font-size: 13px; color: var(--color-white); }
+  .stage__card-row b { font-size: 13px; color: var(--color-strong); }
   .stage__card-row small { font-size: 11px; color: var(--color-faint); }
   .stage__coin { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--color-gold-bright), var(--color-gold) 60%, #8a6d34); }
-  .stage__card-total { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--color-white); letter-spacing: -0.03em; }
+  .stage__card-total { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--color-strong); letter-spacing: -0.03em; }
   .stage__card-total em { font-style: normal; font-size: 13px; color: var(--color-gold); }
   .stage__card-status { font-size: 12px; font-weight: 600; color: var(--color-ok); transform: translateY(6px); }
-  .stage__shield { position: absolute; inset: -34px; border-radius: 40px; border: 1.5px solid rgba(74, 222, 128, 0.5); box-shadow: 0 0 60px -10px rgba(74, 222, 128, 0.35), inset 0 0 40px -20px rgba(74, 222, 128, 0.3); transform: scale(1.12); }
-  .stage__bubble { position: absolute; display: grid; gap: 3px; padding: 11px 14px; border-radius: 16px; font-size: 13px; background: rgba(23, 23, 30, 0.92); border: 1px solid var(--color-border-strong); color: var(--color-text); backdrop-filter: blur(8px); white-space: nowrap; transform: translateY(12px); }
+  .stage__shield { position: absolute; inset: -34px; border-radius: 40px; border: 1.5px solid rgba(27, 138, 75, 0.5); box-shadow: 0 0 60px -10px rgba(27, 138, 75, 0.35), inset 0 0 40px -20px rgba(27, 138, 75, 0.3); transform: scale(1.12); }
+  .stage__bubble { position: absolute; display: grid; gap: 3px; padding: 11px 14px; border-radius: 16px; font-size: 13px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--shadow-soft); border: 1px solid var(--color-border-strong); color: var(--color-text); backdrop-filter: blur(8px); white-space: nowrap; transform: translateY(12px); }
   .stage__bubble small { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
   .stage__bubble--intent { left: 50%; top: 14%; translate: -50% 0; }
   .stage__bubble--pay { left: 50%; top: 14%; translate: -50% 0; }
@@ -168,14 +168,14 @@ const chains = [
   .stage__bubble--universal { right: 0; top: 26%; }
   .stage__bubble--universal small { color: var(--color-indigo-bright); }
   .stage__fee { position: absolute; left: 50%; bottom: 4%; translate: -50% 0; display: flex; gap: 8px; transform: translateY(12px); }
-  .stage__fee span { font-size: 12px; padding: 8px 12px; border-radius: 999px; background: var(--color-gold-soft); border: 1px solid rgba(201, 164, 92, 0.35); color: var(--color-text); white-space: nowrap; }
+  .stage__fee span { font-size: 12px; padding: 8px 12px; border-radius: 999px; background: var(--color-gold-soft); border: 1px solid rgba(160, 122, 44, 0.35); color: var(--color-text); white-space: nowrap; }
   .stage__fee b { color: var(--color-gold-bright); }
   .is-on { opacity: 1; transform: none; }
 
   /* Mobile: the stage stays pinned at the top while steps scroll beneath it. */
   @media (max-width: 1023px) {
     .story__grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
-    .story__stage-wrap { order: -1; position: sticky; top: var(--nav-height); z-index: 2; height: 46vh; margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter); background: linear-gradient(180deg, var(--color-black) 82%, transparent); }
+    .story__stage-wrap { order: -1; position: sticky; top: var(--nav-height); z-index: 2; height: 46vh; margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter); background: linear-gradient(180deg, var(--color-bg) 82%, transparent); }
     .stage { position: relative; top: 0; height: 100%; width: auto; aspect-ratio: 1; }
     .stage__progress { bottom: 4px; }
     .story__step, .story__step:first-child { min-height: 64vh; align-items: center; }

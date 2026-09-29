@@ -1064,9 +1064,39 @@
   // Exposed for reuse/testing, per the "create utilities, don't duplicate
   // logic" brief -- other pages/scripts can read connection state or
   // reuse the pure functions without re-implementing them.
+  function publicState() {
+    return {
+      account: state.account,
+      connecting: state.connecting,
+      wallets: state.wallets.map(function (w) { return w.name; }),
+      walletName: state.connectedWallet ? state.connectedWallet.name : null,
+    };
+  }
+
+  // For pages that need one specific wallet (e.g. /wallet requires Aretia
+  // Wallet) rather than the generic picker modal. `silent: true` never
+  // prompts: it resolves null unless the user already approved this site.
+  function connectByName(walletName, options) {
+    var wallet = state.wallets.filter(function (w) { return w.name === walletName; })[0];
+    if (!wallet) return Promise.reject(new Error(walletName + " is not installed"));
+    if (options && options.silent) return tryEagerConnect(wallet);
+    return connectToWallet(wallet);
+  }
+
+  function subscribe(fn) {
+    var listener = function () { fn(publicState()); };
+    listeners.push(listener);
+    return function () {
+      var i = listeners.indexOf(listener);
+      if (i !== -1) listeners.splice(i, 1);
+    };
+  }
+
   window.AretiaWallet = {
     init: init,
-    getState: function () { return { account: state.account, connecting: state.connecting, wallets: state.wallets.map(function (w) { return w.name; }) }; },
+    getState: publicState,
+    connect: connectByName,
+    subscribe: subscribe,
     disconnect: disconnectWallet,
     // For Jupiter Terminal's enableWalletPassthrough / passthroughWalletContextState
     // (see index.html) -- kept up to date automatically on every connect/
@@ -1079,6 +1109,7 @@
       isValidBase58Pubkey: isValidBase58Pubkey,
       getSolBalance: getSolBalance,
       getActBalance: getActBalance,
+      getConnection: getConnection,
     },
     config: { ACT_MINT_ADDRESS: ACT_MINT_ADDRESS, mintIsValid: mintIsValid, network: "mainnet-beta" },
   };

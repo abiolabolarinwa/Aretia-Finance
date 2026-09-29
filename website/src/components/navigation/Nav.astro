@@ -1,9 +1,15 @@
 ---
 import { NAV, LINKS } from '../../data/site';
 import Button from '../buttons/Button.astro';
+
+interface Props {
+  /** Render the site-wide Solana wallet connect button (assets/wallet/wallet.js mounts into it). */
+  walletConnect?: boolean;
+}
+const { walletConnect = false } = Astro.props;
 ---
 
-<header class="nav" data-nav>
+<header class:list={['nav', { 'nav--wallet': walletConnect }]} data-nav>
   <div class="nav__bar container">
     <a href="/" class="nav__brand" aria-label="Aretia Finance home">
       <img src="/assets/logo-mark.png" alt="" width="28" height="28" />
@@ -41,6 +47,8 @@ import Button from '../buttons/Button.astro';
       <a href={LINKS.buyAct} class="nav__buy">Buy ACT</a>
       <Button href={LINKS.launchWallet} size="md">Launch Wallet</Button>
     </div>
+
+    {walletConnect && <div class="nav__connect" data-aretia-wallet-mount></div>}
 
     <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu" data-toggle>
       <span></span><span></span>
@@ -129,9 +137,14 @@ import Button from '../buttons/Button.astro';
   .mobile:not([hidden]) .mobile__actions { animation: item-in 600ms 260ms var(--ease-out) both; }
   @keyframes item-in { from { opacity: 0; transform: translateY(14px); } }
 
+  .nav__connect { flex: none; }
+  /* On pages with the wallet connect button, it replaces "Launch Wallet" on desktop. */
+  .nav__connect ~ .nav__toggle { margin-left: 0; }
+  .nav--wallet .nav__actions :global(.btn) { display: none; }
   @media (max-width: 1080px) {
     .nav__menu, .nav__actions { display: none; }
     .nav__toggle { display: block; }
+    .nav__connect { margin-left: auto; }
   }
 </style>
 

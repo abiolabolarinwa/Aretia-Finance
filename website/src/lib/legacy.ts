@@ -1,0 +1,129 @@
+/**
+ * Serves the pre-redesign functional pages (presale, stake, verify, apply…)
+ * inside the new site shell without rewriting their logic. At build time
+ * each source in legacy/pages/ is split into:
+ *   - its content (everything between the old top nav and the old footer),
+ *   - its scripts (kept byte-for-byte, so wallet, RPC and form logic is untouched),
+ *   - its CSS, scoped under `.legacy` and re-themed to the dark palette by
+ *     remapping the page's own design variables.
+ */
+import postcss, { type Rule } from 'postcss';
+
+export interface LegacyPage {
+  title: string;
+  description: string;
+  css: string;
+  content: string;
+  scripts: string;
+}
+
+// Bundled by Vite at build time, so this works regardless of the process's working directory.
+const SOURCES = import.meta.glob<string>('../../legacy/pages/*.html', { query: '?raw', import: 'default', eager: true });
+
+/** Dark values for the legacy pages' own design variables. */
+const DARK_VARS = `
+  --ink: #f2f2f6; --ink-soft: #a3a3b1; --ink-faint: #6e6e7c;
+  --bg: #060608; --bg-alt: #0b0b0f; --card: #111116;
+  --border: rgba(255,255,255,0.1); --border-soft: rgba(255,255,255,0.06);
+  --black: #1c1c24; --black-hover: #26262f;
+  --brand: #6b5cff; --brand-hover: #5a4bec; --brand-soft: rgba(107,92,255,0.14);
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-serif: 'Inter Variable', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  background: transparent; color: var(--ink);
+`;
+
+const LIGHT_BACKGROUNDS: Record<string, string> = {
+  '#fff': 'var(--card)',
+  '#ffffff': 'var(--card)',
+  white: 'var(--card)',
+  '#faf9f5': 'var(--bg)',
+  '#f2f0ea': 'var(--bg-alt)',
+  '#efeff3': 'var(--border-soft)',
+  '#e7e7ec': 'var(--border)',
+};
+
+// Rules that only style the old nav/footer: drop them, their markup is gone.
+const DROP_SELECTOR = /(^|[\s,>+~])footer\b|\.footer[-_\w]*|topnav|gooey|brand-word|\.bw-\d|nav-cta/;
+
+function scopeSelector(sel: string): string {
+  const s = sel.trim();
+  if (s === ':root' || s === 'html' || s === 'body') return '.legacy';
+  if (/^(html|body)\b/.test(s)) return s.replace(/^(html|body)/, '.legacy');
+  if (s.startsWith('::selection')) return `.legacy ${s}`;
+  return `.legacy ${s}`;
+}
+
+function transformCss(css: string): string {
+  const root = postcss.parse(css);
+  root.walkRules((rule: Rule) => {
+    const parent = rule.parent;
+    if (parent && parent.type === 'atrule' && /keyframes$/i.test((parent as { name: string }).name)) return;
+    const kept = rule.selectors.filter((s) => !DROP_SELECTOR.test(s));
+    if (kept.length === 0) {
+      rule.remove();
+      return;
+    }
+    rule.selectors = kept.map(scopeSelector);
+    rule.walkDecls(/^background(-color)?$/, (decl) => {
+      decl.value = decl.value.replace(/#fff(fff)?\b|\bwhite\b|#faf9f5|#f2f0ea|#efeff3|#e7e7ec/gi, (m) => LIGHT_BACKGROUNDS[m.toLowerCase()] ?? m);
+    });
+  });
+  // The page's own :root variables now live on .legacy; the dark overrides come last so they win.
+  return `${root.toString()}
+.legacy { ${DARK_VARS} }
+.legacy h1, .legacy h2, .legacy h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; }
+.legacy ::selection { background: var(--color-gold); color: var(--color-black); }
+/* The pastel aurora hero belongs to the old light theme: keep it as a faint glow. */
+.legacy .dhero, .legacy .mp-hero { background: transparent; padding-top: calc(var(--nav-height) + 64px); }
+.legacy .dhero-ribbon, .legacy .mp-hero-ribbon { opacity: 0.14; filter: saturate(70%) blur(80px); }
+.legacy .dhero-wash, .legacy .mp-hero-wash { opacity: 0.3; }
+.legacy .dhero-grain, .legacy .mp-hero-grain { opacity: 0.03; }
+.legacy [id] { scroll-margin-top: calc(var(--nav-height) + 16px); }
+/* Pre-existing: roadmap's 1fr column couldn't shrink below its content on phones. */
+.legacy .phase { grid-template-columns: 44px minmax(0, 1fr); }
+.legacy .item-list { grid-template-columns: minmax(0, 1fr); }
+.legacy .item-list li { overflow-wrap: anywhere; }
+.legacy .item-list li > * { min-width: 0; }`;
+}
+
+function sliceBetween(html: string, start: number, end: number): string {
+  return html.slice(start, end).replace(/(src|href)="assets\//g, '$1="/assets/');
+}
+
+/** Index just past the old top nav, which itself contains a nested <nav>. */
+function endOfTopNav(html: string): number {
+  const start = html.indexOf('<nav class="topnav');
+  if (start < 0) throw new Error('legacy page has no top nav');
+  let depth = 0;
+  const re = /<nav\b|<\/nav>/g;
+  re.lastIndex = start;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    depth += m[0] === '</nav>' ? -1 : 1;
+    if (depth === 0) return m.index + m[0].length;
+  }
+  throw new Error('unbalanced top nav');
+}
+
+export function loadLegacyPage(name: string): LegacyPage {
+  const html = SOURCES[`../../legacy/pages/${name}.html`];
+  if (!html) throw new Error(`No legacy page source named "${name}"`);
+  const title = (html.match(/<title>([^<]*)<\/title>/)?.[1] ?? name).replace(/\s*·\s*Aretia.*$/, '').trim();
+  const description = html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '';
+  const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+
+  const bodyStart = html.indexOf('<body>') + '<body>'.length;
+  const navStart = html.indexOf('<nav class="topnav');
+  const navEnd = endOfTopNav(html);
+  const footerStart = html.indexOf('<footer', navEnd);
+  const footerEnd = html.indexOf('</footer>', footerStart) + '</footer>'.length;
+  const bodyEnd = html.lastIndexOf('</body>');
+
+  const content = sliceBetween(html, bodyStart, navStart) + sliceBetween(html, navEnd, footerStart);
+  const scripts = sliceBetween(html, footerEnd, bodyEnd)
+    // Handled by the new layout: footer animation and analytics.
+    .replace(/<script[^>]*src="\/assets\/footer-bars\.js"[^>]*><\/script>/g, '')
+    .replace(/<script[^>]*src="\/_vercel\/insights\/script\.js"[^>]*><\/script>/g, '');
+
+  return { title, description, css: transformCss(style), content, scripts };
+}

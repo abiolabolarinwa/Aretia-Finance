@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadLegacyPage } from '../../lib/legacy';
+
+interface Props {
+  name: string;
+}
+const { name } = Astro.props;
+const page = loadLegacyPage(name);
+// Pages that load assets/wallet/wallet.js need its connect button and styles.
+const usesWallet = page.scripts.includes('/assets/wallet/wallet.js');
+---
+
+<Base title={page.title} description={page.description} walletConnect={usesWallet} ctaBands={false}>
+  {usesWallet && <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />}
+  <Fragment slot="head"><style is:inline set:html={page.css} /></Fragment>
+  <div class="legacy">
+    <Fragment set:html={page.content} />
+  </div>
+  <Fragment set:html={page.scripts} />
+</Base>

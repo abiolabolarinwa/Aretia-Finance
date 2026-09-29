@@ -9,9 +9,11 @@ interface Props {
   description: string;
   /** Hide the shared closing CTA bands (e.g. on legal pages). */
   ctaBands?: boolean;
+  /** Show the Solana wallet connect button in the nav (pages that load wallet.js). */
+  walletConnect?: boolean;
 }
 
-const { title, description, ctaBands = true } = Astro.props;
+const { title, description, ctaBands = true, walletConnect = false } = Astro.props;
 const fullTitle = title === 'Aretia Finance' ? title : `${title} · Aretia Finance`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
@@ -48,7 +50,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <Nav />
+    <Nav walletConnect={walletConnect} />
     <main id="main">
       <slot />
       {ctaBands && <CtaBands />}

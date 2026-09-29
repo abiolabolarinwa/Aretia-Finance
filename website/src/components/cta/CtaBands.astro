@@ -1,0 +1,29 @@
+---
+import Button from '../buttons/Button.astro';
+import { LINKS } from '../../data/site';
+---
+
+<section class="bands" aria-labelledby="cta-title">
+  <div class="container">
+    <div class="band" data-reveal="scale">
+      <div class="band__glow" aria-hidden="true"></div>
+      <p class="eyebrow eyebrow--gold">Aretia Wallet</p>
+      <h2 id="cta-title" class="heading">Your assets. Your chains.<br />One wallet.</h2>
+      <p class="lead">Solana and EVM networks, name-based payments, pre-send safety checks and plain-language transactions, in one self-custody wallet.</p>
+      <div class="band__actions">
+        <Button href={LINKS.launchWallet} size="lg" arrow>Launch Wallet</Button>
+        <Button href="/wallet" size="lg" variant="secondary">Explore the wallet</Button>
+      </div>
+      <p class="band__note">The browser extension is in development and not yet on the Chrome Web Store.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .bands { padding-block: var(--space-2xl) var(--space-3xl); }
+  .band { position: relative; overflow: hidden; isolation: isolate; text-align: center; display: grid; justify-items: center; gap: var(--space-md); padding: clamp(3rem, 8vw, 6.5rem) var(--gutter); border-radius: var(--radius-xl); border: 1px solid var(--color-border); background: var(--color-ink); }
+  .band .lead { margin-inline: auto; }
+  .band__glow { position: absolute; inset: -40% -10% auto; height: 120%; z-index: -1; background: radial-gradient(50% 50% at 50% 30%, rgba(107, 92, 255, 0.22), transparent 70%), radial-gradient(30% 40% at 70% 20%, rgba(201, 164, 92, 0.14), transparent 70%); }
+  .band__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: var(--space-xs); }
+  .band__note { font-size: var(--text-micro); color: var(--color-faint); }
+</style>

@@ -1,0 +1,94 @@
+---
+import Base from '../layouts/Base.astro';
+import HomeHero from '../components/hero/HomeHero.astro';
+import EcosystemStory from '../components/ecosystem/EcosystemStory.astro';
+import ProductSection from '../components/product/ProductSection.astro';
+import UniversalVisual from '../components/universal/UniversalVisual.astro';
+import ShieldVisual from '../components/shield/ShieldVisual.astro';
+import IntentVisual from '../components/intent/IntentVisual.astro';
+import PayVisual from '../components/pay/PayVisual.astro';
+import ActSection from '../components/token/ActSection.astro';
+import ClimateSection from '../components/climate/ClimateSection.astro';
+import Architecture from '../components/ecosystem/Architecture.astro';
+import { PRODUCTS } from '../data/site';
+
+const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
+---
+
+<Base
+  title="Aretia Finance"
+  description="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects."
+>
+  <HomeHero />
+  <EcosystemStory />
+
+  <ProductSection
+    id="universal"
+    eyebrow="Aretia Universal"
+    title="Move value without thinking about the chain."
+    lead={p.universal!.summary}
+    status={p.universal!.status}
+    points={p.universal!.today}
+    roadmap={p.universal!.roadmap}
+  >
+    <UniversalVisual />
+  </ProductSection>
+
+  <ProductSection
+    id="shield"
+    eyebrow="Aretia Shield"
+    title="Know before<br />you sign."
+    lead={p.shield!.summary}
+    status={p.shield!.status}
+    points={p.shield!.today}
+    roadmap={p.shield!.roadmap}
+    reverse
+  >
+    <ShieldVisual />
+  </ProductSection>
+
+  <ProductSection
+    id="intent"
+    eyebrow="Aretia Intent"
+    title="Tell Aretia what you want.<br />Review it, then sign."
+    lead={p.intent!.summary}
+    status={p.intent!.status}
+    points={p.intent!.today}
+    roadmap={p.intent!.roadmap}
+    statusNote={p.intent!.statusNote}
+  >
+    <IntentVisual />
+  </ProductSection>
+
+  <ProductSection
+    id="pay"
+    eyebrow="Aretia Pay"
+    title="Payments without<br />the friction."
+    lead={p.pay!.summary}
+    status={p.pay!.status}
+    points={p.pay!.today}
+    roadmap={p.pay!.roadmap}
+    reverse
+  >
+    <PayVisual />
+  </ProductSection>
+
+  <ActSection />
+  <ClimateSection />
+
+  <section class="section" id="architecture" aria-labelledby="arch-title">
+    <div class="container arch-wrap">
+      <header class="arch-head">
+        <p class="eyebrow" data-reveal>Architecture</p>
+        <h2 id="arch-title" class="heading" data-split>Built for a multichain world.</h2>
+        <p class="lead" data-reveal>One wallet at the centre. Products that plug into it. Universal carrying ACT across chains.</p>
+      </header>
+      <div data-reveal="scale"><Architecture /></div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .arch-wrap { display: grid; gap: var(--space-2xl); }
+  .arch-head { display: grid; gap: var(--space-md); max-width: 44rem; }
+</style>

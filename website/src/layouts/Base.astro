@@ -1,0 +1,61 @@
+---
+import '../styles/global.css';
+import Nav from '../components/navigation/Nav.astro';
+import Footer from '../components/footer/Footer.astro';
+import CtaBands from '../components/cta/CtaBands.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Hide the shared closing CTA bands (e.g. on legal pages). */
+  ctaBands?: boolean;
+}
+
+const { title, description, ctaBands = true } = Astro.props;
+const fullTitle = title === 'Aretia Finance' ? title : `${title} · Aretia Finance`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <meta name="theme-color" content="#060608" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- Hide [data-reveal] content only once we know motion will run; if the
+         motion script never initialises, show everything after 2.5s. -->
+    <script is:inline>
+      (function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const root = document.documentElement;
+        root.classList.add('motion-ok');
+        setTimeout(function () {
+          if (!window.__aretiaMotion) root.classList.remove('motion-ok');
+        }, 2500);
+      })();
+    </script>
+    {import.meta.env.PROD && <script defer is:inline src="/_vercel/insights/script.js" />}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Nav />
+    <main id="main">
+      <slot />
+      {ctaBands && <CtaBands />}
+    </main>
+    <Footer />
+    <script>
+      import { initMotion } from '../scripts/motion';
+      initMotion();
+    </script>
+  </body>
+</html>

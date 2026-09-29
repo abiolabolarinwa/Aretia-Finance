@@ -1,0 +1,57 @@
+---
+interface Props {
+  href: string;
+  variant?: 'primary' | 'secondary' | 'gold' | 'ghost';
+  size?: 'md' | 'lg';
+  arrow?: boolean;
+  external?: boolean;
+  class?: string;
+}
+const { href, variant = 'primary', size = 'md', arrow = false, external = false, class: className } = Astro.props;
+---
+
+<a
+  href={href}
+  class:list={['btn', `btn--${variant}`, `btn--${size}`, className]}
+  data-magnetic="0.2"
+  {...external ? { target: '_blank', rel: 'noopener' } : {}}
+>
+  <span class="btn__label"><slot /></span>
+  {
+    arrow && (
+      <span class="btn__arrow" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </span>
+    )
+  }
+</a>
+
+<style>
+  .btn {
+    position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+    border-radius: var(--radius-pill); font-weight: 600; white-space: nowrap; overflow: hidden;
+    border: 1px solid transparent; isolation: isolate;
+    transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out);
+  }
+  .btn--md { height: 44px; padding: 0 1.25rem; font-size: 0.875rem; }
+  .btn--lg { height: 54px; padding: 0 1.6rem; font-size: 0.9375rem; }
+  /* Fill that wipes up from below on hover */
+  .btn::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+    transform: translateY(101%); transition: transform var(--duration-slow) var(--ease-out);
+  }
+  .btn:hover::before { transform: translateY(0); }
+  .btn--primary { background: var(--color-white); color: var(--color-black); }
+  .btn--primary::before { background: var(--color-gold-bright); }
+  .btn--secondary { border-color: var(--color-border-strong); color: var(--color-white); }
+  .btn--secondary::before { background: var(--color-white); }
+  .btn--secondary:hover { color: var(--color-black); border-color: var(--color-white); }
+  .btn--gold { border-color: rgba(201, 164, 92, 0.45); color: var(--color-gold-bright); }
+  .btn--gold::before { background: var(--color-gold); }
+  .btn--gold:hover { color: var(--color-black); }
+  .btn--ghost { color: var(--color-muted); padding-inline: 0.5rem; }
+  .btn--ghost::before { display: none; }
+  .btn--ghost:hover { color: var(--color-white); }
+  .btn__arrow { display: inline-flex; transition: transform var(--duration-base) var(--ease-out); }
+  .btn:hover .btn__arrow { transform: translateX(3px); }
+</style>

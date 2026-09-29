@@ -1,0 +1,209 @@
+/**
+ * Single source of truth for every factual claim the site makes. Figures
+ * come from the protocol docs in this repo (TOKENOMICS.md, PROTOCOL.md,
+ * PRESALE_DESIGN.md, MINT_V2.md, MANAGEMENT_FEE.md) and from what the Aretia
+ * Wallet codebase actually implements. Change a fact here, not in a page.
+ * Anything not yet built is marked 'roadmap' and must render with that label.
+ */
+
+export type Status = 'live' | 'built' | 'testnet' | 'in-development' | 'roadmap';
+
+export const STATUS_LABEL: Record<Status, string> = {
+  live: 'Live',
+  built: 'Built',
+  testnet: 'Testnet',
+  'in-development': 'In development',
+  roadmap: 'Roadmap',
+};
+
+export interface Product {
+  slug: 'wallet' | 'universal' | 'pay' | 'shield' | 'intent';
+  name: string;
+  role: string;
+  status: Status;
+  statusNote: string;
+  summary: string;
+  today: string[];
+  roadmap: string[];
+}
+
+export const PRODUCTS: Product[] = [
+  {
+    slug: 'wallet',
+    name: 'Aretia Wallet',
+    role: 'Multichain wallet',
+    status: 'in-development',
+    statusNote: 'Browser extension. Not yet published to the Chrome Web Store.',
+    summary: 'One self-custody wallet for Solana and EVM networks, with the rest of Aretia built in.',
+    today: [
+      'Solana, Ethereum, Base, BNB Smart Chain and Polygon from one recovery phrase',
+      'Send, receive, swap (via Jupiter) and activity history',
+      'Custom token import and per-asset visibility',
+      'Connects to dApps through EIP-1193 / EIP-6963 and the Solana Wallet Standard',
+      'Keys encrypted on-device; nothing leaves the browser',
+    ],
+    roadmap: ['Chrome Web Store release', 'Mobile'],
+  },
+  {
+    slug: 'universal',
+    name: 'Aretia Universal',
+    role: 'Interoperability',
+    status: 'testnet',
+    statusNote: 'ACT bridging runs on Solana devnet ↔ Sepolia today.',
+    summary: 'Move ACT between chains and pay in whatever token you hold, without managing the route yourself.',
+    today: [
+      'ACT bridging between Solana and Ethereum over Wormhole Native Token Transfers (testnet)',
+      'Automatic destination delivery through Wormhole’s Executor relay: no manual redeem step',
+      'Pay-with-any-token quotes on Solana: see exactly what an exact-output payment costs in another token',
+    ],
+    roadmap: ['Mainnet bridging', 'More networks', 'Executing pay-with-any-token payments end to end'],
+  },
+  {
+    slug: 'pay',
+    name: 'Aretia Pay',
+    role: 'Human-readable payments',
+    status: 'built',
+    statusNote: 'In the wallet build.',
+    summary: 'Send to a name instead of a 44-character address.',
+    today: [
+      'Send to ENS names (vitalik.eth) and Solana Name Service names (name.sol)',
+      'Names are resolved to an address and shown to you before anything is signed',
+    ],
+    roadmap: ['Merchant payment flows'],
+  },
+  {
+    slug: 'shield',
+    name: 'Aretia Shield',
+    role: 'Transaction safety',
+    status: 'built',
+    statusNote: 'Pre-send checks in the wallet build. Privacy features are on the roadmap, not built.',
+    summary: 'Checks every recipient and approval before you sign, and says plainly when something looks wrong.',
+    today: [
+      'Recipient checks before sending: whether it is a contract or a wallet, and whether the address has any on-chain activity at all',
+      'Warnings on unlimited token approvals and on transactions it cannot decode',
+      'Chain-mismatch warnings when a dApp asks for a transaction on the wrong network',
+    ],
+    roadmap: ['Privacy-preserving transaction options'],
+  },
+  {
+    slug: 'intent',
+    name: 'Aretia Intent',
+    role: 'Plain-language transactions',
+    status: 'built',
+    statusNote: 'Version 1: a deterministic phrase parser, not an AI model.',
+    summary: 'Type what you want to do; Aretia turns it into a transaction you review before signing.',
+    today: [
+      'Understands phrases like “send 5 ACT to alex.sol”',
+      'Always produces a normal review screen: nothing is sent from the phrase alone',
+    ],
+    roadmap: ['Route discovery across chains and liquidity sources'],
+  },
+];
+
+export const ACT = {
+  ticker: 'ACT',
+  network: 'Solana',
+  standard: 'SPL Token-2022',
+  mint: '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG',
+  totalSupply: 1_000_000_000,
+  presaleAllocation: 100_000_000,
+  presaleHardCapUsd: 1_000_000,
+  mintAuthority: 'Revoked: supply can never increase',
+  freezeAuthority: 'Revoked: no wallet can be frozen',
+  projectRegistrationFee: 5_000,
+  treasuryMultisig: 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA',
+  /** Token-2022 transfer fee, withheld by the token program on every transfer. */
+  transferFee: {
+    totalPercent: 3.5,
+    note: 'Withheld on-chain by the Token-2022 program on every transfer (350 basis points, active since epoch 1032). The treasury multisig collects the withheld fees and splits them as below.',
+    split: [
+      { label: 'Climate Treasury', percent: 2, detail: 'Catalyst fund for climate projects, held in a 2-of-3 multisig' },
+      { label: 'Liquidity', percent: 1, detail: 'Market liquidity for ACT' },
+      { label: 'Management fee', percent: 0.5, detail: 'Treasury operations: verification, reporting, monitoring' },
+    ],
+  },
+  utilities: [
+    { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury, liquidity and treasury operations.' },
+    { name: 'Staking', status: 'in-development' as Status, detail: 'Lock ACT to build a Capital Access Score.' },
+    { name: 'Project registration', status: 'live' as Status, detail: `Project developers pay a ${(5000).toLocaleString('en-US')} ACT fee to apply for catalyst funding.` },
+    { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Universal, Pay, Shield and Intent.' },
+  ],
+};
+
+export const CLIMATE = {
+  functionalAllocation: [
+    { label: 'Climate mitigation', percent: 60 },
+    { label: 'Climate adaptation', percent: 20 },
+    { label: 'Ecosystem development', percent: 10 },
+    { label: 'MRV / verification', percent: 5 },
+    { label: 'Emergency reserve', percent: 5 },
+  ],
+  allocationNote: 'Illustrative starting weights; governance can revise them.',
+};
+
+export const NETWORKS = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
+
+export const LINKS = {
+  launchWallet: '/wallet/app',
+  buyAct: '/presale',
+  whitepaper: '/whitepaper',
+  github: 'https://github.com/abiolabolarinwa/Aretia-Finance',
+  telegram: 'https://t.me/+MWgiRISNMWM2NmI0',
+  discord: 'https://discord.gg/fDXvn2nHf',
+  x: 'https://x.com/AretiaFinance',
+  explorerMint: `https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`,
+};
+
+export interface NavGroup {
+  label: string;
+  items: { label: string; href: string; description: string }[];
+}
+
+export const NAV: NavGroup[] = [
+  {
+    label: 'Products',
+    items: [
+      { label: 'Aretia Wallet', href: '/wallet', description: 'Multichain self-custody wallet' },
+      { label: 'Features', href: '/features', description: 'Everything the wallet does today' },
+      { label: 'Universal', href: '/features#universal', description: 'Cross-chain ACT and any-token pay' },
+      { label: 'Pay', href: '/features#pay', description: 'Send to ENS and .sol names' },
+      { label: 'Shield', href: '/features#shield', description: 'Pre-send safety checks' },
+      { label: 'Intent', href: '/features#intent', description: 'Plain-language transactions' },
+    ],
+  },
+  {
+    label: 'Ecosystem',
+    items: [
+      { label: 'Ecosystem map', href: '/ecosystem', description: 'How every part connects' },
+      { label: 'Climate Treasury', href: '/details', description: 'Where the 2% goes' },
+      { label: 'Capital Marketplace', href: '/marketplace', description: 'Climate projects seeking capital' },
+      { label: 'Submit a project', href: '/apply', description: 'Apply for catalyst funding' },
+    ],
+  },
+  {
+    label: 'ACT',
+    items: [
+      { label: 'Token', href: '/token', description: 'Supply, fees and utility' },
+      { label: 'Presale', href: '/presale', description: 'Presale details' },
+      { label: 'Staking', href: '/stake', description: 'Capital Access Score' },
+      { label: 'Verify', href: '/verify', description: 'Check the mint on-chain' },
+    ],
+  },
+  {
+    label: 'Developers',
+    items: [
+      { label: 'Docs', href: '/docs', description: 'Build with Aretia' },
+      { label: 'Whitepaper', href: '/whitepaper', description: 'Protocol design' },
+      { label: 'Roadmap', href: '/roadmap', description: 'What ships next' },
+    ],
+  },
+  {
+    label: 'Company',
+    items: [
+      { label: 'About', href: '/about', description: 'Why Aretia exists' },
+      { label: 'Blog', href: '/blog', description: 'Notes from the team' },
+      { label: 'Support', href: '/support', description: 'Answers and guides' },
+      { label: 'Contact', href: '/contact', description: 'Get in touch' },
+    ],
+  },
+];

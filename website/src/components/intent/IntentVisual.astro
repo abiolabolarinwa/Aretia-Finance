@@ -1,0 +1,81 @@
+---
+/** Aretia Intent v1 is a deterministic phrase parser: phrase → parts → a normal review screen. */
+const phrase = 'send 0.05 ETH to vitalik.eth';
+const parts = [
+  { key: 'Action', value: 'Send' },
+  { key: 'Amount', value: '0.05' },
+  { key: 'Asset', value: 'ETH' },
+  { key: 'Recipient', value: 'vitalik.eth' },
+];
+---
+
+<div class="panel panel--glow-indigo iv" data-intent data-phrase={phrase}>
+  <div class="iv__input ui-card">
+    <span class="iv__prompt" aria-hidden="true">›</span>
+    <span class="iv__text mono" data-intent-text>{phrase}</span><span class="iv__caret" aria-hidden="true"></span>
+  </div>
+  <svg class="iv__flow" viewBox="0 0 20 40" aria-hidden="true"><path d="M10 0v40" /></svg>
+  <ul class="iv__parts">
+    {
+      parts.map((p) => (
+        <li data-intent-part>
+          <small>{p.key}</small>
+          <b>{p.value}</b>
+        </li>
+      ))
+    }
+  </ul>
+  <svg class="iv__flow" viewBox="0 0 20 40" aria-hidden="true"><path d="M10 0v40" /></svg>
+  <div class="iv__review ui-card" data-intent-part>
+    <div><small>Review</small><b>Send 0.05 ETH</b></div>
+    <div><small>To</small><b>vitalik.eth</b><span class="mono">0xd8dA…6045</span></div>
+    <span class="iv__sign">Sign in wallet</span>
+  </div>
+</div>
+
+<style>
+  .iv { display: grid; justify-items: center; gap: 6px; }
+  .iv__input { width: min(100%, 420px); display: flex; align-items: center; gap: 10px; padding: 16px 18px; }
+  .iv__prompt { color: var(--color-gold); font-weight: 700; }
+  .iv__text { color: var(--color-white); font-size: 14px; white-space: nowrap; overflow: hidden; }
+  .iv__caret { width: 2px; height: 18px; background: var(--color-gold); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .iv__flow { width: 20px; height: 34px; }
+  .iv__flow path { stroke: var(--color-border-strong); stroke-dasharray: 3 4; }
+  .iv__parts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: min(100%, 460px); }
+  .iv__parts li { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--color-indigo-soft); border: 1px solid rgba(107, 92, 255, 0.35); text-align: center; }
+  .iv__parts small, .iv__review small { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-faint); }
+  .iv__parts b { font-size: 13px; color: var(--color-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .iv__review { width: min(100%, 360px); display: grid; gap: 12px; padding: 18px; }
+  .iv__review div { display: grid; gap: 2px; }
+  .iv__review b { font-size: 14px; color: var(--color-white); }
+  .iv__review .mono { font-size: 12px; color: var(--color-muted); }
+  .iv__sign { justify-self: stretch; text-align: center; padding: 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--color-white); color: var(--color-black); }
+  :global(html.motion-ok) .iv [data-intent-part] { opacity: 0; transform: translateY(8px); transition: opacity 450ms var(--ease-out), transform 450ms var(--ease-out); }
+  :global(html.motion-ok) .iv [data-intent-part].is-shown { opacity: 1; transform: none; }
+  @media (max-width: 480px) {
+    .iv__parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-intent]').forEach((root) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const text = root.querySelector<HTMLElement>('[data-intent-text]')!;
+    const parts = [...root.querySelectorAll<HTMLElement>('[data-intent-part]')];
+    const phrase = root.dataset.phrase ?? '';
+    let timers: number[] = [];
+    const clear = () => { timers.forEach((t) => window.clearTimeout(t)); timers = []; };
+    const play = () => {
+      clear();
+      text.textContent = '';
+      parts.forEach((p) => p.classList.remove('is-shown'));
+      [...phrase].forEach((ch, i) => timers.push(window.setTimeout(() => (text.textContent += ch), 200 + i * 55)));
+      const typed = 200 + phrase.length * 55;
+      parts.forEach((p, i) => timers.push(window.setTimeout(() => p.classList.add('is-shown'), typed + 300 + i * 220)));
+      timers.push(window.setTimeout(play, typed + 300 + parts.length * 220 + 3500));
+    };
+    new IntersectionObserver(([e]) => (e?.isIntersecting ? play() : clear()), { threshold: 0.35 }).observe(root);
+    root.addEventListener('pointerenter', play);
+  });
+</script>

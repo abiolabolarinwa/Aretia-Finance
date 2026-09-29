@@ -1,0 +1,71 @@
+:root {
+  /* Color: near-black base, restrained gold for the ACT/fee layer, Aretia
+     indigo as the core brand accent. */
+  --color-black: #060608;
+  --color-ink: #0b0b0f;
+  --color-surface: #111116;
+  --color-surface-2: #17171e;
+  --color-surface-3: #1e1e27;
+  --color-white: #f5f5f7;
+  --color-text: #e8e8ee;
+  --color-muted: #9b9ba8;
+  --color-faint: #62626e;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+  --color-gold: #c9a45c;
+  --color-gold-bright: #e2c282;
+  --color-gold-soft: rgba(201, 164, 92, 0.12);
+  --color-indigo: #190880;
+  --color-indigo-bright: #6b5cff;
+  --color-indigo-soft: rgba(107, 92, 255, 0.14);
+  --color-ok: #4ade80;
+  --color-warn: #f5b84b;
+
+  /* Type: Poppins for display (the reference's editorial hierarchy), Inter
+     for everything read at length. */
+  --font-display: 'Poppins', 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-mega: clamp(4rem, 13vw, 13.5rem);
+  --text-display: clamp(2.875rem, 7vw, 6.5rem);
+  --text-heading: clamp(2.25rem, 4.6vw, 4.375rem);
+  --text-subheading: clamp(1.5rem, 2.4vw, 2.25rem);
+  --text-lead: clamp(1.0625rem, 1.3vw, 1.25rem);
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --text-micro: 0.75rem;
+
+  --leading-tight: 1.04;
+  --leading-snug: 1.18;
+  --leading-body: 1.6;
+  --tracking-display: -0.035em;
+  --tracking-eyebrow: 0.16em;
+
+  /* Space */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+  --space-3xl: clamp(6rem, 12vw, 10rem);
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+  --max-width: 1240px;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --radius-pill: 999px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+  --duration-slow: 700ms;
+
+  --shadow-float: 0 40px 120px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --nav-height: 72px;
+}

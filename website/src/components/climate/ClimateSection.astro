@@ -1,0 +1,81 @@
+---
+import Button from '../buttons/Button.astro';
+import { ACT, CLIMATE } from '../../data/site';
+
+const treasuryShare = ACT.transferFee.split.find((s) => s.label === 'Climate Treasury')!.percent;
+---
+
+<section class="climate section" id="climate" aria-labelledby="climate-title">
+  <div class="climate__bg" aria-hidden="true"></div>
+  <div class="container climate__grid">
+    <div class="climate__copy">
+      <p class="eyebrow eyebrow--gold" data-reveal>Climate Treasury</p>
+      <h2 id="climate-title" class="heading" data-split>Finance that creates real-world impact.</h2>
+      <p class="lead" data-reveal>
+        {treasuryShare}% of every ACT transfer is routed to the Climate Treasury, a catalyst fund held in a 2-of-3 multisig, designed to finance climate mitigation and adaptation projects with milestone-gated disbursement.
+      </p>
+      <div data-reveal><Button href="/details" variant="secondary" arrow>How the treasury works</Button></div>
+    </div>
+
+    <div class="climate__visual" data-reveal="scale">
+      <ol class="cflow">
+        <li class="cflow__step"><small>01</small>ACT transfers</li>
+        <li class="cflow__step cflow__step--gold"><small>02</small><b class="tnum">{treasuryShare}%</b> of each transfer</li>
+        <li class="cflow__step"><small>03</small>Climate Treasury · 2-of-3 multisig</li>
+        <li class="cflow__step cflow__step--wide">
+          <small>04</small>Intended functional allocation
+          <ul class="cflow__bars">
+            {
+              CLIMATE.functionalAllocation.map((a) => (
+                <li>
+                  <span class="cflow__label">{a.label}</span>
+                  <span class="cflow__bar"><span style={`--w:${a.percent}%`} /></span>
+                  <span class="cflow__pct tnum">{a.percent}%</span>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="cflow__note">{CLIMATE.allocationNote}</p>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<style>
+  .climate { overflow: hidden; }
+  .climate__bg { position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 50% at 80% 50%, rgba(74, 222, 128, 0.05), transparent 70%), linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.015) 50%, transparent); }
+  .climate__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2.5rem, 6vw, 6rem); align-items: center; }
+  .climate__copy { display: grid; gap: var(--space-md); justify-items: start; }
+  .cflow { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .cflow__step { position: relative; display: grid; gap: 4px; padding: 18px 22px 18px 56px; border-left: 1px solid var(--color-border-strong); margin-left: 18px; font-size: 15px; font-weight: 600; color: var(--color-white); }
+  .cflow__step small { position: absolute; left: -18px; top: 16px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-muted); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); }
+  .cflow__step--gold small { color: var(--color-black); background: var(--color-gold); border-color: var(--color-gold); }
+  .cflow__step--gold b { font-family: var(--font-display); font-size: 1.6rem; color: var(--color-gold-bright); line-height: 1; }
+  .cflow__step:last-child { border-left-color: transparent; }
+  .cflow__bars { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+  .cflow__bars li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 2.8rem; align-items: center; gap: 12px; font-size: 13px; font-weight: 500; }
+  .cflow__label { color: var(--color-muted); }
+  .cflow__pct { text-align: right; color: var(--color-white); }
+  .cflow__bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+  .cflow__bar span { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, rgba(74, 222, 128, 0.7), var(--color-gold)); transform-origin: left; }
+  :global(html.motion-ok) .cflow__bar span { transform: scaleX(0); transition: transform 1.4s var(--ease-out); }
+  :global(html.motion-ok) .climate__visual.is-in .cflow__bar span { transform: scaleX(1); }
+  .cflow__note { margin-top: 10px; font-size: var(--text-micro); color: var(--color-faint); font-weight: 400; }
+  @media (max-width: 1023px) {
+    .climate__grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .cflow__bars li { grid-template-columns: minmax(0, 1fr) 2.8rem; }
+    .cflow__bar { grid-column: 1 / -1; grid-row: 2; }
+    .cflow__step { padding-right: 0; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.climate__visual').forEach((el) => {
+    new IntersectionObserver(([e], obs) => {
+      if (e?.isIntersecting) { el.classList.add('is-in'); obs.disconnect(); }
+    }, { threshold: 0.3 }).observe(el);
+  });
+</script>

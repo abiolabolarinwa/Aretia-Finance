@@ -1,0 +1,94 @@
+---
+import Button from '../buttons/Button.astro';
+import NetworkField from './NetworkField.astro';
+import WalletMock from '../wallet/WalletMock.astro';
+import { LINKS } from '../../data/site';
+---
+
+<section class="hero" data-hero data-tilt-zone>
+  <NetworkField />
+  <div class="hero__orb" aria-hidden="true"></div>
+  <div class="hero__inner container">
+    <div class="hero__copy">
+      <p class="eyebrow eyebrow--gold" data-hero-in>Multichain financial infrastructure</p>
+      <h1 class="hero__title" data-split="load" data-split-delay="0.15">Finance,<br />reimagined.</h1>
+      <p class="lead hero__lead" data-hero-in>
+        Aretia Finance is building a multichain financial ecosystem that brings payments, interoperability, transaction safety and plain-language execution into one experience, with a treasury that funds real climate projects.
+      </p>
+      <div class="hero__ctas">
+        <span data-hero-in><Button href={LINKS.launchWallet} size="lg" arrow>Launch Aretia Wallet</Button></span>
+        <span data-hero-in><Button href="#ecosystem" size="lg" variant="secondary">Explore Aretia</Button></span>
+        <span data-hero-in><Button href={LINKS.buyAct} size="lg" variant="ghost">Buy ACT</Button></span>
+      </div>
+    </div>
+    <div class="hero__visual" data-hero-visual>
+      <div class="hero__float">
+        <WalletMock class="hero__wallet" />
+      </div>
+      <div class="hero__tag hero__tag--a" data-hero-tag>
+        <span class="hero__tag-dot"></span>Solana · Ethereum · Base · BNB · Polygon
+      </div>
+      <div class="hero__tag hero__tag--b" data-hero-tag>
+        <span class="hero__tag-dot hero__tag-dot--gold"></span>ACT live on Solana mainnet
+      </div>
+    </div>
+  </div>
+  <a href="#ecosystem" class="hero__scroll" aria-label="Scroll to the Aretia ecosystem"><span></span></a>
+</section>
+
+<style>
+  .hero { position: relative; min-height: 100svh; display: flex; align-items: center; overflow: hidden; isolation: isolate; padding-top: var(--nav-height); }
+  .hero__orb { position: absolute; z-index: -1; width: min(70vw, 900px); aspect-ratio: 1; right: -18vw; top: 50%; translate: 0 -50%; border-radius: 50%; background: radial-gradient(closest-side, rgba(107, 92, 255, 0.24), rgba(25, 8, 128, 0.12) 55%, transparent 72%); filter: blur(10px); }
+  .hero__orb::after { content: ''; position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(closest-side, rgba(201, 164, 92, 0.16), transparent 70%); }
+  .hero__inner { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); align-items: center; gap: var(--space-xl); padding-block: var(--space-2xl); }
+  .hero__copy { display: grid; gap: var(--space-md); }
+  .hero__title { font-size: clamp(3.25rem, 8.6vw, 7.25rem); line-height: 0.98; }
+  .hero__lead { max-width: 34rem; }
+  .hero__ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: var(--space-xs); }
+  .hero__visual { position: relative; display: grid; place-items: center; min-height: 560px; perspective: 1400px; }
+  .hero__float { animation: float 7s ease-in-out infinite; transform-style: preserve-3d; }
+  @keyframes float { 0%, 100% { transform: translateY(0) rotate(-1.2deg); } 50% { transform: translateY(-14px) rotate(0.6deg); } }
+  .hero__tag { position: absolute; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--color-text); background: rgba(17, 17, 22, 0.78); backdrop-filter: blur(12px); border: 1px solid var(--color-border); white-space: nowrap; }
+  .hero__tag--a { left: -10%; top: 3%; }
+  .hero__tag--b { right: -4%; bottom: 14%; }
+  .hero__tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-indigo-bright); }
+  .hero__tag-dot--gold { background: var(--color-gold); }
+  .hero__scroll { position: absolute; left: 50%; bottom: 28px; translate: -50% 0; width: 22px; height: 36px; border-radius: 12px; border: 1.5px solid var(--color-border-strong); }
+  .hero__scroll span { position: absolute; left: 50%; top: 7px; width: 3px; height: 7px; translate: -50% 0; border-radius: 2px; background: var(--color-white); animation: wheel 2s var(--ease-in-out) infinite; }
+  @keyframes wheel { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
+  :global(html.motion-ok) [data-hero-in], :global(html.motion-ok) [data-hero-tag] { opacity: 0; }
+  :global(html.motion-ok) [data-hero-visual] { opacity: 0; }
+
+  @media (max-width: 1023px) {
+    .hero__inner { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); padding-block: var(--space-xl) var(--space-2xl); }
+    .hero__visual { min-height: 0; padding-block: var(--space-md); }
+    .hero__tag--a { left: 0; top: 4%; }
+    .hero__tag--b { right: 0; bottom: 2%; }
+    .hero__scroll { display: none; }
+  }
+  @media (max-width: 480px) {
+    .hero__ctas :global(.btn--lg) { height: 50px; }
+    .hero__ctas > span:nth-child(-n + 2) { flex: 1 1 100%; }
+    .hero__ctas > span:nth-child(-n + 2) :global(.btn) { width: 100%; }
+    .hero__tag { font-size: 11px; padding: 7px 11px; }
+    .hero__tag--a { max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
+  }
+</style>
+
+<script>
+  import { gsap, reducedMotion } from '../../scripts/motion';
+
+  if (!reducedMotion()) {
+    const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
+    tl.to('[data-hero-in]', { opacity: 1, y: 0, duration: 1.2, stagger: 0.1, startAt: { y: 18 } }, 0.55)
+      .fromTo('[data-hero-visual]', { opacity: 0, y: 60, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 1.6 }, 0.4)
+      .from('[data-hero] [data-wm-item]', { opacity: 0, y: 14, duration: 0.9, stagger: 0.08 }, 0.9)
+      .to('[data-hero-tag]', { opacity: 1, duration: 1, stagger: 0.2, startAt: { y: 10 }, y: 0 }, 1.4);
+
+    // Hero recedes as you scroll into the story.
+    gsap.to('[data-hero] .hero__inner', {
+      yPercent: -8, opacity: 0.25, ease: 'none',
+      scrollTrigger: { trigger: '[data-hero]', start: 'top top', end: 'bottom top', scrub: true },
+    });
+  }
+</script>

@@ -1,0 +1,211 @@
+---
+import { NAV, LINKS } from '../../data/site';
+import Button from '../buttons/Button.astro';
+---
+
+<header class="nav" data-nav>
+  <div class="nav__bar container">
+    <a href="/" class="nav__brand" aria-label="Aretia Finance home">
+      <img src="/assets/logo-mark.png" alt="" width="28" height="28" />
+      <span>Aretia</span>
+    </a>
+
+    <nav class="nav__menu" aria-label="Primary">
+      <ul class="nav__groups">
+        {
+          NAV.map((group, i) => (
+            <li class="nav__group" data-group>
+              <button class="nav__trigger" type="button" aria-expanded="false" aria-controls={`nav-panel-${i}`}>
+                {group.label}
+                <svg viewBox="0 0 10 6" width="9" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+              </button>
+              <div class="nav__panel" id={`nav-panel-${i}`} hidden>
+                <ul>
+                  {group.items.map((item) => (
+                    <li>
+                      <a href={item.href} class="nav__item">
+                        <span class="nav__item-label">{item.label}</span>
+                        <span class="nav__item-desc">{item.description}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="nav__actions">
+      <a href={LINKS.buyAct} class="nav__buy">Buy ACT</a>
+      <Button href={LINKS.launchWallet} size="md">Launch Wallet</Button>
+    </div>
+
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu" data-toggle>
+      <span></span><span></span>
+    </button>
+  </div>
+
+  <div class="mobile" id="mobile-menu" hidden data-mobile>
+    <div class="mobile__inner container">
+      <ul class="mobile__groups">
+        {
+          NAV.map((group) => (
+            <li class="mobile__group">
+              <details>
+                <summary>{group.label}</summary>
+                <ul>
+                  {group.items.map((item) => (
+                    <li>
+                      <a href={item.href}>{item.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="mobile__actions">
+        <Button href={LINKS.launchWallet} size="lg">Launch Wallet</Button>
+        <Button href={LINKS.buyAct} size="lg" variant="gold">Buy ACT</Button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav { position: fixed; inset: 0 0 auto; z-index: 50; transition: background-color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), backdrop-filter var(--duration-base); border-bottom: 1px solid transparent; }
+  .nav.is-scrolled, .nav.is-open { background: rgba(6, 6, 8, 0.72); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); border-bottom-color: var(--color-border); }
+  .nav.is-hidden { transform: translateY(-100%); }
+  .nav { transition: transform 450ms var(--ease-out), background-color var(--duration-base), border-color var(--duration-base); }
+  .nav__bar { display: flex; align-items: center; gap: var(--space-lg); height: var(--nav-height); max-width: 1360px; }
+  .nav__brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--color-white); flex: none; }
+  .nav__brand img { width: 28px; height: 28px; border-radius: 8px; }
+  .nav__menu { flex: 1; }
+  .nav__groups { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0; }
+  .nav__group { position: relative; }
+  .nav__trigger { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 500; color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast); }
+  .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-white); background: rgba(255, 255, 255, 0.05); }
+  .nav__trigger svg { transition: transform var(--duration-base) var(--ease-out); }
+  .nav__trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
+  .nav__panel { position: absolute; top: calc(100% + 10px); left: -0.5rem; min-width: 300px; padding: 0.5rem; background: rgba(17, 17, 22, 0.96); backdrop-filter: blur(20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); transform-origin: top left; }
+  .nav__panel:not([hidden]) { animation: panel-in 380ms var(--ease-out); }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+  .nav__panel ul { list-style: none; margin: 0; padding: 0; }
+  .nav__item { display: flex; flex-direction: column; gap: 2px; padding: 0.7rem 0.85rem; border-radius: var(--radius-md); transition: background-color var(--duration-fast); }
+  .nav__item:hover { background: rgba(255, 255, 255, 0.05); }
+  .nav__item-label { font-size: 0.9rem; font-weight: 600; color: var(--color-white); }
+  .nav__item-desc { font-size: 0.8rem; color: var(--color-faint); }
+  .nav__actions { display: flex; align-items: center; gap: 0.9rem; flex: none; }
+  .nav__buy { font-size: 0.875rem; font-weight: 600; color: var(--color-gold); padding: 0.5rem; transition: color var(--duration-fast); }
+  .nav__buy:hover { color: var(--color-gold-bright); }
+  .nav__toggle { display: none; width: 44px; height: 44px; margin-left: auto; position: relative; }
+  .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-white); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
+  .nav__toggle span:first-child { top: 18px; }
+  .nav__toggle span:last-child { top: 25px; }
+  .nav.is-open .nav__toggle span:first-child { top: 21.5px; transform: rotate(45deg); }
+  .nav.is-open .nav__toggle span:last-child { top: 21.5px; transform: rotate(-45deg); }
+
+  .mobile { height: calc(100dvh - var(--nav-height)); overflow-y: auto; border-top: 1px solid var(--color-border); }
+  .mobile__inner { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-lg); min-height: 100%; padding-block: var(--space-md) var(--space-lg); }
+  .mobile__groups { list-style: none; margin: 0; padding: 0; }
+  .mobile__group { border-bottom: 1px solid var(--color-border); }
+  .mobile summary { display: flex; justify-content: space-between; align-items: center; list-style: none; padding: 1.1rem 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-white); cursor: pointer; min-height: 44px; }
+  .mobile summary::-webkit-details-marker { display: none; }
+  .mobile summary::after { content: '+'; font-weight: 400; color: var(--color-faint); transition: transform var(--duration-base) var(--ease-out); }
+  .mobile details[open] summary::after { transform: rotate(45deg); }
+  .mobile details ul { list-style: none; margin: 0; padding: 0 0 1rem; }
+  .mobile details a { display: block; padding: 0.6rem 0; color: var(--color-muted); font-size: 1.05rem; min-height: 44px; }
+  .mobile__actions { display: grid; gap: 0.75rem; }
+  .mobile__actions :global(.btn) { width: 100%; }
+  .mobile:not([hidden]) .mobile__group { animation: item-in 600ms var(--ease-out) both; }
+  .mobile:not([hidden]) .mobile__group:nth-child(2) { animation-delay: 50ms; }
+  .mobile:not([hidden]) .mobile__group:nth-child(3) { animation-delay: 100ms; }
+  .mobile:not([hidden]) .mobile__group:nth-child(4) { animation-delay: 150ms; }
+  .mobile:not([hidden]) .mobile__group:nth-child(5) { animation-delay: 200ms; }
+  .mobile:not([hidden]) .mobile__actions { animation: item-in 600ms 260ms var(--ease-out) both; }
+  @keyframes item-in { from { opacity: 0; transform: translateY(14px); } }
+
+  @media (max-width: 1080px) {
+    .nav__menu, .nav__actions { display: none; }
+    .nav__toggle { display: block; }
+  }
+</style>
+
+<script>
+  const header = document.querySelector<HTMLElement>('[data-nav]')!;
+  const groups = [...header.querySelectorAll<HTMLElement>('[data-group]')];
+  const toggle = header.querySelector<HTMLButtonElement>('[data-toggle]')!;
+  const mobile = header.querySelector<HTMLElement>('[data-mobile]')!;
+
+  const setGroup = (group: HTMLElement, open: boolean) => {
+    const trigger = group.querySelector<HTMLButtonElement>('.nav__trigger')!;
+    const panel = group.querySelector<HTMLElement>('.nav__panel')!;
+    trigger.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+  };
+  const closeAll = (except?: HTMLElement) => groups.forEach((g) => g !== except && setGroup(g, false));
+
+  const hoverCapable = window.matchMedia('(hover: hover)').matches;
+  groups.forEach((group) => {
+    const trigger = group.querySelector<HTMLButtonElement>('.nav__trigger')!;
+    let leaveTimer: number | undefined;
+    trigger.addEventListener('click', () => {
+      const open = trigger.getAttribute('aria-expanded') !== 'true';
+      closeAll(group);
+      setGroup(group, open);
+    });
+    if (hoverCapable) {
+      group.addEventListener('pointerenter', () => {
+        window.clearTimeout(leaveTimer);
+        closeAll(group);
+        setGroup(group, true);
+      });
+      group.addEventListener('pointerleave', () => {
+        leaveTimer = window.setTimeout(() => setGroup(group, false), 140);
+      });
+    }
+    group.addEventListener('focusout', (e) => {
+      if (!group.contains(e.relatedTarget as Node)) setGroup(group, false);
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const openGroup = groups.find((g) => g.querySelector('[aria-expanded="true"]'));
+    if (openGroup) {
+      setGroup(openGroup, false);
+      openGroup.querySelector<HTMLButtonElement>('.nav__trigger')!.focus();
+    }
+    if (!mobile.hidden) setMobile(false);
+  });
+  document.addEventListener('click', (e) => {
+    if (!header.contains(e.target as Node)) closeAll();
+  });
+
+  const setMobile = (open: boolean) => {
+    mobile.hidden = !open;
+    header.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    document.body.style.overflow = open ? 'hidden' : '';
+  };
+  toggle.addEventListener('click', () => setMobile(mobile.hasAttribute('hidden')));
+  mobile.addEventListener('click', (e) => {
+    if ((e.target as Element).closest('a')) setMobile(false);
+  });
+
+  // Transparent over the hero, blurred after scrolling; hides on scroll down, returns on scroll up.
+  let lastY = window.scrollY;
+  const onScroll = () => {
+    const y = window.scrollY;
+    header.classList.toggle('is-scrolled', y > 24);
+    const goingDown = y > lastY && y > 400;
+    header.classList.toggle('is-hidden', goingDown && mobile.hidden && !groups.some((g) => g.querySelector('[aria-expanded="true"]')));
+    lastY = y;
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>

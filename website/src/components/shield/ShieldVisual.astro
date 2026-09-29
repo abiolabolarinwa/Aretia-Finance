@@ -1,0 +1,106 @@
+---
+/**
+ * Mirrors what Aretia Shield actually checks (see the wallet's
+ * assessRecipient + transaction decoder): contract-vs-wallet, any on-chain
+ * activity, unlimited approvals. The second scenario is the real warning a
+ * brand-new address triggers.
+ */
+const scenarios = [
+  {
+    to: '0xd8dA…6045',
+    label: 'vitalik.eth',
+    checks: [
+      { ok: true, text: 'Wallet, not a contract' },
+      { ok: true, text: 'Address has on-chain activity' },
+      { ok: true, text: 'No token approval requested' },
+    ],
+    verdict: { ok: true, text: 'No issues found' },
+  },
+  {
+    to: '0x7a3F…c21E',
+    label: 'Pasted address',
+    checks: [
+      { ok: true, text: 'Wallet, not a contract' },
+      { ok: false, text: 'No on-chain activity at all' },
+      { ok: true, text: 'No token approval requested' },
+    ],
+    verdict: { ok: false, text: 'Brand-new address: double-check it before sending' },
+  },
+];
+---
+
+<div class="panel panel--glow-green sv" data-shield>
+  <svg class="sv__geo" viewBox="0 0 200 230" aria-hidden="true">
+    <path d="M100 8 188 42v62c0 58-38 100-88 118C50 204 12 162 12 104V42Z" />
+    <path d="M100 30 168 56v48c0 46-29 80-68 95-39-15-68-49-68-95V56Z" />
+  </svg>
+  {
+    scenarios.map((s, i) => (
+      <div class="ui-card sv__card" data-scenario={i} hidden={i !== 0}>
+        <div class="sv__head">
+          <span class="sv__title">Review send</span>
+          <span class="sv__badge">Shield</span>
+        </div>
+        <div class="sv__to">
+          <small>To</small>
+          <span><b>{s.label}</b> <span class="mono">{s.to}</span></span>
+        </div>
+        <ul class="sv__checks">
+          {s.checks.map((c) => (
+            <li class:list={[{ 'is-warn': !c.ok }]} data-check>
+              <span class="sv__icon">{c.ok ? '✓' : '!'}</span>
+              {c.text}
+            </li>
+          ))}
+        </ul>
+        <div class:list={['sv__verdict', { 'is-warn': !s.verdict.ok }]} data-check>
+          {s.verdict.text}
+        </div>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .sv { display: grid; place-items: center; min-height: 420px; }
+  .sv__geo { position: absolute; width: 58%; max-width: 330px; left: 50%; top: 50%; translate: -50% -50%; z-index: -1; opacity: 0.5; }
+  .sv__geo path { fill: none; stroke: rgba(74, 222, 128, 0.35); stroke-width: 1; }
+  .sv__geo path:last-child { stroke-dasharray: 4 6; animation: spin-dash 18s linear infinite; }
+  @keyframes spin-dash { to { stroke-dashoffset: -200; } }
+  .sv__card { width: min(100%, 360px); padding: 20px; display: grid; gap: 16px; }
+  .sv__head { display: flex; justify-content: space-between; align-items: center; }
+  .sv__title { font-size: 14px; font-weight: 600; color: var(--color-white); }
+  .sv__badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: var(--color-ok); background: rgba(74, 222, 128, 0.1); }
+  .sv__to { display: grid; gap: 4px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--color-border); }
+  .sv__to small { font-size: 11px; color: var(--color-faint); }
+  .sv__to b { font-size: 14px; color: var(--color-white); }
+  .sv__to .mono { color: var(--color-muted); font-size: 12px; }
+  .sv__checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .sv__checks li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text); }
+  .sv__icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--color-ok); background: rgba(74, 222, 128, 0.12); flex: none; }
+  .is-warn .sv__icon { color: var(--color-warn); background: rgba(245, 184, 75, 0.14); }
+  .sv__verdict { font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 12px; color: var(--color-ok); background: rgba(74, 222, 128, 0.08); }
+  .sv__verdict.is-warn { color: var(--color-warn); background: rgba(245, 184, 75, 0.1); }
+  :global(html.motion-ok) .sv [data-check] { opacity: 0; transform: translateX(-8px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); }
+  :global(html.motion-ok) .sv [data-check].is-shown { opacity: 1; transform: none; }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-shield]').forEach((root) => {
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-scenario]')];
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let current = 0;
+    let timers: number[] = [];
+    const clear = () => { timers.forEach((t) => window.clearTimeout(t)); timers = []; };
+    const play = () => {
+      clear();
+      cards.forEach((c, i) => (c.hidden = i !== current));
+      const checks = [...cards[current]!.querySelectorAll<HTMLElement>('[data-check]')];
+      checks.forEach((c) => c.classList.remove('is-shown'));
+      checks.forEach((c, i) => timers.push(window.setTimeout(() => c.classList.add('is-shown'), 350 + i * 450)));
+      timers.push(window.setTimeout(() => { current = (current + 1) % cards.length; play(); }, 350 + checks.length * 450 + 2800));
+    };
+    new IntersectionObserver(([e]) => (e?.isIntersecting ? play() : clear()), { threshold: 0.35 }).observe(root);
+    root.addEventListener('pointerenter', play);
+  });
+</script>

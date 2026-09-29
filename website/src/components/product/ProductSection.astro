@@ -1,0 +1,70 @@
+---
+import StatusBadge from '../ui/StatusBadge.astro';
+import type { Status } from '../../data/site';
+
+interface Props {
+  id?: string;
+  eyebrow: string;
+  title: string;
+  lead: string;
+  status?: Status;
+  statusNote?: string;
+  points?: string[];
+  roadmap?: string[];
+  reverse?: boolean;
+}
+const { id, eyebrow, title, lead, status, statusNote, points = [], roadmap = [], reverse = false } = Astro.props;
+const headingId = id ? `${id}-title` : undefined;
+---
+
+<section class:list={['ps section', { 'ps--reverse': reverse }]} id={id} aria-labelledby={headingId}>
+  <div class="container ps__grid">
+    <div class="ps__copy">
+      <div class="ps__meta" data-reveal>
+        <p class="eyebrow eyebrow--gold">{eyebrow}</p>
+        {status && <StatusBadge status={status} />}
+      </div>
+      <h2 id={headingId} class="heading" set:html={title} data-split />
+      <p class="lead" data-reveal>{lead}</p>
+      {
+        points.length > 0 && (
+          <ul class="ps__points">
+            {points.map((p) => (
+              <li data-reveal>{p}</li>
+            ))}
+          </ul>
+        )
+      }
+      {
+        roadmap.length > 0 && (
+          <div class="ps__roadmap" data-reveal>
+            <StatusBadge status="roadmap" />
+            <span>{roadmap.join(' · ')}</span>
+          </div>
+        )
+      }
+      {statusNote && <p class="ps__note" data-reveal>{statusNote}</p>}
+      <slot name="actions" />
+    </div>
+    <div class="ps__visual" data-reveal="scale">
+      <slot />
+    </div>
+  </div>
+</section>
+
+<style>
+  .ps__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: center; gap: clamp(2.5rem, 6vw, 6rem); }
+  .ps--reverse .ps__copy { order: 2; }
+  .ps__copy { display: grid; gap: var(--space-md); justify-items: start; }
+  .ps__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; }
+  .ps__points { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+  .ps__points li { position: relative; padding-left: 1.6rem; color: var(--color-text); font-size: 0.97rem; }
+  .ps__points li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 10px; height: 1px; background: var(--color-gold); }
+  .ps__roadmap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; font-size: var(--text-small); color: var(--color-faint); }
+  .ps__note { font-size: var(--text-small); color: var(--color-faint); }
+  .ps__visual { position: relative; min-width: 0; }
+  @media (max-width: 1023px) {
+    .ps__grid { grid-template-columns: minmax(0, 1fr); }
+    .ps--reverse .ps__copy { order: 0; }
+  }
+</style>

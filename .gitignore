@@ -35,3 +35,8 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Astro website build
+website/node_modules/
+website/dist/
+website/.astro/

@@ -1,4 +1,12 @@
 {
+  "framework": "astro",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/tokenomics", "destination": "/token", "permanent": false },
+    { "source": "/insights", "destination": "/details#economics", "permanent": false }
+  ]
 }

@@ -82,6 +82,10 @@ const headingId = id ? `${id}-title` : undefined;
   .ps__float :global(.panel) { background: rgba(255, 255, 255, 0.94); box-shadow: var(--shadow-float); padding: clamp(1.1rem, 3vw, 2rem); backdrop-filter: blur(18px); }
   @media (max-width: 1023px) {
     .ps__grid { grid-template-columns: minmax(0, 1fr); }
+    /* Phones: the photo becomes a band at the top so faces stay clear of the panel. */
+    .ps__stage { padding: 17rem 0.75rem 0.75rem; background: var(--color-mint-soft); }
+    .ps__photo { bottom: auto; height: 22rem; object-position: 50% 22% !important; }
+    .ps__stage::after { inset: 0 0 auto 0; height: 22rem; }
     .ps--reverse .ps__copy { order: 0; }
   }
 </style>

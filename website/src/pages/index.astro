@@ -21,6 +21,8 @@ const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
   description="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects."
 >
   <HomeHero />
+  <ActSection />
+  <ClimateSection />
   <ExploreTable />
   <EcosystemStory />
 
@@ -79,14 +81,11 @@ const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
     <PayVisual />
   </ProductSection>
 
-  <ActSection />
-  <ClimateSection />
-
   <section class="section" id="architecture" aria-labelledby="arch-title">
     <div class="container arch-wrap">
       <header class="arch-head">
         <h2 id="arch-title" class="heading" data-split>Built for a multichain world.</h2>
-        <p class="lead" data-reveal>One wallet at the centre. Products that plug into it. Universal carrying ACT across chains.</p>
+        <p class="lead" data-reveal>One wallet at the centre. Products that plug into it. ACT funding the Climate Treasury on every transfer, and Universal carrying it across chains.</p>
       </header>
       <div data-reveal="scale"><Architecture /></div>
     </div>

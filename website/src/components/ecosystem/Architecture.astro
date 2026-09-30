@@ -1,5 +1,5 @@
 ---
-import { PRODUCTS, STATUS_LABEL } from '../../data/site';
+import { PRODUCTS, STATUS_LABEL, ACT } from '../../data/site';
 
 export interface MapNode {
   id: string;
@@ -28,6 +28,7 @@ const defaultNodes: MapNode[] = [
   { id: 'intent', label: 'Intent', x: 86, y: 22, kind: 'product', text: byId.intent!.summary, status: STATUS_LABEL[byId.intent!.status] },
   { id: 'pay', label: 'Pay', x: 86, y: 44, kind: 'product', text: byId.pay!.summary, status: STATUS_LABEL[byId.pay!.status] },
   { id: 'act', label: 'ACT', x: 14, y: 44, kind: 'act', text: 'Aretia’s token, live on Solana mainnet. Its 3.5% transfer fee funds the Climate Treasury, liquidity and operations.', status: 'Live' },
+  { id: 'climate', label: 'Climate Treasury', x: 19, y: 56, kind: 'climate', text: `${ACT.transferFee.split.find((s) => s.label === 'Climate Treasury')!.percent}% of every ACT transfer, routed to a 2-of-3 multisig and disbursed against verified milestones.`, status: 'Live' },
   { id: 'solana', label: 'Solana', x: 20, y: 64, kind: 'chain', text: 'Where ACT is minted and where the NTT hub locks it when bridging.', status: 'Supported' },
   { id: 'ethereum', label: 'Ethereum', x: 50, y: 64, kind: 'chain', text: 'EVM home of bridged ACT (Sepolia testnet today) and ENS names for Aretia Pay.', status: 'Supported' },
   { id: 'evm', label: 'Base · BNB · Polygon', x: 80, y: 64, kind: 'chain', text: 'Additional EVM networks the wallet supports from the same account.', status: 'Supported' },
@@ -36,7 +37,7 @@ const defaultNodes: MapNode[] = [
 const defaultEdges: [string, string][] = [
   ['wallet', 'universal'], ['wallet', 'shield'], ['wallet', 'intent'], ['wallet', 'pay'],
   ['universal', 'solana'], ['universal', 'ethereum'], ['wallet', 'evm'],
-  ['act', 'solana'], ['act', 'universal'], ['pay', 'ethereum'],
+  ['act', 'solana'], ['act', 'universal'], ['act', 'climate'], ['pay', 'ethereum'],
 ];
 
 const {

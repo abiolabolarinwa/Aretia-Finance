@@ -1,0 +1,86 @@
+---
+/**
+ * An example SafeSend review, matching the wallet's own SafeSend card:
+ * the reasons protection applies, the protection period counting down, and
+ * cancel while it runs. Labelled as an example; the amounts are illustrative.
+ */
+const PERIOD = 600;
+---
+
+<div class="panel ssv" data-safesend data-period={PERIOD}>
+  <div class="ui-card ssv__card">
+    <div class="ssv__head">
+      <span class="ssv__title">Protected transfer</span>
+      <span class="ssv__badge">SafeSend</span>
+    </div>
+    <div class="ssv__amount">
+      <small>Example</small>
+      <b class="tnum">25,000 USDC</b>
+      <span>To <span class="mono">0x82…91A</span> · new recipient</span>
+    </div>
+    <div class="ssv__why">
+      Protected because:
+      <ul>
+        <li>This is a new recipient</li>
+        <li>It exceeds the $5,000 protection threshold</li>
+      </ul>
+    </div>
+    <div class="ssv__timer">
+      <div class="ssv__row">
+        <span>Protection period</span>
+        <b class="tnum" data-countdown>10:00</b>
+      </div>
+      <div class="ssv__bar"><span data-bar></span></div>
+    </div>
+    <div class="ssv__actions">
+      <span class="ssv__cancel">Cancel transfer</span>
+      <span class="ssv__note">Funds locked on-chain until the period ends</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ssv { display: grid; place-items: center; min-height: 420px; }
+  .ssv__card { width: min(100%, 360px); padding: 20px; display: grid; gap: 16px; }
+  .ssv__head { display: flex; justify-content: space-between; align-items: center; }
+  .ssv__title { font-size: 14px; font-weight: 600; color: var(--color-strong); }
+  .ssv__badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: var(--color-brand); background: var(--color-mint-soft); }
+  .ssv__amount { display: grid; gap: 2px; }
+  .ssv__amount small { font-size: 11px; color: var(--color-faint); }
+  .ssv__amount b { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); line-height: 1.1; }
+  .ssv__amount span { font-size: 12px; color: var(--color-muted); }
+  .ssv__why { font-size: 13px; color: var(--color-text); padding: 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.03); border: 1px solid var(--color-border); }
+  .ssv__why ul { margin: 6px 0 0; padding-left: 18px; color: var(--color-muted); }
+  .ssv__timer { display: grid; gap: 8px; }
+  .ssv__row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--color-muted); }
+  .ssv__row b { font-size: 20px; color: var(--color-strong); }
+  .ssv__bar { height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
+  .ssv__bar span { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--color-brand-bright); transform-origin: left; }
+  .ssv__actions { display: grid; gap: 8px; justify-items: start; }
+  .ssv__cancel { font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; color: #b3261e; box-shadow: inset 0 0 0 1.5px rgba(179, 38, 30, 0.4); }
+  .ssv__note { font-size: 11px; color: var(--color-faint); }
+</style>
+
+<script>
+  import { reducedMotion } from '../../scripts/motion';
+
+  const root = document.querySelector<HTMLElement>('[data-safesend]');
+  const out = root?.querySelector<HTMLElement>('[data-countdown]');
+  const bar = root?.querySelector<HTMLElement>('[data-bar]');
+  if (root && out && bar) {
+    const period = Number(root.dataset.period);
+    const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    if (reducedMotion()) {
+      out.textContent = fmt(period - 1);
+    } else {
+      // Loops quickly for illustration; the real period is enforced on-chain.
+      let left = period;
+      setInterval(() => {
+        left = left <= 0 ? period : left - 7;
+        const s = Math.max(0, left);
+        out.textContent = fmt(s);
+        bar.style.transform = `scaleX(${s / period})`;
+      }, 250);
+    }
+  }
+</script>

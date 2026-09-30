@@ -39,10 +39,26 @@ const treasuryShare = ACT.transferFee.split.find((s) => s.label === 'Climate Tre
       </ol>
     </div>
   </div>
+  <div class="container">
+    <div class="cphotos" data-reveal>
+      <img class="cphotos__a" src="/images/people/farmer-field.webp" alt="A farmer tending young crops in a green field" loading="lazy" decoding="async" />
+      <img class="cphotos__b" src="/images/people/woman-headscarf.webp" alt="A woman in a headscarf standing among trees" loading="lazy" decoding="async" />
+      <img class="cphotos__c" src="/images/people/solar-roof.webp" alt="A worker fitting a solar panel onto a roof" loading="lazy" decoding="async" />
+    </div>
+    <p class="cphotos__note">The kind of work the treasury is designed to back. Illustrative photos, not Aretia-funded projects.</p>
+  </div>
 </section>
 
 <style>
   .climate { overflow: hidden; }
+  .cphotos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 1fr); gap: 14px; margin-top: var(--space-2xl); }
+  .cphotos img { width: 100%; height: clamp(220px, 28vw, 360px); object-fit: cover; border-radius: var(--radius-lg); }
+  .cphotos__b { object-position: 40% 30%; }
+  .cphotos__note { margin-top: 0.9rem; font-size: var(--text-small); color: var(--color-faint); }
+  @media (max-width: 700px) {
+    .cphotos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .cphotos__a { grid-column: 1 / -1; }
+  }
   .climate__bg { position: absolute; inset: 0; z-index: -1; background: radial-gradient(60% 50% at 80% 50%, rgba(27, 138, 75, 0.05), transparent 70%), linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.015) 50%, transparent); }
   .climate__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2.5rem, 6vw, 6rem); align-items: center; }
   .climate__copy { display: grid; gap: var(--space-md); justify-items: start; }
@@ -57,7 +73,7 @@ const treasuryShare = ACT.transferFee.split.find((s) => s.label === 'Climate Tre
   .cflow__label { color: var(--color-muted); }
   .cflow__pct { text-align: right; color: var(--color-strong); }
   .cflow__bar { height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
-  .cflow__bar span { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, rgba(27, 138, 75, 0.7), var(--color-gold)); transform-origin: left; }
+  .cflow__bar span { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); transform-origin: left; }
   :global(html.motion-ok) .cflow__bar span { transform: scaleX(0); transition: transform 1.4s var(--ease-out); }
   :global(html.motion-ok) .climate__visual.is-in .cflow__bar span { transform: scaleX(1); }
   .cflow__note { margin-top: 10px; font-size: var(--text-micro); color: var(--color-faint); font-weight: 400; }

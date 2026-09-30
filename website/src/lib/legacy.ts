@@ -26,7 +26,7 @@ const THEME_VARS = `
   --bg: #ffffff; --bg-alt: #f5f5f7; --card: #ffffff;
   --border: #d2d2d7; --border-soft: #e8e8ed;
   --black: #1d1d1f; --black-hover: #3a3a3c;
-  --brand: #190880; --brand-hover: #100553; --brand-soft: rgba(25,8,128,0.06);
+  --brand: #0b3d2e; --brand-hover: #072a20; --brand-soft: rgba(11, 61, 46,0.06);
   --font-sans: 'Geist Variable', system-ui, sans-serif;
   --font-serif: 'Geist Variable', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
@@ -95,8 +95,8 @@ function transformCss(css: string): string {
   return `${root.toString()}
 .legacy { ${THEME_VARS} }
 .legacy h1, .legacy h2, .legacy h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; }
-.legacy ::selection { background: rgba(61, 43, 214, 0.16); color: var(--color-strong); }
-.legacy :focus-visible { outline: 2px solid var(--color-indigo-bright); outline-offset: 3px; }
+.legacy ::selection { background: rgba(15, 107, 75, 0.16); color: var(--color-strong); }
+.legacy :focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
 .legacy button:active, .legacy .btn:active { transform: scale(0.97); }
 /* Keep the pastel aurora hero as a soft wash, not a loud gradient. */
 .legacy .dhero, .legacy .mp-hero { background: transparent; padding-top: calc(var(--nav-height) + 64px); }

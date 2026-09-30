@@ -38,7 +38,8 @@ const capabilities: { title: string; body: string; status: Status; href?: string
         <p class="whero__note" data-reveal>The browser extension is not yet on the Chrome Web Store. Once it is published, you'll be able to install it and create your wallet here.</p>
       </div>
       <div class="whero__visual" data-reveal="scale">
-        <WalletMock />
+        <img class="whero__photo" src="/images/people/friends-hugging.webp" alt="Three friends laughing and hugging outdoors" fetchpriority="high" />
+        <WalletMock class="whero__mock" />
       </div>
     </div>
   </section>
@@ -86,7 +87,9 @@ const capabilities: { title: string; body: string; status: Status; href?: string
   .whero__title { font-size: clamp(3rem, 7.4vw, 6.25rem); line-height: 0.98; }
   .whero__ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; }
   .whero__note { font-size: var(--text-small); color: var(--color-faint); max-width: 30rem; }
-  .whero__visual { display: grid; place-items: center; perspective: 1400px; }
+  .whero__visual { position: relative; display: grid; place-items: end center; isolation: isolate; border-radius: var(--radius-xl); overflow: hidden; padding: clamp(14rem, 24vw, 19rem) clamp(1rem, 3vw, 2rem) 0; max-height: 720px; }
+  .whero__visual :global(.whero__mock) { margin-bottom: -2rem; }
+  .whero__photo { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; object-position: 50% 10%; }
 
   .rail { padding-block: var(--space-3xl); overflow: hidden; }
   .rail__head { display: grid; gap: var(--space-md); margin-bottom: var(--space-xl); }

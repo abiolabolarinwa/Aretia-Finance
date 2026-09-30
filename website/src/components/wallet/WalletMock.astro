@@ -79,10 +79,10 @@ const { class: className, compact = false, tilt = true } = Astro.props;
 <style>
   .wm { margin: 0; width: min(100%, 360px); transform-style: preserve-3d; will-change: transform; }
   .wm__screen { position: relative; padding: 20px; border-radius: 30px; background: linear-gradient(180deg, #ffffff 0%, var(--color-offwhite) 100%); box-shadow: var(--shadow-float); display: grid; gap: 16px; overflow: hidden; }
-  .wm__screen::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; background: linear-gradient(160deg, rgba(226, 194, 130, 0.45), rgba(0, 0, 0, 0.04) 40%, rgba(61, 43, 214, 0.3)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+  .wm__screen::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; background: linear-gradient(160deg, rgba(226, 194, 130, 0.45), rgba(0, 0, 0, 0.04) 40%, rgba(15, 107, 75, 0.3)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
   .wm__top { display: flex; align-items: center; justify-content: space-between; }
   .wm__account { display: flex; align-items: center; gap: 10px; }
-  .wm__avatar { width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(from 200deg, var(--color-indigo-bright), var(--color-gold), var(--color-indigo)); }
+  .wm__avatar { width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(from 200deg, var(--color-brand-bright), var(--color-gold), var(--color-brand)); }
   .wm__name { font-size: 13px; font-weight: 600; color: var(--color-strong); }
   .wm__addr { font-size: 11px; color: var(--color-faint); }
   .wm__net { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-muted); padding: 4px 9px; border-radius: 999px; background: rgba(0, 0, 0, 0.05); }
@@ -100,7 +100,7 @@ const { class: className, compact = false, tilt = true } = Astro.props;
   .wm__coin--act { background: radial-gradient(circle at 30% 30%, var(--color-gold-bright), var(--color-gold) 60%, #8a6d34); color: #1a1406; }
   .wm__coin--sol { background: linear-gradient(135deg, #9945ff, #14f195); color: #ffffff; }
   .wm__coin--eth { background: #e8e8ed; color: #3c4a8f; }
-  .wm__tx-icon { background: var(--color-indigo-soft); color: var(--color-indigo-bright); font-size: 14px; }
+  .wm__tx-icon { background: var(--color-brand-soft); color: var(--color-brand-bright); font-size: 14px; }
   .wm__asset { display: grid; min-width: 0; }
   .wm__asset b { font-size: 13px; font-weight: 600; color: var(--color-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wm__asset small { font-size: 11px; color: var(--color-faint); }

@@ -12,8 +12,10 @@ interface Props {
   points?: string[];
   roadmap?: string[];
   reverse?: boolean;
+  /** A photo of people the product visual floats over. */
+  photo?: { src: string; alt: string; position?: string };
 }
-const { id, eyebrow, title, lead, status, statusNote, points = [], roadmap = [], reverse = false } = Astro.props;
+const { id, eyebrow, title, lead, status, statusNote, points = [], roadmap = [], reverse = false, photo } = Astro.props;
 const headingId = id ? `${id}-title` : undefined;
 ---
 
@@ -45,9 +47,20 @@ const headingId = id ? `${id}-title` : undefined;
       {statusNote && <p class="ps__note" data-reveal>{statusNote}</p>}
       <slot name="actions" />
     </div>
-    <div class="ps__visual" data-reveal="scale">
-      <slot />
-    </div>
+    {
+      photo ? (
+        <div class="ps__visual ps__stage" data-reveal="scale">
+          <img class="ps__photo" src={photo.src} alt={photo.alt} loading="lazy" decoding="async" style={photo.position ? `object-position:${photo.position}` : undefined} />
+          <div class="ps__float">
+            <slot />
+          </div>
+        </div>
+      ) : (
+        <div class="ps__visual" data-reveal="scale">
+          <slot />
+        </div>
+      )
+    }
   </div>
 </section>
 
@@ -58,10 +71,15 @@ const headingId = id ? `${id}-title` : undefined;
   .ps__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; }
   .ps__points { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
   .ps__points li { position: relative; padding-left: 1.6rem; color: var(--color-text); font-size: 0.97rem; }
-  .ps__points li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 10px; height: 1px; background: var(--color-gold); }
+  .ps__points li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 10px; height: 1px; background: var(--color-brand-bright); }
   .ps__roadmap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; font-size: var(--text-small); color: var(--color-faint); }
   .ps__note { font-size: var(--text-small); color: var(--color-faint); }
   .ps__visual { position: relative; min-width: 0; }
+  .ps__stage { display: grid; border-radius: var(--radius-xl); overflow: hidden; isolation: isolate; padding: clamp(15rem, 28vw, 21rem) clamp(1rem, 3vw, 2rem) clamp(1rem, 3vw, 2rem); }
+  .ps__photo { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; }
+  .ps__stage::after { content: ''; position: absolute; inset: 40% 0 0 0; z-index: -1; background: linear-gradient(180deg, transparent, rgba(7, 42, 32, 0.35)); }
+  .ps__float { min-width: 0; }
+  .ps__float :global(.panel) { background: rgba(255, 255, 255, 0.94); box-shadow: var(--shadow-float); padding: clamp(1.1rem, 3vw, 2rem); backdrop-filter: blur(18px); }
   @media (max-width: 1023px) {
     .ps__grid { grid-template-columns: minmax(0, 1fr); }
     .ps--reverse .ps__copy { order: 0; }

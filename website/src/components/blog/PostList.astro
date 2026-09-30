@@ -42,7 +42,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month:
   .post { display: grid; gap: var(--space-md); height: 100%; }
   .posts__feature .post { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: center; gap: var(--space-xl); }
   .post__art { position: relative; aspect-ratio: 16 / 10; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--color-border); background: var(--color-bg-alt); isolation: isolate; }
-  .post__art-orb { position: absolute; inset: 15% 25%; border-radius: 50%; background: radial-gradient(closest-side, rgba(61, 43, 214, 0.45), rgba(160, 122, 44, 0.12) 60%, transparent 75%); filter: blur(6px); transition: transform 900ms var(--ease-out); }
+  .post__art-orb { position: absolute; inset: 15% 25%; border-radius: 50%; background: radial-gradient(closest-side, rgba(15, 107, 75, 0.45), rgba(160, 122, 44, 0.12) 60%, transparent 75%); filter: blur(6px); transition: transform 900ms var(--ease-out); }
   .post__art-cat { position: absolute; left: 20px; bottom: 16px; font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; color: rgba(0, 0, 0, 0.85); }
   .post__body { display: grid; gap: 0.7rem; align-content: start; }
   .post__meta { display: flex; gap: 1rem; font-size: var(--text-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-faint); }

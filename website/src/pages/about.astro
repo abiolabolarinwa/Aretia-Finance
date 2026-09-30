@@ -54,6 +54,11 @@ const chapters = [
 
 <Base title="About" description="Why Aretia Finance exists: funding the earliest stage of climate projects, and making multichain finance safer and simpler.">
   <PageHero eyebrow="About Aretia" title="Finance that funds what comes first." lead="Aretia Finance builds a multichain wallet and a token whose every transfer funds a catalyst fund for early-stage climate projects." />
+  <div class="container about-photos" data-reveal>
+    <img src="/images/people/couple-laughing.webp" alt="Two friends laughing in tall grass" loading="lazy" decoding="async" />
+    <img src="/images/people/garden-beds.webp" alt="Two people tending raised vegetable beds in a community garden" loading="lazy" decoding="async" />
+    <img src="/images/people/friends-talking.webp" alt="Friends laughing together outdoors at golden hour" loading="lazy" decoding="async" />
+  </div>
 
   <div class="chapters">
     {
@@ -84,6 +89,9 @@ const chapters = [
 </Base>
 
 <style>
+  .about-photos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; margin-bottom: var(--space-2xl); }
+  .about-photos img { width: 100%; height: clamp(220px, 30vw, 380px); object-fit: cover; border-radius: var(--radius-lg); }
+  @media (max-width: 700px) { .about-photos { grid-template-columns: minmax(0, 1fr); } .about-photos img:not(:first-child) { display: none; } }
   .chapter { border-top: 1px solid var(--color-border); padding-block: clamp(4rem, 9vw, 8rem); }
   .chapter__grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); gap: var(--space-xl); }
   .chapter__label { position: sticky; top: calc(var(--nav-height) + 32px); align-self: start; display: grid; gap: var(--space-sm); }

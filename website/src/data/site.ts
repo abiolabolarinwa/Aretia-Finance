@@ -161,7 +161,9 @@ export const DEVELOPERS = [
 export const NETWORKS =['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 
 export const LINKS = {
-  launchWallet: '/wallet/app',
+  // The wallet extension is not yet published to the Chrome Web Store, so
+  // every "launch" CTA points to a waitlist capture, not a live product.
+  walletWaitlist: '/wallet#waitlist',
   buyAct: '/buy',
   whitepaper: '/whitepaper',
   github: 'https://github.com/abiolabolarinwa/Aretia-Finance',

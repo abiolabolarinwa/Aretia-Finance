@@ -44,8 +44,8 @@ const { walletConnect = false } = Astro.props;
     </nav>
 
     <div class="nav__actions">
-      <a href={LINKS.buyAct} class="nav__buy">Buy ACT</a>
-      <Button href={LINKS.launchWallet} size="md">Launch Wallet</Button>
+      <a href={LINKS.walletWaitlist} class="nav__secondary">Wallet waitlist</a>
+      <Button href={LINKS.buyAct} size="md" variant="gold">Buy ACT</Button>
     </div>
 
     {walletConnect && <div class="nav__connect" data-aretia-wallet-mount></div>}
@@ -76,8 +76,8 @@ const { walletConnect = false } = Astro.props;
         }
       </ul>
       <div class="mobile__actions">
-        <Button href={LINKS.launchWallet} size="lg">Launch Wallet</Button>
         <Button href={LINKS.buyAct} size="lg" variant="gold">Buy ACT</Button>
+        <Button href={LINKS.walletWaitlist} size="lg" variant="secondary">Wallet waitlist</Button>
       </div>
     </div>
   </div>
@@ -106,7 +106,7 @@ const { walletConnect = false } = Astro.props;
   .nav__item-label { font-size: 0.9rem; font-weight: 600; color: var(--color-strong); }
   .nav__item-desc { font-size: 0.8rem; color: var(--color-faint); }
   .nav__actions { display: flex; align-items: center; gap: 0.9rem; flex: none; }
-  .nav__buy { font-size: 0.875rem; font-weight: 600; color: var(--color-gold); padding: 0.5rem; transition: color var(--duration-fast); }
+  .nav__secondary { font-size: 0.875rem; font-weight: 600; color: var(--color-muted); padding: 0.5rem; transition: color var(--duration-fast); }
   .nav__toggle { display: none; width: 44px; height: 44px; margin-left: auto; position: relative; }
   .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-strong); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
   .nav__toggle span:first-child { top: 18px; }
@@ -146,7 +146,7 @@ const { walletConnect = false } = Astro.props;
   @media (hover: hover) and (pointer: fine) {
     .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-strong); background: rgba(0, 0, 0, 0.05); }
     .nav__item:hover { background: rgba(0, 0, 0, 0.05); }
-    .nav__buy:hover { color: var(--color-gold-bright); }
+    .nav__secondary:hover { color: var(--color-strong); }
   }
 </style>
 

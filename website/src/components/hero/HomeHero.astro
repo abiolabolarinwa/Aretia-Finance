@@ -1,7 +1,8 @@
 ---
 import { LINKS } from '../../data/site';
 
-const chains = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
+const liveChain = 'Solana';
+const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 ---
 
 <section class="hero" data-hero>
@@ -20,27 +21,29 @@ const chains = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
       <a class="hero__pill" href="/token" data-hero-in>
         <span class="hero__pill-dot"></span>ACT is live on Solana mainnet
       </a>
-      <h1 class="hero__title" data-hero-in>Your money.<br />Every chain.<br />One wallet.</h1>
+      <h1 class="hero__title" data-hero-in>Move money.<br />Fund the planet.</h1>
       <p class="hero__lead" data-hero-in>
-        Self-custody across Solana and four EVM networks, with a check before every signature. And 2% of every ACT transfer funds climate projects.
+        Every ACT transfer carries a 3.5% fee, withheld on-chain — 2% builds a Climate Treasury you can verify yourself. Self-custody across five chains is on the way.
       </p>
       <div class="hero__ctas" data-hero-in>
-        <a class="hbtn hbtn--solid" href={LINKS.launchWallet}>
-          Launch Aretia Wallet
+        <a class="hbtn hbtn--solid" href={LINKS.buyAct}>
+          Get ACT
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </a>
         <a class="hbtn hbtn--ghost" href="#explore">Explore Aretia</a>
       </div>
     </div>
-    <p class="hero__foot">Wallet in development. ACT live on Solana.</p>
+    <p class="hero__foot">Aretia Wallet — multichain self-custody, in development. <a href={LINKS.walletWaitlist}>Join the waitlist →</a></p>
     <a class="hero__scroll" href="#explore">Scroll
       <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </a>
   </div>
 
   <div class="container hero__chains">
-    <span>Works across</span>
-    <ul>{chains.map((c) => <li>{c}</li>)}</ul>
+    <span>Live on</span>
+    <ul class="hero__chains-live"><li>{liveChain}</li></ul>
+    <span>Coming to</span>
+    <ul class="hero__chains-next">{nextChains.map((c) => <li>{c}</li>)}</ul>
   </div>
 </section>
 
@@ -70,13 +73,16 @@ const chains = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
   .hbtn--solid { background: #fff; color: var(--color-brand); }
   .hbtn--ghost { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
   .hero__foot, .hero__scroll { position: absolute; bottom: clamp(18px, 2.4vw, 32px); font-size: 0.8125rem; color: rgba(255, 255, 255, 0.85); }
-  .hero__foot { left: clamp(24px, 6vw, 96px); }
+  .hero__foot { left: clamp(24px, 6vw, 96px); max-width: min(80vw, 30rem); }
+  .hero__foot a { color: #fff; text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
   .hero__scroll { right: clamp(24px, 3vw, 40px); display: inline-flex; align-items: center; gap: 6px; }
 
-  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 2.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
+  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
   .hero__chains > span { font-size: var(--text-small); color: var(--color-faint); }
   .hero__chains ul { list-style: none; margin: 0; padding: 0; display: contents; }
   .hero__chains li { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; color: rgba(11, 61, 46, 0.55); }
+  .hero__chains-live li { color: var(--color-brand-bright); }
+  .hero__chains-next li { color: rgba(11, 61, 46, 0.35); }
 
   :global(html.motion-ok) [data-hero-in] { opacity: 0; }
 

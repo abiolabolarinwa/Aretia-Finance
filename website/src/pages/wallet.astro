@@ -32,10 +32,10 @@ const capabilities: { title: string; body: string; status: Status; href?: string
         <h1 class="whero__title" data-split="load">Your assets.<br />Your chains.<br />Your control.</h1>
         <p class="lead" data-reveal>A self-custody browser wallet for Solana and EVM networks, with the rest of Aretia built in. Keys stay encrypted on your device.</p>
         <div class="whero__ctas" data-reveal>
-          <Button href={LINKS.launchWallet} size="lg" arrow>Open Aretia Wallet</Button>
+          <Button href={LINKS.walletWaitlist} size="lg" arrow>Join the waitlist</Button>
           <Button href="/features" size="lg" variant="secondary">All features</Button>
         </div>
-        <p class="whero__note" data-reveal>The browser extension is not yet on the Chrome Web Store. Once it is published, you'll be able to install it and create your wallet here.</p>
+        <p class="whero__note" data-reveal>The browser extension is not yet on the Chrome Web Store. Join the waitlist and we'll email you the moment you can install it.</p>
       </div>
       <div class="whero__visual" data-reveal="scale">
         <img class="whero__photo" src="/images/people/friends-hugging.webp" alt="Three friends laughing and hugging outdoors" fetchpriority="high" />
@@ -77,6 +77,26 @@ const capabilities: { title: string; body: string; status: Status; href?: string
       <InfoGrid items={SECURITY} />
     </div>
   </section>
+
+  <section class="section" id="waitlist" aria-labelledby="wl-title">
+    <div class="container wl">
+      <div class="wl__copy">
+        <h2 id="wl-title" class="heading" data-split>Get notified when it ships.</h2>
+        <p class="lead" data-reveal>No download yet — the extension is still pre-release. Leave your email and we'll send one message the day it's on the Chrome Web Store, nothing else.</p>
+      </div>
+      <form class="wl__form" action={LINKS.contactForm} method="POST" novalidate data-waitlist>
+        <input type="hidden" name="_subject" value="Wallet waitlist" data-subject />
+        <input type="text" name="_gotcha" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        <div class="wl__row">
+          <label class="sr-only" for="wl-email">Email address</label>
+          <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required aria-describedby="wl-err" data-email />
+          <button type="submit" class="submit" data-submit>Join waitlist</button>
+        </div>
+        <p class="err" id="wl-err" data-err></p>
+        <p class="status" role="status" aria-live="polite" data-status></p>
+      </form>
+    </div>
+  </section>
 </Base>
 
 <style>
@@ -108,6 +128,29 @@ const capabilities: { title: string; body: string; status: Status; href?: string
 
   .wsec { display: grid; gap: var(--space-2xl); }
   .wsec__head { display: grid; gap: var(--space-md); }
+
+  .wl { display: grid; gap: var(--space-xl); padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.5rem, 4vw, 3.5rem); border-radius: var(--radius-xl); border: 1px solid var(--color-border); background: var(--color-bg-alt); justify-items: center; text-align: center; }
+  .wl__copy { display: grid; gap: var(--space-sm); max-width: 34rem; justify-items: center; }
+  .wl__form { width: 100%; max-width: 30rem; display: grid; gap: 8px; }
+  .hp { position: absolute; left: -9999px; }
+  .wl__row { display: flex; gap: 0.6rem; }
+  .wl__row input { flex: 1; min-width: 0; padding: 0 16px; height: 52px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-strong); font-size: 1rem; transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+  .wl__row input:focus { outline: none; border-color: var(--color-brand-bright); box-shadow: 0 0 0 4px var(--color-brand-soft); }
+  .wl__row input[aria-invalid='true'] { border-color: #f87171; }
+  .wl .submit { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 1.75rem; border-radius: var(--radius-pill); background: var(--color-strong); color: var(--color-bg); font-weight: 600; transition: background-color var(--duration-base); }
+  .wl .submit[disabled] { opacity: 0.6; cursor: default; }
+  .wl .err { font-size: var(--text-micro); color: #f87171; min-height: 1em; }
+  .wl .status { font-size: var(--text-small); min-height: 1.2em; }
+  .wl .status.is-ok { color: var(--color-ok); }
+  .wl .status.is-err { color: #f87171; }
+  @media (hover: hover) and (pointer: fine) {
+    .wl .submit:hover { background: var(--color-brand-bright); }
+  }
+  @media (max-width: 600px) {
+    .wl__row { flex-direction: column; }
+    .wl .submit { width: 100%; justify-content: center; }
+  }
+
   @media (max-width: 1023px) {
     .whero__grid { grid-template-columns: minmax(0, 1fr); }
   }
@@ -135,4 +178,43 @@ const capabilities: { title: string; body: string; status: Status; href?: string
     });
     ScrollTrigger.refresh();
   }
+</script>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-waitlist]')!;
+  const email = form.querySelector<HTMLInputElement>('[data-email]')!;
+  const err = form.querySelector<HTMLElement>('[data-err]')!;
+  const status = form.querySelector<HTMLElement>('[data-status]')!;
+  const submit = form.querySelector<HTMLButtonElement>('[data-submit]')!;
+
+  const validate = (): boolean => {
+    const msg = !email.value.trim() ? 'Enter your email.' : email.validity.typeMismatch ? 'That doesn’t look like an email address.' : '';
+    email.setAttribute('aria-invalid', String(!!msg));
+    err.textContent = msg;
+    return !msg;
+  };
+  email.addEventListener('blur', validate);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validate()) {
+      email.focus();
+      return;
+    }
+    submit.disabled = true;
+    status.className = 'status';
+    status.textContent = 'Joining…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(String(res.status));
+      form.reset();
+      status.classList.add('is-ok');
+      status.textContent = 'You’re on the list. We’ll email you the moment the extension is on the Chrome Web Store.';
+    } catch {
+      status.classList.add('is-err');
+      status.textContent = 'Something went wrong. Please try again, or reach us on Telegram.';
+    } finally {
+      submit.disabled = false;
+    }
+  });
 </script>

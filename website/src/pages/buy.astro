@@ -15,7 +15,6 @@ import { ACT } from '../data/site';
       <div class="buy__widget panel" data-reveal="scale">
         <div class="buy__head">
           <div>
-            <p class="eyebrow eyebrow--gold">Trade ACT</p>
             <StatusBadge status="roadmap" />
           </div>
           <div class="buy__connect" data-aretia-wallet-mount></div>
@@ -26,18 +25,15 @@ import { ACT } from '../data/site';
 
       <aside class="buy__side">
         <div class="buy__card" data-reveal>
-          <p class="eyebrow">Real ACT mint</p>
           <p class="mono buy__mint">{ACT.mint}</p>
           <p class="muted">Tokens with the same name or ticker can be fakes. Only this mint is ACT.</p>
           <Button href="/verify" variant="secondary" arrow>Verify on-chain</Button>
         </div>
         <div class="buy__card" data-reveal>
-          <p class="eyebrow">Presale</p>
           <p class="muted">{ACT.presaleAllocation.toLocaleString('en-US')} ACT, deployed and tested on devnet; not live on mainnet.</p>
           <Button href="/presale" variant="gold" arrow>Presale details</Button>
         </div>
         <div class="buy__card" data-reveal>
-          <p class="eyebrow">Know the fee</p>
           <p class="muted">Every ACT transfer, including a swap, has a {ACT.transferFee.totalPercent}% fee withheld on-chain. <a href="/token#fees">How it’s split →</a></p>
         </div>
       </aside>

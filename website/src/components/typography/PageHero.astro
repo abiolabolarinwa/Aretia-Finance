@@ -12,7 +12,6 @@ const { eyebrow, title, lead, align = 'left', size = 'display' } = Astro.props;
 <header class:list={['ph', `ph--${align}`]}>
   <div class="ph__glow" aria-hidden="true"></div>
   <div class="container ph__inner">
-    <p class="eyebrow eyebrow--gold" data-reveal>{eyebrow}</p>
     <h1 class:list={['ph__title', `ph__title--${size}`]} data-split="load" set:html={title} />
     {lead && <p class="lead ph__lead" data-reveal>{lead}</p>}
     <slot />

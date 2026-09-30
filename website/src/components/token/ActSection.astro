@@ -9,7 +9,6 @@ const split = ACT.transferFee.split;
 <section class="act section" id="act" aria-labelledby="act-title">
   <div class="container">
     <header class="act__head">
-      <p class="eyebrow eyebrow--gold" data-reveal>ACT</p>
       <h2 id="act-title" class="heading" data-split>One token.<br />Multiple utilities.</h2>
       <p class="lead" data-reveal>
         ACT is Aretia's ecosystem token, live on Solana mainnet as an SPL Token-2022 mint with a fixed supply. A protocol-level transfer fee funds the Climate Treasury, liquidity and treasury operations on every transfer.
@@ -17,7 +16,7 @@ const split = ACT.transferFee.split;
     </header>
 
     <div class="act__grid">
-      <div class="panel panel--glow-gold act__flow" data-fee-flow data-reveal="scale">
+      <div class="panel act__flow" data-fee-flow data-reveal="scale">
         <p class="act__flow-title">Where a transfer's fee goes</p>
         <div class="flow">
           <div class="flow__node flow__node--src"><small>Step 1</small>ACT transfer</div>
@@ -93,11 +92,10 @@ const split = ACT.transferFee.split;
   .flow__dest::before { content: ''; position: absolute; top: -14px; left: 50%; width: 1px; height: 14px; background: var(--color-border-strong); }
   .flow__dest b { font-family: var(--font-display); font-size: 22px; color: var(--color-gold-bright); }
   .flow__dest span { font-size: 12px; color: var(--color-muted); }
-  .flow__dest.is-lit, .flow__dest:hover { border-color: rgba(160, 122, 44, 0.5); background: var(--color-gold-soft); transform: translateY(-3px); }
   .act__flow-note { font-size: var(--text-micro); color: var(--color-faint); }
   .act__side { display: grid; gap: var(--space-lg); }
   .act__facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
-  .act__facts dt { font-size: var(--text-micro); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--color-faint); font-weight: 600; }
+  .act__facts dt { font-size: var(--text-small); color: var(--color-muted); font-weight: 500; }
   .act__facts dd { margin: 6px 0 4px; font-family: var(--font-display); font-size: clamp(1.5rem, 2.6vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
   .act__facts p { font-size: var(--text-small); color: var(--color-muted); }
   .act__utilities { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -113,6 +111,9 @@ const split = ACT.transferFee.split;
     .act__facts { grid-template-columns: minmax(0, 1fr); }
     .flow__dest b { font-size: 18px; }
     .flow__dest span { font-size: 11px; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .flow__dest.is-lit, .flow__dest:hover { border-color: rgba(160, 122, 44, 0.5); background: var(--color-gold-soft); transform: translateY(-3px); }
   }
 </style>
 

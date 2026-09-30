@@ -37,7 +37,7 @@ function initReveals(): void {
     start: 'top 88%',
     once: true,
     onEnter: (batch) =>
-      gsap.to(batch, { opacity: 1, y: 0, scale: 1, duration: 1.1, ease: 'expo.out', stagger: 0.08, overwrite: true }),
+      gsap.to(batch, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: 'expo.out', stagger: 0.05, overwrite: true }),
   });
 }
 
@@ -54,9 +54,9 @@ function initSplitHeadings(): void {
       onSplit(self) {
         return gsap.from(self.lines, {
           yPercent: 110,
-          duration: 1.2,
+          duration: 0.8,
           ease: 'expo.out',
-          stagger: 0.09,
+          stagger: 0.04,
           delay,
           scrollTrigger: onLoad ? undefined : { trigger: el, start: 'top 85%', once: true },
         });

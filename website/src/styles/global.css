@@ -1,6 +1,5 @@
-@import '@fontsource-variable/inter';
-@import '@fontsource/poppins/500.css';
-@import '@fontsource/poppins/600.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 @import './tokens.css';
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -23,8 +22,14 @@ img, svg, video, canvas { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; }
 input, textarea, select { font: inherit; color: inherit; }
-::selection { background: var(--color-gold); color: var(--color-bg); }
-:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 3px; border-radius: 4px; }
+::selection { background: rgba(61, 43, 214, 0.16); color: var(--color-strong); }
+html { caret-color: var(--color-indigo-bright); accent-color: var(--color-indigo-bright); scrollbar-color: rgba(0, 0, 0, 0.22) transparent; }
+:focus-visible { outline: 2px solid var(--color-indigo-bright); outline-offset: 3px; border-radius: 6px; }
+a { text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+table, .tnum, [data-count] { font-variant-numeric: tabular-nums; }
+/* Press feedback: every control answers the touch immediately. */
+button, .btn, [role='button'] { transition: transform var(--duration-press) var(--ease-out); }
+button:active, .btn:active, [role='button']:active { transform: scale(0.97); }
 
 h1, h2, h3, h4 {
   margin: 0;
@@ -39,14 +44,10 @@ p { margin: 0; text-wrap: pretty; }
 
 .container { width: 100%; max-width: var(--max-width); margin-inline: auto; padding-inline: var(--gutter); }
 .section { padding-block: var(--space-3xl); position: relative; }
-.eyebrow {
-  display: inline-flex; align-items: center; gap: 0.6em;
-  font-size: var(--text-micro); font-weight: 600;
-  letter-spacing: var(--tracking-eyebrow); text-transform: uppercase;
-  color: var(--color-muted);
+.label {
+  font-size: var(--text-small); font-weight: 600; letter-spacing: -0.005em;
+  color: var(--color-muted); margin: 0;
 }
-.eyebrow::before { content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.6; }
-.eyebrow--gold { color: var(--color-gold); }
 .display { font-size: var(--text-display); }
 .heading { font-size: var(--text-heading); }
 .subheading { font-size: var(--text-subheading); line-height: var(--leading-snug); }
@@ -62,7 +63,7 @@ p { margin: 0; text-wrap: pretty; }
 /* Motion defaults: elements marked for reveal start hidden only once JS has
    confirmed motion is allowed (html.motion-ok), so no-JS and reduced-motion
    visitors always see content. */
-html.motion-ok [data-reveal] { opacity: 0; transform: translate3d(0, 28px, 0); }
+html.motion-ok [data-reveal] { opacity: 0; transform: translate3d(0, 16px, 0); }
 html.motion-ok [data-reveal='fade'] { transform: none; }
 html.motion-ok [data-reveal='scale'] { transform: scale(0.96); }
 /* Shared product-visual surface */
@@ -72,12 +73,6 @@ html.motion-ok [data-reveal='scale'] { transform: scale(0.96); }
   background: var(--color-bg-alt);
   padding: clamp(1.5rem, 4vw, 3rem);
 }
-.panel--glow-gold::before, .panel--glow-indigo::before, .panel--glow-green::before {
-  content: ''; position: absolute; inset: auto -20% -60% -20%; height: 90%; z-index: -1; filter: blur(24px);
-}
-.panel--glow-gold::before { background: radial-gradient(closest-side, rgba(160, 122, 44, 0.07), transparent); }
-.panel--glow-indigo::before { background: radial-gradient(closest-side, rgba(61, 43, 214, 0.08), transparent); }
-.panel--glow-green::before { background: radial-gradient(closest-side, rgba(27, 138, 75, 0.06), transparent); }
 
 /* Apple-style pacing: alternate white and light-grey sections; panels on a
    grey section flip to white so they still read as distinct surfaces. */

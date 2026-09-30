@@ -10,7 +10,6 @@ import { DOCS } from '../data/help';
   <section class="section docs">
     <div class="container docs__grid">
       <nav class="docs__nav" aria-label="Documentation sections">
-        <p class="eyebrow">Contents</p>
         <ol>
           {DOCS.map((d) => <li><a href={`#${d.id}`} data-doc-link={d.id}>{d.title}</a></li>)}
         </ol>
@@ -60,11 +59,9 @@ import { DOCS } from '../data/help';
   .docs__nav { position: sticky; top: calc(var(--nav-height) + 24px); display: grid; gap: var(--space-sm); }
   .docs__nav ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border-left: 1px solid var(--color-border); }
   .docs__nav a { display: block; padding: 6px 14px; margin-left: -1px; border-left: 1px solid transparent; font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), border-color var(--duration-fast); }
-  .docs__nav a:hover { color: var(--color-strong); }
   .docs__nav a.is-current { color: var(--color-gold); border-left-color: var(--color-gold); }
   .docs__cards { list-style: none; margin: 0 0 var(--space-2xl); padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .dcard { display: grid; gap: 6px; height: 100%; padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg-alt); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out); }
-  .dcard:hover { border-color: rgba(160, 122, 44, 0.45); transform: translateY(-3px); }
   .dcard__n { font-size: var(--text-micro); color: var(--color-gold); }
   .dcard b { color: var(--color-strong); }
   .dcard span:last-child { font-size: var(--text-small); color: var(--color-muted); }
@@ -74,10 +71,14 @@ import { DOCS } from '../data/help';
   .doc p { color: var(--color-muted); line-height: 1.75; margin-bottom: 1rem; overflow-wrap: anywhere; }
   .doc__links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1.25rem; }
   .doc__links a { font-size: var(--text-small); font-weight: 600; color: var(--color-strong); }
-  .doc__links a:hover { color: var(--color-gold-bright); }
   @media (max-width: 900px) {
     .docs__grid { grid-template-columns: minmax(0, 1fr); }
     .docs__nav { display: none; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .docs__nav a:hover { color: var(--color-strong); }
+    .dcard:hover { border-color: rgba(160, 122, 44, 0.45); transform: translateY(-3px); }
+    .doc__links a:hover { color: var(--color-gold-bright); }
   }
 </style>
 

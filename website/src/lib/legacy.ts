@@ -27,8 +27,8 @@ const THEME_VARS = `
   --border: #d2d2d7; --border-soft: #e8e8ed;
   --black: #1d1d1f; --black-hover: #3a3a3c;
   --brand: #190880; --brand-hover: #100553; --brand-soft: rgba(25,8,128,0.06);
-  --font-sans: 'Inter Variable', system-ui, sans-serif;
-  --font-serif: 'Inter Variable', system-ui, sans-serif;
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --font-serif: 'Geist Variable', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
   background: transparent; color: var(--ink);
 `;

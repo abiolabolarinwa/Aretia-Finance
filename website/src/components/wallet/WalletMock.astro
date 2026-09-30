@@ -96,7 +96,6 @@ const { class: className, compact = false, tilt = true } = Astro.props;
   .wm__action:first-child { background: var(--color-strong); color: var(--color-bg); }
   .wm__assets { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
   .wm__assets li, .wm__tx { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; transition: background-color var(--duration-fast); }
-  .wm__assets li:hover { background: rgba(0, 0, 0, 0.04); }
   .wm__coin, .wm__tx-icon { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
   .wm__coin--act { background: radial-gradient(circle at 30% 30%, var(--color-gold-bright), var(--color-gold) 60%, #8a6d34); color: #1a1406; }
   .wm__coin--sol { background: linear-gradient(135deg, #9945ff, #14f195); color: #ffffff; }
@@ -111,4 +110,7 @@ const { class: className, compact = false, tilt = true } = Astro.props;
   .wm__chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .wm__chips span { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--color-border); color: var(--color-muted); }
   .wm--compact .wm__screen { gap: 12px; padding: 16px; }
+  @media (hover: hover) and (pointer: fine) {
+    .wm__assets li:hover { background: rgba(0, 0, 0, 0.04); }
+  }
 </style>

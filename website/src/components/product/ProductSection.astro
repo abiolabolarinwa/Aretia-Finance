@@ -21,7 +21,6 @@ const headingId = id ? `${id}-title` : undefined;
   <div class="container ps__grid">
     <div class="ps__copy">
       <div class="ps__meta" data-reveal>
-        <p class="eyebrow eyebrow--gold">{eyebrow}</p>
         {status && <StatusBadge status={status} />}
       </div>
       <h2 id={headingId} class="heading" set:html={title} data-split />

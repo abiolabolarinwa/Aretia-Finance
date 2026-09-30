@@ -2,7 +2,7 @@
 const stages = ['Asset', 'Routing', 'Execution', 'Destination'];
 ---
 
-<div class="panel panel--glow-indigo uv" data-universal>
+<div class="panel uv" data-universal>
   <div class="uv__track">
     <svg class="uv__svg" viewBox="0 0 600 220" aria-hidden="true">
       <path class="uv__path" d="M 70 110 C 190 20 230 20 300 110 C 370 200 410 200 530 110" />
@@ -40,7 +40,6 @@ const stages = ['Asset', 'Routing', 'Execution', 'Destination'];
   .uv__particle { fill: var(--color-gold-bright); offset-path: path('M 70 110 C 190 20 230 20 300 110 C 370 200 410 200 530 110'); animation: move 3.3s var(--ease-in-out) infinite; filter: drop-shadow(0 0 6px rgba(226, 194, 130, 0.9)); }
   @keyframes move { 0% { offset-distance: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
   .uv__node { position: absolute; top: 50%; translate: -50% -50%; display: grid; justify-items: center; gap: 8px; text-align: center; transition: transform var(--duration-base) var(--ease-out); }
-  .uv__node:hover { transform: scale(1.06); }
   .uv__node small { font-size: 11px; color: var(--color-faint); white-space: nowrap; }
   .uv__chain { padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-strong); }
   .uv__node--sol .uv__chain { box-shadow: 0 0 30px -8px rgba(20, 241, 149, 0.5); }
@@ -59,6 +58,9 @@ const stages = ['Asset', 'Routing', 'Execution', 'Destination'];
     .uv__chain { padding: 7px 10px; font-size: 11px; }
     .uv__hub { width: 44px; height: 44px; border-radius: 14px; }
     .uv__stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .uv__node:hover { transform: scale(1.06); }
   }
 </style>
 

@@ -105,7 +105,6 @@ const columns = [
   .footer__title { font-family: var(--font-body); font-size: 0.8125rem; font-weight: 600; letter-spacing: -0.01em; color: var(--color-strong); margin-bottom: 0.9rem; }
   .footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
   .footer ul a { font-size: 0.8125rem; color: var(--color-muted); transition: color var(--duration-fast); }
-  .footer ul a:hover { color: var(--color-strong); }
   .footer__wordmark { font-family: var(--font-display); font-weight: 600; font-size: clamp(5rem, 22vw, 20rem); line-height: 0.8; letter-spacing: -0.06em; text-align: center; margin-top: var(--space-2xl); background: linear-gradient(180deg, rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0)); -webkit-background-clip: text; background-clip: text; color: transparent; user-select: none; }
   .footer__bottom { display: flex; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; padding-block: var(--space-md); border-top: 1px solid var(--color-border); font-size: var(--text-micro); color: var(--color-faint); }
   @media (max-width: 960px) {
@@ -114,5 +113,8 @@ const columns = [
   }
   @media (max-width: 480px) {
     .footer__cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .footer ul a:hover { color: var(--color-strong); }
   }
 </style>

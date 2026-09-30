@@ -40,7 +40,7 @@ const index = [
     points={p.wallet!.today}
     roadmap={p.wallet!.roadmap}
   >
-    <div class="panel panel--glow-indigo wallet-visual" data-tilt-zone><WalletMock /></div>
+    <div class="panel wallet-visual" data-tilt-zone><WalletMock /></div>
   </ProductSection>
 
   <ProductSection id="universal" eyebrow="Aretia Universal" title="Move value without thinking about the chain." lead={p.universal!.summary} status={p.universal!.status} points={p.universal!.today} roadmap={p.universal!.roadmap} reverse>
@@ -65,7 +65,6 @@ const index = [
   <section class="section" id="security" aria-labelledby="security-title">
     <div class="container stack">
       <header class="stack__head">
-        <p class="eyebrow" data-reveal>Security</p>
         <h2 id="security-title" class="heading" data-split>Self-custody, taken seriously.</h2>
         <p class="lead" data-reveal>Your keys never leave your device, and nothing is signed without an explicit review.</p>
       </header>
@@ -76,7 +75,6 @@ const index = [
   <section class="section" id="developers" aria-labelledby="dev-title">
     <div class="container stack">
       <header class="stack__head">
-        <p class="eyebrow" data-reveal>Developer infrastructure</p>
         <h2 id="dev-title" class="heading" data-split>Built on open standards.</h2>
         <p class="lead" data-reveal>Aretia speaks the interfaces dApps already use, so integrating needs no Aretia-specific code.</p>
       </header>
@@ -88,8 +86,10 @@ const index = [
 <style>
   .toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: var(--space-md); }
   .toc a { padding: 0.5rem 0.95rem; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), border-color var(--duration-fast), background-color var(--duration-fast); }
-  .toc a:hover { color: var(--color-strong); border-color: var(--color-border-strong); background: rgba(0, 0, 0, 0.04); }
   .wallet-visual { display: grid; place-items: center; min-height: 520px; }
   .stack { display: grid; gap: var(--space-2xl); }
   .stack__head { display: grid; gap: var(--space-md); max-width: 46rem; }
+  @media (hover: hover) and (pointer: fine) {
+    .toc a:hover { color: var(--color-strong); border-color: var(--color-border-strong); background: rgba(0, 0, 0, 0.04); }
+  }
 </style>

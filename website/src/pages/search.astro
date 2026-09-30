@@ -63,12 +63,14 @@ const index = [
   .results { list-style: none; margin: 0 auto; padding: 0; max-width: 50rem; }
   .results :global(li) { border-top: 1px solid var(--color-border); }
   .results :global(a) { display: grid; gap: 4px; padding: 1.25rem 0.25rem; transition: background-color var(--duration-fast); }
-  .results :global(a:hover .r-title) { color: var(--color-gold-bright); }
   .results :global(.r-type) { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
   .results :global(.r-title) { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-strong); transition: color var(--duration-fast); }
   .results :global(.r-text) { font-size: var(--text-small); color: var(--color-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .results :global(mark) { background: var(--color-gold-soft); color: var(--color-gold-bright); border-radius: 3px; padding: 0 2px; }
   .still { display: grid; justify-items: center; gap: var(--space-sm); text-align: center; margin-top: var(--space-3xl); }
+  @media (hover: hover) and (pointer: fine) {
+    .results :global(a:hover .r-title) { color: var(--color-gold-bright); }
+  }
 </style>
 
 <script>

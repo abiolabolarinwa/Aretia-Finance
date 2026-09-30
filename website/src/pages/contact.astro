@@ -59,7 +59,6 @@ const categories = ['General', 'Partnerships', 'Developers', 'Ecosystem', 'Press
 
       <aside class="contact__side">
         <div>
-          <p class="eyebrow">Community</p>
           <ul>
             <li><a href={LINKS.telegram} target="_blank" rel="noopener">Telegram →</a></li>
             <li><a href={LINKS.discord} target="_blank" rel="noopener">Discord →</a></li>
@@ -67,7 +66,6 @@ const categories = ['General', 'Partnerships', 'Developers', 'Ecosystem', 'Press
           </ul>
         </div>
         <div>
-          <p class="eyebrow">Looking for answers?</p>
           <ul><li><a href="/support">Support center →</a></li><li><a href="/docs">Documentation →</a></li></ul>
         </div>
       </aside>
@@ -95,7 +93,6 @@ const categories = ['General', 'Partnerships', 'Developers', 'Ecosystem', 'Press
   .topic input:focus-visible + span { outline: 2px solid var(--color-gold); outline-offset: 2px; }
   .warn { font-size: var(--text-small); color: var(--color-warn); }
   .submit { justify-self: start; height: 54px; padding: 0 2rem; border-radius: var(--radius-pill); background: var(--color-strong); color: var(--color-bg); font-weight: 600; transition: background-color var(--duration-base); }
-  .submit:hover { background: var(--color-gold-bright); }
   .submit[disabled] { opacity: 0.6; cursor: default; }
   .status { font-size: var(--text-small); min-height: 1.2em; }
   .status.is-ok { color: var(--color-ok); }
@@ -103,9 +100,12 @@ const categories = ['General', 'Partnerships', 'Developers', 'Ecosystem', 'Press
   .contact__side { display: grid; gap: var(--space-xl); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
   .contact__side ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
   .contact__side a { color: var(--color-strong); font-weight: 500; }
-  .contact__side a:hover { color: var(--color-gold-bright); }
   @media (max-width: 900px) {
     .contact__grid, .row { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .submit:hover { background: var(--color-gold-bright); }
+    .contact__side a:hover { color: var(--color-gold-bright); }
   }
 </style>
 

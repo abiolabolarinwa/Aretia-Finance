@@ -55,7 +55,6 @@ import { FAQS, SUPPORT_CATEGORIES } from '../data/help';
   .support { padding-top: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
   .chip { padding: 0.5rem 1rem; min-height: 40px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast), border-color var(--duration-fast); }
-  .chip:hover { color: var(--color-strong); border-color: var(--color-border-strong); }
   .chip[aria-pressed='true'] { color: var(--color-bg); background: var(--color-strong); border-color: var(--color-strong); }
   .count { text-align: center; font-size: var(--text-small); color: var(--color-faint); margin: var(--space-md) 0; }
   .faqs { max-width: 52rem; margin-inline: auto; border-top: 1px solid var(--color-border); }
@@ -64,7 +63,6 @@ import { FAQS, SUPPORT_CATEGORIES } from '../data/help';
   .faq summary::-webkit-details-marker { display: none; }
   .faq__cat { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
   .faq__q { font-size: 1.05rem; font-weight: 600; color: var(--color-strong); transition: color var(--duration-fast); }
-  .faq summary:hover .faq__q { color: var(--color-gold-bright); }
   .faq__icon { position: relative; width: 14px; height: 14px; justify-self: end; }
   .faq__icon::before, .faq__icon::after { content: ''; position: absolute; left: 0; top: 6px; width: 14px; height: 1.5px; background: var(--color-muted); transition: transform var(--duration-base) var(--ease-out); }
   .faq__icon::after { transform: rotate(90deg); }
@@ -78,6 +76,10 @@ import { FAQS, SUPPORT_CATEGORIES } from '../data/help';
     .faq summary { grid-template-columns: minmax(0, 1fr) 20px; }
     .faq__cat { grid-column: 1 / -1; }
     .faq__a { padding-left: 0; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .chip:hover { color: var(--color-strong); border-color: var(--color-border-strong); }
+    .faq summary:hover .faq__q { color: var(--color-gold-bright); }
   }
 </style>
 

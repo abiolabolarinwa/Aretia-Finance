@@ -23,15 +23,15 @@
   --color-ok: #1b8a4b;
   --color-warn: #b25e09;
 
-  /* Type: Poppins for display (the reference's editorial hierarchy), Inter
-     for everything read at length. */
-  --font-display: 'Poppins', 'Inter Variable', system-ui, sans-serif;
-  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* Type: Geist for display and body, with size-specific tracking (tight
+     at display sizes, neutral at reading sizes), Geist Mono for addresses. */
+  --font-display: 'Geist Variable', -apple-system, system-ui, sans-serif;
+  --font-body: 'Geist Variable', -apple-system, system-ui, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --text-mega: clamp(4rem, 13vw, 13.5rem);
-  --text-display: clamp(2.875rem, 7vw, 6.5rem);
-  --text-heading: clamp(2.25rem, 4.6vw, 4.375rem);
+  --text-mega: clamp(3.5rem, 10vw, 6rem);
+  --text-display: clamp(2.75rem, 6vw, 5.25rem);
+  --text-heading: clamp(2rem, 4vw, 3.5rem);
   --text-subheading: clamp(1.5rem, 2.4vw, 2.25rem);
   --text-lead: clamp(1.0625rem, 1.3vw, 1.25rem);
   --text-body: 1rem;
@@ -41,8 +41,7 @@
   --leading-tight: 1.04;
   --leading-snug: 1.18;
   --leading-body: 1.6;
-  --tracking-display: -0.035em;
-  --tracking-eyebrow: 0.16em;
+  --tracking-display: -0.032em;
 
   /* Space */
   --space-2xs: 0.25rem;
@@ -62,11 +61,15 @@
   --radius-xl: 32px;
   --radius-pill: 999px;
 
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --duration-fast: 180ms;
-  --duration-base: 320ms;
-  --duration-slow: 700ms;
+  /* Motion: strong ease-out, UI answers inside 300ms; only scroll reveals
+     take longer. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --duration-press: 120ms;
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 280ms;
+  --duration-reveal: 700ms;
 
   /* Soft, layered, Apple-style elevation: a wide ambient shadow plus a hairline. */
   --shadow-float: 0 30px 80px -24px rgba(0, 0, 0, 0.16), 0 8px 24px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);

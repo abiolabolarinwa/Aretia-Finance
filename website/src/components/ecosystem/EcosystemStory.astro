@@ -33,7 +33,6 @@ const chains = [
 <section class="story" id="ecosystem" aria-labelledby="story-title">
   <div class="container">
     <header class="story__head">
-      <p class="eyebrow" data-reveal>The Aretia ecosystem</p>
       <h2 id="story-title" class="heading" data-split>One wallet.<br />An entire financial ecosystem.</h2>
     </header>
 
@@ -43,8 +42,7 @@ const chains = [
           steps.map((s) => (
             <li class="story__step" data-step={s.n}>
               <div class="story__step-inner">
-                <span class="story__num tnum">{String(s.n).padStart(2, '0')}</span>
-                <p class="eyebrow">{s.eyebrow}</p>
+                <p class="label">{s.eyebrow}</p>
                 <h3 class="subheading">{s.title}</h3>
                 <p class="story__body">{s.body}</p>
                 {s.status && <StatusBadge status={s.status} />}
@@ -129,7 +127,6 @@ const chains = [
   .story__step:first-child { min-height: 60vh; align-items: flex-start; }
   .story__step-inner { display: grid; gap: var(--space-sm); justify-items: start; max-width: 30rem; opacity: 0.25; transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out); transform: translateY(10px); }
   .story__step.is-active .story__step-inner { opacity: 1; transform: none; }
-  .story__num { font-family: var(--font-display); font-size: var(--text-small); color: var(--color-gold); }
   .story__body { color: var(--color-muted); font-size: var(--text-lead); line-height: 1.55; }
 
   .story__stage-wrap { position: relative; }

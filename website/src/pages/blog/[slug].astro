@@ -41,7 +41,6 @@ const date = post.data.date.toLocaleDateString('en-US', { year: 'numeric', month
     next && next.id !== post.id && (
       <aside class="section next" aria-label="Next article">
         <div class="container next__inner" data-reveal>
-          <p class="eyebrow">Read next</p>
           <a href={`/blog/${next.id}`} class="next__title">{next.data.title}</a>
           <Button href="/blog" variant="secondary">All articles</Button>
         </div>
@@ -69,5 +68,7 @@ const date = post.data.date.toLocaleDateString('en-US', { year: 'numeric', month
   .next { border-top: 1px solid var(--color-border); }
   .next__inner { display: grid; gap: var(--space-md); justify-items: start; max-width: 50rem; }
   .next__title { font-family: var(--font-display); font-size: var(--text-subheading); font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); transition: color var(--duration-base); }
-  .next__title:hover { color: var(--color-gold-bright); }
+  @media (hover: hover) and (pointer: fine) {
+    .next__title:hover { color: var(--color-gold-bright); }
+  }
 </style>

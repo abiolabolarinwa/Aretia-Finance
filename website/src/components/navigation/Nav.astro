@@ -96,7 +96,6 @@ const { walletConnect = false } = Astro.props;
   .nav__groups { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0; }
   .nav__group { position: relative; }
   .nav__trigger { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 500; color: var(--color-muted); transition: color var(--duration-fast), background-color var(--duration-fast); }
-  .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-strong); background: rgba(0, 0, 0, 0.05); }
   .nav__trigger svg { transition: transform var(--duration-base) var(--ease-out); }
   .nav__trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
   .nav__panel { position: absolute; top: calc(100% + 10px); left: -0.5rem; min-width: 300px; padding: 0.5rem; background: rgba(255, 255, 255, 0.96); backdrop-filter: saturate(180%) blur(20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-float); transform-origin: top left; }
@@ -104,12 +103,10 @@ const { walletConnect = false } = Astro.props;
   @keyframes panel-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
   .nav__panel ul { list-style: none; margin: 0; padding: 0; }
   .nav__item { display: flex; flex-direction: column; gap: 2px; padding: 0.7rem 0.85rem; border-radius: var(--radius-md); transition: background-color var(--duration-fast); }
-  .nav__item:hover { background: rgba(0, 0, 0, 0.05); }
   .nav__item-label { font-size: 0.9rem; font-weight: 600; color: var(--color-strong); }
   .nav__item-desc { font-size: 0.8rem; color: var(--color-faint); }
   .nav__actions { display: flex; align-items: center; gap: 0.9rem; flex: none; }
   .nav__buy { font-size: 0.875rem; font-weight: 600; color: var(--color-gold); padding: 0.5rem; transition: color var(--duration-fast); }
-  .nav__buy:hover { color: var(--color-gold-bright); }
   .nav__toggle { display: none; width: 44px; height: 44px; margin-left: auto; position: relative; }
   .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-strong); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
   .nav__toggle span:first-child { top: 18px; }
@@ -145,6 +142,11 @@ const { walletConnect = false } = Astro.props;
     .nav__menu, .nav__actions { display: none; }
     .nav__toggle { display: block; }
     .nav__connect { margin-left: auto; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .nav__trigger:hover, .nav__trigger[aria-expanded='true'] { color: var(--color-strong); background: rgba(0, 0, 0, 0.05); }
+    .nav__item:hover { background: rgba(0, 0, 0, 0.05); }
+    .nav__buy:hover { color: var(--color-gold-bright); }
   }
 </style>
 

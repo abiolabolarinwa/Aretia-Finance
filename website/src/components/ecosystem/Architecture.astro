@@ -92,16 +92,18 @@ const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
   .arch__node--act { color: var(--color-gold-bright); border-color: rgba(160, 122, 44, 0.5); background: var(--color-gold-soft); }
   .arch__node--chain { background: var(--color-bg-alt); }
   .arch__node--climate { color: #86efac; border-color: rgba(27, 138, 75, 0.4); background: rgba(27, 138, 75, 0.08); }
-  .arch__node:hover, .arch__node:focus-visible, .arch__node.is-active { transform: scale(1.08); border-color: var(--color-gold); }
   .arch.has-focus .arch__node:not(.is-active):not(.is-linked) { opacity: 0.4; }
   .arch__detail { display: grid; gap: 6px; padding: 20px 22px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); min-height: 118px; }
-  .arch__detail-status { font-size: var(--text-micro); font-weight: 600; letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--color-gold); }
+  .arch__detail-status { font-size: var(--text-micro); font-weight: 600; color: var(--color-gold); }
   .arch__detail b { font-family: var(--font-display); font-size: 1.25rem; color: var(--color-strong); letter-spacing: -0.02em; }
   .arch__detail p { color: var(--color-muted); font-size: var(--text-small); }
   @media (max-width: 720px) {
     .arch__map { aspect-ratio: 100 / 110; }
     .arch__node { font-size: 11px; padding: 7px 10px; }
     .arch__node--core { font-size: 12px; padding: 9px 13px; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .arch__node:hover, .arch__node:focus-visible, .arch__node.is-active { transform: scale(1.08); border-color: var(--color-gold); }
   }
 </style>
 

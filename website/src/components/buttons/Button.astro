@@ -13,7 +13,6 @@ const { href, variant = 'primary', size = 'md', arrow = false, external = false,
 <a
   href={href}
   class:list={['btn', `btn--${variant}`, `btn--${size}`, className]}
-  data-magnetic="0.2"
   {...external ? { target: '_blank', rel: 'noopener' } : {}}
 >
   <span class="btn__label"><slot /></span>
@@ -28,30 +27,24 @@ const { href, variant = 'primary', size = 'md', arrow = false, external = false,
 
 <style>
   .btn {
-    position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
-    border-radius: var(--radius-pill); font-weight: 600; white-space: nowrap; overflow: hidden;
-    border: 1px solid transparent; isolation: isolate;
-    transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out);
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    border-radius: var(--radius-pill); font-weight: 500; letter-spacing: -0.01em; white-space: nowrap;
+    border: 1px solid transparent;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out), transform var(--duration-press) var(--ease-out);
   }
-  .btn--md { height: 44px; padding: 0 1.25rem; font-size: 0.875rem; }
-  .btn--lg { height: 54px; padding: 0 1.6rem; font-size: 0.9375rem; }
-  /* Fill that wipes up from below on hover */
-  .btn::before {
-    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
-    transform: translateY(101%); transition: transform var(--duration-slow) var(--ease-out);
-  }
-  .btn:hover::before { transform: translateY(0); }
-  .btn--primary { background: var(--color-strong); color: var(--color-bg); }
-  .btn--primary::before { background: var(--color-gold-bright); }
+  .btn--md { height: 44px; padding: 0 1.25rem; font-size: 0.9375rem; }
+  .btn--lg { height: 52px; padding: 0 1.5rem; font-size: 1.0625rem; }
+  .btn--primary { background: var(--color-indigo-bright); color: #fff; }
   .btn--secondary { border-color: var(--color-border-strong); color: var(--color-strong); }
-  .btn--secondary::before { background: var(--color-strong); }
-  .btn--secondary:hover { color: var(--color-bg); border-color: var(--color-strong); }
   .btn--gold { border-color: rgba(160, 122, 44, 0.45); color: var(--color-gold-bright); }
-  .btn--gold::before { background: var(--color-gold); }
-  .btn--gold:hover { color: var(--color-bg); }
-  .btn--ghost { color: var(--color-muted); padding-inline: 0.5rem; }
-  .btn--ghost::before { display: none; }
-  .btn--ghost:hover { color: var(--color-strong); }
-  .btn__arrow { display: inline-flex; transition: transform var(--duration-base) var(--ease-out); }
-  .btn:hover .btn__arrow { transform: translateX(3px); }
+  .btn--ghost { color: var(--color-indigo-bright); padding-inline: 0.25rem; }
+  .btn__arrow { display: inline-flex; transition: transform var(--duration-fast) var(--ease-out); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn--primary:hover { background: var(--color-indigo); }
+    .btn--secondary:hover { border-color: var(--color-strong); background: rgba(0, 0, 0, 0.03); }
+    .btn--gold:hover { background: var(--color-gold-soft); }
+    .btn--ghost:hover .btn__label { text-decoration: underline; }
+    .btn:hover .btn__arrow { transform: translateX(2px); }
+  }
 </style>

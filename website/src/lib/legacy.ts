@@ -65,15 +65,39 @@ function transformCss(css: string): string {
       return;
     }
     rule.selectors = kept.map(scopeSelector);
+    // Small caps-and-tracking labels read as template eyebrows: set them in sentence case.
+    const upper = rule.nodes.some((n) => n.type === 'decl' && n.prop === 'text-transform' && n.value === 'uppercase');
+    if (upper) {
+      rule.walkDecls((decl) => {
+        if (decl.prop === 'text-transform') decl.remove();
+        else if (decl.prop === 'letter-spacing' && parseFloat(decl.value) > 0) decl.value = '-0.005em';
+      });
+    }
+    // UI transitions answer inside 300ms with a strong ease-out.
+    rule.walkDecls(/^transition(-duration)?$/, (decl) => {
+      decl.value = decl.value
+        .replace(/(\d+)ms/g, (m, n) => (Number(n) > 300 ? '240ms' : m))
+        .replace(/\bease(-out|-in-out)?\b(?!-)/g, 'var(--ease-out)');
+    });
     rule.walkDecls(/^background(-color)?$/, (decl) => {
       decl.value = decl.value.replace(/#fff(fff)?\b|\bwhite\b|#faf9f5|#f2f0ea|#efeff3|#e7e7ec/gi, (m) => LIGHT_BACKGROUNDS[m.toLowerCase()] ?? m);
     });
+  });
+  // Hover effects only on devices with a real pointer, so they never stick after a tap.
+  root.walkRules((rule: Rule) => {
+    const parent = rule.parent;
+    if (!rule.selector.includes(':hover') || (parent && parent.type === 'atrule')) return;
+    const media = postcss.atRule({ name: 'media', params: '(hover: hover) and (pointer: fine)' });
+    rule.replaceWith(media);
+    media.append(rule);
   });
   // The page's own :root variables now live on .legacy; the site palette comes last so it wins.
   return `${root.toString()}
 .legacy { ${THEME_VARS} }
 .legacy h1, .legacy h2, .legacy h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; }
-.legacy ::selection { background: var(--color-gold); color: var(--color-bg); }
+.legacy ::selection { background: rgba(61, 43, 214, 0.16); color: var(--color-strong); }
+.legacy :focus-visible { outline: 2px solid var(--color-indigo-bright); outline-offset: 3px; }
+.legacy button:active, .legacy .btn:active { transform: scale(0.97); }
 /* Keep the pastel aurora hero as a soft wash, not a loud gradient. */
 .legacy .dhero, .legacy .mp-hero { background: transparent; padding-top: calc(var(--nav-height) + 64px); }
 .legacy .dhero-ribbon, .legacy .mp-hero-ribbon { opacity: 0.22; filter: saturate(60%) blur(90px); }
@@ -105,6 +129,11 @@ function endOfTopNav(html: string): number {
   throw new Error('unbalanced top nav');
 }
 
+/** Removes the label-above-the-heading elements; the headings carry themselves. */
+function stripEyebrows(html: string): string {
+  return html.replace(/<(p|span|div)\s+class="(?:[\w-]*-)?(?:eyebrow|kicker)"[^>]*>(?:(?!<\1\b)[\s\S])*?<\/\1>\s*/g, '');
+}
+
 export function loadLegacyPage(name: string): LegacyPage {
   const html = SOURCES[`../../legacy/pages/${name}.html`];
   if (!html) throw new Error(`No legacy page source named "${name}"`);
@@ -125,5 +154,5 @@ export function loadLegacyPage(name: string): LegacyPage {
     .replace(/<script[^>]*src="\/assets\/footer-bars\.js"[^>]*><\/script>/g, '')
     .replace(/<script[^>]*src="\/_vercel\/insights\/script\.js"[^>]*><\/script>/g, '');
 
-  return { title, description, css: transformCss(style), content, scripts };
+  return { title, description, css: transformCss(style), content: stripEyebrows(content), scripts };
 }

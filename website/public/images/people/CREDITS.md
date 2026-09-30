@@ -17,3 +17,4 @@ All photos from Unsplash under the Unsplash License (free for commercial use, no
 | woman-headscarf.webp | Lisa Marie Theck | https://unsplash.com/photos/0EyB7GmdMHU |
 | couple-laughing.webp | Vince Fleming | https://unsplash.com/photos/GvIZU9SvrKg |
 | couple-selfie.webp | Vitaly Gariev | https://unsplash.com/photos/eR7o3WVHgpQ |
+| hero-wide.webp, hero-wide-1200.webp | Vitaly Gariev | https://unsplash.com/photos/eR7o3WVHgpQ |

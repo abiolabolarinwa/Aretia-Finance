@@ -21,13 +21,7 @@ const steps: Step[] = [
   { n: 8, eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 3.5% fee withheld on-chain, which the treasury splits: 2% to the Climate Treasury, 1% to liquidity, 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live' },
 ];
 
-const chains = [
-  { name: 'Solana', angle: -90 },
-  { name: 'Ethereum', angle: -18 },
-  { name: 'Base', angle: 54 },
-  { name: 'BNB', angle: 126 },
-  { name: 'Polygon', angle: 198 },
-];
+const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 ---
 
 <section class="story" id="ecosystem" aria-labelledby="story-title">
@@ -53,67 +47,74 @@ const chains = [
       </ol>
 
       <div class="story__stage-wrap">
-        <div class="stage" data-stage data-active="1" aria-hidden="true">
-          <div class="stage__progress"><span data-progress></span></div>
+        <div class="device" data-stage aria-hidden="true">
+          <div class="device__bar"><span>Aretia Wallet</span><span class="device__net" data-net>Solana</span></div>
 
-          <svg class="stage__lines" viewBox="-300 -300 600 600">
-            <circle class="stage__ring" r="210" />
-            {
-              chains.map((c) => {
-                const x = Math.cos((c.angle * Math.PI) / 180) * 210;
-                const y = Math.sin((c.angle * Math.PI) / 180) * 210;
-                return <line class="stage__link" data-from="2" x1="0" y1="0" x2={x.toFixed(1)} y2={y.toFixed(1)} pathLength="1" />;
-              })
-            }
-            <path class="stage__route" data-from="7" d="M 0 -210 C 180 -220 250 -140 199.7 -64.9" pathLength="1" />
-            <circle class="stage__particle" data-from="7" r="5" />
-            <circle class="stage__fee-ring" data-from="8" r="262" pathLength="1" />
-          </svg>
-
-          {
-            chains.map((c) => {
-              const x = 50 + Math.cos((c.angle * Math.PI) / 180) * 35;
-              const y = 50 + Math.sin((c.angle * Math.PI) / 180) * 35;
-              return (
-                <span class="stage__chain" data-from="2" style={`left:${x}%;top:${y}%`}>
-                  {c.name}
-                </span>
-              );
-            })
-          }
-
-          <div class="stage__core" data-from="1">
-            <div class="stage__shield" data-from="5"></div>
-            <div class="stage__card">
-              <div class="stage__card-row"><span class="stage__coin"></span><span><b>Aretia Wallet</b><small>Main account</small></span></div>
-              <div class="stage__card-total tnum">12,480 <em>ACT</em></div>
-              <div class="stage__card-status" data-from="6"><span>✓</span> 0.05 ETH sent</div>
-            </div>
+          <div class="screen is-on" data-screen="1">
+            <p class="screen__kicker">Main account</p>
+            <p class="screen__total tnum">12,480.00 <em>ACT</em></p>
+            <p class="screen__sub">Demo balance</p>
+            <div class="screen__actions"><span>Send</span><span>Receive</span><span>Swap</span></div>
           </div>
 
-          <div class="stage__bubble stage__bubble--intent" data-from="3" data-to="4">
-            <small>Intent</small>
-            <span class="mono">send 0.05 ETH to vitalik.eth</span>
+          <div class="screen" data-screen="2">
+            <p class="screen__kicker">Networks</p>
+            <ul class="rows">{networks.map((n) => <li><span class="dot" />{n}<span>Connected</span></li>)}</ul>
           </div>
-          <div class="stage__bubble stage__bubble--pay" data-from="4" data-to="5">
-            <small>Pay · ENS resolved</small>
-            <span class="mono">vitalik.eth → 0xd8dA…6045</span>
+
+          <div class="screen" data-screen="3">
+            <p class="screen__kicker">Intent</p>
+            <p class="field mono">send 0.05 ETH to vitalik.eth<span class="caret" /></p>
+            <dl class="pairs">
+              <div><dt>Action</dt><dd>Send</dd></div>
+              <div><dt>Amount</dt><dd class="tnum">0.05 ETH</dd></div>
+              <div><dt>To</dt><dd>vitalik.eth</dd></div>
+            </dl>
           </div>
-          <div class="stage__bubble stage__bubble--shield" data-from="5" data-to="6">
-            <small>Shield</small>
-            <span>✓ Wallet, not a contract</span>
-            <span>✓ Has on-chain activity</span>
+
+          <div class="screen" data-screen="4">
+            <p class="screen__kicker">Pay</p>
+            <p class="screen__to">vitalik.eth</p>
+            <p class="screen__addr mono">0xd8dA6BF2…A96045</p>
+            <p class="screen__sub">Resolved through ENS and shown before you sign.</p>
           </div>
-          <div class="stage__bubble stage__bubble--universal" data-from="7" data-to="8">
-            <small>Universal · testnet</small>
-            <span>ACT: Solana → Ethereum</span>
+
+          <div class="screen" data-screen="5">
+            <p class="screen__kicker">Shield</p>
+            <ul class="checks">
+              <li><span class="tick" />Wallet, not a contract</li>
+              <li><span class="tick" />Has on-chain activity</li>
+              <li><span class="tick" />No token approval requested</li>
+            </ul>
           </div>
-          <div class="stage__fee" data-from="8">
-            <span><b>2%</b> Climate Treasury</span>
-            <span><b>1%</b> Liquidity</span>
-            <span><b>0.5%</b> Operations</span>
+
+          <div class="screen" data-screen="6">
+            <p class="screen__kicker">Review</p>
+            <dl class="pairs">
+              <div><dt>Send</dt><dd class="tnum">0.05 ETH</dd></div>
+              <div><dt>To</dt><dd>vitalik.eth</dd></div>
+              <div><dt>Network</dt><dd>Ethereum</dd></div>
+            </dl>
+            <span class="screen__button">Sign in wallet</span>
+          </div>
+
+          <div class="screen" data-screen="7">
+            <p class="screen__kicker">Universal · testnet</p>
+            <div class="route"><span>Solana</span><i /><span>Ethereum</span></div>
+            <p class="screen__sub">ACT over Wormhole Native Token Transfers, delivered automatically on the other side.</p>
+          </div>
+
+          <div class="screen" data-screen="8">
+            <p class="screen__kicker">Every ACT transfer</p>
+            <p class="screen__total tnum">3.5% <em>fee</em></p>
+            <ul class="rows rows--fee">
+              <li>Climate Treasury<span class="tnum">2%</span></li>
+              <li>Liquidity<span class="tnum">1%</span></li>
+              <li>Operations<span class="tnum">0.5%</span></li>
+            </ul>
           </div>
         </div>
+        <ol class="pager" aria-hidden="true">{steps.map((s) => <li data-dot={s.n} class:list={{ 'is-on': s.n === 1 }} />)}</ol>
       </div>
     </div>
   </div>
@@ -125,86 +126,91 @@ const chains = [
   .story__steps { list-style: none; margin: 0; padding: 0; }
   .story__step { min-height: 78vh; display: flex; align-items: center; }
   .story__step:first-child { min-height: 60vh; align-items: flex-start; }
-  .story__step-inner { display: grid; gap: var(--space-sm); justify-items: start; max-width: 30rem; opacity: 0.25; transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out); transform: translateY(10px); }
+  .story__step-inner { display: grid; gap: var(--space-sm); justify-items: start; max-width: 30rem; opacity: 0.3; transform: translateY(6px); transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out); }
   .story__step.is-active .story__step-inner { opacity: 1; transform: none; }
   .story__body { color: var(--color-muted); font-size: var(--text-lead); line-height: 1.55; }
 
   .story__stage-wrap { position: relative; }
-  .stage { position: sticky; top: calc(50vh - min(30vw, 300px)); width: 100%; max-width: 600px; aspect-ratio: 1; margin-inline: auto; }
-  .stage__progress { position: absolute; left: 0; right: 0; bottom: -28px; height: 1px; background: var(--color-border); }
-  .stage__progress span { display: block; height: 100%; width: 100%; background: var(--color-gold); transform-origin: left; transform: scaleX(0); }
-  .stage__lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .stage__ring { fill: none; stroke: var(--color-border); stroke-dasharray: 2 6; }
-  .stage__link { stroke: rgba(0, 0, 0, 0.18); stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.2s var(--ease-out); }
-  .stage__route { fill: none; stroke: var(--color-brand-bright); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.4s var(--ease-out); }
-  .stage__particle { fill: var(--color-gold-bright); opacity: 0; offset-path: path('M 0 -210 C 180 -220 250 -140 199.7 -64.9'); }
-  .stage__fee-ring { fill: none; stroke: var(--color-gold); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.6s var(--ease-out); transform: rotate(-90deg); }
-  .stage__link.is-on, .stage__route.is-on, .stage__fee-ring.is-on { stroke-dashoffset: 0; }
-  .stage__particle.is-on { opacity: 1; animation: travel 2.4s var(--ease-in-out) infinite; }
-  @keyframes travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+  .device {
+    position: sticky; top: calc(50vh - 250px); width: min(100%, 360px); height: 500px; margin-inline: auto;
+    border-radius: 44px; background: var(--color-surface); border: 1px solid var(--color-border-strong);
+    box-shadow: 0 40px 80px -40px rgba(7, 42, 32, 0.28), 0 0 0 10px var(--color-bg-alt);
+    overflow: hidden;
+  }
+  .device__bar { display: flex; justify-content: space-between; align-items: center; padding: 26px 28px 0; font-size: 0.8125rem; font-weight: 600; color: var(--color-strong); }
+  .device__net { font-weight: 500; color: var(--color-muted); }
+  .screen {
+    position: absolute; inset: 72px 28px 28px; display: flex; flex-direction: column; gap: 14px;
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
+  }
+  .screen.is-on { opacity: 1; transform: none; }
+  .screen__kicker { font-size: 0.8125rem; color: var(--color-muted); }
+  .screen__total { font-size: 2.5rem; font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: var(--color-strong); }
+  .screen__total em { font-style: normal; font-size: 1rem; font-weight: 500; letter-spacing: 0; color: var(--color-muted); }
+  .screen__sub { font-size: 0.875rem; line-height: 1.5; color: var(--color-muted); }
+  .screen__actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: auto; }
+  .screen__actions span, .screen__button { display: grid; place-items: center; height: 44px; border-radius: 14px; font-size: 0.875rem; font-weight: 600; background: var(--color-bg-alt); color: var(--color-strong); }
+  .screen__actions span:first-child, .screen__button { background: var(--color-brand); color: #fff; }
+  .screen__button { margin-top: auto; border-radius: var(--radius-pill); }
+  .screen__to { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
+  .screen__addr { font-size: 0.875rem; color: var(--color-text); padding: 12px 14px; border-radius: 14px; background: var(--color-bg-alt); }
 
-  .stage__chain, .stage__bubble, .stage__fee, .stage__core, .stage__shield, .stage__card-status { opacity: 0; transition: opacity 600ms var(--ease-out), transform 700ms var(--ease-out); }
-  .stage__chain { position: absolute; translate: -50% -50%; padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--color-surface-2); border: 1px solid var(--color-border-strong); color: var(--color-text); transform: scale(0.8); }
-  .stage__core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; transform: scale(0.9); }
-  .stage__card { position: relative; width: 210px; padding: 16px; border-radius: 22px; background: var(--color-surface); box-shadow: var(--shadow-float); display: grid; gap: 10px; }
-  .stage__card-row { display: flex; align-items: center; gap: 10px; }
-  .stage__card-row span:last-child { display: grid; }
-  .stage__card-row b { font-size: 13px; color: var(--color-strong); }
-  .stage__card-row small { font-size: 11px; color: var(--color-faint); }
-  .stage__coin { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--color-gold-bright), var(--color-gold) 60%, #8a6d34); }
-  .stage__card-total { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--color-strong); letter-spacing: -0.03em; }
-  .stage__card-total em { font-style: normal; font-size: 13px; color: var(--color-gold); }
-  .stage__card-status { font-size: 12px; font-weight: 600; color: var(--color-ok); transform: translateY(6px); }
-  .stage__shield { position: absolute; inset: -34px; border-radius: 40px; border: 1.5px solid rgba(27, 138, 75, 0.5); box-shadow: 0 0 60px -10px rgba(27, 138, 75, 0.35), inset 0 0 40px -20px rgba(27, 138, 75, 0.3); transform: scale(1.12); }
-  .stage__bubble { position: absolute; display: grid; gap: 3px; padding: 11px 14px; border-radius: 16px; font-size: 13px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--shadow-soft); border: 1px solid var(--color-border-strong); color: var(--color-text); backdrop-filter: blur(8px); white-space: nowrap; transform: translateY(12px); }
-  .stage__bubble small { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
-  .stage__bubble--intent { left: 50%; top: 14%; translate: -50% 0; }
-  .stage__bubble--pay { left: 50%; top: 14%; translate: -50% 0; }
-  .stage__bubble--shield { left: 50%; bottom: 10%; translate: -50% 0; }
-  .stage__bubble--shield small { color: var(--color-ok); }
-  .stage__bubble--universal { right: 0; top: 26%; }
-  .stage__bubble--universal small { color: var(--color-brand-bright); }
-  .stage__fee { position: absolute; left: 50%; bottom: 4%; translate: -50% 0; display: flex; gap: 8px; transform: translateY(12px); }
-  .stage__fee span { font-size: 12px; padding: 8px 12px; border-radius: 999px; background: var(--color-gold-soft); border: 1px solid rgba(160, 122, 44, 0.35); color: var(--color-text); white-space: nowrap; }
-  .stage__fee b { color: var(--color-gold-bright); }
-  .is-on { opacity: 1; transform: none; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
+  .rows li:last-child { border-bottom: 0; }
+  .rows li > span:last-child { margin-left: auto; font-size: 0.8125rem; color: var(--color-muted); }
+  .rows--fee li > span:last-child { font-size: 0.9375rem; font-weight: 600; color: var(--color-strong); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); }
+  .field { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border-radius: 14px; background: var(--color-bg-alt); font-size: 0.875rem; color: var(--color-strong); }
+  .caret { width: 1.5px; height: 18px; margin-left: 2px; background: var(--color-brand-bright); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .pairs { margin: 0; display: grid; }
+  .pairs div { display: flex; justify-content: space-between; gap: 1rem; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; }
+  .pairs dt { color: var(--color-muted); }
+  .pairs dd { margin: 0; font-weight: 600; color: var(--color-strong); }
+  .checks { list-style: none; margin: 0; padding: 0; }
+  .checks li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
+  .tick { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--color-ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 8.5 2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat; }
+  .route { display: flex; align-items: center; gap: 10px; padding: 18px 0; font-size: 0.9375rem; font-weight: 600; color: var(--color-strong); }
+  .route i { flex: 1; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); }
 
-  /* Mobile: the stage stays pinned at the top while steps scroll beneath it. */
+  .pager { list-style: none; display: flex; justify-content: center; gap: 6px; margin: 22px 0 0; padding: 0; position: sticky; top: calc(50vh + 272px); }
+  .pager li { width: 6px; height: 6px; border-radius: 3px; background: var(--color-border-strong); transition: width var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+  .pager li.is-on { width: 18px; background: var(--color-brand); }
+
+  /* Phones: the device pins under the nav while the steps scroll beneath it. */
   @media (max-width: 1023px) {
     .story__grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
-    .story__stage-wrap { order: -1; position: sticky; top: var(--nav-height); z-index: 2; height: 46vh; margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter); background: linear-gradient(180deg, var(--color-bg) 82%, transparent); }
-    .stage { position: relative; top: 0; height: 100%; width: auto; aspect-ratio: 1; }
-    .stage__progress { bottom: 4px; }
-    .story__step, .story__step:first-child { min-height: 64vh; align-items: center; }
-    .stage__card { width: 150px; padding: 11px; gap: 6px; border-radius: 16px; }
-    .stage__card-total { font-size: 18px; }
-    .stage__card-row b { font-size: 11px; }
-    .stage__chain { font-size: 10px; padding: 4px 8px; }
-    .stage__bubble { font-size: 11px; padding: 8px 10px; border-radius: 12px; }
-    .stage__fee span { font-size: 10px; padding: 5px 8px; }
-    .stage__shield { inset: -18px; border-radius: 26px; }
+    .story__stage-wrap { order: -1; position: sticky; top: var(--nav-height); z-index: 2; padding: 12px 0 8px; background: linear-gradient(180deg, var(--color-bg) 88%, transparent); }
+    .device { position: relative; top: 0; height: 300px; width: min(100%, 320px); border-radius: 32px; box-shadow: 0 24px 48px -30px rgba(7, 42, 32, 0.3), 0 0 0 6px var(--color-bg-alt); }
+    .device__bar { padding: 18px 20px 0; }
+    .screen { inset: 50px 20px 18px; gap: 8px; }
+    .screen__total { font-size: 2rem; }
+    .screen__to { font-size: 1.4rem; }
+    .rows li, .pairs div, .checks li { padding: 7px 0; font-size: 0.875rem; }
+    .pager { position: static; margin-top: 10px; }
+    .story__step, .story__step:first-child { min-height: 60vh; align-items: center; }
   }
-  @media (max-width: 420px) {
-    .stage__bubble--universal { right: -4px; top: 22%; }
-    .stage__fee { gap: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    .screen, .story__step-inner { transform: none; }
+    .caret { animation: none; }
   }
 </style>
 
 <script>
-  import { gsap, reducedMotion } from '../../scripts/motion';
-
   const stage = document.querySelector<HTMLElement>('[data-stage]');
   const steps = [...document.querySelectorAll<HTMLElement>('.story__step')];
   if (stage && steps.length) {
-    const layers = [...stage.querySelectorAll<SVGElement | HTMLElement>('[data-from]')];
+    const screens = [...stage.querySelectorAll<HTMLElement>('[data-screen]')];
+    const dots = [...document.querySelectorAll<HTMLElement>('[data-dot]')];
+    const net = stage.querySelector<HTMLElement>('[data-net]');
+    const NET: Record<number, string> = { 1: 'Solana', 2: 'All networks', 3: 'Ethereum', 4: 'Ethereum', 5: 'Ethereum', 6: 'Ethereum', 7: 'Testnet', 8: 'Solana' };
     const setActive = (n: number) => {
-      stage.dataset.active = String(n);
       steps.forEach((s) => s.classList.toggle('is-active', Number(s.dataset.step) === n));
-      layers.forEach((el) => {
-        const from = Number(el.dataset.from);
-        const to = el.dataset.to ? Number(el.dataset.to) : Infinity;
-        el.classList.toggle('is-on', n >= from && n < to);
-      });
+      screens.forEach((el) => el.classList.toggle('is-on', Number(el.dataset.screen) === n));
+      dots.forEach((el) => el.classList.toggle('is-on', Number(el.dataset.dot) === n));
+      if (net) net.textContent = NET[n] ?? '';
     };
     setActive(1);
 
@@ -214,17 +220,10 @@ const chains = [
           if (e.isIntersecting) setActive(Number((e.target as HTMLElement).dataset.step));
         });
       },
-      // On narrow screens the pinned stage covers the top ~46% of the
-      // viewport, so steps activate in the visible band below it.
-      { rootMargin: window.matchMedia('(max-width: 1023px)').matches ? '-62% 0px -26% 0px' : '-45% 0px -45% 0px' },
+      // On narrow screens the pinned device covers the top of the viewport,
+      // so steps activate in the visible band below it.
+      { rootMargin: window.matchMedia('(max-width: 1023px)').matches ? '-60% 0px -25% 0px' : '-45% 0px -45% 0px' },
     );
     steps.forEach((s) => io.observe(s));
-
-    if (!reducedMotion()) {
-      gsap.to('[data-progress]', {
-        scaleX: 1, ease: 'none',
-        scrollTrigger: { trigger: '.story__steps', start: 'top center', end: 'bottom center', scrub: true },
-      });
-    }
   }
 </script>

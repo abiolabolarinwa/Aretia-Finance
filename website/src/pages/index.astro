@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import HomeHero from '../components/hero/HomeHero.astro';
 import EcosystemStory from '../components/ecosystem/EcosystemStory.astro';
+import ExploreTable from '../components/explore/ExploreTable.astro';
 import ProductSection from '../components/product/ProductSection.astro';
 import UniversalVisual from '../components/universal/UniversalVisual.astro';
 import ShieldVisual from '../components/shield/ShieldVisual.astro';
@@ -20,6 +21,7 @@ const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
   description="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects."
 >
   <HomeHero />
+  <ExploreTable />
   <EcosystemStory />
 
   <ProductSection

@@ -1,0 +1,238 @@
+---
+import StatusBadge from '../ui/StatusBadge.astro';
+import { PRODUCTS, ACT, NETWORKS, STATUS_LABEL, type Status } from '../../data/site';
+
+interface Row {
+  name: string;
+  role: string;
+  summary: string;
+  where: string;
+  status: Status;
+  href: string;
+  glyph: string;
+}
+
+const WHERE: Record<string, string> = {
+  wallet: `${NETWORKS.length} networks`,
+  universal: 'Solana ↔ Ethereum',
+  pay: 'ENS and .sol names',
+  shield: 'Inside the wallet',
+  intent: 'Inside the wallet',
+};
+const HREF: Record<string, string> = { wallet: '/wallet', universal: '#universal', pay: '#pay', shield: '#shield', intent: '#intent' };
+
+const rows: Row[] = [
+  ...PRODUCTS.map((p) => ({
+    name: p.name,
+    role: p.role,
+    summary: p.summary,
+    where: WHERE[p.slug],
+    status: p.status,
+    href: HREF[p.slug],
+    glyph: p.name.replace('Aretia ', '').charAt(0),
+  })),
+  {
+    name: ACT.ticker,
+    role: 'Ecosystem token',
+    summary: `A fixed-supply ${ACT.standard} mint on Solana; every transfer funds the Climate Treasury.`,
+    where: 'Solana mainnet',
+    status: 'live' as Status,
+    href: '/token',
+    glyph: 'A',
+  },
+];
+
+const filters = (['live', 'built', 'testnet', 'in-development'] as Status[]).filter((s) => rows.some((r) => r.status === s));
+const treasury = ACT.transferFee.split.find((s) => s.label === 'Climate Treasury')!.percent;
+const stats = [
+  { label: 'ACT supply', value: ACT.totalSupply.toLocaleString('en-US') },
+  { label: 'Transfer fee', value: `${ACT.transferFee.totalPercent}%` },
+  { label: 'To Climate Treasury', value: `${treasury}%` },
+  { label: 'Mint authority', value: 'Revoked' },
+  { label: 'Networks', value: String(NETWORKS.length) },
+];
+const networks = [
+  { name: 'Solana', note: 'Wallet · ACT · bridge (testnet)' },
+  { name: 'Ethereum', note: 'Wallet · bridge (testnet)' },
+  { name: 'Base', note: 'Wallet' },
+  { name: 'BNB Smart Chain', note: 'Wallet' },
+  { name: 'Polygon', note: 'Wallet' },
+];
+---
+
+<section class="explore section" id="explore" aria-labelledby="explore-title">
+  <div class="container">
+    <header class="explore__head" data-reveal>
+      <h2 id="explore-title" class="explore__title">Explore Aretia</h2>
+      <div class="explore__filters" role="group" aria-label="Filter by status" data-explore-filters>
+        <button type="button" class="pill is-active" data-filter="all" aria-pressed="true">All</button>
+        {filters.map((s) => <button type="button" class="pill" data-filter={s} aria-pressed="false">{STATUS_LABEL[s]}</button>)}
+      </div>
+    </header>
+
+    <dl class="ticker" data-reveal>
+      {stats.map((s) => (
+        <div class="ticker__item">
+          <dt>{s.label}</dt>
+          <dd class="tnum">{s.value}</dd>
+        </div>
+      ))}
+      <a class="ticker__link" href="/token">ACT details</a>
+    </dl>
+
+    <div class="explore__grid">
+      <div class="box box--table" data-reveal>
+        <div class="box__head">
+          <h3>Products and token</h3>
+          <span class="box__meta">{rows.length} items</span>
+        </div>
+        <table class="etable">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col" class="etable__summary">What it does</th>
+              <th scope="col" class="etable__where">Where</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Open</span></th>
+            </tr>
+          </thead>
+          <tbody data-explore-rows>
+            {rows.map((r) => (
+              <tr data-status={r.status}>
+                <th scope="row">
+                  <a class="etable__name" href={r.href}>
+                    <span class:list={['glyph', `glyph--${r.status}`]} aria-hidden="true">{r.glyph}</span>
+                    <span class="etable__label">
+                      {r.name}
+                      <small>{r.role}</small>
+                    </span>
+                  </a>
+                </th>
+                <td class="etable__summary">{r.summary}</td>
+                <td class="etable__where">{r.where}</td>
+                <td><StatusBadge status={r.status} /></td>
+                <td class="etable__go" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="14" height="14"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="explore__side">
+        <div class="box" data-reveal>
+          <div class="box__head"><h3>ACT utilities</h3></div>
+          <ul class="list">
+            {ACT.utilities.map((u) => (
+              <li>
+                <span class="list__main">{u.name}<small>{u.detail}</small></span>
+                <StatusBadge status={u.status} />
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="box" data-reveal>
+          <div class="box__head"><h3>Networks</h3></div>
+          <ul class="list">
+            {networks.map((n) => (
+              <li>
+                <span class="glyph glyph--net" aria-hidden="true">{n.name.charAt(0)}</span>
+                <span class="list__main">{n.name}<small>{n.note}</small></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<style>
+  .explore__head { display: grid; justify-items: center; gap: var(--space-md); text-align: center; margin-bottom: var(--space-lg); }
+  .explore__title { font-size: var(--text-heading); color: var(--color-brand); }
+  .explore__filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .pill {
+    height: 36px; padding: 0 16px; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 500;
+    background: var(--color-bg-alt); color: var(--color-strong);
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-press) var(--ease-out);
+  }
+  .pill.is-active { background: var(--color-brand); color: #fff; }
+
+  .ticker {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 2rem; margin: 0 0 var(--space-lg);
+    padding: 14px 4px; border-block: 1px solid var(--color-border); font-size: 0.875rem;
+  }
+  .ticker__item { display: flex; align-items: baseline; gap: 0.5rem; }
+  .ticker dt { color: var(--color-muted); }
+  .ticker dd { margin: 0; font-weight: 600; color: var(--color-strong); }
+  .ticker__link { margin-left: auto; font-weight: 500; color: var(--color-brand-bright); text-decoration: underline; text-underline-offset: 0.2em; }
+
+  .explore__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 16px; align-items: start; }
+  .explore__side { display: grid; gap: 16px; }
+  .box { border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); background: var(--color-surface); overflow: hidden; }
+  .box__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 18px 20px 10px; }
+  .box__head h3 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; }
+  .box__meta { font-size: 0.8125rem; color: var(--color-faint); }
+
+  .etable { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .etable th, .etable td { padding: 14px 12px; text-align: left; vertical-align: middle; }
+  .etable thead th { font-size: 0.8125rem; font-weight: 500; color: var(--color-muted); border-bottom: 1px solid var(--color-border); padding-block: 10px; }
+  .etable tbody tr { border-bottom: 1px solid var(--color-border); transition: background-color var(--duration-fast) var(--ease-out); }
+  .etable tbody tr:last-child { border-bottom: 0; }
+  .etable tbody th { font-weight: 400; }
+  .etable th:first-child, .etable td:first-child { padding-left: 20px; }
+  .etable th:last-child, .etable td:last-child { padding-right: 16px; }
+  .etable__name { display: flex; align-items: center; gap: 12px; }
+  .etable__name::after { content: ''; position: absolute; inset: 0; }
+  .etable tbody tr { position: relative; }
+  .etable__label { display: grid; font-weight: 600; color: var(--color-strong); white-space: nowrap; }
+  .etable__label small, .list__main small { font-size: 0.8125rem; font-weight: 400; color: var(--color-muted); }
+  .etable__summary { color: var(--color-muted); max-width: 30ch; }
+  .etable__where { color: var(--color-text); white-space: nowrap; }
+  .etable__go { color: var(--color-faint); width: 1%; }
+  .etable tr[hidden] { display: none; }
+
+  .glyph { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 0.9375rem; font-weight: 600; background: var(--color-mint-soft); color: var(--color-brand); }
+  .glyph--live { background: var(--color-brand); color: var(--color-mint); }
+  .glyph--testnet, .glyph--in-development { background: var(--color-bg-alt); color: var(--color-muted); }
+  .glyph--net { width: 32px; height: 32px; font-size: 0.8125rem; background: var(--color-bg-alt); color: var(--color-strong); }
+
+  .list { list-style: none; margin: 0; padding: 0 8px 8px; }
+  .list li { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; }
+  .list__main { display: grid; flex: 1; min-width: 0; font-size: 0.9375rem; font-weight: 600; color: var(--color-strong); }
+  .list__main small { line-height: 1.4; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .pill:not(.is-active):hover { background: var(--color-surface-3); }
+    .etable tbody tr:hover { background: var(--color-offwhite); }
+    .etable tbody tr:hover .etable__go { color: var(--color-brand); }
+  }
+  .pill:active { transform: scale(0.97); }
+
+  @media (max-width: 1023px) {
+    .explore__grid { grid-template-columns: minmax(0, 1fr); }
+    .explore__side { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .etable__summary, .etable__where { display: none; }
+    .ticker { gap: 0.5rem 1.25rem; }
+    .ticker__link { margin-left: 0; }
+  }
+</style>
+
+<script>
+  const group = document.querySelector<HTMLElement>('[data-explore-filters]');
+  const rows = document.querySelectorAll<HTMLTableRowElement>('[data-explore-rows] tr');
+  group?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-filter]');
+    if (!btn) return;
+    const f = btn.dataset.filter;
+    group.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    rows.forEach((r) => (r.hidden = f !== 'all' && r.dataset.status !== f));
+  });
+</script>

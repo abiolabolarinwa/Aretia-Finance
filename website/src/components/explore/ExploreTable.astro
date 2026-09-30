@@ -171,6 +171,10 @@ const networks = [
   .explore__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 16px; align-items: start; }
   .explore__side { display: grid; gap: 16px; }
   .box { min-width: 0; border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); background: var(--color-surface); overflow: hidden; }
+  /* Fallback only: at the intended breakpoints the table always fits its box.
+     This guards against a future content/viewport combination re-squeezing it,
+     so content scrolls into view instead of clipping silently. */
+  .box--table { overflow-x: auto; overflow-y: hidden; }
   .box__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 18px 20px 10px; }
   .box__head h3 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; }
   .box__meta { font-size: 0.8125rem; color: var(--color-faint); }
@@ -210,7 +214,7 @@ const networks = [
   }
   .pill:active { transform: scale(0.97); }
 
-  @media (max-width: 1023px) {
+  @media (max-width: 1279px) {
     .explore__grid { grid-template-columns: minmax(0, 1fr); }
     .explore__side { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   }

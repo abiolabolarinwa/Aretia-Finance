@@ -250,6 +250,7 @@
   @media (prefers-reduced-motion: reduce) {
     .hscroll-row { animation: none; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
     .hs-card { scroll-snap-align: start; }
+    .hs-card[aria-hidden="true"] { display: none; } /* the marquee loop copies */
   }
 
   /* -------- Official on-chain addresses -------- */

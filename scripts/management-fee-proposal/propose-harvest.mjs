@@ -6,12 +6,12 @@
  *
  * What it does:
  *   1. Scans every ACT (Token-2022) token account for withheld transfer fees.
- *   2. If there's anything to harvest, computes the 0.5%-of-3.5% management-fee
+ *   2. If there's anything to harvest, computes the 0.5%-of-1.5% management-fee
  *      share (grossed up so the NET amount landing in the management wallet
  *      matches the intended share, after that internal transfer's own fee).
- *      This ratio (1/7) is a policy split, not mint-specific, and matches
- *      the rate confirmed live on the v2 mint as of 26 Sept 2026 — see
- *      MINT_V2.md.
+ *      This ratio (1/3) is a policy split, not mint-specific. It matches the
+ *      150 bps rate the treasury multisig scheduled on 1 Oct 2026 (in effect
+ *      from Solana epoch 1048) — see MINT_V2.md.
  *   3. Builds ONE Squads vault transaction containing:
  *        - create the management wallet's ACT token account (idempotent)
  *        - WithdrawWithheldTokensFromAccounts -> treasury vault's ACT account
@@ -82,12 +82,16 @@ const TREASURY_VAULT = new PublicKey("GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZ
 const MULTISIG_PDA = new PublicKey("5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr"); // verified: derives vault index 0 == TREASURY_VAULT above
 const VAULT_INDEX = 0;
 const MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
-// Management fee is 0.5% out of the mint's 3.5% transfer fee (burn removed,
-// management raised from 0.1%, 6 Sept 2026 - see TOKENOMICS.md SS01) -> exactly 1/7
-// (equivalently 5/35) of whatever gets harvested. Confirmed live on-chain at 350 bps
-// on the v2 mint as of 26 Sept 2026 (both schedule slots equal, fully settled -
-// see MINT_V2.md). This constant still does not update itself from chain state,
-// so re-check MINT_V2.md's fee-authority section if the rate is ever changed again.
+// Management fee is 0.5% out of the mint's 1.5% transfer fee (1 Oct 2026: fee cut
+// from 3.5% to 1.5% - 1% Climate Treasury + 0.5% management, liquidity share
+// dropped; see TOKENOMICS.md SS01) -> exactly 1/3 of whatever gets harvested; the
+// other 2/3 stays in the treasury as the Climate Treasury share. Executed on-chain
+// 1 Oct 2026, in effect from Solana epoch 1048 (see MINT_V2.md).
+// CAUTION: fees withheld before epoch 1048 were taken at 3.5%, where the management
+// share is 1/7, not 1/3. If any trading happens before epoch 1048, harvest those
+// fees separately with 1/7 (or confirm none exist) before using 1/3.
+// This constant does not update itself from chain state, so re-check MINT_V2.md's
+// fee-authority section if the rate is ever changed again.
 const MANAGEMENT_SHARE_NUM = 1n;
 const MANAGEMENT_SHARE_DEN = 3n;
 

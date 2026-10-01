@@ -12,9 +12,14 @@
  *
  * 26 Sept 2026: repointed at the v2 mint/vault/multisig (the v1 mint this
  * script originally targeted is retired -- see MINT_V2.md). The v2 mint
- * launched already set to 350 bps directly, so there's nothing to change
- * today; this stays here as the general-purpose tool for whenever
- * governance next wants a different rate.
+ * launched already set to 350 bps directly; this stays here as the
+ * general-purpose tool for whenever governance next wants a different rate.
+ *
+ * 1 Oct 2026: used for real to move 350 bps -> 150 bps (proposal created
+ * ZEnB3UVc...ohng, approved 2-of-3, executed yQagEvE3...557h). Token-2022
+ * scheduled it for epoch 1048. Don't re-run it with NEW_BPS = 150 before
+ * then: the active rate still reads 350 until epoch 1048, so it would draft
+ * a duplicate proposal. From epoch 1048 on it refuses (live rate == target).
  *
  * What it does:
  *   1. Reads the mint's LIVE transfer-fee config (never hardcodes it).

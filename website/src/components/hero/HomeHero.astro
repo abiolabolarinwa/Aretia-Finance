@@ -5,6 +5,16 @@ const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const liveChain = 'Solana';
 const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 
+/** Simplified, single-colour marks (currentColor) in the site's own drawn-icon
+    style -- not downloaded brand art, so they inherit the live/next treatment. */
+const CHAIN_ICON: Record<string, string> = {
+  Solana: '<path d="M3 3.5h15l-2.6 2.6H.4L3 3.5Z"/><path d="M3 15l2.6-2.6h15L18 15H3Z"/><path d="M.4 9.2h15l2.6 2.6h-15L.4 9.2Z"/>',
+  Ethereum: '<path d="M11 2 4.5 12.2 11 16l6.5-3.8L11 2Z"/><path d="M11 17.4 4.5 13.6 11 21l6.5-7.4-6.5 3.8Z" opacity="0.55"/>',
+  Base: '<circle cx="11" cy="11" r="8.5"/>',
+  'BNB Smart Chain': '<rect x="5.3" y="5.3" width="11.4" height="11.4" rx="2.2" transform="rotate(45 11 11)"/>',
+  Polygon: '<path d="M11 1.6 19 6.3v9.4L11 20.4 3 15.7V6.3L11 1.6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+};
+
 interface Slide {
   eyebrow: string;
   status: Status;
@@ -137,9 +147,23 @@ const slides: Slide[] = [
 
   <div class="container hero__chains">
     <span>Live on</span>
-    <ul class="hero__chains-live"><li>{liveChain}</li></ul>
+    <ul class="hero__chains-live">
+      <li>
+        <svg class="hero__chain-icon" viewBox="0 0 22 22" width="22" height="22" fill="currentColor" aria-hidden="true" set:html={CHAIN_ICON[liveChain]} />
+        <span class="sr-only">{liveChain}</span>
+      </li>
+    </ul>
     <span>Coming to</span>
-    <ul class="hero__chains-next">{nextChains.map((c) => <li>{c}</li>)}</ul>
+    <ul class="hero__chains-next">
+      {
+        nextChains.map((c) => (
+          <li>
+            <svg class="hero__chain-icon" viewBox="0 0 22 22" width="22" height="22" fill="currentColor" aria-hidden="true" set:html={CHAIN_ICON[c]} />
+            <span class="sr-only">{c}</span>
+          </li>
+        ))
+      }
+    </ul>
   </div>
 </section>
 
@@ -191,13 +215,16 @@ const slides: Slide[] = [
     .hero__dots button:hover { background: rgba(255, 255, 255, 0.7); }
   }
 
-  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
+  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.5rem; padding-block: clamp(28px, 4vw, 48px) 0; }
   .hero__chains > span { font-size: var(--text-small); color: var(--color-faint); }
   .hero__chains ul { list-style: none; margin: 0; padding: 0; display: contents; }
-  .hero__chains li { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; }
+  .hero__chains li { display: flex; align-items: center; }
+  .hero__chain-icon { display: block; }
   .hero__chains-live li { color: var(--color-brand-bright); }
   /* rgba(brand, 0.35) read ~3.3:1 on white, failing WCAG AA. 0.68 clears
-     4.6:1+ while still reading clearly lighter than the live entry above. */
+     4.6:1+ while still reading clearly lighter than the live entry above --
+     these icons are decorative reinforcement, the chain names stay in the
+     accessible tree via the sr-only labels next to them. */
   .hero__chains-next li { color: rgba(11, 61, 46, 0.68); }
 
   :global(html.motion-ok) [data-slide='0'] [data-hero-in] { opacity: 0; }
@@ -210,9 +237,11 @@ const slides: Slide[] = [
     .hero__ctas { width: 100%; }
     .hbtn { flex: 1 1 100%; justify-content: center; height: 52px; }
     .hero__scroll { display: none; }
-    .hero__controls { left: 22px; bottom: 22px; }
-    .hero__chains li { font-size: 1rem; }
-    .hero__chains { gap: 0.4rem 1.25rem; }
+    .hero__controls { left: 22px; right: 22px; bottom: 22px; gap: 8px; }
+    .hero__dots { gap: 5px; }
+    .hero__dots button { width: 16px; }
+    .hero__chain-icon { width: 19px; height: 19px; }
+    .hero__chains { gap: 0.4rem 1.1rem; }
   }
 </style>
 

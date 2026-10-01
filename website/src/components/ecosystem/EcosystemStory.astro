@@ -37,7 +37,9 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
     {
       steps.map((s, i) => (
         <section class="fold" style={`z-index:${i + 1}`} aria-labelledby={`fold-title-${s.n}`}>
-          <div class="container fold__grid">
+          <div class="container">
+          <div class="fold__card">
+          <div class="fold__grid">
             <div class="fold__copy" data-reveal>
               <span class="fold__num tnum" aria-hidden="true">{String(s.n).padStart(2, '0')}</span>
               <p class="label">{s.eyebrow}</p>
@@ -117,6 +119,8 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
               <span class="fold__accent" aria-hidden="true"></span>
             </div>
           </div>
+          </div>
+          </div>
         </section>
       ))
     }
@@ -130,17 +134,23 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
      the next card's rounded top edge scrolls up and over it -- a physical
      stack of pages, not a carousel. Pure position:sticky, no scroll JS. */
   .stack { position: relative; }
+  /* The sticky anchor is full-width and invisible; the card itself is
+     container-width with its own margin either side, so a short card
+     reads as a framed object on the page, not a screen-wide empty field. */
   .fold {
     position: sticky; top: var(--nav-height);
-    min-height: 100svh; display: flex; align-items: center;
-    background: var(--color-bg-alt);
-    border-radius: clamp(20px, 2.2vw, 32px) clamp(20px, 2.2vw, 32px) 0 0;
-    box-shadow: 0 -32px 64px -24px rgba(13, 31, 26, 0.18);
-    padding-block: var(--space-2xl);
+    min-height: min(82vh, 720px); display: flex; align-items: center;
+    padding-block: var(--space-lg);
   }
-  .fold:first-child { box-shadow: none; }
-  .fold__grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: var(--space-xl); align-items: center; }
-  .fold__copy { display: grid; gap: var(--space-sm); justify-items: start; max-width: 30rem; }
+  .fold__card {
+    width: 100%; max-width: 72rem; margin-inline: auto;
+    background: var(--color-bg-alt);
+    border-radius: clamp(20px, 2.2vw, 32px);
+    box-shadow: 0 24px 64px -24px rgba(13, 31, 26, 0.22);
+    padding: clamp(2rem, 4.5vw, 3.5rem);
+  }
+  .fold__grid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); gap: var(--space-xl); align-items: center; }
+  .fold__copy { display: grid; gap: var(--space-sm); justify-items: start; }
   .fold__num { display: grid; place-items: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-mint); background: var(--color-brand); width: 2.75rem; height: 2.75rem; border-radius: 50%; margin-bottom: var(--space-xs); }
   .fold__body { color: var(--color-muted); font-size: var(--text-lead); line-height: 1.55; }
   .fold__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; margin-top: var(--space-xs); }
@@ -179,6 +189,6 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 
   @media (max-width: 900px) {
     .fold__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
-    .fold { min-height: auto; padding-block: var(--space-xl); }
+    .fold { min-height: auto; padding-block: var(--space-lg); }
   }
 </style>

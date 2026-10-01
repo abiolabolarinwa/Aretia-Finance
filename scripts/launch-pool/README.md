@@ -56,3 +56,15 @@ node create-pools.mjs --execute
 
 After execution, check both pools on Meteora and Solscan, then publish the website's trading
 changes with the two pool addresses.
+
+## Monitor (read-only)
+
+```powershell
+node monitor.mjs              # one snapshot
+node monitor.mjs --watch 60   # every 60 seconds
+```
+
+Prints each pool's price and depth (both vaults), ACT's active fee, the total ACT withheld
+across all token accounts (what `propose-harvest.mjs` would collect) and the vault's SOL.
+No keys needed. The withheld scan needs an RPC that allows `getProgramAccounts`; the default
+(`api.mainnet-beta.solana.com`) does, publicnode doesn't.

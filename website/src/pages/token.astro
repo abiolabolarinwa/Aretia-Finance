@@ -4,12 +4,12 @@ import PageHero from '../components/typography/PageHero.astro';
 import ActSection from '../components/token/ActSection.astro';
 import Button from '../components/buttons/Button.astro';
 import StatusBadge from '../components/ui/StatusBadge.astro';
-import { ACT, LINKS } from '../data/site';
+import { ACT, LINKS, LIQUIDITY } from '../data/site';
 
 const pct = (n: number) => (n / ACT.totalSupply) * 100;
-const liquiditySeed = 5_000_000;
+const liquiditySeed = LIQUIDITY.actCommitted;
 const segments = [
-  { label: 'Liquidity seed', amount: liquiditySeed, status: 'roadmap' as const, note: 'Planned liquidity pool seed; not yet funded.' },
+  { label: 'Liquidity pools', amount: liquiditySeed, status: 'live' as const, note: `Committed to the ${LIQUIDITY.pools.map((p) => p.pair).join(' and ')} pools on ${LIQUIDITY.venue}, single-sided from a $${LIQUIDITY.floorUsd} floor. ACT's transfer fee applied on deposit.` },
   { label: 'Treasury-held, allocation to be published', amount: ACT.totalSupply - liquiditySeed, status: undefined, note: 'Held in the 2-of-3 treasury multisig. No further allocation has been published.' },
 ];
 const facts = [
@@ -39,7 +39,7 @@ const facts = [
           <p class="muted">Minted once, in a single instruction. Mint authority revoked: the supply can never increase.</p>
         </div>
 
-        <div class="bar" data-reveal role="img" aria-label="ACT supply: 0.5% planned liquidity seed, 99.5% held in the treasury multisig with allocation to be published">
+        <div class="bar" data-reveal role="img" aria-label="ACT supply: 1% committed to liquidity pools, 99% held in the treasury multisig with allocation to be published">
           {segments.map((s, i) => <span class={`bar__seg bar__seg--${i}`} style={`--w:${pct(s.amount)}%`} />)}
         </div>
         <ul class="legend">

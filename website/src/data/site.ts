@@ -148,6 +148,27 @@ export const ACT = {
   ],
 };
 
+/**
+ * Where ACT trades. Two single-sided Meteora DAMM v2 pools opened by the
+ * treasury multisig (scripts/launch-pool): only ACT went in, priced from the
+ * floor upward, so nobody can buy below it. Addresses are deterministic from
+ * the two mints.
+ */
+export const LIQUIDITY = {
+  venue: 'Meteora',
+  floorUsd: 0.005,
+  actCommitted: 10_000_000,
+  pools: [
+    { pair: 'ACT/USDC', address: '6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX' },
+    { pair: 'ACT/SOL', address: 'ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb' },
+  ],
+};
+
+export const poolLinks = (address: string) => ({
+  dexscreener: `https://dexscreener.com/solana/${address}`,
+  solscan: `https://solscan.io/account/${address}`,
+});
+
 export const CLIMATE = {
   functionalAllocation: [
     { label: 'Climate mitigation', percent: 60 },

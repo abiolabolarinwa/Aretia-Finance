@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Nav from '../components/navigation/Nav.astro';
+import { ACT } from '../data/site';
 import Footer from '../components/footer/Footer.astro';
 import CtaBands from '../components/cta/CtaBands.astro';
 
@@ -19,7 +20,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class:list={{ 'has-notice': !!ACT.transferFee.scheduled }}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

@@ -25,7 +25,7 @@ const split = ACT.transferFee.split;
         <div data-reveal>
           <dt>Transfer fee</dt>
           <dd class="tnum">{ACT.transferFee.totalPercent}%</dd>
-          <p>Withheld on-chain on every transfer.</p>
+          <p>Withheld on-chain on every transfer.{ACT.transferFee.scheduled && ` From Solana epoch ${ACT.transferFee.scheduled.fromEpoch}; ${ACT.transferFee.scheduled.previousPercent}% until then.`}</p>
         </div>
       </dl>
 

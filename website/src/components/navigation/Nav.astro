@@ -1,5 +1,5 @@
 ---
-import { NAV, LINKS } from '../../data/site';
+import { NAV, LINKS, ACT } from '../../data/site';
 import Button from '../buttons/Button.astro';
 
 interface Props {
@@ -7,9 +7,19 @@ interface Props {
   walletConnect?: boolean;
 }
 const { walletConnect = false } = Astro.props;
+const feeChange = ACT.transferFee.scheduled;
 ---
 
 <header class:list={['nav', { 'nav--wallet': walletConnect }]} data-nav>
+  {
+    feeChange && (
+      <a class="nav__notice" href="/verify">
+        <b class="nav__notice-long">ACT's transfer fee drops from {feeChange.previousPercent}% to {ACT.transferFee.totalPercent}% at Solana epoch {feeChange.fromEpoch}, scheduled on-chain. Until then transfers pay {feeChange.previousPercent}%.</b>
+        <b class="nav__notice-short">ACT fee: {feeChange.previousPercent}% → {ACT.transferFee.totalPercent}% at epoch {feeChange.fromEpoch}</b>
+        <span>Verify</span>
+      </a>
+    )
+  }
   <div class="nav__bar container">
     <a href="/" class="nav__brand" aria-label="Aretia Finance home">
       <img src="/assets/logo-mark-green.png" alt="" width="28" height="28" />
@@ -89,7 +99,16 @@ const { walletConnect = false } = Astro.props;
   .nav.is-open { background: rgba(255, 255, 255, 0.98); }
   .nav.is-hidden { transform: translateY(-100%); }
   .nav { transition: transform 450ms var(--ease-out), background-color var(--duration-base), border-color var(--duration-base); }
-  .nav__bar { display: flex; align-items: center; gap: var(--space-lg); height: var(--nav-height); max-width: 1360px; }
+  .nav__bar { display: flex; align-items: center; gap: var(--space-lg); height: var(--nav-bar-height); max-width: 1360px; }
+  .nav__notice { display: block; height: var(--nav-notice-height); padding: 0 var(--gutter); overflow: hidden; text-align: center; font-size: 13px; line-height: var(--nav-notice-height); white-space: nowrap; text-overflow: ellipsis; color: #fff; background: var(--color-brand); }
+  .nav__notice span { text-decoration: underline; text-underline-offset: 0.2em; margin-left: 4px; }
+  .nav__notice b { font-weight: 400; }
+  .nav__notice-short { display: none; }
+  @media (max-width: 760px) {
+    .nav__notice { font-size: 12px; }
+    .nav__notice-long { display: none; }
+    .nav__notice-short { display: inline; }
+  }
   .nav__brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--color-strong); flex: none; }
   .nav__brand img { width: 28px; height: 28px; border-radius: 8px; }
   .nav__menu { flex: 1; }

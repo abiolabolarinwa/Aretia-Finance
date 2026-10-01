@@ -127,6 +127,13 @@ export const ACT = {
   /** Token-2022 transfer fee, withheld by the token program on every transfer. */
   transferFee: {
     totalPercent: 1.5,
+    /**
+     * Set while the 1.5% rate is scheduled on-chain but not yet in effect
+     * (Token-2022 applies a fee change two epochs after approval). While set,
+     * the nav shows a notice and fee figures say when the new rate starts.
+     * Remove once Solana reaches `fromEpoch`.
+     */
+    scheduled: { fromEpoch: 1048, previousPercent: 3.5 } as { fromEpoch: number; previousPercent: number } | undefined,
     note: 'Withheld on-chain by the Token-2022 program on every transfer (150 basis points). The treasury multisig collects the withheld fees and splits them as below.',
     split: [
       { label: 'Climate Treasury', percent: 1, detail: 'Catalyst fund for climate projects, held in a 2-of-3 multisig' },

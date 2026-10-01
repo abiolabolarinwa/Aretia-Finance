@@ -30,7 +30,7 @@ import { ACT } from '../data/site';
           <Button href="/verify" variant="secondary" arrow>Verify on-chain</Button>
         </div>
         <div class="buy__card" data-reveal>
-          <p class="muted">Every ACT transfer, including a swap, has a {ACT.transferFee.totalPercent}% fee withheld on-chain. <a href="/token#fees">How it’s split →</a></p>
+          <p class="muted">Every ACT transfer, including a swap, has a {ACT.transferFee.totalPercent}% fee withheld on-chain{ACT.transferFee.scheduled && ` from Solana epoch ${ACT.transferFee.scheduled.fromEpoch} (${ACT.transferFee.scheduled.previousPercent}% until then)`}. <a href="/token#fees">How it’s split →</a></p>
         </div>
       </aside>
     </div>

@@ -11,7 +11,10 @@
   --color-strong: #0d1f1a;
   --color-text: #14241f;
   --color-muted: #6e6e73;
-  --color-faint: #86868b;
+  /* #86868b read ~3.6:1 on white, failing WCAG AA for normal text --
+     exactly where disclosure/status copy lives. #747477 clears 4.6:1+
+     while staying visibly lighter than --color-muted. */
+  --color-faint: #747477;
   --color-border: rgba(0, 0, 0, 0.08);
   --color-border-strong: rgba(0, 0, 0, 0.14);
   --color-gold: #a07a2c;

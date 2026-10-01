@@ -5,14 +5,13 @@ const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const liveChain = 'Solana';
 const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 
-/** Simplified, single-colour marks (currentColor) in the site's own drawn-icon
-    style -- not downloaded brand art, so they inherit the live/next treatment. */
-const CHAIN_ICON: Record<string, string> = {
-  Solana: '<path d="M3 3.5h15l-2.6 2.6H.4L3 3.5Z"/><path d="M3 15l2.6-2.6h15L18 15H3Z"/><path d="M.4 9.2h15l2.6 2.6h-15L.4 9.2Z"/>',
-  Ethereum: '<path d="M11 2 4.5 12.2 11 16l6.5-3.8L11 2Z"/><path d="M11 17.4 4.5 13.6 11 21l6.5-7.4-6.5 3.8Z" opacity="0.55"/>',
-  Base: '<circle cx="11" cy="11" r="8.5"/>',
-  'BNB Smart Chain': '<rect x="5.3" y="5.3" width="11.4" height="11.4" rx="2.2" transform="rotate(45 11 11)"/>',
-  Polygon: '<path d="M11 1.6 19 6.3v9.4L11 20.4 3 15.7V6.3L11 1.6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+/** Official network marks (see public/assets/chains/CREDITS.md for source/license). */
+const CHAIN_LOGO: Record<string, string> = {
+  Solana: '/assets/chains/solana.png',
+  Ethereum: '/assets/chains/ethereum.png',
+  Base: '/assets/chains/base.png',
+  'BNB Smart Chain': '/assets/chains/bnb.png',
+  Polygon: '/assets/chains/polygon.png',
 };
 
 interface Slide {
@@ -31,7 +30,7 @@ const slides: Slide[] = [
     title: 'Move money.<br />Fund the planet.',
     lead: 'Every ACT transfer carries a 3.5% fee, withheld on-chain — 2% builds the Climate Catalyst Fund, verifiable yourself.',
     cta: { label: 'Explore the Climate Treasury', href: '/details' },
-    photo: { src: '/images/people/farmer-field.webp', alt: 'A farmer tending young crops in a green field', position: '50% 30%' },
+    photo: { src: '/images/people/farmer-field.webp', alt: 'A farmer tending young crops in a green field', position: '22% 32%' },
   },
   {
     eyebrow: p.wallet!.name,
@@ -47,7 +46,7 @@ const slides: Slide[] = [
     title: 'Send to a name,<br />not an address.',
     lead: p.pay!.summary,
     cta: { label: 'See Aretia Pay', href: '/features#pay' },
-    photo: { src: '/images/people/woman-phone-smiling.webp', alt: 'A young woman smiling at her phone at a café table', position: '50% 20%' },
+    photo: { src: '/images/people/woman-phone-smiling.webp', alt: 'A young woman smiling at her phone at a café table', position: '48% 16%' },
   },
   {
     eyebrow: p.shield!.name,
@@ -55,7 +54,7 @@ const slides: Slide[] = [
     title: 'Know before<br />you sign.',
     lead: p.shield!.summary,
     cta: { label: 'See Aretia Shield', href: '/features#shield' },
-    photo: { src: '/images/people/man-beard-phone.webp', alt: 'A smiling bearded man holding his phone', position: '50% 8%' },
+    photo: { src: '/images/people/man-phone-night.webp', alt: 'A man scrutinizing his phone carefully at night against a city building', position: '68% 28%' },
   },
   {
     eyebrow: p.safesend!.name,
@@ -63,7 +62,7 @@ const slides: Slide[] = [
     title: 'A pause you<br />can take back.',
     lead: p.safesend!.summary,
     cta: { label: 'See Aretia SafeSend', href: '/features#safesend' },
-    photo: { src: '/images/people/woman-phone-standing.webp', alt: 'A woman standing outdoors, looking at her phone', position: '50% 15%' },
+    photo: { src: '/images/people/woman-smiling-warm.webp', alt: 'A woman smiling warmly, relaxed and unhurried', position: '46% 35%' },
   },
   {
     eyebrow: p.universal!.name,
@@ -71,7 +70,7 @@ const slides: Slide[] = [
     title: 'Across chains,<br />without the plumbing.',
     lead: p.universal!.summary,
     cta: { label: 'See Aretia Universal', href: '/features#universal' },
-    photo: { src: '/images/people/woman-phone-walking.webp', alt: 'A woman in sunglasses walking down a city street, looking at her phone', position: '50% 12%' },
+    photo: { src: '/images/people/woman-phone-walking.webp', alt: 'A woman in sunglasses walking down a city street, looking at her phone', position: '50% 28%' },
   },
   {
     eyebrow: p.intent!.name,
@@ -79,7 +78,7 @@ const slides: Slide[] = [
     title: 'Say what<br />you want.',
     lead: p.intent!.summary,
     cta: { label: 'See Aretia Intent', href: '/features#intent' },
-    photo: { src: '/images/people/man-glasses-phone.webp', alt: 'A young man in glasses, delighted by something on his phone', position: '50% 10%' },
+    photo: { src: '/images/people/woman-phone-cafe.webp', alt: 'A woman delighted while typing on her phone in a warm café', position: '45% 30%' },
   },
 ];
 ---
@@ -149,7 +148,7 @@ const slides: Slide[] = [
     <span>Live on</span>
     <ul class="hero__chains-live">
       <li>
-        <svg class="hero__chain-icon" viewBox="0 0 22 22" width="22" height="22" fill="currentColor" aria-hidden="true" set:html={CHAIN_ICON[liveChain]} />
+        <span class="hero__chain-icon"><img src={CHAIN_LOGO[liveChain]} alt="" width="22" height="22" loading="lazy" /></span>
         <span class="sr-only">{liveChain}</span>
       </li>
     </ul>
@@ -158,7 +157,7 @@ const slides: Slide[] = [
       {
         nextChains.map((c) => (
           <li>
-            <svg class="hero__chain-icon" viewBox="0 0 22 22" width="22" height="22" fill="currentColor" aria-hidden="true" set:html={CHAIN_ICON[c]} />
+            <span class="hero__chain-icon"><img src={CHAIN_LOGO[c]} alt="" width="22" height="22" loading="lazy" /></span>
             <span class="sr-only">{c}</span>
           </li>
         ))
@@ -215,17 +214,19 @@ const slides: Slide[] = [
     .hero__dots button:hover { background: rgba(255, 255, 255, 0.7); }
   }
 
-  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.5rem; padding-block: clamp(28px, 4vw, 48px) 0; }
+  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
   .hero__chains > span { font-size: var(--text-small); color: var(--color-faint); }
   .hero__chains ul { list-style: none; margin: 0; padding: 0; display: contents; }
   .hero__chains li { display: flex; align-items: center; }
-  .hero__chain-icon { display: block; }
-  .hero__chains-live li { color: var(--color-brand-bright); }
-  /* rgba(brand, 0.35) read ~3.3:1 on white, failing WCAG AA. 0.68 clears
-     4.6:1+ while still reading clearly lighter than the live entry above --
-     these icons are decorative reinforcement, the chain names stay in the
-     accessible tree via the sr-only labels next to them. */
-  .hero__chains-next li { color: rgba(11, 61, 46, 0.68); }
+  /* Official marks, each cropped into a uniform chip so Solana's square tile,
+     Ethereum's circle and Base/Polygon's edge-to-edge marks read as one
+     consistent row instead of five differently-shaped source assets. */
+  .hero__chain-icon { display: block; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--color-border); }
+  .hero__chain-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* "Coming to" chains are real logos but not live yet -- desaturated and
+     dimmed so the honesty distinction survives the switch from drawn,
+     tintable icons to real brand art that can't just inherit currentColor. */
+  .hero__chains-next .hero__chain-icon { filter: grayscale(1); opacity: 0.55; }
 
   :global(html.motion-ok) [data-slide='0'] [data-hero-in] { opacity: 0; }
 

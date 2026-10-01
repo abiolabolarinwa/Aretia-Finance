@@ -18,3 +18,6 @@ All photos from Unsplash under the Unsplash License (free for commercial use, no
 | couple-laughing.webp | Vince Fleming | https://unsplash.com/photos/GvIZU9SvrKg |
 | couple-selfie.webp | Vitaly Gariev | https://unsplash.com/photos/eR7o3WVHgpQ |
 | hero-wide.webp, hero-wide-1200.webp | Vitaly Gariev | https://unsplash.com/photos/eR7o3WVHgpQ |
+| man-phone-night.webp | Julio Lopez | https://unsplash.com/photos/zJirqXfJKXU |
+| woman-smiling-warm.webp | Airam Dato-on | https://unsplash.com/photos/T90gWliuCQQ |
+| woman-phone-cafe.webp | Brooke Cagle | https://unsplash.com/photos/eL4xIEuHzzk |

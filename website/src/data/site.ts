@@ -75,15 +75,15 @@ export const PRODUCTS: Product[] = [
     slug: 'safesend',
     name: 'Aretia SafeSend',
     role: 'Protected transfers',
-    status: 'in-development',
-    statusNote: 'Built and tested in code (an Ethereum contract and a Solana program); not yet deployed or audited.',
+    status: 'testnet',
+    statusNote: 'Live on testnet: Ethereum Sepolia and Solana devnet. Not yet audited or on mainnet.',
     summary: 'Lock a transfer on-chain for a short protection period, and cancel it if something looks wrong before it reaches the recipient.',
     today: [
       'Funds wait in an on-chain vault for the protection period; only you can cancel before it ends',
       'The blockchain enforces the delay: nobody else, Aretia included, can move, redirect or hold the funds',
       'New recipients and high-value transfers get longer protection, and the wallet says why',
     ],
-    roadmap: ['Testnet deployment', 'Security audit', 'Mainnet'],
+    roadmap: ['Security audit', 'Mainnet'],
   },
   {
     slug: 'shield',

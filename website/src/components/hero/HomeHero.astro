@@ -149,7 +149,7 @@ const slides: Slide[] = [
     <span>Live on</span>
     <ul class="hero__chains-live">
       <li>
-        <span class="hero__chain-icon"><img src={CHAIN_LOGO[liveChain]} alt="" width="22" height="22" loading="lazy" /></span>
+        <span class="hero__chain-icon"><img src={CHAIN_LOGO[liveChain]} alt="" width="34" height="34" loading="lazy" /></span>
         <span class="sr-only">{liveChain}</span>
       </li>
     </ul>
@@ -158,7 +158,7 @@ const slides: Slide[] = [
       {
         nextChains.map((c) => (
           <li>
-            <span class="hero__chain-icon"><img src={CHAIN_LOGO[c]} alt="" width="22" height="22" loading="lazy" /></span>
+            <span class="hero__chain-icon"><img src={CHAIN_LOGO[c]} alt="" width="34" height="34" loading="lazy" /></span>
             <span class="sr-only">{c}</span>
           </li>
         ))
@@ -224,14 +224,14 @@ const slides: Slide[] = [
     .hero__dots button:hover { background: rgba(255, 255, 255, 0.7); }
   }
 
-  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
+  .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.625rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
   .hero__chains > span { font-size: var(--text-small); color: var(--color-faint); }
   .hero__chains ul { list-style: none; margin: 0; padding: 0; display: contents; }
   .hero__chains li { display: flex; align-items: center; }
   /* Official marks, each cropped into a uniform chip so Solana's square tile,
      Ethereum's circle and Base/Polygon's edge-to-edge marks read as one
      consistent row instead of five differently-shaped source assets. */
-  .hero__chain-icon { display: block; width: 22px; height: 22px; border-radius: 0; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--color-border); }
+  .hero__chain-icon { display: block; width: 34px; height: 34px; border-radius: 0; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--color-border); }
   .hero__chain-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
   /* "Coming to" chains are real logos but not live yet -- desaturated and
      dimmed so the honesty distinction survives the switch from drawn,
@@ -254,7 +254,7 @@ const slides: Slide[] = [
     .hero__pause { width: 26px; height: 26px; }
     .hero__dots { gap: 5px; }
     .hero__dots button { width: 16px; }
-    .hero__chain-icon { width: 19px; height: 19px; }
+    .hero__chain-icon { width: 28px; height: 28px; }
     .hero__chains { gap: 0.4rem 1.1rem; }
   }
 </style>

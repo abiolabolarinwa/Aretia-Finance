@@ -35,23 +35,30 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
           <a class="wbtn wbtn--outline" href="/home">Explore Aretia Finance</a>
         </div>
 
-        <p class="welcome__note">The wallet's browser extension is in development and not yet on the Chrome Web Store.</p>
-      </div>
+        <ul class="welcome__chains" aria-label="Aretia, and the chains it supports">
+          <li class="welcome__chain-icon welcome__chain-icon--aretia"><img src="/assets/logo-mark-green.png" alt="Aretia Finance" width="28" height="28" /></li>
+          <li class="welcome__chain-icon"><img src="/assets/chains/solana.png" alt="Solana" width="28" height="28" /></li>
+          <li class="welcome__chain-icon"><img src="/assets/chains/ethereum.png" alt="Ethereum" width="28" height="28" /></li>
+          <li class="welcome__chain-icon"><img src="/assets/chains/base.png" alt="Base" width="28" height="28" /></li>
+          <li class="welcome__chain-icon"><img src="/assets/chains/polygon.png" alt="Polygon" width="28" height="28" /></li>
+          <li class="welcome__chain-icon"><img src="/assets/chains/bnb.png" alt="BNB Smart Chain" width="28" height="28" /></li>
+        </ul>
 
-      <div class="welcome__mark" aria-hidden="true">
-        <svg viewBox="0 0 480 420">
-          <g fill="#0b3d2e">
-            <rect x="40" y="120" width="280" height="46" rx="23" transform="rotate(32 180 143)" />
-            <rect x="40" y="254" width="280" height="46" rx="23" transform="rotate(-32 180 277)" />
-            <rect x="360" y="90" width="46" height="240" rx="23" transform="rotate(14 383 210)" />
-          </g>
-        </svg>
+        <p class="welcome__note">The wallet's browser extension is in development and not yet on the Chrome Web Store.</p>
       </div>
     </main>
   </body>
 </html>
 
 <style>
+  @font-face {
+    font-family: 'Rostex';
+    src: url('/fonts/rostex/Rostex-Regular.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
   .welcome {
     position: relative;
     min-height: 100svh;
@@ -86,10 +93,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 
   .welcome__word {
     display: grid;
-    line-height: 0.92;
+    line-height: 0.95;
+    font-family: 'Rostex', var(--font-display);
     font-size: clamp(3rem, 8vw, 5.5rem);
     font-weight: 700;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
     color: var(--color-strong);
   }
 
@@ -125,17 +133,27 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     .wbtn--outline:hover { border-color: var(--color-strong); }
   }
 
-  .welcome__note { font-size: var(--text-micro); color: var(--color-faint); max-width: 26rem; }
-
-  .welcome__mark {
-    position: fixed;
-    z-index: 0;
-    left: 50%;
-    bottom: -4vh;
-    width: clamp(240px, 24vw, 380px);
-    transform: translateX(-50%);
-    opacity: 0.9;
-    pointer-events: none;
+  .welcome__chains {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  .welcome__mark svg { display: block; width: 100%; height: auto; }
+  .welcome__chain-icon {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 0 0 1px var(--color-border);
+  }
+  .welcome__chain-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .welcome__chain-icon--aretia { background: var(--color-brand); box-shadow: none; margin-right: 0.35rem; align-items: center; justify-content: center; }
+  .welcome__chain-icon--aretia img { width: 68%; height: 68%; object-fit: contain; }
+
+  .welcome__note { font-size: var(--text-micro); color: var(--color-faint); max-width: 26rem; }
 </style>

@@ -19,7 +19,7 @@ import { ACT, LIQUIDITY, poolLinks } from '../data/site';
           </div>
           <div class="buy__connect" data-aretia-wallet-mount></div>
         </div>
-        <p class="buy__status">ACT trades on {LIQUIDITY.venue} in two pools the treasury opened from a ${LIQUIDITY.floorUsd} floor: {LIQUIDITY.pools.map((p, i) => (<>{i > 0 && ' and '}<a href={poolLinks(p.address).dexscreener} target="_blank" rel="noopener">{p.pair}</a></>))}. Swaps below route through them.</p>
+        <p class="buy__status">ACT trades on {LIQUIDITY.venue} in two pools the treasury opened from a ${LIQUIDITY.floorUsd} floor: {LIQUIDITY.pools.map((p, i) => (<>{i > 0 && ' and '}<a href={poolLinks(p.address).dexscreener} target="_blank" rel="noopener">{p.pair}</a></>))}. Their liquidity is permanently locked: nobody, the treasury included, can withdraw it. Swaps below route through them.</p>
         <div id="jupiter-terminal" class="buy__terminal"><span class="buy__loading">Loading swap widget…</span></div>
       </div>
 

@@ -158,6 +158,8 @@ export const LIQUIDITY = {
   venue: 'Meteora',
   floorUsd: 0.005,
   actCommitted: 10_000_000,
+  /** Both positions permanently locked at creation: nobody, the treasury included, can withdraw the liquidity. */
+  permanentlyLocked: true,
   pools: [
     { pair: 'ACT/USDC', address: '6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX' },
     { pair: 'ACT/SOL', address: 'ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb' },

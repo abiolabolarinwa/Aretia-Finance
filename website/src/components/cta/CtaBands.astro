@@ -6,7 +6,6 @@ import { LINKS } from '../../data/site';
 <section class="bands" aria-labelledby="cta-title">
   <div class="container">
     <div class="band" data-reveal="scale">
-      <div class="band__glow" aria-hidden="true"></div>
       <h2 id="cta-title" class="heading">Your money, moving with purpose.</h2>
       <p class="lead">ACT is live on Solana today, automatically funding a Climate Treasury on every transfer. Aretia Wallet brings self-custody across five chains as it ships.</p>
       <div class="band__actions">
@@ -25,7 +24,6 @@ import { LINKS } from '../../data/site';
   .band { position: relative; overflow: hidden; isolation: isolate; text-align: center; display: grid; justify-items: center; gap: var(--space-md); padding: clamp(3rem, 8vw, 6.5rem) var(--gutter); border-radius: var(--radius-xl); background: var(--color-brand); color: #fff; }
   .band .heading { color: #fff; }
   .band .lead { margin-inline: auto; color: rgba(255, 255, 255, 0.78); }
-  .band__glow { position: absolute; inset: -40% -10% auto; height: 120%; z-index: -1; background: radial-gradient(50% 50% at 50% 30%, rgba(94, 230, 168, 0.18), transparent 70%), radial-gradient(30% 40% at 70% 20%, rgba(160, 122, 44, 0.16), transparent 70%); }
   .band__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: var(--space-xs); }
   .band__actions :global(.btn--secondary) { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
   .band__note { font-size: var(--text-micro); color: rgba(255, 255, 255, 0.6); }

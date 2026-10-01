@@ -78,9 +78,9 @@ The catalyst fund is a treasury-held pool of capital that is, first, capitalized
 
 Let F(t) denote the fund balance at time t:
 
-    F(t) = F(0) + Σ [0.02 × Vᵢ]   for every harvested transfer i occurring in (0, t]
+    F(t) = F(0) + Σ [c × Vᵢ]   for every harvested transfer i occurring in (0, t]
 
-where Vᵢ is the value of transfer i. F(t) is non-decreasing in trading activity and requires no fundraising event to increase, unlike a grant pool, whose balance is a step function, flat between raises and discontinuous at them. This says nothing about how large or frequent harvested transfers will be in practice; Section 20 treats that dependence explicitly.
+where Vᵢ is the value of transfer i and c is the catalyst-fund share of the aggregate fee, 0.02 at the rate active today and 0.01 from the scheduled rate change Section 14.1 specifies. F(t) is non-decreasing in trading activity and requires no fundraising event to increase, unlike a grant pool, whose balance is a step function, flat between raises and discontinuous at them. This says nothing about how large or frequent harvested transfers will be in practice; Section 20 treats that dependence explicitly.
 
 ## 8. Non-Discretionary Capitalization
 
@@ -121,7 +121,7 @@ ACT is a Solana SPL Token-2022 asset. A Token-2022 mint carries several distinct
 
 Total supply, 1,000,000,000 units at 9 decimals, and the impossibility of freezing any account are fixed absolutely. Mint authority was permanently revoked immediately after the single initial mint, which deposited the full supply into the treasury vault; no wallet has held newly created ACT outside that mint. Freeze authority was never granted.
 
-The transfer-fee-config and withdraw-withheld authorities are, by contrast, deliberately retained by the treasury multisig, both requiring the same 2-of-3 approval that governs every treasury action in Section 15. This is not theoretical: the fee rate stated throughout this paper, 3.5 percent, was arrived at through exactly this mechanism, changed from an earlier 4.1 percent by a 2-of-3 approved transaction, with Token-2022 requiring the change take effect only from a future epoch. Section 14 states precisely what this means for which parts of the fee mechanism are and are not immutable. On-chain addresses are collected in Appendix A.
+The transfer-fee-config and withdraw-withheld authorities are, by contrast, deliberately retained by the treasury multisig, both requiring the same 2-of-3 approval that governs every treasury action in Section 15. This is not theoretical: the fee rate has already been changed twice through exactly this mechanism, from an original 4.1 percent down to the 3.5 percent active today, and most recently a further reduction to 1.5 percent, approved 1 October 2026, with Token-2022 requiring the change take effect only from a future epoch (1048) rather than immediately. Section 14 states precisely what this means for which parts of the fee mechanism are and are not immutable, and which rate, 3.5 percent or 1.5 percent, is the correct one to cite at any given point before and after that epoch. On-chain addresses are collected in Appendix A.
 
 ## 12. Immutability as a Design Choice, and Its Costs
 
@@ -131,21 +131,25 @@ Metadata is governed separately and is not subject to the same tradeoff. ACT's n
 
 ## 13. Market Access and Permissionless Trading
 
-ACT trades on the open market against USDT, with no permission requirement. Any Solana wallet or exchange capable of handling a standard Token-2022 asset can transact it without protocol-specific integration, a property inherited from the token standard.
+ACT is specified to trade on the open market against USDC and SOL, with no permission requirement, once its liquidity pools are seeded; as of this writing that seeding has not yet occurred, and Section 32's second prerequisite states this plainly rather than implying it is already done. The pools themselves, specified in Section 20.3, are single-sided and treasury-funded rather than requiring third-party liquidity. Any Solana wallet or exchange capable of handling a standard Token-2022 asset will be able to transact it without protocol-specific integration once live, a property inherited from the token standard.
 
 ## 14. The Transfer-Fee Mechanism
 
 ### 14.1 The Withholding Function
 
-Token-2022's native transfer fee extension withholds a percentage of every transfer at the protocol level, before the recipient's balance is credited, up to a configured maximum. The rate is 150 basis points, 1.5 percent (lowered from 350 basis points by treasury-multisig proposal in October 2026, effective from the epoch Token-2022 scheduled it for).
+Token-2022's native transfer fee extension withholds a percentage of every transfer at the protocol level, before the recipient's balance is credited, up to a configured maximum. The rate active today is 350 basis points, 3.5 percent. A 2-of-3 treasury-multisig-approved reduction to 150 basis points, 1.5 percent, was proposed and executed on 1 October 2026; Token-2022 defers any transfer-fee-config change to a future epoch by design rather than applying it immediately, so the new rate takes effect automatically from Solana epoch 1048, not yet reached as of this writing, with no further action required from any signer. Every figure in this Part that depends on the specific rate states which of the two it uses.
 
 ### 14.2 What Is Protocol-Enforced and What Is Treasury Policy
 
-This distinction governs how every other claim about the fee should be read. What Token-2022 enforces, without exception, is that the aggregate withheld amount is computed and withheld correctly at whatever rate is configured. What it does not enforce is any particular destination for that withheld amount once harvested, nor that the rate stays fixed forever, since the transfer-fee-config authority retains the power to change it under 2-of-3 approval and Token-2022's mandatory future-epoch delay. The protocol's strongest accurate claim is that it mechanically withholds 1.5 percent of every transfer, and that the treasury subsequently routes harvested fees per the split below; it is not accurate to state the protocol automatically sends any share directly to climate projects, since routing is treasury procedure under multisig approval, not a second on-chain-enforced ratio.
+This distinction governs how every other claim about the fee should be read. What Token-2022 enforces, without exception, is that the aggregate withheld amount is computed and withheld correctly at whatever rate is configured. What it does not enforce is any particular destination for that withheld amount once harvested, nor that the rate stays fixed forever, since the transfer-fee-config authority retains the power to change it under 2-of-3 approval and Token-2022's mandatory future-epoch delay. The protocol's strongest accurate claim is that it mechanically withholds whatever rate is currently configured, 3.5 percent today and 1.5 percent automatically from epoch 1048, on every transfer, and that the treasury subsequently routes harvested fees per the split below; it is not accurate to state the protocol automatically sends any share directly to climate projects, since routing is treasury procedure under multisig approval, not a second on-chain-enforced ratio.
 
 ### 14.3 Fee Allocation
 
-98.5 percent of every transfer reaches the recipient net of the fee. Of the 1.5 percent withheld, 1.0 percentage point (about 66.7 percent of the withheld amount) routes to the catalyst fund and 0.5 points (33.3 percent) to protocol management, once harvested. There is no liquidity share. Only the 1.5 percent aggregate is on-chain enforced; the destination split is the treasury's own procedure, applied consistently under the custody described in Section 15.
+**Active today (until epoch 1048):** 96.5 percent of every transfer reaches the recipient net of the fee. Of the 3.5 percent withheld, 2.0 percentage points (about 57.1 percent of the withheld amount) route to the catalyst fund, 1.0 point (28.6 percent) to liquidity, and 0.5 points (14.3 percent) to protocol management, once harvested.
+
+**Scheduled from epoch 1048:** 98.5 percent reaches the recipient net of the fee. Of the 1.5 percent withheld, 1.0 percentage point (about 66.7 percent of the withheld amount) routes to the catalyst fund and 0.5 points (33.3 percent) to protocol management, once harvested. The liquidity share is removed at that point, not redistributed to the remaining two destinations.
+
+In both cases, only the aggregate rate, 3.5 percent today and 1.5 percent from epoch 1048, is on-chain enforced; the destination split is the treasury's own procedure, applied consistently under the custody described in Section 15.
 
 ### 14.4 The Two-Phase Withhold-and-Harvest Design
 
@@ -157,9 +161,9 @@ The management fee wallet is held separately from the treasury multisig, so oper
 
     G − fee(G) = N
     G × (1 − b) = N     [when fee(G) < M]
-    G = N / (1 − b) = N / 0.985
+    G = N / (1 − b)
 
-where b is the fee rate and M the mint's configured maximum fee. To deliver 1,000 ACT net, the treasury sends approximately 1,015.23 ACT, of which about 15.23 re-enters the fee split. A treasury operator who failed to account for this would systematically underdeliver intended compensation.
+where b is the fee rate and M the mint's configured maximum fee. At the rate scheduled from epoch 1048, b = 0.015 and G = N / 0.985: to deliver 1,000 ACT net, the treasury sends approximately 1,015.23 ACT, of which about 15.23 re-enters the fee split. At the rate active today, b = 0.035 and G = N / 0.965, so the same 1,000 ACT net costs approximately 1,036.27 ACT gross. A treasury operator who failed to account for this, at whichever rate is live at the time, would systematically underdeliver intended compensation.
 
 ## 15. Treasury Custody
 
@@ -261,10 +265,10 @@ This mechanism requires transaction costs low enough for routine operations to r
 
 ### 19.2 Comparative Analysis
 
-| Network | Fee per transfer | Native fee-on-transfer support | USDT liquidity |
+| Network | Fee per transfer | Native fee-on-transfer support | Stablecoin / native-asset liquidity |
 |---|---|---|---|
-| Solana | approximately $0.0003 | Yes, via the Token-2022 extension | Native SPL USDT, deep on Raydium and Orca |
-| Base | approximately $0.01 to $0.05 | No, requires custom contract logic | Bridged USDT |
+| Solana | approximately $0.0003 | Yes, via the Token-2022 extension | Native SPL USDC and SOL itself, both deep on Solana's major venues |
+| Base | approximately $0.01 to $0.05 | No, requires custom contract logic | Bridged USDC |
 | BNB Chain | approximately $0.10 to $0.30 | No, requires custom contract logic | Deep, but with more centralized custody risk |
 | Ethereum L1 | $2 to $30 or more | No, requires custom contract logic | Deepest overall, but expensive to disburse from frequently |
 
@@ -276,15 +280,15 @@ The deciding factor is native fee-on-transfer support. On any chain lacking it, 
 
 ### 20.1 Fee Incidence and Trading Behavior
 
-A 350-basis-point fee is a real cost, and whether it meaningfully deters the trading it depends on is an open empirical question this paper does not claim to have resolved, since no ACT trading history yet exists. What can be stated is narrower: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, which vary with trade size and are often larger in absolute terms. Once real trading exists, this protocol commits to measuring and disclosing volume, unique holders, transfer frequency, realized fee revenue, liquidity, slippage, and retention.
+A fee of this size, 350 basis points today and falling to 150 from epoch 1048, is a real cost, and whether it meaningfully deters the trading it depends on is an open empirical question this paper does not claim to have resolved, since no ACT trading history yet exists. What can be stated is narrower: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, which vary with trade size and are often larger in absolute terms. Once real trading exists, this protocol commits to measuring and disclosing volume, unique holders, transfer frequency, realized fee revenue, liquidity, slippage, and retention.
 
 ### 20.2 Credible Commitment Through Mechanism Design
 
 Section 2.4's distinction between a policy commitment and a code-enforced property has a formal name: the difference between cheap talk and a credible commitment device. A statement of intent the issuer could costlessly reverse is cheap talk regardless of sincerity. A property enforced by an immutable, permissionless standard is a credible commitment in the technical sense, since reneging would require an authority that no longer exists. Sections 11 and 12 describe the specific mechanism, permanent revocation, by which this is made costly to break for supply and freezing specifically; Section 14.2 is explicit that this property applies to the aggregate rate's correct withholding, not to the rate's value remaining fixed forever or to the destination split, both of which remain governed rather than immutable.
 
-### 20.3 Liquidity Provision Incentives and Impermanent Loss
+### 20.3 Liquidity Provision and Permanent Locking
 
-Whoever supplies the other side of the ACT-USDT pool bears impermanent loss, a standard property of automated market making, not a feature specific to this token. The fund's replenishment depends on trading volume, which depends on liquidity existing in the first place, which depends on some party accepting that risk for a share of trading fees.
+ACT's pools, specified against USDC and against SOL on Meteora's DAMM v2, are single-sided by design: the treasury seeds each pool with ACT alone, priced upward from a configured floor, and no third-party liquidity provider or outside capital is required to start them. This sidesteps the impermanent-loss exposure a conventional two-sided pool would impose on whoever supplied its other side, since no external party is supplying one. The tradeoff moves elsewhere: the treasury, not a diversified set of liquidity providers, bears the full concentration in ACT itself, and depth at launch is bounded by how much ACT the treasury allocates rather than by independently motivated market-maker capital. Once created, both pools are permanently locked, a Meteora `permanentLockPosition` instruction submitted in the same proposal that creates them: no party, the treasury included, can ever withdraw the underlying liquidity afterward, though the position continues to earn its share of trading fees. The fund's replenishment still depends on trading volume, which depends on liquidity existing in the first place; the permanent lock addresses whether that liquidity can later be pulled out from under holders, not whether enough of it exists to begin with.
 
 ### 20.4 Sources of Demand for ACT
 
@@ -326,7 +330,7 @@ A client-side verification tool, already deployed at this protocol's website, qu
 
 ## 25. Illustrative Calculation
 
-The mechanism's output is arithmetic, not a forecast. For any aggregate ACT transfer volume V between harvests, before the maximum-fee cap in Section 14.1 applies to any individual transfer:
+The mechanism's output is arithmetic, not a forecast. For any aggregate ACT transfer volume V between harvests, before the maximum-fee cap in Section 14.1 applies to any individual transfer, at the rate active today:
 
 | Aggregate volume V | Catalyst fund (2.0%) | Liquidity (1.0%) | Management fee (0.5%) |
 |---|---|---|---|
@@ -334,18 +338,26 @@ The mechanism's output is arithmetic, not a forecast. For any aggregate ACT tran
 | $100,000 | $2,000 | $1,000 | $500 |
 | $1,000,000 | $20,000 | $10,000 | $5,000 |
 
-Applied to illustrative annual volume rather than a single harvest:
+And at the rate scheduled from epoch 1048, with the liquidity share removed:
 
-| Illustrative annual transfer volume | Illustrative annual catalyst-fund capital |
-|---|---|
-| $1,000,000 | $20,000 |
-| $10,000,000 | $200,000 |
-| $50,000,000 | $1,000,000 |
-| $100,000,000 | $2,000,000 |
-| $500,000,000 | $10,000,000 |
-| $1,000,000,000 | $20,000,000 |
+| Aggregate volume V | Catalyst fund (1.0%) | Management fee (0.5%) |
+|---|---|---|
+| $10,000 | $100 | $50 |
+| $100,000 | $1,000 | $500 |
+| $1,000,000 | $10,000 | $5,000 |
 
-Neither table is a projection of ACT's actual future volume, which is presently unknown. No step depends on price or sentiment; each is a fixed function of transfer volume, identical whether that volume reflects one large trade or many small ones.
+Applied to illustrative annual volume rather than a single harvest, catalyst-fund capital only:
+
+| Illustrative annual transfer volume | At today's 2.0% share | At the scheduled 1.0% share |
+|---|---|---|
+| $1,000,000 | $20,000 | $10,000 |
+| $10,000,000 | $200,000 | $100,000 |
+| $50,000,000 | $1,000,000 | $500,000 |
+| $100,000,000 | $2,000,000 | $1,000,000 |
+| $500,000,000 | $10,000,000 | $5,000,000 |
+| $1,000,000,000 | $20,000,000 | $10,000,000 |
+
+No table is a projection of ACT's actual future volume, which is presently unknown. No step depends on price or sentiment; each is a fixed function of transfer volume, identical whether that volume reflects one large trade or many small ones. The scheduled-rate columns produce smaller catalyst-fund figures for identical volume than today's rate does; the fund's total take falls because the aggregate fee itself falls from 3.5 to 1.5 percent, not because the catalyst fund's proportion of what is collected shrinks relative to management.
 
 ---
 
@@ -407,6 +419,8 @@ The following addresses are referenced throughout this paper by description rath
 | Treasury multisig (Squads) | `5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr` |
 | Treasury vault | `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` |
 | Management fee wallet | `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2` |
+| ACT/USDC pool (Meteora DAMM v2) | `6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX` — address is deterministic and specified; pool creation and the permanent lock in Section 20.3 had not yet executed on-chain as of this writing |
+| ACT/SOL pool (Meteora DAMM v2) | `ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb` — same status as above |
 
 ## Notes
 

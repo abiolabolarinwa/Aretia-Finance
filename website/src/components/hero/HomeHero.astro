@@ -1,39 +1,135 @@
 ---
-import { LINKS } from '../../data/site';
+import { LINKS, PRODUCTS, STATUS_LABEL, type Status } from '../../data/site';
 
+const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const liveChain = 'Solana';
 const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
+
+interface Slide {
+  eyebrow: string;
+  status: Status;
+  title: string;
+  lead: string;
+  cta: { label: string; href: string };
+  photo: { src: string; alt: string; position: string };
+}
+
+const slides: Slide[] = [
+  {
+    eyebrow: 'Climate Catalyst Fund',
+    status: 'live',
+    title: 'Move money.<br />Fund the planet.',
+    lead: 'Every ACT transfer carries a 3.5% fee, withheld on-chain — 2% builds the Climate Catalyst Fund, verifiable yourself.',
+    cta: { label: 'Explore the Climate Treasury', href: '/details' },
+    photo: { src: '/images/people/farmer-field.webp', alt: 'A farmer tending young crops in a green field', position: '50% 30%' },
+  },
+  {
+    eyebrow: p.wallet!.name,
+    status: p.wallet!.status,
+    title: 'Every chain.<br />One wallet.',
+    lead: p.wallet!.summary,
+    cta: { label: 'Join the waitlist', href: LINKS.walletWaitlist },
+    photo: { src: '/images/people/hero-wide.webp', alt: 'Two friends laughing and taking a selfie in a sunlit park', position: '62% 40%' },
+  },
+  {
+    eyebrow: p.pay!.name,
+    status: p.pay!.status,
+    title: 'Send to a name,<br />not an address.',
+    lead: p.pay!.summary,
+    cta: { label: 'See Aretia Pay', href: '/features#pay' },
+    photo: { src: '/images/people/woman-phone-smiling.webp', alt: 'A young woman smiling at her phone at a café table', position: '50% 20%' },
+  },
+  {
+    eyebrow: p.shield!.name,
+    status: p.shield!.status,
+    title: 'Know before<br />you sign.',
+    lead: p.shield!.summary,
+    cta: { label: 'See Aretia Shield', href: '/features#shield' },
+    photo: { src: '/images/people/man-beard-phone.webp', alt: 'A smiling bearded man holding his phone', position: '50% 8%' },
+  },
+  {
+    eyebrow: p.safesend!.name,
+    status: p.safesend!.status,
+    title: 'A pause you<br />can take back.',
+    lead: p.safesend!.summary,
+    cta: { label: 'See Aretia SafeSend', href: '/features#safesend' },
+    photo: { src: '/images/people/woman-phone-standing.webp', alt: 'A woman standing outdoors, looking at her phone', position: '50% 15%' },
+  },
+  {
+    eyebrow: p.universal!.name,
+    status: p.universal!.status,
+    title: 'Across chains,<br />without the plumbing.',
+    lead: p.universal!.summary,
+    cta: { label: 'See Aretia Universal', href: '/features#universal' },
+    photo: { src: '/images/people/woman-phone-walking.webp', alt: 'A woman in sunglasses walking down a city street, looking at her phone', position: '50% 12%' },
+  },
+  {
+    eyebrow: p.intent!.name,
+    status: p.intent!.status,
+    title: 'Say what<br />you want.',
+    lead: p.intent!.summary,
+    cta: { label: 'See Aretia Intent', href: '/features#intent' },
+    photo: { src: '/images/people/man-glasses-phone.webp', alt: 'A young man in glasses, delighted by something on his phone', position: '50% 10%' },
+  },
+];
 ---
 
 <section class="hero" data-hero>
-  <div class="hero__frame">
-    <img
-      class="hero__img"
-      src="/images/people/hero-wide.webp"
-      srcset="/images/people/hero-wide-1200.webp 1200w, /images/people/hero-wide.webp 2400w"
-      sizes="100vw"
-      alt="Two friends laughing and taking a selfie in a sunlit park"
-      width="2400"
-      height="1350"
-      fetchpriority="high"
-    />
-    <div class="hero__content">
-      <a class="hero__pill" href="/token" data-hero-in>
-        <span class="hero__pill-dot"></span>ACT is live on Solana mainnet
-      </a>
-      <h1 class="hero__title" data-hero-in>Move money.<br />Fund the planet.</h1>
-      <p class="hero__lead" data-hero-in>
-        Every ACT transfer carries a 3.5% fee, withheld on-chain — 2% builds a Climate Treasury you can verify yourself. Self-custody across five chains is on the way.
-      </p>
-      <div class="hero__ctas" data-hero-in>
-        <a class="hbtn hbtn--solid" href={LINKS.buyAct}>
-          Get ACT
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        </a>
-        <a class="hbtn hbtn--ghost" href="#explore">Explore Aretia</a>
-      </div>
+  <h1 class="sr-only">Aretia Finance — a climate-finance protocol and multichain wallet on Solana</h1>
+  <div class="hero__frame" data-carousel aria-roledescription="carousel" aria-label="Aretia services">
+    {
+      slides.map((s, i) => (
+        <div class="hero__slide" class:list={{ 'is-active': i === 0 }} data-slide={i} aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.eyebrow}`} aria-hidden={i === 0 ? undefined : 'true'}>
+          <img
+            class="hero__img"
+            src={s.photo.src}
+            alt={s.photo.alt}
+            style={`object-position:${s.photo.position}`}
+            width="2400"
+            height="1350"
+            loading={i === 0 ? undefined : 'lazy'}
+            fetchpriority={i === 0 ? 'high' : undefined}
+          />
+          <div class="hero__content">
+            <p class="hero__pill" data-hero-in>
+              <span class="hero__pill-dot"></span>{s.eyebrow} · {STATUS_LABEL[s.status]}
+            </p>
+            <p class="hero__title" data-hero-in set:html={s.title} />
+            <p class="hero__lead" data-hero-in>{s.lead}</p>
+            <div class="hero__ctas" data-hero-in>
+              <a class="hbtn hbtn--solid" href={s.cta.href}>
+                {s.cta.label}
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </a>
+              <a class="hbtn hbtn--ghost" href="#explore">Explore Aretia</a>
+            </div>
+          </div>
+        </div>
+      ))
+    }
+
+    <div class="hero__controls">
+      <button type="button" class="hero__arrow" data-prev aria-label="Previous slide">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m10 3.5-4.5 4.5L10 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <ol class="hero__dots" role="tablist" aria-label="Choose a slide">
+        {
+          slides.map((s, i) => (
+            <li role="presentation">
+              <button type="button" role="tab" data-dot={i} aria-label={`Show ${s.eyebrow}`} aria-selected={i === 0 ? 'true' : 'false'} />
+            </li>
+          ))
+        }
+      </ol>
+      <button type="button" class="hero__arrow" data-next aria-label="Next slide">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button type="button" class="hero__pause" data-pause aria-label="Pause automatic slide rotation" aria-pressed="false">
+        <svg data-icon-pause viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 3h2.5v10H4zM9.5 3H12v10H9.5z" fill="currentColor" /></svg>
+        <svg data-icon-play class="is-hidden" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4.5 3 12.5 8 4.5 13Z" fill="currentColor" /></svg>
+      </button>
     </div>
-    <p class="hero__foot">Aretia Wallet — multichain self-custody, in development. <a href={LINKS.walletWaitlist}>Join the waitlist →</a></p>
+
     <a class="hero__scroll" href="#explore">Scroll
       <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </a>
@@ -50,14 +146,16 @@ const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 <style>
   .hero { padding: calc(var(--nav-height) + 8px) clamp(8px, 1.2vw, 16px) 0; }
   .hero__frame {
-    position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
+    position: relative; isolation: isolate; overflow: hidden;
     min-height: min(calc(100svh - var(--nav-height) - 24px), 860px); min-height: max(560px, min(calc(100svh - var(--nav-height) - 24px), 860px));
     border-radius: clamp(20px, 2.2vw, 32px); background: var(--color-brand);
   }
-  .hero__img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 62% 40%; }
+  .hero__slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; pointer-events: none; transition: opacity 700ms var(--ease-out); }
+  .hero__slide.is-active { opacity: 1; pointer-events: auto; z-index: 1; }
+  .hero__img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
   /* Scrim built from the same logo green as the rest of the page, not a
      separate near-black -- one brand color carries the whole site. */
-  .hero__frame::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(11, 61, 46, 0.82) 0%, rgba(11, 61, 46, 0.52) 34%, rgba(11, 61, 46, 0) 62%), linear-gradient(0deg, rgba(11, 61, 46, 0.4), transparent 30%); }
+  .hero__slide::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(11, 61, 46, 0.82) 0%, rgba(11, 61, 46, 0.52) 34%, rgba(11, 61, 46, 0) 62%), linear-gradient(0deg, rgba(11, 61, 46, 0.4), transparent 30%); }
 
   .hero__content { display: grid; justify-items: start; gap: 22px; width: min(100%, 860px); padding: clamp(24px, 6vw, 96px); color: #fff; }
   .hero__pill { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; font-weight: 500; color: #fff; }
@@ -76,10 +174,22 @@ const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
   /* The global :focus-visible ring is brand-green -- invisible on this dark
      scrim. Every focusable element inside the hero gets a white ring instead. */
   .hero__frame :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-  .hero__foot, .hero__scroll { position: absolute; bottom: clamp(18px, 2.4vw, 32px); font-size: 0.8125rem; color: rgba(255, 255, 255, 0.85); }
-  .hero__foot { left: clamp(24px, 6vw, 96px); max-width: min(80vw, 30rem); }
-  .hero__foot a { color: #fff; text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
-  .hero__scroll { right: clamp(24px, 3vw, 40px); display: inline-flex; align-items: center; gap: 6px; }
+
+  .hero__scroll { position: absolute; z-index: 2; bottom: clamp(18px, 2.4vw, 32px); right: clamp(24px, 3vw, 40px); display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.85); }
+
+  .hero__controls { position: absolute; z-index: 2; left: clamp(24px, 6vw, 96px); bottom: clamp(18px, 2.4vw, 32px); display: flex; align-items: center; gap: 14px; }
+  .hero__arrow, .hero__pause { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45); transition: background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out); }
+  .hero__pause { width: 30px; height: 30px; }
+  .hero__pause .is-hidden { display: none; }
+  .hero__dots { list-style: none; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
+  .hero__dots button { width: 22px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.4); transform: scaleX(0.364); transform-origin: left center; transition: transform var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+  .hero__dots button[aria-selected='true'] { background: #fff; transform: scaleX(1); }
+  @media (hover: hover) and (pointer: fine) {
+    .hbtn--solid:hover { background: var(--color-mint); }
+    .hbtn--ghost:hover { background: rgba(255, 255, 255, 0.12); }
+    .hero__arrow:hover, .hero__pause:hover { background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 1.5px #fff; }
+    .hero__dots button:hover { background: rgba(255, 255, 255, 0.7); }
+  }
 
   .hero__chains { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1.25rem; padding-block: clamp(28px, 4vw, 48px) 0; }
   .hero__chains > span { font-size: var(--text-small); color: var(--color-faint); }
@@ -90,22 +200,17 @@ const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
      4.6:1+ while still reading clearly lighter than the live entry above. */
   .hero__chains-next li { color: rgba(11, 61, 46, 0.68); }
 
-  :global(html.motion-ok) [data-hero-in] { opacity: 0; }
+  :global(html.motion-ok) [data-slide='0'] [data-hero-in] { opacity: 0; }
 
-  @media (hover: hover) and (pointer: fine) {
-    .hbtn--solid:hover { background: var(--color-mint); }
-    .hbtn--ghost:hover { background: rgba(255, 255, 255, 0.12); }
-  }
   @media (max-width: 760px) {
-    .hero__frame { align-items: flex-end; min-height: max(620px, calc(100svh - var(--nav-height) - 16px)); }
-    .hero__img { object-position: 70% 30%; }
-    .hero__frame::before { background: linear-gradient(0deg, rgba(4, 22, 16, 0.85) 0%, rgba(4, 22, 16, 0.55) 45%, rgba(4, 22, 16, 0) 72%); }
-    .hero__content { padding: 24px 22px 64px; gap: 16px; }
+    .hero__slide { align-items: flex-end; }
+    .hero__slide::before { background: linear-gradient(0deg, rgba(4, 22, 16, 0.85) 0%, rgba(4, 22, 16, 0.55) 45%, rgba(4, 22, 16, 0) 72%); }
+    .hero__content { padding: 24px 22px 96px; gap: 16px; }
     .hero__title { white-space: normal; }
     .hero__ctas { width: 100%; }
     .hbtn { flex: 1 1 100%; justify-content: center; height: 52px; }
-    .hero__foot { left: 22px; bottom: 22px; }
     .hero__scroll { display: none; }
+    .hero__controls { left: 22px; bottom: 22px; }
     .hero__chains li { font-size: 1rem; }
     .hero__chains { gap: 0.4rem 1.25rem; }
   }
@@ -114,8 +219,70 @@ const nextChains = ['Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 <script>
   import { gsap, reducedMotion } from '../../scripts/motion';
 
-  if (!reducedMotion()) {
-    gsap.fromTo('[data-hero] .hero__img', { scale: 1.06 }, { scale: 1, duration: 1.4, ease: 'expo.out' });
-    gsap.to('[data-hero-in]', { opacity: 1, y: 0, duration: 0.8, stagger: 0.07, ease: 'expo.out', startAt: { y: 16 }, delay: 0.2 });
+  const root = document.querySelector<HTMLElement>('[data-carousel]');
+  if (root) {
+    const slides = [...root.querySelectorAll<HTMLElement>('[data-slide]')];
+    const dots = [...root.querySelectorAll<HTMLButtonElement>('[data-dot]')];
+    const prevBtn = root.querySelector<HTMLButtonElement>('[data-prev]')!;
+    const nextBtn = root.querySelector<HTMLButtonElement>('[data-next]')!;
+    const pauseBtn = root.querySelector<HTMLButtonElement>('[data-pause]')!;
+    const iconPause = pauseBtn.querySelector<SVGElement>('[data-icon-pause]')!;
+    const iconPlay = pauseBtn.querySelector<SVGElement>('[data-icon-play]')!;
+
+    let current = 0;
+    let timer: number | undefined;
+    let userPaused = reducedMotion();
+    const INTERVAL = 6000;
+
+    const setPauseUI = () => {
+      pauseBtn.setAttribute('aria-pressed', String(userPaused));
+      pauseBtn.setAttribute('aria-label', userPaused ? 'Resume automatic slide rotation' : 'Pause automatic slide rotation');
+      iconPause.classList.toggle('is-hidden', userPaused);
+      iconPlay.classList.toggle('is-hidden', !userPaused);
+    };
+
+    const goTo = (i: number) => {
+      current = (i + slides.length) % slides.length;
+      slides.forEach((el, idx) => {
+        const active = idx === current;
+        el.classList.toggle('is-active', active);
+        if (active) el.removeAttribute('aria-hidden');
+        else el.setAttribute('aria-hidden', 'true');
+      });
+      dots.forEach((d, idx) => d.setAttribute('aria-selected', String(idx === current)));
+      if (!reducedMotion()) {
+        const img = slides[current]!.querySelector<HTMLElement>('.hero__img');
+        if (img) gsap.fromTo(img, { scale: 1.05 }, { scale: 1, duration: 1.1, ease: 'expo.out' });
+      }
+    };
+
+    const stop = () => window.clearInterval(timer);
+    const start = () => {
+      stop();
+      if (userPaused) return;
+      timer = window.setInterval(() => goTo(current + 1), INTERVAL);
+    };
+
+    prevBtn.addEventListener('click', () => { goTo(current - 1); start(); });
+    nextBtn.addEventListener('click', () => { goTo(current + 1); start(); });
+    dots.forEach((d, i) => d.addEventListener('click', () => { goTo(i); start(); }));
+    pauseBtn.addEventListener('click', () => { userPaused = !userPaused; setPauseUI(); start(); });
+
+    root.addEventListener('pointerenter', stop);
+    root.addEventListener('pointerleave', start);
+    root.addEventListener('focusin', stop);
+    root.addEventListener('focusout', (e) => { if (!root.contains(e.relatedTarget as Node)) start(); });
+    root.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current - 1); start(); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(current + 1); start(); }
+    });
+
+    setPauseUI();
+    start();
+
+    if (!reducedMotion()) {
+      gsap.fromTo('[data-slide="0"] .hero__img', { scale: 1.06 }, { scale: 1, duration: 1.4, ease: 'expo.out' });
+      gsap.to('[data-slide="0"] [data-hero-in]', { opacity: 1, y: 0, duration: 0.8, stagger: 0.07, ease: 'expo.out', startAt: { y: 16 }, delay: 0.2 });
+    }
   }
 </script>

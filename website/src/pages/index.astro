@@ -51,14 +51,6 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 </html>
 
 <style>
-  @font-face {
-    font-family: 'Rostex';
-    src: url('/fonts/rostex/Rostex-Regular.ttf') format('truetype');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
-
   .welcome {
     position: relative;
     min-height: 100svh;
@@ -94,7 +86,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
   .welcome__word {
     display: grid;
     line-height: 0.95;
-    font-family: 'Rostex', var(--font-display);
+    font-family: var(--font-topical);
     font-size: clamp(3rem, 8vw, 5.5rem);
     font-weight: 700;
     letter-spacing: 0;

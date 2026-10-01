@@ -34,6 +34,9 @@
   --font-display: 'Geist Variable', -apple-system, system-ui, sans-serif;
   --font-body: 'Geist Variable', -apple-system, system-ui, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* The one topical headline per page/section -- what it's about, not its
+     supporting copy. See global.css for the @font-face. */
+  --font-topical: 'Rostex', var(--font-display);
 
   --text-mega: clamp(3.5rem, 10vw, 6rem);
   --text-display: clamp(2.75rem, 6vw, 5.25rem);

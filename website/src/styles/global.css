@@ -2,6 +2,18 @@
 @import '@fontsource-variable/geist-mono';
 @import './tokens.css';
 
+/* Rostex: the bold display face for topical headlines (the one headline
+   per page/section that names its subject), layered over Geist everywhere
+   else. Only the solid Regular cut ships -- no Bold weight exists, so this
+   is registered under the heaviest weight available. */
+@font-face {
+  font-family: 'Rostex';
+  src: url('/fonts/rostex/Rostex-Regular.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; color-scheme: light; }
@@ -48,7 +60,7 @@ p { margin: 0; text-wrap: pretty; }
   font-size: var(--text-small); font-weight: 600; letter-spacing: -0.005em;
   color: var(--color-muted); margin: 0;
 }
-.display { font-size: var(--text-display); }
+.display { font-family: var(--font-topical); font-size: var(--text-display); }
 .heading { font-size: var(--text-heading); }
 .subheading { font-size: var(--text-subheading); line-height: var(--leading-snug); }
 .lead { font-size: var(--text-lead); color: var(--color-muted); line-height: 1.55; max-width: 38rem; }

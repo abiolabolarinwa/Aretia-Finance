@@ -145,18 +145,34 @@ function initStackDeck(): void {
   // column, variable content length), so a settling card underneath shows a
   // ragged wall of faded text rather than a clean depth cue. Desktop only.
   if (!isDesktop()) return;
-  const navHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 0;
+  // --nav-height is a calc() expression (nav bar + the fee-notice banner,
+  // which can toggle on/off), so the CSS custom property's raw string isn't
+  // parseFloat-able. Measure the real rendered nav instead.
+  const navEl = document.querySelector<HTMLElement>('[data-nav]');
   document.querySelectorAll<HTMLElement>('[data-stack]').forEach((stack) => {
     const items = [...stack.querySelectorAll<HTMLElement>('[data-stack-item]')];
     items.forEach((item, i) => {
       const next = items[i + 1];
       const card = item.querySelector<HTMLElement>('.fold__card');
       if (!next || !card) return;
+      // `next` is itself position:sticky, so its live rect.top freezes once
+      // pinned -- using it directly as a scrub trigger's start/end position
+      // (GSAP's usual "top bottom" / "top Npx" strings) gives a correct
+      // reading only at the instant of the first refresh, then goes stale
+      // and never completes on any later refresh. Compute absolute scroll
+      // positions instead from `stack` (plain position:relative, never
+      // sticky itself) plus `next.offsetTop` (static layout geometry,
+      // unaffected by scroll or sticky state) -- stable at every refresh.
       gsap.to(card, {
         scale: 0.95,
         opacity: 0.82,
         ease: 'none',
-        scrollTrigger: { trigger: next, start: 'top bottom', end: `top ${navHeight}px`, scrub: true },
+        scrollTrigger: {
+          start: () => stack.getBoundingClientRect().top + window.scrollY + next.offsetTop - window.innerHeight,
+          end: () => stack.getBoundingClientRect().top + window.scrollY + next.offsetTop - (navEl?.getBoundingClientRect().height ?? 0),
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
       });
     });
   });

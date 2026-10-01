@@ -129,24 +129,6 @@ function endOfTopNav(html: string): number {
   throw new Error('unbalanced top nav');
 }
 
-/**
- * The presale was cancelled (1 Oct 2026). Removes the old "Presale opens in"
- * countdown popup, a <div id="presale-countdown-overlay"> with nested divs,
- * from a page's markup.
- */
-function stripPresaleCountdown(html: string): string {
-  const start = html.indexOf('<div id="presale-countdown-overlay"');
-  if (start < 0) return html;
-  let depth = 0;
-  const re = /<div\b|<\/div>/g;
-  re.lastIndex = start;
-  for (let m = re.exec(html); m; m = re.exec(html)) {
-    depth += m[0] === '</div>' ? -1 : 1;
-    if (depth === 0) return html.slice(0, start) + html.slice(m.index + m[0].length);
-  }
-  return html;
-}
-
 /** Removes the label-above-the-heading elements; the headings carry themselves. */
 function stripEyebrows(html: string): string {
   return html.replace(/<(p|span|div)\s+class="(?:[\w-]*-)?(?:eyebrow|kicker)"[^>]*>(?:(?!<\1\b)[\s\S])*?<\/\1>\s*/g, '');
@@ -170,9 +152,7 @@ export function loadLegacyPage(name: string): LegacyPage {
   const scripts = sliceBetween(html, footerEnd, bodyEnd)
     // Handled by the new layout: footer animation and analytics.
     .replace(/<script[^>]*src="\/assets\/footer-bars\.js"[^>]*><\/script>/g, '')
-    .replace(/<script[^>]*src="\/_vercel\/insights\/script\.js"[^>]*><\/script>/g, '')
-    // The cancelled presale's countdown popup script.
-    .replace(/<script>(?:(?!<\/script>)[\s\S])*PRESALE_OPEN[\s\S]*?<\/script>/g, '');
+    .replace(/<script[^>]*src="\/_vercel\/insights\/script\.js"[^>]*><\/script>/g, '');
 
-  return { title, description, css: transformCss(style), content: stripEyebrows(stripPresaleCountdown(content)), scripts };
+  return { title, description, css: transformCss(style), content: stripEyebrows(content), scripts };
 }

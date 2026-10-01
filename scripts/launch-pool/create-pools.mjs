@@ -31,6 +31,11 @@
  *   SOL_USD=<number>        override the live SOL/USD price for the SOL pool
  *   RPC_ENDPOINT=...        default https://api.mainnet-beta.solana.com
  *   ALLOW_OLD_FEE=1         allow --execute while ACT's 3.5% fee is still active
+ *   LOCK_LIQUIDITY=permanent  permanently lock each position right after
+ *                           creation (Meteora permanentLockPosition). The
+ *                           ACT and the USDC/SOL it earns can then NEVER be
+ *                           withdrawn by anyone, the treasury included; the
+ *                           position can still claim its trading fees.
  *
  * The SOL pool's floor is fixed in SOL at creation: FLOOR_USD / SOL_USD. After
  * that its dollar floor moves with SOL's price. Re-run right before executing.
@@ -82,6 +87,8 @@ const FLOOR_USD = Number(process.env.FLOOR_USD ?? "0.005");
 const ACT_PER_POOL = BigInt(process.env.ACT_PER_POOL ?? "5000000");
 const POOLS = (process.env.POOLS ?? "usdc,sol").split(",").map((s) => s.trim()).filter(Boolean);
 const POOL_FEE_BPS = Number(process.env.POOL_FEE_BPS ?? "25");
+const LOCK = process.env.LOCK_LIQUIDITY ?? "none";
+if (LOCK !== "none" && LOCK !== "permanent") throw new Error('LOCK_LIQUIDITY must be "permanent" or unset');
 
 const log = (...a) => console.log(...a);
 
@@ -157,6 +164,7 @@ async function buildPool(cpAmm, connection, quoteKey, mintInfo, epoch, positionN
     activationPoint: null,
     tokenAProgram: TOKEN_2022_PROGRAM_ID,
     tokenBProgram: q.program,
+    isLockLiquidity: LOCK === "permanent",
   });
 
   return {
@@ -206,6 +214,7 @@ async function main() {
   const vaultSol = (await connection.getBalance(TREASURY_VAULT)) / 1e9;
   const vaultAct = await connection.getTokenAccountBalance(getAssociatedTokenAddressSync(ACT_MINT, TREASURY_VAULT, true, TOKEN_2022_PROGRAM_ID));
   log(`Treasury vault: ${vaultSol} SOL, ${vaultAct.value.uiAmountString} ACT`);
+  log(`Liquidity lock: ${LOCK === "permanent" ? "PERMANENT - positions can never be withdrawn (fees still claimable)" : "none - the treasury can withdraw later with a 2-of-3 approval"}`);
   log(`Plan: ${POOLS.length} pool(s) x ${ACT_PER_POOL.toLocaleString("en-US")} ACT, floor $${FLOOR_USD}/ACT, pool trading fee ${POOL_FEE_BPS / 100}%`);
   log(`ACT's own ${fee.bps / 100}% transfer fee applies to each deposit: ~${(Number(ACT_PER_POOL) * fee.bps / 10000).toLocaleString("en-US")} ACT withheld per pool.`);
 

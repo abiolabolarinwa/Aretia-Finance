@@ -100,8 +100,8 @@ const slides: Slide[] = [
             fetchpriority={i === 0 ? 'high' : undefined}
           />
           <div class="hero__content">
-            <p class="hero__pill" data-hero-in>
-              <span class="hero__pill-dot"></span>{s.eyebrow} · {STATUS_LABEL[s.status]}
+            <p class="hero__eyebrow" data-hero-in>
+              <span class="hero__eyebrow-mark" aria-hidden="true"></span>{s.eyebrow} <span class="hero__eyebrow-sep">/</span> {STATUS_LABEL[s.status]}
             </p>
             <p class="hero__title" data-hero-in set:html={s.title} />
             <p class="hero__lead" data-hero-in>{s.lead}</p>
@@ -118,6 +118,7 @@ const slides: Slide[] = [
     }
 
     <div class="hero__controls">
+      <p class="hero__count tnum" aria-hidden="true"><span data-count-current>01</span><span class="hero__count-sep">/</span>{String(slides.length).padStart(2, '0')}</p>
       <button type="button" class="hero__arrow" data-prev aria-label="Previous slide">
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m10 3.5-4.5 4.5L10 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
@@ -171,7 +172,7 @@ const slides: Slide[] = [
   .hero__frame {
     position: relative; isolation: isolate; overflow: hidden;
     min-height: min(calc(100svh - var(--nav-height) - 24px), 860px); min-height: max(560px, min(calc(100svh - var(--nav-height) - 24px), 860px));
-    border-radius: clamp(20px, 2.2vw, 32px); background: var(--color-brand);
+    border-radius: 0; background: var(--color-brand);
   }
   .hero__slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; pointer-events: none; transition: opacity 700ms var(--ease-out); }
   .hero__slide.is-active { opacity: 1; pointer-events: auto; z-index: 1; }
@@ -181,8 +182,12 @@ const slides: Slide[] = [
   .hero__slide::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(11, 61, 46, 0.82) 0%, rgba(11, 61, 46, 0.52) 34%, rgba(11, 61, 46, 0) 62%), linear-gradient(0deg, rgba(11, 61, 46, 0.4), transparent 30%); }
 
   .hero__content { display: grid; justify-items: start; gap: 22px; width: min(100%, 860px); padding: clamp(24px, 6vw, 96px); color: #fff; }
-  .hero__pill { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; font-weight: 500; color: #fff; }
-  .hero__pill-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); box-shadow: 0 0 0 4px rgba(94, 230, 168, 0.25); }
+  /* Tracked-out uppercase label, no pill chip -- a thin square mark instead
+     of a soft glowing dot, and a hairline rule underneath rather than a
+     background fill. Architectural-brief register, not a status badge. */
+  .hero__eyebrow { display: inline-flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; }
+  .hero__eyebrow-mark { width: 7px; height: 7px; background: var(--color-mint); flex: none; }
+  .hero__eyebrow-sep { color: rgba(255, 255, 255, 0.45); }
   .hero__title { font-family: var(--font-topical); font-size: clamp(2rem, 4.4vw, 4.25rem); font-weight: 700; line-height: 1.04; letter-spacing: -0.005em; color: #fff; text-wrap: balance; }
   .hero__lead { max-width: 30rem; font-size: clamp(1.0625rem, 1.3vw, 1.25rem); line-height: 1.5; color: rgba(255, 255, 255, 0.9); }
   .hero__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
@@ -200,17 +205,22 @@ const slides: Slide[] = [
 
   .hero__scroll { position: absolute; z-index: 2; bottom: clamp(18px, 2.4vw, 32px); right: clamp(24px, 3vw, 40px); display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.85); }
 
-  .hero__controls { position: absolute; z-index: 2; left: clamp(24px, 6vw, 96px); bottom: clamp(18px, 2.4vw, 32px); display: flex; align-items: center; gap: 14px; }
-  .hero__arrow, .hero__pause { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45); transition: background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out); }
+  .hero__controls { position: absolute; z-index: 2; left: clamp(24px, 6vw, 96px); bottom: clamp(18px, 2.4vw, 32px); display: flex; align-items: center; gap: 18px; }
+  /* Large typographic slide count, not a dot -- the template's numbered-
+     index motif. Thin rule under the arrows/dots instead of soft shadows. */
+  .hero__count { display: flex; align-items: baseline; font-family: var(--font-topical); font-size: 1.375rem; font-weight: 700; color: #fff; letter-spacing: 0; }
+  .hero__count-sep { margin: 0 3px; font-size: 0.75rem; font-weight: 500; color: rgba(255, 255, 255, 0.45); }
+  .hero__count::after { content: ''; width: 1px; height: 20px; margin-left: 16px; background: rgba(255, 255, 255, 0.3); }
+  .hero__arrow, .hero__pause { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 0; color: #fff; border: 1px solid rgba(255, 255, 255, 0.45); transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
   .hero__pause { width: 30px; height: 30px; }
   .hero__pause .is-hidden { display: none; }
   .hero__dots { list-style: none; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
-  .hero__dots button { width: 22px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.4); transform: scaleX(0.364); transform-origin: left center; transition: transform var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+  .hero__dots button { width: 22px; height: 2px; border-radius: 0; background: rgba(255, 255, 255, 0.4); transform: scaleX(0.364); transform-origin: left center; transition: transform var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
   .hero__dots button[aria-selected='true'] { background: #fff; transform: scaleX(1); }
   @media (hover: hover) and (pointer: fine) {
     .hbtn--solid:hover { background: var(--color-mint); }
     .hbtn--ghost:hover { background: rgba(255, 255, 255, 0.12); }
-    .hero__arrow:hover, .hero__pause:hover { background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 1.5px #fff; }
+    .hero__arrow:hover, .hero__pause:hover { background: rgba(255, 255, 255, 0.14); border-color: #fff; }
     .hero__dots button:hover { background: rgba(255, 255, 255, 0.7); }
   }
 
@@ -221,7 +231,7 @@ const slides: Slide[] = [
   /* Official marks, each cropped into a uniform chip so Solana's square tile,
      Ethereum's circle and Base/Polygon's edge-to-edge marks read as one
      consistent row instead of five differently-shaped source assets. */
-  .hero__chain-icon { display: block; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--color-border); }
+  .hero__chain-icon { display: block; width: 22px; height: 22px; border-radius: 0; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--color-border); }
   .hero__chain-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
   /* "Coming to" chains are real logos but not live yet -- desaturated and
      dimmed so the honesty distinction survives the switch from drawn,
@@ -238,6 +248,10 @@ const slides: Slide[] = [
     .hbtn { flex: 1 1 100%; justify-content: center; height: 52px; }
     .hero__scroll { display: none; }
     .hero__controls { left: 22px; right: 22px; bottom: 22px; gap: 8px; }
+    .hero__count { font-size: 1.0625rem; }
+    .hero__count::after { margin-left: 8px; }
+    .hero__arrow, .hero__pause { width: 30px; height: 30px; }
+    .hero__pause { width: 26px; height: 26px; }
     .hero__dots { gap: 5px; }
     .hero__dots button { width: 16px; }
     .hero__chain-icon { width: 19px; height: 19px; }
@@ -252,6 +266,7 @@ const slides: Slide[] = [
   if (root) {
     const slides = [...root.querySelectorAll<HTMLElement>('[data-slide]')];
     const dots = [...root.querySelectorAll<HTMLButtonElement>('[data-dot]')];
+    const countEl = root.querySelector<HTMLElement>('[data-count-current]');
     const prevBtn = root.querySelector<HTMLButtonElement>('[data-prev]')!;
     const nextBtn = root.querySelector<HTMLButtonElement>('[data-next]')!;
     const pauseBtn = root.querySelector<HTMLButtonElement>('[data-pause]')!;
@@ -279,6 +294,7 @@ const slides: Slide[] = [
         else el.setAttribute('aria-hidden', 'true');
       });
       dots.forEach((d, idx) => d.setAttribute('aria-selected', String(idx === current)));
+      if (countEl) countEl.textContent = String(current + 1).padStart(2, '0');
       if (!reducedMotion()) {
         const img = slides[current]!.querySelector<HTMLElement>('.hero__img');
         if (img) gsap.fromTo(img, { scale: 1.05 }, { scale: 1, duration: 1.1, ease: 'expo.out' });

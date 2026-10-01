@@ -33,10 +33,10 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
     </header>
   </div>
 
-  <div class="stack">
+  <div class="stack" data-stack>
     {
       steps.map((s, i) => (
-        <section class="fold" style={`z-index:${i + 1}`} aria-labelledby={`fold-title-${s.n}`}>
+        <section class="fold" data-stack-item style={`z-index:${i + 1}`} aria-labelledby={`fold-title-${s.n}`}>
           <div class="container">
           <div class="fold__card">
           <div class="fold__grid">

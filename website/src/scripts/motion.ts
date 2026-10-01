@@ -137,6 +137,31 @@ function initTilt(): void {
   });
 }
 
+/** [data-stack] / [data-stack-item]: sticky "deck" cards (position:sticky already
+    stacks and covers them; this adds the scale-down-and-settle motion as the
+    next card slides over, like a physical deck being worked through). */
+function initStackDeck(): void {
+  // Below the desktop breakpoint, fold cards switch to auto height (one
+  // column, variable content length), so a settling card underneath shows a
+  // ragged wall of faded text rather than a clean depth cue. Desktop only.
+  if (!isDesktop()) return;
+  const navHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 0;
+  document.querySelectorAll<HTMLElement>('[data-stack]').forEach((stack) => {
+    const items = [...stack.querySelectorAll<HTMLElement>('[data-stack-item]')];
+    items.forEach((item, i) => {
+      const next = items[i + 1];
+      const card = item.querySelector<HTMLElement>('.fold__card');
+      if (!next || !card) return;
+      gsap.to(card, {
+        scale: 0.95,
+        opacity: 0.82,
+        ease: 'none',
+        scrollTrigger: { trigger: next, start: 'top bottom', end: `top ${navHeight}px`, scrub: true },
+      });
+    });
+  });
+}
+
 let started = false;
 export function initMotion(): void {
   if (started) return;
@@ -153,5 +178,6 @@ export function initMotion(): void {
   initCounters();
   initMagnetic();
   initTilt();
+  initStackDeck();
   window.addEventListener('load', () => ScrollTrigger.refresh());
 }

@@ -129,22 +129,27 @@ const capabilities: { title: string; body: string; status: Status; href?: string
   .wsec { display: grid; gap: var(--space-2xl); }
   .wsec__head { display: grid; gap: var(--space-md); }
 
-  .wl { display: grid; gap: var(--space-xl); padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.5rem, 4vw, 3.5rem); border-radius: var(--radius-xl); border: 1px solid var(--color-border); background: var(--color-bg-alt); justify-items: center; text-align: center; }
+  /* Same solid-logo-green treatment as the shared closing CtaBands, so the
+     last word on this page carries the same confidence as every other. */
+  .wl { display: grid; gap: var(--space-xl); padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.5rem, 4vw, 3.5rem); border-radius: var(--radius-xl); background: var(--color-brand); color: #fff; justify-items: center; text-align: center; }
+  .wl .heading { color: #fff; }
   .wl__copy { display: grid; gap: var(--space-sm); max-width: 34rem; justify-items: center; }
+  .wl__copy .lead { color: rgba(255, 255, 255, 0.78); }
   .wl__form { width: 100%; max-width: 30rem; display: grid; gap: 8px; }
   .hp { position: absolute; left: -9999px; }
   .wl__row { display: flex; gap: 0.6rem; }
-  .wl__row input { flex: 1; min-width: 0; padding: 0 16px; height: 52px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-strong); font-size: 1rem; transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
-  .wl__row input:focus { outline: none; border-color: var(--color-brand-bright); box-shadow: 0 0 0 4px var(--color-brand-soft); }
-  .wl__row input[aria-invalid='true'] { border-color: #f87171; }
-  .wl .submit { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 1.75rem; border-radius: var(--radius-pill); background: var(--color-strong); color: var(--color-bg); font-weight: 600; transition: background-color var(--duration-base); }
+  .wl__row input { flex: 1; min-width: 0; padding: 0 16px; height: 52px; border-radius: var(--radius-pill); border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 1rem; transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+  .wl__row input::placeholder { color: rgba(255, 255, 255, 0.55); }
+  .wl__row input:focus { outline: none; border-color: #fff; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18); }
+  .wl__row input[aria-invalid='true'] { border-color: #ffb4a8; }
+  .wl .submit { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 1.75rem; border-radius: var(--radius-pill); background: #fff; color: var(--color-brand); font-weight: 600; transition: background-color var(--duration-base); }
   .wl .submit[disabled] { opacity: 0.6; cursor: default; }
-  .wl .err { font-size: var(--text-micro); color: #f87171; min-height: 1em; }
-  .wl .status { font-size: var(--text-small); min-height: 1.2em; }
-  .wl .status.is-ok { color: var(--color-ok); }
-  .wl .status.is-err { color: #f87171; }
+  .wl .err { font-size: var(--text-micro); color: #ffb4a8; min-height: 1em; }
+  .wl .status { font-size: var(--text-small); min-height: 1.2em; color: rgba(255, 255, 255, 0.78); }
+  .wl .status.is-ok { color: var(--color-mint); }
+  .wl .status.is-err { color: #ffb4a8; }
   @media (hover: hover) and (pointer: fine) {
-    .wl .submit:hover { background: var(--color-brand-bright); }
+    .wl .submit:hover { background: var(--color-mint); }
   }
   @media (max-width: 600px) {
     .wl__row { flex-direction: column; }

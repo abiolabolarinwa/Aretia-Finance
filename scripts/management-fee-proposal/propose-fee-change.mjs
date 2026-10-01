@@ -92,7 +92,7 @@ const VAULT_INDEX = 0;
 // pass a number on the command line, this value needs to match what's
 // documented in TOKENOMICS.md/WHITEPAPER.md or the docs and the mint will
 // disagree with each other.
-const NEW_BPS = 350; // 3.5% -- already the live v2 rate as of 26 Sept 2026; update this before the next real change
+const NEW_BPS = 150; // 1.5% -- 1% Climate Treasury + 0.5% management; proposed 1 Oct 2026
 
 const EXECUTE = process.argv.includes("--execute");
 

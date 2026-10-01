@@ -89,7 +89,7 @@ const MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94a
 // see MINT_V2.md). This constant still does not update itself from chain state,
 // so re-check MINT_V2.md's fee-authority section if the rate is ever changed again.
 const MANAGEMENT_SHARE_NUM = 1n;
-const MANAGEMENT_SHARE_DEN = 7n;
+const MANAGEMENT_SHARE_DEN = 3n;
 
 const EXECUTE = process.argv.includes("--execute");
 

@@ -14,7 +14,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta name="description" content="Join the Aretia Wallet waitlist, or explore the climate-finance protocol behind ACT." />
     <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
-    <meta name="theme-color" content="#f7efe2" />
+    <meta name="theme-color" content="#fbfbfd" />
   </head>
   <body>
     <main class="welcome">
@@ -39,19 +39,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       </div>
 
       <div class="welcome__mark" aria-hidden="true">
-        <svg viewBox="0 0 1400 420">
-          <polygon points="0,420 180,320 700,420" fill="#0b3d2e" />
-          <polygon points="180,320 480,90 700,420" fill="#0f6b4b" />
-          <polygon points="480,90 620,230 700,420" fill="#1c8f66" />
-          <polygon points="620,230 700,260 700,420" fill="#0b3d2e" />
-          <polygon points="700,260 800,160 700,420" fill="#8a6620" />
-          <polygon points="800,160 960,70 700,420" fill="#a07a2c" />
-          <polygon points="960,70 1200,340 700,420" fill="#c79a4a" />
-          <polygon points="1200,340 1400,420 700,420" fill="#0b3d2e" />
-          <g fill="#fdf8ef" opacity="0.92">
-            <rect x="560" y="195" width="230" height="38" rx="19" transform="rotate(26 675 214)" />
-            <rect x="560" y="300" width="230" height="38" rx="19" transform="rotate(-26 675 319)" />
-            <rect x="800" y="150" width="38" height="240" rx="19" transform="rotate(14 819 270)" />
+        <svg viewBox="0 0 480 420">
+          <g fill="#0b3d2e">
+            <rect x="40" y="120" width="280" height="46" rx="23" transform="rotate(32 180 143)" />
+            <rect x="40" y="254" width="280" height="46" rx="23" transform="rotate(-32 180 277)" />
+            <rect x="360" y="90" width="46" height="240" rx="23" transform="rotate(14 383 210)" />
           </g>
         </svg>
       </div>
@@ -63,7 +55,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
   .welcome {
     position: relative;
     min-height: 100svh;
-    background: #f7efe2;
+    background: var(--color-offwhite);
     display: grid;
     place-items: center;
   }
@@ -89,7 +81,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     justify-items: center;
     gap: var(--space-md);
     text-align: center;
-    padding: clamp(4rem, 8vw, 6rem) var(--gutter) clamp(9rem, 14vw, 12rem);
+    padding: clamp(4rem, 8vw, 6rem) var(--gutter) clamp(6rem, 10vw, 8rem);
   }
 
   .welcome__word {
@@ -104,9 +96,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
   .welcome__lead {
     max-width: 30rem;
     font-size: var(--text-lead);
-    /* var(--color-muted) reads 4.44:1 on this page's warm cream, just under
-       AA; this shade clears 5.6:1 while staying visually "muted". */
-    color: #5e5e61;
+    color: var(--color-muted);
   }
 
   .welcome__actions {
@@ -135,15 +125,16 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     .wbtn--outline:hover { border-color: var(--color-strong); }
   }
 
-  .welcome__note { font-size: var(--text-micro); color: #5e5e61; max-width: 26rem; }
+  .welcome__note { font-size: var(--text-micro); color: var(--color-faint); max-width: 26rem; }
 
   .welcome__mark {
     position: fixed;
     z-index: 0;
     left: 50%;
-    bottom: -3vh;
-    width: max(100%, 900px);
+    bottom: -4vh;
+    width: clamp(240px, 24vw, 380px);
     transform: translateX(-50%);
+    opacity: 0.9;
     pointer-events: none;
   }
   .welcome__mark svg { display: block; width: 100%; height: auto; }

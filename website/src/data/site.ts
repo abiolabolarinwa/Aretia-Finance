@@ -120,24 +120,28 @@ export const ACT = {
   standard: 'SPL Token-2022',
   mint: '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG',
   totalSupply: 1_000_000_000,
-  presaleAllocation: 100_000_000,
-  presaleHardCapUsd: 1_000_000,
   mintAuthority: 'Revoked: supply can never increase',
   freezeAuthority: 'Revoked: no wallet can be frozen',
   projectRegistrationFee: 5_000,
   treasuryMultisig: 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA',
   /** Token-2022 transfer fee, withheld by the token program on every transfer. */
   transferFee: {
-    totalPercent: 3.5,
-    note: 'Withheld on-chain by the Token-2022 program on every transfer (350 basis points, active since epoch 1032). The treasury multisig collects the withheld fees and splits them as below.',
+    totalPercent: 1.5,
+    /**
+     * Set while the 1.5% rate is scheduled on-chain but not yet in effect
+     * (Token-2022 applies a fee change two epochs after approval). While set,
+     * the nav shows a notice and fee figures say when the new rate starts.
+     * Remove once Solana reaches `fromEpoch`.
+     */
+    scheduled: { fromEpoch: 1048, previousPercent: 3.5 } as { fromEpoch: number; previousPercent: number } | undefined,
+    note: 'Withheld on-chain by the Token-2022 program on every transfer (150 basis points). The treasury multisig collects the withheld fees and splits them as below.',
     split: [
-      { label: 'Climate Treasury', percent: 2, detail: 'Catalyst fund for climate projects, held in a 2-of-3 multisig' },
-      { label: 'Liquidity', percent: 1, detail: 'Market liquidity for ACT' },
+      { label: 'Climate Treasury', percent: 1, detail: 'Catalyst fund for climate projects, held in a 2-of-3 multisig' },
       { label: 'Management fee', percent: 0.5, detail: 'Treasury operations: verification, reporting, monitoring' },
     ],
   },
   utilities: [
-    { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury, liquidity and treasury operations.' },
+    { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury and treasury operations.' },
     { name: 'Staking', status: 'in-development' as Status, detail: 'Lock ACT to build a Capital Access Score.' },
     { name: 'Project registration', status: 'live' as Status, detail: `Project developers pay a ${(5000).toLocaleString('en-US')} ACT fee to apply for catalyst funding.` },
     { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Universal, Pay, Shield and Intent.' },
@@ -221,7 +225,6 @@ export const NAV: NavGroup[] = [
     items: [
       { label: 'Token', href: '/token', description: 'Supply, fees and utility' },
       { label: 'Buy ACT', href: '/buy', description: 'Swap into ACT via Jupiter' },
-      { label: 'Presale', href: '/presale', description: 'Presale details' },
       { label: 'Staking', href: '/stake', description: 'Capital Access Score' },
       { label: 'Verify', href: '/verify', description: 'Check the mint on-chain' },
     ],

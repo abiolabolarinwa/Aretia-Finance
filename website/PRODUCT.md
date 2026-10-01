@@ -16,7 +16,7 @@ Copy and hierarchy must work for both without gatekeeping either: plain-language
 
 ## Product Purpose
 
-Aretia Finance is a Solana-based climate-finance protocol. Its token, ACT, carries a 3.5% transfer fee withheld on-chain by the Token-2022 program: 2% funds a multisig-held Climate Treasury that finances real-world climate projects against independently verified milestones, 1% supports liquidity, 0.5% covers treasury operations (verification, reporting, monitoring).
+Aretia Finance is a Solana-based climate-finance protocol. Its token, ACT, carries a 1.5% transfer fee withheld on-chain by the Token-2022 program: 1% funds a multisig-held Climate Treasury that finances real-world climate projects against independently verified milestones, 0.5% covers treasury operations (verification, reporting, monitoring). There is no presale; ACT is acquired by trading.
 
 Beyond the token, Aretia is building a wider product suite around self-custody and payments: **Aretia Wallet** (multichain self-custody, Solana + 4 EVM networks, in development), **Aretia Pay**, **Aretia Intent**, **Aretia Shield**, and **Aretia SafeSend** — named directly by the user as current evidence of "what we're building," to be shown on the site as an ecosystem rather than a single-product pitch. Per-product build status (Live / Built / Testnet / In development / Roadmap) is already tracked as a single source of truth in `src/data/site.ts`; do not mark any of these products "live" on a redesigned surface without checking that file first.
 

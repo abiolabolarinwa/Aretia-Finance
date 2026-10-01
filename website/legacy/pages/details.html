@@ -508,7 +508,7 @@
         <div>
           <div class="dhero-eyebrow">Climate Treasury</div>
           <h1>Fixed supply, <span class="hl">governed in layers.</span></h1>
-          <p class="dhero-sub">1,000,000,000 ACT, mint authority revoked, freeze authority never granted. Every trade splits automatically between the treasury, liquidity, and a disclosed management fee, then the treasury itself is held under multisig custody and released only against verified milestones.</p>
+          <p class="dhero-sub">1,000,000,000 ACT, mint authority revoked, freeze authority never granted. Every trade has a fee withheld on-chain, which the treasury splits between the climate catalyst fund and a disclosed management fee; the treasury itself is held under multisig custody and released only against verified milestones.</p>
           <div class="dhero-actions">
             <a class="pill-btn pill-black aurora-arrow-btn" href="https://app.squads.so/squads/GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA" target="_blank" rel="noopener">
               View Treasury Multisig
@@ -547,11 +547,11 @@
       <section class="bento-intro">
         <p class="bento-eyebrow">Aretia Finance / Tokenomics</p>
         <h2>No tiers to choose. One set of fixed, disclosed parameters.</h2>
-        <p class="bento-lede">Every ACT transfer splits automatically into the climate catalyst fund, liquidity, and a disclosed management fee. The mint itself is closed: no more supply can ever be created, and no wallet can ever be frozen.</p>
+        <p class="bento-lede">Every ACT transfer has a fee withheld on-chain, split between the climate catalyst fund and a disclosed management fee. The mint itself is closed: no more supply can ever be created, and no wallet can ever be frozen.</p>
         <div class="bento-formula">
           <div class="bento-formula-box">
             <span>Every transfer</span>
-            <strong>3.5% fee = 2.0% catalyst + 1.0% liquidity + 0.5% management</strong>
+            <strong>1.5% fee = 1.0% catalyst + 0.5% management</strong>
           </div>
         </div>
       </section>
@@ -569,8 +569,7 @@
             <table class="bento-table" aria-label="Fee split">
               <thead><tr><th>Category</th><th>Share</th></tr></thead>
               <tbody>
-                <tr><td>Treasury</td><td>2%</td></tr>
-                <tr><td>Liquidity</td><td>1%</td></tr>
+                <tr><td>Climate catalyst fund</td><td>1%</td></tr>
                 <tr><td>Management</td><td>0.5%</td></tr>
               </tbody>
             </table>
@@ -620,7 +619,7 @@
       <div class="insight-card">
         <div class="icon" style="background:var(--blue-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg></div>
         <span class="tag">Fee incidence</span>
-        <h3>Does a 3.5% fee meaningfully deter trading?</h3>
+        <h3>Does a 1.5% fee meaningfully deter trading?</h3>
         <p>It's a real cost, and no trading history yet exists to measure the answer empirically. Two things are still worth noting. First, transfer fees in this general range aren't unusual among comparable Solana Token-2022 assets that have achieved meaningful volume; the fee alone isn't obviously prohibitive at this scale. Second, and more specific to this design: the fee is fixed and fully disclosed before any transaction, unlike slippage or price impact, both of which vary with trade size and pool depth and are frequently larger in absolute terms than the fee itself. A rational trader prices a known, fixed cost into their decision the same way they'd price any other one.</p>
         <p class="ref">Whitepaper §12.1</p>
         <svg class="insight-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
@@ -656,7 +655,7 @@
         <div class="bento-formula">
           <div class="bento-formula-box">
             <span>Per aggregate volume V</span>
-            <strong>catalyst 0.02V + liquidity 0.01V + management 0.005V + net 0.965V</strong>
+            <strong>catalyst 0.01V + management 0.005V + net 0.985V</strong>
           </div>
         </div>
       </section>
@@ -672,11 +671,11 @@
           <section class="bento-card bento-table-card">
             <h4>Aggregate volume</h4>
             <table class="bento-table" aria-label="Illustrative volume calculation">
-              <thead><tr><th>Volume</th><th>Catalyst fund</th><th>Liquidity</th><th>Management</th></tr></thead>
+              <thead><tr><th>Volume</th><th>Catalyst fund</th><th>Management</th></tr></thead>
               <tbody>
-                <tr><td>$10,000</td><td>$200</td><td>$100</td><td>$50</td></tr>
-                <tr><td>$100,000</td><td>$2,000</td><td>$1,000</td><td>$500</td></tr>
-                <tr><td>$1,000,000</td><td>$20,000</td><td>$10,000</td><td>$5,000</td></tr>
+                <tr><td>$10,000</td><td>$100</td><td>$50</td></tr>
+                <tr><td>$100,000</td><td>$1,000</td><td>$500</td></tr>
+                <tr><td>$1,000,000</td><td>$10,000</td><td>$5,000</td></tr>
               </tbody>
             </table>
           </section>
@@ -784,11 +783,11 @@
       <div class="faq-preview">
         <details open>
           <summary>How much is the transfer fee, and where does it go?</summary>
-          <div class="a">350 basis points (3.5%) on every transfer, withheld automatically by the Token-2022 standard itself, not by any custom logic Aretia wrote. Of that: 96.5% of the original transfer reaches the recipient net; 2% funds the climate catalyst fund; 1% goes to the liquidity pool; 0.5% is a disclosed management fee that funds Aretia Finance LLC's operational costs of running the treasury. There is no burn allocation. Full breakdown in the <a href="#tokenomics" style="color:var(--brand); font-weight:600;">Tokenomics</a> section above.</div>
+          <div class="a">150 basis points (1.5%) on every transfer, withheld automatically by the Token-2022 standard itself, not by any custom logic Aretia wrote. Of that: 98.5% of the original transfer reaches the recipient net; 1% funds the climate catalyst fund; 0.5% is a disclosed management fee that funds Aretia Finance LLC's operational costs of running the treasury. There is no burn or liquidity allocation. (The fee launched at 3.5%; the treasury multisig lowered it to 1.5% in October 2026.) Full breakdown in the <a href="#tokenomics" style="color:var(--brand); font-weight:600;">Tokenomics</a> section above.</div>
         </details>
         <details>
           <summary>Can the team just decide not to route the fee where it says it will?</summary>
-          <div class="a">No, that's the specific distinction this project draws against tokens whose charitable commitments are a stated intention rather than a property of the code. The fee split is enforced by the mint's own on-chain configuration; there's no code path in which a transfer completes without it, and no policy step for anyone to skip.</div>
+          <div class="a">The fee itself is not optional: the mint's own on-chain configuration withholds it on every transfer, and there's no code path in which a transfer completes without it. The split between the climate catalyst fund and the management fee is applied by the treasury multisig when it collects the withheld fees; every collection and payout is a public, 2-of-3 approved transaction anyone can check against the published split.</div>
         </details>
         <details>
           <summary>How does a project actually get funded?</summary>

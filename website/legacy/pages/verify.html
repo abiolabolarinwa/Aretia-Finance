@@ -614,9 +614,9 @@
             </div>
             <div class="vcheck hs-card" data-vcheck="feeBps" style="background:var(--green-soft);">
               <div class="vstatus pending">…</div>
-              <h3 class="hs-claim">Transfer fee is 350 basis points</h3>
-              <div class="hs-detail">Claimed: <span class="mono">350 bps</span><br>Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
-              <div class="hs-note">The ACT v2 mint, deployed 10 Sept 2026 directly at 350 bps. The fee-config authority is held by the treasury multisig, not the deployer.</div>
+              <h3 class="hs-claim">Transfer fee is 150 basis points</h3>
+              <div class="hs-detail">Claimed: <span class="mono">150 bps</span><br>Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
+              <div class="hs-note">The ACT v2 mint launched at 350 bps on 10 Sept 2026; the treasury multisig lowered it to 150 bps (1.5%) in October 2026. The fee-config authority is held by the treasury multisig, not the deployer.</div>
               <a class="hs-link" href="https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG#extensions" target="_blank" rel="noopener">Solscan ↗</a>
               <svg class="hs-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
             </div>
@@ -672,9 +672,9 @@
             </div>
             <div class="vcheck hs-card" data-vcheck="feeBps" style="background:var(--green-soft);" aria-hidden="true">
               <div class="vstatus pending">…</div>
-              <h3 class="hs-claim">Transfer fee is 350 basis points</h3>
-              <div class="hs-detail">Claimed: <span class="mono">350 bps</span><br>Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
-              <div class="hs-note">The ACT v2 mint, deployed 10 Sept 2026 directly at 350 bps. The fee-config authority is held by the treasury multisig, not the deployer.</div>
+              <h3 class="hs-claim">Transfer fee is 150 basis points</h3>
+              <div class="hs-detail">Claimed: <span class="mono">150 bps</span><br>Live: <span class="vlive" data-vfield="feeBps">checking…</span></div>
+              <div class="hs-note">The ACT v2 mint launched at 350 bps on 10 Sept 2026; the treasury multisig lowered it to 150 bps (1.5%) in October 2026. The fee-config authority is held by the treasury multisig, not the deployer.</div>
               <a class="hs-link" href="https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG#extensions" target="_blank" rel="noopener" tabindex="-1">Solscan ↗</a>
               <svg class="hs-bleed" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M17 7L7 17"/></svg>
             </div>
@@ -864,11 +864,15 @@
         var pendingNotYetActive = currentEpoch < feeConfig.newerTransferFee.epoch;
         var activeFee = pendingNotYetActive ? feeConfig.olderTransferFee : feeConfig.newerTransferFee;
         var bps = activeFee.transferFeeBasisPoints;
-        var liveText = bps + " bps" + (bps === 350 ? " ✓" : "");
+        var CLAIMED_BPS = 150;
+        var scheduledBps = feeConfig.newerTransferFee.transferFeeBasisPoints;
+        var liveText = bps + " bps" + (bps === CLAIMED_BPS ? " ✓" : "");
         if (pendingNotYetActive) {
-          liveText = bps + " bps now (350 bps scheduled at epoch " + feeConfig.newerTransferFee.epoch + ", current epoch " + currentEpoch + ")";
+          liveText = bps + " bps now (" + scheduledBps + " bps scheduled at epoch " + feeConfig.newerTransferFee.epoch + ", current epoch " + currentEpoch + ")";
         }
-        setVCheck("feeBps", bps === 350 ? "pass" : "fail", liveText);
+        // During a scheduled change the claim is met once the new rate is the one queued.
+        var meetsClaim = bps === CLAIMED_BPS || (pendingNotYetActive && scheduledBps === CLAIMED_BPS);
+        setVCheck("feeBps", meetsClaim ? "pass" : "fail", liveText);
 
         var configAuth = feeConfig.transferFeeConfigAuthority;
         var withdrawAuth = feeConfig.withdrawWithheldAuthority;

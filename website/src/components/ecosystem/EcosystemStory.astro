@@ -20,7 +20,7 @@ const steps: Step[] = [
   { n: 5, eyebrow: 'Aretia Shield', title: 'Checked before you sign.', body: 'Shield looks at the recipient on-chain (contract or wallet, any activity at all) and flags unlimited approvals and transactions it cannot decode.', status: 'built', href: '/features#shield' },
   { n: 6, eyebrow: 'Confirmed', title: 'You approve. It settles.', body: 'Every step ends in a normal review screen and your signature, inside the wallet, never on a website.' },
   { n: 7, eyebrow: 'Aretia Universal', title: 'Across chains, without the plumbing.', body: 'ACT moves between Solana and Ethereum over Wormhole Native Token Transfers, delivered automatically on the other side.', status: 'testnet', href: '/features#universal' },
-  { n: 8, eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 3.5% fee withheld on-chain, which the treasury splits: 2% to the Climate Treasury, 1% to liquidity, 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live', href: '/token' },
+  { n: 8, eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 1.5% fee withheld on-chain, which the treasury splits: 1% to the Climate Treasury and 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live', href: '/token' },
 ];
 
 const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
@@ -107,10 +107,9 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
                 {s.n === 8 && (
                   <Fragment>
                     <p class="screen__kicker">Every transfer</p>
-                    <p class="screen__total tnum">3.5% <em>fee</em></p>
+                    <p class="screen__total tnum">1.5% <em>fee</em></p>
                     <ul class="rows rows--fee">
-                      <li>Climate Treasury<span class="tnum">2%</span></li>
-                      <li>Liquidity<span class="tnum">1%</span></li>
+                      <li>Climate Treasury<span class="tnum">1%</span></li>
                       <li>Operations<span class="tnum">0.5%</span></li>
                     </ul>
                   </Fragment>

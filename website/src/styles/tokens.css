@@ -80,5 +80,11 @@
   /* Soft, layered, Apple-style elevation: a wide ambient shadow plus a hairline. */
   --shadow-float: 0 30px 80px -24px rgba(0, 0, 0, 0.16), 0 8px 24px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);
   --shadow-soft: 0 12px 40px -16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --nav-height: 72px;
+  /* The fixed header: the bar, plus the fee-change notice while one is shown
+     (html.has-notice). Pages offset their content by --nav-height. */
+  --nav-bar-height: 72px;
+  --nav-notice-height: 0px;
+  --nav-height: calc(var(--nav-bar-height) + var(--nav-notice-height));
 }
+
+html.has-notice { --nav-notice-height: 34px; }

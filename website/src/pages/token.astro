@@ -9,9 +9,8 @@ import { ACT, LINKS } from '../data/site';
 const pct = (n: number) => (n / ACT.totalSupply) * 100;
 const liquiditySeed = 5_000_000;
 const segments = [
-  { label: 'Presale', amount: ACT.presaleAllocation, status: 'in-development' as const, note: 'Presale program deployed and tested on devnet; not on mainnet.' },
-  { label: 'Liquidity seed', amount: liquiditySeed, status: 'roadmap' as const, note: 'Planned Raydium pool seed; not yet funded.' },
-  { label: 'Treasury-held, allocation to be published', amount: ACT.totalSupply - ACT.presaleAllocation - liquiditySeed, status: undefined, note: 'Held in the 2-of-3 treasury multisig. No further allocation has been published.' },
+  { label: 'Liquidity seed', amount: liquiditySeed, status: 'roadmap' as const, note: 'Planned liquidity pool seed; not yet funded.' },
+  { label: 'Treasury-held, allocation to be published', amount: ACT.totalSupply - liquiditySeed, status: undefined, note: 'Held in the 2-of-3 treasury multisig. No further allocation has been published.' },
 ];
 const facts = [
   { k: 'Network', v: `${ACT.network} mainnet` },
@@ -23,7 +22,7 @@ const facts = [
 ];
 ---
 
-<Base title="ACT Token" description="ACT: Aretia's ecosystem token on Solana. Fixed 1,000,000,000 supply, 3.5% on-chain transfer fee funding the Climate Treasury, verified mint details.">
+<Base title="ACT Token" description="ACT: Aretia's ecosystem token on Solana. Fixed 1,000,000,000 supply, 1.5% on-chain transfer fee funding the Climate Treasury, verified mint details.">
   <PageHero
     eyebrow="Token"
     title="ACT"
@@ -40,7 +39,7 @@ const facts = [
           <p class="muted">Minted once, in a single instruction. Mint authority revoked: the supply can never increase.</p>
         </div>
 
-        <div class="bar" data-reveal role="img" aria-label="ACT supply: 10% planned for presale, 0.5% planned liquidity seed, 89.5% held in the treasury multisig with allocation to be published">
+        <div class="bar" data-reveal role="img" aria-label="ACT supply: 0.5% planned liquidity seed, 99.5% held in the treasury multisig with allocation to be published">
           {segments.map((s, i) => <span class={`bar__seg bar__seg--${i}`} style={`--w:${pct(s.amount)}%`} />)}
         </div>
         <ul class="legend">
@@ -79,18 +78,6 @@ const facts = [
 
   <div id="fees"><ActSection /></div>
 
-  <section class="section" aria-labelledby="presale-title">
-    <div class="container presale" data-reveal="scale">
-      <div>
-        <h2 id="presale-title" class="heading">{ACT.presaleAllocation.toLocaleString('en-US')} ACT</h2>
-      </div>
-      <div class="presale__copy">
-        <p class="lead">Net to purchasers, with a {`$${ACT.presaleHardCapUsd.toLocaleString('en-US')}`} hard cap and linear vesting. The presale program has been deployed and exercised on devnet; it is not live on mainnet.</p>
-        <Button href="/presale" variant="gold" arrow>Presale details</Button>
-      </div>
-    </div>
-  </section>
-
   <section class="section disclaimer" aria-label="Important information">
     <div class="container">
       <p>ACT is a utility token for the Aretia ecosystem. Nothing on this page is an offer, investment advice or a promise of value, returns or price. Digital assets are volatile and you can lose everything you put in. Read the <a href="/terms#risk">risk disclosure</a>.</p>
@@ -124,12 +111,10 @@ const facts = [
   .contract__facts dt { color: var(--color-faint); }
   .contract__facts dd { margin: 0; color: var(--color-text); text-align: right; }
   .contract__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .presale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xl); align-items: end; padding: clamp(2rem, 5vw, 4rem); border-radius: var(--radius-xl); border: 1px solid rgba(160, 122, 44, 0.25); background: radial-gradient(80% 120% at 0% 100%, rgba(160, 122, 44, 0.1), transparent 60%), var(--color-bg-alt); }
-  .presale__copy { display: grid; gap: var(--space-md); justify-items: start; }
   .disclaimer p { font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
   .disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
   @media (max-width: 1023px) {
-    .tk-facts .container, .presale { grid-template-columns: minmax(0, 1fr); }
+    .tk-facts .container { grid-template-columns: minmax(0, 1fr); }
   }
   @media (hover: hover) and (pointer: fine) {
     .contract__copy:hover { background: rgba(0, 0, 0, 0.06); }

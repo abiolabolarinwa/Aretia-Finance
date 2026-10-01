@@ -6,7 +6,25 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
-    { "source": "/tokenomics", "destination": "/token", "permanent": false },
-    { "source": "/insights", "destination": "/details#economics", "permanent": false }
+    {
+      "source": "/tokenomics",
+      "destination": "/token",
+      "permanent": false
+    },
+    {
+      "source": "/insights",
+      "destination": "/details#economics",
+      "permanent": false
+    },
+    {
+      "source": "/presale",
+      "destination": "/buy",
+      "permanent": false
+    },
+    {
+      "source": "/countdown",
+      "destination": "/",
+      "permanent": false
+    }
   ]
 }

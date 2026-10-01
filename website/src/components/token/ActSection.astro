@@ -12,7 +12,7 @@ const split = ACT.transferFee.split;
       <header class="act__head">
         <h2 id="act-title" class="heading" data-split>One token.<br />Multiple utilities.</h2>
         <p class="lead" data-reveal>
-          ACT is Aretia's ecosystem token, live on Solana mainnet as an SPL Token-2022 mint with a fixed supply. A protocol-level transfer fee funds the Climate Treasury, liquidity and treasury operations on every transfer.
+          ACT is Aretia's ecosystem token, live on Solana mainnet as an SPL Token-2022 mint with a fixed supply. A protocol-level transfer fee funds the Climate Treasury and treasury operations on every transfer.
         </p>
       </header>
 
@@ -23,9 +23,9 @@ const split = ACT.transferFee.split;
           <p>Fixed. {ACT.mintAuthority}.</p>
         </div>
         <div data-reveal>
-          <dt>Presale allocation</dt>
-          <dd class="tnum" data-count={ACT.presaleAllocation}>{ACT.presaleAllocation.toLocaleString('en-US')}</dd>
-          <p>Net to purchasers.</p>
+          <dt>Transfer fee</dt>
+          <dd class="tnum">{ACT.transferFee.totalPercent}%</dd>
+          <p>Withheld on-chain on every transfer.{ACT.transferFee.scheduled && ` From Solana epoch ${ACT.transferFee.scheduled.fromEpoch}; ${ACT.transferFee.scheduled.previousPercent}% until then.`}</p>
         </div>
       </dl>
 
@@ -95,7 +95,7 @@ const split = ACT.transferFee.split;
   .flow__pipe { position: relative; width: 2px; height: 42px; background: var(--color-border-strong); overflow: hidden; }
   .flow__pipe span { position: absolute; left: 0; width: 2px; height: 14px; background: var(--color-gold-bright); box-shadow: 0 0 10px var(--color-gold); animation: drip 1.8s var(--ease-in-out) infinite; }
   @keyframes drip { from { transform: translateY(-16px); } to { transform: translateY(44px); } }
-  .flow__split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; margin-top: 26px; position: relative; }
+  .flow__split { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; width: 100%; margin-top: 26px; position: relative; }
   .flow__split::before { content: ''; position: absolute; left: 16.6%; right: 16.6%; top: -14px; height: 1px; background: var(--color-border-strong); }
   .flow__dest { position: relative; display: grid; justify-items: center; gap: 4px; padding: 14px 8px; border-radius: var(--radius-md); border: 1px solid var(--color-border); text-align: center; transition: border-color var(--duration-base), background-color var(--duration-base), transform var(--duration-base) var(--ease-out); }
   .flow__dest::before { content: ''; position: absolute; top: -14px; left: 50%; width: 1px; height: 14px; background: var(--color-border-strong); }

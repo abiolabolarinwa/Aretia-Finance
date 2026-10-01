@@ -12,9 +12,14 @@
  *
  * 26 Sept 2026: repointed at the v2 mint/vault/multisig (the v1 mint this
  * script originally targeted is retired -- see MINT_V2.md). The v2 mint
- * launched already set to 350 bps directly, so there's nothing to change
- * today; this stays here as the general-purpose tool for whenever
- * governance next wants a different rate.
+ * launched already set to 350 bps directly; this stays here as the
+ * general-purpose tool for whenever governance next wants a different rate.
+ *
+ * 1 Oct 2026: used for real to move 350 bps -> 150 bps (proposal created
+ * ZEnB3UVc...ohng, approved 2-of-3, executed yQagEvE3...557h). Token-2022
+ * scheduled it for epoch 1048. Don't re-run it with NEW_BPS = 150 before
+ * then: the active rate still reads 350 until epoch 1048, so it would draft
+ * a duplicate proposal. From epoch 1048 on it refuses (live rate == target).
  *
  * What it does:
  *   1. Reads the mint's LIVE transfer-fee config (never hardcodes it).
@@ -92,7 +97,7 @@ const VAULT_INDEX = 0;
 // pass a number on the command line, this value needs to match what's
 // documented in TOKENOMICS.md/WHITEPAPER.md or the docs and the mint will
 // disagree with each other.
-const NEW_BPS = 350; // 3.5% -- already the live v2 rate as of 26 Sept 2026; update this before the next real change
+const NEW_BPS = 150; // 1.5% -- 1% Climate Treasury + 0.5% management; proposed 1 Oct 2026
 
 const EXECUTE = process.argv.includes("--execute");
 

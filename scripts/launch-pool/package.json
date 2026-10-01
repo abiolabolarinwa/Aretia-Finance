@@ -1,0 +1,14 @@
+{
+  "name": "aretia-launch-pool",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Drafts Squads proposals that create single-sided Meteora DAMM v2 pools (ACT/USDC and ACT/SOL) funded from the treasury vault. Dry-run simulation by default; never executes on its own.",
+  "type": "module",
+  "dependencies": {
+    "@meteora-ag/cp-amm-sdk": "1.4.9",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.3",
+    "@sqds/multisig": "^2.1.4",
+    "bn.js": "^5.2.1"
+  }
+}

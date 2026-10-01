@@ -12,7 +12,7 @@
 | Total supply | 1,000,000,000 (fixed, permanent) |
 | Mint authority | Revoked — not set, cannot be reinstated |
 | Freeze authority | Never granted |
-| Transfer fee | 350 bps (3.5%) |
+| Transfer fee | 350 bps (3.5%) at launch; 150 bps (1.5%) proposed 1 Oct 2026 — see "Fee change to 1.5%" below |
 | Transfer-fee-config authority | v2 treasury vault (`GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA`) — see `TREASURY_V2.md` |
 | Withdraw-withheld authority | v2 treasury vault (same address) |
 | Full supply holder | v2 treasury vault's associated token account (`8CDckXxT8Ttz5P3jNzUhhrLiaBcVAHqxftKfNx5zNACY`) |
@@ -52,3 +52,9 @@ The disposable deployer keypair (`4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX`)
 - [ ] Signer identity, independence, and conflict-of-interest disclosure for the v2 multisig — same unresolved item as `WHITEPAPER.md` §15.3, since it's the same three people as v1.
 
 Public addresses and transaction data only. No private keys, seed phrases, or personal information belong in this file or this repository, ever.
+
+## Fee change to 1.5% (1 Oct 2026)
+
+**1 Oct 2026 update: total transfer fee 3.5% → 1.5%; liquidity share removed; presale cancelled.** The split becomes 1% climate catalyst fund + 0.5% management (unchanged). The 1% liquidity share is dropped, not redistributed. The planned presale is cancelled; its 100,000,000 ACT allocation stays in the treasury and ACT will be acquired by trading. On-chain this is one `SetTransferFee` instruction (150 bps, `maximumFee` unchanged) proposed to the treasury multisig with `scripts/management-fee-proposal/propose-fee-change.mjs`; Token-2022 applies it two epochs after the 2-of-3 approval. **Status: approved 2-of-3 and executed on 1 Oct 2026** (proposal created `ZEnB3UVc1ER7VgxToNV6UQyATxYXNMx7JnDDDgHxAXqyk2rsZKG7jWo6zPqeW1S6fXJkhcTmCMbdUBoQcKoXhng`, executed `yQagEvE3qohHYawzcXdUeGpa12DqF1oxQiKmRwg6nfgQsdHzgVdPDvg65KaBjoXjpoNix87E1NypbRavHmv557h`). On-chain schedule read back the same day: older fee 350 bps (epoch 1032), newer fee **150 bps from epoch 1048**, maximumFee unchanged. Needs the same counsel note as earlier fee changes.
+
+Verify after execution with `scripts/management-fee-proposal/check-fee-authority.mjs` (reads both fee schedules and the current epoch) and the live check on `/verify`, which reports the scheduled rate until it takes effect.

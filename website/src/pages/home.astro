@@ -1,0 +1,33 @@
+---
+import Base from '../layouts/Base.astro';
+import HomeHero from '../components/hero/HomeHero.astro';
+import EcosystemStory from '../components/ecosystem/EcosystemStory.astro';
+import ExploreTable from '../components/explore/ExploreTable.astro';
+import Button from '../components/buttons/Button.astro';
+import ActSection from '../components/token/ActSection.astro';
+import ClimateSection from '../components/climate/ClimateSection.astro';
+---
+
+<Base
+  title="Aretia Finance"
+  description="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects."
+>
+  <HomeHero />
+  <ActSection />
+  <ClimateSection />
+  <ExploreTable />
+  <EcosystemStory />
+
+  <section class="see-more" aria-labelledby="see-more-title">
+    <div class="container see-more__inner" data-reveal>
+      <p id="see-more-title" class="lead">Universal, Pay, Shield, Intent and SafeSend all live inside the wallet.</p>
+      <Button href="/features" variant="secondary" arrow>See everything Aretia does</Button>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .see-more { padding-block: var(--space-2xl); }
+  .see-more__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2rem) clamp(1.5rem, 4vw, 2.5rem); border-radius: var(--radius-xl); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
+  .see-more__inner .lead { margin: 0; max-width: 32rem; }
+</style>

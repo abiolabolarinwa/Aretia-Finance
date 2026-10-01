@@ -1,33 +1,141 @@
 ---
-import Base from '../layouts/Base.astro';
-import HomeHero from '../components/hero/HomeHero.astro';
-import EcosystemStory from '../components/ecosystem/EcosystemStory.astro';
-import ExploreTable from '../components/explore/ExploreTable.astro';
-import Button from '../components/buttons/Button.astro';
-import ActSection from '../components/token/ActSection.astro';
-import ClimateSection from '../components/climate/ClimateSection.astro';
+import '../styles/global.css';
+import { LINKS } from '../data/site';
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
-<Base
-  title="Aretia Finance"
-  description="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects."
->
-  <HomeHero />
-  <ActSection />
-  <ClimateSection />
-  <ExploreTable />
-  <EcosystemStory />
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aretia Finance</title>
+    <meta name="description" content="Aretia Finance is building multichain financial infrastructure: a self-custody wallet, cross-chain ACT, name-based payments, pre-send safety checks and a treasury that funds climate projects." />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <meta name="theme-color" content="#fbfbfd" />
+  </head>
+  <body>
+    <main class="welcome">
+      <a class="welcome__brand" href="/home">
+        <img src="/assets/logo-mark-green.png" alt="" width="24" height="24" />
+        <span>Aretia</span>
+      </a>
 
-  <section class="see-more" aria-labelledby="see-more-title">
-    <div class="container see-more__inner" data-reveal>
-      <p id="see-more-title" class="lead">Universal, Pay, Shield, Intent and SafeSend all live inside the wallet.</p>
-      <Button href="/features" variant="secondary" arrow>See everything Aretia does</Button>
-    </div>
-  </section>
-</Base>
+      <div class="welcome__inner">
+        <h1 class="welcome__word">
+          <span>Aretia</span>
+          <span>Finance</span>
+        </h1>
+        <p class="welcome__lead">Multichain self-custody, built so every transfer funds a climate treasury.</p>
+
+        <div class="welcome__actions">
+          <a class="wbtn wbtn--solid" href={LINKS.walletWaitlist}>Join the Aretia Wallet Waitlist</a>
+          <a class="wbtn wbtn--outline" href="/home">Explore Aretia Finance</a>
+        </div>
+
+        <p class="welcome__note">The wallet's browser extension is in development and not yet on the Chrome Web Store.</p>
+      </div>
+
+      <div class="welcome__mark" aria-hidden="true">
+        <svg viewBox="0 0 480 420">
+          <g fill="#0b3d2e">
+            <rect x="40" y="120" width="280" height="46" rx="23" transform="rotate(32 180 143)" />
+            <rect x="40" y="254" width="280" height="46" rx="23" transform="rotate(-32 180 277)" />
+            <rect x="360" y="90" width="46" height="240" rx="23" transform="rotate(14 383 210)" />
+          </g>
+        </svg>
+      </div>
+    </main>
+  </body>
+</html>
 
 <style>
-  .see-more { padding-block: var(--space-2xl); }
-  .see-more__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2rem) clamp(1.5rem, 4vw, 2.5rem); border-radius: var(--radius-xl); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
-  .see-more__inner .lead { margin: 0; max-width: 32rem; }
+  .welcome {
+    position: relative;
+    min-height: 100svh;
+    background: var(--color-offwhite);
+    display: grid;
+    place-items: center;
+  }
+
+  .welcome__brand {
+    position: fixed;
+    top: clamp(1.25rem, 3vw, 2rem);
+    left: clamp(1.25rem, 3vw, 2rem);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--color-strong);
+  }
+  .welcome__brand img { border-radius: 6px; }
+
+  .welcome__inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: var(--space-md);
+    text-align: center;
+    padding: clamp(4rem, 8vw, 6rem) var(--gutter) clamp(6rem, 10vw, 8rem);
+  }
+
+  .welcome__word {
+    display: grid;
+    line-height: 0.92;
+    font-size: clamp(3rem, 8vw, 5.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--color-strong);
+  }
+
+  .welcome__lead {
+    max-width: 30rem;
+    font-size: var(--text-lead);
+    color: var(--color-muted);
+  }
+
+  .welcome__actions {
+    display: grid;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 22rem;
+    margin-top: var(--space-sm);
+  }
+
+  .wbtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 52px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    font-size: 1rem;
+    transition: transform var(--duration-press) var(--ease-out), background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+  }
+  .wbtn--solid { background: var(--color-strong); color: #fff; box-shadow: var(--shadow-soft); }
+  .wbtn--outline { background: #fff; color: var(--color-strong); border: 1px solid var(--color-border-strong); }
+  .wbtn:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .wbtn--solid:hover { background: var(--color-brand); }
+    .wbtn--outline:hover { border-color: var(--color-strong); }
+  }
+
+  .welcome__note { font-size: var(--text-micro); color: var(--color-faint); max-width: 26rem; }
+
+  .welcome__mark {
+    position: fixed;
+    z-index: 0;
+    left: 50%;
+    bottom: -4vh;
+    width: clamp(240px, 24vw, 380px);
+    transform: translateX(-50%);
+    opacity: 0.9;
+    pointer-events: none;
+  }
+  .welcome__mark svg { display: block; width: 100%; height: auto; }
 </style>

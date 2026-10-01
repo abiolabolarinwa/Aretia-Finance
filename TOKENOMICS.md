@@ -32,18 +32,19 @@ ACT is issued as an SPL **Token-2022** mint, using the standard's native **trans
 
 | Destination | Share |
 |---|---|
-| Net transfer to recipient | 96.5% |
-| Treasury — climate catalyst fund | 2% |
-| Liquidity pool | 1% |
+| Net transfer to recipient | 98.5% |
+| Treasury — climate catalyst fund | 1% |
 | **Management fee** — project monitoring & verification | **0.5%** |
+
+**1 Oct 2026 update: total transfer fee 3.5% → 1.5%; liquidity share removed; presale cancelled.** The split becomes 1% climate catalyst fund + 0.5% management (unchanged). The 1% liquidity share is dropped, not redistributed. The planned presale is cancelled; its 100,000,000 ACT allocation stays in the treasury and ACT will be acquired by trading. On-chain this is one `SetTransferFee` instruction (150 bps, `maximumFee` unchanged) proposed to the treasury multisig with `scripts/management-fee-proposal/propose-fee-change.mjs`; Token-2022 applies it two epochs after the 2-of-3 approval. **Status: proposed; record the approval transaction and effective epoch here once executed.** Needs the same counsel note as earlier fee changes.
 
 **6 Sept 2026 update: burn removed, management fee raised 0.1% → 0.5%.** Total tax drops from 4.1% to 3.5% — the removed 1% burn share isn't redistributed, it's simply no longer withheld. Approved 2-of-3 and executed on-chain the same day; scheduled for epoch 1031 per Token-2022's mandatory future-epoch rule (see `MINT.md`'s fee-authority section for the transaction and current status — check there before assuming 350 bps is already the rate actually being charged). **This also reopened a securities-analysis question with counsel** about fee streams benefiting the operating entity, previously reviewed against 0.1%, not 0.5%, and not yet re-reviewed at the new figure. That question was still open when the on-chain change was executed.
 
 **Trading pair:** Primary pool is ACT / USDT (Tether's Circle-issued SPL token) on Raydium, mirrored on Orca for depth, with Jupiter aggregating routes for anyone swapping in from SOL or another asset. Liquidity-pool tokens are locked for a fixed term at launch so early liquidity can't be pulled out from under holders.
 
-> **Design note:** 3.5% total tax is a starting figure, not a fixed constant — it should be tuned against norms for comparable Solana open-market token launches (most successful launches run 0–2% to stay competitive on swap price) before mainnet. A higher treasury cut funds more climate impact per trade; a lower one keeps the token more attractive to pure traders.
+> **Design note (1 Oct 2026: now 1.5%, inside the 0–2% range below):** the total tax is a starting figure, not a fixed constant — it should be tuned against norms for comparable Solana open-market token launches (most successful launches run 0–2% to stay competitive on swap price) before mainnet. A higher treasury cut funds more climate impact per trade; a lower one keeps the token more attractive to pure traders.
 
-> **Why a separate management fee, not folded into treasury:** running the treasury responsibly costs real money — verifying registry certificates, reviewing Impact Reports, occasional site visits, maintaining the transparency dashboard. Funding that from an undisclosed slice of the "treasury" allocation would quietly make the "2% funds climate projects" claim partly untrue. Keeping the 0.5% as its own disclosed line — reported separately on the transparency dashboard, never merged into the project-funding total — keeps that claim honest. This fee funds Aretia Finance LLC's operational work; it is not a profit share or dividend to token holders.
+> **Why a separate management fee, not folded into treasury:** running the treasury responsibly costs real money — verifying registry certificates, reviewing Impact Reports, occasional site visits, maintaining the transparency dashboard. Funding that from an undisclosed slice of the "treasury" allocation would quietly make the "1% funds climate projects" claim partly untrue. Keeping the 0.5% as its own disclosed line — reported separately on the transparency dashboard, never merged into the project-funding total — keeps that claim honest. This fee funds Aretia Finance LLC's operational work; it is not a profit share or dividend to token holders.
 >
 > **Where it goes:** a dedicated wallet, separate from the treasury multisig — `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. Not yet funded; see `MANAGEMENT_FEE.md`.
 
@@ -120,7 +121,7 @@ This section is a drafting guardrail, not legal advice — actual marketing copy
 1. **Lock tokenomics parameters** — done (this doc).
 2. **Legal review** — done (1 Sept 2026). Two-entity structure, current compliance framing, and management-fee treatment all approved as proposed. Follow-up review (4 Sept 2026): mechanism-first repositioning away from "meme coin" language, plus the "climate catalyst fund" framing for the treasury, approved with the same compliance posture — see §06. Second follow-up (4 Sept 2026): Aretia Foundation (a separately-existing, not-yet-active Delaware nonprofit) confirmed to stay fully independent of this entity — no ownership, no parent/subsidiary relationship.
 3. **Decide on the legal entity** — done. **Aretia Climate, LLC** (app) and **Aretia Finance LLC** (coin/treasury), both Delaware, both registered.
-4. **Build and test the mint** — done, and live. Token-2022 mint with the 3.5% transfer-fee config, deployed for real on **Solana mainnet**: `7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`, 1,000,000,000 fixed supply, mint authority permanently revoked, fee authorities on the treasury vault. Full detail: `MINT_V2.md`.
+4. **Build and test the mint** — done, and live. Token-2022 mint with the 3.5% transfer-fee config (lowered to 1.5% on 1 Oct 2026, see §01), deployed for real on **Solana mainnet**: `7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`, 1,000,000,000 fixed supply, mint authority permanently revoked, fee authorities on the treasury vault. Full detail: `MINT_V2.md`.
 5. **Stand up treasury and governance** — done for the treasury: Squads multisig live on mainnet, 2-of-3 real independent signers, full propose-approve-execute cycle tested (see `TREASURY_V2.md`). Realms governance still pending.
 6. **Independent program review** — audit the mint configuration and any custom instructions before mainnet.
 7. **Seed and lock liquidity** — planned, not yet funded. Target: 5,000,000 ACT (5% of treasury supply) + $10,000 USDT via the treasury's direct Raydium integration (no personal-wallet custody), implied starting price ≈$0.002/ACT, LP tokens locked 6 months. Currently pending investor conversations for the $10,000 — capital is not yet in hand.

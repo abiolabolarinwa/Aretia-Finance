@@ -6,7 +6,7 @@ import StatusBadge from '../components/ui/StatusBadge.astro';
 import { ACT } from '../data/site';
 ---
 
-<Base title="Buy ACT" description="Trade ACT on Solana through the Jupiter swap widget, or read about the ACT presale.">
+<Base title="Buy ACT" description="Trade ACT on Solana through the Jupiter swap widget.">
   <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />
   <PageHero eyebrow="Buy ACT" title="Get ACT." lead="Swap into ACT on Solana through Jupiter, connected to the wallet you already use. Always check you are receiving the real mint." />
 
@@ -28,10 +28,6 @@ import { ACT } from '../data/site';
           <p class="mono buy__mint">{ACT.mint}</p>
           <p class="muted">Tokens with the same name or ticker can be fakes. Only this mint is ACT.</p>
           <Button href="/verify" variant="secondary" arrow>Verify on-chain</Button>
-        </div>
-        <div class="buy__card" data-reveal>
-          <p class="muted">{ACT.presaleAllocation.toLocaleString('en-US')} ACT, deployed and tested on devnet; not live on mainnet.</p>
-          <Button href="/presale" variant="gold" arrow>Presale details</Button>
         </div>
         <div class="buy__card" data-reveal>
           <p class="muted">Every ACT transfer, including a swap, has a {ACT.transferFee.totalPercent}% fee withheld on-chain. <a href="/token#fees">How it’s split →</a></p>

@@ -16,7 +16,7 @@ const nodes: MapNode[] = [
   node('intent', 'Intent', 82, 14, 'product'),
   node('universal', 'Aretia Universal', 50, 30, 'core'),
   node('pay', 'Pay', 82, 30, 'product'),
-  { id: 'act', label: 'ACT', x: 18, y: 30, kind: 'act', text: 'Aretia’s token, live on Solana mainnet, with a 3.5% on-chain transfer fee.', status: 'Live' },
+  { id: 'act', label: 'ACT', x: 18, y: 30, kind: 'act', text: 'Aretia’s token, live on Solana mainnet, with a 1.5% on-chain transfer fee.', status: 'Live' },
   { id: 'solana', label: 'Solana', x: 32, y: 48, kind: 'chain', text: 'ACT’s home chain and the NTT hub for bridging.', status: 'Supported' },
   { id: 'ethereum', label: 'Ethereum', x: 68, y: 48, kind: 'chain', text: 'EVM destination for bridged ACT (testnet today) and home of ENS names.', status: 'Supported' },
   { id: 'climate', label: 'Climate Treasury', x: 22, y: 64, kind: 'climate', text: 'Receives 2% of every ACT transfer. A 2-of-3 multisig catalyst fund for climate projects.', status: 'Live' },
@@ -32,7 +32,7 @@ const layers = [
   { title: 'Wallet layer', detail: 'Aretia Wallet holds keys and assets across Solana and EVM networks, and is where every product surfaces.', href: '/wallet' },
   { title: 'Product layer', detail: 'Shield, Intent and Pay make transactions safer and easier to express, all inside the wallet.', href: '/features' },
   { title: 'Interoperability layer', detail: 'Universal moves ACT between chains over Wormhole Native Token Transfers.', href: '/features#universal' },
-  { title: 'Token layer', detail: 'ACT’s on-chain transfer fee funds the treasury, liquidity and operations.', href: '/token' },
+  { title: 'Token layer', detail: 'ACT’s on-chain transfer fee funds the Climate Treasury and operations.', href: '/token' },
   { title: 'Climate layer', detail: 'The Climate Treasury finances projects that apply through the Capital Marketplace.', href: '/details' },
   { title: 'Projects', detail: 'Browse projects seeking capital, or submit your own for catalyst funding.', href: '/marketplace' },
 ];

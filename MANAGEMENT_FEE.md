@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Purpose | Two revenue streams, both funding Aretia Finance LLC's operational costs: (1) the 0.5% management fee slice of the 3.5% transfer fee, and (2) a 5,000 ACT project-registration fee paid by developers applying for funding. See `TOKENOMICS.md` §01–02 and "Project registration fee" below. |
+| Purpose | Two revenue streams, both funding Aretia Finance LLC's operational costs: (1) the 0.5% management fee slice of the 1.5% transfer fee (3.5% until the 1 Oct 2026 change), and (2) a 5,000 ACT project-registration fee paid by developers applying for funding. See `TOKENOMICS.md` §01–02 and "Project registration fee" below. |
 | Address | `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2` |
 | Custody | Single account inside the founder's existing Phantom wallet (same seed phrase, new derived account) — deliberately lighter-weight than the 2-of-3 treasury multisig, since this is an operational expense account, not the project-funding treasury. |
 | Network | Solana Mainnet |
@@ -20,11 +20,11 @@
 
 ## How it actually gets funded (mechanism, not yet executed)
 
-Token-2022's transfer-fee extension withholds one flat rate per transfer (3.5%, confirmed on-chain for epoch 1031 — see `MINT.md` for current status) — it does not split on-chain into the 2% / 1% / 0.5% buckets. Splitting is a manual step, done after harvesting:
+Token-2022's transfer-fee extension withholds one flat rate per transfer (1.5% once the 1 Oct 2026 change takes effect; 3.5% before — see `MINT_V2.md` for current status) — it does not split on-chain into the 1% / 0.5% buckets. Splitting is a manual step, done after harvesting:
 
 1. Withheld fees accumulate in each holder's token account as ACT trades.
 2. The treasury multisig (holder of the withdraw-withheld authority) harvests them into the treasury vault.
-3. From that harvested amount, the treasury multisig sends the management-fee share — 0.5% ÷ 3.5% ≈ 14.29% of whatever was harvested — to this wallet as a normal transfer. The remaining ~85.71% (2% treasury + 1% liquidity, proportionally) stays with its intended purpose.
+3. From that harvested amount, the treasury multisig sends the management-fee share — 0.5% ÷ 1.5% ≈ 33.33% of whatever was harvested — to this wallet as a normal transfer. The remaining ~66.67% (the 1% climate catalyst fund share) stays in the treasury. Fees withheld at the earlier 3.5% rate (none existed at the time of the change) would be split 1/7 instead; `propose-harvest.mjs`'s share constant must match the rate the harvested fees were withheld at.
 
 Step 3 requires a real treasury-multisig transaction each time it runs. Nothing to execute yet — there's a $0 amount to harvest until liquidity is seeded and trading starts.
 

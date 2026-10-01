@@ -103,10 +103,10 @@ No separate "view" instruction — Solana doesn't really have those. The website
 
 ## Fee handling — why balance-delta, not arithmetic
 
-ACT carries a Token-2022 transfer fee (3.5% currently, treasury-governed, Section 14). Every transfer into or out of the vault is subject to it, including stakes and unstakes. Two approaches this program deliberately avoids, worth naming so they don't get reintroduced later:
+ACT carries a Token-2022 transfer fee (1.5% from October 2026, previously 3.5%; treasury-governed, Section 14). Every transfer into or out of the vault is subject to it, including stakes and unstakes. Two approaches this program deliberately avoids, worth naming so they don't get reintroduced later:
 
 - Trusting the `amount` parameter as what actually landed — incorrect, because up to the configured max fee is withheld before the vault ever sees it.
-- Hardcoding the current 3.5% rate to compute net — incorrect, because Section 11 already changed this rate once by governance vote and can again; a hardcoded rate would silently desync from reality the next time it does.
+- Hardcoding the current rate to compute net — incorrect, because Section 11 already changed this rate once by governance vote and can again; a hardcoded rate would silently desync from reality the next time it does.
 
 Reading the vault's own balance immediately before and after the CPI is correct under both a stable and a changing fee rate, with no assumption about what the rate currently is baked into the program at all.
 

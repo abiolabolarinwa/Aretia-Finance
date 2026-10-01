@@ -137,15 +137,15 @@ ACT trades on the open market against USDT, with no permission requirement. Any 
 
 ### 14.1 The Withholding Function
 
-Token-2022's native transfer fee extension withholds a percentage of every transfer at the protocol level, before the recipient's balance is credited, up to a configured maximum. The rate is 350 basis points, 3.5 percent, as of the epoch at which it last took effect.
+Token-2022's native transfer fee extension withholds a percentage of every transfer at the protocol level, before the recipient's balance is credited, up to a configured maximum. The rate is 150 basis points, 1.5 percent (lowered from 350 basis points by treasury-multisig proposal in October 2026, effective from the epoch Token-2022 scheduled it for).
 
 ### 14.2 What Is Protocol-Enforced and What Is Treasury Policy
 
-This distinction governs how every other claim about the fee should be read. What Token-2022 enforces, without exception, is that the aggregate withheld amount is computed and withheld correctly at whatever rate is configured. What it does not enforce is any particular destination for that withheld amount once harvested, nor that the rate stays fixed forever, since the transfer-fee-config authority retains the power to change it under 2-of-3 approval and Token-2022's mandatory future-epoch delay. The protocol's strongest accurate claim is that it mechanically withholds 3.5 percent of every transfer, and that the treasury subsequently routes harvested fees per the split below; it is not accurate to state the protocol automatically sends any share directly to climate projects, since routing is treasury procedure under multisig approval, not a second on-chain-enforced ratio.
+This distinction governs how every other claim about the fee should be read. What Token-2022 enforces, without exception, is that the aggregate withheld amount is computed and withheld correctly at whatever rate is configured. What it does not enforce is any particular destination for that withheld amount once harvested, nor that the rate stays fixed forever, since the transfer-fee-config authority retains the power to change it under 2-of-3 approval and Token-2022's mandatory future-epoch delay. The protocol's strongest accurate claim is that it mechanically withholds 1.5 percent of every transfer, and that the treasury subsequently routes harvested fees per the split below; it is not accurate to state the protocol automatically sends any share directly to climate projects, since routing is treasury procedure under multisig approval, not a second on-chain-enforced ratio.
 
 ### 14.3 Fee Allocation
 
-96.5 percent of every transfer reaches the recipient net of the fee. Of the 3.5 percent withheld, 2.0 percentage points (about 57.1 percent of the withheld amount) route to the catalyst fund, 1.0 point (28.6 percent) to liquidity, and 0.5 points (14.3 percent) to protocol management, once harvested. Only the 3.5 percent aggregate is on-chain enforced; the destination split is the treasury's own procedure, applied consistently under the custody described in Section 15.
+98.5 percent of every transfer reaches the recipient net of the fee. Of the 1.5 percent withheld, 1.0 percentage point (about 66.7 percent of the withheld amount) routes to the catalyst fund and 0.5 points (33.3 percent) to protocol management, once harvested. There is no liquidity share. Only the 1.5 percent aggregate is on-chain enforced; the destination split is the treasury's own procedure, applied consistently under the custody described in Section 15.
 
 ### 14.4 The Two-Phase Withhold-and-Harvest Design
 
@@ -157,9 +157,9 @@ The management fee wallet is held separately from the treasury multisig, so oper
 
     G − fee(G) = N
     G × (1 − b) = N     [when fee(G) < M]
-    G = N / (1 − b) = N / 0.965
+    G = N / (1 − b) = N / 0.985
 
-where b is the fee rate and M the mint's configured maximum fee. To deliver 1,000 ACT net, the treasury sends approximately 1,036.27 ACT, of which about 36.27 re-enters the fee split. A treasury operator who failed to account for this would systematically underdeliver intended compensation.
+where b is the fee rate and M the mint's configured maximum fee. To deliver 1,000 ACT net, the treasury sends approximately 1,015.23 ACT, of which about 15.23 re-enters the fee split. A treasury operator who failed to account for this would systematically underdeliver intended compensation.
 
 ## 15. Treasury Custody
 

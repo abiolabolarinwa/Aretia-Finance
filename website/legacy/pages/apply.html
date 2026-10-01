@@ -783,9 +783,10 @@
   var MANAGEMENT_WALLET = new PublicKey("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
   var ACT_DECIMALS = 9;
   var REGISTRATION_FEE_ACT = 5000n;
-  // A 5,000 ACT gross payment nets ~4,825 ACT at the live 3.5% rate (see
-  // MINT_V2.md) after Token-2022's transfer fee is withheld, same as any
-  // other ACT transfer. Require at least 4,750 ACT net as a safety margin.
+  // A 5,000 ACT gross payment nets ~4,925 ACT at the live 1.5% rate (~4,825
+  // at the earlier 3.5%; see MINT_V2.md) after Token-2022's transfer fee is
+  // withheld, same as any other ACT transfer. Require at least 4,750 ACT net
+  // as a safety margin, which holds at either rate.
   var MIN_NET_RECEIVED_RAW = 4750n * (10n ** 9n);
 
   var walletPicker = document.getElementById('wallet-picker');

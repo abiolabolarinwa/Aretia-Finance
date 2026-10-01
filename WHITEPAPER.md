@@ -59,18 +59,17 @@ ACT is Aretia's token, built on Solana, a fast, low-cost blockchain. A few facts
 - **There will only ever be 1,000,000,000 ACT.** The ability to create more was permanently switched off right after they were made. Nobody, ever, can print more.
 - **Nobody can freeze your ACT.** That ability was never turned on in the first place, so it can't be misused later.
 
-One thing is deliberately *not* fixed forever, and it's worth being upfront about: the exact fee percentage. Right now it's set at **3.5% of every transfer**. That rate can only change if the three people who jointly control the treasury agree (more on that below), and any change is public and delayed, never instant or hidden. As proof this isn't just a claim, the rate has already been changed once for real, from an earlier 4.1% down to the current 3.5%, using that exact process.
+One thing is deliberately *not* fixed forever, and it's worth being upfront about: the exact fee percentage. Right now it's set at **1.5% of every transfer**. That rate can only change if the three people who jointly control the treasury agree (more on that below), and any change is public and delayed, never instant or hidden. As proof this isn't just a claim, the rate has been changed for real using that exact process: from an earlier 4.1% to 3.5%, and then down to the current 1.5% in October 2026.
 
-Here's where that 3.5% goes:
+Here's where that 1.5% goes:
 
 | Share of every transfer | Where it goes |
 |---|---|
-| 96.5% | The person receiving the transfer, as normal |
-| 2.0% | The climate fund |
-| 1.0% | Keeping trading smooth (liquidity) |
+| 98.5% | The person receiving the transfer, as normal |
+| 1.0% | The climate fund |
 | 0.5% | Running costs |
 
-No one has to remember to do this. It happens automatically, on every single transfer, whether the price is up, down, or flat, and whether anyone involved even knows the fund exists.
+No one has to remember to take the fee. It is withheld automatically, on every single transfer, whether the price is up, down, or flat, and whether anyone involved even knows the fund exists. The treasury then splits what was collected between the climate fund and running costs, in public, 2-of-3 approved transactions.
 
 ## 4. Who controls the money
 
@@ -119,17 +118,11 @@ Right now, while the community is still small, funding decisions are made by the
 
 As the community grows, the plan is to hand more of this over to ACT holders, but carefully. Token holders would help set overall funding priorities, like which categories of project deserve more attention, not vote on approving individual payments one by one. That distinction matters: letting any large group vote directly on individual payouts is exactly the kind of setup that can be captured by a coordinated group voting to send the treasury to themselves. Keeping "what to prioritize" and "did this specific payment actually earn its release" as two separate questions, answered by two different processes, is a deliberate safeguard, not an accident.
 
-## 7. Getting involved: presale and staking
+## 7. Getting involved: trading and staking
 
-Two ways to get ACT are being built. As of this writing, both are fully built and tested on a practice network, but **neither is live for real money yet.**
+**There is no presale.** A presale was planned, but it was cancelled in October 2026 before it opened, and no presale will take place.
 
-**The presale** is a limited window where people can buy ACT directly, before it's available on the open market:
-
-- Price: $0.01 per ACT
-- Minimum purchase: $10. Maximum per person: $10,000
-- Accepted currencies: USDC, USDT, or SOL
-- If you buy in, 25% of what you bought is available right away, and the rest unlocks over the following 48 hours
-- The sale only goes through if enough people join by the end of the window. If it falls short, the sale is cancelled automatically and everyone gets back exactly what they put in — nobody's money is ever at risk of just disappearing into a failed raise
+**Trading:** ACT is acquired by trading on Solana once its liquidity pool is live. Always check you are trading the real mint, listed in Section 11.
 
 **Staking** lets anyone already holding ACT lock it up for a set period in exchange for more ACT back later. The longer you're willing to lock it up, the bigger the bonus.
 
@@ -170,8 +163,8 @@ The token itself would keep working exactly as coded, since its supply and fee r
 **Why should I trust that the fund actually pays real projects, and doesn't just sit there?**
 You don't have to take that on faith. Every fee collected and every payment made is a public transaction on Solana, and the verification step in Section 5 means a payment only goes out once someone independent has confirmed real progress. Section 11 shows you exactly where to check this yourself.
 
-**Is my money safe if I join the presale?**
-As safe as the design can make it: your funds sit untouched until the sale either succeeds or fails. If it fails, you get every cent back automatically. Nobody can spend presale funds on anything before the sale actually succeeds.
+**Is there a presale?**
+No. The planned presale was cancelled before it opened, and no presale will take place. If anyone offers you ACT in a "presale", it is not from Aretia.
 
 ## 11. Don't take our word for it
 

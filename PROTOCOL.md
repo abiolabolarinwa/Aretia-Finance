@@ -61,20 +61,21 @@ Eight modules, plus the chain they run on. Not all eight exist yet — see Secti
 | Chain | Solana (SPL Token-2022) |
 | Total supply | **1,000,000,000**, fixed — minted once, mint authority revoked |
 | Freeze authority | Never granted |
-| Transaction allocation | **3.5%** total, protocol-enforced via the native transfer-fee extension |
+| Transaction allocation | **1.5%** total, protocol-enforced via the native transfer-fee extension |
 
 **Per-trade split** (as of 6 Sept 2026 — burn removed, management raised 0.1% → 0.5%; see `TOKENOMICS.md` §01 and `MINT.md`'s fee-authority section for what's needed to actually move this on-chain):
 
 | Destination | Share |
 |---|---|
-| Recipient (net) | 96.5% |
-| Climate Treasury | 2.0% |
-| Liquidity | 1.0% |
+| Recipient (net) | 98.5% |
+| Climate Treasury | 1.0% |
 | Protocol operations (management) | 0.5% |
 
-Worked example: a wallet transfers 100 ACT. 96.5 ACT reaches the recipient. 2 ACT routes to the Climate Treasury. 1 ACT supports liquidity. 0.5 ACT funds protocol operations (MRV, verification, dashboard upkeep — see Section 6).
+**1 Oct 2026 update: total transfer fee 3.5% → 1.5%; liquidity share removed; presale cancelled.** The split becomes 1% climate catalyst fund + 0.5% management (unchanged). The 1% liquidity share is dropped, not redistributed. The planned presale is cancelled; its 100,000,000 ACT allocation stays in the treasury and ACT will be acquired by trading. On-chain this is one `SetTransferFee` instruction (150 bps, `maximumFee` unchanged) proposed to the treasury multisig with `scripts/management-fee-proposal/propose-fee-change.mjs`; Token-2022 applies it two epochs after the 2-of-3 approval. **Status: proposed; record the approval transaction and effective epoch here once executed.** Needs the same counsel note as earlier fee changes.
 
-Scaled to trading volume: if $1,000,000 of taxable volume occurs in a period, roughly $20,000 (2%) accrues to the Climate Treasury from that volume alone, before liquidity/operations shares. This is illustrative — actual accrual depends on real trading volume, which doesn't exist yet pre-launch.
+Worked example: a wallet transfers 100 ACT. 98.5 ACT reaches the recipient. 1 ACT routes to the Climate Treasury. 0.5 ACT funds protocol operations (MRV, verification, dashboard upkeep — see Section 6).
+
+Scaled to trading volume: if $1,000,000 of taxable volume occurs in a period, roughly $10,000 (1%) accrues to the Climate Treasury from that volume alone, before the operations share. This is illustrative — actual accrual depends on real trading volume, which doesn't exist yet pre-launch.
 
 ### What the token does
 
@@ -94,7 +95,7 @@ Scaled to trading volume: if $1,000,000 of taxable volume occurs in a period, ro
 
 The treasury functions as Aretia's **climate catalyst fund** — standing capital, continuously replenished by trading activity, purpose-built to finance climate mitigation and adaptation projects. It is deliberately not a one-time pledge or a grant round that runs dry: catalytic capital, as used in blended climate finance, seeds and de-risks activity that wouldn't get financed on its own, rather than being the entire bankroll for any one project. Every mechanism below — governed entry, multisig custody, milestone-gated exit — exists to keep that catalyst fund credible and auditable, not just funded.
 
-**How money enters:** the 2% treasury share of every trade's transfer fee, routed automatically by the Token-2022 transfer-fee extension into a Squads multisig.
+**How money enters:** the 1% treasury share of every trade's transfer fee. The Token-2022 transfer-fee extension withholds the whole fee automatically; the Squads multisig harvests it and keeps the treasury share (the split itself is treasury procedure, not a second on-chain ratio — see `WHITEPAPER_TECHNICAL.md` §14.2).
 
 **How money is stored:** a Solana multisig (Squads), requiring multiple independent signers. **Live:** vault `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA`, 2-of-3 threshold, real independent co-signers — see `TREASURY_V2.md`. This satisfies Section 13's requirement below; it is no longer a single-signer placeholder.
 

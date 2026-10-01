@@ -16,16 +16,14 @@ Defaults (override with env vars): `ACT_PER_POOL=5000000` (10M total), `FLOOR_US
 
 ## Liquidity lock (optional, permanent)
 
-`LOCK_LIQUIDITY=permanent` adds Meteora's `permanentLockPosition` right after each pool is created,
+**On by default (decided 1 Oct 2026: permanent lock, both pools).** The script adds Meteora's
+`permanentLockPosition` right after each pool is created,
 in the same Squads proposal. After that, **nobody can ever withdraw the liquidity, the treasury
 included**: the ACT and all the USDC/SOL buyers put in stay in the pool for good. The position can
-still claim its trading fees. Off by default; it cannot be undone. Simulated OK on 1 Oct 2026
+still claim its trading fees. Traders can always buy and sell either way. It cannot be undone;
+`LOCK_LIQUIDITY=none` creates the pools without it. Simulated OK on 1 Oct 2026
 (one extra instruction per pool, no extra SOL).
 
-```powershell
-$env:LOCK_LIQUIDITY = "permanent"
-node create-pools.mjs
-```
 
 ## Dry run (safe, sends nothing)
 

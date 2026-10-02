@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/typography/PageHero.astro';
 import { DOCS } from '../data/help';
+import { paperClass, twoDigits } from '../lib/paper';
 ---
 
 <Base title="Docs" description="Aretia developer and user documentation: wallet, ACT, Universal, Shield, Intent, Pay, developer APIs, smart contracts and security.">
@@ -20,8 +21,8 @@ import { DOCS } from '../data/help';
           {
             DOCS.map((d, i) => (
               <li>
-                <a href={`#${d.id}`} class="dcard">
-                  <span class="dcard__n tnum">{String(i + 1).padStart(2, '0')}</span>
+                <a href={`#${d.id}`} class:list={['dcard', paperClass(i)]} data-n={twoDigits(i + 1)}>
+                  <span class="dcard__n tnum">{twoDigits(i + 1)}</span>
                   <b>{d.title}</b>
                   <span>{d.summary}</span>
                 </a>
@@ -61,10 +62,10 @@ import { DOCS } from '../data/help';
   .docs__nav a { display: block; padding: 6px 14px; margin-left: -1px; border-left: 1px solid transparent; font-size: var(--text-small); color: var(--color-muted); transition: color var(--duration-fast), border-color var(--duration-fast); }
   .docs__nav a.is-current { color: var(--color-gold); border-left-color: var(--color-gold); }
   .docs__cards { list-style: none; margin: 0 0 var(--space-2xl); padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-  .dcard { display: grid; gap: 6px; height: 100%; padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg-alt); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out); }
-  .dcard__n { font-size: var(--text-micro); color: var(--color-gold); }
-  .dcard b { color: var(--color-strong); }
-  .dcard span:last-child { font-size: var(--text-small); color: var(--color-muted); }
+  .dcard { --mark-size: 6rem; display: grid; gap: 6px; align-content: start; height: 100%; min-height: 150px; padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--color-border); transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out); }
+  .dcard__n { font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.06em; color: var(--c-accent); }
+  .dcard b { color: var(--c-fg); }
+  .dcard span:last-child { font-size: var(--text-small); color: var(--c-muted); }
   .doc { padding: var(--space-xl) 0; border-top: 1px solid var(--color-border); scroll-margin-top: calc(var(--nav-height) + 16px); max-width: 44rem; }
   .doc h2 { font-size: clamp(1.75rem, 3vw, 2.5rem); margin-bottom: 0.5rem; }
   .doc__summary { color: var(--color-gold); font-weight: 500; margin-bottom: 1rem; }
@@ -77,7 +78,7 @@ import { DOCS } from '../data/help';
   }
   @media (hover: hover) and (pointer: fine) {
     .docs__nav a:hover { color: var(--color-strong); }
-    .dcard:hover { border-color: rgba(160, 122, 44, 0.45); transform: translateY(-3px); }
+    .dcard:hover { transform: translateY(-3px); box-shadow: 0 16px 36px -22px rgba(13, 31, 26, 0.35); }
     .doc__links a:hover { color: var(--color-gold-bright); }
   }
 </style>

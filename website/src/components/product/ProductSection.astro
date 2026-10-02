@@ -22,6 +22,7 @@ const headingId = id ? `${id}-title` : undefined;
 <section class:list={['ps section', { 'ps--reverse': reverse, 'section--alt': reverse }]} id={id} aria-labelledby={headingId}>
   <div class="container ps__grid">
     <div class="ps__copy">
+      <p class="eyebrow ps__eyebrow" data-reveal><span class="ps__no tnum" aria-hidden="true"></span>{eyebrow}</p>
       <div class="ps__meta" data-reveal>
         {status && <StatusBadge status={status} />}
       </div>
@@ -65,6 +66,11 @@ const headingId = id ? `${id}-title` : undefined;
 </section>
 
 <style>
+  /* Sections on a page number themselves 01, 02, 03... in the eyebrow. */
+  :global(main) { counter-reset: ps; }
+  .ps { counter-increment: ps; }
+  .ps__no::before { content: counter(ps, decimal-leading-zero); color: var(--color-brand-bright); }
+  .ps__no::after { content: '/'; margin: 0 2px 0 8px; color: var(--color-faint); font-weight: 400; }
   .ps__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: center; gap: clamp(2.5rem, 6vw, 6rem); }
   .ps--reverse .ps__copy { order: 2; }
   .ps__copy { display: grid; gap: var(--space-md); justify-items: start; }

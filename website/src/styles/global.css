@@ -92,6 +92,42 @@ html.motion-ok [data-reveal='scale'] { transform: scale(0.96); }
 .section--alt .panel { background: var(--color-surface); box-shadow: var(--shadow-soft); }
 .ui-card { border-radius: var(--radius-lg); background: var(--color-surface); border: 1px solid var(--color-border); box-shadow: var(--shadow-float); }
 
+/* Shared design language -------------------------------------------------
+   .eyebrow: tracked-out uppercase label with a square mark and a hairline
+   rule -- the same register as the home hero's label. */
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 10px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-strong);
+  font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-strong);
+}
+.eyebrow::before { content: ''; flex: none; width: 7px; height: 7px; background: var(--color-brand-bright); }
+
+/* .paper: a card as a sheet of coloured paper. A theme sets five variables
+   and everything inside reads them; data-n prints an oversized numeral into
+   the paper. overflow:clip (not hidden) so sticky children still stick. */
+.paper {
+  --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted);
+  --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.06);
+  position: relative; isolation: isolate; overflow: clip;
+  background: var(--c-bg); color: var(--c-fg);
+}
+.paper--brand { --c-bg: var(--color-brand); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.78); --c-accent: var(--color-mint); --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.06); }
+.paper--mint { --c-bg: var(--color-mint-soft); --c-fg: var(--color-strong); --c-muted: #3f5a50; --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.07); }
+.paper--ink { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: var(--color-mint); --c-accent-fg: var(--color-strong); --c-mark: rgba(255, 255, 255, 0.05); }
+.paper--light { --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted); --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.055); }
+.paper--bright { --c-bg: var(--color-brand-bright); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.86); --c-accent: #fff; --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.08); }
+.paper--gold { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: #e0bd6a; --c-accent-fg: var(--color-strong); --c-mark: rgba(224, 189, 106, 0.1); }
+.paper[data-n]::before {
+  content: attr(data-n); position: absolute; z-index: -1; right: -0.02em; bottom: -0.2em;
+  font-family: var(--font-topical); font-size: var(--mark-size, clamp(6rem, 12vw, 9rem)); font-weight: 700; line-height: 0.8;
+  color: var(--c-mark); pointer-events: none; user-select: none;
+}
+/* StatusBadge and the secondary button are built for light grounds. */
+:is(.paper--brand, .paper--ink, .paper--bright, .paper--gold) .badge { color: #fff; border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.08); }
+:is(.paper--brand, .paper--ink, .paper--bright, .paper--gold) .btn.btn--secondary { color: #fff; border-color: rgba(255, 255, 255, 0.5); }
+:is(.paper--brand, .paper--ink, .paper--bright, .paper--gold) .btn.btn--ghost { color: #fff; }
+.paper--mint .badge { background: rgba(255, 255, 255, 0.55); }
+
 .split-line { display: block; overflow: hidden; padding-bottom: 0.08em; margin-bottom: -0.08em; }
 
 @media (prefers-reduced-motion: reduce) {

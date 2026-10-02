@@ -59,7 +59,7 @@ const facts = [
         </ul>
       </div>
 
-      <div class="contract" data-reveal>
+      <div class="contract paper paper--gold" data-reveal>
         <h2 class="label">Contract</h2>
         <div class="contract__mint">
           <span class="mono" data-mint>{ACT.mint}</span>
@@ -102,14 +102,15 @@ const facts = [
   .legend b { color: var(--color-strong); font-size: 15px; }
   .legend span { font-size: var(--text-small); color: var(--color-muted); }
   .legend small { font-size: var(--text-micro); color: var(--color-faint); }
-  .contract { display: grid; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
-  .contract__mint { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(0, 0, 0, 0.03); border: 1px solid var(--color-border); }
-  .contract__mint .mono { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; color: var(--color-gold-bright); }
-  .contract__copy { flex: none; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border-strong); transition: background-color var(--duration-fast); min-height: 32px; }
+  .contract { display: grid; gap: var(--space-md); padding: clamp(1.5rem, 3vw, 2.25rem); border-radius: var(--radius-lg); }
+  .contract .label { color: var(--c-muted); }
+  .contract__mint { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); }
+  .contract__mint .mono { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; color: #e0bd6a; }
+  .contract__copy { flex: none; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.4); color: #fff; transition: background-color var(--duration-fast); min-height: 32px; }
   .contract__facts { margin: 0; display: grid; }
-  .contract__facts div { display: flex; justify-content: space-between; gap: 1rem; padding: 10px 0; border-top: 1px solid var(--color-border); font-size: var(--text-small); }
-  .contract__facts dt { color: var(--color-faint); }
-  .contract__facts dd { margin: 0; color: var(--color-text); text-align: right; }
+  .contract__facts div { display: flex; justify-content: space-between; gap: 1rem; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: var(--text-small); }
+  .contract__facts dt { color: rgba(255, 255, 255, 0.6); }
+  .contract__facts dd { margin: 0; color: #fff; text-align: right; }
   .contract__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .disclaimer p { font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
   .disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
@@ -117,7 +118,7 @@ const facts = [
     .tk-facts .container { grid-template-columns: minmax(0, 1fr); }
   }
   @media (hover: hover) and (pointer: fine) {
-    .contract__copy:hover { background: rgba(0, 0, 0, 0.06); }
+    .contract__copy:hover { background: rgba(255, 255, 255, 0.12); }
   }
 </style>
 

@@ -6,6 +6,7 @@ import NetworkField from '../components/hero/NetworkField.astro';
 import StatusBadge from '../components/ui/StatusBadge.astro';
 import InfoGrid from '../components/cards/InfoGrid.astro';
 import { LINKS, NETWORKS, SECURITY, type Status } from '../data/site';
+import { paperClass, twoDigits } from '../lib/paper';
 
 const capabilities: { title: string; body: string; status: Status; href?: string }[] = [
   { title: 'Multichain', body: `${NETWORKS.join(', ')}. One recovery phrase, one place.`, status: 'built' },
@@ -55,8 +56,8 @@ const capabilities: { title: string; body: string; status: Status; href?: string
             const Tag = c.href ? 'a' : 'div';
             return (
               <li class="rail__item">
-                <Tag class="rail__card" {...(c.href ? { href: c.href } : {})}>
-                  <span class="rail__num tnum">{String(i + 1).padStart(2, '0')}</span>
+                <Tag class:list={['rail__card', paperClass(i)]} data-n={twoDigits(i + 1)} {...(c.href ? { href: c.href } : {})}>
+                  <span class="rail__num tnum">{twoDigits(i + 1)}</span>
                   <h3 class="rail__title">{c.title}</h3>
                   <p>{c.body}</p>
                   <StatusBadge status={c.status} />
@@ -117,11 +118,11 @@ const capabilities: { title: string; body: string; status: Status; href?: string
   .rail__viewport::-webkit-scrollbar { display: none; }
   .rail__track { list-style: none; margin: 0; padding: 0; display: flex; gap: 1rem; width: max-content; }
   .rail__item { scroll-snap-align: start; }
-  .rail__card { display: grid; align-content: start; gap: 0.9rem; width: clamp(260px, 26vw, 340px); min-height: 320px; padding: 1.75rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); transition: border-color var(--duration-base), transform var(--duration-base) var(--ease-out), background-color var(--duration-base); }
-  @media (hover: hover) and (pointer: fine) { a.rail__card:hover { border-color: var(--color-border-strong); transform: translateY(-4px); background: var(--color-surface); } }
-  .rail__num { font-family: var(--font-display); font-size: 3rem; font-weight: 600; letter-spacing: -0.04em; color: rgba(0, 0, 0, 0.08); line-height: 1; }
-  .rail__title { font-size: 1.5rem; letter-spacing: -0.02em; }
-  .rail__card p { color: var(--color-muted); font-size: var(--text-small); }
+  .rail__card { --mark-size: 11rem; display: grid; align-content: start; gap: 0.9rem; width: clamp(260px, 26vw, 340px); min-height: 320px; padding: 1.75rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out); }
+  @media (hover: hover) and (pointer: fine) { a.rail__card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -22px rgba(13, 31, 26, 0.35); } }
+  .rail__num { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; color: var(--c-accent); line-height: 1; }
+  .rail__title { font-size: 1.5rem; letter-spacing: -0.02em; color: var(--c-fg); }
+  .rail__card p { color: var(--c-muted); font-size: var(--text-small); }
   .rail__card :global(.badge) { justify-self: start; margin-top: auto; }
   /* Desktop with motion: vertical scroll drives the rail sideways (see script). */
   :global(html.motion-ok) .rail.is-pinned .rail__viewport { overflow: visible; }

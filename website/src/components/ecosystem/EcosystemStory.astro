@@ -3,27 +3,40 @@ import StatusBadge from '../ui/StatusBadge.astro';
 import Button from '../buttons/Button.astro';
 import type { Status } from '../../data/site';
 
+type Theme = 'brand' | 'mint' | 'ink' | 'light' | 'bright' | 'gold';
+
 interface Step {
   n: number;
   eyebrow: string;
   title: string;
   body: string;
+  theme: Theme;
   status?: Status;
   href?: string;
 }
 
+/* Each step is its own colour of paper in the deck, so the stack reads as
+   eight distinct pages being turned rather than one grey card repeated. */
 const steps: Step[] = [
-  { n: 1, eyebrow: 'Aretia Wallet', title: 'It starts with one wallet.', body: 'A self-custody wallet: keys stay encrypted on your device, and one recovery phrase covers every supported chain.', status: 'in-development', href: '/wallet' },
-  { n: 2, eyebrow: 'Multichain', title: 'Connected to the chains you use.', body: 'Solana, Ethereum, Base, BNB Smart Chain and Polygon: balances, activity and transactions in one place.' },
-  { n: 3, eyebrow: 'Aretia Intent', title: 'Say what you want to do.', body: 'Type “send 0.05 ETH to vitalik.eth”. Intent turns the phrase into a transaction. Nothing is sent from the phrase alone.', status: 'built', href: '/features#intent' },
-  { n: 4, eyebrow: 'Aretia Pay', title: 'Names, not addresses.', body: 'vitalik.eth resolves to its real address and is shown to you before anything is signed. .sol names work the same way.', status: 'built', href: '/features#pay' },
-  { n: 5, eyebrow: 'Aretia Shield', title: 'Checked before you sign.', body: 'Shield looks at the recipient on-chain (contract or wallet, any activity at all) and flags unlimited approvals and transactions it cannot decode.', status: 'built', href: '/features#shield' },
-  { n: 6, eyebrow: 'Confirmed', title: 'You approve. It settles.', body: 'Every step ends in a normal review screen and your signature, inside the wallet, never on a website.' },
-  { n: 7, eyebrow: 'Aretia Universal', title: 'Across chains, without the plumbing.', body: 'ACT moves between Solana and Ethereum over Wormhole Native Token Transfers, delivered automatically on the other side.', status: 'testnet', href: '/features#universal' },
-  { n: 8, eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 1.5% fee withheld on-chain, which the treasury splits: 1% to the Climate Treasury and 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live', href: '/token' },
+  { n: 1, theme: 'brand', eyebrow: 'Aretia Wallet', title: 'It starts with one wallet.', body: 'A self-custody wallet: keys stay encrypted on your device, and one recovery phrase covers every supported chain.', status: 'in-development', href: '/wallet' },
+  { n: 2, theme: 'mint', eyebrow: 'Multichain', title: 'Connected to the chains you use.', body: 'Solana, Ethereum, Base, BNB Smart Chain and Polygon: balances, activity and transactions in one place.' },
+  { n: 3, theme: 'ink', eyebrow: 'Aretia Intent', title: 'Say what you want to do.', body: 'Type “send 0.05 ETH to vitalik.eth”. Intent turns the phrase into a transaction. Nothing is sent from the phrase alone.', status: 'built', href: '/features#intent' },
+  { n: 4, theme: 'light', eyebrow: 'Aretia Pay', title: 'Names, not addresses.', body: 'vitalik.eth resolves to its real address and is shown to you before anything is signed. .sol names work the same way.', status: 'built', href: '/features#pay' },
+  { n: 5, theme: 'bright', eyebrow: 'Aretia Shield', title: 'Checked before you sign.', body: 'Shield looks at the recipient on-chain (contract or wallet, any activity at all) and flags unlimited approvals and transactions it cannot decode.', status: 'built', href: '/features#shield' },
+  { n: 6, theme: 'mint', eyebrow: 'Confirmed', title: 'You approve. It settles.', body: 'Every step ends in a normal review screen and your signature, inside the wallet, never on a website.' },
+  { n: 7, theme: 'brand', eyebrow: 'Aretia Universal', title: 'Across chains, without the plumbing.', body: 'ACT moves between Solana and Ethereum over Wormhole Native Token Transfers, delivered automatically on the other side.', status: 'testnet', href: '/features#universal' },
+  { n: 8, theme: 'gold', eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 1.5% fee withheld on-chain, which the treasury splits: 1% to the Climate Treasury and 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live', href: '/token' },
 ];
 
-const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
+/** Official network marks; source and license in public/assets/chains/CREDITS.md. */
+const networks = [
+  { name: 'Solana', logo: '/assets/chains/solana.png' },
+  { name: 'Ethereum', logo: '/assets/chains/ethereum.png' },
+  { name: 'Base', logo: '/assets/chains/base.png' },
+  { name: 'BNB Smart Chain', logo: '/assets/chains/bnb.png' },
+  { name: 'Polygon', logo: '/assets/chains/polygon.png' },
+];
+const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
 ---
 
 <section class="story" id="ecosystem" aria-labelledby="story-title">
@@ -38,7 +51,7 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
       steps.map((s, i) => (
         <section class="fold" data-stack-item style={`z-index:${i + 1}`} aria-labelledby={`fold-title-${s.n}`}>
           <div class="container">
-          <div class="fold__card">
+          <div class:list={['fold__card', `t-${s.theme}`, { 'is-dark': dark.has(s.theme) }]} data-n={String(s.n).padStart(2, '0')}>
           <div class="fold__grid">
             <div class="fold__copy" data-reveal>
               <span class="fold__num tnum" aria-hidden="true">{String(s.n).padStart(2, '0')}</span>
@@ -62,11 +75,15 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
                   </Fragment>
                 )}
                 {s.n === 2 && (
-                  <ul class="rows">{networks.map((n) => <li><span class="dot" />{n}<span>Connected</span></li>)}</ul>
+                  <ul class="rows">
+                    {networks.map((n) => (
+                      <li><img src={n.logo} alt="" width="30" height="30" loading="lazy" />{n.name}<span>Connected</span></li>
+                    ))}
+                  </ul>
                 )}
                 {s.n === 3 && (
                   <Fragment>
-                    <p class="field mono">send 0.05 ETH to vitalik.eth</p>
+                    <p class="field mono"><span class="typed">send 0.05 ETH to vitalik.eth</span></p>
                     <dl class="pairs">
                       <div><dt>Action</dt><dd>Send</dd></div>
                       <div><dt>Amount</dt><dd class="tnum">0.05 ETH</dd></div>
@@ -76,9 +93,11 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
                 )}
                 {s.n === 4 && (
                   <Fragment>
+                    <p class="screen__kicker">You typed</p>
                     <p class="screen__to">vitalik.eth</p>
+                    <p class="resolve" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 2.5v10M4 9l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>resolved through ENS</p>
                     <p class="screen__addr mono">0xd8dA6BF2…A96045</p>
-                    <p class="screen__sub">Resolved through ENS and shown before you sign.</p>
+                    <p class="screen__sub">Shown to you before anything is signed.</p>
                   </Fragment>
                 )}
                 {s.n === 5 && (
@@ -100,7 +119,11 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
                 )}
                 {s.n === 7 && (
                   <Fragment>
-                    <div class="route"><span>Solana</span><i /><span>Ethereum</span></div>
+                    <div class="route">
+                      <span class="route__end"><img src="/assets/chains/solana.png" alt="" width="44" height="44" loading="lazy" />Solana</span>
+                      <span class="route__line" aria-hidden="true"><b></b></span>
+                      <span class="route__end"><img src="/assets/chains/ethereum.png" alt="" width="44" height="44" loading="lazy" />Ethereum</span>
+                    </div>
                     <p class="screen__sub">ACT over Wormhole Native Token Transfers, delivered automatically on the other side.</p>
                   </Fragment>
                 )}
@@ -108,6 +131,7 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
                   <Fragment>
                     <p class="screen__kicker">Every transfer</p>
                     <p class="screen__total tnum">1.5% <em>fee</em></p>
+                    <div class="split" aria-hidden="true"><i style="flex:2"></i><i style="flex:1"></i></div>
                     <ul class="rows rows--fee">
                       <li>Climate Treasury<span class="tnum">1%</span></li>
                       <li>Operations<span class="tnum">0.5%</span></li>
@@ -127,36 +151,61 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
 </section>
 
 <style>
-  .story__head { display: grid; gap: var(--space-sm); max-width: 52rem; margin-bottom: var(--space-2xl); }
+  .story__head { display: grid; gap: var(--space-sm); max-width: 52rem; margin-bottom: var(--space-lg); }
 
   /* The fold: each card sticks at the same offset as the one before it, so
      the next card's rounded top edge scrolls up and over it -- a physical
      stack of pages, not a carousel. Pure position:sticky, no scroll JS. */
   .stack { position: relative; }
-  /* The sticky anchor is full-width and invisible; the card itself is
-     container-width with its own margin either side, so a short card
-     reads as a framed object on the page, not a screen-wide empty field. */
   .fold {
     position: sticky; top: var(--nav-height);
     min-height: min(82vh, 720px); display: flex; align-items: center;
     padding-block: var(--space-lg);
   }
+
+  /* Colour of the paper. Everything inside the card reads these variables,
+     so a theme is five lines, not a restyle of each child. */
   .fold__card {
+    --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted);
+    --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.06);
+    position: relative; overflow: hidden; isolation: isolate;
     width: 100%; max-width: 72rem; margin-inline: auto;
-    background: var(--color-bg-alt);
+    background: var(--c-bg); color: var(--c-fg);
     border-radius: clamp(20px, 2.2vw, 32px);
-    box-shadow: 0 24px 64px -24px rgba(13, 31, 26, 0.22);
+    box-shadow: 0 24px 64px -24px rgba(13, 31, 26, 0.3);
     padding: clamp(2rem, 4.5vw, 3.5rem);
   }
-  .fold__grid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); gap: var(--space-xl); align-items: center; }
+  .t-brand { --c-bg: var(--color-brand); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.78); --c-accent: var(--color-mint); --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.06); }
+  .t-mint { --c-bg: var(--color-mint-soft); --c-fg: var(--color-strong); --c-muted: #3f5a50; --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.07); }
+  .t-ink { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: var(--color-mint); --c-accent-fg: var(--color-strong); --c-mark: rgba(255, 255, 255, 0.05); }
+  .t-light { --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted); --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.055); }
+  .t-bright { --c-bg: var(--color-brand-bright); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.86); --c-accent: #fff; --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.08); }
+  .t-gold { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: #e0bd6a; --c-accent-fg: var(--color-strong); --c-mark: rgba(224, 189, 106, 0.1); }
+
+  /* An oversized step numeral printed into the paper behind the copy. */
+  .fold__card::before {
+    content: attr(data-n); position: absolute; z-index: -1; left: clamp(-1rem, -1vw, 0rem); bottom: -0.16em;
+    font-family: var(--font-topical); font-size: clamp(9rem, 22vw, 20rem); font-weight: 700; line-height: 0.8; letter-spacing: 0;
+    color: var(--c-mark); pointer-events: none; user-select: none;
+  }
+
+  .fold__grid { position: relative; display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); gap: var(--space-xl); align-items: center; }
   .fold__copy { display: grid; gap: var(--space-sm); justify-items: start; }
-  .fold__num { display: grid; place-items: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-mint); background: var(--color-brand); width: 2.75rem; height: 2.75rem; border-radius: 50%; margin-bottom: var(--space-xs); }
-  .fold__body { color: var(--color-muted); font-size: var(--text-lead); line-height: 1.55; }
+  .fold__copy .label { color: var(--c-muted); }
+  .fold__copy h3 { color: var(--c-fg); }
+  .fold__num { display: grid; place-items: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; color: var(--c-accent-fg); background: var(--c-accent); width: 2.75rem; height: 2.75rem; border-radius: 50%; margin-bottom: var(--space-xs); }
+  .fold__body { color: var(--c-muted); font-size: var(--text-lead); line-height: 1.55; }
   .fold__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; margin-top: var(--space-xs); }
 
+  /* StatusBadge and the secondary button are built for light grounds; on the
+     dark papers they get a light outline and white text. */
+  .is-dark :global(.badge) { color: #fff; border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.08); }
+  .is-dark :global(.btn--secondary) { color: #fff; border-color: rgba(255, 255, 255, 0.5); }
+  .t-mint :global(.badge) { background: rgba(255, 255, 255, 0.55); }
+
   .fold__visual { position: relative; isolation: isolate; }
-  .fold__screen { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; min-height: 280px; padding: clamp(1.75rem, 3vw, 2.5rem); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: var(--shadow-float); }
-  .fold__accent { position: absolute; z-index: 0; right: -10%; bottom: -14%; width: clamp(90px, 14vw, 150px); height: clamp(90px, 14vw, 150px); border-radius: 50%; background: var(--color-brand); }
+  .fold__screen { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; min-height: 280px; padding: clamp(1.75rem, 3vw, 2.5rem); border-radius: var(--radius-xl); background: var(--color-surface); color: var(--color-strong); box-shadow: var(--shadow-float); }
+  .fold__accent { position: absolute; z-index: 0; right: -10%; bottom: -14%; width: clamp(90px, 14vw, 150px); height: clamp(90px, 14vw, 150px); border-radius: 50%; background: var(--c-accent); opacity: 0.9; }
 
   .screen__kicker { font-size: 0.8125rem; color: var(--color-muted); }
   .screen__total { font-size: 2.25rem; font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: var(--color-strong); }
@@ -168,14 +217,27 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
   .screen__button { margin-top: auto; border-radius: var(--radius-pill); }
   .screen__to { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
   .screen__addr { font-size: 0.875rem; color: var(--color-text); padding: 12px 14px; border-radius: 14px; background: var(--color-bg-alt); }
+  .resolve { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 5px 12px 5px 9px; border-radius: var(--radius-pill); font-size: 0.8125rem; font-weight: 500; color: var(--color-brand-bright); background: var(--color-mint-soft); }
 
   .rows { list-style: none; margin: 0; padding: 0; }
-  .rows li { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
+  .rows li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
   .rows li:last-child { border-bottom: 0; }
   .rows li > span:last-child { margin-left: auto; font-size: 0.8125rem; color: var(--color-muted); }
+  .rows img { flex: none; width: 30px; height: 30px; border-radius: 9px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
   .rows--fee li > span:last-child { font-size: 0.9375rem; font-weight: 600; color: var(--color-strong); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); }
+  .split { display: flex; gap: 4px; height: 10px; }
+  .split i { border-radius: 5px; background: var(--color-brand); }
+  .split i + i { background: var(--color-gold); }
+
   .field { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border-radius: 14px; background: var(--color-bg-alt); font-size: 0.875rem; color: var(--color-strong); }
+  /* The phrase types itself in, then holds. Clip-path, not width, so nothing
+     reflows; at rest (and for reduced motion) the full phrase is showing. */
+  .typed { display: inline-block; animation: typing 7s steps(28, end) infinite; }
+  .typed::after { content: ''; display: inline-block; width: 2px; height: 1.1em; margin-left: 3px; background: var(--color-brand-bright); vertical-align: text-bottom; }
+  @keyframes typing {
+    0% { clip-path: inset(0 100% 0 0); }
+    35%, 100% { clip-path: inset(0 0 0 0); }
+  }
   .pairs { margin: 0; display: grid; }
   .pairs div { display: flex; justify-content: space-between; gap: 1rem; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; }
   .pairs dt { color: var(--color-muted); }
@@ -183,8 +245,17 @@ const networks = ['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygon'];
   .checks { list-style: none; margin: 0; padding: 0; }
   .checks li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
   .tick { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--color-ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 8.5 2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat; }
-  .route { display: flex; align-items: center; gap: 10px; padding: 18px 0; font-size: 0.9375rem; font-weight: 600; color: var(--color-strong); }
-  .route i { flex: 1; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); }
+
+  /* Universal: the two chains, with a packet crossing the line between them. */
+  .route { display: flex; align-items: center; gap: 14px; padding: 18px 0 8px; }
+  .route__end { display: grid; justify-items: center; gap: 8px; font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
+  .route__end img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
+  .route__line { position: relative; flex: 1; height: 2px; margin-bottom: 26px; border-radius: 2px; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); container-type: inline-size; }
+  .route__line b { position: absolute; top: -5px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--color-brand); box-shadow: 0 0 0 4px rgba(94, 230, 168, 0.35); animation: packet 2.6s var(--ease-in-out) infinite; }
+  @keyframes packet {
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(100cqw - 12px)); }
+  }
 
   @media (max-width: 900px) {
     .fold__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }

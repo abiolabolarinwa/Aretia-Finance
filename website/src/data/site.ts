@@ -49,7 +49,7 @@ export const PRODUCTS: Product[] = [
     name: 'Aretia Universal',
     role: 'Interoperability',
     status: 'testnet',
-    statusNote: 'ACT bridging runs on Solana devnet ↔ Sepolia today.',
+    statusNote: 'ACT bridging runs on Solana devnet ↔ Sepolia today. ACT’s contracts are deployed on BNB Chain and Polygon mainnet; bridging to them is not live yet.',
     summary: 'Move ACT between chains and pay in whatever token you hold, without managing the route yourself.',
     today: [
       'ACT bridging between Solana and Ethereum over Wormhole Native Token Transfers (testnet)',
@@ -76,14 +76,14 @@ export const PRODUCTS: Product[] = [
     name: 'Aretia SafeSend',
     role: 'Protected transfers',
     status: 'testnet',
-    statusNote: 'Live on testnet: Ethereum Sepolia and Solana devnet. Not yet audited or on mainnet.',
+    statusNote: 'Live on testnet: Ethereum Sepolia and Solana devnet. Contracts deployed on BNB Chain and Polygon mainnet, owned by a 2-of-3 Safe; not yet in the wallet, and not yet audited.',
     summary: 'Lock a transfer on-chain for a short protection period, and cancel it if something looks wrong before it reaches the recipient.',
     today: [
       'Funds wait in an on-chain vault for the protection period; only you can cancel before it ends',
       'The blockchain enforces the delay: nobody else, Aretia included, can move, redirect or hold the funds',
       'New recipients and high-value transfers get longer protection, and the wallet says why',
     ],
-    roadmap: ['Security audit', 'Mainnet'],
+    roadmap: ['Security audit', 'Mainnet in the wallet', 'Base'],
   },
   {
     slug: 'shield',

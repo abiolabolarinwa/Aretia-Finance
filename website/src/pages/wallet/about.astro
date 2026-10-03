@@ -1,12 +1,12 @@
 ---
-import Base from '../layouts/Base.astro';
-import Button from '../components/buttons/Button.astro';
-import WalletMock from '../components/wallet/WalletMock.astro';
-import NetworkField from '../components/hero/NetworkField.astro';
-import StatusBadge from '../components/ui/StatusBadge.astro';
-import InfoGrid from '../components/cards/InfoGrid.astro';
-import { LINKS, NETWORKS, SECURITY, type Status } from '../data/site';
-import { paperClass, twoDigits } from '../lib/paper';
+import Base from '../../layouts/Base.astro';
+import Button from '../../components/buttons/Button.astro';
+import WalletMock from '../../components/wallet/WalletMock.astro';
+import NetworkField from '../../components/hero/NetworkField.astro';
+import StatusBadge from '../../components/ui/StatusBadge.astro';
+import InfoGrid from '../../components/cards/InfoGrid.astro';
+import { LINKS, NETWORKS, SECURITY, type Status } from '../../data/site';
+import { paperClass, twoDigits } from '../../lib/paper';
 
 const capabilities: { title: string; body: string; status: Status; href?: string }[] = [
   { title: 'Multichain', body: `${NETWORKS.join(', ')}. One recovery phrase, one place.`, status: 'built' },
@@ -163,7 +163,7 @@ const capabilities: { title: string; body: string; status: Status; href?: string
 </style>
 
 <script>
-  import { gsap, ScrollTrigger, reducedMotion, isDesktop } from '../scripts/motion';
+  import { gsap, ScrollTrigger, reducedMotion, isDesktop } from '../../scripts/motion';
 
   const rail = document.querySelector<HTMLElement>('[data-rail]');
   const track = document.querySelector<HTMLElement>('[data-rail-track]');

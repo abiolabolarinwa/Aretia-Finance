@@ -1,0 +1,230 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ACT, POOLS } from '../../data/site';
+---
+
+<Base
+  title="Wallet"
+  description="Aretia web wallet: connect the Solana wallet you already use to see your balances and activity and trade ACT. Aretia never holds your keys."
+  walletConnect
+  ctaBands={false}
+>
+  <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />
+
+  <div class="wapp" data-wapp data-connected="false" data-view="dashboard">
+    <aside class="wapp__side" aria-label="Wallet">
+      <div class="wapp__account" data-account aria-live="polite"></div>
+      <nav class="wapp__nav" aria-label="Wallet sections">
+        <button type="button" data-nav="dashboard" aria-current="page">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="2" /><rect x="13.5" y="3" width="7.5" height="5" rx="2" /><rect x="13.5" y="11" width="7.5" height="10" rx="2" /><rect x="3" y="15" width="7.5" height="6" rx="2" /></svg>
+          Dashboard
+        </button>
+        <button type="button" data-nav="trade">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
+          Trade
+        </button>
+        <button type="button" data-nav="activity">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+          Activity
+        </button>
+      </nav>
+      <div class="wapp__side-foot">
+        <a href="/wallet/about">About Aretia Wallet</a>
+        <a href="/buy">Buy ACT</a>
+        <a href="/verify">Verify ACT on-chain</a>
+      </div>
+    </aside>
+
+    <section class="wapp__main">
+      <header class="wapp__top">
+        <h1 data-title>Dashboard</h1>
+        <div class="wapp__chips">
+          <span class="wapp__chip">Solana · mainnet</span>
+          <button type="button" class="wapp__chip wapp__chip--btn" data-refresh>Refresh</button>
+        </div>
+      </header>
+
+      <div class="wapp__gate" data-gate>
+        <h2>Connect your wallet</h2>
+        <p>
+          Connect Phantom, Solflare, Backpack, the Aretia extension or another Solana wallet. Aretia never holds your keys or your recovery phrase: this page only reads public data for the wallet you connect, and your own wallet asks you to approve anything that moves money.
+        </p>
+        <button type="button" class="wapp__btn wapp__btn--primary" data-connect>Connect wallet</button>
+        <p class="wapp__fine">
+          No wallet yet? Aretia's own wallet is still in development. <a href="/wallet/about">Read about it and join the waitlist</a>.
+        </p>
+      </div>
+
+      <div data-pane="dashboard" class="wapp__pane">
+        <div class="wapp__grid">
+          <div class="wapp__card wapp__card--wash">
+            <div class="wapp__row">
+              <span class="wapp__eyebrow">Portfolio</span>
+              <button type="button" class="wapp__icon" data-hide aria-label="Hide amounts" aria-pressed="false">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+              </button>
+            </div>
+            <div class="wapp__total" data-total>—</div>
+            <div class="wapp__sub" data-total-sub></div>
+            <div class="wapp__actions">
+              <button type="button" class="wapp__btn wapp__btn--dark" data-nav="trade">Trade</button>
+              <button type="button" class="wapp__btn wapp__btn--primary" data-receive>Receive</button>
+              <a class="wapp__btn wapp__btn--ghost" data-solscan target="_blank" rel="noopener noreferrer" href="https://solscan.io">Solscan</a>
+            </div>
+            <div class="wapp__receive" data-receive-panel hidden>
+              <span class="wapp__eyebrow">Your Solana address</span>
+              <code class="wapp-mono" data-address></code>
+              <button type="button" class="wapp__btn wapp__btn--ghost" data-copy>Copy address</button>
+              <p class="wapp__fine">Send only Solana assets to this address.</p>
+            </div>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">How this page works</span>
+            <p class="wapp__fine">
+              It reads balances from Jupiter and prices from Jupiter or DexScreener, and recent activity from a public Solana RPC. Your address is sent to those services to do that, and nowhere else. Keys stay in your wallet.
+            </p>
+            <p class="wapp__fine">Dollar values are estimates. ACT's price comes from its single launch pool, which is thin.</p>
+          </div>
+        </div>
+        <div class="wapp__card">
+          <h2 class="wapp__h2">Holdings</h2>
+          <div data-holdings></div>
+        </div>
+      </div>
+
+      <div data-pane="trade" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card wapp__card--widget">
+            <div id="jupiter-terminal" class="wapp__terminal"><span class="wapp__sub">Loading swap widget…</span></div>
+          </div>
+          <div class="wapp__card">
+            <h2 class="wapp__h2">Trading ACT</h2>
+            <p class="wapp__fine">Swaps are routed by Jupiter and signed in your own wallet. You see the full transaction before you approve it.</p>
+            <ul class="wapp__list">
+              <li>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move, on top of pool and router fees.</li>
+              <li>The launch pools open at a $0.005 floor, so buying below it is impossible. You can only sell back as much as buyers have paid in.</li>
+              <li>Jupiter may show "Not sellable" and other warnings for new, thin tokens. They are automatic and don't mean ACT can't be sold.</li>
+            </ul>
+            <p class="wapp__eyebrow">ACT mint</p>
+            <code class="wapp-mono wapp__mint">{ACT.mint}</code>
+            <p class="wapp__fine">Other tokens can copy ACT's name. Only this mint is ACT.</p>
+            <p class="wapp__eyebrow">Pools</p>
+            {POOLS.map((p) => (
+              <p class="wapp__fine"><a href={p.explorer} target="_blank" rel="noopener noreferrer">{p.pair}</a>{p.chart && <> · <a href={p.chart} target="_blank" rel="noopener noreferrer">chart</a></>}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div data-pane="activity" class="wapp__pane" hidden>
+        <div class="wapp__card">
+          <h2 class="wapp__h2">Recent transactions</h2>
+          <div data-activity></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+  <!-- ?v= busts the long browser cache on /assets (served as immutable); bump it whenever wallet.js changes. -->
+  <script is:inline src="/assets/wallet/wallet.js?v=20261003b"></script>
+  <script>
+    import { initWalletApp } from '../../scripts/walletApp';
+    initWalletApp();
+  </script>
+</Base>
+
+<style is:global>
+  /* The site nav is fixed to the top; pages offset their content by --nav-height. */
+  .wapp { display: grid; grid-template-columns: 248px minmax(0, 1fr); box-sizing: border-box; min-height: 100vh; padding-top: var(--nav-height); background: var(--color-bg-alt); }
+  .wapp__side { position: sticky; top: var(--nav-height); align-self: start; display: flex; flex-direction: column; gap: 18px; height: calc(100vh - var(--nav-height)); padding: 22px 14px; background: var(--color-bg); border-right: 1px solid var(--color-border); }
+  .wapp__account { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-alt); }
+  .wapp__account strong { font-size: 14px; color: var(--color-strong); }
+  .wapp__account span { font-size: 12px; color: var(--color-muted); }
+  .wapp-mono { font-family: var(--font-mono); }
+  .wapp__nav { display: grid; gap: 4px; }
+  .wapp__nav button { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font: inherit; font-size: 14px; font-weight: 500; color: var(--color-muted); background: none; border: 0; border-radius: var(--radius-md); text-align: left; cursor: pointer; }
+  .wapp__nav button svg, .wapp__icon svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__nav button:hover { background: var(--color-brand-soft); color: var(--color-strong); }
+  .wapp__nav button[aria-current='page'] { background: var(--color-brand-soft); color: var(--color-brand); font-weight: 600; }
+  .wapp__side-foot { margin-top: auto; display: grid; gap: 8px; font-size: 13px; }
+  .wapp__side-foot a { color: var(--color-muted); }
+  .wapp__side-foot a:hover { color: var(--color-strong); }
+
+  .wapp__main { min-width: 0; padding: 28px 36px 56px; display: grid; gap: 20px; align-content: start; }
+  .wapp__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .wapp__top h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; color: var(--color-strong); }
+  .wapp__chips { display: flex; gap: 8px; }
+  .wapp__chip { padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: var(--radius-pill); }
+  .wapp__chip--btn { cursor: pointer; }
+  .wapp__chip--btn:hover { background: var(--color-bg); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+
+  .wapp__card { padding: 22px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); display: grid; gap: 12px; align-content: start; }
+  .wapp__card--wash { background: linear-gradient(135deg, rgba(21, 6, 129, 0.1), rgba(184, 176, 255, 0.28)); border-color: transparent; }
+  .wapp__card--widget { padding: 12px; }
+  .wapp__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .wapp__grid--trade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .wapp__row { display: flex; align-items: center; justify-content: space-between; }
+  .wapp__eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp__total { font-size: 2.75rem; font-weight: 700; letter-spacing: -0.03em; color: var(--color-strong); line-height: 1.05; }
+  .wapp__sub, .wapp-sub { font-size: 13px; color: var(--color-muted); }
+  .wapp__fine { margin: 0; font-size: 13px; line-height: 1.55; color: var(--color-muted); }
+  .wapp__fine a, .wapp__list a { color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
+  .wapp__h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--color-strong); }
+  .wapp__list { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--color-muted); }
+  .wapp__mint { font-size: 12px; overflow-wrap: anywhere; color: var(--color-brand); }
+  .wapp__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .wapp__receive { display: grid; gap: 8px; padding-top: 4px; }
+  .wapp__receive code { font-size: 12px; overflow-wrap: anywhere; }
+  .wapp__pane { display: grid; gap: 20px; }
+  .wapp__pane[hidden] { display: none; }
+  .wapp__terminal { min-height: 540px; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
+  .wapp__terminal #jupiter-plugin-instance, .wapp__terminal #jupiter-plugin-instance > * { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  .wapp__terminal:has(#jupiter-plugin-instance) > .wapp__sub { display: none; }
+
+  .wapp__btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 20px; font: inherit; font-size: 14px; font-weight: 600; border: 1.5px solid transparent; border-radius: var(--radius-pill); cursor: pointer; text-decoration: none; }
+  .wapp__btn--primary { background: var(--color-brand); color: #fff; }
+  .wapp__btn--primary:hover { background: var(--color-brand-bright); }
+  .wapp__btn--dark { background: var(--color-strong); color: #fff; }
+  .wapp__btn--ghost { background: var(--color-bg); border-color: var(--color-border-strong); color: var(--color-strong); }
+  .wapp__icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 50%; color: var(--color-strong); cursor: pointer; }
+  .wapp__btn:focus-visible, .wapp__nav button:focus-visible, .wapp__icon:focus-visible, .wapp__chip--btn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+  .wapp__gate { display: none; padding: 32px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); gap: 14px; justify-items: start; max-width: 640px; }
+  .wapp__gate h2 { margin: 0; font-size: 1.4rem; color: var(--color-strong); }
+  .wapp__gate p { margin: 0; line-height: 1.6; color: var(--color-muted); }
+  .wapp[data-connected='false'] .wapp__gate { display: grid; }
+  .wapp[data-connected='false'][data-view='dashboard'] [data-pane='dashboard'],
+  .wapp[data-connected='false'][data-view='activity'] [data-pane='activity'] { display: none; }
+  .wapp[data-connected='true'] .wapp__gate { display: none; }
+  .wapp[data-connected='false'] [data-refresh] { display: none; }
+  .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
+
+  .wapp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .wapp-table th { padding: 0 10px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-table td { padding: 12px 10px; border-top: 1px solid var(--color-border); vertical-align: middle; }
+  .wapp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .wapp-asset { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .wapp-asset > div { display: grid; min-width: 0; }
+  .wapp-asset strong { color: var(--color-strong); }
+  .wapp-avatar { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--color-brand-soft); color: var(--color-brand); font-size: 11px; font-weight: 700; object-fit: cover; }
+  .wapp-flag { margin-left: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; color: var(--color-warn); background: rgba(178, 94, 9, 0.1); border-radius: var(--radius-pill); }
+  .wapp-weight { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+  .wapp-bar { display: inline-block; width: 72px; height: 6px; border-radius: 999px; background: var(--color-brand-soft); overflow: hidden; }
+  .wapp-bar > span { display: block; height: 100%; background: var(--color-brand); border-radius: inherit; }
+  .wapp-status { padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
+  .wapp-status.is-ok { color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
+  .wapp-status.is-fail { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
+  .wapp-error { margin: 0; padding: 12px 14px; font-size: 13px; color: #b3261e; background: rgba(179, 38, 30, 0.08); border-radius: var(--radius-md); }
+
+  @media (max-width: 960px) {
+    .wapp { grid-template-columns: 1fr; }
+    .wapp__side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--color-border); }
+    .wapp__nav { display: flex; flex-wrap: wrap; }
+    .wapp__side-foot { display: none; }
+    .wapp__main { padding: 20px 16px 40px; }
+    .wapp__grid, .wapp__grid--trade { grid-template-columns: 1fr; }
+    .wapp__total { font-size: 2.25rem; }
+    .wapp-table th:nth-child(3), .wapp-table td:nth-child(3), .wapp-table th:nth-child(5), .wapp-table td:nth-child(5) { display: none; }
+  }
+</style>

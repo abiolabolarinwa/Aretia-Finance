@@ -25,6 +25,11 @@
       "source": "/countdown",
       "destination": "/",
       "permanent": false
+    },
+    {
+      "source": "/wallet/app",
+      "destination": "/wallet",
+      "permanent": false
     }
   ]
 }

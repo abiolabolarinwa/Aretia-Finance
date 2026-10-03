@@ -206,7 +206,7 @@ export const NETWORKS =['Solana', 'Ethereum', 'Base', 'BNB Smart Chain', 'Polygo
 export const LINKS = {
   // The wallet extension is not yet published to the Chrome Web Store, so
   // every "launch" CTA points to a waitlist capture, not a live product.
-  walletWaitlist: '/wallet#waitlist',
+  walletWaitlist: '/wallet/about#waitlist',
   buyAct: '/buy',
   whitepaper: '/whitepaper',
   github: 'https://github.com/abiolabolarinwa/Aretia-Finance',
@@ -230,7 +230,8 @@ export const NAV: NavGroup[] = [
   {
     label: 'Products',
     items: [
-      { label: 'Aretia Wallet', href: '/wallet', description: 'Multichain self-custody wallet' },
+      { label: 'Open wallet', href: '/wallet', description: 'Balances, activity and trading in your browser' },
+      { label: 'Aretia Wallet', href: '/wallet/about', description: 'Multichain self-custody wallet' },
       { label: 'Features', href: '/features', description: 'Everything the wallet does today' },
       { label: 'Universal', href: '/features#universal', description: 'Cross-chain ACT and any-token pay' },
       { label: 'Pay', href: '/features#pay', description: 'Send to ENS and .sol names' },

@@ -1,5 +1,5 @@
 ---
-import { NAV, LINKS, ACT } from '../../data/site';
+import { NAV, LINKS, ACT, POOLS } from '../../data/site';
 import Button from '../buttons/Button.astro';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
 }
 const { walletConnect = false } = Astro.props;
 const feeChange = ACT.transferFee.scheduled;
+const pricePair = POOLS[0].address;
 ---
 
 <header class:list={['nav', { 'nav--wallet': walletConnect }]} data-nav>
@@ -55,6 +56,9 @@ const feeChange = ACT.transferFee.scheduled;
 
     <div class="nav__actions">
       <a href={LINKS.walletWaitlist} class="nav__secondary">Wallet waitlist</a>
+      <a class="nav__price" href={LINKS.dexscreener} data-act-price data-pair={pricePair} target="_blank" rel="noopener" hidden aria-label="ACT price on DexScreener">
+        <span class="nav__price-label">ACT</span> <span data-price-value></span> <span class="nav__price-chg" data-price-change></span>
+      </a>
       <Button href={LINKS.buyAct} size="md" variant="gold">Buy ACT</Button>
     </div>
 
@@ -86,6 +90,9 @@ const feeChange = ACT.transferFee.scheduled;
         }
       </ul>
       <div class="mobile__actions">
+        <a class="nav__price nav__price--mobile" href={LINKS.dexscreener} data-act-price data-pair={pricePair} target="_blank" rel="noopener" hidden aria-label="ACT price on DexScreener">
+          <span class="nav__price-label">ACT</span> <span data-price-value></span> <span class="nav__price-chg" data-price-change></span>
+        </a>
         <Button href={LINKS.buyAct} size="lg" variant="gold">Buy ACT</Button>
         <Button href={LINKS.walletWaitlist} size="lg" variant="secondary">Wallet waitlist</Button>
       </div>
@@ -126,6 +133,13 @@ const feeChange = ACT.transferFee.scheduled;
   .nav__item-desc { font-size: 0.8rem; color: var(--color-faint); }
   .nav__actions { display: flex; align-items: center; gap: 0.9rem; flex: none; }
   .nav__secondary { font-size: 0.875rem; font-weight: 600; color: var(--color-muted); padding: 0.5rem; transition: color var(--duration-fast); }
+  .nav__price { display: inline-flex; align-items: baseline; gap: 6px; padding: 0.4rem 0.75rem; font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--color-strong); background: var(--color-brand-soft); border-radius: var(--radius-pill); white-space: nowrap; }
+  .nav__price[hidden] { display: none; }
+  .nav__price-label { font-weight: 700; color: var(--color-brand); }
+  .nav__price-chg { font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
+  .nav__price-chg.is-up { color: var(--color-ok); }
+  .nav__price-chg.is-down { color: #b3261e; }
+  .nav__price--mobile { justify-content: center; padding: 0.7rem 1rem; font-size: 1rem; }
   .nav__toggle { display: none; width: 44px; height: 44px; margin-left: auto; position: relative; }
   .nav__toggle span { position: absolute; left: 12px; right: 12px; height: 1.5px; background: var(--color-strong); transition: transform 400ms var(--ease-out), top 400ms var(--ease-out); }
   .nav__toggle span:first-child { top: 18px; }
@@ -170,6 +184,8 @@ const feeChange = ACT.transferFee.scheduled;
 </style>
 
 <script>
+  import { initActPrice } from '../../scripts/actPrice';
+
   const header = document.querySelector<HTMLElement>('[data-nav]')!;
   const groups = [...header.querySelectorAll<HTMLElement>('[data-group]')];
   const toggle = header.querySelector<HTMLButtonElement>('[data-toggle]')!;
@@ -243,4 +259,6 @@ const feeChange = ACT.transferFee.scheduled;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
+
+  initActPrice(header);
 </script>

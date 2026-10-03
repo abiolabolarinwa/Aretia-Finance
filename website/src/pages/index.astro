@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { LINKS } from '../data/site';
+import { LINKS, POOLS } from '../data/site';
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
@@ -30,6 +30,15 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
         </h1>
         <p class="welcome__lead">Multichain self-custody, built so every transfer funds a climate treasury.</p>
 
+        <div class="welcome__price">
+          <a class="wprice" href="/buy" data-act-price data-pair={POOLS[0].address} hidden aria-label="Buy ACT, current price">
+            <span class="wprice__label">ACT</span>
+            <span class="wprice__value" data-price-value></span>
+            <span class="wprice__chg" data-price-change></span>
+            <span class="wprice__cta">Buy ACT →</span>
+          </a>
+        </div>
+
         <div class="welcome__actions">
           <a class="wbtn wbtn--solid" href={LINKS.walletWaitlist}>Join the Aretia Wallet Waitlist</a>
           <a class="wbtn wbtn--outline" href="/home">Explore Aretia Finance</a>
@@ -47,6 +56,10 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
         <p class="welcome__note">The wallet's browser extension is in development and not yet on the Web Store.</p>
       </div>
     </main>
+    <script>
+      import { initActPrice } from '../scripts/actPrice';
+      initActPrice();
+    </script>
   </body>
 </html>
 
@@ -98,6 +111,15 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     font-size: var(--text-lead);
     color: var(--color-muted);
   }
+
+  .wprice { display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.5rem 0.45rem 1rem; font-size: 0.9375rem; font-variant-numeric: tabular-nums; color: var(--color-strong); background: #fff; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill); }
+  .wprice[hidden] { display: none; }
+  .wprice__label { font-weight: 700; color: var(--color-brand); }
+  .wprice__value { font-weight: 600; }
+  .wprice__chg { font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); }
+  .wprice__chg.is-up { color: var(--color-ok); }
+  .wprice__chg.is-down { color: #b3261e; }
+  .wprice__cta { padding: 0.35rem 0.8rem; font-size: 0.8125rem; font-weight: 600; color: #fff; background: var(--color-brand); border-radius: var(--radius-pill); }
 
   .welcome__actions {
     display: grid;

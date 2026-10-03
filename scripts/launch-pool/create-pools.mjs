@@ -296,10 +296,15 @@ async function main() {
         memo: `Create ACT/${built.symbol} pool: ${ACT_PER_POOL} ACT single-sided from $${FLOOR_USD}`,
       });
       const proposalIx = multisig.instructions.proposalCreate({ multisigPda: MULTISIG_PDA, creator: proposer.publicKey, transactionIndex, isDraft: false });
-      const outer = new Transaction({ feePayer: proposer.publicKey, recentBlockhash: blockhash }).add(vaultTxIx, proposalIx);
-      const sig = await connection.sendTransaction(outer, [proposer]);
+      // Pool creation is a big inner message: vault transaction + proposal together exceed the 1232-byte packet limit, so send them separately.
+      const createTx = new Transaction({ feePayer: proposer.publicKey, recentBlockhash: blockhash }).add(vaultTxIx);
+      const createSig = await connection.sendTransaction(createTx, [proposer]);
+      await connection.confirmTransaction(createSig, "confirmed");
+      const { blockhash: proposalBlockhash } = await connection.getLatestBlockhash();
+      const proposalTx = new Transaction({ feePayer: proposer.publicKey, recentBlockhash: proposalBlockhash }).add(proposalIx);
+      const sig = await connection.sendTransaction(proposalTx, [proposer]);
       await connection.confirmTransaction(sig, "confirmed");
-      log(`Proposal #${transactionIndex} created: ${sig}`);
+      log(`Proposal #${transactionIndex} created: vault transaction ${createSig}, proposal ${sig}`);
     }
   }
 

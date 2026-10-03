@@ -419,7 +419,7 @@ The following addresses are referenced throughout this paper by description rath
 | Treasury multisig (Squads) | `5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr` |
 | Treasury vault | `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` |
 | Management fee wallet | `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2` |
-| ACT/USDC pool (Meteora DAMM v2) | `6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX` — address is deterministic and specified; pool creation and the permanent lock in Section 20.3 had not yet executed on-chain as of this writing |
+| ACT/USDC pool (Meteora DAMM v2) | `6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX` — created on 2 October 2026 by the treasury multisig; the permanent lock in Section 20.3 is in effect (unlocked liquidity is zero in the position) |
 | ACT/SOL pool (Meteora DAMM v2) | `ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb` — same status as above |
 
 ## Notes

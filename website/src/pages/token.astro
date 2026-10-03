@@ -7,9 +7,9 @@ import StatusBadge from '../components/ui/StatusBadge.astro';
 import { ACT, LINKS } from '../data/site';
 
 const pct = (n: number) => (n / ACT.totalSupply) * 100;
-const liquiditySeed = 5_000_000;
+const liquiditySeed = 10_000_000;
 const segments = [
-  { label: 'Liquidity seed', amount: liquiditySeed, status: 'roadmap' as const, note: 'Planned liquidity pool seed; not yet funded.' },
+  { label: 'Liquidity pools', amount: liquiditySeed, status: 'live' as const, note: 'Two Meteora pools, ACT/USDC and ACT/SOL, opened 2 Oct 2026 with 5,000,000 ACT each before ACT’s 1.5% fee (about 4.92M landed in each). Liquidity permanently locked.' },
   { label: 'Treasury-held, allocation to be published', amount: ACT.totalSupply - liquiditySeed, status: undefined, note: 'Held in the 2-of-3 treasury multisig. No further allocation has been published.' },
 ];
 const facts = [
@@ -39,7 +39,7 @@ const facts = [
           <p class="muted">Minted once, in a single instruction. Mint authority revoked: the supply can never increase.</p>
         </div>
 
-        <div class="bar" data-reveal role="img" aria-label="ACT supply: 0.5% planned liquidity seed, 99.5% held in the treasury multisig with allocation to be published">
+        <div class="bar" data-reveal role="img" aria-label="ACT supply: 1% in locked liquidity pools, 99% held in the treasury multisig with allocation to be published">
           {segments.map((s, i) => <span class={`bar__seg bar__seg--${i}`} style={`--w:${pct(s.amount)}%`} />)}
         </div>
         <ul class="legend">

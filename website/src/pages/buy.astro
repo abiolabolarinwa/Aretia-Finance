@@ -48,7 +48,8 @@ import { ACT, POOLS } from '../data/site';
 
   <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
   <script is:inline src="https://plugin.jup.ag/plugin-v1.js" data-preload></script>
-  <script is:inline src="/assets/wallet/wallet.js"></script>
+  <!-- ?v= busts the long browser cache on /assets (served as immutable); bump it whenever wallet.js changes. -->
+  <script is:inline src="/assets/wallet/wallet.js?v=20261003b"></script>
   <script is:inline>
     (function () {
       const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';

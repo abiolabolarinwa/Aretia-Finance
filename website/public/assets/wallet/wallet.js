@@ -368,7 +368,9 @@
     return {
       autoConnect: false, // Aretia never auto-connects in a way that could surprise a returning user; see attemptEagerReconnect
       publicKey: toPublicKey(),
-      wallet: state.connectedWallet ? { adapter: { name: state.connectedWallet.name } } : null,
+      // Jupiter Plugin's swap step reads wallet.adapter.publicKey and silently
+      // stops (never asks the wallet to sign) when it is missing.
+      wallet: state.connectedWallet ? { adapter: { name: state.connectedWallet.name, publicKey: toPublicKey() } } : null,
       connected: connected,
       connecting: state.connecting,
       disconnecting: false,

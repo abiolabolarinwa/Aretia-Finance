@@ -19,7 +19,7 @@ import { ACT, POOLS } from '../data/site';
           </div>
           <div class="buy__connect" data-aretia-wallet-mount></div>
         </div>
-        <p class="buy__status">ACT’s two liquidity pools opened on 2 October 2026. Swap routers can take a little while to index new pools, so if the widget finds no route yet, try again shortly.</p>
+        <p class="buy__status">ACT’s two liquidity pools opened on 2 October 2026. Jupiter finds the best route across them.</p>
         <div id="jupiter-terminal" class="buy__terminal"><span class="buy__loading">Loading swap widget…</span></div>
       </div>
 
@@ -47,7 +47,7 @@ import { ACT, POOLS } from '../data/site';
   </section>
 
   <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-  <script is:inline src="https://terminal.jup.ag/main-v4.js" data-preload></script>
+  <script is:inline src="https://plugin.jup.ag/plugin-v1.js" data-preload></script>
   <script is:inline src="/assets/wallet/wallet.js"></script>
   <script is:inline>
     (function () {
@@ -89,11 +89,11 @@ import { ACT, POOLS } from '../data/site';
   .buy__status { font-size: var(--text-small); color: var(--color-warn); }
   .buy__terminal { min-height: 520px; border-radius: var(--radius-lg); overflow: hidden; background: rgba(0, 0, 0, 0.02); display: grid; }
   .buy__loading { place-self: center; color: var(--color-faint); font-size: var(--text-small); }
-  /* Jupiter renders its own instance next to the placeholder; hide the placeholder once it has. */
-  .buy__terminal:has(:global(#jupiter-terminal-instance)) .buy__loading { display: none; }
-  /* Jupiter gives its instance a fixed 360px width, wider than the panel on phones. */
-  .buy__terminal :global(#jupiter-terminal-instance),
-  .buy__terminal :global(#jupiter-terminal-instance > *) { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  /* Jupiter Plugin renders its own instance next to the placeholder; hide the placeholder once it has. */
+  .buy__terminal:has(:global(#jupiter-plugin-instance)) .buy__loading { display: none; }
+  /* The Jupiter widget has a fixed 360px width, wider than the panel on phones. */
+  .buy__terminal :global(#jupiter-plugin-instance),
+  .buy__terminal :global(#jupiter-plugin-instance > *) { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
   .buy__side { display: grid; gap: var(--space-md); }
   .buy__card { display: grid; gap: 0.75rem; justify-items: start; padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
   .buy__card a:not(.btn) { color: var(--color-gold-bright); }

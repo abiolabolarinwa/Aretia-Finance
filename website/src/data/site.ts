@@ -154,12 +154,14 @@ export const ACT = {
  * nothing can trade below it. Liquidity is permanently locked (verified
  * on-chain: unlocked liquidity 0 in both positions).
  */
-export const POOLS = [
+export const POOLS: { pair: string; address: string; floor: string; explorer: string; chart?: string }[] = [
   {
     pair: 'ACT/USDC',
     address: '6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
     floor: '0.005 USDC per ACT',
     explorer: 'https://solscan.io/account/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
+    // DexScreener lists a pool once it has traded; ACT/SOL has not yet, so it has no chart link.
+    chart: 'https://dexscreener.com/solana/6n8mvd7xmzs66e5vlgqgvte31gbkmctl4s97w4ov6ivx',
   },
   {
     pair: 'ACT/SOL',

@@ -33,7 +33,7 @@ import { ACT, POOLS } from '../data/site';
           <p><b>Liquidity pools</b></p>
           <p class="muted">Two Meteora pools opened single-sided, each with about 4.9 million ACT, so nothing trades below the floor. The liquidity is permanently locked: no one, the treasury included, can withdraw it.</p>
           {POOLS.map((p) => (
-            <p class="muted buy__pool"><b>{p.pair}</b> · floor {p.floor}<br /><a href={p.explorer} target="_blank" rel="noopener noreferrer" class="mono">{p.address}</a></p>
+            <p class="muted buy__pool"><b>{p.pair}</b> · floor {p.floor}<br /><a href={p.explorer} target="_blank" rel="noopener noreferrer" class="mono">{p.address}</a>{p.chart && <><br /><a href={p.chart} target="_blank" rel="noopener noreferrer">View chart on DexScreener ↗</a></>}</p>
           ))}
         </div>
         <div class="buy__card" data-reveal>

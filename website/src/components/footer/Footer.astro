@@ -19,6 +19,7 @@ const columns = [
       { label: 'Tokenomics', href: '/token#fees' },
       { label: 'Climate Treasury', href: '/details' },
       { label: 'Ecosystem', href: '/ecosystem' },
+      { label: 'ACT on DexScreener', href: LINKS.dexscreener, external: true, logo: '/assets/logos/dexscreener.png' },
     ],
   },
   {
@@ -76,7 +77,8 @@ const columns = [
               <ul>
                 {col.links.map((link) => (
                   <li>
-                    <a href={link.href} {...('external' in link && link.external ? { target: '_blank', rel: 'noopener' } : {})}>
+                    <a href={link.href} {...('external' in link && link.external ? { target: '_blank', rel: 'noopener' } : {})} class:list={[{ 'footer__logolink': 'logo' in link }]}>
+                      {'logo' in link && link.logo && <img src={link.logo} alt="" width="16" height="16" loading="lazy" />}
                       {link.label}
                     </a>
                   </li>
@@ -104,6 +106,8 @@ const columns = [
   .footer__cols { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-md); }
   .footer__title { font-family: var(--font-body); font-size: 0.8125rem; font-weight: 600; letter-spacing: -0.01em; color: var(--color-strong); margin-bottom: 0.9rem; }
   .footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+  .footer__logolink { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .footer__logolink img { width: 16px; height: 16px; border-radius: 4px; }
   .footer ul a { font-size: 0.8125rem; color: var(--color-muted); transition: color var(--duration-fast); }
   .footer__wordmark { font-family: var(--font-display); font-weight: 600; font-size: clamp(5rem, 22vw, 20rem); line-height: 0.8; letter-spacing: -0.06em; text-align: center; margin-top: var(--space-2xl); background: linear-gradient(180deg, rgba(0, 0, 0, 0.07), rgba(0, 0, 0, 0)); -webkit-background-clip: text; background-clip: text; color: transparent; user-select: none; }
   .footer__bottom { display: flex; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; padding-block: var(--space-md); border-top: 1px solid var(--color-border); font-size: var(--text-micro); color: var(--color-faint); }

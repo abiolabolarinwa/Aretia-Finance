@@ -214,6 +214,8 @@ export const LINKS = {
   discord: 'https://discord.gg/fDXvn2nHf',
   x: 'https://x.com/AretiaFinance',
   explorerMint: `https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`,
+  // ACT/USDC pool chart; DexScreener lists a pool once it has traded.
+  dexscreener: 'https://dexscreener.com/solana/6n8mvd7xmzs66e5vlgqgvte31gbkmctl4s97w4ov6ivx',
   // Shares the project-application Formspree form for now (messages are
   // tagged "Website contact" in the subject). Swap for a dedicated form ID.
   contactForm: 'https://formspree.io/f/xaeypjob',

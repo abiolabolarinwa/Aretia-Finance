@@ -31,9 +31,9 @@ import { ACT, POOLS } from '../data/site';
         </div>
         <div class="buy__card" data-reveal>
           <p><b>Liquidity pools</b></p>
-          <p class="muted">Two Meteora pools opened single-sided, each with about 4.9 million ACT, so nothing trades below the floor. The liquidity is permanently locked: no one, the treasury included, can withdraw it.</p>
+          <p class="muted">Two Meteora pools opened single-sided, each with about 4.9 million ACT, so nothing trades below the floor. The liquidity is permanently locked: no one, the treasury included, can withdraw it. To check, open each locked position below and read its permanently locked liquidity, which is the whole pool.</p>
           {POOLS.map((p) => (
-            <p class="muted buy__pool"><b>{p.pair}</b> · floor {p.floor}<br /><a href={p.explorer} target="_blank" rel="noopener noreferrer" class="mono">{p.address}</a>{p.chart && <><br /><a href={p.chart} target="_blank" rel="noopener noreferrer">View chart on DexScreener ↗</a></>}</p>
+            <p class="muted buy__pool"><b>{p.pair}</b> · floor {p.floor}<br /><a href={p.explorer} target="_blank" rel="noopener noreferrer" class="mono">{p.address}</a><br /><span class="buy__lock">Locked position: <a href={`https://solscan.io/account/${p.position}`} target="_blank" rel="noopener noreferrer" class="mono">{p.position}</a></span>{p.chart && <><br /><a href={p.chart} target="_blank" rel="noopener noreferrer">View chart on DexScreener ↗</a></>}</p>
           ))}
         </div>
         <div class="buy__card" data-reveal>
@@ -99,6 +99,7 @@ import { ACT, POOLS } from '../data/site';
   .buy__card { display: grid; gap: 0.75rem; justify-items: start; padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-alt); }
   .buy__card a:not(.btn) { color: var(--color-gold-bright); }
   .buy__pool a { font-size: 12px; overflow-wrap: anywhere; }
+  .buy__lock { font-size: 12px; }
   .buy__mint { font-size: 13px; color: var(--color-gold-bright); overflow-wrap: anywhere; }
   .buy__disclaimer { margin-top: var(--space-xl); font-size: var(--text-small); color: var(--color-faint); max-width: 52rem; }
   .buy__disclaimer a { color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }

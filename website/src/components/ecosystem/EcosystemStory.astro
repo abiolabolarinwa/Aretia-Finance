@@ -167,18 +167,18 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
      so a theme is five lines, not a restyle of each child. */
   .fold__card {
     --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted);
-    --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.06);
+    --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(21, 6, 129, 0.06);
     position: relative; overflow: hidden; isolation: isolate;
     width: 100%; max-width: 72rem; margin-inline: auto;
     background: var(--c-bg); color: var(--c-fg);
     border-radius: clamp(20px, 2.2vw, 32px);
-    box-shadow: 0 24px 64px -24px rgba(13, 31, 26, 0.3);
+    box-shadow: 0 24px 64px -24px rgba(14, 11, 43, 0.3);
     padding: clamp(2rem, 4.5vw, 3.5rem);
   }
   .t-brand { --c-bg: var(--color-brand); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.78); --c-accent: var(--color-mint); --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.06); }
-  .t-mint { --c-bg: var(--color-mint-soft); --c-fg: var(--color-strong); --c-muted: #3f5a50; --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.07); }
+  .t-mint { --c-bg: var(--color-mint-soft); --c-fg: var(--color-strong); --c-muted: #4a4670; --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(21, 6, 129, 0.07); }
   .t-ink { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: var(--color-mint); --c-accent-fg: var(--color-strong); --c-mark: rgba(255, 255, 255, 0.05); }
-  .t-light { --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted); --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(11, 61, 46, 0.055); }
+  .t-light { --c-bg: var(--color-bg-alt); --c-fg: var(--color-strong); --c-muted: var(--color-muted); --c-accent: var(--color-brand); --c-accent-fg: var(--color-mint); --c-mark: rgba(21, 6, 129, 0.055); }
   .t-bright { --c-bg: var(--color-brand-bright); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.86); --c-accent: #fff; --c-accent-fg: var(--color-brand); --c-mark: rgba(255, 255, 255, 0.08); }
   .t-gold { --c-bg: var(--color-strong); --c-fg: #fff; --c-muted: rgba(255, 255, 255, 0.76); --c-accent: #e0bd6a; --c-accent-fg: var(--color-strong); --c-mark: rgba(224, 189, 106, 0.1); }
 
@@ -251,7 +251,7 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
   .route__end { display: grid; justify-items: center; gap: 8px; font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
   .route__end img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
   .route__line { position: relative; flex: 1; height: 2px; margin-bottom: 26px; border-radius: 2px; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); container-type: inline-size; }
-  .route__line b { position: absolute; top: -5px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--color-brand); box-shadow: 0 0 0 4px rgba(94, 230, 168, 0.35); animation: packet 2.6s var(--ease-in-out) infinite; }
+  .route__line b { position: absolute; top: -5px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--color-brand); box-shadow: 0 0 0 4px rgba(184, 176, 255, 0.35); animation: packet 2.6s var(--ease-in-out) infinite; }
   @keyframes packet {
     from { transform: translateX(0); }
     to { transform: translateX(calc(100cqw - 12px)); }

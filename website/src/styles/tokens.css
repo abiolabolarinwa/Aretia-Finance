@@ -1,15 +1,16 @@
 :root {
-  /* Color: bright white canvas and soft grey surfaces, deep forest green as
-     the brand and action colour, fresh mint for highlights and washes. Gold
-     is reserved for the ACT / fee layer. */
+  /* Color: bright white canvas and soft grey surfaces, deep indigo (#150681,
+     the logo colour) as the brand and action colour, soft periwinkle for
+     highlights and washes (the --color-mint-* names are historical). Gold is
+     reserved for the ACT / fee layer; green is kept only for ok/live status. */
   --color-bg: #ffffff;
   --color-bg-alt: #f5f5f7;
   --color-offwhite: #fbfbfd;
   --color-surface: #ffffff;
   --color-surface-2: #f5f5f7;
   --color-surface-3: #e8e8ed;
-  --color-strong: #0d1f1a;
-  --color-text: #14241f;
+  --color-strong: #0e0b2b;
+  --color-text: #1a1840;
   --color-muted: #6e6e73;
   /* #86868b read ~3.6:1 on white, failing WCAG AA for normal text --
      exactly where disclosure/status copy lives. #747477 clears 4.6:1+
@@ -20,12 +21,12 @@
   --color-gold: #a07a2c;
   --color-gold-bright: #8a6620;
   --color-gold-soft: rgba(160, 122, 44, 0.09);
-  --color-brand: #0b3d2e;
-  --color-brand-bright: #0f6b4b;
-  --color-brand-soft: rgba(15, 107, 75, 0.07);
-  --color-mint: #5ee6a8;
-  --color-mint-soft: #e3fbef;
-  --color-mint-wash: linear-gradient(180deg, #dcfaec 0%, #f4fdf8 70%, #ffffff 100%);
+  --color-brand: #150681;
+  --color-brand-bright: #2a14b0;
+  --color-brand-soft: rgba(42, 20, 176, 0.07);
+  --color-mint: #b8b0ff;
+  --color-mint-soft: #ecebff;
+  --color-mint-wash: linear-gradient(180deg, #e6e3ff 0%, #f6f5ff 70%, #ffffff 100%);
   --color-ok: #1b8a4b;
   --color-warn: #b25e09;
 

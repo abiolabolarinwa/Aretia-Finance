@@ -45,12 +45,12 @@ None of this depends on ACT's price. It depends only on how much gets traded. He
 
 | If this much ACT trades in a year | The climate fund collects roughly |
 |---|---|
-| $1,000,000 | $20,000 |
-| $10,000,000 | $200,000 |
-| $100,000,000 | $2,000,000 |
-| $1,000,000,000 | $20,000,000 |
+| $1,000,000 | $10,000 |
+| $10,000,000 | $100,000 |
+| $100,000,000 | $1,000,000 |
+| $1,000,000,000 | $10,000,000 |
 
-These are illustrations of the math, not a prediction of what will actually happen. Nobody knows in advance how much ACT will be traded; the table just shows that the fund's growth is a fixed, predictable share of activity, whatever that activity turns out to be. The table uses today's 2% climate-fund share (Section 3); once the already-approved rate change takes effect, the same trading volume produces roughly half these amounts, since the share narrows to 1%.
+These are illustrations of the math, not a prediction of what will actually happen. Nobody knows in advance how much ACT will be traded; the table just shows that the fund's growth is a fixed, predictable share of activity, whatever that activity turns out to be. The table uses today's 1% climate-fund share (Section 3). Under the earlier 3.5% rate the share was 2%, so the same trading volume would have produced twice these amounts.
 
 ## 3. The token: ACT
 
@@ -59,20 +59,19 @@ ACT is Aretia's token, built on Solana, a fast, low-cost blockchain. A few facts
 - **There will only ever be 1,000,000,000 ACT.** The ability to create more was permanently switched off right after they were made. Nobody, ever, can print more.
 - **Nobody can freeze your ACT.** That ability was never turned on in the first place, so it can't be misused later.
 
-One thing is deliberately *not* fixed forever, and it's worth being upfront about: the exact fee percentage. Right now it's set at **3.5% of every transfer**. That rate can only change if the three people who jointly control the treasury agree (more on that below), and any change is public and delayed, never instant or hidden. As proof this isn't just a claim, the rate has been changed for real using that exact process, twice: from an original 4.1% down to 3.5%, and a further cut to **1.5%** has already been approved the same way. That approved change isn't live yet — Solana itself (not Aretia) delays any fee change to a specific future point called an "epoch," so transfers keep paying 3.5% until that point arrives, automatically, with nobody able to speed it up or stop it.
+One thing is deliberately *not* fixed forever, and it's worth being upfront about: the exact fee percentage. Right now it's set at **1.5% of every transfer**. That rate can only change if the three people who jointly control the treasury agree (more on that below), and any change is public and delayed, never instant or hidden. As proof this isn't just a claim, the rate has been changed for real using that exact process, twice: from an original 4.1% down to 3.5%, and then down to **1.5%**. Solana itself (not Aretia) delays any fee change to a specific future point called an "epoch"; the 1.5% rate took effect automatically at the start of epoch 1048, on 2 October 2026, with nobody able to speed it up or stop it.
 
-Here's where that 3.5% goes right now:
+Here's where that 1.5% goes:
 
 | Share of every transfer | Where it goes |
 |---|---|
-| 96.5% | The person receiving the transfer, as normal |
-| 2.0% | The climate fund |
-| 1.0% | Liquidity (helping ACT actually be tradeable) |
+| 98.5% | The person receiving the transfer, as normal |
+| 1.0% | The climate fund |
 | 0.5% | Running costs |
 
-Once the approved 1.5% rate takes effect, this becomes simpler: 98.5% to the recipient, 1.0% to the climate fund, 0.5% to running costs. The liquidity share goes away entirely at that point — not redirected anywhere, just no longer withheld.
+Under the earlier 3.5% rate, 1.0% went to liquidity. That share was removed entirely with the cut to 1.5% — not redirected anywhere, just no longer withheld. ACT's trading liquidity now comes from the pools the treasury seeded with its own ACT (Section 7).
 
-No one has to remember to take the fee. It is withheld automatically, on every single transfer, whether the price is up, down, or flat, and whether anyone involved even knows the fund exists. The treasury then splits what was collected between the climate fund, liquidity and running costs, in public, 2-of-3 approved transactions.
+No one has to remember to take the fee. It is withheld automatically, on every single transfer, whether the price is up, down, or flat, and whether anyone involved even knows the fund exists. The treasury then splits what was collected between the climate fund and running costs, in public, 2-of-3 approved transactions.
 
 ## 4. Who controls the money
 
@@ -125,7 +124,7 @@ As the community grows, the plan is to hand more of this over to ACT holders, bu
 
 **There is no presale.** A presale was planned, but it was cancelled in October 2026 before it opened, and no presale will take place.
 
-**Trading:** ACT is acquired by trading against USDC or SOL on Solana once its liquidity pools are live. The pools themselves are built so the treasury seeds them with its own ACT, priced up from a floor — nobody else's money is needed to start them, and once they're created, that liquidity is locked permanently: it can never be withdrawn by anyone, the treasury included. Always check you are trading the real mint, listed in Section 11.
+**Trading:** ACT is acquired by trading against USDC or SOL on Solana. Its two liquidity pools opened on 2 October 2026. The treasury seeded them with its own ACT, priced up from a floor of $0.005 — nobody else's money was needed to start them — and that liquidity is locked permanently: it can never be withdrawn by anyone, the treasury included. Always check you are trading the real mint, listed in Section 11.
 
 **Staking** lets anyone already holding ACT lock it up for a set period in exchange for more ACT back later. The longer you're willing to lock it up, the bigger the bonus.
 
@@ -180,6 +179,8 @@ If you want to verify things yourself, here's where to look:
 | ACT token | `7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG` |
 | Treasury (shared account) | `5yxBrrC3h1PncGayMtAuWtvTx7MSUy2DJfdrnQ72FJGr` |
 | Treasury vault | `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` |
+| ACT/USDC liquidity pool | `6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX` |
+| ACT/SOL liquidity pool | `ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb` |
 
 ---
 

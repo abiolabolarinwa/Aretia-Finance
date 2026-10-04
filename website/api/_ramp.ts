@@ -1,5 +1,5 @@
 /**
- * Core of the Aretia Marketplace backend (/api/ramp): buying and selling USDT and USDC through
+ * Core of the backend for buying USDT and USDC inside Aretia Pay (/api/ramp): buying and selling USDT and USDC through
  * third-party fiat ramp providers. Aretia never holds fiat or crypto here. A provider verifies the
  * customer, takes the payment and sends the stablecoin straight to the customer's own wallet; this
  * module only decides what may be requested and builds the provider's hosted-page URL.

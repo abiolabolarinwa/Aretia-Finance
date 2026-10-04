@@ -246,9 +246,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal' | 'marketplace';
-const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal', 'marketplace'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal', marketplace: 'Marketplace' };
+type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -263,8 +263,6 @@ export function initWalletApp(): void {
 
   const currentView = (): View => {
     const h = location.hash.replace(/^#\/?/, '') as View;
-    // The Marketplace tab only exists on builds that switch it on; otherwise its address falls back to the dashboard.
-    if (h === 'marketplace' && !$('[data-pane="marketplace"]')) return 'dashboard';
     return VIEWS.includes(h) ? h : 'dashboard';
   };
 
@@ -1112,7 +1110,7 @@ export function initWalletApp(): void {
     amount.value = fromSmallestUnit(raw, h.decimals);
   });
 
-  // ---- Aretia Marketplace (only wired up on builds that include the tab)
+  // ---- Aretia Pay: buy USDT/USDC with local currency (only wired up on builds that include the Buy tab)
   interface RampStatus {
     enabled: boolean;
     providers?: { id: string; name: string; sides: string[] }[];
@@ -1121,7 +1119,7 @@ export function initWalletApp(): void {
     countries: { code: string; name: string }[];
     fiats: string[];
   }
-  const market = { side: 'buy' as 'buy' | 'sell', asset: 'USDC' as 'USDC' | 'USDT', loadState: 'idle' as 'idle' | 'loading' | 'ready' | 'failed', status: null as RampStatus | null, catalog: null as RampCatalog | null, message: null as { kind: 'ok' | 'warn' | 'info'; text: string } | null };
+  const market = { side: 'buy' as 'buy' | 'sell', asset: 'USDC' as 'USDC' | 'USDT', embedded: false, loadState: 'idle' as 'idle' | 'loading' | 'ready' | 'failed', status: null as RampStatus | null, catalog: null as RampCatalog | null, message: null as { kind: 'ok' | 'warn' | 'info'; text: string } | null };
 
   async function rampApi<T>(body: Record<string, unknown>): Promise<T> {
     const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -1162,7 +1160,15 @@ export function initWalletApp(): void {
     const notes = $('[data-market-notes]');
     const list = $('[data-market-providers]');
     const form = $<HTMLElement>('[data-market-form]');
-    if (!notes || !list || !form) return;
+    const embed = $<HTMLElement>('[data-market-embed]');
+    if (!notes || !list || !form || !embed) return;
+    embed.hidden = !market.embedded;
+    if (market.embedded) {
+      form.hidden = true;
+      list.textContent = '';
+      notes.textContent = '';
+      return;
+    }
     notes.textContent = '';
     list.textContent = '';
     const note = (kind: 'ok' | 'warn' | 'info', text: string) => notes.append(banner(kind, text));
@@ -1170,11 +1176,11 @@ export function initWalletApp(): void {
     if (market.loadState === 'loading' || market.loadState === 'idle') return void note('info', 'Loading…');
     if (market.loadState === 'failed' || market.status === null) {
       form.hidden = true;
-      return void note('info', "The marketplace isn't available here right now.");
+      return void note('info', "Buying with local currency isn't available here right now.");
     }
     if (!market.status.enabled) {
       form.hidden = true;
-      return void note('info', "The Aretia Marketplace isn't open yet.");
+      return void note('info', "Buying with local currency isn't open yet.");
     }
     const providers = (market.status.providers ?? []).filter((p) => p.sides.includes(market.side));
     if (market.side === 'sell') {
@@ -1210,13 +1216,62 @@ export function initWalletApp(): void {
       if (fiat) body.fiat = fiat;
       if (amountText !== '') body.amount = Number(amountText);
       const { url } = await rampApi<{ url: string }>(body);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      market.message = { kind: 'ok', text: `${name} opened in a new tab. Finish there; your ${market.asset} will arrive in this wallet.` };
+      if (!embedProvider(url, name)) throw new Error('The provider address was not what was expected, so it was not opened.');
+      return void renderMarketplace();
     } catch (e) {
       market.message = { kind: 'warn', text: e instanceof Error ? e.message : 'Could not open the provider.' };
     }
     renderMarketplace();
   }
+
+  /** Opens the provider's checkout inside this page. Only an https MoonPay address is ever framed. */
+  function embedProvider(url: string, name: string): boolean {
+    const host = $<HTMLElement>('[data-market-embed]');
+    if (!host) return false;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:' || !/(^|\.)moonpay\.com$/.test(parsed.hostname)) return false;
+    host.textContent = '';
+    const frame = el('iframe', {
+      class: 'wapp__embed-frame',
+      attrs: {
+        title: `${name} checkout`,
+        // "payment" for card and wallet payments, "camera" for the provider's ID check.
+        allow: 'payment; camera',
+        referrerpolicy: 'strict-origin-when-cross-origin',
+        // No top-navigation: the provider can show pages and pop-ups but cannot send this page elsewhere.
+        sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals',
+      },
+    });
+    frame.src = url;
+    const close = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Close checkout', attrs: { type: 'button' } });
+    close.addEventListener('click', () => {
+      market.embedded = false;
+      market.message = null;
+      host.textContent = '';
+      renderMarketplace();
+    });
+    const out = el('a', { text: 'Open in a new tab instead', attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' } });
+    host.append(
+      el('div', { class: 'wapp__embed-bar' }, [el('span', { class: 'wapp__fine', text: `Your ${market.asset} will arrive in this wallet when ${name} finishes.` }), close]),
+      frame,
+      el('p', { class: 'wapp__fine' }, [out, document.createTextNode(' if the checkout does not load here.')]),
+    );
+    market.embedded = true;
+    return true;
+  }
+
+  // Aretia Pay tabs: Send | Buy or sell
+  function selectPayTab(name: string): void {
+    document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.payTab === name)));
+    document.querySelectorAll<HTMLElement>('[data-pay-panel]').forEach((p) => (p.hidden = p.dataset.payPanel !== name));
+    if (name === 'buy') void loadMarketplace();
+  }
+  document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.addEventListener('click', () => selectPayTab(b.dataset.payTab ?? 'send')));
 
   document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -1407,7 +1462,6 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     renderSwap();
-    if (currentView() === 'marketplace') void loadMarketplace();
     if (currentView() === 'trade') {
       void loadWeb3();
       void ensureChart();
@@ -1457,7 +1511,9 @@ export function initWalletApp(): void {
   $('[data-lock]')?.addEventListener('click', () => void window.AretiaWallet?.disconnect());
 
   function clearSessionOutputs(): void {
-    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]']) $(sel)?.replaceChildren();
+    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]', '[data-market-embed]']) $(sel)?.replaceChildren();
+    market.embedded = false;
+    market.message = null;
     for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input', '#shield-input']) {
       const field = $<HTMLInputElement>(sel);
       if (field) field.value = '';

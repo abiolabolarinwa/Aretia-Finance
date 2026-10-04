@@ -31,9 +31,9 @@ const universalNeeds = [
   'An Ethereum wallet connection. This page connects Solana wallets only, and a bridge needs both sides.',
 ];
 
-// The Aretia Marketplace (buy and sell USDT/USDC through providers) is built but stays out of the page
-// until the site is built with PUBLIC_MARKETPLACE=1. See docs/ramp.md.
-const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
+// Buying USDT/USDC with local currency (through providers) lives inside Aretia Pay. It stays out of the
+// page until the site is built with PUBLIC_PAY_BUY=1. See docs/ramp.md.
+const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
 ---
 
 <Base
@@ -85,12 +85,6 @@ const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg>
           Universal
         </button>
-        {marketplaceOn && (
-          <button type="button" data-nav="marketplace">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16l-1.5 5h-13zM6 12v7h12v-7M9 19v-4h6v4" /></svg>
-            Marketplace
-          </button>
-        )}
       </nav>
       <div class="wapp__side-foot">
         <button type="button" class="wapp__lock" data-lock title="Disconnect this page from your wallet. Your funds and keys are not affected.">
@@ -268,47 +262,6 @@ const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
         </div>
       </div>
 
-      {marketplaceOn && (
-        <div data-pane="marketplace" class="wapp__pane" hidden>
-          <div class="wapp__grid wapp__grid--trade">
-            <div class="wapp__card" data-market>
-              <h2 class="wapp__h2">Aretia Marketplace</h2>
-              <p class="wapp__fine">
-                Buy USDT and USDC with your local currency. These are the only two assets offered here, and they arrive on Solana in your own wallet.
-              </p>
-              <div class="wapp__seg" role="group" aria-label="Buy or sell">
-                <button type="button" class="wapp__chip wapp__chip--btn" data-side="buy" aria-pressed="true">Buy</button>
-                <button type="button" class="wapp__chip wapp__chip--btn" data-side="sell" aria-pressed="false">Sell</button>
-              </div>
-              <div class="wapp__seg" role="group" aria-label="Asset">
-                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDC" aria-pressed="true">USDC</button>
-                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDT" aria-pressed="false">USDT</button>
-              </div>
-              <form class="wapp__form" data-market-form>
-                <label for="market-country" class="wapp__eyebrow">Country</label>
-                <select id="market-country" class="wapp__input" data-market-country disabled><option>Loading…</option></select>
-                <label for="market-fiat" class="wapp__eyebrow">Pay with</label>
-                <select id="market-fiat" class="wapp__input" data-market-fiat disabled><option>Loading…</option></select>
-                <label for="market-amount" class="wapp__eyebrow">Amount (optional, whole number)</label>
-                <input id="market-amount" class="wapp__input" data-market-amount inputmode="numeric" autocomplete="off" placeholder="50000" />
-              </form>
-              <div data-market-providers></div>
-              <div class="wapp__notes" data-market-notes></div>
-            </div>
-            <div class="wapp__card">
-              <span class="wapp__eyebrow">How it works</span>
-              <ul class="wapp__list">
-                <li>You choose a provider. It opens in a new tab, and the provider verifies who you are and takes your payment.</li>
-                <li>The USDT or USDC is sent straight to your own wallet address on Solana. Aretia never holds your money and never sees your documents.</li>
-                <li>Each provider sets its own fees, limits, payment methods and the countries it serves. It is a third-party service with its own terms.</li>
-                <li>Your wallet address is sent to the provider you pick so it knows where to deliver. Nothing else about your wallet is shared.</li>
-                <li>Only USDT and USDC on Solana are offered. Anything else is refused by the server, not just hidden.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div data-pane="trade-fallback" class="wapp__pane" data-jup-fallback hidden>
         <div class="wapp__card wapp__card--widget">
           <div id="jupiter-terminal" class="wapp__terminal"><span class="wapp__sub">Loading swap widget…</span></div>
@@ -316,7 +269,13 @@ const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
       </div>
 
       <div data-pane="send" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
+        {payBuyOn && (
+          <div class="wapp__seg" role="group" aria-label="Pay options">
+            <button type="button" class="wapp__chip wapp__chip--btn" data-pay-tab="send" aria-pressed="true">Send</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" data-pay-tab="buy" aria-pressed="false">Buy or sell USDT / USDC</button>
+          </div>
+        )}
+        <div class="wapp__grid wapp__grid--trade" data-pay-panel="send">
           <div class="wapp__card">
             <h2 class="wapp__h2">Send or pay</h2>
             <p class="wapp__fine">
@@ -348,6 +307,46 @@ const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
             </ul>
           </div>
         </div>
+        {payBuyOn && (
+          <div class="wapp__grid wapp__grid--trade" data-pay-panel="buy" hidden>
+            <div class="wapp__card" data-market>
+              <h2 class="wapp__h2">Buy or sell USDT and USDC</h2>
+              <p class="wapp__fine">
+                Buy USDT and USDC with your local currency, right here. These are the only two assets offered, and they arrive on Solana in your own wallet.
+              </p>
+              <div class="wapp__seg" role="group" aria-label="Buy or sell">
+                <button type="button" class="wapp__chip wapp__chip--btn" data-side="buy" aria-pressed="true">Buy</button>
+                <button type="button" class="wapp__chip wapp__chip--btn" data-side="sell" aria-pressed="false">Sell</button>
+              </div>
+              <div class="wapp__seg" role="group" aria-label="Asset">
+                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDC" aria-pressed="true">USDC</button>
+                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDT" aria-pressed="false">USDT</button>
+              </div>
+              <form class="wapp__form" data-market-form>
+                <label for="market-country" class="wapp__eyebrow">Country</label>
+                <select id="market-country" class="wapp__input" data-market-country disabled><option>Loading…</option></select>
+                <label for="market-fiat" class="wapp__eyebrow">Pay with</label>
+                <select id="market-fiat" class="wapp__input" data-market-fiat disabled><option>Loading…</option></select>
+                <label for="market-amount" class="wapp__eyebrow">Amount (optional, whole number)</label>
+                <input id="market-amount" class="wapp__input" data-market-amount inputmode="numeric" autocomplete="off" placeholder="50000" />
+              </form>
+              <div data-market-providers></div>
+              <div class="wapp__notes" data-market-notes></div>
+              <div class="wapp__embed" data-market-embed hidden></div>
+            </div>
+            <div class="wapp__card">
+              <span class="wapp__eyebrow">How buying works</span>
+              <ul class="wapp__list">
+                <li>You pick a provider and the checkout opens on this page. The provider verifies who you are and takes your payment, by card or bank transfer depending on your country.</li>
+                <li>The provider buys the USDT or USDC and sends it straight to your own wallet address on Solana. Aretia never holds your money and never sees your documents.</li>
+                <li>Buying does not put money in your bank account. It takes money from your card or bank and gives you crypto. Paying out to a bank account is selling, which is not available yet.</li>
+                <li>Each provider sets its own fees, limits, payment methods and the countries it serves. It is a third-party service with its own terms.</li>
+                <li>Your wallet address is sent to the provider you pick so it knows where to deliver. Nothing else about your wallet is shared.</li>
+                <li>Only USDT and USDC on Solana are offered. Anything else is refused by the server, not just hidden.</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       <div data-pane="shield" class="wapp__pane" hidden>
@@ -566,9 +565,12 @@ const marketplaceOn = import.meta.env.PUBLIC_MARKETPLACE === '1';
   .wapp[data-connected='false'] [data-refresh] { display: none; }
   .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
 
-  .wapp[data-connected='false'][data-view='send'] [data-pane='send'],
-  .wapp[data-connected='false'][data-view='marketplace'] [data-pane='marketplace'] { display: none; }
-  .wapp[data-view='marketplace'] [data-refresh] { display: none; }
+  .wapp[data-connected='false'][data-view='send'] [data-pane='send'] { display: none; }
+  [data-pay-panel][hidden] { display: none; }
+  .wapp__embed { display: grid; gap: 10px; }
+  .wapp__embed[hidden] { display: none; }
+  .wapp__embed-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+  .wapp__embed-frame { display: block; width: 100%; max-width: 440px; height: 680px; margin: 0 auto; border: 1px solid var(--color-border); border-radius: 18px; background: #fff; }
   .wapp__seg { display: flex; flex-wrap: wrap; gap: 8px; }
   .wapp__seg [aria-pressed='true'] { color: #fff; background: var(--color-brand); }
   .wapp__provider { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 16px; }

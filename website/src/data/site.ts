@@ -244,7 +244,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: 'Ecosystem map', href: '/ecosystem', description: 'How every part connects' },
       { label: 'Climate Treasury', href: '/details', description: 'Where the 2% goes' },
-      { label: 'Climate Projects', href: '/marketplace', description: 'Climate projects seeking capital' },
+      { label: 'Capital Marketplace', href: '/marketplace', description: 'Climate projects seeking capital' },
       { label: 'Submit a project', href: '/apply', description: 'Apply for catalyst funding' },
     ],
   },

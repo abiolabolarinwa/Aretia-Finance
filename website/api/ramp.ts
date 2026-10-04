@@ -1,5 +1,5 @@
 /**
- * POST /api/ramp: backend for the Aretia Marketplace (buy and sell USDT and USDC through
+ * POST /api/ramp: backend for buying USDT and USDC inside Aretia Pay (through
  * third-party providers). Off unless RAMP_ENABLED=1. See _ramp.ts for the rules and docs/ramp.md
  * for setup.
  */

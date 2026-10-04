@@ -28,6 +28,14 @@ import { ACT, POOLS } from '../../data/site';
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
           Activity
         </button>
+        <button type="button" data-nav="shield">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
+          Shield
+        </button>
+        <button type="button" data-nav="intent">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
+          Intent
+        </button>
       </nav>
       <div class="wapp__side-foot">
         <a href="/wallet/about">About Aretia Wallet</a>
@@ -113,6 +121,62 @@ import { ACT, POOLS } from '../../data/site';
             {POOLS.map((p) => (
               <p class="wapp__fine"><a href={p.explorer} target="_blank" rel="noopener noreferrer">{p.pair}</a>{p.chart && <> · <a href={p.chart} target="_blank" rel="noopener noreferrer">chart</a></>}</p>
             ))}
+          </div>
+        </div>
+      </div>
+
+      <div data-pane="shield" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <h2 class="wapp__h2">Check an address before you send</h2>
+            <p class="wapp__fine">
+              Paste a Solana address. Shield looks the account up on-chain and flags an address that has never been used, or one that is a program or token account rather than a person's wallet. It needs no wallet connection.
+            </p>
+            <form class="wapp__form" data-shield-form>
+              <label for="shield-input" class="wapp__eyebrow">Solana address</label>
+              <input id="shield-input" class="wapp__input wapp-mono" autocomplete="off" spellcheck="false" placeholder="Paste an address" />
+              <button type="submit" class="wapp__btn wapp__btn--primary">Check</button>
+            </form>
+            <div data-shield-result aria-live="polite"></div>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">What Shield can and cannot tell you</span>
+            <ul class="wapp__list">
+              <li>It reads the account straight from a public Solana RPC. The address you check is sent to that RPC, and nowhere else.</li>
+              <li>"No risks found" means nothing unusual was seen. It does not mean the address is safe. Confirm it with the recipient another way.</li>
+              <li>Names such as bob.sns are not looked up on this page yet. Paste the address.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div data-pane="intent" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <h2 class="wapp__h2">Say what you want to do</h2>
+            <p class="wapp__fine">
+              Type a phrase and Intent shows how it read it. A swap opens the Trade tab with the tokens and amount filled in; nothing happens until you approve it in your own wallet.
+            </p>
+            <form class="wapp__form" data-intent-form>
+              <label for="intent-input" class="wapp__eyebrow">What would you like to do?</label>
+              <input id="intent-input" class="wapp__input" autocomplete="off" spellcheck="false" placeholder="swap 0.1 SOL for ACT" />
+              <button type="submit" class="wapp__btn wapp__btn--primary">Read it</button>
+            </form>
+            <div class="wapp__examples">
+              <button type="button" class="wapp__chip wapp__chip--btn" data-example="swap 0.1 SOL for ACT">swap 0.1 SOL for ACT</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-example="swap 5 USDC for SOL">swap 5 USDC for SOL</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-example="send 0.5 SOL to bob.sns">send 0.5 SOL to bob.sns</button>
+            </div>
+            <div data-intent-result aria-live="polite"></div>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">How Intent works</span>
+            <ul class="wapp__list">
+              <li>It understands a fixed set of phrases ("swap 10 USDC for SOL", "send 0.5 SOL to …"). It is not an AI model, and it refuses anything else instead of guessing.</li>
+              <li>Amounts must be plain numbers: not "$50", "half" or "all".</li>
+              <li>Swaps use tokens you hold, plus SOL, USDC, USDT and ACT by their real mint addresses. If a name matches more than one token, you pick which one, so a lookalike token is never chosen for you.</li>
+              <li>Sending is not on the web wallet yet. Intent will read a send phrase, but you make the transfer in your own wallet.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -209,6 +273,22 @@ import { ACT, POOLS } from '../../data/site';
   .wapp[data-connected='true'] .wapp__gate { display: none; }
   .wapp[data-connected='false'] [data-refresh] { display: none; }
   .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
+
+  .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
+  .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
+  .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }
+  .wapp__form { display: grid; gap: 10px; }
+  .wapp__input { box-sizing: border-box; width: 100%; padding: 12px 14px; font: inherit; font-size: 14px; color: var(--color-strong); background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md); }
+  .wapp__input:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__examples { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wapp__result { display: grid; gap: 10px; margin-top: 4px; padding: 16px; background: var(--color-bg-alt); border-radius: var(--radius-lg); }
+  .wapp__result code { font-size: 12px; overflow-wrap: anywhere; }
+  .wapp__banner { margin: 0; padding: 10px 12px; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); }
+  .wapp__banner--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp__banner--info { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
+  .wapp__banner--ok { color: #14663a; background: rgba(27, 138, 75, 0.1); }
+  .wapp__pick { display: grid; gap: 6px; font-size: 13px; }
+  .wapp__pick label { display: flex; align-items: center; gap: 8px; }
 
   .wapp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .wapp-table th { padding: 0 10px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }

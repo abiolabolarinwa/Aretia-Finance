@@ -1,3 +1,5 @@
+import { candidatesFor, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
  *
@@ -12,7 +14,8 @@
  *   - Jupiter  ultra/balances   token balances for the address
  *   - Jupiter  tokens/v2/search names, icons and prices for those mints
  *   - DexScreener tokens/v1     price for mints Jupiter has no price for (e.g. ACT)
- *   - Solana RPC (publicnode)   recent signatures for the Activity tab
+ *   - Solana RPC (publicnode)   recent signatures for the Activity tab, and the account read
+ *                               behind the Shield tab (the address being checked)
  *
  * Token names, symbols and icons come from third parties and may be hostile
  * (spam tokens are common), so everything is rendered with textContent and
@@ -51,6 +54,8 @@ export interface Holding {
   name: string;
   icon: string | null;
   amount: number;
+  /** Decimal places, from Jupiter's token data (9 for native SOL); null when unknown. */
+  decimals: number | null;
   price: number | null;
   priceSource: 'Jupiter' | 'DexScreener' | null;
   /** Value is `amount x price`, or null without a price. */
@@ -110,6 +115,7 @@ interface JupToken {
   symbol?: string;
   icon?: string;
   usdPrice?: number;
+  decimals?: number;
 }
 interface DexPair {
   baseToken?: { address?: string };
@@ -168,6 +174,7 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
         name: native ? 'Solana' : (t?.name ?? '').slice(0, 60),
         icon: safeIcon(t?.icon),
         amount,
+        decimals: native ? 9 : typeof t?.decimals === 'number' ? t.decimals : null,
         price: p?.price ?? null,
         priceSource: p?.source ?? null,
         value: p ? amount * p.price : null,
@@ -194,6 +201,19 @@ export async function loadActivity(address: string): Promise<ActivityItem[]> {
   return res.result.map((s) => ({ signature: s.signature, time: s.blockTime, ok: s.err === null }));
 }
 
+/** One `getAccountInfo` read with no data, enough to tell a wallet from a program or an unused address. */
+export async function loadAccountSnapshot(address: string): Promise<AccountSnapshot> {
+  const body = { jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [address, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }] };
+  const res = await getJson<{ result?: { value: { executable: boolean; owner: string } | null }; error?: { message: string } }>(RPC_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.result) throw new Error(res.error?.message ?? 'The RPC returned no result');
+  const v = res.result.value;
+  return v ? { exists: true, executable: v.executable, owner: v.owner } : { exists: false, executable: false, owner: null };
+}
+
 // ---------------------------------------------------------------- DOM helpers
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, children: (Node | null)[] = []): HTMLElementTagNameMap[K] {
@@ -218,9 +238,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'trade' | 'activity';
-const VIEWS: View[] = ['dashboard', 'trade', 'activity'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', trade: 'Trade', activity: 'Activity' };
+type View = 'dashboard' | 'trade' | 'activity' | 'shield' | 'intent';
+const VIEWS: View[] = ['dashboard', 'trade', 'activity', 'shield', 'intent'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -356,9 +376,10 @@ export function initWalletApp(): void {
 
   // ---- trade widget (loaded only when the Trade tab is first opened)
   let jupiterStarted = false;
-  function startJupiter(): void {
-    if (jupiterStarted) return;
-    jupiterStarted = true;
+  let jupiterForm: Record<string, unknown> = { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false };
+  /** `prefill` comes from Intent: the tokens and amount to show. It never submits anything. */
+  function startJupiter(prefill?: Record<string, unknown>): void {
+    if (prefill) jupiterForm = prefill;
     const init = () => {
       window.Jupiter?.init({
         displayMode: 'integrated',
@@ -366,9 +387,14 @@ export function initWalletApp(): void {
         endpoint: RPC_URL,
         enableWalletPassthrough: true,
         passthroughWalletContextState: window.AretiaWallet?.getWalletContextState(),
-        formProps: { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false },
+        formProps: jupiterForm,
       });
     };
+    if (jupiterStarted) {
+      if (prefill) init();
+      return;
+    }
+    jupiterStarted = true;
     if (window.Jupiter) return init();
     const s = document.createElement('script');
     s.src = JUPITER_PLUGIN;
@@ -385,6 +411,147 @@ export function initWalletApp(): void {
     };
     document.head.append(s);
   }
+
+  // ---- shield tab
+  function renderFindings(findings: Finding[]): Node[] {
+    if (findings.length === 0) {
+      return [el('p', { class: 'wapp__banner wapp__banner--ok', text: 'No risks found. That means nothing unusual was seen, not that the address is safe. Confirm it with the recipient another way before you send.' })];
+    }
+    return findings.map((f) => el('p', { class: `wapp__banner wapp__banner--${f.severity === 'warning' ? 'warn' : 'info'}`, text: f.message }));
+  }
+
+  async function runShield(input: string): Promise<void> {
+    const out = $('[data-shield-result]');
+    if (!out) return;
+    out.textContent = '';
+    const value = input.trim();
+    if (!value) return;
+    if (!isSolanaAddress(value)) {
+      out.append(el('p', { class: 'wapp-error', text: "That isn't a valid Solana address. Names such as bob.sns aren't looked up on this page yet, so paste the address itself." }));
+      return;
+    }
+    out.append(el('p', { class: 'wapp-sub', text: 'Checking…' }));
+    try {
+      const snapshot = await loadAccountSnapshot(value);
+      out.textContent = '';
+      out.append(el('div', { class: 'wapp__result' }, [el('code', { class: 'wapp-mono', text: value }), ...renderFindings(shieldFindings(snapshot, address, value))]));
+    } catch (e) {
+      out.textContent = '';
+      out.append(el('p', { class: 'wapp-error', text: `Couldn't check that address: ${e instanceof Error ? e.message : 'unknown error'}` }));
+    }
+  }
+
+  // ---- intent tab
+  function candidateLabel(c: Candidate): string {
+    return `${c.symbol} · ${shorten(c.mint)} · ${c.held && c.amount !== null ? `you hold ${formatAmount(c.amount)}` : 'not in your wallet'}`;
+  }
+
+  function pickGroup(name: string, title: string, candidates: Candidate[], chosen: { mint: string | null }, onChange: () => void): HTMLElement {
+    const box = el('div', { class: 'wapp__pick' });
+    box.append(el('span', { class: 'wapp-sub', text: title }));
+    for (const c of candidates) {
+      const input = el('input', { attrs: { type: 'radio', name, value: c.mint } });
+      input.checked = chosen.mint === c.mint;
+      input.addEventListener('change', () => {
+        chosen.mint = c.mint;
+        onChange();
+      });
+      box.append(el('label', {}, [input, el('span', { text: candidateLabel(c) })]));
+    }
+    return box;
+  }
+
+  function renderIntent(phrase: string): void {
+    const out = $('[data-intent-result]');
+    if (!out) return;
+    out.textContent = '';
+    if (!phrase.trim()) return;
+    const intent: ParsedIntent | null = parseIntent(phrase);
+    if (!intent) {
+      out.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: 'Intent could not read that. It understands phrases like "swap 10 USDC for SOL" and "send 0.5 SOL to an address". Amounts must be plain numbers, not "$50" or "half".' }));
+      return;
+    }
+    const card = el('div', { class: 'wapp__result' });
+    out.append(card);
+
+    if (intent.kind === 'send') {
+      card.append(el('strong', { text: `Read as: send ${intent.amount} ${intent.assetSymbol} to ${intent.recipient}` }));
+      card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: "Sending isn't on the web wallet yet, so Intent can't make this transfer. Send it from your own wallet." }));
+      if (isSolanaAddress(intent.recipient)) {
+        const btn = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check this address with Shield', attrs: { type: 'button' } });
+        btn.addEventListener('click', () => {
+          const field = $<HTMLInputElement>('#shield-input');
+          if (field) field.value = intent.recipient;
+          location.hash = '#/shield';
+          void runShield(intent.recipient);
+        });
+        card.append(btn);
+      }
+      return;
+    }
+
+    card.append(el('strong', { text: `Read as: swap ${intent.amount} ${intent.fromAssetSymbol} for ${intent.toAssetSymbol}` }));
+    if (!address) {
+      card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: 'Connect a wallet so Intent can see what you hold.' }));
+      const connect = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Connect wallet', attrs: { type: 'button' } });
+      connect.addEventListener('click', () => document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click());
+      card.append(connect);
+      return;
+    }
+    if (holdings === null) {
+      card.append(el('p', { class: 'wapp-sub', text: 'Still loading your balances. Try again in a moment.' }));
+      return;
+    }
+    const from = candidatesFor(intent.fromAssetSymbol, holdings, false);
+    const to = candidatesFor(intent.toAssetSymbol, holdings, true);
+    const fromPick = { mint: from.length === 1 ? from[0]!.mint : null as string | null };
+    const toPick = { mint: to.length === 1 ? to[0]!.mint : null as string | null };
+    const actions = el('div');
+    const render = () => {
+      actions.textContent = '';
+      const f = from.find((c) => c.mint === fromPick.mint);
+      const t = to.find((c) => c.mint === toPick.mint);
+      const problems: string[] = [];
+      if (from.length === 0) problems.push(`You do not hold ${intent.fromAssetSymbol} in this wallet.`);
+      if (to.length === 0) problems.push(`Intent does not know ${intent.toAssetSymbol}. It only swaps into tokens you hold, plus SOL, USDC, USDT and ACT. Use the Trade tab to search for others.`);
+      if (f && t && f.mint === t.mint) problems.push('That swaps a token for itself.');
+      if (f && f.amount !== null && Number(intent.amount) > f.amount) problems.push(`You hold ${formatAmount(f.amount)} ${f.symbol}, which is less than ${intent.amount}.`);
+      const raw = f && f.decimals !== null ? toSmallestUnit(intent.amount, f.decimals) : null;
+      if (f && f.decimals !== null && raw === null) problems.push(`${f.symbol} has ${f.decimals} decimal places, so ${intent.amount} is too precise.`);
+      if (f && f.decimals === null) actions.append(el('p', { class: 'wapp__banner wapp__banner--info', text: `Intent does not know how many decimals ${f.symbol} uses, so it will not fill in the amount. Enter it in the Trade tab.` }));
+      for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
+      const ready = f !== undefined && t !== undefined && problems.length === 0;
+      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Trade', attrs: { type: 'button' } });
+      go.disabled = !ready;
+      go.addEventListener('click', () => {
+        if (!f || !t) return;
+        const amount = f.decimals !== null ? toSmallestUnit(intent.amount, f.decimals) : null;
+        startJupiter({ initialInputMint: f.mint, initialOutputMint: t.mint, ...(amount !== null ? { initialAmount: amount } : {}) });
+        location.hash = '#/trade';
+      });
+      actions.append(go);
+    };
+    if (from.length > 1) card.append(pickGroup('intent-from', `${intent.fromAssetSymbol} matches more than one token you hold. Which one?`, from, fromPick, render));
+    if (to.length > 1) card.append(pickGroup('intent-to', `${intent.toAssetSymbol} matches more than one token. Which one?`, to, toPick, render));
+    card.append(actions);
+    render();
+  }
+
+  $('[data-shield-form]')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void runShield($<HTMLInputElement>('#shield-input')?.value ?? '');
+  });
+  $('[data-intent-form]')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    renderIntent($<HTMLInputElement>('#intent-input')?.value ?? '');
+  });
+  document.querySelectorAll<HTMLElement>('[data-example]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const field = $<HTMLInputElement>('#intent-input');
+      if (field) field.value = b.dataset.example ?? '';
+      renderIntent(b.dataset.example ?? '');
+    }),
+  );
 
   // ---- wiring
   function onRoute(): void {

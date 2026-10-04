@@ -1,6 +1,7 @@
 import { ACT as ACT_INFO } from '../data/site';
+import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
 import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
-import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -315,19 +316,9 @@ export function initWalletApp(): void {
     }
   }
 
-  /** Trade tab: warn when the connected wallet is short of the SOL a swap needs for fees. */
-  function renderSolNotice(): void {
-    const note = $('[data-sol-notice]');
-    if (!note) return;
-    const sol = holdings?.find((h) => h.mint === SOL_MINT)?.amount ?? 0;
-    const low = address !== null && holdings !== null && sol < LOW_SOL;
-    note.hidden = !low;
-    note.textContent = low ? lowSolMessage(sol) : '';
-  }
-
   function renderDashboard(error?: string): void {
     renderTopAssets();
-    renderSolNotice();
+    renderSwap();
     const total = $('[data-total]');
     const sub = $('[data-total-sub]');
     const body = $('[data-holdings]');
@@ -425,7 +416,376 @@ export function initWalletApp(): void {
     } else renderActivity(act.reason instanceof Error ? act.reason.message : 'unknown error');
   }
 
-  // ---- trade widget (loaded only when the Trade tab is first opened)
+  // ---- swap tab (our own screen; Jupiter quotes and builds, the page checks before anything is signed)
+  const SOL = 'So11111111111111111111111111111111111111112';
+  const KNOWN_NAMES: Record<string, string> = { SOL: 'Solana', USDC: 'USD Coin', USDT: 'Tether USD', ACT: 'Aretia Finance Protocol' };
+  const knownTokens: TokenInfo[] = KNOWN_TOKENS.map((k) => ({ mint: k.mint, symbol: k.symbol, name: KNOWN_NAMES[k.symbol] ?? k.symbol, decimals: k.decimals, icon: null, verified: k.symbol === 'ACT' ? null : true }));
+  const tokenByMint = (mint: string): TokenInfo | undefined => knownTokens.find((k) => k.mint === mint);
+  const swap = {
+    from: tokenByMint(SOL)!,
+    to: tokenByMint(ACT_INFO.mint)!,
+    amountText: '',
+    slip: 'auto' as 'auto' | number,
+    quote: null as Quote | null,
+    impact: null as number | null,
+    quoting: false,
+    error: null as string | null,
+    seq: 0,
+    busy: false,
+  };
+  let swapTimer: number | undefined;
+  const swapEls = () => ({
+    amount: $<HTMLInputElement>('[data-swap-amount]'),
+    out: $('[data-swap-out]'),
+    go: $<HTMLButtonElement>('[data-swap-go]'),
+    details: $('[data-swap-details]'),
+    notes: $('[data-swap-notes]'),
+    review: $('[data-swap-review]'),
+  });
+  const involvesAct = () => swap.from.mint === ACT_INFO.mint || swap.to.mint === ACT_INFO.mint;
+  const slipBps = () => (swap.slip === 'auto' ? defaultSlippageBps(involvesAct()) : swap.slip);
+  const holding = (mint: string) => holdings?.find((h) => h.mint === mint);
+  const fmtRaw = (raw: bigint, decimals: number) => formatAmount(Number(fromSmallestUnit(raw, decimals)));
+  const solText = (lamports: bigint) => `${fromSmallestUnit(lamports, 9)} SOL`;
+  const amountRaw = (): bigint | null => {
+    const r = swap.amountText ? toSmallestUnit(swap.amountText, swap.from.decimals) : null;
+    return r === null || BigInt(r) === 0n ? null : BigInt(r);
+  };
+
+  function tokenButton(side: 'from' | 'to'): void {
+    const btn = $<HTMLButtonElement>(`[data-token-btn="${side}"]`);
+    if (!btn) return;
+    const tk = swap[side];
+    btn.textContent = '';
+    btn.append(avatar({ icon: tk.icon ?? null, symbol: tk.symbol }), el('span', { text: tk.symbol }));
+    btn.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>');
+  }
+
+  function renderSwap(): void {
+    if (!$('[data-swap]')) return;
+    const { amount, out, go, details, notes } = swapEls();
+    if (!out || !go || !details || !notes || !amount) return;
+    tokenButton('from');
+    tokenButton('to');
+    const fromHold = holding(swap.from.mint);
+    const toHold = holding(swap.to.mint);
+    const bal = (h: Holding | undefined, tk: TokenInfo) => (address ? (holdings === null ? 'Loading…' : `Balance: ${formatAmount(h?.amount ?? 0)} ${tk.symbol}`) : '');
+    const fromBal = $('[data-swap-from-bal]');
+    const toBal = $('[data-swap-to-bal]');
+    if (fromBal) fromBal.textContent = bal(fromHold, swap.from);
+    if (toBal) toBal.textContent = bal(toHold, swap.to);
+    const fromUsd = $('[data-swap-from-usd]');
+    if (fromUsd) fromUsd.textContent = fromHold?.price != null && Number(swap.amountText) > 0 ? `≈ ${formatUsd(Number(swap.amountText) * fromHold.price)}` : '';
+    document.querySelectorAll<HTMLElement>('[data-slip]').forEach((b) => b.setAttribute('aria-pressed', String(String(swap.slip) === b.dataset.slip)));
+
+    // result
+    out.textContent = swap.quote ? fmtRaw(swap.quote.outAmount, swap.to.decimals) : '0.0';
+
+    // details
+    details.textContent = '';
+    if (swap.quote) {
+      const q = swap.quote;
+      const rate = Number(fromSmallestUnit(q.outAmount, swap.to.decimals)) / Number(fromSmallestUnit(q.inAmount, swap.from.decimals));
+      const row = (k: string, v: string) => details.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
+      row('Rate', `1 ${swap.from.symbol} ≈ ${formatAmount(rate)} ${swap.to.symbol}`);
+      row('Minimum you receive', `${fmtRaw(q.minOut, swap.to.decimals)} ${swap.to.symbol}`);
+      row('Route', q.routes.join(' → ') || '—');
+      row('Price impact of your size', swap.impact === null ? '—' : swap.impact < 0.001 ? '<0.1%' : `${(swap.impact * 100).toFixed(1)}%`);
+      row('Slippage allowed', `${(slipBps() / 100).toString()}%${swap.slip === 'auto' ? ' (auto)' : ''}`);
+    }
+
+    // notes
+    notes.textContent = '';
+    const note = (kind: 'ok' | 'warn' | 'info', text: string) => notes.append(banner(kind, text));
+    const sol = holding(SOL)?.amount ?? 0;
+    if (address && holdings !== null && sol < LOW_SOL && swap.from.mint !== SOL) note('warn', lowSolMessage(sol));
+    for (const tk of [swap.from, swap.to]) {
+      if (tk.verified === false) note('warn', `${tk.symbol} is not verified by Jupiter. Anyone can create a token with this name. Check the mint address: ${tk.mint}`);
+    }
+    if (involvesAct()) note('info', `ACT is Aretia's own token. Jupiter flags it because it is new and thinly traded, and shows its price impact as −100%, which is not a real measure. ACT carries a ${ACT_INFO.transferFee.totalPercent}% transfer fee on every move; it is already included in the amounts shown here. Real mint: ${ACT_INFO.mint}`);
+    if (swap.impact !== null && swap.impact >= 0.05) note('warn', swap.impact >= 0.2 ? `Your trade would move the price by about ${(swap.impact * 100).toFixed(0)}%. This pool is thin: a smaller trade gets a much better price.` : `Your trade would move the price by about ${(swap.impact * 100).toFixed(1)}%.`);
+    if (swap.error) note('warn', swap.error);
+    if (swap.error && /no route/i.test(swap.error) && swap.from.mint === ACT_INFO.mint) note('info', 'ACT can only be sold for as much as buyers have paid into the pool. Try a smaller amount.');
+
+    // button
+    const raw = amountRaw();
+    let label = 'Review swap';
+    let disabled = false;
+    if (!address) label = 'Connect wallet';
+    else if (swap.from.mint === swap.to.mint) [label, disabled] = ['Choose two different tokens', true];
+    else if (!swap.amountText) [label, disabled] = ['Enter an amount', true];
+    else if (raw === null) [label, disabled] = [`Enter a valid ${swap.from.symbol} amount`, true];
+    else if (holdings !== null && raw > BigInt(fromHold?.raw ?? '0')) [label, disabled] = [`Not enough ${swap.from.symbol}`, true];
+    else if (swap.quoting) [label, disabled] = ['Getting a quote…', true];
+    else if (!swap.quote) [label, disabled] = ['No quote available', true];
+    go.textContent = label;
+    go.disabled = disabled || swap.busy;
+  }
+
+  async function requestQuote(): Promise<void> {
+    const mine = ++swap.seq;
+    const raw = amountRaw();
+    swap.quote = null;
+    swap.impact = null;
+    swap.error = null;
+    swap.quoting = false;
+    swapEls().review?.replaceChildren();
+    if (raw === null || swap.from.mint === swap.to.mint) return void renderSwap();
+    swap.quoting = true;
+    renderSwap();
+    try {
+      const q = await fetchQuote(swap.from.mint, swap.to.mint, raw, slipBps());
+      if (mine !== swap.seq) return;
+      swap.quote = q;
+      swap.quoting = false;
+      renderSwap();
+      const impact = await fetchSizeImpact(swap.from.mint, swap.to.mint, q);
+      if (mine !== swap.seq) return;
+      swap.impact = impact;
+    } catch (e) {
+      if (mine !== swap.seq) return;
+      swap.error = e instanceof Error ? e.message : 'Could not get a quote.';
+      swap.quoting = false;
+    }
+    renderSwap();
+  }
+  function scheduleQuote(): void {
+    window.clearTimeout(swapTimer);
+    swap.seq++;
+    swap.quote = null;
+    swap.impact = null;
+    swapEls().review?.replaceChildren();
+    swapTimer = window.setTimeout(() => void requestQuote(), 450);
+    renderSwap();
+  }
+
+  /** Called by Intent: fills the swap screen and opens it. Nothing is reviewed or sent yet. */
+  function prefillSwap(fromMint: string, toMint: string, amountText: string): void {
+    const asToken = (mint: string): TokenInfo | undefined => {
+      const k = tokenByMint(mint);
+      if (k) return k;
+      const h = holding(mint);
+      return h && h.decimals !== null ? { mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null } : undefined;
+    };
+    const f = asToken(fromMint);
+    const t = asToken(toMint);
+    if (!f || !t) return;
+    swap.from = f;
+    swap.to = t;
+    swap.amountText = amountText;
+    const { amount } = swapEls();
+    if (amount) amount.value = amountText;
+    location.hash = '#/trade';
+    void requestQuote();
+  }
+
+  // token picker
+  let pickerSide: 'from' | 'to' | null = null;
+  let pickerSeq = 0;
+  function closePicker(): void {
+    pickerSide = null;
+    const panel = $<HTMLElement>('[data-picker]');
+    if (panel) panel.hidden = true;
+  }
+  function chooseToken(tk: TokenInfo): void {
+    if (!pickerSide) return;
+    const other = pickerSide === 'from' ? 'to' : 'from';
+    if (swap[other].mint === tk.mint) swap[other] = swap[pickerSide];
+    swap[pickerSide] = tk;
+    closePicker();
+    const { amount } = swapEls();
+    // The amount was typed for the old token's decimals: re-check it.
+    if (swap.amountText && toSmallestUnit(swap.amountText, swap.from.decimals) === null) {
+      swap.amountText = '';
+      if (amount) amount.value = '';
+    }
+    scheduleQuote();
+  }
+  function pickerRow(tk: TokenInfo): HTMLElement {
+    const h = holding(tk.mint);
+    const tag = tk.mint === ACT_INFO.mint ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Aretia' }) : tk.verified === true ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Verified' }) : tk.verified === false ? el('span', { class: 'wapp__tag wapp__tag--warn', text: 'Unverified' }) : null;
+    const btn = el('button', { attrs: { type: 'button' } }, [
+      avatar({ icon: tk.icon, symbol: tk.symbol }),
+      el('span', { class: 'wapp__picker-name' }, [el('strong', {}, [document.createTextNode(tk.symbol), tag]), el('span', { text: `${tk.name} · ${shorten(tk.mint)}` })]),
+      el('span', { class: 'wapp__picker-bal', text: h ? formatAmount(h.amount) : '' }),
+    ]);
+    btn.addEventListener('click', () => chooseToken(tk));
+    return el('li', {}, [btn]);
+  }
+  async function renderPicker(query: string): Promise<void> {
+    const list = $('[data-picker-list]');
+    if (!list) return;
+    const q = query.trim().toLowerCase();
+    const local = new Map<string, TokenInfo>();
+    for (const tk of knownTokens) local.set(tk.mint, tk);
+    for (const h of holdings ?? []) if (h.decimals !== null && !local.has(h.mint)) local.set(h.mint, { mint: h.mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null });
+    const matches = [...local.values()].filter((tk) => !q || tk.symbol.toLowerCase().includes(q) || tk.name.toLowerCase().includes(q) || tk.mint.toLowerCase() === q);
+    matches.sort((a, b) => Number(Boolean(holding(b.mint))) - Number(Boolean(holding(a.mint))));
+    list.textContent = '';
+    for (const tk of matches) list.append(pickerRow(tk));
+    if (q.length < 2) return;
+    const mine = ++pickerSeq;
+    list.append(el('li', { class: 'wapp-sub', text: 'Searching Jupiter…' }));
+    try {
+      const found = await searchTokens(query);
+      if (mine !== pickerSeq) return;
+      list.lastElementChild?.remove();
+      for (const tk of found) if (!local.has(tk.mint)) list.append(pickerRow(tk));
+      if (list.children.length === 0) list.append(el('li', { class: 'wapp-sub', text: 'No tokens found.' }));
+    } catch {
+      if (mine !== pickerSeq) return;
+      list.lastElementChild?.remove();
+      list.append(el('li', { class: 'wapp-sub', text: 'Search is unavailable right now. Your own tokens are listed above.' }));
+    }
+  }
+  function openPicker(side: 'from' | 'to'): void {
+    pickerSide = side;
+    const panel = $<HTMLElement>('[data-picker]');
+    const search = $<HTMLInputElement>('[data-picker-search]');
+    if (!panel || !search) return;
+    panel.hidden = false;
+    search.value = '';
+    void renderPicker('');
+    search.focus();
+  }
+
+  // review and sign
+  function renderSwapReview(plan: SwapPlan, args: { user: string; from: TokenInfo; to: TokenInfo; amountRaw: bigint }, plannedAt: number): void {
+    const { review } = swapEls();
+    if (!review) return;
+    review.textContent = '';
+    const card = el('div', { class: 'wapp__result' });
+    review.append(card);
+    const v = plan.verdict;
+    const got = v.received ?? plan.quote.outAmount;
+    const rows: [string, string][] = [
+      ['You pay', `${fromSmallestUnit(v.paid ?? args.amountRaw, args.from.decimals)} ${args.from.symbol}`],
+      [v.received === null ? 'You receive about (quote)' : 'You receive about (simulated)', `${fmtRaw(got, args.to.decimals)} ${args.to.symbol}`],
+      ['Minimum you receive', `${fmtRaw(plan.quote.minOut, args.to.decimals)} ${args.to.symbol}`],
+      ['Route', plan.quote.routes.join(' → ') || '—'],
+      ['Network fee', `about ${solText(BASE_FEE_LAMPORTS + BigInt(plan.priorityFeeLamports))}`],
+    ];
+    if (plan.opensOutputAccount) rows.push(['Opens your token account', 'about 0.002 SOL, paid by you']);
+    card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
+    const okBanner = plan.blockers.length === 0 ? banner('ok', 'Checked against your balances: nothing else in your wallet changes, and the swap would succeed. No funds have moved.') : null;
+    if (okBanner) card.append(okBanner);
+    for (const b of plan.blockers) card.append(banner('warn', b));
+    const canGo = plan.blockers.length === 0;
+    const status = el('div', { attrs: { 'aria-live': 'polite' } });
+    const actions = el('div', { class: 'wapp__row-actions' });
+    const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
+    const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
+    confirm.disabled = !canGo;
+    confirm.hidden = !canGo;
+    cancel.addEventListener('click', () => review.replaceChildren());
+    confirm.addEventListener('click', async () => {
+      if (swap.busy) return;
+      swap.busy = true;
+      confirm.disabled = true;
+      renderSwap();
+      status.textContent = '';
+      status.append(banner('info', 'Waiting for your wallet to approve…'));
+      try {
+        if (address !== args.user) throw new Error('The connected wallet changed. Review the swap again.');
+        let active = plan;
+        if (Date.now() - plannedAt > 25_000) {
+          // The quote and blockhash are about to go stale: rebuild from the same inputs and check again.
+          active = await planSwap({ ...args, slippageBps: slipBps(), heldOthers: (holdings ?? []).map((h) => ({ mint: h.mint, symbol: h.symbol })) });
+          if (active.blockers.length > 0 || active.quote.minOut < plan.quote.minOut * 98n / 100n) return void renderSwapReview(active, args, Date.now());
+        }
+        const signature = await signAndSubmitSwap(active);
+        status.textContent = '';
+        if (okBanner) okBanner.hidden = true; // "no funds have moved" is no longer true once it is sent
+        const link = (label: string) => el('a', { text: label, attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } });
+        status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link('View on Solscan')]));
+        actions.hidden = true;
+        const result = await waitForConfirmation(signature);
+        status.textContent = '';
+        const text = result === 'confirmed' ? 'Swap confirmed on Solana.' : result === 'failed' ? 'The swap failed on-chain. Nothing was exchanged; check Solscan for the reason.' : 'Not confirmed yet. It may still land; check Solscan.';
+        status.append(el('p', { class: `wapp__banner wapp__banner--${result === 'confirmed' ? 'ok' : result === 'failed' ? 'warn' : 'info'}` }, [document.createTextNode(`${text} `), link('View on Solscan')]));
+        if (result === 'confirmed') {
+          swap.amountText = '';
+          const { amount } = swapEls();
+          if (amount) amount.value = '';
+          swap.quote = null;
+        }
+        void refresh();
+      } catch (e) {
+        status.textContent = '';
+        status.append(banner('warn', friendlyError(e)));
+      } finally {
+        swap.busy = false;
+        confirm.disabled = false;
+        renderSwap();
+      }
+    });
+    actions.append(confirm, cancel);
+    card.append(actions, status);
+  }
+
+  async function onSwapGo(): Promise<void> {
+    if (!address) return void document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click();
+    const raw = amountRaw();
+    const { review, go } = swapEls();
+    if (raw === null || !review || !go) return;
+    review.textContent = '';
+    review.append(el('p', { class: 'wapp-sub', text: 'Building and checking the swap…' }));
+    go.disabled = true;
+    const args = { user: address, from: swap.from, to: swap.to, amountRaw: raw };
+    try {
+      const plan = await planSwap({ ...args, slippageBps: slipBps(), heldOthers: (holdings ?? []).map((h) => ({ mint: h.mint, symbol: h.symbol })), ...(swap.quote ? { quote: swap.quote } : {}) });
+      renderSwapReview(plan, args, plan.plannedAt);
+    } catch (e) {
+      review.textContent = '';
+      review.append(el('p', { class: 'wapp-error', text: friendlyError(e) }));
+    } finally {
+      renderSwap();
+    }
+  }
+
+  $('[data-swap-amount]')?.addEventListener('input', (e) => {
+    const v = (e.target as HTMLInputElement).value.replace(',', '.').trim();
+    swap.amountText = v;
+    scheduleQuote();
+  });
+  $('[data-swap-max]')?.addEventListener('click', () => {
+    const h = holding(swap.from.mint);
+    if (!h || h.raw === null) return;
+    let raw = BigInt(h.raw);
+    if (swap.from.mint === SOL) raw = raw > SWAP_SOL_OVERHEAD_LAMPORTS + 5_000n ? raw - SWAP_SOL_OVERHEAD_LAMPORTS - 5_000n : 0n; // leave room for fees and account opening
+    swap.amountText = fromSmallestUnit(raw, swap.from.decimals);
+    const { amount } = swapEls();
+    if (amount) amount.value = swap.amountText;
+    scheduleQuote();
+  });
+  $('[data-swap-flip]')?.addEventListener('click', () => {
+    [swap.from, swap.to] = [swap.to, swap.from];
+    swap.amountText = '';
+    const { amount } = swapEls();
+    if (amount) amount.value = '';
+    scheduleQuote();
+  });
+  document.querySelectorAll<HTMLElement>('[data-token-btn]').forEach((b) => b.addEventListener('click', () => openPicker(b.dataset.tokenBtn === 'to' ? 'to' : 'from')));
+  $('[data-picker-search]')?.addEventListener('input', (e) => void renderPicker((e.target as HTMLInputElement).value));
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closePicker());
+  document.addEventListener('click', (e) => {
+    const target = e.target as Element;
+    if (pickerSide && !target.closest('[data-picker]') && !target.closest('[data-token-btn]')) closePicker();
+  });
+  document.querySelectorAll<HTMLElement>('[data-slip]').forEach((b) =>
+    b.addEventListener('click', () => {
+      swap.slip = b.dataset.slip === 'auto' ? 'auto' : Number(b.dataset.slip);
+      scheduleQuote();
+    }),
+  );
+  $('[data-swap-go]')?.addEventListener('click', () => void onSwapGo());
+  $('[data-jup-toggle]')?.addEventListener('click', () => {
+    const box = $<HTMLElement>('[data-jup-fallback]');
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (!box.hidden) startJupiter();
+  });
+  // ---- trade widget (loaded only if the visitor asks for Jupiter's own screen)
   let jupiterStarted = false;
   let jupiterForm: Record<string, unknown> = { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false };
   /** `prefill` comes from Intent: the tokens and amount to show. It never submits anything. */
@@ -774,9 +1134,7 @@ export function initWalletApp(): void {
       go.disabled = !ready;
       go.addEventListener('click', () => {
         if (!f || !t) return;
-        const amount = f.decimals !== null ? toSmallestUnit(intent.amount, f.decimals) : null;
-        startJupiter({ initialInputMint: f.mint, initialOutputMint: t.mint, ...(amount !== null ? { initialAmount: amount } : {}) });
-        location.hash = '#/trade';
+        prefillSwap(f.mint, t.mint, intent.amount);
       });
       actions.append(go);
     };
@@ -805,7 +1163,8 @@ export function initWalletApp(): void {
   // ---- wiring
   function onRoute(): void {
     renderChrome();
-    if (currentView() === 'trade') startJupiter();
+    renderSwap();
+    if (currentView() === 'trade') void loadWeb3();
     if (currentView() === 'send') void loadWeb3();
   }
   window.addEventListener('hashchange', onRoute);

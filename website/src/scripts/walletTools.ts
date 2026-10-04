@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pure logic for the web wallet's Shield and Intent tabs (no DOM, no network), so it can be
  * tested on its own. Mirrors the Aretia Wallet extension's rules: `parseIntent` is the same
  * fixed-phrase parser (packages/intent), and `shieldFindings` the same Solana recipient check
@@ -274,4 +274,110 @@ export function judgeRecipient(account: AccountSnapshot): RecipientVerdict {
     }
   }
   return { blockers, needsAck };
+}
+
+// ------------------------------------------------------------------ Swap (pure parts)
+
+/** SOL a swap may legitimately use besides the amount: base fee, capped priority fee and up to two new token accounts. */
+export const SWAP_SOL_OVERHEAD_LAMPORTS = 4_500_000n;
+/** Slippage presets the swap screen offers, in basis points. */
+export const SLIPPAGE_PRESETS_BPS = [50, 100, 300] as const;
+
+/** Jupiter's own default is 0.5%; thin tokens such as ACT get 1% because their price moves more between quote and execution. */
+export function defaultSlippageBps(involvesThinToken: boolean): number {
+  return involvesThinToken ? 100 : 50;
+}
+
+/**
+ * How much of the price move is caused by the trade's own size: compares the rate of the full trade
+ * with the rate of a trade 1/100th the size from the same pool. Returns a fraction (0.2 = 20%), or
+ * null when it cannot be worked out. Used instead of Jupiter's figure, which is meaningless for a
+ * token it has no reference price for (it reports 100% for ACT).
+ */
+export function sizeImpact(fullIn: bigint, fullOut: bigint, smallIn: bigint, smallOut: bigint): number | null {
+  if (fullIn <= 0n || smallIn <= 0n || smallOut <= 0n || fullOut < 0n) return null;
+  // rate = out / in; impact = 1 - rateFull / rateSmall = 1 - (fullOut * smallIn) / (smallOut * fullIn)
+  const scaled = (fullOut * smallIn * 1_000_000n) / (smallOut * fullIn);
+  const impact = 1 - Number(scaled) / 1_000_000;
+  return Number.isFinite(impact) ? Math.max(0, impact) : null;
+}
+
+export interface SwapSimulation {
+  /** Lamports in the wallet before and after the simulated transaction. */
+  solPre: bigint;
+  solPost: bigint;
+  /** Balance of the token being sold / bought (raw units); null for SOL on that side. */
+  inPre: bigint | null;
+  inPost: bigint | null;
+  outPre: bigint | null;
+  outPost: bigint | null;
+  /** Every other token the wallet holds that the simulation could watch. */
+  others: { symbol: string; pre: bigint; post: bigint }[];
+  /** The simulation's own error, if it failed. */
+  error: string | null;
+}
+
+export interface SwapVerdict {
+  problems: string[];
+  /** What the wallet gives up of the token being sold, from the simulation (raw units). */
+  paid: bigint | null;
+  /** What it receives of the token being bought, from the simulation (raw units); null for SOL, where fees blur it. */
+  received: bigint | null;
+  /** SOL used beyond the swap amount: fees and any account opening. */
+  solOverhead: bigint;
+}
+
+/**
+ * Judges a simulated swap by what it would do to the wallet, not by what the API says it will do.
+ * The transaction comes from a third party, so these checks are what stand between a bad or
+ * tampered response and a signature.
+ */
+export function judgeSwapSimulation(args: {
+  inputIsSol: boolean;
+  outputIsSol: boolean;
+  amountIn: bigint;
+  minOut: bigint;
+  sim: SwapSimulation;
+  overheadLamports?: bigint;
+}): SwapVerdict {
+  const { sim, amountIn } = args;
+  const overheadCap = args.overheadLamports ?? SWAP_SOL_OVERHEAD_LAMPORTS;
+  const problems: string[] = [];
+  if (sim.error !== null) problems.push(`The network would reject this swap: ${sim.error}`);
+
+  const solSpent = sim.solPre - sim.solPost; // negative if SOL was received
+  let paid: bigint | null = null;
+  let received: bigint | null = null;
+  let solOverhead: bigint;
+
+  if (args.inputIsSol) {
+    solOverhead = solSpent - amountIn;
+    if (solOverhead > overheadCap) problems.push('The simulation shows this swap using more SOL than you entered plus normal fees. It was blocked.');
+    paid = amountIn;
+  } else {
+    if (sim.inPre === null || sim.inPost === null) {
+      problems.push("Could not read the token you are selling, so the swap could not be checked.");
+    } else {
+      paid = sim.inPre - sim.inPost;
+      if (paid > amountIn) problems.push('The simulation shows this swap taking more than the amount you entered. It was blocked.');
+    }
+    solOverhead = solSpent;
+    if (solOverhead > overheadCap) problems.push('The simulation shows this swap using more SOL than normal fees and new token accounts need. It was blocked.');
+  }
+
+  if (args.outputIsSol) {
+    // The SOL gained is net of fees, so only a floor can be checked.
+    const gained = sim.solPost - sim.solPre;
+    if (sim.error === null && gained + overheadCap < args.minOut) problems.push('The simulation shows you receiving less SOL than your minimum. The swap would fail.');
+  } else if (sim.outPost !== null) {
+    received = sim.outPost - (sim.outPre ?? 0n);
+    if (sim.error === null && received < args.minOut) problems.push('The simulation shows you receiving less than your minimum, so the swap would fail. Raise the slippage or try a smaller amount.');
+  } else if (sim.error === null) {
+    problems.push('Could not see the token you are buying after the swap, so it could not be checked.');
+  }
+
+  for (const o of sim.others) {
+    if (o.post < o.pre) problems.push(`The simulation shows this swap also reducing your ${o.symbol} balance. It was blocked.`);
+  }
+  return { problems, paid, received, solOverhead };
 }

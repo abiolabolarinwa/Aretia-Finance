@@ -198,12 +198,41 @@ const universalNeeds = [
 
       <div data-pane="trade" class="wapp__pane" hidden>
         <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card wapp__card--widget">
-            <div id="jupiter-terminal" class="wapp__terminal"><span class="wapp__sub">Loading swap widget…</span></div>
+          <div class="wapp__card wapp__swap" data-swap>
+            <div class="wapp__swap-box">
+              <div class="wapp__row"><span class="wapp__eyebrow">You pay</span><span class="wapp__sub" data-swap-from-bal></span></div>
+              <div class="wapp__swap-main">
+                <button type="button" class="wapp__token-btn" data-token-btn="from" aria-haspopup="dialog" aria-label="Choose the token you pay with"></button>
+                <input class="wapp__swap-amount" data-swap-amount inputmode="decimal" autocomplete="off" placeholder="0.0" aria-label="Amount you pay" />
+              </div>
+              <div class="wapp__row"><span class="wapp__sub" data-swap-from-usd></span><button type="button" class="wapp__maxlink" data-swap-max>Max</button></div>
+            </div>
+            <button type="button" class="wapp__swap-flip" data-swap-flip aria-label="Switch the two tokens"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 7h12l-3-3M17 17H5l3 3" /></svg></button>
+            <div class="wapp__swap-box">
+              <div class="wapp__row"><span class="wapp__eyebrow">You receive (estimate)</span><span class="wapp__sub" data-swap-to-bal></span></div>
+              <div class="wapp__swap-main">
+                <button type="button" class="wapp__token-btn" data-token-btn="to" aria-haspopup="dialog" aria-label="Choose the token you receive"></button>
+                <output class="wapp__swap-out" data-swap-out>0.0</output>
+              </div>
+            </div>
+            <div class="wapp__picker" data-picker hidden role="dialog" aria-label="Choose a token">
+              <input class="wapp__input" data-picker-search placeholder="Search by name, symbol or mint" autocomplete="off" spellcheck="false" aria-label="Search tokens" />
+              <ul class="wapp__picker-list" data-picker-list></ul>
+            </div>
+            <div class="wapp__slip" role="group" aria-label="Slippage tolerance">
+              <span class="wapp__eyebrow">Slippage</span>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="auto" aria-pressed="true">Auto</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="50" aria-pressed="false">0.5%</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="100" aria-pressed="false">1%</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="300" aria-pressed="false">3%</button>
+            </div>
+            <dl class="wapp__rows" data-swap-details></dl>
+            <div class="wapp__notes" data-swap-notes></div>
+            <button type="button" class="wapp__btn wapp__btn--primary wapp__swap-go" data-swap-go disabled>Enter an amount</button>
+            <div data-swap-review aria-live="polite"></div>
           </div>
           <div class="wapp__card">
             <h2 class="wapp__h2">Trading ACT</h2>
-            <p class="wapp__banner wapp__banner--warn" data-sol-notice hidden></p>
             <p class="wapp__fine">Swaps are routed by Jupiter and signed in your own wallet. You see the full transaction before you approve it.</p>
             <ul class="wapp__list">
               <li><b>Keep a little SOL for fees.</b> Every swap pays a small network fee in SOL, and your first ACT purchase also opens your ACT token account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</li>
@@ -211,6 +240,7 @@ const universalNeeds = [
               <li>The launch pools open at a $0.005 floor, so buying below it is impossible. You can only sell back as much as buyers have paid in.</li>
               <li>Jupiter may show "Not sellable" and other warnings for new, thin tokens. They are automatic and don't mean ACT can't be sold.</li>
             </ul>
+            <p class="wapp__fine">Swaps are quoted by Jupiter and checked here before your wallet is asked to sign. <button type="button" class="wapp__linkbtn" data-jup-toggle>Use Jupiter's own screen instead</button></p>
             <p class="wapp__eyebrow">ACT mint</p>
             <code class="wapp-mono wapp__mint">{ACT.mint}</code>
             <p class="wapp__fine">Other tokens can copy ACT's name. Only this mint is ACT.</p>
@@ -219,6 +249,12 @@ const universalNeeds = [
               <p class="wapp__fine"><a href={p.explorer} target="_blank" rel="noopener noreferrer">{p.pair}</a>{p.chart && <> · <a href={p.chart} target="_blank" rel="noopener noreferrer">chart</a></>}</p>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div data-pane="trade-fallback" class="wapp__pane" data-jup-fallback hidden>
+        <div class="wapp__card wapp__card--widget">
+          <div id="jupiter-terminal" class="wapp__terminal"><span class="wapp__sub">Loading swap widget…</span></div>
         </div>
       </div>
 
@@ -474,6 +510,7 @@ const universalNeeds = [
   .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
 
   .wapp[data-connected='false'][data-view='send'] [data-pane='send'] { display: none; }
+  .wapp:not([data-view='trade']) [data-pane='trade-fallback'] { display: none; }
   .wapp[data-view='send'] [data-refresh] { display: none; }
   .wapp__amount { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .wapp__rows { display: grid; gap: 0; margin: 0; }
@@ -558,6 +595,40 @@ const universalNeeds = [
   .wapp__section-head h2 { margin: 0; font-size: clamp(1.5rem, 2.4vw, 2rem); letter-spacing: -0.02em; color: var(--color-strong); }
   .wapp__section-head p { margin: 6px 0 0; color: var(--color-muted); }
 
+  .wapp__swap { gap: 10px; position: relative; }
+  .wapp__swap-box { display: grid; gap: 8px; padding: 14px 16px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 18px; }
+  .wapp__swap-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .wapp__token-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px 8px 8px; font: inherit; font-size: 15px; font-weight: 700; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; }
+  .wapp__token-btn:hover { border-color: var(--color-strong); }
+  .wapp__token-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__token-btn .wapp-avatar, .wapp__picker-list .wapp-avatar { width: 26px; height: 26px; font-size: 10px; }
+  .wapp__swap-amount, .wapp__swap-out { min-width: 0; width: 100%; font: inherit; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; text-align: right; color: var(--color-strong); background: none; border: 0; }
+  .wapp__swap-amount:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 8px; }
+  .wapp__swap-amount::placeholder { color: var(--color-faint); }
+  .wapp__swap-out { overflow-wrap: anywhere; }
+  .wapp__swap-flip { justify-self: center; display: grid; place-items: center; width: 36px; height: 36px; margin: -18px 0; z-index: 1; color: var(--color-brand); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
+  .wapp__swap-flip svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__swap-flip:hover { border-color: var(--color-brand); }
+  .wapp__maxlink, .wapp__linkbtn { padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .wapp__linkbtn { font-size: inherit; font-weight: 500; }
+  .wapp__maxlink:focus-visible, .wapp__linkbtn:focus-visible, .wapp__token-btn:focus-visible, .wapp__swap-flip:focus-visible, .wapp__picker-list button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__slip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .wapp__slip [aria-pressed='true'] { color: #fff; background: var(--color-brand); }
+  .wapp__notes { display: grid; gap: 8px; }
+  .wapp__notes:empty { display: none; }
+  .wapp__swap-go { width: 100%; padding: 15px 20px; font-size: 15px; }
+  .wapp__swap-go:disabled { cursor: not-allowed; opacity: 0.55; }
+  .wapp__picker { position: absolute; inset: 12px; z-index: 5; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 14px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 18px; box-shadow: var(--shadow-float, 0 18px 40px rgba(20, 10, 80, 0.2)); }
+  .wapp__picker[hidden] { display: none; }
+  .wapp__picker-list { display: grid; align-content: start; gap: 2px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+  .wapp__picker-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; font: inherit; text-align: left; color: var(--color-strong); background: none; border: 0; border-radius: 12px; cursor: pointer; }
+  .wapp__picker-list button:hover { background: var(--color-brand-soft); }
+  .wapp__picker-name { display: grid; min-width: 0; font-size: 11px; color: var(--color-muted); }
+  .wapp__picker-name strong { font-size: 14px; color: var(--color-strong); }
+  .wapp__picker-bal { margin-left: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .wapp__tag { margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; border-radius: var(--radius-pill); }
+  .wapp__tag--ok { color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
+  .wapp__tag--warn { color: var(--color-warn); background: rgba(178, 94, 9, 0.1); }
   .wapp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .wapp-table th { padding: 0 10px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
   .wapp-table td { padding: 12px 10px; border-top: 1px solid var(--color-border); vertical-align: middle; }
@@ -582,7 +653,7 @@ const universalNeeds = [
     .wapp__nav { display: flex; flex-wrap: wrap; }
     .wapp__side-foot { display: none; }
     .wapp__main { padding: 20px 16px 40px; }
-    .wapp__grid, .wapp__grid--trade { grid-template-columns: 1fr; }
+    .wapp__grid, .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); }
     .wapp__hero { grid-template-columns: minmax(0, 1fr); gap: 24px; }
     .wapp__hero-row { grid-template-columns: minmax(0, 1fr); }
     .wapp__total { font-size: 2.25rem; }

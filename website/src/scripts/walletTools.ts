@@ -116,7 +116,7 @@ export interface Candidate {
 export const KNOWN_TOKENS: ReadonlyArray<{ symbol: string; mint: string; decimals: number }> = [
   { symbol: 'SOL', mint: 'So11111111111111111111111111111111111111112', decimals: 9 },
   { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 },
-  { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNyDF5N3xN6Z7ZtFg', decimals: 6 },
+  { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6 },
   { symbol: 'ACT', mint: '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG', decimals: 9 },
 ];
 

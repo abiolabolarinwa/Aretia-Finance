@@ -47,6 +47,7 @@
   var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://solana.publicnode.com"];
   var LAST_WALLET_KEY = "aretia:lastWalletName";
   var CONNECT_TIMEOUT_MS = 30000;
+  var SIGN_TIMEOUT_MS = 120000;
 
   var STORAGE_AVAILABLE = (function () {
     try {
@@ -337,8 +338,12 @@
     var feature = getStandardFeature("solana:signTransaction");
     if (!feature || !state.account) return Promise.reject(new Error("wallet does not support signing"));
     var bytes = isVersioned(tx) ? tx.serialize() : tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-    return feature
-      .signTransaction({ transaction: new Uint8Array(bytes), account: state.account })
+    var input = { transaction: new Uint8Array(bytes), account: state.account };
+    // Some wallets (MetaMask among them) want the chain named; the account lists the ones it supports.
+    var chains = state.account.chains || [];
+    if (chains.indexOf("solana:mainnet") !== -1) input.chain = "solana:mainnet";
+    // Without a limit, a request the wallet never shows would leave the page waiting forever.
+    return withTimeout(feature.signTransaction(input), SIGN_TIMEOUT_MS, "Your wallet did not answer. Open its icon in the browser toolbar to see whether a request is waiting, or reconnect and try again.")
       .then(function (outputs) {
         var signed = outputs[0].signedTransaction;
         return isVersioned(tx) ? window.solanaWeb3.VersionedTransaction.deserialize(signed) : window.solanaWeb3.Transaction.from(signed);

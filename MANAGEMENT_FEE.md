@@ -65,6 +65,10 @@ Uses `@solana/web3.js` and `@solana/spl-token` loaded from `esm.sh` (not jsdeliv
 
 The client-side gate (disabled submit button) — and the manual verification path — are UX affordances, not the real enforcement, even though path 2 does check on-chain state: a technically motivated applicant could still bypass the page's JS entirely and POST straight to Formspree. See the code comment in `apply.html` and confirm `payment_tx_signature` against Solscan manually when reviewing any application, regardless of which path it came from.
 
+## Swap fee on the web wallet (4 Oct 2026)
+
+The swap screen at /wallet charges **1% of the token being sold**, sent to this wallet in the same transaction as the swap (`website/src/scripts/walletSwap.ts`, constants in `walletTools.ts`). It is a third income stream here and has not been reviewed by counsel. The first swap in each token also opens this wallet's token account for that token (about 0.002 SOL, paid by the user and shown in the review). For SOL swaps the wallet must hold at least 0.00089 SOL, otherwise the fee is waived on that swap.
+
 ## Still open
 
 - [x] Dry-run the harvest-and-split script against live mainnet — done, 3 Sept 2026. Scan and fee-read logic confirmed correct.

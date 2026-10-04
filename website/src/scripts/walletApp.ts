@@ -130,7 +130,14 @@ interface DexPair {
 
 /** Everything the connected address holds, with names, icons and a price where one exists. */
 export async function loadHoldings(address: string): Promise<Holding[]> {
-  const balances = await getJson<Record<string, JupBalance>>(`https://lite-api.jup.ag/ultra/v1/balances/${address}`);
+  const balancesUrl = `https://lite-api.jup.ag/ultra/v1/balances/${address}`;
+  let balances: Record<string, JupBalance>;
+  try {
+    balances = await getJson<Record<string, JupBalance>>(balancesUrl);
+  } catch {
+    // Jupiter's free API is occasionally slow or throttled; one more try before giving up.
+    balances = await getJson<Record<string, JupBalance>>(balancesUrl);
+  }
   const entries = Object.entries(balances)
     .map(([key, b]) => [key === 'SOL' ? SOL_MINT : key, Number(b.uiAmount ?? 0), typeof b.amount === 'string' && /^\d+$/.test(b.amount) ? b.amount : null] as const)
     .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
@@ -235,7 +242,7 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent';
 const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Send', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -278,7 +285,33 @@ export function initWalletApp(): void {
     if (scan && address) scan.href = `https://solscan.io/account/${address}`;
   }
 
+  /** The overview card on the dashboard: wallet name, token count and the top few holdings. */
+  function renderTopAssets(): void {
+    const name = $('[data-wallet-name]');
+    const count = $('[data-count]');
+    const list = $('[data-top-assets]');
+    if (name) name.textContent = address ? (walletName ?? 'Wallet') : '—';
+    if (count) count.textContent = holdings ? String(holdings.length) : '—';
+    if (!list) return;
+    list.textContent = '';
+    if (!address) return;
+    if (holdingsFailed) return void list.append(el('li', { class: 'wapp-sub', text: "Couldn't load balances." }));
+    if (holdings === null) return void list.append(el('li', { class: 'wapp-sub', text: 'Loading balances…' }));
+    if (holdings.length === 0) return void list.append(el('li', { class: 'wapp-sub', text: 'This wallet holds no tokens yet.' }));
+    const mask = (text: string) => (amountsHidden ? '••••' : text);
+    for (const h of holdings.slice(0, 4)) {
+      list.append(
+        el('li', {}, [
+          avatar(h),
+          el('div', { class: 'wapp__hero-asset-name' }, [el('strong', { text: h.symbol }), el('span', { text: h.name })]),
+          el('div', { class: 'wapp__hero-asset-amt' }, [el('strong', { text: mask(formatAmount(h.amount)) }), el('span', { text: h.value === null ? '' : mask(formatUsd(h.value)) })]),
+        ]),
+      );
+    }
+  }
+
   function renderDashboard(error?: string): void {
+    renderTopAssets();
     const total = $('[data-total]');
     const sub = $('[data-total-sub]');
     const body = $('[data-holdings]');
@@ -780,10 +813,20 @@ export function initWalletApp(): void {
       // The address is also shown as selectable text.
     }
   });
+  const scrollBehavior = (): ScrollBehavior => (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+  function selectTab(name: string): void {
+    document.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    document.querySelectorAll<HTMLElement>('[data-tabpanel]').forEach((p) => (p.hidden = p.dataset.tabpanel !== name));
+  }
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab ?? 'assets')));
   $('[data-receive]')?.addEventListener('click', () => {
-    const panel = $<HTMLElement>('[data-receive-panel]');
-    if (panel) panel.hidden = !panel.hidden;
+    selectTab('address');
+    $('[data-tabpanel="address"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
   });
+  document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((b) => b.addEventListener('click', () => document.getElementById(b.dataset.scroll ?? '')?.scrollIntoView({ behavior: scrollBehavior() })));
+  const track = $<HTMLElement>('[data-tools-track]');
+  $('[data-tools-prev]')?.addEventListener('click', () => track?.scrollBy({ left: -340, behavior: scrollBehavior() }));
+  $('[data-tools-next]')?.addEventListener('click', () => track?.scrollBy({ left: 340, behavior: scrollBehavior() }));
 
   function onWallet(state: WalletState): void {
     const next = state.account?.address ?? null;

@@ -20,10 +20,6 @@ import { ACT, POOLS } from '../../data/site';
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="2" /><rect x="13.5" y="3" width="7.5" height="5" rx="2" /><rect x="13.5" y="11" width="7.5" height="10" rx="2" /><rect x="3" y="15" width="7.5" height="6" rx="2" /></svg>
           Dashboard
         </button>
-        <button type="button" data-nav="send">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
-          Send
-        </button>
         <button type="button" data-nav="trade">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
           Trade
@@ -31,6 +27,10 @@ import { ACT, POOLS } from '../../data/site';
         <button type="button" data-nav="activity">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
           Activity
+        </button>
+        <button type="button" data-nav="send">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
+          Pay
         </button>
         <button type="button" data-nav="shield">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
@@ -69,40 +69,92 @@ import { ACT, POOLS } from '../../data/site';
       </div>
 
       <div data-pane="dashboard" class="wapp__pane">
-        <div class="wapp__grid">
-          <div class="wapp__card wapp__card--wash">
-            <div class="wapp__row">
-              <span class="wapp__eyebrow">Portfolio</span>
-              <button type="button" class="wapp__icon" data-hide aria-label="Hide amounts" aria-pressed="false">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-              </button>
-            </div>
-            <div class="wapp__total" data-total>—</div>
-            <div class="wapp__sub" data-total-sub></div>
-            <div class="wapp__actions">
-              <button type="button" class="wapp__btn wapp__btn--dark" data-nav="send">Send</button>
-              <button type="button" class="wapp__btn wapp__btn--dark" data-nav="trade">Trade</button>
-              <button type="button" class="wapp__btn wapp__btn--primary" data-receive>Receive</button>
-              <a class="wapp__btn wapp__btn--ghost" data-solscan target="_blank" rel="noopener noreferrer" href="https://solscan.io">Solscan</a>
-            </div>
-            <div class="wapp__receive" data-receive-panel hidden>
-              <span class="wapp__eyebrow">Your Solana address</span>
-              <code class="wapp-mono" data-address></code>
-              <button type="button" class="wapp__btn wapp__btn--ghost" data-copy>Copy address</button>
-              <p class="wapp__fine">Send only Solana assets to this address.</p>
+        <section class="wapp__hero" aria-label="Overview">
+          <div class="wapp__hero-copy">
+            <span class="wapp__hero-eyebrow">Aretia Wallet</span>
+            <h2 class="wapp__hero-title">One place to hold, send, swap and protect.</h2>
+            <p class="wapp__hero-sub">Send · Receive · Swap · Protect</p>
+            <div class="wapp__hero-cta">
+              <button type="button" class="wapp__pill wapp__pill--solid" data-nav="send">Send</button>
+              <button type="button" class="wapp__pill wapp__pill--outline" data-receive>Receive</button>
+              <button type="button" class="wapp__pill wapp__pill--outline" data-nav="trade">Trade</button>
             </div>
           </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">How this page works</span>
-            <p class="wapp__fine">
-              It reads balances from Jupiter and prices from Jupiter or DexScreener, and recent activity from a public Solana RPC. Your address is sent to those services to do that, and nowhere else. Keys stay in your wallet.
-            </p>
-            <p class="wapp__fine">Dollar values are estimates. ACT's price comes from its single launch pool, which is thin.</p>
+
+          <div class="wapp__hero-panel">
+            <div class="wapp__hero-row">
+              <div class="wapp__card wapp__card--wash">
+                <div class="wapp__row">
+                  <span class="wapp__eyebrow">Portfolio</span>
+                  <button type="button" class="wapp__icon" data-hide aria-label="Hide amounts" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                  </button>
+                </div>
+                <div class="wapp__total" data-total>—</div>
+                <div class="wapp__sub" data-total-sub></div>
+              </div>
+              <div class="wapp__card wapp__hero-stats">
+                <div>
+                  <span class="wapp__eyebrow">Tokens</span>
+                  <div class="wapp__hero-stat" data-count>—</div>
+                </div>
+                <div>
+                  <span class="wapp__eyebrow">Wallet</span>
+                  <div class="wapp__hero-stat wapp__hero-stat--text" data-wallet-name>—</div>
+                </div>
+                <a class="wapp__hero-link" data-solscan target="_blank" rel="noopener noreferrer" href="https://solscan.io">View on Solscan</a>
+              </div>
+            </div>
+
+            <div class="wapp__card wapp__hero-list">
+              <div class="wapp__hero-tabs" role="tablist">
+                <button type="button" role="tab" class="wapp__hero-tab" data-tab="assets" aria-selected="true">Your assets</button>
+                <button type="button" role="tab" class="wapp__hero-tab" data-tab="address" aria-selected="false">Address</button>
+                <button type="button" class="wapp__hero-viewall" data-scroll="all-assets">View all</button>
+              </div>
+              <div data-tabpanel="assets">
+                <ul class="wapp__hero-assets" data-top-assets></ul>
+              </div>
+              <div data-tabpanel="address" class="wapp__receive" hidden>
+                <span class="wapp__eyebrow">Your Solana address</span>
+                <code class="wapp-mono" data-address></code>
+                <button type="button" class="wapp__btn wapp__btn--ghost" data-copy>Copy address</button>
+                <p class="wapp__fine">Send only Solana assets to this address.</p>
+              </div>
+            </div>
           </div>
+        </section>
+
+        <section class="wapp__tools" aria-label="Aretia tools">
+          <button type="button" class="wapp__tools-arrow" aria-label="Previous tools" data-tools-prev>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+          <div class="wapp__tools-track" data-tools-track>
+          <button type="button" class="wapp__toolcard" data-nav="send"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M7 17L17 7M9 7h8v8" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Pay</span><strong>Send to a name</strong><span>Pay a .sns name instead of a long address.</span></span></button>
+          <button type="button" class="wapp__toolcard" data-nav="shield"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Shield</span><strong>Check before you send</strong><span>Look up an address for no history or a smart contract.</span></span></button>
+          <button type="button" class="wapp__toolcard" data-nav="intent"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Intent</span><strong>Type it, then review</strong><span>Write "swap 0.1 SOL for ACT" and confirm on the normal screen.</span></span></button>
+          <a class="wapp__toolcard" href="/wallet/about"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Universal<span class="wapp__toolcard-badge">Extension</span></span><strong>Move ACT across chains</strong><span>Bridge ACT between Solana and Ethereum. In the Aretia extension, testnet only today.</span></span></a>
+          <a class="wapp__toolcard" href="/wallet/about"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia SafeSend<span class="wapp__toolcard-badge">Extension</span></span><strong>Send with a safety delay</strong><span>Hold a transfer in escrow so you can cancel it first. In the Aretia extension.</span></span></a>
+          </div>
+          <button type="button" class="wapp__tools-arrow" aria-label="Next tools" data-tools-next>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </section>
+
+        <div class="wapp__section-head" id="all-assets">
+          <h2>Everything in this wallet.</h2>
+          <p>Every token this wallet holds, with prices where one exists.</p>
         </div>
         <div class="wapp__card">
           <h2 class="wapp__h2">Holdings</h2>
           <div data-holdings></div>
+        </div>
+        <div class="wapp__card">
+          <span class="wapp__eyebrow">How this page works</span>
+          <p class="wapp__fine">
+            It reads balances from Jupiter and prices from Jupiter or DexScreener, and recent activity from Solana RPC. Your address is sent to those services to do that, and nowhere else. Keys stay in your wallet.
+          </p>
+          <p class="wapp__fine">Dollar values are estimates. ACT's price comes from its single launch pool, which is thin.</p>
         </div>
       </div>
 
@@ -257,7 +309,7 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__side-foot a:hover { color: #fff; }
   .wapp__side :focus-visible { outline-color: #fff; }
 
-  .wapp__main { min-width: 0; padding: 28px 36px 56px; display: grid; gap: 20px; align-content: start; }
+  .wapp__main { min-width: 0; padding: 28px 36px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
   .wapp__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .wapp__top h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; color: var(--color-strong); }
   .wapp__chips { display: flex; gap: 8px; }
@@ -290,7 +342,7 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__actions { display: flex; flex-wrap: wrap; gap: 10px; }
   .wapp__receive { display: grid; gap: 8px; padding-top: 4px; }
   .wapp__receive code { font-size: 12px; overflow-wrap: anywhere; }
-  .wapp__pane { display: grid; gap: 20px; }
+  .wapp__pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .wapp__pane[hidden] { display: none; }
   .wapp__terminal { min-height: 540px; display: grid; border-radius: var(--radius-lg); overflow: hidden; }
   .wapp__terminal #jupiter-plugin-instance, .wapp__terminal #jupiter-plugin-instance > * { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
@@ -341,6 +393,56 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__pick { display: grid; gap: 6px; font-size: 13px; }
   .wapp__pick label { display: flex; align-items: center; gap: 8px; }
 
+  .wapp__hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px; align-items: center; }
+  .wapp__hero-copy { display: grid; gap: 18px; padding: 8px 0; }
+  .wapp__hero-eyebrow { justify-self: start; padding-inline: 10px; font-size: 13px; font-weight: 600; color: var(--color-strong); border-inline: 3px solid var(--color-brand); }
+  .wapp__hero-title { overflow-wrap: anywhere; margin: 0; font-size: clamp(2rem, 3.4vw, 2.9rem); line-height: 1.08; letter-spacing: -0.03em; color: var(--color-strong); }
+  .wapp__hero-sub { margin: 0; font-size: 16px; color: var(--color-muted); }
+  .wapp__hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+  .wapp__pill { padding: 14px 30px; font: inherit; font-size: 15px; font-weight: 600; border: 1px solid transparent; border-radius: 999px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease; }
+  .wapp__pill--solid { background: var(--color-brand); color: #fff; box-shadow: 0 8px 20px rgba(58, 34, 200, 0.28); }
+  .wapp__pill--solid:hover { background: var(--color-brand-bright, #2c1a9c); }
+  .wapp__pill--outline { background: var(--color-bg); color: var(--color-strong); border-color: var(--color-border-strong); }
+  .wapp__pill--outline:hover { border-color: var(--color-strong); }
+  .wapp__pill:focus-visible, .wapp__tools-arrow:focus-visible, .wapp__toolcard:focus-visible, .wapp__hero-tab:focus-visible, .wapp__hero-viewall:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__hero-panel { display: grid; gap: 14px; padding: 14px; background: rgba(255, 255, 255, 0.55); border: 1px solid var(--color-border); border-radius: 28px; }
+  .wapp__hero-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; }
+  .wapp__hero-stats { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+  .wapp__hero-stat { margin-top: 4px; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-strong); }
+  .wapp__hero-stat--text { font-size: 16px; letter-spacing: 0; overflow-wrap: anywhere; }
+  .wapp__hero-link { font-size: 13px; color: var(--color-brand); }
+  .wapp__hero-list { gap: 14px; }
+  .wapp__receive[hidden] { display: none; }
+  .wapp__hero-tabs { display: flex; align-items: center; gap: 18px; }
+  .wapp__hero-tab { padding: 4px 0; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-muted); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .wapp__hero-tab[aria-selected='true'] { color: var(--color-strong); border-bottom-color: var(--color-brand); }
+  .wapp__hero-viewall { margin-left: auto; padding: 0; font: inherit; font-size: 13px; color: var(--color-muted); background: none; border: 0; cursor: pointer; }
+  .wapp__hero-viewall:hover { color: var(--color-brand); }
+  .wapp__hero-assets { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .wapp__hero-assets li { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .wapp__hero-assets .wapp-sub { padding: 4px 0; }
+  .wapp__hero-asset-name { display: grid; min-width: 0; font-size: 11px; color: var(--color-muted); }
+  .wapp__hero-asset-name strong { font-size: 14px; color: var(--color-strong); }
+  .wapp__hero-asset-amt { margin-left: auto; display: grid; justify-items: end; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp__hero-asset-amt span { font-size: 11px; color: var(--color-muted); }
+
+  .wapp__tools { display: flex; align-items: center; gap: 12px; }
+  .wapp__tools-track { display: flex; flex: 1; gap: 16px; min-width: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .wapp__tools-track::-webkit-scrollbar { display: none; }
+  .wapp__tools-arrow { display: grid; flex: none; place-items: center; width: 36px; height: 36px; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 50%; cursor: pointer; }
+  .wapp__tools-arrow:hover { border-color: var(--color-strong); }
+  .wapp__tools-arrow svg, .wapp__toolcard-art svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__toolcard { display: flex; flex: 0 0 min(340px, 80%); align-items: center; gap: 16px; padding: 16px; font: inherit; text-align: left; color: var(--color-strong); text-decoration: none; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 18px; cursor: pointer; scroll-snap-align: start; transition: border-color 160ms ease, transform 160ms ease; }
+  .wapp__toolcard:hover { border-color: var(--color-brand); transform: translateY(-2px); }
+  .wapp__toolcard-art { display: grid; flex: none; place-items: center; width: 64px; height: 64px; color: #fff; background: linear-gradient(135deg, #4a2ee0, #26168a); border-radius: 16px; }
+  .wapp__toolcard-text { display: grid; gap: 3px; min-width: 0; font-size: 12px; color: var(--color-muted); }
+  .wapp__toolcard-text strong { font-size: 14px; color: var(--color-strong); }
+  .wapp__toolcard-tag { font-size: 11px; font-weight: 600; color: var(--color-brand); }
+  .wapp__toolcard-badge { margin-left: 8px; padding: 1px 7px; font-size: 10px; font-weight: 600; color: var(--color-muted); background: var(--color-bg-alt); border-radius: var(--radius-pill); }
+  .wapp__section-head { margin-top: 16px; text-align: center; }
+  .wapp__section-head h2 { margin: 0; font-size: clamp(1.5rem, 2.4vw, 2rem); letter-spacing: -0.02em; color: var(--color-strong); }
+  .wapp__section-head p { margin: 6px 0 0; color: var(--color-muted); }
+
   .wapp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .wapp-table th { padding: 0 10px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
   .wapp-table td { padding: 12px 10px; border-top: 1px solid var(--color-border); vertical-align: middle; }
@@ -365,6 +467,8 @@ import { ACT, POOLS } from '../../data/site';
     .wapp__side-foot { display: none; }
     .wapp__main { padding: 20px 16px 40px; }
     .wapp__grid, .wapp__grid--trade { grid-template-columns: 1fr; }
+    .wapp__hero { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .wapp__hero-row { grid-template-columns: minmax(0, 1fr); }
     .wapp__total { font-size: 2.25rem; }
     .wapp-table th:nth-child(3), .wapp-table td:nth-child(3), .wapp-table th:nth-child(5), .wapp-table td:nth-child(5) { display: none; }
   }

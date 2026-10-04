@@ -1,4 +1,5 @@
-import { ACT as ACT_INFO } from '../data/site';
+import { ACT as ACT_INFO, POOLS } from '../data/site';
+import { RANGES, chartStats, drawChart, fillSeries, findPool, formatPrice, loadCandles, type Range } from './walletChart';
 import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
 import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
@@ -419,7 +420,21 @@ export function initWalletApp(): void {
   // ---- swap tab (our own screen; Jupiter quotes and builds, the page checks before anything is signed)
   const SOL = 'So11111111111111111111111111111111111111112';
   const KNOWN_NAMES: Record<string, string> = { SOL: 'Solana', USDC: 'USD Coin', USDT: 'Tether USD', ACT: 'Aretia Finance Protocol' };
+  // ACT and SOL logos ship with the site so they always show; the others are fetched once and remembered.
+  const LOCAL_ICONS: Record<string, string> = { [ACT_INFO.mint]: '/assets/logo-mark.png', [SOL]: '/assets/chains/solana.png' };
+  const iconCache = new Map<string, string>(Object.entries(LOCAL_ICONS));
+  const tokenIcon = (tk: { mint: string; icon: string | null }): string | null => LOCAL_ICONS[tk.mint] ?? tk.icon ?? iconCache.get(tk.mint) ?? holding(tk.mint)?.icon ?? null;
   const knownTokens: TokenInfo[] = KNOWN_TOKENS.map((k) => ({ mint: k.mint, symbol: k.symbol, name: KNOWN_NAMES[k.symbol] ?? k.symbol, decimals: k.decimals, icon: null, verified: k.symbol === 'ACT' ? null : true }));
+  async function loadKnownIcons(): Promise<void> {
+    try {
+      const found = await searchTokens(KNOWN_TOKENS.map((k) => k.mint).join(','));
+      for (const tk of found) if (tk.icon && KNOWN_TOKENS.some((k) => k.mint === tk.mint)) iconCache.set(tk.mint, tk.icon);
+      renderSwap();
+      void ensureChart();
+    } catch {
+      // The initials stay until the next visit.
+    }
+  }
   const tokenByMint = (mint: string): TokenInfo | undefined => knownTokens.find((k) => k.mint === mint);
   const swap = {
     from: tokenByMint(SOL)!,
@@ -457,7 +472,7 @@ export function initWalletApp(): void {
     if (!btn) return;
     const tk = swap[side];
     btn.textContent = '';
-    btn.append(avatar({ icon: tk.icon ?? null, symbol: tk.symbol }), el('span', { text: tk.symbol }));
+    btn.append(avatar({ icon: tokenIcon(tk), symbol: tk.symbol }), el('span', { text: tk.symbol }));
     btn.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>');
   }
 
@@ -480,6 +495,7 @@ export function initWalletApp(): void {
 
     // result
     out.textContent = swap.quote ? fmtRaw(swap.quote.outAmount, swap.to.decimals) : '0.0';
+    void ensureChart();
 
     // details
     details.textContent = '';
@@ -605,7 +621,7 @@ export function initWalletApp(): void {
     const h = holding(tk.mint);
     const tag = tk.mint === ACT_INFO.mint ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Aretia' }) : tk.verified === true ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Verified' }) : tk.verified === false ? el('span', { class: 'wapp__tag wapp__tag--warn', text: 'Unverified' }) : null;
     const btn = el('button', { attrs: { type: 'button' } }, [
-      avatar({ icon: tk.icon, symbol: tk.symbol }),
+      avatar({ icon: tokenIcon(tk), symbol: tk.symbol }),
       el('span', { class: 'wapp__picker-name' }, [el('strong', {}, [document.createTextNode(tk.symbol), tag]), el('span', { text: `${tk.name} · ${shorten(tk.mint)}` })]),
       el('span', { class: 'wapp__picker-bal', text: h ? formatAmount(h.amount) : '' }),
     ]);
@@ -785,6 +801,74 @@ export function initWalletApp(): void {
     box.hidden = !box.hidden;
     if (!box.hidden) startJupiter();
   });
+  // ---- price chart (right of the swap screen)
+  const chart = { range: '24h' as Range, key: '', seq: 0 };
+  const STABLES = new Set(KNOWN_TOKENS.filter((k) => k.symbol === 'USDC' || k.symbol === 'USDT').map((k) => k.mint));
+  /** What the chart shows: ACT when it is in the trade, else the first token that is not a stablecoin or SOL, else SOL. */
+  function chartSubject(): TokenInfo {
+    if (involvesAct()) return tokenByMint(ACT_INFO.mint)!;
+    const pick = [swap.to, swap.from].find((tk) => tk.mint !== SOL && !STABLES.has(tk.mint));
+    return pick ?? tokenByMint(SOL)!;
+  }
+  async function ensureChart(): Promise<void> {
+    const host = $<HTMLElement>('[data-chart-plot]');
+    if (!host || currentView() !== 'trade') return;
+    const subject = chartSubject();
+    const key = `${subject.mint}:${chart.range}:${tokenIcon(subject) ?? ''}`;
+    const title = $('[data-chart-title]');
+    if (title) {
+      title.textContent = '';
+      title.append(avatar({ icon: tokenIcon(subject), symbol: subject.symbol }), el('span', {}, [document.createTextNode(`${subject.symbol} / USD `), el('small', { text: subject.name })]));
+    }
+    if (key === chart.key) return;
+    chart.key = key;
+    const mine = ++chart.seq;
+    const price = $('[data-chart-price]');
+    const change = $('[data-chart-change]');
+    const stats = $('[data-chart-stats]');
+    const note = (text: string) => {
+      host.textContent = '';
+      host.append(el('span', { class: 'wapp__sub', text }));
+      if (price) price.textContent = '—';
+      if (change) change.textContent = '';
+      stats?.replaceChildren();
+    };
+    note('Loading chart…');
+    const range = chart.range;
+    const pool = subject.mint === ACT_INFO.mint ? POOLS[0]!.address : await findPool(subject.mint);
+    if (mine !== chart.seq) return;
+    if (!pool) return void note('No price chart is available for this token.');
+    const candles = await loadCandles(pool, subject.mint, range);
+    if (mine !== chart.seq) return;
+    if (candles === null) {
+      chart.key = ''; // allow a retry on the next change
+      return void note('The chart service did not answer. Try again in a moment.');
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const series = fillSeries(candles, range, now);
+    const s = chartStats(series, candles, range, now);
+    if (!s || series.length < 2) return void note('No trades in this period.');
+    drawChart(host, series, range, `${subject.symbol} price in US dollars over the last ${range === '1h' ? 'hour' : range === '24h' ? '24 hours' : '7 days'}`);
+    if (price) price.textContent = formatPrice(s.price);
+    if (change) {
+      change.className = s.change === null ? '' : s.change > 0.00005 ? 'is-up' : s.change < -0.00005 ? 'is-down' : '';
+      change.textContent = s.change === null ? '' : `${s.change >= 0 ? '+' : ''}${(s.change * 100).toFixed(2)}% · ${range === '1h' ? '1h' : range === '24h' ? '24h' : '7d'}`;
+    }
+    if (stats) {
+      stats.textContent = '';
+      for (const [k, v] of [['High', formatPrice(s.high)], ['Low', formatPrice(s.low)], ['Volume', formatUsd(s.volume)]] as const) stats.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
+    }
+  }
+  document.querySelectorAll<HTMLElement>('[data-range]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const next = b.dataset.range as Range;
+      if (!(next in RANGES)) return;
+      chart.range = next;
+      document.querySelectorAll<HTMLElement>('[data-range]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      void ensureChart();
+    }),
+  );
+
   // ---- trade widget (loaded only if the visitor asks for Jupiter's own screen)
   let jupiterStarted = false;
   let jupiterForm: Record<string, unknown> = { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false };
@@ -1164,7 +1248,10 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     renderSwap();
-    if (currentView() === 'trade') void loadWeb3();
+    if (currentView() === 'trade') {
+      void loadWeb3();
+      void ensureChart();
+    }
     if (currentView() === 'send') void loadWeb3();
   }
   window.addEventListener('hashchange', onRoute);
@@ -1233,6 +1320,7 @@ export function initWalletApp(): void {
     onWallet(api.getState());
     return true;
   };
+  void loadKnownIcons();
   onRoute();
   if (!wire()) {
     // wallet.js loads just before this script; wait briefly if it is a tick behind.

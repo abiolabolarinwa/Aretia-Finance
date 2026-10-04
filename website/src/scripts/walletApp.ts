@@ -36,6 +36,7 @@ interface WalletState {
 }
 interface AretiaWalletApi {
   getState(): WalletState;
+  disconnect(): Promise<void>;
   subscribe(fn: (s: WalletState) => void): () => void;
   getWalletContextState(): unknown;
 }
@@ -288,7 +289,7 @@ export function initWalletApp(): void {
   /** The overview card on the dashboard: wallet name, token count and the top few holdings. */
   function renderTopAssets(): void {
     const name = $('[data-wallet-name]');
-    const count = $('[data-count]');
+    const count = $('[data-token-count]');
     const list = $('[data-top-assets]');
     if (name) name.textContent = address ? (walletName ?? 'Wallet') : '—';
     if (count) count.textContent = holdings ? String(holdings.length) : '—';
@@ -828,11 +829,23 @@ export function initWalletApp(): void {
   $('[data-tools-prev]')?.addEventListener('click', () => track?.scrollBy({ left: -340, behavior: scrollBehavior() }));
   $('[data-tools-next]')?.addEventListener('click', () => track?.scrollBy({ left: 340, behavior: scrollBehavior() }));
 
+  // "Lock wallet": the page forgets the wallet. Keys never lived here, so this only disconnects.
+  $('[data-lock]')?.addEventListener('click', () => void window.AretiaWallet?.disconnect());
+
+  function clearSessionOutputs(): void {
+    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]']) $(sel)?.replaceChildren();
+    for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input', '#shield-input']) {
+      const field = $<HTMLInputElement>(sel);
+      if (field) field.value = '';
+    }
+  }
+
   function onWallet(state: WalletState): void {
     const next = state.account?.address ?? null;
     walletName = state.walletName;
     if (next === address) return void renderChrome();
     address = next;
+    clearSessionOutputs();
     renderChrome();
     void refresh();
   }

@@ -14,6 +14,10 @@ import { ACT, POOLS } from '../../data/site';
 
   <div class="wapp" data-wapp data-connected="false" data-view="dashboard">
     <aside class="wapp__side" aria-label="Wallet">
+      <a class="wapp__brand" href="/home" aria-label="Aretia Finance home">
+        <img src="/assets/logo-mark.png" width="28" height="28" alt="" />
+        <span>Aretia</span>
+      </a>
       <div class="wapp__account" data-account aria-live="polite"></div>
       <nav class="wapp__nav" aria-label="Wallet sections">
         <button type="button" data-nav="dashboard" aria-current="page">
@@ -42,6 +46,10 @@ import { ACT, POOLS } from '../../data/site';
         </button>
       </nav>
       <div class="wapp__side-foot">
+        <button type="button" class="wapp__lock" data-lock title="Disconnect this page from your wallet. Your funds and keys are not affected.">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+          Lock wallet
+        </button>
         <a href="/wallet/about">About Aretia Wallet</a>
         <a href="/buy">Buy ACT</a>
         <a href="/verify">Verify ACT on-chain</a>
@@ -96,7 +104,7 @@ import { ACT, POOLS } from '../../data/site';
               <div class="wapp__card wapp__hero-stats">
                 <div>
                   <span class="wapp__eyebrow">Tokens</span>
-                  <div class="wapp__hero-stat" data-count>—</div>
+                  <div class="wapp__hero-stat" data-token-count>—</div>
                 </div>
                 <div>
                   <span class="wapp__eyebrow">Wallet</span>
@@ -148,13 +156,6 @@ import { ACT, POOLS } from '../../data/site';
         <div class="wapp__card">
           <h2 class="wapp__h2">Holdings</h2>
           <div data-holdings></div>
-        </div>
-        <div class="wapp__card">
-          <span class="wapp__eyebrow">How this page works</span>
-          <p class="wapp__fine">
-            It reads balances from Jupiter and prices from Jupiter or DexScreener, and recent activity from Solana RPC. Your address is sent to those services to do that, and nowhere else. Keys stay in your wallet.
-          </p>
-          <p class="wapp__fine">Dollar values are estimates. ACT's price comes from its single launch pool, which is thin.</p>
         </div>
       </div>
 
@@ -293,8 +294,8 @@ import { ACT, POOLS } from '../../data/site';
 
 <style is:global>
   /* The site nav is fixed to the top; pages offset their content by --nav-height. */
-  .wapp { display: grid; grid-template-columns: 248px minmax(0, 1fr); box-sizing: border-box; min-height: 100vh; padding-top: var(--nav-height); background: var(--color-bg-alt); }
-  .wapp__side { position: sticky; top: var(--nav-height); align-self: start; display: flex; flex-direction: column; gap: 18px; height: calc(100vh - var(--nav-height)); padding: 22px 14px; background: linear-gradient(180deg, #2c1a9c 0%, #1d1170 100%); border-right: 0; }
+  .wapp { display: grid; grid-template-columns: 248px minmax(0, 1fr); box-sizing: border-box; min-height: 100vh; background: var(--color-bg-alt); }
+  .wapp__side { position: sticky; top: 0; z-index: 60; align-self: start; display: flex; flex-direction: column; gap: 18px; height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 22px 14px; background: linear-gradient(180deg, #2c1a9c 0%, #1d1170 100%); border-right: 0; }
   .wapp__account { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--radius-lg); background: rgba(255, 255, 255, 0.12); }
   .wapp__account strong { font-size: 14px; color: #fff; }
   .wapp__account span { font-size: 12px; color: rgba(255, 255, 255, 0.78); }
@@ -304,13 +305,22 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__nav button svg, .wapp__icon svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .wapp__nav button:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
   .wapp__nav button[aria-current='page'] { background: #fff; color: var(--color-brand); font-weight: 600; }
+  .wapp__brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; color: #fff; text-decoration: none; }
+  .wapp__brand img { box-sizing: border-box; width: 30px; height: 30px; padding: 3px; background: #fff; border-radius: 9px; }
+  .wapp__brand:focus-visible, .wapp__lock:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .wapp__lock { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font: inherit; font-size: 14px; font-weight: 500; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.1); border: 0; border-radius: var(--radius-md); text-align: left; cursor: pointer; }
+  .wapp__lock svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__lock:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
+  .wapp[data-connected='false'] [data-lock] { display: none; }
   .wapp__side-foot { margin-top: auto; display: grid; gap: 8px; font-size: 13px; }
   .wapp__side-foot a { color: rgba(255, 255, 255, 0.78); }
   .wapp__side-foot a:hover { color: #fff; }
   .wapp__side :focus-visible { outline-color: #fff; }
 
-  .wapp__main { min-width: 0; padding: 28px 36px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
+  .wapp__main { min-width: 0; padding: calc(var(--nav-height) + 16px) 36px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
   .wapp__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .wapp[data-view='dashboard'] .wapp__top h1 { display: none; }
+  .wapp__chips { margin-left: auto; }
   .wapp__top h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; color: var(--color-strong); }
   .wapp__chips { display: flex; gap: 8px; }
   .wapp__chip { padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: var(--radius-pill); }
@@ -461,7 +471,8 @@ import { ACT, POOLS } from '../../data/site';
   .wapp-error { margin: 0; padding: 12px 14px; font-size: 13px; color: #b3261e; background: rgba(179, 38, 30, 0.08); border-radius: var(--radius-md); }
 
   @media (max-width: 960px) {
-    .wapp { grid-template-columns: 1fr; }
+    .wapp { grid-template-columns: 1fr; padding-top: var(--nav-height); }
+    .wapp__brand { display: none; }
     .wapp__side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; }
     .wapp__nav { display: flex; flex-wrap: wrap; }
     .wapp__side-foot { display: none; }

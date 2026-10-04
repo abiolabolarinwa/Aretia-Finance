@@ -171,6 +171,14 @@ const pricePair = POOLS[0].address;
   /* On pages with the wallet connect button, it replaces "Launch Wallet" on desktop. */
   .nav__connect ~ .nav__toggle { margin-left: 0; }
   .nav--wallet .nav__actions :global(.btn) { display: none; }
+  /* The wallet app is its own screen: no site menu, just the connect button (and the ACT price). */
+  .nav--wallet .nav__menu, .nav--wallet .nav__secondary, .nav--wallet .nav__toggle { display: none; }
+  .nav--wallet .nav__actions { margin-left: auto; }
+  @media (min-width: 961px) {
+    /* The wallet sidebar (248px, full height) carries the logo; the bar only spans the main column. */
+    .nav--wallet .nav__brand { display: none; }
+    .nav--wallet .nav__bar { box-sizing: border-box; width: 100%; max-width: none; margin: 0; padding-left: calc(248px + 36px); padding-right: 36px; }
+  }
   @media (max-width: 1080px) {
     .nav__menu, .nav__actions { display: none; }
     .nav__toggle { display: block; }

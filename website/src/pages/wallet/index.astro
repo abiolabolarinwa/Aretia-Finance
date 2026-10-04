@@ -235,16 +235,12 @@ const universalNeeds = [
             <div class="wapp__card wapp__chart" data-chart>
               <div class="wapp__chart-head">
                 <div class="wapp__chart-title" data-chart-title></div>
-                <div class="wapp__chart-ranges" role="group" aria-label="Chart range">
-                  <button type="button" class="wapp__chip wapp__chip--btn" data-range="1h" aria-pressed="false">1H</button>
-                  <button type="button" class="wapp__chip wapp__chip--btn" data-range="24h" aria-pressed="true">24H</button>
-                  <button type="button" class="wapp__chip wapp__chip--btn" data-range="7d" aria-pressed="false">7D</button>
-                </div>
+                <span class="wapp__live" data-chart-live hidden><i aria-hidden="true"></i>Live</span>
               </div>
               <div class="wapp__chart-price"><strong data-chart-price>—</strong><span data-chart-change></span></div>
-              <div class="wapp__chart-plot" data-chart-plot aria-live="polite"><span class="wapp__sub">Loading chart…</span></div>
               <dl class="wapp__chart-stats" data-chart-stats></dl>
-              <p class="wapp__fine">Prices from GeckoTerminal. A quiet market draws a flat line because nothing traded.</p>
+              <div class="wapp__chart-plot" data-chart-plot aria-live="polite"><span class="wapp__sub">Loading chart…</span></div>
+              <p class="wapp__fine">Live chart and trades by <a href="https://dexscreener.com" target="_blank" rel="noopener noreferrer">DexScreener</a>. <a data-chart-open href="https://dexscreener.com" target="_blank" rel="noopener noreferrer">Open full chart</a></p>
             </div>
             <section class="wapp__guide" aria-labelledby="guide-title">
               <h2 class="wapp__h2" id="guide-title">Before you trade</h2>
@@ -645,23 +641,20 @@ const universalNeeds = [
   .wapp__chart-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-strong); }
   .wapp__chart-title .wapp-avatar { width: 30px; height: 30px; }
   .wapp__chart-title small { font-size: 12px; font-weight: 500; color: var(--color-muted); }
-  .wapp__chart-ranges { display: flex; gap: 6px; }
-  .wapp__chart-ranges [aria-pressed='true'] { color: #fff; background: var(--color-brand); }
+  .wapp__live { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--color-ok); background: rgba(27, 138, 75, 0.1); border-radius: var(--radius-pill); }
+  .wapp__live i { width: 7px; height: 7px; background: currentColor; border-radius: 50%; animation: wapp-pulse 1.6s ease-in-out infinite; }
+  .wapp__live[hidden] { display: none; }
+  @keyframes wapp-pulse { 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .wapp__live i { animation: none; } }
   .wapp__chart-price { display: flex; align-items: baseline; gap: 10px; }
   .wapp__chart-price strong { font-size: 1.8rem; letter-spacing: -0.02em; color: var(--color-strong); }
   .wapp__chart-price span { font-size: 14px; font-weight: 600; }
   .wapp__chart-price .is-up { color: var(--color-ok); }
   .wapp__chart-price .is-down { color: #b3261e; }
-  .wapp__chart-plot { position: relative; min-height: 220px; display: grid; align-items: center; }
-  .wapp__chart-svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
-  .wapp__chart-line { fill: none; stroke: var(--color-brand); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-  .wapp__chart-grid { stroke: var(--color-border); stroke-width: 1; stroke-dasharray: 3 4; }
-  .wapp__chart-axis { font-size: 11px; fill: var(--color-muted); }
-  .wapp__chart-cursor { stroke: var(--color-muted); stroke-width: 1; }
-  .wapp__chart-dot { fill: #fff; stroke: var(--color-brand); stroke-width: 2.5; }
-  .wapp__chart-tip { position: absolute; top: 0; transform: translateX(-50%); padding: 4px 8px; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #fff; background: var(--color-strong); border-radius: 8px; pointer-events: none; }
-  .wapp__chart-tip[hidden] { display: none; }
+  .wapp__chart-plot { position: relative; min-height: 420px; display: grid; align-items: center; }
+  .wapp__chart-frame { display: block; width: 100%; height: 640px; border: 0; border-radius: 14px; background: #fff; }
   .wapp__chart-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+  .wapp__chart-stats:empty { display: none; }
   .wapp__chart-stats > div { display: grid; gap: 2px; padding: 8px 10px; background: var(--color-bg-alt); border-radius: 12px; }
   .wapp__chart-stats dt { font-size: 11px; color: var(--color-muted); }
   .wapp__chart-stats dd { margin: 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-strong); }

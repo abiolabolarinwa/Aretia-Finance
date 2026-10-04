@@ -1,5 +1,4 @@
 import { ACT as ACT_INFO, POOLS } from '../data/site';
-import { RANGES, chartStats, drawChart, fillSeries, findPool, formatPrice, loadCandles, type Range } from './walletChart';
 import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
 import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
@@ -801,73 +800,110 @@ export function initWalletApp(): void {
     box.hidden = !box.hidden;
     if (!box.hidden) startJupiter();
   });
-  // ---- price chart (right of the swap screen)
-  const chart = { range: '24h' as Range, key: '', seq: 0 };
+  // ---- live chart and trades (DexScreener's embed for the pair's best pool, plus a live price header)
+  interface DexPair {
+    pairAddress?: string;
+    priceUsd?: string;
+    priceChange?: { h24?: number };
+    volume?: { h24?: number };
+    liquidity?: { usd?: number };
+    txns?: { h24?: { buys?: number; sells?: number } };
+  }
   const STABLES = new Set(KNOWN_TOKENS.filter((k) => k.symbol === 'USDC' || k.symbol === 'USDT').map((k) => k.mint));
+  const dexPairs = new Map<string, { at: number; pair: DexPair | null }>();
+  const chart = { mint: '', pair: '', timer: undefined as number | undefined, seq: 0 };
+  const DEX_PRICE_MS = 12_000;
+
   /** What the chart shows: ACT when it is in the trade, else the first token that is not a stablecoin or SOL, else SOL. */
   function chartSubject(): TokenInfo {
     if (involvesAct()) return tokenByMint(ACT_INFO.mint)!;
     const pick = [swap.to, swap.from].find((tk) => tk.mint !== SOL && !STABLES.has(tk.mint));
     return pick ?? tokenByMint(SOL)!;
   }
-  async function ensureChart(): Promise<void> {
-    const host = $<HTMLElement>('[data-chart-plot]');
-    if (!host || currentView() !== 'trade') return;
-    const subject = chartSubject();
-    const key = `${subject.mint}:${chart.range}:${tokenIcon(subject) ?? ''}`;
+
+  /** The most liquid pool for a token, from DexScreener. Cached for the page's life; null if it has none. */
+  async function bestPair(mint: string, fresh = false): Promise<DexPair | null> {
+    const cached = dexPairs.get(mint);
+    if (cached && !fresh && Date.now() - cached.at < 5_000) return cached.pair;
+    try {
+      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${mint}`);
+      const best = (Array.isArray(pairs) ? pairs : []).filter((p) => typeof p.pairAddress === 'string' && isSolanaAddress(p.pairAddress)).sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] ?? null;
+      dexPairs.set(mint, { at: Date.now(), pair: best });
+      return best;
+    } catch {
+      return cached?.pair ?? null;
+    }
+  }
+
+  function embedUrl(pairAddress: string): string {
+    const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval: '15' });
+    return `https://dexscreener.com/solana/${pairAddress}?${q}`;
+  }
+
+  function renderChartHeader(subject: TokenInfo, pair: DexPair | null): void {
     const title = $('[data-chart-title]');
     if (title) {
       title.textContent = '';
       title.append(avatar({ icon: tokenIcon(subject), symbol: subject.symbol }), el('span', {}, [document.createTextNode(`${subject.symbol} / USD `), el('small', { text: subject.name })]));
     }
-    if (key === chart.key) return;
-    chart.key = key;
-    const mine = ++chart.seq;
     const price = $('[data-chart-price]');
     const change = $('[data-chart-change]');
     const stats = $('[data-chart-stats]');
-    const note = (text: string) => {
-      host.textContent = '';
-      host.append(el('span', { class: 'wapp__sub', text }));
-      if (price) price.textContent = '—';
-      if (change) change.textContent = '';
-      stats?.replaceChildren();
-    };
-    note('Loading chart…');
-    const range = chart.range;
-    const pool = subject.mint === ACT_INFO.mint ? POOLS[0]!.address : await findPool(subject.mint);
-    if (mine !== chart.seq) return;
-    if (!pool) return void note('No price chart is available for this token.');
-    const candles = await loadCandles(pool, subject.mint, range);
-    if (mine !== chart.seq) return;
-    if (candles === null) {
-      chart.key = ''; // allow a retry on the next change
-      return void note('The chart service did not answer. Try again in a moment.');
-    }
-    const now = Math.floor(Date.now() / 1000);
-    const series = fillSeries(candles, range, now);
-    const s = chartStats(series, candles, range, now);
-    if (!s || series.length < 2) return void note('No trades in this period.');
-    drawChart(host, series, range, `${subject.symbol} price in US dollars over the last ${range === '1h' ? 'hour' : range === '24h' ? '24 hours' : '7 days'}`);
-    if (price) price.textContent = formatPrice(s.price);
+    const live = $<HTMLElement>('[data-chart-live]');
+    const usd = pair?.priceUsd !== undefined ? Number(pair.priceUsd) : NaN;
+    if (price) price.textContent = Number.isFinite(usd) && usd > 0 ? formatPriceUsd(usd) : '—';
+    const h24 = pair?.priceChange?.h24;
     if (change) {
-      change.className = s.change === null ? '' : s.change > 0.00005 ? 'is-up' : s.change < -0.00005 ? 'is-down' : '';
-      change.textContent = s.change === null ? '' : `${s.change >= 0 ? '+' : ''}${(s.change * 100).toFixed(2)}% · ${range === '1h' ? '1h' : range === '24h' ? '24h' : '7d'}`;
+      change.className = typeof h24 !== 'number' ? '' : h24 > 0 ? 'is-up' : h24 < 0 ? 'is-down' : '';
+      change.textContent = typeof h24 === 'number' ? `${h24 >= 0 ? '+' : ''}${h24.toFixed(2)}% · 24h` : '';
     }
     if (stats) {
       stats.textContent = '';
-      for (const [k, v] of [['High', formatPrice(s.high)], ['Low', formatPrice(s.low)], ['Volume', formatUsd(s.volume)]] as const) stats.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
+      if (pair) {
+        const t24 = pair.txns?.h24;
+        for (const [k, v] of [['24h volume', formatUsd(pair.volume?.h24 ?? 0)], ['Liquidity', formatUsd(pair.liquidity?.usd ?? 0)], ['24h trades', String((t24?.buys ?? 0) + (t24?.sells ?? 0))]] as const) stats.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
+      }
     }
+    if (live) live.hidden = !pair;
+    const open = $<HTMLAnchorElement>('[data-chart-open]');
+    if (open) open.href = pair?.pairAddress ? `https://dexscreener.com/solana/${pair.pairAddress}` : 'https://dexscreener.com';
   }
-  document.querySelectorAll<HTMLElement>('[data-range]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const next = b.dataset.range as Range;
-      if (!(next in RANGES)) return;
-      chart.range = next;
-      document.querySelectorAll<HTMLElement>('[data-range]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      void ensureChart();
-    }),
-  );
+
+  /** Sub-cent prices need more places than a currency format gives. */
+  const formatPriceUsd = (n: number): string => (n >= 1 ? formatUsd(n) : `$${n.toPrecision(4).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`);
+
+  async function ensureChart(): Promise<void> {
+    const host = $<HTMLElement>('[data-chart-plot]');
+    if (!host || currentView() !== 'trade') return;
+    const subject = chartSubject();
+    renderChartHeader(subject, dexPairs.get(subject.mint)?.pair ?? null);
+    if (subject.mint === chart.mint && host.querySelector('iframe')) return;
+    chart.mint = subject.mint;
+    const mine = ++chart.seq;
+    host.textContent = '';
+    host.append(el('span', { class: 'wapp__sub', text: 'Loading chart…' }));
+    // ACT's own pool is known; anything else is looked up.
+    const pair = subject.mint === ACT_INFO.mint ? ((await bestPair(subject.mint, true)) ?? ({ pairAddress: POOLS[0]!.address } as DexPair)) : await bestPair(subject.mint, true);
+    if (mine !== chart.seq) return;
+    renderChartHeader(subject, pair);
+    host.textContent = '';
+    if (!pair?.pairAddress) return void host.append(el('span', { class: 'wapp__sub', text: `DexScreener has no chart for ${subject.symbol} yet.` }));
+    chart.pair = pair.pairAddress;
+    const frame = el('iframe', { class: 'wapp__chart-frame', attrs: { title: `${subject.symbol} live price chart and trades from DexScreener`, loading: 'lazy', referrerpolicy: 'strict-origin-when-cross-origin', sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox' } });
+    frame.src = embedUrl(pair.pairAddress);
+    host.append(frame);
+  }
+
+  /** Keeps the price header live while the Trade tab is open and the page is visible. */
+  function startChartTimer(): void {
+    window.clearInterval(chart.timer);
+    chart.timer = window.setInterval(async () => {
+      if (document.hidden || currentView() !== 'trade') return;
+      const subject = chartSubject();
+      renderChartHeader(subject, await bestPair(subject.mint, true));
+    }, DEX_PRICE_MS);
+  }
+  startChartTimer();
 
   // ---- trade widget (loaded only if the visitor asks for Jupiter's own screen)
   let jupiterStarted = false;

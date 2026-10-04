@@ -1,4 +1,6 @@
-import { candidatesFor, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+import { ACT as ACT_INFO } from '../data/site';
+import { loadWeb3, planSend, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
+import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -54,6 +56,8 @@ export interface Holding {
   name: string;
   icon: string | null;
   amount: number;
+  /** Exact balance in the smallest unit (a decimal string), when Jupiter gave it. */
+  raw: string | null;
   /** Decimal places, from Jupiter's token data (9 for native SOL); null when unknown. */
   decimals: number | null;
   price: number | null;
@@ -108,6 +112,8 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 interface JupBalance {
   uiAmount?: number;
+  /** Exact balance in the token's smallest unit. */
+  amount?: string;
 }
 interface JupToken {
   id: string;
@@ -127,11 +133,12 @@ interface DexPair {
 export async function loadHoldings(address: string): Promise<Holding[]> {
   const balances = await getJson<Record<string, JupBalance>>(`https://lite-api.jup.ag/ultra/v1/balances/${address}`);
   const entries = Object.entries(balances)
-    .map(([key, b]) => [key === 'SOL' ? SOL_MINT : key, Number(b.uiAmount ?? 0)] as const)
+    .map(([key, b]) => [key === 'SOL' ? SOL_MINT : key, Number(b.uiAmount ?? 0), typeof b.amount === 'string' && /^\d+$/.test(b.amount) ? b.amount : null] as const)
     .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
     .slice(0, MAX_MINTS);
   if (entries.length === 0) return [];
   const mints = entries.map(([mint]) => mint);
+  const rawByMint = new Map(entries.map(([mint, , raw]) => [mint, raw] as const));
 
   const meta = new Map<string, JupToken>();
   try {
@@ -174,6 +181,7 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
         name: native ? 'Solana' : (t?.name ?? '').slice(0, 60),
         icon: safeIcon(t?.icon),
         amount,
+        raw: rawByMint.get(mint) ?? null,
         decimals: native ? 9 : typeof t?.decimals === 'number' ? t.decimals : null,
         price: p?.price ?? null,
         priceSource: p?.source ?? null,
@@ -238,9 +246,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'trade' | 'activity' | 'shield' | 'intent';
-const VIEWS: View[] = ['dashboard', 'trade', 'activity', 'shield', 'intent'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
+type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent';
+const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Send', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -360,6 +368,7 @@ export function initWalletApp(): void {
     activity = null;
     renderDashboard();
     renderActivity();
+    renderSendAssets();
     if (!address) return;
     const a = address;
     const [h, act] = await Promise.allSettled([loadHoldings(a), loadActivity(a)]);
@@ -368,6 +377,7 @@ export function initWalletApp(): void {
       holdings = h.value;
       renderDashboard();
     } else renderDashboard(h.reason instanceof Error ? h.reason.message : 'unknown error');
+    renderSendAssets();
     if (act.status === 'fulfilled') {
       activity = act.value;
       renderActivity();
@@ -411,6 +421,173 @@ export function initWalletApp(): void {
     };
     document.head.append(s);
   }
+
+  // ---- send tab
+  let sendBusy = false;
+  const sendEls = () => ({
+    asset: $<HTMLSelectElement>('[data-send-asset]'),
+    to: $<HTMLInputElement>('[data-send-to]'),
+    amount: $<HTMLInputElement>('[data-send-amount]'),
+    out: $<HTMLElement>('[data-send-review]'),
+  });
+  const selectedHolding = (): Holding | undefined => {
+    const { asset } = sendEls();
+    return asset && holdings ? holdings.find((h) => h.mint === asset.value) : undefined;
+  };
+
+  function renderSendAssets(): void {
+    const { asset } = sendEls();
+    if (!asset) return;
+    const previous = asset.value;
+    asset.textContent = '';
+    asset.disabled = true;
+    if (!address) return void asset.append(new Option('Connect a wallet first', ''));
+    if (holdings === null) return void asset.append(new Option('Loading your tokens…', ''));
+    if (holdings.length === 0) return void asset.append(new Option('This wallet holds no tokens', ''));
+    asset.disabled = false;
+    for (const h of holdings) asset.append(new Option(`${h.symbol} · ${formatAmount(h.amount)}${h.mint === SOL_MINT ? '' : ` · ${shorten(h.mint)}`}`, h.mint));
+    if (holdings.some((h) => h.mint === previous)) asset.value = previous;
+  }
+
+  /** Called by Intent: fills the Send form and opens it. Nothing is reviewed or sent yet. */
+  function prefillSend(mint: string, recipient: string, amount: string): void {
+    const { asset, to, amount: amountField, out } = sendEls();
+    if (asset) asset.value = mint;
+    if (to) to.value = recipient;
+    if (amountField) amountField.value = amount;
+    if (out) out.textContent = '';
+    location.hash = '#/send';
+  }
+
+  const friendlyError = (e: unknown): string => {
+    const m = e instanceof Error ? e.message : 'unknown error';
+    return /reject|declin|denied|cancel/i.test(m) ? 'You declined the request in your wallet. Nothing was sent.' : m;
+  };
+  const banner = (kind: 'ok' | 'warn' | 'info', text: string) => el('p', { class: `wapp__banner wapp__banner--${kind}`, text });
+
+  function rowsList(rows: [string, Node | string][]): HTMLElement {
+    const dl = el('dl', { class: 'wapp__rows' });
+    for (const [k, v] of rows) dl.append(el('div', {}, [el('dt', { text: k }), el('dd', {}, [typeof v === 'string' ? document.createTextNode(v) : v])]));
+    return dl;
+  }
+
+  function renderSendReview(plan: SendPlan, sim: Simulation | null, name: string | null, req: SendRequest, plannedAt: number): void {
+    const { out } = sendEls();
+    if (!out) return;
+    out.textContent = '';
+    const card = el('div', { class: 'wapp__result' });
+    out.append(card);
+    const sol = (lamports: bigint) => `${fromSmallestUnit(lamports, 9)} SOL`;
+    const toCell = el('span', {}, [name ? el('strong', { text: `${name} ` }) : null, el('code', { class: 'wapp-mono', text: plan.to })]);
+    const rows: [string, Node | string][] = [
+      ['You send', `${plan.amountText} ${plan.symbol}`],
+      ['To', toCell],
+      ['Network fee', `about ${sol(plan.feeLamports)}`],
+    ];
+    if (plan.createsDestAta) rows.push(['Opens recipient account', `about ${sol(plan.rentLamports)}, paid by you`]);
+    card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
+
+    if (plan.mint === ACT_INFO.mint) {
+      const received = Number(plan.amountText) * (1 - ACT_INFO.transferFee.totalPercent / 100);
+      card.append(banner('info', `ACT withholds a ${ACT_INFO.transferFee.totalPercent}% transfer fee, so the recipient receives about ${formatAmount(received)} ACT.`));
+    } else if (plan.mayCharge) {
+      card.append(banner('info', 'This token may withhold a transfer fee of its own, so the recipient may receive slightly less.'));
+    }
+    if (plan.blockers.length === 0) for (const f of shieldFindings(plan.recipient, address, plan.to)) card.append(banner(f.severity === 'warning' ? 'warn' : 'info', f.message));
+    for (const b of plan.blockers) card.append(banner('warn', b));
+    const simBanner = sim ? (sim.ok ? banner('ok', 'Simulation passed: the network would accept this transaction. No funds have moved.') : banner('warn', `Simulation failed, so this was not sent to your wallet: ${sim.error}`)) : null;
+    if (simBanner) card.append(simBanner);
+
+    const canGo = plan.blockers.length === 0 && sim?.ok === true;
+    const ack = el('input', { attrs: { type: 'checkbox', id: 'send-ack' } });
+    if (canGo && plan.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-ack' } }, [ack, el('span', { text: 'This address is owned by another program, not a normal wallet. I understand and want to continue.' })]));
+
+    const status = el('div', { attrs: { 'aria-live': 'polite' } });
+    const actions = el('div', { class: 'wapp__row-actions' });
+    const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
+    const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
+    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked));
+    sync();
+    ack.addEventListener('change', sync);
+    cancel.addEventListener('click', () => (out.textContent = ''));
+    confirm.addEventListener('click', async () => {
+      if (sendBusy) return;
+      sendBusy = true;
+      sync();
+      status.textContent = '';
+      status.append(banner('info', 'Waiting for your wallet to approve…'));
+      try {
+        if (address !== plan.from) throw new Error('The connected wallet changed. Review the transfer again.');
+        let active = plan;
+        if (Date.now() - plannedAt > 45_000) {
+          // The blockhash in the reviewed transaction is about to expire: rebuild it from the same inputs.
+          active = await planSend(req);
+          const again = active.blockers.length === 0 ? await simulatePlan(active) : null;
+          if (active.blockers.length > 0 || !again?.ok) return void renderSendReview(active, again, name, req, Date.now());
+        }
+        const signature = await signAndSubmit(active);
+        status.textContent = '';
+        if (simBanner) simBanner.hidden = true; // "no funds have moved" is no longer true once it is sent
+        const link = el('a', { text: 'View on Solscan', attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } });
+        status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link]));
+        actions.hidden = true;
+        const result = await waitForConfirmation(signature);
+        status.textContent = '';
+        const text = result === 'confirmed' ? 'Confirmed on Solana.' : result === 'failed' ? 'The transaction failed on-chain. Check Solscan for the reason.' : 'Not confirmed yet. It may still land; check Solscan.';
+        status.append(el('p', { class: `wapp__banner wapp__banner--${result === 'confirmed' ? 'ok' : result === 'failed' ? 'warn' : 'info'}` }, [document.createTextNode(`${text} `), el('a', { text: 'View on Solscan', attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } })]));
+        void refresh();
+      } catch (e) {
+        status.textContent = '';
+        status.append(banner('warn', friendlyError(e)));
+      } finally {
+        sendBusy = false;
+        sync();
+      }
+    });
+    actions.append(confirm, cancel);
+    if (!canGo) confirm.hidden = true;
+    card.append(actions, status);
+  }
+
+  async function onSendSubmit(): Promise<void> {
+    const { to, amount, out } = sendEls();
+    if (!out || !to || !amount) return;
+    out.textContent = '';
+    const h = selectedHolding();
+    const target = to.value.trim();
+    const amountText = amount.value.trim();
+    if (!address || !h) return void out.append(el('p', { class: 'wapp-error', text: 'Connect a wallet and choose an asset first.' }));
+    if (!target || !amountText) return void out.append(el('p', { class: 'wapp-error', text: 'Enter a recipient and an amount.' }));
+    out.append(el('p', { class: 'wapp-sub', text: 'Checking the transfer…' }));
+    try {
+      let recipient = target;
+      let name: string | null = null;
+      if (!isSolanaAddress(target)) {
+        recipient = await resolveName(target);
+        name = target;
+      }
+      const req: SendRequest = { from: address, to: recipient, mint: h.mint === SOL_MINT ? null : h.mint, symbol: h.symbol, amountText };
+      const plan = await planSend(req);
+      const sim = plan.blockers.length === 0 ? await simulatePlan(plan) : null;
+      renderSendReview(plan, sim, name, req, Date.now());
+    } catch (e) {
+      out.textContent = '';
+      out.append(el('p', { class: 'wapp-error', text: friendlyError(e) }));
+    }
+  }
+
+  $('[data-send-form]')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void onSendSubmit();
+  });
+  $('[data-send-max]')?.addEventListener('click', () => {
+    const h = selectedHolding();
+    const { amount } = sendEls();
+    if (!h || !amount || h.decimals === null || h.raw === null) return;
+    let raw = BigInt(h.raw);
+    if (h.mint === SOL_MINT) raw = raw > BASE_FEE_LAMPORTS ? raw - BASE_FEE_LAMPORTS : 0n; // leave the network fee
+    amount.value = fromSmallestUnit(raw, h.decimals);
+  });
 
   // ---- shield tab
   function renderFindings(findings: Finding[]): Node[] {
@@ -476,17 +653,45 @@ export function initWalletApp(): void {
 
     if (intent.kind === 'send') {
       card.append(el('strong', { text: `Read as: send ${intent.amount} ${intent.assetSymbol} to ${intent.recipient}` }));
-      card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: "Sending isn't on the web wallet yet, so Intent can't make this transfer. Send it from your own wallet." }));
-      if (isSolanaAddress(intent.recipient)) {
-        const btn = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check this address with Shield', attrs: { type: 'button' } });
-        btn.addEventListener('click', () => {
-          const field = $<HTMLInputElement>('#shield-input');
-          if (field) field.value = intent.recipient;
-          location.hash = '#/shield';
-          void runShield(intent.recipient);
-        });
-        card.append(btn);
+      if (!address) {
+        card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: 'Connect a wallet so Intent can see what you hold.' }));
+        const connect = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Connect wallet', attrs: { type: 'button' } });
+        connect.addEventListener('click', () => document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click());
+        card.append(connect);
+        return;
       }
+      if (holdings === null) {
+        card.append(el('p', { class: 'wapp-sub', text: 'Still loading your balances. Try again in a moment.' }));
+        return;
+      }
+      const options = candidatesFor(intent.assetSymbol, holdings, false);
+      const pick = { mint: options.length === 1 ? options[0]!.mint : (null as string | null) };
+      const actions = el('div', { class: 'wapp__row-actions' });
+      const renderSendActions = () => {
+        actions.textContent = '';
+        const chosen = options.find((c) => c.mint === pick.mint);
+        const problems: string[] = [];
+        if (options.length === 0) problems.push(`You do not hold ${intent.assetSymbol} in this wallet.`);
+        if (chosen && chosen.amount !== null && Number(intent.amount) > chosen.amount) problems.push(`You hold ${formatAmount(chosen.amount)} ${chosen.symbol}, which is less than ${intent.amount}.`);
+        for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
+        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Send', attrs: { type: 'button' } });
+        go.disabled = !chosen || problems.length > 0;
+        go.addEventListener('click', () => chosen && prefillSend(chosen.mint, intent.recipient, intent.amount));
+        actions.append(go);
+        if (isSolanaAddress(intent.recipient)) {
+          const check = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check this address with Shield', attrs: { type: 'button' } });
+          check.addEventListener('click', () => {
+            const field = $<HTMLInputElement>('#shield-input');
+            if (field) field.value = intent.recipient;
+            location.hash = '#/shield';
+            void runShield(intent.recipient);
+          });
+          actions.append(check);
+        }
+      };
+      if (options.length > 1) card.append(pickGroup('intent-send', `${intent.assetSymbol} matches more than one token you hold. Which one?`, options, pick, renderSendActions));
+      card.append(actions);
+      renderSendActions();
       return;
     }
 
@@ -557,6 +762,7 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     if (currentView() === 'trade') startJupiter();
+    if (currentView() === 'send') void loadWeb3();
   }
   window.addEventListener('hashchange', onRoute);
   document.querySelectorAll<HTMLElement>('[data-nav]').forEach((b) => b.addEventListener('click', () => (location.hash = `#/${b.dataset.nav}`)));

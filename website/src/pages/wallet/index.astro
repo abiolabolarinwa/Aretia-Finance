@@ -20,6 +20,10 @@ import { ACT, POOLS } from '../../data/site';
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="2" /><rect x="13.5" y="3" width="7.5" height="5" rx="2" /><rect x="13.5" y="11" width="7.5" height="10" rx="2" /><rect x="3" y="15" width="7.5" height="6" rx="2" /></svg>
           Dashboard
         </button>
+        <button type="button" data-nav="send">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
+          Send
+        </button>
         <button type="button" data-nav="trade">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
           Trade
@@ -76,6 +80,7 @@ import { ACT, POOLS } from '../../data/site';
             <div class="wapp__total" data-total>—</div>
             <div class="wapp__sub" data-total-sub></div>
             <div class="wapp__actions">
+              <button type="button" class="wapp__btn wapp__btn--dark" data-nav="send">Send</button>
               <button type="button" class="wapp__btn wapp__btn--dark" data-nav="trade">Trade</button>
               <button type="button" class="wapp__btn wapp__btn--primary" data-receive>Receive</button>
               <a class="wapp__btn wapp__btn--ghost" data-solscan target="_blank" rel="noopener noreferrer" href="https://solscan.io">Solscan</a>
@@ -125,6 +130,41 @@ import { ACT, POOLS } from '../../data/site';
         </div>
       </div>
 
+      <div data-pane="send" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <h2 class="wapp__h2">Send or pay</h2>
+            <p class="wapp__fine">
+              Send SOL or a token you hold to a Solana address, or pay a <b>.sns</b> name. You review the full transaction here, then approve it in your own wallet.
+            </p>
+            <form class="wapp__form" data-send-form>
+              <label for="send-asset" class="wapp__eyebrow">Asset</label>
+              <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
+              <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
+              <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
+              <label for="send-amount" class="wapp__eyebrow">Amount</label>
+              <div class="wapp__amount">
+                <input id="send-amount" class="wapp__input" data-send-amount inputmode="decimal" autocomplete="off" placeholder="0.0" />
+                <button type="button" class="wapp__btn wapp__btn--ghost" data-send-max>Max</button>
+              </div>
+              <button type="submit" class="wapp__btn wapp__btn--primary">Review</button>
+            </form>
+            <div data-send-review aria-live="polite"></div>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Before you send</span>
+            <ul class="wapp__list">
+              <li>Transfers on Solana cannot be reversed. Check the full address on the review screen.</li>
+              <li>Aretia never holds your keys. Your wallet shows the transaction and signs it; this page then submits it.</li>
+              <li>Before it asks your wallet, the page simulates the transaction on a public RPC. A failed simulation blocks the send.</li>
+              <li>The addresses and amounts involved, and any .sns name you type, are sent to a public Solana RPC.</li>
+              <li>Sending a token to an address that has no account for it opens one, paid in SOL by you (about 0.002 SOL).</li>
+              <li>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move, so the recipient gets slightly less than you send.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <div data-pane="shield" class="wapp__pane" hidden>
         <div class="wapp__grid wapp__grid--trade">
           <div class="wapp__card">
@@ -155,7 +195,7 @@ import { ACT, POOLS } from '../../data/site';
           <div class="wapp__card">
             <h2 class="wapp__h2">Say what you want to do</h2>
             <p class="wapp__fine">
-              Type a phrase and Intent shows how it read it. A swap opens the Trade tab with the tokens and amount filled in; nothing happens until you approve it in your own wallet.
+              Type a phrase and Intent shows how it read it. A swap opens the Trade tab, and a send opens the Send tab, with everything filled in. Nothing happens until you approve it in your own wallet.
             </p>
             <form class="wapp__form" data-intent-form>
               <label for="intent-input" class="wapp__eyebrow">What would you like to do?</label>
@@ -175,7 +215,7 @@ import { ACT, POOLS } from '../../data/site';
               <li>It understands a fixed set of phrases ("swap 10 USDC for SOL", "send 0.5 SOL to …"). It is not an AI model, and it refuses anything else instead of guessing.</li>
               <li>Amounts must be plain numbers: not "$50", "half" or "all".</li>
               <li>Swaps use tokens you hold, plus SOL, USDC, USDT and ACT by their real mint addresses. If a name matches more than one token, you pick which one, so a lookalike token is never chosen for you.</li>
-              <li>Sending is not on the web wallet yet. Intent will read a send phrase, but you make the transfer in your own wallet.</li>
+              <li>A send phrase opens the Send tab with the asset, address and amount filled in. You still review it there and approve it in your own wallet.</li>
             </ul>
           </div>
         </div>
@@ -274,6 +314,17 @@ import { ACT, POOLS } from '../../data/site';
   .wapp[data-connected='false'] [data-refresh] { display: none; }
   .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
 
+  .wapp[data-connected='false'][data-view='send'] [data-pane='send'] { display: none; }
+  .wapp[data-view='send'] [data-refresh] { display: none; }
+  .wapp__amount { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .wapp__rows { display: grid; gap: 0; margin: 0; }
+  .wapp__rows > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; font-size: 13px; border-top: 1px solid var(--color-border); }
+  .wapp__rows > div:first-child { border-top: 0; }
+  .wapp__rows dt { color: var(--color-muted); flex: none; }
+  .wapp__rows dd { margin: 0; text-align: right; color: var(--color-strong); overflow-wrap: anywhere; }
+  .wapp__rows code { font-size: 12px; }
+  .wapp__check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; }
+  .wapp__row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
   .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
   .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }

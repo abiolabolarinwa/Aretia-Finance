@@ -1,7 +1,7 @@
 import { ACT as ACT_INFO, POOLS } from '../data/site';
 import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
 import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
-import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, splitSwapFee, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -514,6 +514,8 @@ export function initWalletApp(): void {
       const rate = Number(fromSmallestUnit(q.outAmount, swap.to.decimals)) / Number(fromSmallestUnit(q.inAmount, swap.from.decimals));
       const row = (k: string, v: string) => details.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
       row('Rate', `1 ${swap.from.symbol} ≈ ${formatAmount(rate)} ${swap.to.symbol}`);
+      const feeNow = splitSwapFee(amountRaw() ?? 0n).fee;
+      row('Aretia fee (1%)', `${fmtRaw(feeNow, swap.from.decimals)} ${swap.from.symbol}`);
       row('Minimum you receive', `${fmtRaw(q.minOut, swap.to.decimals)} ${swap.to.symbol}`);
       row('Price impact of your size', swap.impact === null ? '—' : swap.impact < 0.001 ? '<0.1%' : `${(swap.impact * 100).toFixed(1)}%`);
       row('Slippage allowed', `${(slipBps() / 100).toString()}%${swap.slip === 'auto' ? ' (auto)' : ''}`);
@@ -559,7 +561,8 @@ export function initWalletApp(): void {
     swap.quoting = true;
     renderSwap();
     try {
-      const q = await fetchQuote(swap.from.mint, swap.to.mint, raw, slipBps());
+      // Aretia's 1% comes off first; Jupiter quotes the rest.
+      const q = await fetchQuote(swap.from.mint, swap.to.mint, splitSwapFee(raw).net, slipBps());
       if (mine !== swap.seq) return;
       swap.quote = q;
       swap.quoting = false;
@@ -689,7 +692,9 @@ export function initWalletApp(): void {
       ['Minimum you receive', `${fmtRaw(plan.quote.minOut, args.to.decimals)} ${args.to.symbol}`],
       ['Network fee', `about ${solText(BASE_FEE_LAMPORTS + BigInt(plan.priorityFeeLamports))}`],
     ];
+    rows.splice(1, 0, ['Aretia fee (1%, included above)', plan.feeRaw > 0n ? `${fromSmallestUnit(plan.feeRaw, args.from.decimals)} ${args.from.symbol}` : 'none on this swap']);
     if (plan.opensOutputAccount) rows.push(['Opens your token account', 'about 0.002 SOL, paid by you']);
+    if (plan.opensFeeAccount) rows.push(['Opens the fee account (first time for this token)', 'about 0.002 SOL, paid by you']);
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
     const okBanner = plan.blockers.length === 0 ? banner('ok', 'Checked against your balances: nothing else in your wallet changes, and the swap would succeed. No funds have moved.') : null;
     if (okBanner) card.append(okBanner);

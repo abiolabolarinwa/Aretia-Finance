@@ -1,7 +1,8 @@
 /**
  * Swaps for the web wallet, using Jupiter's Swap API behind our own screen.
  *
- * Jupiter quotes the route and builds the transaction. Because that transaction comes from a third
+ * Jupiter quotes the route and supplies the swap instructions; this page adds Aretia's 1% fee as one
+ * extra transfer and assembles the transaction itself. Because the swap instructions come from a third
  * party, nothing is signed on trust: the page decodes it, checks the fee payer, simulates it on our
  * RPC with the wallet's own balances watched, and judges the swap by what it would do to those
  * balances (see judgeSwapSimulation). Only then does it ask the connected wallet to sign, checks the
@@ -15,11 +16,19 @@ import type * as Web3 from '@solana/web3.js';
 import { fetchAccount, loadWeb3, rpcCall } from './walletSend';
 import {
   ataAddress,
+  createAtaIdempotentInstruction,
   judgeSwapSimulation,
+  MIN_NEW_ACCOUNT_LAMPORTS,
   parseTokenAccount,
   sizeImpact,
+  solTransferInstruction,
+  splitSwapFee,
+  SWAP_FEE_ACCOUNT_RENT_LAMPORTS,
+  SWAP_FEE_WALLET,
+  SWAP_SOL_OVERHEAD_LAMPORTS,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  transferCheckedInstruction,
   type SwapSimulation,
   type SwapVerdict,
 } from './walletTools';
@@ -90,7 +99,7 @@ export interface Quote {
 }
 
 export async function fetchQuote(inMint: string, outMint: string, amountRaw: bigint, slippageBps: number): Promise<Quote> {
-  const q = new URLSearchParams({ inputMint: inMint, outputMint: outMint, amount: amountRaw.toString(), slippageBps: String(slippageBps), restrictIntermediateTokens: 'true' });
+  const q = new URLSearchParams({ inputMint: inMint, outputMint: outMint, amount: amountRaw.toString(), slippageBps: String(slippageBps), restrictIntermediateTokens: 'true', maxAccounts: '54' });
   const raw = await jupJson<JupQuote>(`/swap/v1/quote?${q}`);
   return {
     raw,
@@ -143,9 +152,28 @@ export interface SwapPlan {
   /** Problems that stop the swap: bad transaction shape or a failed simulation check. */
   blockers: string[];
   priorityFeeLamports: number;
+  /** Aretia's fee, in the token being sold (raw units). Zero for dust amounts. */
+  feeRaw: bigint;
+  /** The fee goes to an account that does not exist yet for this token, so the swap opens it (paid by the user). */
+  opensFeeAccount: boolean;
   /** The simulation shows the swap opening a token account for the token you are buying. */
   opensOutputAccount: boolean;
   plannedAt: number;
+}
+
+interface JupInstruction {
+  programId: string;
+  accounts: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+  data: string;
+}
+interface JupSwapInstructions {
+  computeBudgetInstructions?: JupInstruction[];
+  setupInstructions?: JupInstruction[];
+  swapInstruction?: JupInstruction;
+  cleanupInstruction?: JupInstruction | null;
+  otherInstructions?: JupInstruction[];
+  addressLookupTableAddresses?: string[];
+  prioritizationFeeLamports?: number;
 }
 
 export interface PlanArgs {
@@ -179,8 +207,10 @@ interface SimAccount {
 /** Everything checked before the wallet is asked to sign. Throws only when a service cannot be reached. */
 export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   const web3 = await loadWeb3();
-  const quote = args.quote ?? (await fetchQuote(args.from.mint, args.to.mint, args.amountRaw, args.slippageBps));
-  const built = await jupJson<{ swapTransaction?: string; prioritizationFeeLamports?: number }>('/swap/v1/swap', {
+  // Aretia's fee comes off what the user sells; Jupiter swaps the rest.
+  const { fee, net } = splitSwapFee(args.amountRaw);
+  const quote = args.quote ?? (await fetchQuote(args.from.mint, args.to.mint, net, args.slippageBps));
+  const built = await jupJson<JupSwapInstructions>('/swap/v1/swap-instructions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -190,24 +220,76 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
       prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: MAX_PRIORITY_LAMPORTS, priorityLevel: 'medium' } },
     }),
   });
-  if (!built.swapTransaction) throw new Error('Jupiter did not return a transaction for this swap.');
-  const transaction = web3.VersionedTransaction.deserialize(bytesFromBase64(built.swapTransaction));
+  if (!built.swapInstruction) throw new Error('Jupiter did not return a swap for this pair.');
 
   const blockers: string[] = [];
-  if (transaction.message.staticAccountKeys[0]?.toBase58() !== args.user) blockers.push('The swap transaction does not use your wallet as the fee payer. It was blocked.');
-  if (transaction.message.header.numRequiredSignatures !== 1) blockers.push('The swap transaction asks for a signature from someone other than your wallet. It was blocked.');
 
   // Accounts to watch: the wallet's SOL, the two token accounts in the swap, and every other token it holds.
   const inIsSol = args.from.mint === SOL_MINT;
   const outIsSol = args.to.mint === SOL_MINT;
-  const ataFor = async (mint: string): Promise<string | null> => {
+  const ataFor = async (mint: string): Promise<{ ata: string; program: string } | null> => {
     const mintAccount = await fetchAccount(mint);
     if (!mintAccount || (mintAccount.owner !== TOKEN_PROGRAM_ID && mintAccount.owner !== TOKEN_2022_PROGRAM_ID)) return null;
-    return ataAddress(web3, args.user, mint, mintAccount.owner);
+    return { ata: ataAddress(web3, args.user, mint, mintAccount.owner), program: mintAccount.owner };
   };
-  const [inAta, outAta] = await Promise.all([inIsSol ? null : ataFor(args.from.mint), outIsSol ? null : ataFor(args.to.mint)]);
+  const [inInfo, outInfo] = await Promise.all([inIsSol ? null : ataFor(args.from.mint), outIsSol ? null : ataFor(args.to.mint)]);
+  const inAta = inInfo?.ata ?? null;
+  const outAta = outInfo?.ata ?? null;
   if (!inIsSol && !inAta) blockers.push(`${args.from.symbol} could not be read as a token.`);
   if (!outIsSol && !outAta) blockers.push(`${args.to.symbol} could not be read as a token.`);
+
+  // Aretia's fee: one transfer, in the token being sold, to the fee wallet. For a token this also opens the
+  // fee wallet's account the first time (rent paid by the user, shown in the review).
+  const feeInstructions: Web3.TransactionInstruction[] = [];
+  let feeRaw = fee;
+  let opensFeeAccount = false;
+  if (fee > 0n) {
+    if (inIsSol) {
+      // A brand-new system account must end up with the rent minimum, or the network rejects the transfer.
+      const feeWallet = await fetchAccount(SWAP_FEE_WALLET);
+      if (BigInt(feeWallet?.lamports ?? 0) + fee < MIN_NEW_ACCOUNT_LAMPORTS) feeRaw = 0n;
+      else feeInstructions.push(solTransferInstruction(web3, args.user, SWAP_FEE_WALLET, fee));
+    } else if (inInfo && inAta) {
+      const feeAta = ataAddress(web3, SWAP_FEE_WALLET, args.from.mint, inInfo.program);
+      opensFeeAccount = (await fetchAccount(feeAta)) === null;
+      if (opensFeeAccount) feeInstructions.push(createAtaIdempotentInstruction(web3, args.user, feeAta, SWAP_FEE_WALLET, args.from.mint, inInfo.program));
+      feeInstructions.push(transferCheckedInstruction(web3, inInfo.program, inAta, args.from.mint, feeAta, args.user, fee, args.from.decimals));
+    }
+  }
+
+  // Assemble the transaction: Jupiter's setup, then the fee, then the swap and clean-up.
+  const toInstruction = (i: JupInstruction): Web3.TransactionInstruction =>
+    new web3.TransactionInstruction({
+      programId: new web3.PublicKey(i.programId),
+      keys: i.accounts.map((a) => ({ pubkey: new web3.PublicKey(a.pubkey), isSigner: a.isSigner, isWritable: a.isWritable })),
+      data: bytesFromBase64(i.data) as unknown as Buffer,
+    });
+  const tableAddresses = built.addressLookupTableAddresses ?? [];
+  const [tableAccounts, blockhashResult] = await Promise.all([
+    tableAddresses.length ? rpcCall<{ value: ({ data: [string, string] } | null)[] }>('getMultipleAccounts', [tableAddresses, { encoding: 'base64', commitment: 'confirmed' }]) : Promise.resolve({ value: [] as ({ data: [string, string] } | null)[] }),
+    rpcCall<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]),
+  ]);
+  const tables = tableAddresses.map((address, n) => {
+    const account = tableAccounts.value[n];
+    if (!account) throw new Error('A lookup table Jupiter needs could not be read. Try again.');
+    return new web3.AddressLookupTableAccount({ key: new web3.PublicKey(address), state: web3.AddressLookupTableAccount.deserialize(bytesFromBase64(account.data[0])) });
+  });
+  const instructions = [
+    ...(built.computeBudgetInstructions ?? []).map(toInstruction),
+    ...(built.setupInstructions ?? []).map(toInstruction),
+    ...feeInstructions,
+    toInstruction(built.swapInstruction),
+    ...(built.cleanupInstruction ? [toInstruction(built.cleanupInstruction)] : []),
+    ...(built.otherInstructions ?? []).map(toInstruction),
+  ];
+  const message = new web3.TransactionMessage({ payerKey: new web3.PublicKey(args.user), recentBlockhash: blockhashResult.value.blockhash, instructions }).compileToV0Message(tables);
+  const transaction = new web3.VersionedTransaction(message);
+  try {
+    transaction.serialize();
+  } catch {
+    throw new Error('This route is too large to add the Aretia fee. Try a smaller amount or a different pair.');
+  }
+  if (transaction.message.header.numRequiredSignatures !== 1) blockers.push('The swap transaction asks for a signature from someone other than your wallet. It was blocked.');
 
   const others = args.heldOthers.filter((h) => h.mint !== SOL_MINT && h.mint !== args.from.mint && h.mint !== args.to.mint).slice(0, Math.floor((MAX_WATCHED - 3) / 2));
   const otherAddrs = others.map((h) => [ataAddress(web3, args.user, h.mint, TOKEN_PROGRAM_ID), ataAddress(web3, args.user, h.mint, TOKEN_2022_PROGRAM_ID)] as const);
@@ -239,7 +321,14 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     others: others.map((h, n) => ({ symbol: h.symbol, pre: sumOther(pre.value, idx + n * 2), post: sumOther(post, idx + n * 2) })),
     error: failure,
   };
-  const verdict = judgeSwapSimulation({ inputIsSol: inIsSol, outputIsSol: outIsSol, amountIn: args.amountRaw, minOut: quote.minOut, sim });
+  const verdict = judgeSwapSimulation({
+    inputIsSol: inIsSol,
+    outputIsSol: outIsSol,
+    amountIn: args.amountRaw,
+    minOut: quote.minOut,
+    sim,
+    overheadLamports: SWAP_SOL_OVERHEAD_LAMPORTS + (opensFeeAccount ? SWAP_FEE_ACCOUNT_RENT_LAMPORTS : 0n),
+  });
 
   return {
     quote,
@@ -247,6 +336,8 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     verdict,
     blockers: [...blockers, ...verdict.problems],
     priorityFeeLamports: built.prioritizationFeeLamports ?? 0,
+    feeRaw,
+    opensFeeAccount,
     opensOutputAccount: outIdx >= 0 && tokenAmount(pre.value[outIdx]) === null,
     plannedAt: Date.now(),
   };

@@ -280,6 +280,19 @@ export function judgeRecipient(account: AccountSnapshot): RecipientVerdict {
 
 /** SOL a swap may legitimately use besides the amount: base fee, capped priority fee and up to two new token accounts. */
 export const SWAP_SOL_OVERHEAD_LAMPORTS = 4_500_000n;
+/** Extra SOL allowed when the swap also opens Aretia's fee account (rent for a token account, with room to spare). */
+export const SWAP_FEE_ACCOUNT_RENT_LAMPORTS = 2_200_000n;
+/** Aretia's fee on every swap: 1% of what the user sells, taken from the token being sold. */
+export const SWAP_FEE_BPS = 100n;
+/** Where swap fees go: the management-fee wallet (see MANAGEMENT_FEE.md). */
+export const SWAP_FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
+
+/** Splits what the user sells into Aretia's fee (rounded down) and the amount that actually gets swapped. */
+export function splitSwapFee(amount: bigint): { fee: bigint; net: bigint } {
+  const fee = (amount * SWAP_FEE_BPS) / 10_000n;
+  return { fee, net: amount - fee };
+}
+
 /** Slippage presets the swap screen offers, in basis points. */
 export const SLIPPAGE_PRESETS_BPS = [50, 100, 300] as const;
 

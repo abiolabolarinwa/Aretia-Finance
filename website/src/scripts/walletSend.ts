@@ -5,8 +5,9 @@
  * click asks the connected wallet to sign; it then submits the signed bytes and watches for
  * confirmation. Names (.sns) are resolved with Bonfida's SNS SDK, loaded only when one is typed.
  *
- * Data leaving the page: the addresses and amounts involved go to the public Solana RPC, and a
- * typed .sns name goes to the same RPC through the SNS SDK.
+ * Data leaving the page: the addresses and amounts involved go to Aretia's RPC proxy (/api/rpc,
+ * which holds the provider key server-side), and a typed .sns name goes the same way through the
+ * SNS SDK. If the proxy is down or refuses, the page falls back to a public endpoint.
  */
 import type * as Web3 from '@solana/web3.js';
 import {
@@ -25,15 +26,36 @@ import {
   type AccountSnapshot,
 } from './walletTools';
 
+/** Public endpoint: the fallback for the proxy, and what the Jupiter widget talks to directly. */
 export const RPC_URL = 'https://solana-rpc.publicnode.com';
+const PROXY_PATH = '/api/rpc';
+let proxySkipUntil = 0;
+
+/**
+ * Sends a JSON-RPC request through the proxy first. If the proxy is missing (local dev), failing,
+ * rate-limiting or refusing the method, the same request goes to the public endpoint instead, so
+ * the page keeps working. After a hard failure the proxy is skipped for a minute.
+ * Shaped like `fetch` so it can also be handed to web3.js's Connection.
+ */
+export async function rpcFetch(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const request: RequestInit = { ...init, method: 'POST', headers: { 'content-type': 'application/json' } };
+  if (Date.now() >= proxySkipUntil) {
+    try {
+      const res = await fetch(PROXY_PATH, request);
+      if (res.ok) return res;
+      if (res.status === 404 || res.status >= 500) proxySkipUntil = Date.now() + 60_000;
+    } catch {
+      proxySkipUntil = Date.now() + 60_000;
+    }
+  }
+  return fetch(RPC_URL, request);
+}
 
 export async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
-    const res = await fetch(RPC_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
+    const res = await rpcFetch(PROXY_PATH, {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       signal: controller.signal,
     });
@@ -71,7 +93,7 @@ export async function resolveName(name: string): Promise<string> {
   const web3 = await loadWeb3();
   const { resolve } = await import('@bonfida/spl-name-service/domain');
   try {
-    const owner = await resolve(new web3.Connection(RPC_URL), name);
+    const owner = await resolve(new web3.Connection(new URL(PROXY_PATH, location.origin).href, { fetch: rpcFetch }), name);
     return owner.toBase58();
   } catch {
     throw new Error(`"${name}" did not resolve to an address. Check the spelling, or ask the recipient for their address.`);

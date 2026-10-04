@@ -1,5 +1,5 @@
 import { ACT as ACT_INFO } from '../data/site';
-import { loadWeb3, planSend, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
+import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
 /**
@@ -16,8 +16,8 @@ import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, pa
  *   - Jupiter  ultra/balances   token balances for the address
  *   - Jupiter  tokens/v2/search names, icons and prices for those mints
  *   - DexScreener tokens/v1     price for mints Jupiter has no price for (e.g. ACT)
- *   - Solana RPC (publicnode)   recent signatures for the Activity tab, and the account read
- *                               behind the Shield tab (the address being checked)
+ *   - Solana RPC (via /api/rpc, public fallback)  recent signatures for the Activity tab, the
+ *                               account read behind Shield, and everything Send needs
  *
  * Token names, symbols and icons come from third parties and may be hostile
  * (spam tokens are common), so everything is rendered with textContent and
@@ -26,7 +26,6 @@ import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, pa
 
 const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const RPC_URL = 'https://solana-rpc.publicnode.com';
 const JUPITER_PLUGIN = 'https://plugin.jup.ag/plugin-v1.js';
 const MAX_MINTS = 100;
 
@@ -199,26 +198,14 @@ export interface ActivityItem {
 }
 
 export async function loadActivity(address: string): Promise<ActivityItem[]> {
-  const body = { jsonrpc: '2.0', id: 1, method: 'getSignaturesForAddress', params: [address, { limit: 25 }] };
-  const res = await getJson<{ result?: { signature: string; blockTime: number | null; err: unknown }[]; error?: { message: string } }>(RPC_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.result) throw new Error(res.error?.message ?? 'The RPC returned no result');
-  return res.result.map((s) => ({ signature: s.signature, time: s.blockTime, ok: s.err === null }));
+  const sigs = await rpcCall<{ signature: string; blockTime: number | null; err: unknown }[]>('getSignaturesForAddress', [address, { limit: 25 }]);
+  return sigs.map((s) => ({ signature: s.signature, time: s.blockTime, ok: s.err === null }));
 }
 
 /** One `getAccountInfo` read with no data, enough to tell a wallet from a program or an unused address. */
 export async function loadAccountSnapshot(address: string): Promise<AccountSnapshot> {
-  const body = { jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [address, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }] };
-  const res = await getJson<{ result?: { value: { executable: boolean; owner: string } | null }; error?: { message: string } }>(RPC_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.result) throw new Error(res.error?.message ?? 'The RPC returned no result');
-  const v = res.result.value;
+  const result = await rpcCall<{ value: { executable: boolean; owner: string } | null }>('getAccountInfo', [address, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
+  const v = result.value;
   return v ? { exists: true, executable: v.executable, owner: v.owner } : { exists: false, executable: false, owner: null };
 }
 
@@ -256,6 +243,7 @@ export function initWalletApp(): void {
   let address: string | null = null;
   let walletName: string | null = null;
   let holdings: Holding[] | null = null;
+  let holdingsFailed = false;
   let activity: ActivityItem[] | null = null;
   let amountsHidden = false;
   let loadToken = 0;
@@ -365,6 +353,7 @@ export function initWalletApp(): void {
   async function refresh(): Promise<void> {
     const mine = ++loadToken;
     holdings = null;
+    holdingsFailed = false;
     activity = null;
     renderDashboard();
     renderActivity();
@@ -376,7 +365,10 @@ export function initWalletApp(): void {
     if (h.status === 'fulfilled') {
       holdings = h.value;
       renderDashboard();
-    } else renderDashboard(h.reason instanceof Error ? h.reason.message : 'unknown error');
+    } else {
+      holdingsFailed = true;
+      renderDashboard(h.reason instanceof Error ? h.reason.message : 'unknown error');
+    }
     renderSendAssets();
     if (act.status === 'fulfilled') {
       activity = act.value;
@@ -442,7 +434,7 @@ export function initWalletApp(): void {
     asset.textContent = '';
     asset.disabled = true;
     if (!address) return void asset.append(new Option('Connect a wallet first', ''));
-    if (holdings === null) return void asset.append(new Option('Loading your tokens…', ''));
+    if (holdings === null) return void asset.append(new Option(holdingsFailed ? "Couldn't load your tokens. Use Refresh on the Dashboard." : 'Loading your tokens…', ''));
     if (holdings.length === 0) return void asset.append(new Option('This wallet holds no tokens', ''));
     asset.disabled = false;
     for (const h of holdings) asset.append(new Option(`${h.symbol} · ${formatAmount(h.amount)}${h.mint === SOL_MINT ? '' : ` · ${shorten(h.mint)}`}`, h.mint));

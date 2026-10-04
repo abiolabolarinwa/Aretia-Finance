@@ -1,6 +1,35 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { ACT, POOLS } from '../../data/site';
+import { ACT, POOLS, PRODUCTS } from '../../data/site';
+
+// Universal and SafeSend are not usable on this page (mainnet + Solana only), so their tabs report
+// status. Copy comes from PRODUCTS, the single source the features page uses; the network rows
+// restate the deployment records (packages/safesend/src/deployments.ts and the bridge config).
+type Tone = 'on' | 'warn' | 'off';
+interface StatusRow { network: string; state: string; tone: Tone }
+const product = (slug: string) => PRODUCTS.find((p) => p.slug === slug)!;
+const safesend = product('safesend');
+const universal = product('universal');
+const safesendRows: StatusRow[] = [
+  { network: 'Solana mainnet (this page)', state: 'Not deployed', tone: 'off' },
+  { network: 'Solana devnet', state: 'Testnet', tone: 'on' },
+  { network: 'Ethereum Sepolia', state: 'Testnet', tone: 'on' },
+  { network: 'BNB Chain and Polygon mainnet', state: 'Deployed, not audited', tone: 'warn' },
+  { network: 'Ethereum mainnet', state: 'Not deployed', tone: 'off' },
+];
+const universalRows: StatusRow[] = [
+  { network: 'Solana mainnet ↔ Ethereum mainnet', state: 'Not live', tone: 'off' },
+  { network: 'Solana devnet ↔ Ethereum Sepolia', state: 'Testnet', tone: 'on' },
+  { network: 'ACT on BNB Chain and Polygon mainnet', state: 'Deployed, bridging not live', tone: 'warn' },
+];
+const safesendNeeds = [
+  'SafeSend deployed on Solana mainnet. Today the Solana program exists on devnet only.',
+  'A security audit of the vault and the program before it holds anyone’s real funds.',
+];
+const universalNeeds = [
+  'ACT bridging live on mainnet. Today it runs on testnet with zero-value test tokens.',
+  'An Ethereum wallet connection. This page connects Solana wallets only, and a bridge needs both sides.',
+];
 ---
 
 <Base
@@ -43,6 +72,14 @@ import { ACT, POOLS } from '../../data/site';
         <button type="button" data-nav="intent">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
           Intent
+        </button>
+        <button type="button" data-nav="safesend">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
+          SafeSend
+        </button>
+        <button type="button" data-nav="universal">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg>
+          Universal
         </button>
       </nav>
       <div class="wapp__side-foot">
@@ -141,8 +178,8 @@ import { ACT, POOLS } from '../../data/site';
           <button type="button" class="wapp__toolcard" data-nav="send"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M7 17L17 7M9 7h8v8" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Pay</span><strong>Send to a name</strong><span>Pay a .sns name instead of a long address.</span></span></button>
           <button type="button" class="wapp__toolcard" data-nav="shield"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Shield</span><strong>Check before you send</strong><span>Look up an address for no history or a smart contract.</span></span></button>
           <button type="button" class="wapp__toolcard" data-nav="intent"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Intent</span><strong>Type it, then review</strong><span>Write "swap 0.1 SOL for ACT" and confirm on the normal screen.</span></span></button>
-          <a class="wapp__toolcard" href="/wallet/about"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Universal<span class="wapp__toolcard-badge">Extension</span></span><strong>Move ACT across chains</strong><span>Bridge ACT between Solana and Ethereum. In the Aretia extension, testnet only today.</span></span></a>
-          <a class="wapp__toolcard" href="/wallet/about"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia SafeSend<span class="wapp__toolcard-badge">Extension</span></span><strong>Send with a safety delay</strong><span>Hold a transfer in escrow so you can cancel it first. In the Aretia extension.</span></span></a>
+          <button type="button" class="wapp__toolcard" data-nav="universal"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia Universal<span class="wapp__toolcard-badge">Testnet</span></span><strong>Move ACT across chains</strong><span>Bridge ACT between Solana and Ethereum. Testnet only today; see its status here.</span></span></button>
+          <button type="button" class="wapp__toolcard" data-nav="safesend"><span class="wapp__toolcard-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp__toolcard-text"><span class="wapp__toolcard-tag">Aretia SafeSend<span class="wapp__toolcard-badge">Not on mainnet yet</span></span><strong>Send with a safety delay</strong><span>Hold a transfer in escrow so you can cancel it first. See where it runs.</span></span></button>
           </div>
           <button type="button" class="wapp__tools-arrow" aria-label="Next tools" data-tools-next>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
@@ -276,6 +313,64 @@ import { ACT, POOLS } from '../../data/site';
         </div>
       </div>
 
+      <div data-pane="safesend" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Aretia SafeSend</span>
+            <h2 class="wapp__h2">Protected transfers</h2>
+            <p class="wapp__fine">{safesend.summary}</p>
+            <p class="wapp__banner wapp__banner--warn"><b>Not available on this web wallet yet.</b> It only works on networks where it is deployed, and this page uses Solana mainnet.</p>
+            <span class="wapp__eyebrow">What it does</span>
+            <ul class="wapp__list">
+              {safesend.today.map((point) => <li>{point}</li>)}
+            </ul>
+            <span class="wapp__eyebrow">Still to come</span>
+            <p class="wapp__fine">{safesend.roadmap.join(' · ')}</p>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Where it runs</span>
+            <dl class="wapp__rows">
+              {safesendRows.map((row) => <div><dt>{row.network}</dt><dd><span class={`wapp__state wapp__state--${row.tone}`}>{row.state}</span></dd></div>)}
+            </dl>
+            <span class="wapp__eyebrow">What has to happen first</span>
+            <ul class="wapp__list">
+              {safesendNeeds.map((need) => <li>{need}</li>)}
+            </ul>
+            <p class="wapp__fine">You can try it on the supported testnets in the Aretia browser extension, which is in development and not yet in the Chrome Web Store.</p>
+            <p class="wapp__fine"><a href="/features#safesend">Read more on the features page</a> · <a href="/wallet/about">About Aretia Wallet</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div data-pane="universal" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Aretia Universal</span>
+            <h2 class="wapp__h2">Move ACT between chains</h2>
+            <p class="wapp__fine">{universal.summary}</p>
+            <p class="wapp__banner wapp__banner--warn"><b>Not available on this web wallet yet.</b> It only works on networks where it is deployed, and this page uses Solana mainnet.</p>
+            <span class="wapp__eyebrow">What it does</span>
+            <ul class="wapp__list">
+              {universal.today.map((point) => <li>{point}</li>)}
+            </ul>
+            <span class="wapp__eyebrow">Still to come</span>
+            <p class="wapp__fine">{universal.roadmap.join(' · ')}</p>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Where it runs</span>
+            <dl class="wapp__rows">
+              {universalRows.map((row) => <div><dt>{row.network}</dt><dd><span class={`wapp__state wapp__state--${row.tone}`}>{row.state}</span></dd></div>)}
+            </dl>
+            <span class="wapp__eyebrow">What has to happen first</span>
+            <ul class="wapp__list">
+              {universalNeeds.map((need) => <li>{need}</li>)}
+            </ul>
+            <p class="wapp__fine">You can try it on the supported testnets in the Aretia browser extension, which is in development and not yet in the Chrome Web Store.</p>
+            <p class="wapp__fine"><a href="/features#universal">Read more on the features page</a> · <a href="/wallet/about">About Aretia Wallet</a></p>
+          </div>
+        </div>
+      </div>
+
       <div data-pane="activity" class="wapp__pane" hidden>
         <div class="wapp__card">
           <h2 class="wapp__h2">Recent transactions</h2>
@@ -389,6 +484,13 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__rows code { font-size: 12px; }
   .wapp__check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; }
   .wapp__row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .wapp[data-connected='false'][data-view='safesend'] .wapp__gate,
+  .wapp[data-connected='false'][data-view='universal'] .wapp__gate { display: none; }
+  .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='universal'] [data-refresh] { display: none; }
+  .wapp__state { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
+  .wapp__state--on { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
+  .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp__state--off { color: var(--color-muted); background: var(--color-bg-alt); }
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
   .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
   .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }

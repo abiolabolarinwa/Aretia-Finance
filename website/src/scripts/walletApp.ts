@@ -245,9 +245,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent';
-const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent' };
+type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');

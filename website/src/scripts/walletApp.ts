@@ -28,6 +28,10 @@ const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const JUPITER_PLUGIN = 'https://plugin.jup.ag/plugin-v1.js';
 const MAX_MINTS = 100;
+/** Below this much SOL a swap can fail: the network fee, plus about 0.002 SOL to open a new token account. */
+const LOW_SOL = 0.003;
+const lowSolMessage = (sol: number): string =>
+  `This wallet holds ${formatAmount(sol)} SOL. A swap needs a little SOL for the network fee, and your first ACT purchase also needs about 0.002 SOL to open your ACT account. Add some SOL first, or the swap will fail.`;
 
 interface WalletState {
   account: { address: string } | null;
@@ -311,8 +315,19 @@ export function initWalletApp(): void {
     }
   }
 
+  /** Trade tab: warn when the connected wallet is short of the SOL a swap needs for fees. */
+  function renderSolNotice(): void {
+    const note = $('[data-sol-notice]');
+    if (!note) return;
+    const sol = holdings?.find((h) => h.mint === SOL_MINT)?.amount ?? 0;
+    const low = address !== null && holdings !== null && sol < LOW_SOL;
+    note.hidden = !low;
+    note.textContent = low ? lowSolMessage(sol) : '';
+  }
+
   function renderDashboard(error?: string): void {
     renderTopAssets();
+    renderSolNotice();
     const total = $('[data-total]');
     const sub = $('[data-total-sub]');
     const body = $('[data-holdings]');
@@ -751,6 +766,9 @@ export function initWalletApp(): void {
       if (f && f.decimals !== null && raw === null) problems.push(`${f.symbol} has ${f.decimals} decimal places, so ${intent.amount} is too precise.`);
       if (f && f.decimals === null) actions.append(el('p', { class: 'wapp__banner wapp__banner--info', text: `Intent does not know how many decimals ${f.symbol} uses, so it will not fill in the amount. Enter it in the Trade tab.` }));
       for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
+      // Not a blocker (the wallet may still have enough), but the usual reason a non-SOL swap fails.
+      const sol = holdings?.find((h) => h.mint === SOL_MINT)?.amount ?? 0;
+      if (f && f.mint !== SOL_MINT && sol < LOW_SOL) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: lowSolMessage(sol) }));
       const ready = f !== undefined && t !== undefined && problems.length === 0;
       const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Trade', attrs: { type: 'button' } });
       go.disabled = !ready;

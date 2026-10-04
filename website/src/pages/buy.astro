@@ -20,6 +20,7 @@ import { ACT, LINKS, POOLS } from '../data/site';
           <div class="buy__connect" data-aretia-wallet-mount></div>
         </div>
         <p class="buy__status">ACT’s two liquidity pools opened on 2 October 2026. Jupiter finds the best route across them.</p>
+        <p class="buy__notice"><b>Keep a little SOL for fees.</b> Every swap pays a small network fee in SOL, and your first ACT purchase also opens your ACT token account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</p>
         <div id="jupiter-terminal" class="buy__terminal"><span class="buy__loading">Loading swap widget…</span></div>
         <a class="buy__listed" href={LINKS.dexscreener} target="_blank" rel="noopener noreferrer"><img src="/assets/logos/dexscreener.png" alt="" width="20" height="20" loading="lazy" />Listed on DexScreener · live price and trades ↗</a>
       </div>
@@ -89,6 +90,7 @@ import { ACT, LINKS, POOLS } from '../data/site';
   .buy__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-sm); flex-wrap: wrap; }
   .buy__head > div:first-child { display: grid; gap: 0.6rem; justify-items: start; }
   .buy__status { font-size: var(--text-small); color: var(--color-warn); }
+  .buy__notice { margin: 0; padding: 0.75rem 1rem; font-size: var(--text-small); line-height: 1.5; color: var(--color-strong); background: rgba(178, 94, 9, 0.1); border-radius: var(--radius-md); }
   .buy__terminal { min-height: 520px; border-radius: var(--radius-lg); overflow: hidden; background: rgba(0, 0, 0, 0.02); display: grid; }
   .buy__loading { place-self: center; color: var(--color-faint); font-size: var(--text-small); }
   /* Jupiter Plugin renders its own instance next to the placeholder; hide the placeholder once it has. */

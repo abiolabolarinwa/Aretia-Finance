@@ -166,8 +166,10 @@ import { ACT, POOLS } from '../../data/site';
           </div>
           <div class="wapp__card">
             <h2 class="wapp__h2">Trading ACT</h2>
+            <p class="wapp__banner wapp__banner--warn" data-sol-notice hidden></p>
             <p class="wapp__fine">Swaps are routed by Jupiter and signed in your own wallet. You see the full transaction before you approve it.</p>
             <ul class="wapp__list">
+              <li><b>Keep a little SOL for fees.</b> Every swap pays a small network fee in SOL, and your first ACT purchase also opens your ACT token account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</li>
               <li>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move, on top of pool and router fees.</li>
               <li>The launch pools open at a $0.005 floor, so buying below it is impossible. You can only sell back as much as buyers have paid in.</li>
               <li>Jupiter may show "Not sellable" and other warnings for new, thin tokens. They are automatic and don't mean ACT can't be sold.</li>
@@ -400,6 +402,7 @@ import { ACT, POOLS } from '../../data/site';
   .wapp__banner--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
   .wapp__banner--info { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
   .wapp__banner--ok { color: #14663a; background: rgba(27, 138, 75, 0.1); }
+  .wapp__banner[hidden] { display: none; }
   .wapp__pick { display: grid; gap: 6px; font-size: 13px; }
   .wapp__pick label { display: flex; align-items: center; gap: 8px; }
 

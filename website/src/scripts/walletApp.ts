@@ -38,6 +38,8 @@ interface WalletState {
   account: { address: string } | null;
   connecting: boolean;
   walletName: string | null;
+  /** The wallet's own logo as a base64 data URI (checked in wallet.js). Absent on older cached copies. */
+  walletIcon?: string | null;
 }
 interface AretiaWalletApi {
   getState(): WalletState;
@@ -255,6 +257,7 @@ export function initWalletApp(): void {
   if (!root) return;
   let address: string | null = null;
   let walletName: string | null = null;
+  let walletIcon: string | null = null;
   let holdings: Holding[] | null = null;
   let holdingsFailed = false;
   let activity: ActivityItem[] | null = null;
@@ -282,9 +285,17 @@ export function initWalletApp(): void {
     const chip = $('[data-account]');
     if (chip) {
       chip.textContent = '';
-      if (address) chip.append(el('strong', { text: walletName ?? 'Wallet' }), el('span', { class: 'wapp-mono', text: shorten(address) }));
-      else chip.append(el('strong', { text: 'Not connected' }), el('span', { text: 'Connect a wallet to begin' }));
+      if (address) {
+        if (walletIcon) {
+          const logo = el('img', { attrs: { alt: '', width: '34', height: '34', referrerpolicy: 'no-referrer' } });
+          logo.src = walletIcon;
+          chip.append(logo);
+        }
+        chip.append(el('div', {}, [el('strong', { text: walletName ?? 'Wallet' }), el('span', { class: 'wapp-mono', text: shorten(address) })]));
+      } else chip.append(el('div', {}, [el('strong', { text: 'Not connected' }), el('span', { text: 'Connect a wallet to begin' })]));
     }
+    const refresh = $<HTMLElement>('[data-refresh]');
+    if (refresh) refresh.hidden = !(address && (view === 'dashboard' || view === 'trade' || view === 'activity'));
     const addr = $('[data-address]');
     if (addr) addr.textContent = address ?? '';
     const scan = $<HTMLAnchorElement>('[data-solscan]');
@@ -504,7 +515,6 @@ export function initWalletApp(): void {
       const row = (k: string, v: string) => details.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
       row('Rate', `1 ${swap.from.symbol} ≈ ${formatAmount(rate)} ${swap.to.symbol}`);
       row('Minimum you receive', `${fmtRaw(q.minOut, swap.to.decimals)} ${swap.to.symbol}`);
-      row('Route', q.routes.join(' → ') || '—');
       row('Price impact of your size', swap.impact === null ? '—' : swap.impact < 0.001 ? '<0.1%' : `${(swap.impact * 100).toFixed(1)}%`);
       row('Slippage allowed', `${(slipBps() / 100).toString()}%${swap.slip === 'auto' ? ' (auto)' : ''}`);
     }
@@ -677,7 +687,6 @@ export function initWalletApp(): void {
       ['You pay', `${fromSmallestUnit(v.paid ?? args.amountRaw, args.from.decimals)} ${args.from.symbol}`],
       [v.received === null ? 'You receive about (quote)' : 'You receive about (simulated)', `${fmtRaw(got, args.to.decimals)} ${args.to.symbol}`],
       ['Minimum you receive', `${fmtRaw(plan.quote.minOut, args.to.decimals)} ${args.to.symbol}`],
-      ['Route', plan.quote.routes.join(' → ') || '—'],
       ['Network fee', `about ${solText(BASE_FEE_LAMPORTS + BigInt(plan.priorityFeeLamports))}`],
     ];
     if (plan.opensOutputAccount) rows.push(['Opens your token account', 'about 0.002 SOL, paid by you']);
@@ -1458,6 +1467,20 @@ export function initWalletApp(): void {
     }),
   );
 
+  // The network chip and Refresh live in the site's top bar, before the ACT price, whenever that bar has room
+  // for them (it hides its right-hand side on narrow screens, so there they stay at the top of the page).
+  function placeChips(): void {
+    const chips = $<HTMLElement>('.wapp__chips');
+    const actions = document.querySelector<HTMLElement>('header.nav .nav__actions');
+    const home = $<HTMLElement>('.wapp__top');
+    if (!chips || !actions || !home) return;
+    const wide = window.matchMedia('(min-width: 1081px)').matches;
+    if (wide) actions.insertBefore(chips, actions.firstElementChild);
+    else if (chips.parentElement !== home) home.append(chips);
+  }
+  window.matchMedia('(min-width: 1081px)').addEventListener('change', placeChips);
+  placeChips();
+
   // ---- wiring
   function onRoute(): void {
     renderChrome();
@@ -1523,6 +1546,8 @@ export function initWalletApp(): void {
   function onWallet(state: WalletState): void {
     const next = state.account?.address ?? null;
     walletName = state.walletName;
+    // Only an inert image is ever shown: wallet.js already filters, and this checks again.
+    walletIcon = typeof state.walletIcon === 'string' && /^data:image\/(svg\+xml|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(state.walletIcon) ? state.walletIcon : null;
     if (next === address) return void renderChrome();
     address = next;
     clearSessionOutputs();

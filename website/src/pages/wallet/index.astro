@@ -244,10 +244,9 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
               <div class="wapp__chart-price"><strong data-chart-price>—</strong><span data-chart-change></span></div>
               <dl class="wapp__chart-stats" data-chart-stats></dl>
               <div class="wapp__chart-plot" data-chart-plot aria-live="polite"><span class="wapp__sub">Loading chart…</span></div>
-              <p class="wapp__fine">Live chart and trades by <a href="https://dexscreener.com" target="_blank" rel="noopener noreferrer">DexScreener</a>. <a data-chart-open href="https://dexscreener.com" target="_blank" rel="noopener noreferrer">Open full chart</a></p>
             </div>
-            <section class="wapp__guide" aria-labelledby="guide-title">
-              <h2 class="wapp__h2" id="guide-title">Before you trade</h2>
+            <details class="wapp__guide">
+              <summary><h2 class="wapp__h2">Before you trade</h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
               <div class="wapp__guide-grid">
               <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2" /></svg></span><h3>Keep a little SOL</h3><p>Every swap pays a network fee in SOL, and your first ACT purchase opens your ACT account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</p></article>
               <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 5L5 19M7.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg></span><h3>ACT transfer fee</h3><p>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move. It is already included in the amounts this screen shows.</p></article>
@@ -256,8 +255,8 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
               <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><h3>ACT mint</h3><code class="wapp-mono wapp__mint">{ACT.mint}</code><p>Other tokens can copy ACT's name. Only this mint is ACT.</p></article>
               <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg></span><h3>Pools</h3>{POOLS.map((p) => (<p><a href={p.explorer} target="_blank" rel="noopener noreferrer">{p.pair}</a>{p.chart && <> · <a href={p.chart} target="_blank" rel="noopener noreferrer">chart</a></>}</p>))}</article>
               </div>
-              <p class="wapp__fine">Swaps are quoted by Jupiter and checked here before your wallet is asked to sign. <button type="button" class="wapp__linkbtn" data-jup-toggle>Use Jupiter's own screen instead</button></p>
-            </section>
+            </details>
+            <p class="wapp__fine">Swaps are quoted by Jupiter and checked here before your wallet is asked to sign. <button type="button" class="wapp__linkbtn" data-jup-toggle>Use Jupiter's own screen instead</button></p>
           </div>
         </div>
       </div>
@@ -474,7 +473,7 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
 
   <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
   <!-- ?v= busts the long browser cache on /assets (served as immutable); bump it whenever wallet.js changes. -->
-  <script is:inline src="/assets/wallet/wallet.js?v=20261003b"></script>
+  <script is:inline src="/assets/wallet/wallet.js?v=20261004a"></script>
   <script>
     import { initWalletApp } from '../../scripts/walletApp';
     initWalletApp();
@@ -485,7 +484,9 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
   /* The site nav is fixed to the top; pages offset their content by --nav-height. */
   .wapp { display: grid; grid-template-columns: 248px minmax(0, 1fr); box-sizing: border-box; min-height: 100vh; background: var(--color-bg-alt); }
   .wapp__side { position: sticky; top: 0; z-index: 60; align-self: start; display: flex; flex-direction: column; gap: 18px; height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 22px 14px; background: linear-gradient(180deg, #2c1a9c 0%, #1d1170 100%); border-right: 0; }
-  .wapp__account { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--radius-lg); background: rgba(255, 255, 255, 0.12); }
+  .wapp__account { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--radius-lg); background: rgba(255, 255, 255, 0.12); }
+  .wapp__account > div { display: grid; gap: 2px; min-width: 0; }
+  .wapp__account img { flex: none; box-sizing: border-box; width: 34px; height: 34px; padding: 5px; object-fit: contain; background: #fff; border-radius: 10px; }
   .wapp__account strong { font-size: 14px; color: #fff; }
   .wapp__account span { font-size: 12px; color: rgba(255, 255, 255, 0.78); }
   .wapp-mono { font-family: var(--font-mono); }
@@ -514,6 +515,7 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
   .wapp__chips { display: flex; gap: 8px; }
   .wapp__chip { padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: var(--radius-pill); }
   .wapp__chip--btn { cursor: pointer; }
+  .wapp__chip[hidden] { display: none; }
   .wapp__chip--btn:hover { background: var(--color-bg); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
 
   .wapp__card { padding: 22px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); display: grid; gap: 12px; align-content: start; }
@@ -711,14 +713,23 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
   .wapp__chart-price span { font-size: 14px; font-weight: 600; }
   .wapp__chart-price .is-up { color: var(--color-ok); }
   .wapp__chart-price .is-down { color: #b3261e; }
-  .wapp__chart-plot { position: relative; min-height: 420px; display: grid; align-items: center; }
-  .wapp__chart-frame { display: block; width: 100%; height: 640px; border: 0; border-radius: 14px; background: #fff; }
+  .wapp__chart-plot { position: relative; min-height: 420px; display: grid; align-items: center; overflow: hidden; border-radius: 14px; }
+  /* The embed ends with a DexScreener footer strip; the plot clips that strip off. Tune the crop here. */
+  .wapp__chart { --dex-footer-crop: 46px; }
+  .wapp__chart-frame { display: block; width: 100%; height: 640px; margin-bottom: calc(var(--dex-footer-crop) * -1); border: 0; background: #fff; }
   .wapp__chart-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
   .wapp__chart-stats:empty { display: none; }
   .wapp__chart-stats > div { display: grid; gap: 2px; padding: 8px 10px; background: var(--color-bg-alt); border-radius: 12px; }
   .wapp__chart-stats dt { font-size: 11px; color: var(--color-muted); }
   .wapp__chart-stats dd { margin: 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-strong); }
   .wapp__guide { display: grid; gap: 12px; }
+  .wapp__guide > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; list-style: none; cursor: pointer; }
+  .wapp__guide > summary::-webkit-details-marker { display: none; }
+  .wapp__guide > summary h2 { margin: 0; }
+  .wapp__guide > summary svg { flex: none; fill: none; stroke: var(--color-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 160ms ease; }
+  .wapp__guide[open] > summary svg { transform: rotate(180deg); }
+  .wapp__guide > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 8px; }
+  .wapp__guide[open] { gap: 12px; }
   .wapp__guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .wapp__tile { display: grid; align-content: start; gap: 6px; padding: 16px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 18px; }
   .wapp__tile h3 { margin: 0; font-size: 14px; color: var(--color-strong); }

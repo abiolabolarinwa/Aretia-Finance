@@ -1066,12 +1066,21 @@
   // Exposed for reuse/testing, per the "create utilities, don't duplicate
   // logic" brief -- other pages/scripts can read connection state or
   // reuse the pure functions without re-implementing them.
+  // The wallet's own logo, as the Wallet Standard defines it: a base64 data URI of an SVG, PNG, WebP or GIF.
+  // Anything else (a remote URL, script, odd encoding) is dropped, so the page only ever shows an inert image.
+  function safeWalletIcon(wallet) {
+    var icon = wallet && wallet.icon;
+    if (typeof icon !== "string" || icon.length > 200000) return null;
+    return /^data:image\/(svg\+xml|png|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(icon) ? icon : null;
+  }
+
   function publicState() {
     return {
       account: state.account,
       connecting: state.connecting,
       wallets: state.wallets.map(function (w) { return w.name; }),
       walletName: state.connectedWallet ? state.connectedWallet.name : null,
+      walletIcon: safeWalletIcon(state.connectedWallet),
     };
   }
 

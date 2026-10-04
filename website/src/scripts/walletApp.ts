@@ -246,9 +246,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal' | 'marketplace';
+const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal', 'marketplace'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal', marketplace: 'Marketplace' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -263,6 +263,8 @@ export function initWalletApp(): void {
 
   const currentView = (): View => {
     const h = location.hash.replace(/^#\/?/, '') as View;
+    // The Marketplace tab only exists on builds that switch it on; otherwise its address falls back to the dashboard.
+    if (h === 'marketplace' && !$('[data-pane="marketplace"]')) return 'dashboard';
     return VIEWS.includes(h) ? h : 'dashboard';
   };
 
@@ -1110,6 +1112,127 @@ export function initWalletApp(): void {
     amount.value = fromSmallestUnit(raw, h.decimals);
   });
 
+  // ---- Aretia Marketplace (only wired up on builds that include the tab)
+  interface RampStatus {
+    enabled: boolean;
+    providers?: { id: string; name: string; sides: string[] }[];
+  }
+  interface RampCatalog {
+    countries: { code: string; name: string }[];
+    fiats: string[];
+  }
+  const market = { side: 'buy' as 'buy' | 'sell', asset: 'USDC' as 'USDC' | 'USDT', loadState: 'idle' as 'idle' | 'loading' | 'ready' | 'failed', status: null as RampStatus | null, catalog: null as RampCatalog | null, message: null as { kind: 'ok' | 'warn' | 'info'; text: string } | null };
+
+  async function rampApi<T>(body: Record<string, unknown>): Promise<T> {
+    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+    if (!res.ok || !data) throw new Error(data?.error ?? `The marketplace service answered ${res.status}`);
+    return data;
+  }
+
+  async function loadMarketplace(): Promise<void> {
+    if (!$('[data-market]') || market.loadState === 'loading' || market.loadState === 'ready') return;
+    market.loadState = 'loading';
+    renderMarketplace();
+    try {
+      market.status = await rampApi<RampStatus>({ action: 'status' });
+      if (market.status.enabled && (market.status.providers?.length ?? 0) > 0) market.catalog = await rampApi<RampCatalog>({ action: 'catalog' });
+      market.loadState = 'ready';
+    } catch {
+      market.loadState = 'failed';
+    }
+    renderMarketplace();
+  }
+
+  function fillSelect(sel: HTMLSelectElement | null, options: { value: string; label: string }[], preferred: string | null): void {
+    if (!sel) return;
+    const keep = sel.value && options.some((o) => o.value === sel.value) ? sel.value : preferred && options.some((o) => o.value === preferred) ? preferred : '';
+    sel.textContent = '';
+    if (keep === '') sel.append(new Option('Choose…', ''));
+    for (const o of options) sel.append(new Option(o.label, o.value));
+    sel.value = keep;
+    sel.disabled = options.length === 0;
+  }
+
+  function renderMarketplace(): void {
+    const root = $('[data-market]');
+    if (!root) return;
+    document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.side === market.side)));
+    document.querySelectorAll<HTMLElement>('[data-market-asset]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.marketAsset === market.asset)));
+    const notes = $('[data-market-notes]');
+    const list = $('[data-market-providers]');
+    const form = $<HTMLElement>('[data-market-form]');
+    if (!notes || !list || !form) return;
+    notes.textContent = '';
+    list.textContent = '';
+    const note = (kind: 'ok' | 'warn' | 'info', text: string) => notes.append(banner(kind, text));
+
+    if (market.loadState === 'loading' || market.loadState === 'idle') return void note('info', 'Loading…');
+    if (market.loadState === 'failed' || market.status === null) {
+      form.hidden = true;
+      return void note('info', "The marketplace isn't available here right now.");
+    }
+    if (!market.status.enabled) {
+      form.hidden = true;
+      return void note('info', "The Aretia Marketplace isn't open yet.");
+    }
+    const providers = (market.status.providers ?? []).filter((p) => p.sides.includes(market.side));
+    if (market.side === 'sell') {
+      form.hidden = true;
+      return void note('info', 'Selling USDT or USDC for local currency is not available yet. Buying is.');
+    }
+    form.hidden = false;
+    if (market.catalog) {
+      const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
+      fillSelect($<HTMLSelectElement>('[data-market-country]'), market.catalog.countries.map((c) => ({ value: c.code, label: c.name })), region);
+      fillSelect($<HTMLSelectElement>('[data-market-fiat]'), market.catalog.fiats.map((f) => ({ value: f, label: f.toUpperCase() })), 'usd');
+    }
+    if (providers.length === 0) note('info', 'No provider is available yet.');
+    for (const p of providers) {
+      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Continue with ${p.name}`, attrs: { type: 'button' } });
+      go.addEventListener('click', () => void openProvider(p.id, p.name));
+      list.append(el('div', { class: 'wapp__provider' }, [el('div', {}, [el('strong', { text: p.name }), el('span', { text: `Buy ${market.asset} with local currency` })]), go]));
+    }
+    if (market.message) note(market.message.kind, market.message.text);
+    note('info', `${market.asset} is delivered to ${address ?? 'your wallet'} on Solana. The provider handles identity checks and payment; fees and limits are theirs.`);
+  }
+
+  async function openProvider(id: string, name: string): Promise<void> {
+    if (!address) return;
+    const amountText = $<HTMLInputElement>('[data-market-amount]')?.value.trim() ?? '';
+    if (amountText !== '' && !/^\d{1,7}$/.test(amountText)) {
+      market.message = { kind: 'warn', text: 'The amount must be a whole number.' };
+      return void renderMarketplace();
+    }
+    const fiat = $<HTMLSelectElement>('[data-market-fiat]')?.value ?? '';
+    try {
+      const body: Record<string, unknown> = { action: 'session', provider: id, side: market.side, asset: market.asset, wallet: address };
+      if (fiat) body.fiat = fiat;
+      if (amountText !== '') body.amount = Number(amountText);
+      const { url } = await rampApi<{ url: string }>(body);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      market.message = { kind: 'ok', text: `${name} opened in a new tab. Finish there; your ${market.asset} will arrive in this wallet.` };
+    } catch (e) {
+      market.message = { kind: 'warn', text: e instanceof Error ? e.message : 'Could not open the provider.' };
+    }
+    renderMarketplace();
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) =>
+    b.addEventListener('click', () => {
+      market.side = b.dataset.side === 'sell' ? 'sell' : 'buy';
+      market.message = null;
+      renderMarketplace();
+    }),
+  );
+  document.querySelectorAll<HTMLElement>('[data-market-asset]').forEach((b) =>
+    b.addEventListener('click', () => {
+      market.asset = b.dataset.marketAsset === 'USDT' ? 'USDT' : 'USDC';
+      market.message = null;
+      renderMarketplace();
+    }),
+  );
+
   // ---- shield tab
   function renderFindings(findings: Finding[]): Node[] {
     if (findings.length === 0) {
@@ -1284,6 +1407,7 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     renderSwap();
+    if (currentView() === 'marketplace') void loadMarketplace();
     if (currentView() === 'trade') {
       void loadWeb3();
       void ensureChart();

@@ -162,7 +162,7 @@ export const POOLS: { pair: string; address: string; floor: string; explorer: st
     explorer: 'https://solscan.io/account/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
     position: 'Eq6MKa5gfBSC1U4jqctxsQsWTX7k3KRHyFSLC4UpA4u4',
     // DexScreener lists a pool once it has traded; ACT/SOL has not yet, so it has no chart link.
-    chart: 'https://dexscreener.com/solana/6n8mvd7xmzs66e5vlgqgvte31gbkmctl4s97w4ov6ivx',
+    chart: 'https://dexscreener.com/solana/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
   },
   {
     pair: 'ACT/SOL',
@@ -215,7 +215,7 @@ export const LINKS = {
   x: 'https://x.com/AretiaFinance',
   explorerMint: `https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`,
   // ACT/USDC pool chart; DexScreener lists a pool once it has traded.
-  dexscreener: 'https://dexscreener.com/solana/6n8mvd7xmzs66e5vlgqgvte31gbkmctl4s97w4ov6ivx',
+  dexscreener: 'https://dexscreener.com/solana/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
   // Shares the project-application Formspree form for now (messages are
   // tagged "Website contact" in the subject). Swap for a dedicated form ID.
   contactForm: 'https://formspree.io/f/xaeypjob',

@@ -109,6 +109,13 @@
     if (lower.indexOf("no accounts") !== -1) {
       return "No account was returned by that wallet. Please try again.";
     }
+    if (lower.indexOf("pending") !== -1 || lower.indexOf("already") !== -1 || lower.indexOf("in progress") !== -1) {
+      return "Your wallet already has a request waiting. Open its icon in the browser toolbar, approve or reject it, then try again.";
+    }
+    if (lower.indexOf("lock") !== -1 || lower.indexOf("unlock") !== -1) {
+      return "Your wallet is locked. Unlock it, then try again.";
+    }
+    try { console.warn("Aretia wallet connect failed:", msg.slice(0, 200)); } catch (e) {}
     return "Something went wrong connecting your wallet. Please try again.";
   }
 

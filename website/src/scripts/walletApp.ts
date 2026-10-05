@@ -68,7 +68,7 @@ export interface Holding {
   /** Decimal places, from Jupiter's token data (9 for native SOL); null when unknown. */
   decimals: number | null;
   price: number | null;
-  priceSource: 'Jupiter' | 'DexScreener' | null;
+  priceSource: 'Jupiter' | 'DexScreener' | 'GeckoTerminal' | null;
   /** Value is `amount x price`, or null without a price. */
   value: number | null;
   /** The only pool behind the price holds under $10,000, so the dollar value is only indicative. */
@@ -161,7 +161,7 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
     // Names and icons are decoration; balances still show without them.
   }
 
-  const prices = new Map<string, { price: number; source: 'Jupiter' | 'DexScreener'; thin: boolean }>();
+  const prices = new Map<string, { price: number; source: 'Jupiter' | 'DexScreener' | 'GeckoTerminal'; thin: boolean }>();
   for (const [mint, token] of meta) {
     if (typeof token.usdPrice === 'number' && token.usdPrice > 0) prices.set(mint, { price: token.usdPrice, source: 'Jupiter', thin: false });
   }
@@ -178,6 +178,20 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
       for (const [mint, p] of best) {
         const price = Number(p.priceUsd);
         if (Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'DexScreener', thin: (p.liquidity?.usd ?? 0) < 10_000 });
+      }
+    } catch {
+      // Handled below: GeckoTerminal is tried next.
+    }
+  }
+  // A token neither Jupiter nor DexScreener prices (DexScreener can lag on a new pool) may still be priced by
+  // GeckoTerminal, which reads the pool from the chain.
+  const stillUnpriced = mints.filter((m) => !prices.has(m));
+  if (stillUnpriced.length > 0) {
+    try {
+      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${stillUnpriced.slice(0, 30).join(',')}`);
+      for (const [mint, value] of Object.entries(r.data?.attributes?.token_prices ?? {})) {
+        const price = Number(value);
+        if (stillUnpriced.includes(mint) && Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'GeckoTerminal', thin: false });
       }
     } catch {
       // No fallback price: those rows show "—" rather than a guess.
@@ -816,6 +830,8 @@ export function initWalletApp(): void {
   });
   // ---- live chart and trades (DexScreener's embed for the pair's best pool, plus a live price header)
   interface DexPair {
+    /** Where the numbers came from; the chart embed follows it. Absent means DexScreener. */
+    source?: 'DexScreener' | 'GeckoTerminal';
     pairAddress?: string;
     priceUsd?: string;
     priceChange?: { h24?: number };
@@ -835,21 +851,65 @@ export function initWalletApp(): void {
     return pick ?? tokenByMint(SOL)!;
   }
 
-  /** The most liquid pool for a token, from DexScreener. Cached for the page's life; null if it has none. */
+  interface GeckoPool {
+    attributes?: {
+      address?: string;
+      base_token_price_usd?: string;
+      quote_token_price_usd?: string;
+      reserve_in_usd?: string;
+      price_change_percentage?: { h24?: string };
+      volume_usd?: { h24?: string };
+      transactions?: { h24?: { buys?: number; sells?: number } };
+    };
+    relationships?: { base_token?: { data?: { id?: string } } };
+  }
+
+  /** The most liquid pool for a token from GeckoTerminal, shaped like a DexScreener pair. Used when DexScreener has none. */
+  async function geckoPair(mint: string): Promise<DexPair | null> {
+    const r = await getJson<{ data?: GeckoPool[] }>(`https://api.geckoterminal.com/api/v2/networks/solana/tokens/${mint}/pools?page=1`);
+    const best = (r.data ?? [])
+      .filter((p) => typeof p.attributes?.address === 'string' && isSolanaAddress(p.attributes.address))
+      .sort((a, b) => Number(b.attributes?.reserve_in_usd ?? 0) - Number(a.attributes?.reserve_in_usd ?? 0))[0];
+    const a = best?.attributes;
+    if (!a?.address) return null;
+    // The pool prices both of its tokens; take the one we asked about.
+    const isBase = best?.relationships?.base_token?.data?.id === `solana_${mint}`;
+    const price = isBase ? a.base_token_price_usd : a.quote_token_price_usd;
+    return {
+      source: 'GeckoTerminal',
+      pairAddress: a.address,
+      ...(price !== undefined ? { priceUsd: price } : {}),
+      priceChange: { h24: Number(a.price_change_percentage?.h24) },
+      volume: { h24: Number(a.volume_usd?.h24 ?? 0) },
+      liquidity: { usd: Number(a.reserve_in_usd ?? 0) },
+      txns: { h24: { buys: a.transactions?.h24?.buys ?? 0, sells: a.transactions?.h24?.sells ?? 0 } },
+    };
+  }
+
+  /** The most liquid pool for a token: DexScreener first, GeckoTerminal when DexScreener has none. Null if neither does. */
   async function bestPair(mint: string, fresh = false): Promise<DexPair | null> {
     const cached = dexPairs.get(mint);
     if (cached && !fresh && Date.now() - cached.at < 5_000) return cached.pair;
+    let best: DexPair | null;
     try {
       const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${mint}`);
-      const best = (Array.isArray(pairs) ? pairs : []).filter((p) => typeof p.pairAddress === 'string' && isSolanaAddress(p.pairAddress)).sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] ?? null;
-      dexPairs.set(mint, { at: Date.now(), pair: best });
-      return best;
+      best = (Array.isArray(pairs) ? pairs : []).filter((p) => typeof p.pairAddress === 'string' && isSolanaAddress(p.pairAddress)).sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] ?? null;
     } catch {
-      return cached?.pair ?? null;
+      best = null; // DexScreener unreachable: try GeckoTerminal below
     }
+    if (!best) {
+      try {
+        best = await geckoPair(mint);
+      } catch {
+        return cached?.pair ?? null;
+      }
+    }
+    dexPairs.set(mint, { at: Date.now(), pair: best });
+    return best;
   }
 
-  function embedUrl(pairAddress: string): string {
+  function embedUrl(pairAddress: string, source: DexPair['source']): string {
+    if (source === 'GeckoTerminal') return `https://www.geckoterminal.com/solana/pools/${pairAddress}?${new URLSearchParams({ embed: '1', info: '0', swaps: '1', grayscale: '0', light_chart: '1', chart_type: 'price', resolution: '15m' })}`;
     const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval: '15' });
     return `https://dexscreener.com/solana/${pairAddress}?${q}`;
   }
@@ -897,14 +957,14 @@ export function initWalletApp(): void {
     host.textContent = '';
     host.append(el('span', { class: 'wapp__sub', text: 'Loading chart…' }));
     // ACT's own pool is known; anything else is looked up.
-    const pair = subject.mint === ACT_INFO.mint ? ((await bestPair(subject.mint, true)) ?? ({ pairAddress: POOLS[0]!.address } as DexPair)) : await bestPair(subject.mint, true);
+    const pair = subject.mint === ACT_INFO.mint ? ((await bestPair(subject.mint, true)) ?? ({ pairAddress: POOLS[0]!.address, source: 'GeckoTerminal' } as DexPair)) : await bestPair(subject.mint, true);
     if (mine !== chart.seq) return;
     renderChartHeader(subject, pair);
     host.textContent = '';
-    if (!pair?.pairAddress) return void host.append(el('span', { class: 'wapp__sub', text: `DexScreener has no chart for ${subject.symbol} yet.` }));
+    if (!pair?.pairAddress) return void host.append(el('span', { class: 'wapp__sub', text: `No chart is available for ${subject.symbol} yet.` }));
     chart.pair = pair.pairAddress;
-    const frame = el('iframe', { class: 'wapp__chart-frame', attrs: { title: `${subject.symbol} live price chart and trades from DexScreener`, loading: 'lazy', referrerpolicy: 'strict-origin-when-cross-origin', sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox' } });
-    frame.src = embedUrl(pair.pairAddress);
+    const frame = el('iframe', { class: 'wapp__chart-frame', attrs: { title: `${subject.symbol} live price chart and trades from ${pair.source ?? 'DexScreener'}`, loading: 'lazy', referrerpolicy: 'strict-origin-when-cross-origin', sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox' } });
+    frame.src = embedUrl(pair.pairAddress, pair.source);
     host.append(frame);
   }
 

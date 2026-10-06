@@ -44,6 +44,19 @@ export interface ProviderInfo {
 
 export const rampEnabled = (env: RampEnv): boolean => env.RAMP_ENABLED === '1';
 
+/**
+ * Sandbox-only aid for setup mistakes: the kind and length of the configured keys, never the keys themselves.
+ * (A secret key pasted into the wrong field, or a key from another account, shows up here as the wrong prefix.)
+ */
+export function keyShape(env: RampEnv): { publishable: string; secret: string } {
+  const shape = (v: string | undefined): string => {
+    const s = v ?? '';
+    const prefix = /^(pk|sk)_(test|live)_/.exec(s)?.[0] ?? 'unrecognised';
+    return `${prefix} (${s.length} characters${s !== s.trim() ? ', has stray spaces' : ''})`;
+  };
+  return { publishable: shape(env.MOONPAY_PUBLISHABLE_KEY), secret: shape(env.MOONPAY_SECRET_KEY) };
+}
+
 /** Providers whose keys are present. Nothing is listed unless it can actually create a session. */
 export function configuredProviders(env: RampEnv): ProviderInfo[] {
   const out: ProviderInfo[] = [];
@@ -218,7 +231,7 @@ export async function handleRamp(input: RampInput): Promise<RampOutput> {
 
   switch (req.action) {
     case 'status':
-      return json(200, { enabled: true, assets: Object.keys(RAMP_ASSETS), providers }, headers);
+      return json(200, { enabled: true, assets: Object.keys(RAMP_ASSETS), providers, ...(env.MOONPAY_ENV === 'production' ? {} : { keyCheck: keyShape(env) }) }, headers);
     case 'catalog': {
       const catalog = await loadCatalog(input.fetchImpl, input.now);
       return catalog ? json(200, catalog, headers) : json(502, { error: 'The country list is unavailable right now.' }, headers);

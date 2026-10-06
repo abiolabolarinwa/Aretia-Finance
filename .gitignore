@@ -40,3 +40,8 @@ Thumbs.db
 website/node_modules/
 website/dist/
 website/.astro/
+
+# Local env files (API keys, provider secrets). .env.example is allowed.
+.env
+.env.*
+!.env.example

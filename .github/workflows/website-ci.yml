@@ -1,0 +1,46 @@
+name: website-ci
+
+# Runs on every push and pull request that touches the website. Nothing here deploys.
+on:
+  push:
+    paths: ['website/**', '.github/workflows/website-ci.yml']
+  pull_request:
+    paths: ['website/**', '.github/workflows/website-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      # Reports known advisories in production dependencies. Advisories whose only fix is a breaking
+      # upgrade of existing wallet dependencies are tracked in docs/aretia-swings/production-readiness.md,
+      # so this step reports rather than fails the build. Review its output on every run.
+      - name: Dependency advisories (report)
+        run: npm audit --omit=dev || true
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Scans the full history for committed secrets (keys, tokens, keypairs).
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

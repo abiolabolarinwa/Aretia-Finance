@@ -1,4 +1,5 @@
 import { ACT as ACT_INFO, POOLS } from '../data/site';
+import { initSwings } from './walletSwings';
 import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
 import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, splitSwapFee, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
@@ -262,9 +263,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'trade' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'trade', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'trade' | 'swings' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'trade', 'swings', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', swings: 'Aretia Swings', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
@@ -277,6 +278,7 @@ export function initWalletApp(): void {
   let activity: ActivityItem[] | null = null;
   let amountsHidden = false;
   let loadToken = 0;
+  const swings = initSwings({ getAddress: () => address, getHoldings: () => holdings, refresh: () => refresh() });
 
   const currentView = (): View => {
     const h = location.hash.replace(/^#\/?/, '') as View;
@@ -1543,6 +1545,7 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     renderSwap();
+    if (currentView() === 'swings') swings.onShow();
     if (currentView() === 'trade') {
       void loadWeb3();
       void ensureChart();
@@ -1609,6 +1612,7 @@ export function initWalletApp(): void {
     if (next === address) return void renderChrome();
     address = next;
     clearSessionOutputs();
+    swings.onWalletChange();
     renderChrome();
     void refresh();
   }

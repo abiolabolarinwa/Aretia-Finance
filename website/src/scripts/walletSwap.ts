@@ -185,6 +185,8 @@ export interface PlanArgs {
   /** Other tokens in the wallet, watched so the swap cannot quietly reduce them. */
   heldOthers: { mint: string; symbol: string }[];
   quote?: Quote;
+  /** Overrides the Trade tab's fee rate. Aretia Swings passes 0n: it carries no 1% fee (see swings/core/fee.ts). */
+  feeBps?: bigint;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {
@@ -208,7 +210,7 @@ interface SimAccount {
 export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   const web3 = await loadWeb3();
   // Aretia's fee comes off what the user sells; Jupiter swaps the rest.
-  const { fee, net } = splitSwapFee(args.amountRaw);
+  const { fee, net } = splitSwapFee(args.amountRaw, args.feeBps);
   const quote = args.quote ?? (await fetchQuote(args.from.mint, args.to.mint, net, args.slippageBps));
   const built = await jupJson<JupSwapInstructions>('/swap/v1/swap-instructions', {
     method: 'POST',

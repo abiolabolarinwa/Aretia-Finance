@@ -288,8 +288,8 @@ export const SWAP_FEE_BPS = 100n;
 export const SWAP_FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
 
 /** Splits what the user sells into Aretia's fee (rounded down) and the amount that actually gets swapped. */
-export function splitSwapFee(amount: bigint): { fee: bigint; net: bigint } {
-  const fee = (amount * SWAP_FEE_BPS) / 10_000n;
+export function splitSwapFee(amount: bigint, feeBps: bigint = SWAP_FEE_BPS): { fee: bigint; net: bigint } {
+  const fee = (amount * feeBps) / 10_000n;
   return { fee, net: amount - fee };
 }
 

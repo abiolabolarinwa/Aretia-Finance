@@ -34,6 +34,22 @@ const universalNeeds = [
 // Buying USDT/USDC with local currency (through providers) lives inside Aretia Pay. It stays out of the
 // page until the site is built with PUBLIC_PAY_BUY=1. See docs/ramp.md.
 const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
+const sendTips = [
+  'Transfers on Solana cannot be reversed. Check the full address on the review screen.',
+  'Aretia never holds your keys. Your wallet shows the transaction and signs it; this page then submits it.',
+  'Before it asks your wallet, the page simulates the transaction on a public RPC. A failed simulation blocks the send.',
+  'The addresses and amounts involved, and any .sns name you type, are sent to a public Solana RPC.',
+  'Sending a token to an address that has no account for it opens one, paid in SOL by you (about 0.002 SOL).',
+  `ACT carries a ${ACT.transferFee.totalPercent}% transfer fee on every move, so the recipient gets slightly less than you send.`,
+];
+const buyTips = [
+  'You pick a provider and the checkout opens on this page. The provider verifies who you are and takes your payment, by card or bank transfer depending on your country.',
+  'The provider buys the USDT or USDC and sends it straight to your own wallet address on Solana. Aretia never holds your money and never sees your documents.',
+  'Buying does not put money in your bank account. It takes money from your card or bank and gives you crypto. Paying out to a bank account is selling, which is not available yet.',
+  'Each provider sets its own fees, limits, payment methods and the countries it serves. It is a third-party service with its own terms.',
+  'Your wallet address is sent to the provider you pick so it knows where to deliver. Nothing else about your wallet is shared.',
+  'Only USDT and USDC on Solana are offered. Anything else is refused by the server, not just hidden.',
+];
 ---
 
 <Base
@@ -268,84 +284,88 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
       </div>
 
       <div data-pane="send" class="wapp__pane" hidden>
-        {payBuyOn && (
-          <div class="wapp__seg" role="group" aria-label="Pay options">
-            <button type="button" class="wapp__chip wapp__chip--btn" data-pay-tab="send" aria-pressed="true">Send</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" data-pay-tab="buy" aria-pressed="false">Buy or sell USDT / USDC</button>
-          </div>
-        )}
-        <div class="wapp__grid wapp__grid--trade" data-pay-panel="send">
-          <div class="wapp__card">
-            <h2 class="wapp__h2">Send or pay</h2>
-            <p class="wapp__fine">
-              Send SOL or a token you hold to a Solana address, or pay a <b>.sns</b> name. You review the full transaction here, then approve it in your own wallet.
-            </p>
-            <form class="wapp__form" data-send-form>
-              <label for="send-asset" class="wapp__eyebrow">Asset</label>
-              <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
-              <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
-              <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
-              <label for="send-amount" class="wapp__eyebrow">Amount</label>
-              <div class="wapp__amount">
-                <input id="send-amount" class="wapp__input" data-send-amount inputmode="decimal" autocomplete="off" placeholder="0.0" />
-                <button type="button" class="wapp__btn wapp__btn--ghost" data-send-max>Max</button>
-              </div>
-              <button type="submit" class="wapp__btn wapp__btn--primary">Review</button>
-            </form>
-            <div data-send-review aria-live="polite"></div>
-          </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">Before you send</span>
-            <ul class="wapp__list">
-              <li>Transfers on Solana cannot be reversed. Check the full address on the review screen.</li>
-              <li>Aretia never holds your keys. Your wallet shows the transaction and signs it; this page then submits it.</li>
-              <li>Before it asks your wallet, the page simulates the transaction on a public RPC. A failed simulation blocks the send.</li>
-              <li>The addresses and amounts involved, and any .sns name you type, are sent to a public Solana RPC.</li>
-              <li>Sending a token to an address that has no account for it opens one, paid in SOL by you (about 0.002 SOL).</li>
-              <li>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move, so the recipient gets slightly less than you send.</li>
-            </ul>
-          </div>
-        </div>
-        {payBuyOn && (
-          <div class="wapp__grid wapp__grid--trade" data-pay-panel="buy" hidden>
-            <div class="wapp__card" data-market>
-              <h2 class="wapp__h2">Buy or sell USDT and USDC</h2>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__stack">
+            <div class="wapp__card">
+              <h2 class="wapp__h2">Send or pay</h2>
               <p class="wapp__fine">
-                Buy USDT and USDC with your local currency, right here. These are the only two assets offered, and they arrive on Solana in your own wallet.
+                Send SOL or a token you hold to a Solana address, or pay a <b>.sns</b> name. You review the full transaction here, then approve it in your own wallet.
               </p>
-              <div class="wapp__seg" role="group" aria-label="Buy or sell">
-                <button type="button" class="wapp__chip wapp__chip--btn" data-side="buy" aria-pressed="true">Buy</button>
-                <button type="button" class="wapp__chip wapp__chip--btn" data-side="sell" aria-pressed="false">Sell</button>
+              <form class="wapp__form" data-send-form>
+                <label for="send-asset" class="wapp__eyebrow">Asset</label>
+                <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
+                <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
+                <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
+                <label for="send-amount" class="wapp__eyebrow">Amount</label>
+                <div class="wapp__amount">
+                  <input id="send-amount" class="wapp__input" data-send-amount inputmode="decimal" autocomplete="off" placeholder="0.0" />
+                  <button type="button" class="wapp__btn wapp__btn--ghost" data-send-max>Max</button>
+                </div>
+                <button type="submit" class="wapp__btn wapp__btn--primary">Review</button>
+              </form>
+              <div data-send-review aria-live="polite"></div>
+            </div>
+            {payBuyOn && (
+              <details class="wapp__card wapp__guide">
+                <summary><h2 class="wapp__h2">Before you send</h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+                <ul class="wapp__list">{sendTips.map((tip) => <li>{tip}</li>)}</ul>
+              </details>
+            )}
+          </div>
+          {payBuyOn ? (
+            <div class="wapp__card wapp__buy" data-market>
+              <div class="wapp__buy-head">
+                <div>
+                  <span class="wapp__eyebrow">Aretia Pay</span>
+                  <h2 class="wapp__h2">Buy USDT or USDC</h2>
+                </div>
+                <div class="wapp__seg" role="group" aria-label="Buy or sell">
+                  <button type="button" class="wapp__chip wapp__chip--btn" data-side="buy" aria-pressed="true">Buy</button>
+                  <button type="button" class="wapp__chip wapp__chip--btn" data-side="sell" aria-pressed="false">Sell</button>
+                </div>
               </div>
-              <div class="wapp__seg" role="group" aria-label="Asset">
-                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDC" aria-pressed="true">USDC</button>
-                <button type="button" class="wapp__chip wapp__chip--btn" data-market-asset="USDT" aria-pressed="false">USDT</button>
+              <p class="wapp__fine">Pay with your card or bank in your local currency. The stablecoin is sent straight to your own wallet on Solana.</p>
+              <div class="wapp__assets" role="group" aria-label="Asset">
+                <button type="button" class="wapp__asset" data-market-asset="USDC" aria-pressed="true">
+                  <span class="wapp__coin wapp__coin--usdc" aria-hidden="true">$</span>
+                  <span><strong>USDC</strong><small>USD Coin on Solana</small></span>
+                </button>
+                <button type="button" class="wapp__asset" data-market-asset="USDT" aria-pressed="false">
+                  <span class="wapp__coin wapp__coin--usdt" aria-hidden="true">₮</span>
+                  <span><strong>USDT</strong><small>Tether on Solana</small></span>
+                </button>
               </div>
               <form class="wapp__form" data-market-form>
                 <label for="market-country" class="wapp__eyebrow">Country</label>
                 <select id="market-country" class="wapp__input" data-market-country disabled><option>Loading…</option></select>
-                <label for="market-fiat" class="wapp__eyebrow">Pay with</label>
-                <select id="market-fiat" class="wapp__input" data-market-fiat disabled><option>Loading…</option></select>
-                <label for="market-amount" class="wapp__eyebrow">Amount (optional, whole number)</label>
-                <input id="market-amount" class="wapp__input" data-market-amount inputmode="numeric" autocomplete="off" placeholder="50000" />
+                <div class="wapp__paybox">
+                  <label for="market-amount" class="wapp__eyebrow">You pay (optional)</label>
+                  <div class="wapp__paybox-row">
+                    <input id="market-amount" class="wapp__paybox-input" data-market-amount inputmode="numeric" autocomplete="off" placeholder="50000" />
+                    <select id="market-fiat" class="wapp__input wapp__paybox-fiat" data-market-fiat aria-label="Currency" disabled><option>…</option></select>
+                  </div>
+                </div>
               </form>
               <div data-market-providers></div>
               <div class="wapp__notes" data-market-notes></div>
               <div class="wapp__embed" data-market-embed hidden></div>
-            </div>
-            <div class="wapp__card">
-              <span class="wapp__eyebrow">How buying works</span>
-              <ul class="wapp__list">
-                <li>You pick a provider and the checkout opens on this page. The provider verifies who you are and takes your payment, by card or bank transfer depending on your country.</li>
-                <li>The provider buys the USDT or USDC and sends it straight to your own wallet address on Solana. Aretia never holds your money and never sees your documents.</li>
-                <li>Buying does not put money in your bank account. It takes money from your card or bank and gives you crypto. Paying out to a bank account is selling, which is not available yet.</li>
-                <li>Each provider sets its own fees, limits, payment methods and the countries it serves. It is a third-party service with its own terms.</li>
-                <li>Your wallet address is sent to the provider you pick so it knows where to deliver. Nothing else about your wallet is shared.</li>
-                <li>Only USDT and USDC on Solana are offered. Anything else is refused by the server, not just hidden.</li>
+              <ul class="wapp__trust">
+                <li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></svg>Non-custodial: Aretia never holds your money</li>
+                <li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 12h13" /><path d="M13 6l6 6-6 6" /></svg>Sent to your wallet when the provider finishes</li>
+                <li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4-6 8-6s7 2 8 6" /></svg>ID checks and payment are handled by the provider</li>
               </ul>
+              <details class="wapp__more">
+                <summary>How buying works<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+                <ul class="wapp__list">{buyTips.map((tip) => <li>{tip}</li>)}</ul>
+              </details>
             </div>
-          </div>
-        )}
+          ) : (
+            <div class="wapp__card">
+              <span class="wapp__eyebrow">Before you send</span>
+              <ul class="wapp__list">{sendTips.map((tip) => <li>{tip}</li>)}</ul>
+            </div>
+          )}
+        </div>
       </div>
 
       <div data-pane="shield" class="wapp__pane" hidden>
@@ -568,7 +588,39 @@ const payBuyOn = import.meta.env.PUBLIC_PAY_BUY === '1';
   .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
 
   .wapp[data-connected='false'][data-view='send'] [data-pane='send'] { display: none; }
-  [data-pay-panel][hidden] { display: none; }
+  .wapp__stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .wapp__buy { gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .wapp__buy > *, .wapp__buy .wapp__form { min-width: 0; }
+  .wapp__buy .wapp__form { grid-template-columns: minmax(0, 1fr); }
+  .wapp__stack { grid-template-columns: minmax(0, 1fr); }
+  .wapp__stack > .wapp__card { grid-template-columns: minmax(0, 1fr); }
+  .wapp__buy-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .wapp__buy-head .wapp__h2 { margin: 2px 0 0; }
+  .wapp__assets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .wapp__asset { display: flex; align-items: center; gap: 10px; padding: 12px; font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: 14px; transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease; }
+  .wapp__asset strong { display: block; font-size: 15px; color: var(--color-strong); }
+  .wapp__asset small { display: block; font-size: 12px; color: var(--color-muted); }
+  .wapp__asset:hover { border-color: var(--color-brand); }
+  .wapp__asset[aria-pressed='true'] { background: var(--color-brand-soft); border-color: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-soft); }
+  .wapp__asset:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__coin { flex: none; display: grid; place-items: center; width: 36px; height: 36px; font-size: 18px; font-weight: 700; color: #fff; border-radius: 50%; }
+  .wapp__coin--usdc { background: #2775ca; }
+  .wapp__coin--usdt { background: #26a17b; }
+  .wapp__paybox { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 14px 16px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 16px; }
+  .wapp__paybox:focus-within { border-color: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-soft); }
+  .wapp__paybox-row { display: flex; align-items: center; gap: 10px; }
+  .wapp__paybox-input { flex: 1; min-width: 0; padding: 0; font: inherit; font-size: 28px; font-weight: 600; color: var(--color-strong); background: transparent; border: 0; outline: 0; }
+  .wapp__paybox-input::placeholder { color: var(--color-muted); opacity: 0.6; }
+  .wapp__paybox-row .wapp__paybox-fiat { flex: none; width: auto; min-width: 88px; font-weight: 600; }
+  .wapp__trust { display: grid; gap: 8px; margin: 0; padding: 14px 0 0; list-style: none; border-top: 1px solid var(--color-border); }
+  .wapp__trust li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-muted); }
+  .wapp__trust svg, .wapp__more summary svg { flex: none; fill: none; stroke: var(--color-brand); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp__more { display: grid; gap: 10px; }
+  .wapp__more > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--color-strong); list-style: none; cursor: pointer; }
+  .wapp__more > summary::-webkit-details-marker { display: none; }
+  .wapp__more > summary svg { stroke: var(--color-muted); transition: transform 160ms ease; }
+  .wapp__more[open] > summary svg { transform: rotate(180deg); }
+  .wapp__more > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 8px; }
   .wapp__embed { display: grid; gap: 10px; }
   .wapp__embed[hidden] { display: none; }
   .wapp__embed-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }

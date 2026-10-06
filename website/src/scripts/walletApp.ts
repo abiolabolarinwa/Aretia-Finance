@@ -308,6 +308,7 @@ export function initWalletApp(): void {
         chip.append(el('div', {}, [el('strong', { text: walletName ?? 'Wallet' }), el('span', { class: 'wapp-mono', text: shorten(address) })]));
       } else chip.append(el('div', {}, [el('strong', { text: 'Not connected' }), el('span', { text: 'Connect a wallet to begin' })]));
     }
+    if (view === 'send') void loadMarketplace(); // the Buy card sits beside Send; it loads once
     const refresh = $<HTMLElement>('[data-refresh]');
     if (refresh) refresh.hidden = !(address && (view === 'dashboard' || view === 'trade' || view === 'activity'));
     const addr = $('[data-address]');
@@ -1338,14 +1339,6 @@ export function initWalletApp(): void {
     market.embedded = true;
     return true;
   }
-
-  // Aretia Pay tabs: Send | Buy or sell
-  function selectPayTab(name: string): void {
-    document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.payTab === name)));
-    document.querySelectorAll<HTMLElement>('[data-pay-panel]').forEach((p) => (p.hidden = p.dataset.payPanel !== name));
-    if (name === 'buy') void loadMarketplace();
-  }
-  document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.addEventListener('click', () => selectPayTab(b.dataset.payTab ?? 'send')));
 
   document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) =>
     b.addEventListener('click', () => {

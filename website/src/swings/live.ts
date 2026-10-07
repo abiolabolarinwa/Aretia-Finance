@@ -27,7 +27,9 @@ import { publicRead } from './chains/evmSession.js';
 import type { EvmWalletAdapter } from './chains/evmWallet.js';
 import { isChainEnabled, runtime } from './runtime.js';
 import { BeaconSink } from './observability/beacon.js';
-import { CHAINS, SwingsError, type ChainId } from './core/types.js';
+import { CHAINS, SwingsError, type ChainId, type TokenRisk } from './core/types.js';
+import { EvmTokenEnricher, SolanaTokenEnricher } from './tokens/enrich.js';
+import { normalizeTokenRef } from './core/token.js';
 
 /** Telemetry: counters and a bounded event buffer in memory. Anonymous aggregates are sent only when the server turns analytics on. */
 export const telemetry = new Telemetry([new BeaconSink(() => runtime.analytics)]);
@@ -116,5 +118,26 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
 export function registerEvmWallet(router: AretiaRouter, wallet: EvmWalletAdapter): void {
   for (const id of Object.keys(CHAINS) as ChainId[]) {
     if (CHAINS[id].kind === 'evm') router.registerAdapter(new EvmChainAdapter(id, wallet, { read: publicRead(id) }));
+  }
+}
+
+/**
+ * The risk assessment of one token, run in the page against the chain itself (the same engine and signals the New
+ * Tokens tab uses). Returns null when the token cannot be read or the checks fail: the screen then says no
+ * assessment could be made, never that the token is safe.
+ */
+export async function assessTokenSafety(chain: ChainId, address: string): Promise<TokenRisk | null> {
+  try {
+    const ref = normalizeTokenRef(chain, address);
+    if (!ref) return null;
+    if (chain === 'solana') {
+      const out = await new SolanaTokenEnricher(rpcCall).enrich({ ref, source: 'swap-screen' });
+      return out?.risk ?? null;
+    }
+    const read = publicRead(chain);
+    const out = await new EvmTokenEnricher(<T,>(method: string, params: unknown[]) => read(method, params) as Promise<T>).enrich({ ref, source: 'swap-screen' });
+    return out?.risk ?? null;
+  } catch {
+    return null;
   }
 }

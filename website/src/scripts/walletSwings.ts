@@ -10,18 +10,19 @@
  * Aretia's RPC proxy. EVM quotes go to Aretia's /api/swings-0x (which calls 0x); EVM reads go to the
  * chain's public node. Token lists call Aretia's /api/swings-tokens. History stays in this browser.
  */
-import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord } from '../swings/core/types.js';
+import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
+import { describeSafety } from '../swings/tokens/safety.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
 import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { ageInfo } from '../swings/tokens/registry.js';
-import { createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
+import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
 import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter } from '../swings/router/router.js';
-import { fetchSizeImpact, searchTokens, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
+import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
 
 export interface SwingsHolding {
@@ -109,6 +110,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     notice: null as string | null,
     picker: null as null | { side: 'from' | 'to'; query: string; results: TokenInfo[]; loading: boolean },
     walletChoices: null as null | { uuid: string; name: string }[],
+    /** The safety assessment of the token being bought, keyed so a slow answer for an old token is ignored. */
+    safety: { key: '', loading: false, risk: null as TokenRisk | null, acknowledged: false },
     seq: 0,
   };
 
@@ -145,6 +148,21 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     s.picker = null;
     if (!s.slippageTouched) s.slippageBps = defaultSlippageBps(checked.mint === ACT_MINT || s.from?.mint === ACT_MINT || s.to?.mint === ACT_MINT);
     resetQuote();
+    if (side === 'to') void loadSafety(chain, checked.mint);
+    render();
+  }
+
+  /** Assesses the token being bought, in the page, against the chain. A slow answer for a token no longer chosen is dropped. */
+  async function loadSafety(chain: ChainId, mint: string): Promise<void> {
+    const key = `${chain}:${mint}`;
+    if (mint === EVM_NATIVE_ADDRESS || mint === SOL_MINT) {
+      s.safety = { key, loading: false, risk: null, acknowledged: false };
+      return;
+    }
+    s.safety = { key, loading: true, risk: null, acknowledged: false };
+    const risk = await assessTokenSafety(chain, mint);
+    if (s.safety.key !== key) return;
+    s.safety = { key, loading: false, risk, acknowledged: false };
     render();
   }
 
@@ -485,6 +503,41 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     return box;
   }
 
+  /** Whether the token being bought needs an explicit "I understand" before the swap can go on. */
+  const safetyNeedsAck = (): boolean => !!s.to && s.safety.key === `${s.chain}:${s.to.mint}` && !s.safety.loading && describeSafety(s.safety.risk).needsAcknowledgement && !s.safety.acknowledged;
+
+  /** The plain-language safety check of the token being bought: what was found, what passed, what could not be checked. */
+  function safetyBlock(): HTMLElement | null {
+    if (!s.to || s.to.mint === EVM_NATIVE_ADDRESS || s.to.mint === SOL_MINT || s.safety.key !== `${s.chain}:${s.to.mint}`) return null;
+    const box = el('div', { class: 'wapp__stack' });
+    box.append(el('span', { class: 'wapp__eyebrow', text: `Safety check: ${s.to.symbol}` }));
+    if (s.safety.loading) {
+      box.append(el('p', { class: 'wapp__fine', text: 'Checking this token on-chain…' }));
+      return box;
+    }
+    const v = describeSafety(s.safety.risk);
+    box.append(banner(v.tone === 'ok' ? 'ok' : v.tone === 'info' ? 'info' : 'warn', v.headline));
+    if (v.concerns.length > 0) {
+      const list = el('ul', { class: 'wapp__fine' });
+      for (const c of v.concerns) list.append(el('li', { text: `${c.severe ? 'Serious: ' : ''}${c.text}` }));
+      box.append(list);
+    }
+    const checked = `${v.passed} check${v.passed === 1 ? '' : 's'} passed.${v.unchecked.length > 0 ? ` Could not be checked: ${v.unchecked.join(', ')}.` : ''} A token that passes these is not guaranteed safe.`;
+    box.append(el('p', { class: 'wapp__fine', text: checked }));
+    if (v.needsAcknowledgement) {
+      const label = el('label', { class: 'wapp__fine' });
+      const box2 = el('input', { attrs: { type: 'checkbox' } });
+      box2.checked = s.safety.acknowledged;
+      box2.addEventListener('change', () => {
+        s.safety.acknowledged = box2.checked;
+        updateActions();
+      });
+      label.append(box2, el('span', { text: ' I understand these risks and want to continue.' }));
+      box.append(label);
+    }
+    return box;
+  }
+
   function summaryRows(quote: Quote): HTMLElement {
     const sum = summarizeQuote(quote);
     const to = s.to!;
@@ -597,6 +650,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       const q = s.quote;
       card.append(el('span', { class: 'wapp__eyebrow', text: s.phase === 'review' || s.phase === 'signing' || s.phase === 'tracking' || s.phase === 'done' ? 'Final review' : 'Best route found' }));
       card.append(summaryRows(q));
+      const safety = safetyBlock();
+      if (safety) card.append(safety);
       const exp = expiryLabel(q);
       card.append(el('p', { class: 'wapp__fine', text: exp.text, attrs: { 'data-sw-expiry': '' } }));
       if (s.alternatives.length > 0) {
@@ -644,10 +699,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       if (problem) actions.append(el('span', { class: 'wapp__fine', text: problem }));
       else if (s.amount.trim() && amountIn === null) actions.append(el('span', { class: 'wapp__fine', text: 'Enter a valid amount.' }));
     } else if (s.phase === 'quoted' || s.phase === 'preparing') {
-      actions.append(btn(s.phase === 'preparing' ? 'Checking…' : 'Review swap', () => void review(), 'primary', s.phase === 'preparing' || expired));
+      actions.append(btn(s.phase === 'preparing' ? 'Checking…' : 'Review swap', () => void review(), 'primary', s.phase === 'preparing' || expired || safetyNeedsAck()));
       actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'preparing'));
     } else if (s.phase === 'review' || s.phase === 'signing') {
-      const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !expired;
+      const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !expired && !safetyNeedsAck();
       actions.append(btn(s.phase === 'signing' ? 'Waiting for your wallet…' : 'Confirm and sign in your wallet', () => void confirm(), 'primary', s.phase === 'signing' || !ok));
       actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'signing'));
     } else if (s.phase === 'done') {

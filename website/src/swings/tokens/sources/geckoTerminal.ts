@@ -9,7 +9,7 @@ import type { ChainId } from '../../core/types.js';
 import type { TokenCandidate } from '../registry.js';
 import type { DiscoveryBatch, DiscoverySource } from '../discovery.js';
 
-const NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base' };
+const NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avax' };
 const BASE_URL = 'https://api.geckoterminal.com/api/v2';
 
 const obj = (v: unknown): Record<string, unknown> | null => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null);

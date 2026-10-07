@@ -32,6 +32,8 @@ export interface DexEntry {
   wrappedNative?: string;
   /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair (for example ACT's own pools). */
   knownPools?: string[];
+  /** V2 forks on Avalanche name their native-coin functions after AVAX (`swapExactAVAXForTokens`) instead of ETH. */
+  nativeNaming?: 'avax';
   /** V3-style venues: the fee tiers (in hundredths of a basis point) their factory may hold pools for. */
   feeTiers?: number[];
   status: DexStatus;

@@ -5,7 +5,7 @@
  * Token identity is always `chain + address`; a symbol is display text and never a key.
  */
 
-export type ChainId = 'solana' | 'ethereum' | 'bnb' | 'polygon' | 'base';
+export type ChainId = 'solana' | 'ethereum' | 'bnb' | 'polygon' | 'base' | 'arbitrum' | 'optimism' | 'avalanche';
 
 export interface ChainInfo {
   id: ChainId;
@@ -29,6 +29,9 @@ export const CHAINS: Readonly<Record<ChainId, ChainInfo>> = {
   bnb: { id: 'bnb', name: 'BNB Chain', kind: 'evm', evmChainId: 56, nativeSymbol: 'BNB', nativeDecimals: 18, executionEnabled: false },
   polygon: { id: 'polygon', name: 'Polygon', kind: 'evm', evmChainId: 137, nativeSymbol: 'POL', nativeDecimals: 18, executionEnabled: false },
   base: { id: 'base', name: 'Base', kind: 'evm', evmChainId: 8453, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
+  arbitrum: { id: 'arbitrum', name: 'Arbitrum', kind: 'evm', evmChainId: 42161, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
+  optimism: { id: 'optimism', name: 'Optimism', kind: 'evm', evmChainId: 10, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
+  avalanche: { id: 'avalanche', name: 'Avalanche', kind: 'evm', evmChainId: 43114, nativeSymbol: 'AVAX', nativeDecimals: 18, executionEnabled: false },
 };
 
 export const CHAIN_IDS = Object.keys(CHAINS) as ChainId[];

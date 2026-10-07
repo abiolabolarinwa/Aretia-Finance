@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CHAIN_IDS } from '../src/swings/core/types';
+import { EVM_V2_DEXES } from '../src/swings/dex/entries';
 import { handleDiscover, handleTokens, parseFilter, type TokensInput } from './_swingsTokens';
 
 const input = (over: Partial<TokensInput> = {}): TokensInput => ({
@@ -51,8 +53,8 @@ describe('discovery endpoint', () => {
     const out = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl }));
     expect(out.status).toBe(200);
     const { runs } = JSON.parse(out.body) as { runs: { chain: string; error: string | null }[] };
-    // Five third-party feeds, Aretia's own factory feed for each of the four direct EVM venues, then its own Solana feed.
-    expect(runs.map((r) => r.chain)).toEqual(['solana', 'ethereum', 'bnb', 'polygon', 'base', 'ethereum', 'bnb', 'polygon', 'base', 'solana']);
+    // One third-party feed per chain, Aretia's own factory feed for each direct V2 venue, then its own Solana feed.
+    expect(runs.map((r) => r.chain)).toEqual([...CHAIN_IDS, ...EVM_V2_DEXES.map((e) => e.chain), 'solana']);
     expect(runs.every((r) => r.error !== null)).toBe(true);
   });
 });

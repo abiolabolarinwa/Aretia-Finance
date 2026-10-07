@@ -26,6 +26,9 @@ export const DEFAULT_FEE_CONFIG: AretiaFeeConfig = {
     bnb: { chainId: 'bnb', enabled: false },
     polygon: { chainId: 'polygon', enabled: false },
     base: { chainId: 'base', enabled: false },
+    arbitrum: { chainId: 'arbitrum', enabled: false },
+    optimism: { chainId: 'optimism', enabled: false },
+    avalanche: { chainId: 'avalanche', enabled: false },
   },
 };
 

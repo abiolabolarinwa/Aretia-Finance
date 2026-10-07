@@ -18,7 +18,7 @@ export interface StatusEnv extends ProxyEnv {
   SWINGS_AGGREGATORS?: string;
 }
 
-const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base'];
+const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'];
 
 export function handleStatus(input: { method: string; origin: string | null; env: StatusEnv }): { status: number; body: string; headers: Record<string, string> } {
   const headers: Record<string, string> = { vary: 'origin', 'cache-control': 'no-store', 'content-type': 'application/json' };

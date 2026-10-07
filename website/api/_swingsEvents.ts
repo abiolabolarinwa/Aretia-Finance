@@ -13,7 +13,7 @@ export interface EventsEnv extends ProxyEnv {
   PUBLIC_SWINGS_ANALYTICS?: string;
 }
 
-const CHAINS = ['solana', 'ethereum', 'bnb', 'polygon', 'base'];
+const CHAINS = ['solana', 'ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'];
 const NAMES = ['quote_failed', 'routes_found', 'swap', 'shadow'];
 const STATUSES = ['submitted', 'confirmed', 'failed', 'rejected', 'expired'];
 const PROVIDER = /^[a-z0-9_-]{1,24}$/;

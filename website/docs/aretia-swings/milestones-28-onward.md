@@ -61,3 +61,20 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 **Known limitations:** persistence uses whatever `KeyValueStorage` is passed (the page will pass `localStorage`); a blocked or full storage is tolerated quietly and only costs the reconnection convenience.
 
 **Next milestone:** 30.
+
+## Milestones 30, 31 and 33: settlement domain, provider abstraction, quote engine
+
+**Status:** complete (mock providers for tests only).
+**Implemented:** `src/swings/settlement/types.ts` (intent, steps, route, quote, status, `SettlementProvider`), `engine.ts` (provider discovery, per-provider timeouts, quote validation that does not trust providers, risk gating, stated ranking), `testing.ts` (test double, imported by no production module, enforced by a test).
+**Tests:** `engine.test.ts`, 11 tests including a property test on ranking. **Typecheck/Lint/Build:** pass.
+**Security:** the engine rejects quotes that change the amount, pay out more than sent, are expired, lack a final destination-receive step, or name another provider. Declines carry reasons.
+**Known limitations:** costs are never summed across assets; network fees are null unless a provider estimates them.
+
+## Milestone 32: USDC settlement via Circle CCTP V2
+
+**Status:** complete for EVM to EVM. Solana legs and BNB Chain are reported unsupported, with reasons, never offered.
+**Implemented:** `src/swings/settlement/cctp.ts`: two providers (`circle-cctp-fast`, `circle-cctp-standard`). Support is decided per request from Aretia's domain table, Circle's live fee endpoint, and the chain's own burn limit. Exact-amount approval, `depositForBurn`, `receiveMessage`, tracking from Circle's attestation, completion only when the destination nonce is used, and no second mint.
+**Tests:** `cctp.test.ts` (14, fake Circle and chain) and `cctp.live.ts` (3, real Circle and chains: standard offered from all six EVM chains, a real 100 USDC Ethereum to Base quote, BNB refused). **Typecheck/Lint/Build:** pass.
+**Security:** nothing is signed or sent here; approvals are for exactly the amount; the claim never repeats a used message.
+**Known limitations:** the Solana CCTP builders are not written; network fees are not estimated; no real burn has been signed on mainnet. The contract addresses were checked by live reads, not by a mainnet transfer.
+**Next:** Milestone 34, the cross-chain execution orchestrator with a persisted state machine.

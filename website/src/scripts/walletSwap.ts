@@ -37,6 +37,8 @@ const JUPITER_API = 'https://lite-api.jup.ag';
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 /** Most the swap may pay in priority fee, in lamports (0.0005 SOL). */
 const MAX_PRIORITY_LAMPORTS = 500_000;
+/** Longest a quote may be reused when building a swap. */
+const QUOTE_MAX_AGE_MS = 8_000;
 /** Accounts watched in one simulation. */
 const MAX_WATCHED = 100;
 
@@ -96,6 +98,8 @@ export interface Quote {
   minOut: bigint;
   slippageBps: number;
   routes: string[];
+  /** When the quote was fetched (ms). A quote older than a few seconds is fetched again before it is used to build a swap. */
+  fetchedAt: number;
 }
 
 export async function fetchQuote(inMint: string, outMint: string, amountRaw: bigint, slippageBps: number): Promise<Quote> {
@@ -107,6 +111,7 @@ export async function fetchQuote(inMint: string, outMint: string, amountRaw: big
     outAmount: BigInt(raw.outAmount),
     minOut: BigInt(raw.otherAmountThreshold),
     slippageBps: raw.slippageBps,
+    fetchedAt: Date.now(),
     routes: [...new Set((raw.routePlan ?? []).map((r) => r.swapInfo?.label).filter((l): l is string => typeof l === 'string'))],
   };
 }
@@ -211,7 +216,10 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   const web3 = await loadWeb3();
   // Aretia's fee comes off what the user sells; Jupiter swaps the rest.
   const { fee, net } = splitSwapFee(args.amountRaw, args.feeBps);
-  const quote = args.quote ?? (await fetchQuote(args.from.mint, args.to.mint, net, args.slippageBps));
+  // The quote on screen may be minutes old. Prices move, and a swap built from a stale quote fails on-chain with a
+  // slippage error, so a quote older than a few seconds is replaced with a fresh one before anything is built.
+  const reusable = args.quote && Date.now() - args.quote.fetchedAt < QUOTE_MAX_AGE_MS ? args.quote : undefined;
+  const quote = reusable ?? (await fetchQuote(args.from.mint, args.to.mint, net, args.slippageBps));
   const built = await jupJson<JupSwapInstructions>('/swap/v1/swap-instructions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -312,7 +320,9 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   const inIdx = inAta ? idx++ : -1;
   const outIdx = outAta ? idx++ : -1;
   const sumOther = (list: (SimAccount | null | undefined)[], i: number): bigint => (tokenAmount(list[i]) ?? 0n) + (tokenAmount(list[i + 1]) ?? 0n);
-  const failure = simResult.value.err === null ? null : ((simResult.value.logs ?? []).filter((l) => /failed|error|insufficient|slippage/i.test(l)).pop() ?? JSON.stringify(simResult.value.err));
+  const rawFailure = simResult.value.err === null ? null : ((simResult.value.logs ?? []).filter((l) => /failed|error|insufficient|slippage/i.test(l)).pop() ?? JSON.stringify(simResult.value.err));
+  // Jupiter's custom error 0x1771 is its slippage check: the price moved past the allowance.
+  const failure = rawFailure !== null && /0x1771\b/i.test(rawFailure) ? 'the price moved more than your slippage setting allows. Review again for a fresh price, or raise the slippage.' : rawFailure;
   const sim: SwapSimulation = {
     solPre: BigInt(pre.value[0]?.lamports ?? 0),
     solPost: BigInt(post[0]?.lamports ?? pre.value[0]?.lamports ?? 0),

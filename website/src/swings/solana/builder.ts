@@ -134,7 +134,7 @@ export interface RouteStep {
   /** Deliver the output to this owner's associated account instead of the user's (the user pays its rent). Used by the buyback only. */
   outOwner?: string;
   /** Builds the venue's swap instruction for the user's accounts. */
-  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
+  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction | Web3.TransactionInstruction[]>;
 }
 
 export interface RouteBuildOptions {
@@ -204,7 +204,8 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   }
   for (const st of o.steps) {
     const dest = st.outOwner ? recipients.get(st.outOwner + ':' + st.tokenOut.address)! : accounts[st.tokenOut.address]!;
-    ixs.push(await st.swapInstruction(accounts[st.tokenIn.address]!, dest));
+    const made = await st.swapInstruction(accounts[st.tokenIn.address]!, dest);
+    ixs.push(...(Array.isArray(made) ? made : [made]));
     steps.push(st.label);
   }
   // wSOL accounts this transaction opened (as input, output or a stop on the way) are closed again, returning their SOL.

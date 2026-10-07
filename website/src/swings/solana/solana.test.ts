@@ -442,9 +442,7 @@ describe('DirectSolanaProvider', () => {
     await expect(provider(rpc, () => 1_000_000 + 60_000).buildTransaction(q)).rejects.toMatchObject({ code: 'expired' });
     await expect(provider(rpc).buildTransaction({ ...q, providerId: 'jupiter' })).rejects.toMatchObject({ code: 'invalid' });
     const reg = registry();
-    reg.setStatus('raydium-cpmm', 'MAINTENANCE');
-    reg.setStatus('meteora-damm-v2', 'MAINTENANCE');
-    reg.setStatus('orca-whirlpool', 'MAINTENANCE');
+    for (const e of SOLANA_DEXES) reg.setStatus(e.id, 'MAINTENANCE');
     const down = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: reg, now: () => 1_000_000 });
     expect(down.supports('solana')).toBe(false);
     await expect(down.getQuote(req)).rejects.toMatchObject({ code: 'no-route' });

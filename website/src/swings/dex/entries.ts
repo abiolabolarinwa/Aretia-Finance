@@ -452,6 +452,17 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     notes: 'Priced by simulating the swap on the program itself. Pools with Token-2022 mints are not routed.',
   },
   {
+    id: 'pumpswap',
+    name: 'PumpSwap',
+    chain: 'solana',
+    protocol: 'pumpswap',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA',
+    status: 'ACTIVE',
+    notes: "pump.fun's AMM. Canonical pools of graduated pump.fun tokens only. Priced by simulating the swap on the program itself.",
+  },
+  {
     id: 'meteora-damm-v2',
     name: 'Meteora DAMM v2',
     chain: 'solana',

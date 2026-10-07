@@ -19,7 +19,7 @@ import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { ageInfo } from '../swings/tokens/registry.js';
 import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
-import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
+import { isCanaryAllowed, isChainEnabled, loadRuntime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
@@ -320,6 +320,11 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (!s.quote) return;
     const mySeq = s.seq;
     const quote = s.quote;
+    if (!(await isCanaryAllowed(quote.request.account.address))) {
+      s.error = 'Aretia Swings is in a staged rollout and your wallet is not in the first group yet. You can still get quotes. Nothing was signed or sent.';
+      render();
+      return;
+    }
     s.phase = 'preparing';
     s.error = null;
     render();

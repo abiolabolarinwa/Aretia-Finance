@@ -342,3 +342,30 @@ describe('Established classification', () => {
     expect(assessSolanaToken({ mintAuthoritySet: false, freezeAuthoritySet: false, top10Pct: 10, ...deep, liquidityUsd: 100_000 }).status).not.toBe('established');
   });
 });
+
+describe('staged rollout (canary wallets)', () => {
+  const cfg = (canary: string[] | null | undefined): RuntimeConfig => ({ evmConfigured: false, evmChains: [], tokensConfigured: false, analytics: false, aggregators: true, canary, loaded: true });
+  it('allows everyone when no list is set, and only listed wallets when one is', async () => {
+    const { canaryHashes } = await import('../../api/_swingsStatus');
+    const { isCanaryAllowed, hashAddress } = await import('./runtime.js');
+    expect(canaryHashes(undefined)).toBeNull();
+    expect(canaryHashes(' , ')).toBeNull();
+    expect(await isCanaryAllowed(null, cfg(null))).toBe(true);
+    expect(await isCanaryAllowed(ADDR, cfg(undefined))).toBe(true);
+    const list = canaryHashes(`${ADDR.toUpperCase().replace('0X', '0x')}, 5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9`)!;
+    expect(list).toHaveLength(2);
+    expect(list.every((h) => /^[0-9a-f]{64}$/.test(h))).toBe(true);
+    expect(await isCanaryAllowed(ADDR, cfg(list))).toBe(true); // EVM addresses match whatever the case
+    expect(await isCanaryAllowed('5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9', cfg(list))).toBe(true);
+    expect(await isCanaryAllowed('0x' + '9'.repeat(40), cfg(list))).toBe(false);
+    expect(await isCanaryAllowed(null, cfg(list))).toBe(false);
+    // The browser and the server hash the same way.
+    expect(await hashAddress(ADDR)).toBe(list[0]);
+  });
+  it('parses only well-formed hashes from a status response, and never trusts anything else', () => {
+    const good = 'a'.repeat(64);
+    expect(parseStatus({ canary: [good, 'zz', 5, null] }).canary).toEqual([good]);
+    expect(parseStatus({ canary: 'everyone' }).canary).toBeNull();
+    expect(parseStatus({}).canary).toBeNull();
+  });
+});

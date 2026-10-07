@@ -7,7 +7,7 @@ const ORIGIN = 'https://aretiafinance.org';
 describe('status endpoint', () => {
   it('reports yes/no and chain ids only, never a secret', () => {
     const out = handleStatus({ method: 'GET', origin: ORIGIN, env: { ZEROX_API_KEY: 'secret-key-value', SWINGS_EVM_CHAINS: 'Base, polygon, solana, nonsense', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv-secret' } });
-    expect(JSON.parse(out.body)).toEqual({ evm: { configured: true, chains: ['base', 'polygon'] }, tokens: true, analytics: false, aggregators: true });
+    expect(JSON.parse(out.body)).toEqual({ evm: { configured: true, chains: ['base', 'polygon'] }, tokens: true, analytics: false, aggregators: true, canary: null });
     expect(out.body).not.toContain('secret');
     expect(out.body).not.toContain('supabase.co');
   });

@@ -17,7 +17,7 @@ import { RoutingEngine, type EngineDeps } from '../engine/routing.js';
 import { buildV2Swap, simulateV2Swap } from '../execution/evmV2Builder.js';
 import { HUB_TOKENS } from './hubs.js';
 import { EvmV2Adapter } from './evmV2.js';
-import { buildV3Swap, EvmV3Adapter, simulateV3Swap } from './evmV3.js';
+import { buildV3Split, buildV3Swap, EvmV3Adapter, simulateV3Swap, type V3Route } from './evmV3.js';
 import { buildAerodromeSwap, EvmAerodromeAdapter, type AeroHop } from './evmAerodrome.js';
 import { buildBalancerSwap, EvmBalancerAdapter, simulateBalancerSwap, type BalancerStep } from './evmBalancer.js';
 import { buildCurveSwap, EvmCurveAdapter } from './evmCurve.js';
@@ -26,6 +26,10 @@ export const DIRECT_QUOTE_TTL_MS = 15_000;
 const DEADLINE_SECONDS = 20 * 60;
 /** Router and quote may differ by at most this much (basis points) before the user is told. */
 const MAX_DISAGREEMENT_BPS = 1n;
+/** A split is only tried when the best single pool loses at least this much to the trade's own size. */
+const SPLIT_IMPACT_BPS = 30;
+/** A split must beat the best single pool by at least this much to be worth a second leg. */
+const SPLIT_MIN_GAIN_BPS = 10n;
 
 export interface DirectEvmDeps {
   registry: AretiaDexRegistry;
@@ -50,6 +54,8 @@ interface DirectRaw {
   balancer?: { steps: BalancerStep[]; assets: string[] };
   /** Curve only: the pool and the coin indices. */
   curve?: { pool: string; i: number; j: number };
+  /** V3 only: the trade divided between fee tiers of the same pair, one `exactInputSingle` each, in one multicall. */
+  v3split?: { fee: number; amountIn: bigint; minOut: bigint }[];
   nativeIn: boolean;
   nativeOut: boolean;
   block: string;
@@ -62,6 +68,7 @@ interface Candidate {
   aeroHops?: AeroHop[];
   balancer?: { steps: BalancerStep[]; assets: string[] };
   curve?: { pool: string; i: number; j: number };
+  v3split?: { fee: number; amountIn: bigint; out: bigint }[];
   entryId: string;
   path: string[];
   fees: number[];
@@ -124,7 +131,10 @@ export class DirectEvmProvider implements DexProvider {
     const minOut = (best.amountOut * BigInt(10_000 - request.slippageBps)) / 10_000n;
     if (minOut <= 0n) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
     const fetchedAt = this.now();
-    const raw: DirectRaw = { kind: best.kind, entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
+    const slip = BigInt(request.slippageBps);
+    const v3split = best.v3split?.map((l) => ({ fee: l.fee, amountIn: l.amountIn, minOut: (l.out * (10_000n - slip)) / 10_000n }));
+    if (v3split?.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
+    const raw: DirectRaw = { kind: best.kind, entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, ...(v3split ? { v3split } : {}), nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
     const venueName = this.deps.registry.get(best.entryId)?.name ?? best.entryId;
     return {
       id: `aretia:${chain}:${fetchedAt}:${best.path[0]!.slice(2, 8)}:${best.path[best.path.length - 1]!.slice(2, 8)}`,
@@ -134,7 +144,7 @@ export class DirectEvmProvider implements DexProvider {
       expectedOut: best.amountOut,
       minOut,
       priceImpactBps: best.impactBps,
-      route: { legs: best.path.slice(0, -1).map((token, i) => ({ venue: venueName, from: { chain, address: token }, to: { chain, address: best.path[i + 1]! }, shareBps: 10_000 })) },
+      route: { legs: best.v3split ? best.v3split.map((l) => ({ venue: `${venueName} ${l.fee / 10_000}%`, from: { chain, address: best.path[0]! }, to: { chain, address: best.path[1]! }, shareBps: Number((l.amountIn * 10_000n) / request.amountIn) })) : best.path.slice(0, -1).map((token, i) => ({ venue: venueName, from: { chain, address: token }, to: { chain, address: best.path[i + 1]! }, shareBps: 10_000 })) },
       costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + DIRECT_QUOTE_TTL_MS,
@@ -255,6 +265,26 @@ export class DirectEvmProvider implements DexProvider {
       });
   }
 
+  /** The trade divided between the two best fee tiers of the pair, each priced by the quoter; null unless it beats the single pool by enough. */
+  private async v3Split(adapter: EvmV3Adapter, entry: DexEntry, route: V3Route, amountIn: bigint, head: bigint): Promise<Candidate | null> {
+    const [a, b] = [route.tokens[0]!, route.tokens[1]!];
+    const tiers = await adapter.tierQuotes(a, b, amountIn, head);
+    if (tiers.length < 2) return null;
+    const [x, y] = [tiers[0]!, tiers[1]!];
+    let best: { legs: { fee: number; amountIn: bigint; out: bigint }[]; total: bigint } | null = null;
+    for (const shareX of [7_000n, 5_000n]) {
+      const amountX = (amountIn * shareX) / 10_000n;
+      const amountY = amountIn - amountX;
+      if (amountX <= 0n || amountY <= 0n) continue;
+      const [qx, qy] = await Promise.all([adapter.quotePath([a, b], [x.fees[0]!], amountX, head), adapter.quotePath([a, b], [y.fees[0]!], amountY, head)]);
+      if (!qx || !qy) continue;
+      const total = qx.amountOut + qy.amountOut;
+      if (!best || total > best.total) best = { legs: [{ fee: x.fees[0]!, amountIn: amountX, out: qx.amountOut }, { fee: y.fees[0]!, amountIn: amountY, out: qy.amountOut }], total };
+    }
+    if (!best || best.total <= route.amountOut || ((best.total - route.amountOut) * 10_000n) / route.amountOut < SPLIT_MIN_GAIN_BPS) return null;
+    return { kind: 'v3', entryId: entry.id, path: [a, b], fees: [best.legs[0]!.fee], v3split: best.legs, amountOut: best.total, impactBps: null, reasons: [`${entry.name}: split between the ${best.legs[0]!.fee / 10_000}% and ${best.legs[1]!.fee / 10_000}% pools of the pair (${Number((best.legs[0]!.amountIn * 100n) / amountIn)}% / ${100 - Number((best.legs[0]!.amountIn * 100n) / amountIn)}%), each priced by the venue's own quoter at block ${head}, in one multicall so both fill or neither does.`] };
+  }
+
   /** The best route each V3 venue offers, from the venue's own quoter. V3 output cannot be the native coin in this version. */
   private v3Candidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, hubs: string[], head: bigint, read: EvmRead, nativeOut: boolean): Promise<Candidate[]>[] {
     if (nativeOut) return [];
@@ -276,7 +306,9 @@ export class DirectEvmProvider implements DexProvider {
               impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
             }
           }
-          return [{ kind: 'v3', entryId: entry.id, path: route.tokens, fees: route.fees, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} quoted by the venue's own on-chain quoter at block ${head}; fee tier${route.fees.length > 1 ? 's' : ''} ${route.fees.map((f) => f / 10_000 + '%').join(' then ')}.`] }];
+          const single: Candidate = { kind: 'v3', entryId: entry.id, path: route.tokens, fees: route.fees, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} quoted by the venue's own on-chain quoter at block ${head}; fee tier${route.fees.length > 1 ? 's' : ''} ${route.fees.map((f) => f / 10_000 + '%').join(' then ')}.`] };
+          const split = route.tokens.length === 2 && impactBps !== null && impactBps >= SPLIT_IMPACT_BPS ? await this.v3Split(adapter, entry, route, amountIn, head).catch(() => null) : null;
+          return split ? [single, split] : [single];
         } catch {
           return [];
         }
@@ -310,6 +342,8 @@ export class DirectEvmProvider implements DexProvider {
         ? buildBalancerSwap(entry, { steps: raw.balancer?.steps ?? [], assets: raw.balancer?.assets ?? [], amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000))
         : raw.kind === 'aero'
         ? buildAerodromeSwap(entry, { hops: raw.aeroHops ?? [], amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000))
+        : raw.kind === 'v3' && raw.v3split
+        ? buildV3Split(entry, { tokenIn: raw.path[0]!, tokenOut: raw.path[1]!, legs: raw.v3split, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : raw.kind === 'v3'
         ? buildV3Swap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : buildV2Swap(entry, { path: raw.path, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000));
@@ -317,7 +351,11 @@ export class DirectEvmProvider implements DexProvider {
     // 1. Ask the venue itself what it would pay right now. This is the check that Aretia's numbers and the chain agree.
     let venueOut: bigint | null;
     try {
-      if (raw.kind === 'v3') venueOut = (await new EvmV3Adapter(entry, read).quotePath(raw.path, raw.fees, quote.inAmount))?.amountOut ?? null;
+      if (raw.kind === 'v3' && raw.v3split) {
+        const adapter = new EvmV3Adapter(entry, read);
+        const legs = await Promise.all(raw.v3split.map((l) => adapter.quotePath(raw.path, [l.fee], l.amountIn)));
+        venueOut = legs.every((l) => l !== null) ? legs.reduce((n, l) => n + l!.amountOut, 0n) : null;
+      } else if (raw.kind === 'v3') venueOut = (await new EvmV3Adapter(entry, read).quotePath(raw.path, raw.fees, quote.inAmount))?.amountOut ?? null;
       else if (raw.kind === 'aero') venueOut = await new EvmAerodromeAdapter(entry, read).quote(raw.aeroHops ?? [], quote.inAmount);
       else if (raw.kind === 'curve') venueOut = raw.curve ? await new EvmCurveAdapter(entry, read).quote(raw.curve.pool, raw.curve.i, raw.curve.j, quote.inAmount) : null;
       else if (raw.kind === 'balancer') venueOut = raw.balancer ? await new EvmBalancerAdapter(entry, read).quote(raw.balancer.steps, raw.balancer.assets, quote.inAmount) : null;

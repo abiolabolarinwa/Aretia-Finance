@@ -81,6 +81,21 @@ export class EvmV3Adapter {
     }
   }
 
+  /** What each existing fee tier of this one pair would pay for `amountIn` on its own, best first. */
+  async tierQuotes(tokenIn: string, tokenOut: string, amountIn: bigint, block?: bigint): Promise<V3Route[]> {
+    const tiers = this.entry.feeTiers ?? V3_FEE_TIERS;
+    const quotes = await Promise.all(
+      tiers.map(async (fee) => {
+        try {
+          return (await this.hasPool(tokenIn, tokenOut, fee)) ? await this.quoteSingle(tokenIn, tokenOut, fee, amountIn, block) : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return quotes.filter((q): q is V3Route => q !== null && q.amountOut > 0n).sort((x, y) => (x.amountOut > y.amountOut ? -1 : x.amountOut < y.amountOut ? 1 : 0));
+  }
+
   /** The venue's own quote for an explicit multi-hop path. Null if any pool in it cannot fill the trade. */
   async quotePath(tokens: string[], fees: number[], amountIn: bigint, block?: bigint): Promise<V3Route | null> {
     try {
@@ -175,6 +190,54 @@ export function buildV3Swap(entry: DexEntry, p: V3SwapParams, nowSeconds: number
   };
 }
 
+export interface V3SplitLeg {
+  fee: number;
+  amountIn: bigint;
+  minOut: bigint;
+}
+
+export interface V3SplitParams {
+  tokenIn: string;
+  tokenOut: string;
+  legs: V3SplitLeg[];
+  recipient: string;
+  deadline: number;
+  nativeIn?: boolean;
+}
+
+/**
+ * One trade divided between pools of the same pair (different fee tiers) on the same router: one `multicall` holding
+ * one `exactInputSingle` per pool, each with its own floor. A multicall is a single transaction, so every leg fills
+ * or the whole thing reverts. The approval (or value) is the exact total.
+ */
+export function buildV3Split(entry: DexEntry, p: V3SplitParams, nowSeconds: number = Math.floor(Date.now() / 1000)): EvmTxPlan {
+  if (entry.mechanism !== 'evm-v3-router' || !entry.router || !entry.wrappedNative) throw new SwingsError('invalid', `${entry.id} cannot build V3 swaps.`);
+  if (!isAddr(p.tokenIn) || !isAddr(p.tokenOut) || p.tokenIn.toLowerCase() === p.tokenOut.toLowerCase()) throw new SwingsError('invalid', 'A split needs two different valid tokens.');
+  if (p.legs.length < 2 || p.legs.length > 4) throw new SwingsError('invalid', 'A split needs two to four legs.');
+  if (new Set(p.legs.map((l) => l.fee)).size !== p.legs.length) throw new SwingsError('invalid', 'Each leg of a split must use a different pool.');
+  for (const l of p.legs) {
+    if (!Number.isInteger(l.fee) || l.fee <= 0 || l.fee >= 1 << 24) throw new SwingsError('invalid', 'Invalid V3 fee tier.');
+    if (l.amountIn <= 0n) throw new SwingsError('invalid', 'Every leg needs an amount above zero.');
+    if (l.minOut <= 0n) throw new SwingsError('invalid', 'Every leg needs a minimum output above zero.');
+  }
+  if (!isAddr(p.recipient)) throw new SwingsError('invalid', 'Invalid recipient.');
+  if (p.deadline <= nowSeconds) throw new SwingsError('expired', 'The deadline has already passed.');
+  if (p.nativeIn && p.tokenIn.toLowerCase() !== entry.wrappedNative.toLowerCase()) throw new SwingsError('invalid', 'A native-coin swap must start at the wrapped native token.');
+  const tokenIn = p.tokenIn.toLowerCase();
+  const tokenOut = p.tokenOut.toLowerCase();
+  const recipient = p.recipient.toLowerCase();
+  const total = p.legs.reduce((n, l) => n + l.amountIn, 0n);
+  const inner = p.legs.map((l) => encodeCall(SIG.exactSingle, [address(tokenIn), address(tokenOut), uint(BigInt(l.fee)), address(recipient), uint(l.amountIn), uint(l.minOut), uint(0n)]));
+  return {
+    chain: entry.chain,
+    to: entry.router.toLowerCase(),
+    data: encodeCall(SIG.multicall, [uint(BigInt(p.deadline)), bytesArray(inner)]),
+    value: p.nativeIn ? total : 0n,
+    approval: p.nativeIn ? null : { token: tokenIn, spender: entry.router.toLowerCase(), amount: total },
+    summary: `${entry.name}: sell ${total} (raw) of ${tokenIn} for ${tokenOut}, split over ${p.legs.length} pools (fees ${p.legs.map((l) => l.fee / 10_000 + '%').join(', ')}) in one transaction, each with its own minimum, to ${recipient}.`,
+  };
+}
+
 export interface InspectedV3Swap {
   function: 'exactInputSingle' | 'exactInput';
   deadline: number;
@@ -185,42 +248,59 @@ export interface InspectedV3Swap {
   recipient: string;
 }
 
-/** Reads a V3 swap's calldata back into its parts, so what is signed can be compared to what was quoted. */
-export function inspectV3Swap(data: string): InspectedV3Swap | null {
+function inspectItem(bodyHex: string, deadline: number): InspectedV3Swap | null {
+  const sel = bodyHex.slice(0, 8);
+  const f = words('0x' + bodyHex.slice(8));
+  if (sel === selector(SIG.exactSingle)) {
+    return { function: 'exactInputSingle', deadline, tokens: [wordToAddress(f[0]!), wordToAddress(f[1]!)], fees: [Number(wordToBigInt(f[2]!))], recipient: wordToAddress(f[3]!), amountIn: wordToBigInt(f[4]!), minOut: wordToBigInt(f[5]!) };
+  }
+  if (sel === selector(SIG.exactPath)) {
+    const base = Number(wordToBigInt(f[0]!)) / 32;
+    const recipient = wordToAddress(f[base + 1]!);
+    const amountIn = wordToBigInt(f[base + 2]!);
+    const minOut = wordToBigInt(f[base + 3]!);
+    const pathOffset = base + Number(wordToBigInt(f[base]!)) / 32;
+    const pathLen = Number(wordToBigInt(f[pathOffset]!));
+    const path = f.slice(pathOffset + 1, pathOffset + 1 + Math.ceil(pathLen / 32)).join('').slice(0, pathLen * 2);
+    const tokens: string[] = ['0x' + path.slice(0, 40)];
+    const fees: number[] = [];
+    for (let i = 40; i < path.length; i += 46) {
+      fees.push(Number.parseInt(path.slice(i, i + 6), 16));
+      tokens.push('0x' + path.slice(i + 6, i + 46));
+    }
+    return { function: 'exactInput', deadline, tokens, fees, amountIn, minOut, recipient };
+  }
+  return null;
+}
+
+/** Reads every swap inside a V3 multicall back into its parts. Null if the call is anything else, or any item is not a swap. */
+export function inspectV3Swaps(data: string): InspectedV3Swap[] | null {
   try {
     if (data.slice(2, 10).toLowerCase() !== selector(SIG.multicall)) return null;
     const w = words('0x' + data.slice(10));
     const deadline = Number(wordToBigInt(w[0]!));
     const arr = Number(wordToBigInt(w[1]!)) / 32;
-    if (wordToBigInt(w[arr]!) !== 1n) return null;
-    const item = arr + 1 + Number(wordToBigInt(w[arr + 1]!)) / 32;
-    const len = Number(wordToBigInt(w[item]!));
-    const bodyHex = w.slice(item + 1, item + 1 + Math.ceil(len / 32)).join('').slice(0, len * 2);
-    const sel = bodyHex.slice(0, 8);
-    const f = words('0x' + bodyHex.slice(8));
-    if (sel === selector(SIG.exactSingle)) {
-      return { function: 'exactInputSingle', deadline, tokens: [wordToAddress(f[0]!), wordToAddress(f[1]!)], fees: [Number(wordToBigInt(f[2]!))], recipient: wordToAddress(f[3]!), amountIn: wordToBigInt(f[4]!), minOut: wordToBigInt(f[5]!) };
+    const count = Number(wordToBigInt(w[arr]!));
+    if (count < 1 || count > 8) return null;
+    const out: InspectedV3Swap[] = [];
+    for (let k = 0; k < count; k++) {
+      const item = arr + 1 + Number(wordToBigInt(w[arr + 1 + k]!)) / 32;
+      const len = Number(wordToBigInt(w[item]!));
+      const bodyHex = w.slice(item + 1, item + 1 + Math.ceil(len / 32)).join('').slice(0, len * 2);
+      const one = inspectItem(bodyHex, deadline);
+      if (!one) return null;
+      out.push(one);
     }
-    if (sel === selector(SIG.exactPath)) {
-      const base = Number(wordToBigInt(f[0]!)) / 32;
-      const recipient = wordToAddress(f[base + 1]!);
-      const amountIn = wordToBigInt(f[base + 2]!);
-      const minOut = wordToBigInt(f[base + 3]!);
-      const pathOffset = base + Number(wordToBigInt(f[base]!)) / 32;
-      const pathLen = Number(wordToBigInt(f[pathOffset]!));
-      const path = f.slice(pathOffset + 1, pathOffset + 1 + Math.ceil(pathLen / 32)).join('').slice(0, pathLen * 2);
-      const tokens: string[] = ['0x' + path.slice(0, 40)];
-      const fees: number[] = [];
-      for (let i = 40; i < path.length; i += 46) {
-        fees.push(Number.parseInt(path.slice(i, i + 6), 16));
-        tokens.push('0x' + path.slice(i + 6, i + 46));
-      }
-      return { function: 'exactInput', deadline, tokens, fees, amountIn, minOut, recipient };
-    }
-    return null;
+    return out;
   } catch {
     return null;
   }
+}
+
+/** Reads a single-swap V3 call back into its parts, so what is signed can be compared to what was quoted. Null for a split. */
+export function inspectV3Swap(data: string): InspectedV3Swap | null {
+  const all = inspectV3Swaps(data);
+  return all && all.length === 1 ? all[0]! : null;
 }
 
 export interface V3Simulation {
@@ -237,11 +317,16 @@ export async function simulateV3Swap(read: EvmRead, plan: EvmTxPlan, from: strin
     if (options.balanceOverride !== undefined) params.push({ [from]: { balance: '0x' + options.balanceOverride.toString(16) } });
     const out = await read('eth_call', params);
     if (typeof out !== 'string') return { ok: false, amountOut: null, error: 'The node returned no result.' };
-    // multicall returns bytes[]: offset, count, item offset, item length, then the swap's own return value.
+    // multicall returns bytes[]: offset, count, one offset per item, then each item's length and the swap's own return value.
     const w = words(out);
     const arr = Number(wordToBigInt(w[0]!)) / 32;
-    const item = arr + 1 + Number(wordToBigInt(w[arr + 1]!)) / 32;
-    return { ok: true, amountOut: wordToBigInt(w[item + 1]!), error: null };
+    const count = Number(wordToBigInt(w[arr]!));
+    let total = 0n;
+    for (let k = 0; k < count; k++) {
+      const item = arr + 1 + Number(wordToBigInt(w[arr + 1 + k]!)) / 32;
+      total += wordToBigInt(w[item + 1]!);
+    }
+    return { ok: true, amountOut: total, error: null };
   } catch (e) {
     return { ok: false, amountOut: null, error: e instanceof Error ? e.message.slice(0, 200) : 'The simulation failed.' };
   }

@@ -394,3 +394,28 @@ describe('live: Curve direct', () => {
     expect(refused).toBe(true);
   });
 });
+
+import { buildV3Split } from './evmV3.js';
+
+describe('live: Uniswap V3 split across fee tiers (Ethereum), one multicall on the real router', () => {
+  const entry = EVM_V3_DEXES.find((e) => e.id === 'uniswap-v3-ethereum')!;
+  const read = publicRead('ethereum');
+  const user = '0x' + '1'.repeat(40);
+  for (const eth of [500n, 3_000n, 10_000n]) {
+    it(`${eth} ETH -> USDC: quoted by the venue's quoter, and when split the real router accepts both legs and pays the sum`, async () => {
+      await wait(1500);
+      const provider = new DirectEvmProvider({ registry: new AretiaDexRegistry([entry]), read: () => read });
+      const amountIn = eth * 10n ** 18n;
+      const q = await provider.getQuote({ chain: 'ethereum', from: tok('ethereum', EVM_NATIVE_ADDRESS), to: tok('ethereum', STABLE.ethereum!), amountIn, slippageBps: 100, account: { chain: 'ethereum', address: user } });
+      const raw = q.raw as { v3split?: { fee: number; amountIn: bigint; minOut: bigint }[]; reasons: string[] };
+      console.log(`${eth} ETH`, 'out', q.expectedOut, 'impact', q.priceImpactBps, raw.v3split ? 'SPLIT' : 'single', '|', raw.reasons.at(-1));
+      if (!raw.v3split) return;
+      const plan = buildV3Split(entry, { tokenIn: entry.wrappedNative!, tokenOut: STABLE.ethereum!, legs: raw.v3split, recipient: user, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+      const sim = await simulateV3Swap(read, plan, user, { balanceOverride: 10n ** 30n });
+      console.log('split simulation', sim.ok, sim.error ?? '', 'router pays', sim.amountOut, 'quoted', q.expectedOut);
+      expect(sim.ok, sim.error ?? '').toBe(true);
+      const drift = sim.amountOut! > q.expectedOut ? sim.amountOut! - q.expectedOut : q.expectedOut - sim.amountOut!;
+      expect(drift * 200n).toBeLessThan(q.expectedOut);
+    }, 120_000);
+  }
+});

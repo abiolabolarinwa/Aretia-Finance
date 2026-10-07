@@ -299,3 +299,20 @@ describe('live: the Aretia Solana router across venues, hops and splits (nothing
     }, 120_000);
   }
 });
+
+import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
+
+describe('live: the ACT buyback inside the same transaction (a test configuration; nothing signed or sent)', () => {
+  it('SOL -> USDC with the buyback on: the real programs accept the swap and the ACT arrives at the configured address', async () => {
+    const executor = web3.Keypair.generate().publicKey.toBase58();
+    const fee = { policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true }, chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana' as const, treasuryAddress: executor, buybackExecutorAddress: executor, enabled: true } } };
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee });
+    const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: SOL }, to: { chain: 'solana', address: USDC }, amountIn: 1_000_000_000n, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+    const raw = q.raw as { buyback: { amount: bigint; expectedOut: bigint; legs: unknown[] }; reasons: string[] };
+    console.log('buyback', raw.buyback.amount, 'lamports ->', raw.buyback.expectedOut, 'ACT (raw), legs', raw.buyback.legs.length, '|', raw.reasons.at(-1));
+    const prepared = await p.buildTransaction(q);
+    console.log('buyback tx ok:', prepared.simulation.ok, prepared.simulation.blockers);
+    expect(raw.buyback.amount).toBe(8_700_000n);
+    expect(prepared.simulation.blockers).toEqual([]);
+  }, 180_000);
+});

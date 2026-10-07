@@ -316,3 +316,27 @@ describe('live: the ACT buyback inside the same transaction (a test configuratio
     expect(prepared.simulation.blockers).toEqual([]);
   }, 180_000);
 });
+
+import { fetchQuote as jupiterQuote } from '../../scripts/walletSwap.js';
+
+describe('benchmark: Aretia Solana router against Jupiter (quotes only, nothing signed or sent)', () => {
+  const cases: [string, string, string, bigint][] = [
+    ['1 SOL -> USDC', SOL, USDC, 1_000_000_000n],
+    ['100 SOL -> USDC', SOL, USDC, 100_000_000_000n],
+    ['100 USDT -> SOL', USDT, SOL, 100_000_000n],
+    ['0.5 SOL -> ACT', SOL, ACT, 500_000_000n],
+    ['100 USDC -> ACT', USDC, ACT, 100_000_000n],
+  ];
+  for (const [label, from, to, amount] of cases) {
+    it(label, async () => {
+      await new Promise((r) => setTimeout(r, 2500));
+      const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+      const aretia = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const jup = await jupiterQuote(from, to, amount, 100).catch(() => null);
+      const shape = (aretia.raw as { shape: string }).shape;
+      const diffBps = jup ? Number(((aretia.expectedOut - jup.outAmount) * 10_000n) / jup.outAmount) : null;
+      console.log(`BENCH ${label}: Aretia ${aretia.expectedOut} (${shape}) vs Jupiter ${jup?.outAmount ?? 'unavailable'} via ${jup?.routes.join('+') ?? '-'} | Aretia vs Jupiter: ${diffBps === null ? 'n/a' : (diffBps / 100).toFixed(2) + '%'}`);
+      expect(aretia.expectedOut).toBeGreaterThan(0n);
+    }, 120_000);
+  }
+});

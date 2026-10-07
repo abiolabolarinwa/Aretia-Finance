@@ -389,7 +389,8 @@ export function judgeSwapSimulation(args: {
     problems.push('Could not see the token you are buying after the swap, so it could not be checked.');
   }
 
-  for (const o of sim.others) {
+  // A failed simulation returns no balances, so there is nothing to compare: skip rather than read "no data" as "zero".
+  for (const o of sim.error === null ? sim.others : []) {
     if (o.post < o.pre) problems.push(`The simulation shows this swap also reducing your ${o.symbol} balance. It was blocked.`);
   }
   return { problems, paid, received, solOverhead };

@@ -32,6 +32,7 @@ export type TelemetryEvent =
   | { name: 'quote_failed'; provider: string; message: string }
   | { name: 'quote_rejected'; provider: string; reasons: string[] }
   | { name: 'routes_found'; chain: ChainId; count: number; best: string | null; ms: number }
+  | { name: 'shadow'; chain: ChainId; provider: string; rival: string; diff: number }
   | { name: 'swap'; chain: ChainId; provider: string; status: SwapExecution['status']; ms: number }
   | { name: 'rpc_failed'; chain: ChainId; method: string }
   | { name: 'token_indexed'; chain: ChainId; count: number }
@@ -155,6 +156,7 @@ export function routerEventSink(t: Telemetry, providerOf: (quoteId: string) => s
   return (e) => {
     if (e.type === 'quote-failed') t.record({ name: 'quote_failed', provider: e.providerId, message: e.message });
     else if (e.type === 'quote-rejected') t.record({ name: 'quote_rejected', provider: e.providerId, reasons: e.reasons });
+    else if (e.type === 'shadow') t.record({ name: 'shadow', chain: e.chain, provider: e.winner, rival: e.rival, diff: e.diffBps });
     else if (e.type === 'routes-found') {
       t.record({ name: 'routes_found', chain: e.chain, count: e.count, best: e.bestProvider, ms: now() - searchStart });
       searchStart = now();

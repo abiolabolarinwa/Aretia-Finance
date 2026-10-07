@@ -14,7 +14,7 @@ export interface EventsEnv extends ProxyEnv {
 }
 
 const CHAINS = ['solana', 'ethereum', 'bnb', 'polygon', 'base'];
-const NAMES = ['quote_failed', 'routes_found', 'swap'];
+const NAMES = ['quote_failed', 'routes_found', 'swap', 'shadow'];
 const STATUSES = ['submitted', 'confirmed', 'failed', 'rejected', 'expired'];
 const PROVIDER = /^[a-z0-9_-]{1,24}$/;
 const MAX_EVENTS = 20;
@@ -28,6 +28,9 @@ export interface CleanEvent {
   status: string | null;
   ms: number | null;
   count: number | null;
+  /** Shadow comparison only: the other provider, and Aretia's output minus its output, in basis points. */
+  rival: string | null;
+  diff_bps: number | null;
 }
 
 /** Keeps only the allow-listed fields with valid values. Returns null if the event is not usable. */
@@ -44,6 +47,8 @@ export function cleanEvent(raw: unknown, at: number): CleanEvent | null {
     status: typeof e.status === 'string' && STATUSES.includes(e.status) ? e.status : null,
     ms: int(e.ms, 3_600_000),
     count: int(e.count, 1000),
+    rival: e.name === 'shadow' && typeof e.rival === 'string' && PROVIDER.test(e.rival) ? e.rival : null,
+    diff_bps: e.name === 'shadow' && typeof e.diff === 'number' && Number.isInteger(e.diff) && e.diff >= -10_000 && e.diff <= 10_000 ? e.diff : null,
   };
 }
 

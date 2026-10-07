@@ -48,6 +48,8 @@ export type RouterEvent =
   | { type: 'quote-failed'; providerId: string; message: string }
   | { type: 'quote-rejected'; providerId: string; reasons: string[] }
   | { type: 'routes-found'; chain: ChainId; count: number; bestProvider: string | null }
+  /** Aretia's own route against the best aggregator route for the same request. `diffBps` is Aretia minus the rival, in basis points of the rival's output. */
+  | { type: 'shadow'; chain: ChainId; winner: string; rival: string; diffBps: number }
   | { type: 'execution'; execution: SwapExecution };
 
 export interface RejectedQuote {
@@ -182,8 +184,23 @@ export class AretiaRouter {
       } else routes.push(result.value);
     });
     const ranked = this.compareRoutes(routes);
+    this.emitShadow(request.chain, ranked);
     this.emit({ type: 'routes-found', chain: request.chain, count: ranked.length, bestProvider: ranked[0]?.providerId ?? null });
     return { routes: ranked, rejected, failures };
+  }
+
+  /**
+   * Shadow comparison: when Aretia's own provider and at least one other provider both quoted, record how far apart
+   * they were and who won. The better route is the one executed either way (the list is already ranked); this only
+   * keeps the evidence of where Aretia is behind. No address, amount or token is part of the event.
+   */
+  private emitShadow(chain: ChainId, ranked: Quote[]): void {
+    const own = ranked.find((q) => q.providerId.startsWith('aretia'));
+    const rival = ranked.find((q) => !q.providerId.startsWith('aretia'));
+    if (!own || !rival || rival.expectedOut <= 0n) return;
+    const raw = ((own.expectedOut - rival.expectedOut) * 10_000n) / rival.expectedOut;
+    const diffBps = Math.max(-10_000, Math.min(10_000, Number(raw)));
+    this.emit({ type: 'shadow', chain, winner: ranked[0]!.providerId, rival: rival.providerId, diffBps });
   }
 
   /** The best executable quote, or a clear error. */

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
+import { toWire } from './observability/beacon.js';
+import { cleanEvent } from '../../api/_swingsEvents';
 import { AretiaRouter } from './router/router.js';
 import { MockDexProvider } from './providers/mock.js';
 import { parseZeroXQuote } from './providers/evm0x.js';
@@ -257,5 +259,37 @@ describe('executed quotes cannot be replayed even by concurrent calls', () => {
     const results = await Promise.allSettled([r.executeRoute(p, q, { quoteId: q.id, confirmed: true }), r.executeRoute(p, q, { quoteId: q.id, confirmed: true })]);
     expect(results.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
     expect(signAndSubmit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('shadow comparison', () => {
+  const quote = (providerId: string, out: bigint) => ({ id: providerId + ':1', providerId, request: { chain: 'solana', from: { chain: 'solana', address: 'a' }, to: { chain: 'solana', address: 'b' }, amountIn: 1n, slippageBps: 50, account: { chain: 'solana', address: 'c' } }, inAmount: 1n, expectedOut: out, minOut: out - 1n, priceImpactBps: 0, route: { legs: [] }, costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } }, fetchedAt: 1000, expiresAt: 100_000, raw: {} });
+  const provider = (id: string, out: bigint) => ({ id, name: id, supports: () => true, getQuote: async () => quote(id, out), buildTransaction: async () => { throw new Error('unused'); } });
+  const run = async (aretia: bigint, rival: bigint) => {
+    const events: unknown[] = [];
+    const router = new AretiaRouter({ providers: [provider('aretia-sol', aretia), provider('jupiter', rival)] as never, adapters: [], now: () => 1000, isChainEnabled: () => true, onEvent: (e) => events.push(e) });
+    const found = await router.findRoutes({ chain: 'solana', from: { chain: 'solana', address: 'a' }, to: { chain: 'solana', address: 'b' }, amountIn: 1n, slippageBps: 50, account: { chain: 'solana', address: 'c' } } as never);
+    return { events: events.filter((e) => (e as { type: string }).type === 'shadow') as { winner: string; rival: string; diffBps: number }[], found };
+  };
+
+  it('records who won and by how many basis points, and still executes the better route', async () => {
+    const behind = await run(9_990_000n, 10_000_000n);
+    expect(behind.events).toEqual([{ type: 'shadow', chain: 'solana', winner: 'jupiter', rival: 'jupiter', diffBps: -10 }]);
+    expect(behind.found.routes[0]!.providerId).toBe('jupiter');
+    const ahead = await run(10_050_000n, 10_000_000n);
+    expect(ahead.events[0]).toMatchObject({ winner: 'aretia-sol', diffBps: 50 });
+    expect(ahead.found.routes[0]!.providerId).toBe('aretia-sol');
+  });
+
+  it('records nothing when only one side quoted, and carries no address, amount or token to the wire', async () => {
+    const events: unknown[] = [];
+    const router = new AretiaRouter({ providers: [provider('aretia-sol', 5n)] as never, adapters: [], now: () => 1000, isChainEnabled: () => true, onEvent: (e) => events.push(e) });
+    await router.findRoutes({ chain: 'solana', from: { chain: 'solana', address: 'a' }, to: { chain: 'solana', address: 'b' }, amountIn: 1n, slippageBps: 50, account: { chain: 'solana', address: 'c' } } as never);
+    expect(events.some((e) => (e as { type: string }).type === 'shadow')).toBe(false);
+    const wire = toWire({ at: 1, event: { name: 'shadow', chain: 'solana', provider: 'jupiter', rival: 'aretia-sol', diff: -12, account: '0xabc', amount: '5' } } as never);
+    expect(wire).toEqual({ name: 'shadow', chain: 'solana', provider: 'jupiter', rival: 'aretia-sol', diff: -12 });
+    expect(cleanEvent({ name: 'shadow', chain: 'solana', provider: 'jupiter', rival: 'aretia-sol', diff: -12 }, 9)).toMatchObject({ rival: 'aretia-sol', diff_bps: -12 });
+    expect(cleanEvent({ name: 'shadow', diff: 99_999, rival: 'bad rival!' }, 9)).toMatchObject({ rival: null, diff_bps: null });
+    expect(cleanEvent({ name: 'swap', rival: 'x', diff: 5 }, 9)).toMatchObject({ rival: null, diff_bps: null });
   });
 });

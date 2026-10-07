@@ -53,7 +53,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 | 26 Security docs | `ARETIA_SWINGS_{SECURITY_MODEL,THREAT_MODEL,AUDIT_READINESS}.md` |
 | DB Migrations | `src/swings/db/migrate.ts` + `npm run db:migrate`. **Validated on a real Postgres engine (PGlite); NOT applied to Aretia's Supabase project** |
 
-**Operator switches** (no code change): `SWINGS_EVM_CHAINS` enables EVM chains (no third-party key needed); `SWINGS_AGGREGATORS=off` removes Jupiter and 0x from quotes entirely.
+**Operator switches** (no code change): EVM networks are on by default and `SWINGS_EVM_CHAINS` narrows them (an allow-list; `none` turns them all off); `SWINGS_AGGREGATORS=off` removes Jupiter and 0x from quotes entirely.
 
 **Proven live (read-only, no funds, nothing signed or sent):**
 - All four EVM chains: Aretia's V2 maths equals the venue router's own `getAmountsOut`; V3, PancakeSwap V3, Aerodrome, Balancer and Curve routers accept Aretia-built transactions and pay the quoted amount.

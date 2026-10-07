@@ -3,7 +3,7 @@
  *
  * Live: same-chain swaps on Solana (Jupiter, behind the Aretia router). EVM swaps (0x, behind the same
  * router) are built but stay off until the operator switches a chain on and the server reports it; the
- * screen then says "Enabled", otherwise "Not enabled yet". Nothing is signed without the review screen,
+ * screen then says "Enabled", otherwise "Off". Nothing is signed without the review screen,
  * and the user's own wallet asks for the final approval.
  *
  * Data leaving the page: Solana swaps send the token pair, amount and wallet address to Jupiter and
@@ -453,7 +453,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const wrap = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Network' } });
     for (const id of CHAIN_IDS) {
       const b = el('button', { class: 'wapp__chip wapp__chip--btn', attrs: { type: 'button', 'aria-pressed': String(s.chain === id) } });
-      b.append(el('span', { text: CHAINS[id].name }), el('small', { text: isChainEnabled(id) ? ' · Enabled' : ' · Not enabled yet' }));
+      b.append(el('span', { text: CHAINS[id].name }), el('small', { text: isChainEnabled(id) ? ' · Enabled' : runtime.loaded ? ' · Off' : ' · Checking…' }));
       b.addEventListener('click', () => {
         if (s.chain !== id) {
           s.chain = id;
@@ -610,7 +610,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     }
 
     if (!isChainEnabled(s.chain)) {
-      card.append(banner('warn', `${info.name} swaps are not enabled yet. Aretia Swings only turns a network on when quotes, simulation, signing and fee settings all work end to end there. Nothing on this network can be traded from this page today.`));
+      card.append(banner('warn', `${info.name} swaps are switched off at the moment, either by the operator or because the page could not reach its settings. Nothing on this network can be traded from this page right now. Reload to check again.`));
       swapPanel.append(card);
       return;
     }
@@ -887,7 +887,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           void pick('to', { mint: r.ref.address, symbol: r.symbol, name: r.name, decimals: r.decimals, icon: r.logo, verified: r.verified }, r.ref.chain).then(() => showTab('swap'));
         });
         act.append(b);
-      } else act.append(el('span', { class: 'wapp__fine', text: `Swaps on ${info.name} are not enabled yet, so this token can be inspected but not traded here.` }));
+      } else act.append(el('span', { class: 'wapp__fine', text: `Swaps on ${info.name} are switched off at the moment, so this token can be inspected but not traded here.` }));
       const close = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Close', attrs: { type: 'button' } });
       close.addEventListener('click', () => {
         selected = null;

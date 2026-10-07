@@ -28,12 +28,12 @@ Aretia Swings has never signed a real swap. Everything so far is proven by simul
 - Confirm both hops happened in one transaction and no leftover of the intermediate token beyond dust.
 
 ## 4. One EVM chain, native coin to a stable
-- Start with **Base** (cheapest gas). Add `base` to `SWINGS_EVM_CHAINS`. Connect your EVM wallet. Amount about $2.
+- EVM networks are on by default. Before this step set `SWINGS_CANARY_WALLETS` to your own wallet so nobody else can sign, and optionally `SWINGS_EVM_CHAINS=base` to test one network on its own. Start with **Base** (cheapest gas). Connect your EVM wallet. Amount about $2.
 - Before signing, compare the approval spender and the router address with the chain's block explorer. Native sells need no approval.
 - Then a token-to-token swap, which does need the exact-amount approval: confirm the approval is for exactly the amount, not unlimited.
 
 ## 5. Each remaining chain
-Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sensible amount), BNB Chain, Polygon, Arbitrum, Optimism, Avalanche. Only add a chain to `SWINGS_EVM_CHAINS` when you are about to test it.
+Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sensible amount), BNB Chain, Polygon, Arbitrum, Optimism, Avalanche. With `SWINGS_EVM_CHAINS` set to the one chain you are testing, change it to the next one each time.
 
 ## 6. Splits
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.
@@ -56,7 +56,7 @@ select * from public.swings_shadow_summary order by comparisons desc;
 `avg_diff_bps` below zero means Aretia was behind on average; `aretia_behind` counts how often.
 
 ## Kill switches (no code change)
-- Remove a chain from `SWINGS_EVM_CHAINS` to switch it off.
+- Set `SWINGS_EVM_CHAINS` to the chains you want on (or `none`) to switch the others off.
 - Set `SWINGS_CANARY_WALLETS` to a wallet you control (or an address nobody holds) to stop everyone else.
 - Set `SWINGS_AGGREGATORS=off` to remove Jupiter and 0x from routing.
 - Set `SWINGS_PROTECTED_SUBMIT` or `SWINGS_PUBLIC_API` to anything but `on` to disable them.

@@ -2,9 +2,10 @@
  * GET /api/swings-status: tells the page which optional Swings services this deployment has switched on.
  * Yes/no and chain ids only; never a key, URL or secret.
  *
- * SWINGS_EVM_CHAINS (comma-separated, for example "base,polygon") is the operator's explicit switch for
- * each EVM chain. Aretia's own router needs no third-party key. ZEROX_API_KEY only enables the optional,
- * non-core 0x benchmarking provider. Unlisted chains stay off.
+ * EVM networks are ON by default. SWINGS_EVM_CHAINS is the operator's switch: when it is set it is an allow-list
+ * (comma-separated, for example "base,polygon"; the word "none" turns every EVM network off) and any chain not
+ * listed is off. Aretia's own router needs no third-party key. ZEROX_API_KEY only enables the optional, non-core 0x
+ * benchmarking provider.
  */
 import { createHash } from 'node:crypto';
 import { isOriginAllowed, type ProxyEnv } from './_rpcProxy.js';
@@ -28,6 +29,15 @@ export interface StatusEnv extends ProxyEnv {
 
 const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'];
 
+/**
+ * The EVM networks that are on. Unset means all of them. Set means exactly the ones listed ("none" or any list that
+ * names no real chain means none), so the operator can switch any network off without a deploy.
+ */
+export function evmChainsFromEnv(value: string | undefined): string[] {
+  if (value === undefined || value.trim() === '') return [...EVM_CHAINS];
+  return value.split(',').map((c) => c.trim().toLowerCase()).filter((c) => EVM_CHAINS.includes(c));
+}
+
 /** Hashes of the listed addresses (EVM lower-cased, Solana as written), or null when no list is set. */
 export function canaryHashes(list: string | undefined): string[] | null {
   const items = (list ?? '').split(',').map((a) => a.trim()).filter((a) => a.length > 0);
@@ -43,7 +53,7 @@ export function handleStatus(input: { method: string; origin: string | null; env
   if (!allowed) return { status: 403, body: '{"error":"origin"}', headers };
   const { env } = input;
   const configured = Boolean(env.ZEROX_API_KEY?.trim());
-  const chains = (env.SWINGS_EVM_CHAINS ?? '').split(',').map((c) => c.trim().toLowerCase()).filter((c) => EVM_CHAINS.includes(c));
+  const chains = evmChainsFromEnv(env.SWINGS_EVM_CHAINS);
   const body = {
     evm: { configured, chains },
     tokens: Boolean(env.SUPABASE_URL?.trim() && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),

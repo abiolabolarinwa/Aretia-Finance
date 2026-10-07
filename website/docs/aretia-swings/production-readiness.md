@@ -2,7 +2,7 @@
 
 ## Verdict: NOT production ready
 
-The standalone engine is wired into the screen and has direct paths on all five chains, but it has not signed a single real swap, Solana lacks the venues that hold majors' liquidity, and the database has never been applied. See `ARETIA_SWINGS_AUDIT_READINESS.md`.
+The standalone engine is wired into the screen and has direct paths on all five chains, with Solana routing (direct, two-hop, atomic split) within 0.15% of Jupiter on the pairs tested. But it has not signed a single real swap, the ACT buyback has never been enabled, and the database schema has never been applied to Aretia's project. See `ARETIA_SWINGS_AUDIT_READINESS.md`.
 
 Aretia Swings must not be described as live or production-ready. Critical checks below have not been done, and most of them need things only the owner can supply (keys, funds, a database, EVM addresses).
 

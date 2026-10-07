@@ -3,47 +3,64 @@
 ## Direction change (read this first)
 The target is now a **standalone, Aretia-owned engine** (direct DEX integrations, Aretia routing, Aretia transaction construction), not an aggregator client. The earlier work (Jupiter and 0x providers, `AretiaRouter` over provider quotes) is kept as **non-core**: benchmarking and migration only. See `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`.
 
-### Standalone engine: what exists (tests: 261 unit and property, about 50 live read-only)
+### Standalone engine: what exists (tests: 328 unit and property, about 70 live read-only)
 | Milestone | State |
 |---|---|
 | 0 Audit | `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`. Secrets check repeated: nothing sensitive tracked |
 | 2 Domain types | `engine/types.ts` (pool, liquidity, route, split, status, snapshots) |
-| 5 Solana DEX adapters | **Raydium CPMM** (exact local maths, pools found by the program's own address derivation) and **Meteora DAMM v2** (ACT's real pools; the program itself is the quoter, by simulation). Orca, Meteora DLMM, Raydium AMM v4: not built |
-| 6 EVM DEX adapters | **Uniswap V2 (Ethereum, Base), PancakeSwap V2 (BNB), QuickSwap V2 (Polygon)** with exact local maths; **Uniswap V3 (Ethereum, Polygon, Base)** quoted by the venue's own QuoterV2, one- and two-hop. PancakeSwap V3, Curve, Balancer, Aerodrome: not built |
+| 5 Solana DEX adapters | **Raydium CPMM** (exact local maths, pools found by the program's own address derivation), **Orca Whirlpools** (the 9 tick spacings of the official config, priced by the program itself) and **Meteora DAMM v2** (ACT's real pools, priced by the program itself). Meteora DLMM, Raydium AMM v4, Raydium CLMM and the proprietary AMMs Jupiter uses: not built |
+| 5b Solana routing | Direct, **two-hop** (through SOL, USDC or USDT, whole transaction simulated) and **atomic split** between two pools of a pair, all in ONE transaction. Venue interface in `solana/venues.ts` |
+| 6 EVM DEX adapters | **Uniswap V2 (Ethereum, Base), PancakeSwap V2 (BNB), QuickSwap V2 (Polygon)** exact local maths; **Uniswap V3 (Ethereum, Polygon, Base)**, **PancakeSwap V3 (BNB)**, **Aerodrome (Base)**, **Balancer V2 (curated weighted pools)** and **Curve (plain stable pools)** priced by the venues themselves |
 | 7 DEX registry | Built (`ACTIVE/DEGRADED/DISABLED/MAINTENANCE`, removable venues, health-aware, known-pool lists) |
-| 8 Indexers | **EVM factory-event indexer** (all four chains, confirmed blocks only, adaptive ranges, plugs into the shared discovery worker). Solana indexer: not built |
-| 9 Token discovery | Aretia's own EVM feed runs alongside the third-party feed; first-pool time is the real block timestamp |
+| 8 Indexers | **EVM factory-event indexer** (four chains, confirmed blocks) and **Solana pool-creation indexer** (Raydium CPMM and Orca, finalized transactions, decoded instruction data). Meteora DAMM v2 is not indexed: no account only creation touches, so it needs a streaming provider |
+| 9 Token discovery | Aretia's own EVM and Solana feeds run alongside the third-party feed; first-pool time is the real block timestamp |
 | 11 Liquidity engine | In-memory store with block and freshness; pools are read on demand by the providers |
 | 12 Price engine | Spot, mid, liquidity-weighted, TWAP from Aretia's own pools |
-| 13-15 Routing, optimisation, split | Built for exact-maths pools; deterministic scoring with stored reasons; V2 vs V3 compared per swap; split by replaying legs on evolving pool state (priced, not yet executable atomically) |
-| 16-17 Transaction builders, simulation | **EVM V2, EVM V3 (SwapRouter02 multicall) and Solana (Raydium CPMM, Meteora DAMM v2)**: inspectable output, simulated on the real programs before signing |
-| 18 Execution engine | Direct routes run through the same once-only, confirm-then-sign, track path as everything else, wired into the Swings screen |
+| 13-15 Routing, optimisation, split | Deterministic scoring with stored reasons; venues compared per swap; **splits execute atomically**: Solana (several swaps, one transaction, each leg with its own on-chain floor) and EVM (Uniswap V3 fee tiers of one pair in one router `multicall`). V2-style splits across routers need a contract and are not offered |
+| 16-17 Transaction builders, simulation | EVM V2, V3 (single, path, split), Aerodrome, Balancer, Curve; Solana Raydium CPMM, Orca, Meteora DAMM v2: inspectable output, simulated on the real programs before signing |
+| 18 Execution engine | Direct routes run through the same once-only, confirm-then-sign, track path as everything else |
+| 19 ACT buyback | **Solana executor built, OFF by default and fail-closed**: an extra swap of 0.87% of the input into ACT, delivered to the configured address, in the SAME transaction (see below). EVM: not built (ACT has no EVM liquidity) |
 | 22 Swings UI | Direct routes are the default on every chain; the screen labels who priced and built each quote |
 | 23 Same-chain swaps | Solana, Ethereum, BNB, Polygon, Base all have a direct path. EVM chains are off until the operator enables them |
 | 24 Provider health | Built and wired into every direct provider |
 | 26 Security docs | `ARETIA_SWINGS_{SECURITY_MODEL,THREAT_MODEL,AUDIT_READINESS}.md` |
+| DB Migrations | `src/swings/db/migrate.ts` + `npm run db:migrate`. **Validated on a real Postgres engine (PGlite); NOT applied to Aretia's Supabase project** |
 
 **Operator switches** (no code change): `SWINGS_EVM_CHAINS` enables EVM chains (no third-party key needed); `SWINGS_AGGREGATORS=off` removes Jupiter and 0x from quotes entirely.
 
-**Proven live (read-only, no funds, nothing signed):**
-- All four EVM chains: Aretia's V2 maths equals the venue router's own `getAmountsOut`; V3 quotes and Aretia-built `exactInputSingle` / `exactInput` calldata are accepted by the real SwapRouter02 and it pays exactly the quoter's amount (single-hop on Ethereum, Polygon, Base; two-hop on Ethereum and Polygon).
-- `DirectEvmProvider` end to end on all four chains: picks the better of V2 and V3, builds, and the real router accepts the transaction.
-- Solana: the real Raydium CPMM program accepts the Aretia-built transaction and pays exactly Aretia's local quote; a floor above it is refused. The real Meteora DAMM v2 program accepts Aretia-built swaps into ACT from both USDC (1 USDC buys 196.29 ACT) and SOL (0.01 SOL buys 233.15 ACT) in ACT's real launch pools.
-- The EVM indexer decodes real `PairCreated` events: in one window 25 new pairs on Ethereum, about 160 on BNB, about 68 on Base, none on QuickSwap.
+**Proven live (read-only, no funds, nothing signed or sent):**
+- All four EVM chains: Aretia's V2 maths equals the venue router's own `getAmountsOut`; V3, PancakeSwap V3, Aerodrome, Balancer and Curve routers accept Aretia-built transactions and pay the quoted amount.
+- **EVM split:** 10,000 ETH to USDC on Uniswap V3 (Ethereum): Aretia split it 50/50 between the 0.05% and 0.3% pools, the real router accepted the two-leg multicall and paid exactly the quoted amount.
+- Solana: the real Raydium CPMM, Orca Whirlpool and Meteora DAMM v2 programs accept Aretia-built swaps. Whole routes (direct, two-hop USDC to SOL to ACT) are accepted when simulated from a funded account.
+- **Solana buyback:** with a test configuration the router built the user's swap plus an 8,700,000-lamport (0.87% of 1 SOL) swap into ACT for a throwaway address, in one transaction, and the real programs accepted it.
+- **Solana indexer:** against mainnet it found real Raydium CPMM pool creations and decoded them (21 tokens in one 6-hour window, with on-chain decimals and real block times).
+- The EVM indexer decodes real `PairCreated` events on four chains.
+
+**Benchmark against Jupiter (quotes only, 7 Oct 2026):** Aretia vs Jupiter output: 1 SOL to USDC -0.02%; 100 SOL to USDC -0.08%; 100 USDT to SOL -0.03%; 0.5 SOL to ACT 0.00% (same pool); 100 USDC to ACT -0.15% (Aretia two-hop through Orca and DAMM v2). The earlier 1.4% gap on SOL to ACT is closed. The remaining 0.02-0.15% is liquidity on proprietary AMMs that Jupiter reads and Aretia does not.
 
 **Honest findings from the live runs**
-- *Jupiter currently beats Aretia direct for SOL to ACT by about 1.4%.* Jupiter's own transaction passes the same simulation judge, so its number is deliverable. The gap is liquidity Aretia cannot yet read: Jupiter routes SOL to USDC through deep pools on venues not integrated, then USDC to ACT. Raydium CPMM's SOL/USDC pools hold only about $100 each. Until Orca, Meteora DLMM and Raydium AMM v4 are integrated, the aggregator will often win on Solana majors. It can be switched off, at the cost of worse Solana prices.
-- *Raydium CPMM is a correct but thin venue for majors.*
+- *Aretia is now within 0.15% of Jupiter on the pairs tested, not ahead of it.* The remaining gap is venues not integrated (Meteora DLMM, Raydium AMM v4 and CLMM, proprietary AMMs).
+- *Price impact for program-priced venues is measured, not assumed:* it compares the fill with a trade 1/100th the size priced the same way. (An early version used pool reserves and reported nonsense for Orca; found by the live run and fixed.)
+- Even 2,000 SOL to USDC moves Orca's best pool only 7 bps, so a Solana split rarely triggers on majors; it is covered by unit tests with two comparable pools, not by a mainnet case.
 - *ACT/USDC holds about 13 USDC of liquidity today* (the launch pools are single-sided at the floor price), so only small trades can fill.
-- One first-run live failure of the Solana provider (SOL to USDC) could not be explained and did not recur in 8 later runs. Public RPC rate limits also make the live suite occasionally flaky when run all at once.
+- Public RPC rate limits make the live suite occasionally flaky when run all at once.
+
+### ACT buyback (Solana): how it works and what is still needed
+- Rate: 87 bps of the swap's input amount (`planBuyback`, one place). It is **in addition to** the user's amount: the user's swap is never reduced, and the buyback is shown as its own line.
+- Mechanism: the router prices a second swap of the same input token into ACT through its own routes (direct, two-hop or split) and puts it in the same transaction, BEFORE the user's swap, with its own on-chain floor. The ACT lands in the associated account of `buybackExecutorAddress`; the user pays that account's rent if it is new.
+- Verification before signing: the whole transaction is simulated, the user's spend must equal amount plus buyback, and the simulation must show the ACT arriving at the configured address at no less than the floor. Otherwise the swap is blocked.
+- **Off by default** (`DEFAULT_FEE_CONFIG`). Turning it on needs the owner to set `policy.enabled`, `chains.solana.enabled`, a treasury address and `buybackExecutorAddress` in `core/fee.ts` (code review, then deploy). If anything is missing, quotes fail with `config-missing`; nothing falls back to another address.
+- Fail-closed rules: while the buyback is on, aggregator routes are rejected (they cannot carry it); a swap that SELLS ACT is not offered (no buyback route); no ACT route means no swap.
+- Not decided here (owner's call): whether the Trade tab's existing 1% fee stays, the economics of charging on top of the swap, and whether to buy ACT or burn it.
+- EVM: not built. ACT has no EVM liquidity to buy from.
 
 ### Standalone engine: not built yet
-- **Solana majors liquidity:** Orca Whirlpools, Meteora DLMM, Raydium AMM v4; **Solana multi-hop** (SOL to USDC to ACT in one transaction) and a Solana indexer.
-- **PancakeSwap V3 (BNB), Curve, Balancer, Aerodrome (Base)**; local concentrated-liquidity maths (V3 and DAMM v2 are quoted by the venues themselves).
-- **Atomic split execution** (splits are priced but cannot yet run in one transaction), **buyback execution (19)**.
+- **Meteora DLMM, Raydium AMM v4 and CLMM**, proprietary AMMs; local concentrated-liquidity maths (V3, Orca and DAMM v2 are priced by the venues themselves).
+- Meteora DAMM v2 pool indexing (needs a streaming provider).
+- Balancer V2 stable/composable pools and Curve crypto/lending pools (only plain pools are covered).
 - **Real signed swaps on any chain.** Everything above is proven by simulation and read-only checks, never by moving funds.
 - **Selling ACT directly** was not exercised live (the test wallet holds none); the builder is symmetric and unit-tested.
-- Applying the database schema, running discovery against a real database, and the Trade-tab 1% fee decision.
+- **Applying the database schema** to Aretia's Supabase project (needs the project's database URL, which only the owner holds), running discovery against a real database, and the Trade-tab 1% fee decision.
 
 Everything below this line is the earlier aggregator-client record, still accurate for that code.
 

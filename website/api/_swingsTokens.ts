@@ -14,6 +14,7 @@ import { TokenDiscoveryWorker, type TokenEnricher, type WorkerRun } from '../src
 import { GeckoTerminalNewPoolsSource } from '../src/swings/tokens/sources/geckoTerminal.js';
 import { sourceVerified, zeroXTokenTax } from '../src/swings/tokens/explorer.js';
 import { EvmFactoryDiscoverySource } from '../src/swings/indexer/evmIndexer.js';
+import { SolanaPoolDiscoverySource } from '../src/swings/indexer/solanaIndexer.js';
 import { EVM_V2_DEXES } from '../src/swings/dex/entries.js';
 import { publicRead } from '../src/swings/chains/evmSession.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from '../src/swings/tokens/enrich.js';
@@ -155,6 +156,11 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
         })
       : null;
     const worker = new TokenDiscoveryWorker(new EvmFactoryDiscoverySource(entry, read, { now: () => input.now }), registry, repo, enricher, () => input.now);
+    runs.push(await worker.runOnce());
+  }
+  // Aretia's own Solana feed: pool-creation transactions of Raydium CPMM and Orca, decoded from finalized blocks.
+  {
+    const worker = new TokenDiscoveryWorker(new SolanaPoolDiscoverySource(() => import('@solana/web3.js'), solanaRpc, { now: () => input.now }), registry, repo, new SolanaTokenEnricher(solanaRpc, () => input.now), () => input.now);
     runs.push(await worker.runOnce());
   }
   return json(200, { runs }, headers);

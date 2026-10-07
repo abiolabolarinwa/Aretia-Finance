@@ -35,3 +35,43 @@ for (const entry of EVM_V2_DEXES) {
     });
   });
 }
+
+import * as web3 from '@solana/web3.js';
+import { SolanaPoolDiscoverySource } from './solanaIndexer.js';
+import type { SolRpc } from '../solana/raydiumCpmm.js';
+
+const solRpc: SolRpc = async <T>(method: string, params: unknown[]): Promise<T> => {
+  for (let attempt = 0; attempt < 7; attempt++) {
+    const res = await fetch('https://api.mainnet-beta.solana.com', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      continue;
+    }
+    const body = (await res.json()) as { result?: T; error?: { message?: string } };
+    if (body.error || body.result === undefined) throw new Error(`rpc ${method}: ${body.error?.message ?? 'no result'}`);
+    return body.result;
+  }
+  throw new Error(`rpc ${method}: rate limited`);
+};
+
+describe('live indexer: Solana pool creations (Raydium CPMM and Orca Whirlpools)', () => {
+  it('finds real pool-creation transactions, decodes them, and reports tokens with on-chain decimals and real block times', async () => {
+    const src = new SolanaPoolDiscoverySource(async () => web3, solRpc, { lookbackSeconds: 6 * 3_600, perAccount: 30, maxTransactions: 24 });
+    const first = await src.poll(null);
+    console.log('solana indexer run', src.lastRun, 'candidates', first.candidates.length, first.candidates.slice(0, 3).map((c) => [c.ref.address.slice(0, 8), c.decimals, c.pool?.venue, c.liquidityUsd, new Date(c.firstPoolAt!).toISOString()]));
+    expect(src.lastRun!.accountsRead).toBe(10);
+    expect(src.lastRun!.poolsFound).toBeGreaterThan(0);
+    expect(first.candidates.length).toBeGreaterThan(0);
+    for (const c of first.candidates) {
+      expect(c.ref.chain).toBe('solana');
+      expect(c.firstPoolAt!).toBeGreaterThan(Date.now() - 7 * 3_600_000);
+      expect(c.firstPoolAt!).toBeLessThanOrEqual(Date.now());
+      expect(c.decimals == null || (c.decimals >= 0 && c.decimals <= 12)).toBe(true);
+    }
+    // A second poll from the cursor reads only what is newer than the first.
+    const second = await src.poll(first.nextCursor);
+    console.log('second poll', src.lastRun);
+    expect(src.lastRun!.signaturesNew).toBeLessThanOrEqual(src.lastRun!.accountsRead * 30);
+    expect(second.nextCursor).not.toBeNull();
+  }, 240_000);
+});

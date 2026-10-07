@@ -51,8 +51,8 @@ describe('discovery endpoint', () => {
     const out = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl }));
     expect(out.status).toBe(200);
     const { runs } = JSON.parse(out.body) as { runs: { chain: string; error: string | null }[] };
-    // Five third-party feeds, then Aretia's own factory feed for each of the four direct venues.
-    expect(runs.map((r) => r.chain)).toEqual(['solana', 'ethereum', 'bnb', 'polygon', 'base', 'ethereum', 'bnb', 'polygon', 'base']);
+    // Five third-party feeds, Aretia's own factory feed for each of the four direct EVM venues, then its own Solana feed.
+    expect(runs.map((r) => r.chain)).toEqual(['solana', 'ethereum', 'bnb', 'polygon', 'base', 'ethereum', 'bnb', 'polygon', 'base', 'solana']);
     expect(runs.every((r) => r.error !== null)).toBe(true);
   });
 });

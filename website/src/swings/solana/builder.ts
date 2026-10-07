@@ -120,14 +120,24 @@ export interface BuiltSwap {
   outAccount: string;
 }
 
-export interface GenericBuildOptions {
-  user: string;
+/** One swap inside a route. Steps run in order, in one transaction: a multi-hop route chains them, a split runs several side by side. */
+export interface RouteStep {
   tokenIn: TokenRef;
   tokenOut: TokenRef;
   /** Token program of each mint (the classic Token program or Token-2022): it decides the associated account address. */
   programIn: string;
   programOut: string;
   amountIn: bigint;
+  /** Plain-language line describing this swap instruction. */
+  label: string;
+  /** Builds the venue's swap instruction for the user's accounts. */
+  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
+}
+
+export interface RouteBuildOptions {
+  user: string;
+  steps: RouteStep[];
+  /** The user sells native SOL / receives native SOL (wrapped for the swap). */
   nativeIn: boolean;
   nativeOut: boolean;
   /** Close the wSOL account afterwards: only when this transaction opens it, or it was empty. */
@@ -135,46 +145,93 @@ export interface GenericBuildOptions {
   recentBlockhash: string;
   computeUnits?: number;
   priorityMicroLamports?: number;
-  /** Plain-language line describing the swap instruction itself. */
-  swapLabel: string;
-  /** Builds the venue's swap instruction for the user's input and output token accounts. */
-  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
+}
+
+export interface BuiltRoute extends BuiltSwap {
+  /** The user's token account for each mint the route touches. */
+  accounts: Record<string, string>;
 }
 
 /**
- * The venue-independent part of a Solana swap: compute budget, the user's token accounts, wrapping and unwrapping
- * SOL, then the venue's own swap instruction. Venues supply only `swapInstruction`.
+ * The venue-independent part of a Solana swap: compute budget, every token account the route touches, wrapping and
+ * unwrapping SOL, then each venue's own swap instruction in order. Venues supply only their `swapInstruction`.
  */
-export async function buildSwapTransaction(web3: typeof Web3, o: GenericBuildOptions): Promise<BuiltSwap> {
-  const inAccount = ataAddress(web3, o.user, o.tokenIn.address, o.programIn);
-  const outAccount = ataAddress(web3, o.user, o.tokenOut.address, o.programOut);
+export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOptions): Promise<BuiltRoute> {
+  if (o.steps.length === 0 || o.steps.length > 4) throw new SwingsError('invalid', 'A route needs one to four swap steps.');
   const priority = Math.min(o.priorityMicroLamports ?? 1_000, MAX_PRIORITY_MICRO_LAMPORTS);
+  // The program of every mint, from the steps that mention it.
+  const programOf = new Map<string, string>();
+  for (const st of o.steps) {
+    programOf.set(st.tokenIn.address, st.programIn);
+    programOf.set(st.tokenOut.address, st.programOut);
+  }
+  const accounts: Record<string, string> = {};
+  for (const [mint, program] of programOf) accounts[mint] = ataAddress(web3, o.user, mint, program);
+  const routeIn = o.steps[0]!.tokenIn.address;
+  const routeOut = o.steps[o.steps.length - 1]!.tokenOut.address;
+
   const ixs: Web3.TransactionInstruction[] = [
-    web3.ComputeBudgetProgram.setComputeUnitLimit({ units: o.computeUnits ?? 200_000 }),
+    web3.ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(o.computeUnits ?? 200_000 * o.steps.length, 1_400_000) }),
     web3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
   ];
   const steps: string[] = [`Set compute limit and a capped priority fee (${priority} micro-lamports per unit).`];
 
   if (o.nativeIn) {
-    ixs.push(createAtaIdempotentInstruction(web3, o.user, inAccount, o.user, o.tokenIn.address, o.programIn));
-    ixs.push(solTransferInstruction(web3, o.user, inAccount, o.amountIn));
-    ixs.push(syncNative(web3, inAccount));
-    steps.push(`Wrap ${o.amountIn} lamports of SOL into your wSOL account.`);
+    const total = o.steps.filter((s) => s.tokenIn.address === routeIn).reduce((n, s) => n + s.amountIn, 0n);
+    ixs.push(createAtaIdempotentInstruction(web3, o.user, accounts[routeIn]!, o.user, routeIn, programOf.get(routeIn)!));
+    ixs.push(solTransferInstruction(web3, o.user, accounts[routeIn]!, total));
+    ixs.push(syncNative(web3, accounts[routeIn]!));
+    steps.push(`Wrap ${total} lamports of SOL into your wSOL account.`);
   }
-  ixs.push(createAtaIdempotentInstruction(web3, o.user, outAccount, o.user, o.tokenOut.address, o.programOut));
-  steps.push(`Make sure your ${o.tokenOut.address.slice(0, 4)}… token account exists (you pay its rent only if it is new).`);
-  ixs.push(await o.swapInstruction(inAccount, outAccount));
-  steps.push(o.swapLabel);
-  if (o.nativeIn && o.closeWsol) {
-    ixs.push(closeAccount(web3, inAccount, o.user, o.user));
-    steps.push('Close the temporary wSOL account and return its SOL.');
+  // Every other mint the route touches needs an account; the user's own input account must already exist.
+  for (const [mint, program] of programOf) {
+    if (mint === routeIn) continue;
+    ixs.push(createAtaIdempotentInstruction(web3, o.user, accounts[mint]!, o.user, mint, program));
+    steps.push(`Make sure your ${mint.slice(0, 4)}… token account exists (you pay its rent only if it is new).`);
   }
-  if (o.nativeOut && o.closeWsol) {
-    ixs.push(closeAccount(web3, outAccount, o.user, o.user));
-    steps.push('Unwrap the received wSOL back to SOL.');
+  for (const st of o.steps) {
+    ixs.push(await st.swapInstruction(accounts[st.tokenIn.address]!, accounts[st.tokenOut.address]!));
+    steps.push(st.label);
+  }
+  // wSOL accounts this transaction opened (as input, output or a stop on the way) are closed again, returning their SOL.
+  if (o.closeWsol && programOf.has(WSOL_MINT) && (o.nativeIn || o.nativeOut || (routeIn !== WSOL_MINT && routeOut !== WSOL_MINT))) {
+    ixs.push(closeAccount(web3, accounts[WSOL_MINT]!, o.user, o.user));
+    steps.push(o.nativeOut ? 'Unwrap the received wSOL back to SOL.' : 'Close the temporary wSOL account and return its SOL.');
   }
   const message = new web3.TransactionMessage({ payerKey: new web3.PublicKey(o.user), recentBlockhash: o.recentBlockhash, instructions: ixs }).compileToV0Message();
-  return { transaction: new web3.VersionedTransaction(message), steps, inAccount, outAccount };
+  return { transaction: new web3.VersionedTransaction(message), steps, inAccount: accounts[routeIn]!, outAccount: accounts[routeOut]!, accounts };
+}
+
+export interface GenericBuildOptions {
+  user: string;
+  tokenIn: TokenRef;
+  tokenOut: TokenRef;
+  programIn: string;
+  programOut: string;
+  amountIn: bigint;
+  nativeIn: boolean;
+  nativeOut: boolean;
+  closeWsol: boolean;
+  recentBlockhash: string;
+  computeUnits?: number;
+  priorityMicroLamports?: number;
+  swapLabel: string;
+  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
+}
+
+/** A route of exactly one swap. Kept for the common single-pool case. */
+export async function buildSwapTransaction(web3: typeof Web3, o: GenericBuildOptions): Promise<BuiltSwap> {
+  const built = await buildRouteTransaction(web3, {
+    user: o.user,
+    steps: [{ tokenIn: o.tokenIn, tokenOut: o.tokenOut, programIn: o.programIn, programOut: o.programOut, amountIn: o.amountIn, label: o.swapLabel, swapInstruction: o.swapInstruction }],
+    nativeIn: o.nativeIn,
+    nativeOut: o.nativeOut,
+    closeWsol: o.closeWsol,
+    recentBlockhash: o.recentBlockhash,
+    computeUnits: o.computeUnits,
+    priorityMicroLamports: o.priorityMicroLamports,
+  });
+  return built;
 }
 
 /** Raydium CPMM: a swap through one constant-product pool. */

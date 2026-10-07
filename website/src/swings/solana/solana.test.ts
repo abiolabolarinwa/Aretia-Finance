@@ -224,7 +224,7 @@ describe('DirectSolanaProvider', () => {
   const req: SwapRequest = { chain: 'solana', from: { chain: 'solana', address: WSOL_MINT }, to: { chain: 'solana', address: USDC }, amountIn: 10_000_000n, slippageBps: 100, account: { chain: 'solana', address: USER } };
 
   /** A fake RPC holding one deep and one shallow pool for SOL/USDC, and a simulator whose answer is controlled. */
-  function rpcWith(opts: { sim?: 'ok' | 'fail'; wsolHolds?: boolean; payoutShortfall?: bigint } = {}) {
+  function rpcWith(opts: { sim?: 'ok' | 'fail'; wsolHolds?: boolean; payoutShortfall?: bigint; second?: { fee: bigint; r0: bigint; r1: bigint } } = {}) {
     const store = new Map<string, { data: [string, string]; owner: string; lamports?: number }>();
     const b64 = (d: Uint8Array) => btoa(String.fromCharCode(...d));
     const mk = (index: number, fee: bigint, r0: bigint, r1: bigint) => {
@@ -246,7 +246,7 @@ describe('DirectSolanaProvider', () => {
       return poolAddr;
     };
     const deep = mk(0, 2500n, 500_000_000_000n, 100_000_000_000n);
-    mk(1, 10_000n, 5_000_000_000n, 1_000_000_000n);
+    mk(1, opts.second?.fee ?? 10_000n, opts.second?.r0 ?? 5_000_000_000n, opts.second?.r1 ?? 1_000_000_000n);
     const wsolAta = web3.PublicKey.default.toBase58();
     void wsolAta;
     let calls = 0;
@@ -289,6 +289,27 @@ describe('DirectSolanaProvider', () => {
     expect((q.raw as { reasons: string[] }).reasons.join(' ')).toMatch(/2 Raydium CPMM pools read/);
   });
 
+  it('splits a large trade between two comparable pools when that pays more, with a floor on each leg', async () => {
+    const { rpc } = rpcWith({ second: { fee: 2500n, r0: 400_000_000_000n, r1: 80_000_000_000n } });
+    const big = { ...req, amountIn: 100_000_000_000n };
+    const q = await provider(rpc).getQuote(big);
+    const raw = q.raw as { shape: string; legs: { amountIn: bigint; minOut: bigint }[]; reasons: string[] };
+    const single = getAmountOutCpmm(big.amountIn, 500_000_000_000n, 100_000_000_000n, 2500);
+    expect(raw.shape).toBe('split');
+    expect(raw.legs).toHaveLength(2);
+    expect(raw.legs[0]!.amountIn + raw.legs[1]!.amountIn).toBe(big.amountIn);
+    expect(q.expectedOut).toBeGreaterThan(single);
+    expect(raw.legs.every((l) => l.minOut > 0n)).toBe(true);
+    expect(raw.legs[0]!.minOut + raw.legs[1]!.minOut).toBeGreaterThanOrEqual(q.minOut - 2n);
+    expect(q.route.legs.map((l) => l.shareBps).reduce((a, b) => a + b, 0)).toBe(10_000);
+    expect(raw.reasons.join(' ')).toMatch(/Split/);
+  });
+
+  it('does not split a small trade', async () => {
+    const q = await provider(rpcWith({ second: { fee: 2500n, r0: 400_000_000_000n, r1: 80_000_000_000n } }).rpc).getQuote(req);
+    expect((q.raw as { shape: string }).shape).toBe('direct');
+  });
+
   it('builds an unsigned, inspectable transaction that passes the simulation judge', async () => {
     const { rpc } = rpcWith();
     const p = provider(rpc);
@@ -322,6 +343,7 @@ describe('DirectSolanaProvider', () => {
     const reg = registry();
     reg.setStatus('raydium-cpmm', 'MAINTENANCE');
     reg.setStatus('meteora-damm-v2', 'MAINTENANCE');
+    reg.setStatus('orca-whirlpool', 'MAINTENANCE');
     const down = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: reg, now: () => 1_000_000 });
     expect(down.supports('solana')).toBe(false);
     await expect(down.getQuote(req)).rejects.toMatchObject({ code: 'no-route' });
@@ -514,8 +536,8 @@ describe('DirectSolanaProvider with DAMM v2 (the program is the quoter)', () => 
     const q = await provider(rpc({ delivered: 195_000n })).getQuote(req);
     expect(q.expectedOut).toBe(195_000n);
     expect(q.minOut).toBe((195_000n * 9900n) / 10_000n);
-    expect((q.raw as { kind: string }).kind).toBe('damm');
-    expect((q.raw as { reasons: string[] }).reasons.join(' ')).toMatch(/the program itself reported this output/);
+    expect((q.raw as { shape: string; legs: { entryId: string }[] }).legs[0]!.entryId).toBe('meteora-damm-v2');
+    expect((q.raw as { reasons: string[] }).reasons.join(' ')).toMatch(/priced by the program itself/);
     expect(q.route.legs[0]!.venue).toBe('Meteora DAMM v2');
   });
 

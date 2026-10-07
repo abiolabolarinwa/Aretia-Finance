@@ -229,3 +229,73 @@ describe('live: buying ACT through the Aretia Solana router, end to end (nothing
     });
   }
 });
+
+import { ORCA_WHIRLPOOL_PROGRAM, OrcaWhirlpoolAdapter, whirlpoolSwapInstruction } from './orcaWhirlpool.js';
+
+describe('live: Orca Whirlpools direct, simulation only', () => {
+  it('the program is executable', async () => {
+    const info = await rpc<{ value: { executable: boolean } | null }>('getAccountInfo', [ORCA_WHIRLPOOL_PROGRAM, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
+    expect(info.value?.executable).toBe(true);
+  });
+
+  it('finds the real SOL/USDC pools by deriving their addresses, and every parsed field checks out against the chain', async () => {
+    const adapter = new OrcaWhirlpoolAdapter(web3, rpc);
+    const pools = await adapter.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: USDC });
+    console.log('Orca SOL/USDC pools:', pools.map((p) => ({ addr: p.ref.address.slice(0, 8), fee: p.feePpm, spacing: p.extra!.tickSpacing, tick: p.extra!.tickCurrent, liq: p.extra!.liquidity, rA: p.reserve0, rB: p.reserve1, status: p.status })));
+    expect(pools.length).toBeGreaterThan(0);
+    expect(pools.some((p) => p.status === 'active' && p.reserve0 > 10n ** 11n)).toBe(true);
+  });
+
+  it('SOL -> USDC and USDC -> SOL: the real program accepts the Aretia-built transaction, a floor above the output is refused', async () => {
+    const adapter = new OrcaWhirlpoolAdapter(web3, rpc);
+    const pools = (await adapter.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: USDC })).filter((p) => p.status === 'active');
+    const pool = pools.reduce((a, b) => (BigInt(a.extra!.liquidity!) > BigInt(b.extra!.liquidity!) ? a : b));
+    const { value } = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+    const run = async (tokenIn: string, tokenOut: string, nativeIn: boolean, amountIn: bigint, minOut: bigint, nativeOut = false) => {
+      const built = await buildSwapTransaction(web3, {
+        user: PAYER, tokenIn: { chain: 'solana', address: tokenIn }, tokenOut: { chain: 'solana', address: tokenOut }, programIn: TOKEN_PROGRAM_ID, programOut: TOKEN_PROGRAM_ID, amountIn, nativeIn, nativeOut, closeWsol: false,
+        recentBlockhash: value.blockhash, swapLabel: 'Orca Whirlpool swap.', swapInstruction: (i, o) => whirlpoolSwapInstruction(web3, adapter, PAYER, pool, { chain: 'solana', address: tokenIn }, i, o, amountIn, minOut),
+      });
+      return simulateSolanaSwap(rpc, built.transaction, { user: PAYER, inAccount: nativeIn ? null : built.inAccount, outAccount: built.outAccount, inputIsSol: nativeIn, outputIsSol: false, amountIn, minOut, overheadLamports: 20_000_000n });
+    };
+    const sell = await run(SOL, USDC, true, 100_000_000n, 1n);
+    console.log('0.1 SOL -> USDC via Orca:', sell.verdict.received, 'problems', sell.blockers, 'units', sell.unitsConsumed);
+    if (sell.blockers.length) console.log(sell.logs.slice(-6).join('\n'));
+    expect(sell.blockers).toEqual([]);
+    expect(sell.verdict.received! > 0n).toBe(true);
+    const refused = await run(SOL, USDC, true, 100_000_000n, sell.verdict.received! * 2n);
+    expect(refused.blockers.length).toBeGreaterThan(0);
+
+    await new Promise((r) => setTimeout(r, 1500));
+    const buy = await run(USDC, SOL, false, 10_000_000n, 1n);
+    console.log('10 USDC -> wSOL via Orca:', buy.verdict.received, 'problems', buy.blockers);
+    if (buy.blockers.length) console.log(buy.logs.slice(-6).join('\n'));
+    expect(buy.blockers).toEqual([]);
+    expect(buy.verdict.received! > 0n).toBe(true);
+  });
+});
+
+describe('live: the Aretia Solana router across venues, hops and splits (nothing signed or sent)', () => {
+  const provider = () => new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+  const req = (from: string, to: string, amountIn: bigint) => ({ chain: 'solana' as const, from: { chain: 'solana' as const, address: from }, to: { chain: 'solana' as const, address: to }, amountIn, slippageBps: 100, account: { chain: 'solana' as const, address: PAYER } });
+  const cases: [string, string, string, bigint][] = [
+    ['1 SOL', SOL, USDC, 1_000_000_000n],
+    ['100 SOL (large: may split)', SOL, USDC, 100_000_000_000n],
+    ['2000 SOL (very large)', SOL, USDC, 2_000_000_000_000n],
+    ['0.5 SOL', SOL, ACT, 500_000_000n],
+    ['100 USDC', USDC, ACT, 100_000_000n],
+    ['100 USDT', USDT, SOL, 100_000_000n],
+  ];
+  for (const [label, from, to, amount] of cases) {
+    it(`${label}: quotes, then the real programs accept the whole built transaction`, async () => {
+      await new Promise((r) => setTimeout(r, 2000));
+      const p = provider();
+      const q = await p.getQuote(req(from, to, amount));
+      const raw = q.raw as { shape: string; reasons: string[] };
+      console.log(label, raw.shape, 'out', q.expectedOut, 'impact', q.priceImpactBps, '|', raw.reasons.join(' | '));
+      const prepared = await p.buildTransaction(q);
+      console.log(label, 'ok:', prepared.simulation.ok, prepared.simulation.blockers);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }, 120_000);
+  }
+});

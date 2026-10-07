@@ -25,6 +25,8 @@ export interface SolanaSimArgs {
   minOut: bigint;
   /** Extra SOL the swap may legitimately use (rent for a new token account, wrapping). */
   overheadLamports?: bigint;
+  /** Other token accounts to read before and after (for example the account holding an intermediate token). */
+  watch?: string[];
 }
 
 export interface SolanaSimResult {
@@ -34,10 +36,13 @@ export interface SolanaSimResult {
   logs: string[];
   opensOutputAccount: boolean;
   unitsConsumed: number | null;
+  /** Balances of the extra accounts asked for with `watch`, before and after. Null when the account does not exist. */
+  watched: { address: string; pre: bigint | null; post: bigint | null }[];
 }
 
 export async function simulateSolanaSwap(rpc: SolRpc, tx: Web3.VersionedTransaction, a: SolanaSimArgs): Promise<SolanaSimResult> {
-  const addresses = [a.user, ...(a.inAccount && !a.inputIsSol ? [a.inAccount] : []), ...(a.outAccount && !a.outputIsSol ? [a.outAccount] : [])];
+  const watch = a.watch ?? [];
+  const addresses = [a.user, ...(a.inAccount && !a.inputIsSol ? [a.inAccount] : []), ...(a.outAccount && !a.outputIsSol ? [a.outAccount] : []), ...watch];
   // Wrapped SOL accounts are watched too, but the SOL judge reads the wallet's lamports.
   const wire = btoa(String.fromCharCode(...tx.serialize()));
   const [pre, sim] = await Promise.all([
@@ -51,6 +56,8 @@ export async function simulateSolanaSwap(rpc: SolRpc, tx: Web3.VersionedTransact
   const amount = (acc: SimAccount | null | undefined): bigint | null => (acc ? (parseTokenAccount(fromBase64(acc.data[0]))?.amount ?? 0n) : null);
   const inIdx = a.inAccount && !a.inputIsSol ? 1 : -1;
   const outIdx = a.outAccount && !a.outputIsSol ? (inIdx >= 0 ? 2 : 1) : -1;
+  const watchBase = 1 + (inIdx >= 0 ? 1 : 0) + (outIdx >= 0 ? 1 : 0);
+  const watched = watch.map((address, k) => ({ address, pre: amount(pre.value[watchBase + k]), post: amount(post[watchBase + k]) }));
   const failure = sim.value.err === null ? null : ((sim.value.logs ?? []).filter((l) => /failed|error|insufficient|slippage|exceeded/i.test(l)).pop() ?? JSON.stringify(sim.value.err));
   const state: SwapSimulation = {
     solPre: BigInt(pre.value[0]?.lamports ?? 0),
@@ -63,5 +70,5 @@ export async function simulateSolanaSwap(rpc: SolRpc, tx: Web3.VersionedTransact
     error: failure,
   };
   const verdict = judgeSwapSimulation({ inputIsSol: a.inputIsSol, outputIsSol: a.outputIsSol, amountIn: a.amountIn, minOut: a.minOut, sim: state, overheadLamports: a.overheadLamports ?? SWAP_SOL_OVERHEAD_LAMPORTS });
-  return { verdict, blockers: verdict.problems, logs: sim.value.logs ?? [], opensOutputAccount: outIdx >= 0 && amount(pre.value[outIdx]) === null, unitsConsumed: sim.value.unitsConsumed ?? null };
+  return { verdict, blockers: verdict.problems, logs: sim.value.logs ?? [], opensOutputAccount: outIdx >= 0 && amount(pre.value[outIdx]) === null, unitsConsumed: sim.value.unitsConsumed ?? null, watched };
 }

@@ -264,6 +264,17 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     notes: 'Pools with creator fees and Token-2022 mints are excluded because they cannot be priced exactly yet.',
   },
   {
+    id: 'orca-whirlpool',
+    name: 'Orca Whirlpool',
+    chain: 'solana',
+    protocol: 'orca',
+    model: 'concentrated',
+    mechanism: 'solana-program',
+    router: 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc',
+    status: 'ACTIVE',
+    notes: 'Priced by simulating the swap on the program itself. Pools with Token-2022 mints are not routed.',
+  },
+  {
     id: 'meteora-damm-v2',
     name: 'Meteora DAMM v2',
     chain: 'solana',

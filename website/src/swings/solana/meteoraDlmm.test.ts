@@ -127,6 +127,34 @@ describe('MeteoraDlmmAdapter', () => {
     expect(found).toHaveLength(6);
   });
 
+  it('reads the presets once for parallel lookups, and does not remember a failed read', async () => {
+    let reads = 0;
+    const counting = (async (method: string, params: unknown[]) => {
+      if (method === 'getProgramAccounts') {
+        reads++;
+        return [{ account: { data: [b64(presetBytes(20, 10_000)), 'base64'] } }];
+      }
+      return { value: (params[0] as string[]).map(() => null) };
+    }) as SolRpc;
+    const a = new MeteoraDlmmAdapter(web3, counting);
+    const pair = [{ chain: 'solana' as const, address: WSOL }, { chain: 'solana' as const, address: USDC }] as const;
+    await Promise.all([a.getPools(...pair), a.getPools(pair[1], pair[0]), a.getPools(...pair)]);
+    expect(reads).toBe(1);
+    resetDlmmPresetCache();
+    let attempts = 0;
+    const flaky = (async (method: string) => {
+      if (method === 'getProgramAccounts') {
+        attempts++;
+        if (attempts === 1) throw new Error('rate limited');
+        return [{ account: { data: [b64(presetBytes(20, 10_000)), 'base64'] } }];
+      }
+      return { value: [] };
+    }) as SolRpc;
+    const b = new MeteoraDlmmAdapter(web3, flaky);
+    await expect(b.presets()).rejects.toThrow();
+    expect(await b.presets()).toEqual([{ binStep: 20, baseFactor: 10_000 }]);
+  });
+
   it('keeps only the bin arrays that exist, in the order the swap walks them', async () => {
     const pair = idle.pairAddress(X, Y, 20, 10_000);
     const idx = walkIndexes(1_234, true, 6); // 17, 16, 15, ...

@@ -102,7 +102,8 @@ export function walkIndexes(activeId: number, swapForY: boolean, count: number):
   return Array.from({ length: count }, (_, i) => (swapForY ? start - i : start + i));
 }
 
-let presetCache: { at: number; presets: Preset[] } | null = null;
+/** The in-flight or finished read, so parallel pair lookups in one quote share a single request. */
+let presetCache: { at: number; presets: Promise<Preset[]> } | null = null;
 
 export class MeteoraDlmmAdapter {
   private readonly program: Web3.PublicKey;
@@ -147,9 +148,20 @@ export class MeteoraDlmmAdapter {
     return out;
   }
 
-  /** The program's published presets, read once and kept for hours. */
-  async presets(): Promise<Preset[]> {
+  /** The program's published presets, read once and kept for hours. Concurrent callers share the one request. */
+  presets(): Promise<Preset[]> {
     if (presetCache && this.now() - presetCache.at < PRESET_TTL_MS) return presetCache.presets;
+    const loading = this.loadPresets();
+    const entry = { at: this.now(), presets: loading };
+    presetCache = entry;
+    // A failed read must not be remembered: the next quote tries again.
+    loading.catch(() => {
+      if (presetCache === entry) presetCache = null;
+    });
+    return loading;
+  }
+
+  private async loadPresets(): Promise<Preset[]> {
     const raw = await this.rpc<{ account: { data: [string, string] } }[]>('getProgramAccounts', [METEORA_DLMM_PROGRAM, { encoding: 'base64', dataSlice: { offset: 0, length: 20 }, filters: [{ memcmp: { offset: 0, bytes: encodeBase58(PRESET2_DISCRIMINATOR) } }] }]);
     const seen = new Set<string>();
     const presets: Preset[] = [];
@@ -161,7 +173,6 @@ export class MeteoraDlmmAdapter {
       }
     }
     if (presets.length === 0) throw new SwingsError('provider-failed', 'Meteora DLMM presets could not be read.');
-    presetCache = { at: this.now(), presets };
     return presets;
   }
 

@@ -12,6 +12,8 @@
  */
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
+import { createChartPanel } from './walletChart';
+import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
@@ -89,6 +91,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     knownToken: (mint) => picked.get(mint) ?? null,
   });
   const evm = new EvmSession();
+  // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
+  const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
 
   const s = {
@@ -648,6 +652,16 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       card.append(label);
     }
 
+    // The price chart of the token being bought. A native EVM coin is charted through its wrapped token.
+    if (s.to) {
+      const native = s.to.mint === EVM_NATIVE_ADDRESS;
+      const address = native ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : s.to.mint;
+      if (address) {
+        card.append(swapChart.element);
+        swapChart.show(s.chain, address, s.to.symbol);
+      } else swapChart.hide();
+    } else swapChart.hide();
+
     const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
     card.append(actions);
     if (s.error) card.append(banner('warn', s.error));
@@ -848,7 +862,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ];
       const dl = el('dl', { class: 'wapp__rows' });
       for (const [k, v] of rows) dl.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
-      card.append(dl, el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
+      const chart = createChartPanel();
+      card.append(dl, chart.element);
+      chart.show(r.ref.chain, r.ref.address, r.symbol);
+      card.append(el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
       if (!r.risk) card.append(el('p', { class: 'wapp__fine', text: 'No risk assessment has been run for this token yet.' }));
       else {
         card.append(el('p', { class: 'wapp__fine', text: r.risk.score === null ? 'Not enough data to give a score. This is not a good sign or a bad one.' : `Score ${r.risk.score}/100 (higher means more concerns found). Classification: ${RISK_LABELS[r.risk.status]}.` }));

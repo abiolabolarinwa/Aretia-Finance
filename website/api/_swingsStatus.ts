@@ -22,6 +22,8 @@ export interface StatusEnv extends ProxyEnv {
    * SHA-256 hashes are sent to the page, so the first group is not published.
    */
   SWINGS_CANARY_WALLETS?: string;
+  /** Set to "on" to offer protected (Jito) sending for Solana swaps. Off unless set. */
+  SWINGS_PROTECTED_SUBMIT?: string;
 }
 
 const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'];
@@ -48,6 +50,7 @@ export function handleStatus(input: { method: string; origin: string | null; env
     analytics: env.PUBLIC_SWINGS_ANALYTICS === '1',
     aggregators: env.SWINGS_AGGREGATORS !== 'off',
     canary: canaryHashes(env.SWINGS_CANARY_WALLETS),
+    protectedSubmit: env.SWINGS_PROTECTED_SUBMIT === 'on',
   };
   return { status: 200, body: JSON.stringify(body), headers };
 }

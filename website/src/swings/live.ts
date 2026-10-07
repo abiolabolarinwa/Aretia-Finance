@@ -110,7 +110,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
     providers: [direct, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
-    adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan) })],
+    adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
   });
 }
 

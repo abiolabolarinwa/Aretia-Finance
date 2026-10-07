@@ -340,3 +340,25 @@ describe('benchmark: Aretia Solana router against Jupiter (quotes only, nothing 
     }, 120_000);
   }
 });
+
+import { findTip, JITO_TIP_ACCOUNTS } from './jito.js';
+
+describe('live: protected sending (nothing signed or sent)', () => {
+  it('Jito publishes exactly the tip accounts Aretia pays', async () => {
+    const res = await fetch('https://mainnet.block-engine.jito.wtf/api/v1/bundles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTipAccounts', params: [] }) });
+    const body = (await res.json()) as { result: string[] };
+    expect([...body.result].sort()).toEqual([...JITO_TIP_ACCOUNTS].sort());
+  });
+
+  it('a swap with a tip is accepted by the real programs, and the tip is in the transaction', async () => {
+    await new Promise((r) => setTimeout(r, 2000));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+    const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: SOL }, to: { chain: 'solana', address: USDC }, amountIn: 1_000_000_000n, slippageBps: 100, account: { chain: 'solana', address: PAYER }, execution: { protect: true, tipLamports: 20_000 } });
+    const prepared = await p.buildTransaction(q);
+    const payload = prepared.payload as { transaction: web3.VersionedTransaction; protectedSubmission?: { tipLamports: number } };
+    console.log('protected tx ok:', prepared.simulation.ok, prepared.simulation.blockers, findTip(payload.transaction));
+    expect(prepared.simulation.blockers).toEqual([]);
+    expect(findTip(payload.transaction)?.lamports).toBe(20_000n);
+    expect(payload.protectedSubmission?.tipLamports).toBe(20_000);
+  }, 120_000);
+});

@@ -9,6 +9,7 @@
 import type * as Web3 from '@solana/web3.js';
 import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
+import { tipInstruction } from './jito.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { RAYDIUM_CPMM_PROGRAM } from './raydiumCpmm.js';
 
@@ -147,6 +148,8 @@ export interface RouteBuildOptions {
   recentBlockhash: string;
   computeUnits?: number;
   priorityMicroLamports?: number;
+  /** Protected submission: a tip to one of Jito's tip accounts, added last so it is paid only if the swap ran. */
+  tip?: { account: string; lamports: number };
 }
 
 export interface BuiltRoute extends BuiltSwap {
@@ -208,6 +211,10 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   if (o.closeWsol && programOf.has(WSOL_MINT) && (o.nativeIn || o.nativeOut || (routeIn !== WSOL_MINT && routeOut !== WSOL_MINT))) {
     ixs.push(closeAccount(web3, accounts[WSOL_MINT]!, o.user, o.user));
     steps.push(o.nativeOut ? 'Unwrap the received wSOL back to SOL.' : 'Close the temporary wSOL account and return its SOL.');
+  }
+  if (o.tip) {
+    ixs.push(tipInstruction(web3, o.user, o.tip.lamports, o.tip.account));
+    steps.push(`Pay a ${o.tip.lamports} lamport tip to Jito for protected (private) sending. It is paid only if the swap above succeeds.`);
   }
   const message = new web3.TransactionMessage({ payerKey: new web3.PublicKey(o.user), recentBlockhash: o.recentBlockhash, instructions: ixs }).compileToV0Message();
   return { transaction: new web3.VersionedTransaction(message), steps, inAccount: accounts[routeIn]!, outAccount: accounts[routeOut]!, accounts };

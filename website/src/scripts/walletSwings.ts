@@ -19,7 +19,7 @@ import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { ageInfo } from '../swings/tokens/registry.js';
 import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
-import { isCanaryAllowed, isChainEnabled, loadRuntime } from '../swings/runtime.js';
+import { isCanaryAllowed, isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
@@ -98,6 +98,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     amount: '',
     slippageBps: 50,
     slippageTouched: false,
+    /** Solana only: send privately through Jito, with a small tip, to lower the chance of being sandwiched. */
+    protect: false,
     phase: 'idle' as Phase,
     quote: null as Quote | null,
     alternatives: [] as Quote[],
@@ -281,17 +283,22 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         amountIn,
         slippageBps: s.slippageBps,
         account: { chain, address },
+        ...(s.protect && chain === 'solana' && runtime.protectedSubmit ? { execution: { protect: true } } : {}),
       });
       if (mySeq !== s.seq) return;
       s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
-      const best = search.routes[0];
+      // Protected sending only exists on Aretia's own Solana routes. Other providers' routes would go the normal way,
+      // so while it is on they are not offered at all: it must never look protected when it is not.
+      const protectedOnly = s.protect && chain === 'solana' && runtime.protectedSubmit;
+      const routes = protectedOnly ? search.routes.filter((r) => r.providerId === 'aretia-sol') : search.routes;
+      const best = routes[0];
       if (!best) {
         s.phase = 'idle';
-        s.error = `No executable route was found.${search.rejected.length ? ' ' + search.rejected.flatMap((r) => r.reasons).join(' ') : ''}`;
+        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : `No executable route was found.${search.rejected.length ? ' ' + search.rejected.flatMap((r) => r.reasons).join(' ') : ''}`;
         return render();
       }
       s.quote = best;
-      s.alternatives = search.routes.slice(1);
+      s.alternatives = routes.slice(1);
       s.phase = 'quoted';
       render();
       if (best.providerId === 'jupiter') {
@@ -628,6 +635,18 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       slip.append(b);
     }
     card.append(slip);
+    if (s.chain === 'solana' && runtime.protectedSubmit) {
+      const label = el('label', { class: 'wapp__fine' });
+      const box = el('input', { attrs: { type: 'checkbox' } });
+      box.checked = s.protect;
+      box.addEventListener('change', () => {
+        s.protect = box.checked;
+        resetQuote();
+        render();
+      });
+      label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
+      card.append(label);
+    }
 
     const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
     card.append(actions);

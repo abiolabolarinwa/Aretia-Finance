@@ -20,6 +20,7 @@ import type { ProviderHealth } from '../engine/health.js';
 import type { AretiaDexRegistry } from '../engine/registry.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { buildRouteTransaction, WSOL_MINT, type BuiltRoute, type RouteStep } from './builder.js';
+import { checkTip, DEFAULT_TIP_LAMPORTS, pickTipAccount } from './jito.js';
 import type { SolRpc } from './raydiumCpmm.js';
 import { simulateSolanaSwap, type SolanaSimResult } from './simulate.js';
 import { createSolanaVenues, type SolanaVenue } from './venues.js';
@@ -98,6 +99,8 @@ export interface SolanaSwapPayload {
   /** Plain-language list of what the transaction does, in order. */
   steps: string[];
   plannedAt: number;
+  /** Present when the user chose protected sending: the signed transaction must go through Jito, not the public path. */
+  protectedSubmission?: { tipLamports: number };
 }
 
 const isWsol = (t: TokenRef): boolean => t.address === WSOL_MINT;
@@ -144,8 +147,8 @@ export class DirectSolanaProvider implements DexProvider {
     };
   }
 
-  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean }, blockhash: string): Promise<BuiltRoute> {
-    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash });
+  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number } }, blockhash: string): Promise<BuiltRoute> {
+    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}) });
   }
 
   private async blockhash(): Promise<string> {
@@ -451,7 +454,11 @@ export class DirectSolanaProvider implements DexProvider {
     if (raw.shape === 'two-hop') warnings.push('This route has two swaps. A very small amount of the intermediate token can stay in your wallet.');
     if (raw.shape === 'split') warnings.push('This trade is split between two pools in a single transaction: both swaps happen together or not at all.');
 
-    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol }, await this.blockhash());
+    // Protected sending: the tip is part of the transaction the user signs, so the review screen shows it and nothing is taken later.
+    const protect = request.execution?.protect === true;
+    const tipLamports = protect ? checkTip(request.execution?.tipLamports ?? DEFAULT_TIP_LAMPORTS) : 0;
+    if (protect) warnings.push(`Protected sending is on: this swap will be sent privately through Jito, with a tip of ${tipLamports} lamports (${tipLamports / 1e9} SOL). It lowers the chance of being sandwiched; it is not a guarantee.`);
+    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}) }, await this.blockhash());
 
     // 3. Run the exact transaction through the real programs and judge it by what it does to the wallet.
     if (blockers.length === 0) {
@@ -468,7 +475,7 @@ export class DirectSolanaProvider implements DexProvider {
       if (sim.opensOutputAccount) warnings.push('This swap opens a token account in your wallet, which costs a small amount of SOL.');
     }
 
-    const payload: SolanaSwapPayload = { transaction: built.transaction, steps: built.steps, plannedAt: this.now() };
+    const payload: SolanaSwapPayload = { transaction: built.transaction, steps: built.steps, plannedAt: this.now(), ...(protect ? { protectedSubmission: { tipLamports } } : {}) };
     warnings.push(...built.steps.map((s) => `Transaction step: ${s}`));
     return { quoteId: quote.id, chain: 'solana', payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }

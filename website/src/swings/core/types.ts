@@ -64,6 +64,13 @@ export interface SwapRequest {
   amountIn: bigint;
   slippageBps: number;
   account: WalletAccount;
+  /** Optional execution choices the user made on the review screen. Providers that cannot honour them ignore them. */
+  execution?: {
+    /** Solana: send privately through Jito, with a tip paid inside the signed transaction. */
+    protect?: boolean;
+    /** The tip in lamports; a default is used when absent. */
+    tipLamports?: number;
+  };
 }
 
 export interface RouteLeg {

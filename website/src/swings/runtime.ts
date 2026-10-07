@@ -21,21 +21,23 @@ export interface RuntimeConfig {
    * Hashes, so the list of first users is not published. This is a rollout brake on a non-custodial page, not access control.
    */
   canary?: string[] | null;
+  /** The operator has switched on protected (Jito) sending for Solana. */
+  protectedSubmit?: boolean;
   loaded: boolean;
 }
 
-export const runtime: RuntimeConfig = { evmConfigured: false, evmChains: [], tokensConfigured: false, analytics: false, aggregators: true, canary: null, loaded: false };
+export const runtime: RuntimeConfig = { evmConfigured: false, evmChains: [], tokensConfigured: false, analytics: false, aggregators: true, canary: null, protectedSubmit: false, loaded: false };
 
 /** Pure reading of a status response: anything unexpected leaves the safe default (all off). */
 export function parseStatus(body: unknown): Omit<RuntimeConfig, 'loaded'> {
-  const off = { evmConfigured: false, evmChains: [] as ChainId[], tokensConfigured: false, analytics: false, aggregators: true, canary: null as string[] | null };
+  const off = { evmConfigured: false, evmChains: [] as ChainId[], tokensConfigured: false, analytics: false, aggregators: true, canary: null as string[] | null, protectedSubmit: false };
   if (typeof body !== 'object' || body === null) return off;
   const b = body as Record<string, unknown>;
   const evm = typeof b.evm === 'object' && b.evm !== null ? (b.evm as Record<string, unknown>) : {};
   const configured = evm.configured === true;
   const chains = Array.isArray(evm.chains) ? evm.chains.filter((c): c is ChainId => isChainId(c) && CHAINS[c].kind === 'evm') : [];
   const canary = Array.isArray(b.canary) ? b.canary.filter((h): h is string => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h)) : null;
-  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, analytics: b.analytics === true, aggregators: b.aggregators !== false, canary };
+  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, analytics: b.analytics === true, aggregators: b.aggregators !== false, canary, protectedSubmit: b.protectedSubmit === true };
 }
 
 export async function loadRuntime(fetchImpl: typeof fetch = fetch): Promise<void> {

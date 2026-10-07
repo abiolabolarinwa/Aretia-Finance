@@ -366,7 +366,7 @@ interface SigningContext {
 }
 
 /** Asks the connected wallet to sign, checks it returned the same transaction, and submits it. Returns the signature. */
-export async function signAndSubmitSwap(plan: SwapPlan): Promise<string> {
+export async function signAndSubmitSwap(plan: SwapPlan, opts: { protectedSubmit?: boolean } = {}): Promise<string> {
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
   if (!ctx?.signTransaction) throw new Error('The connected wallet cannot sign from this page.');
   const signed = await ctx.signTransaction(plan.transaction);
@@ -374,6 +374,20 @@ export async function signAndSubmitSwap(plan: SwapPlan): Promise<string> {
   const built = plan.transaction.message.serialize();
   if (sent.length !== built.length || sent.some((b, i) => b !== built[i])) {
     throw new Error('The wallet returned a different transaction from the one shown. Nothing was sent.');
+  }
+  if (opts.protectedSubmit) {
+    // Protected sending goes through Aretia's relay to Jito. If it cannot, nothing is sent the public way instead:
+    // that would quietly defeat what the user asked for.
+    const stop = 'Protected sending failed, so nothing was sent. Try again, or turn protected sending off to send it the normal way.';
+    let res: Response;
+    try {
+      res = await fetch('/api/swings-submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transaction: toBase64(signed.serialize()) }) });
+    } catch {
+      throw new Error(stop);
+    }
+    const out = (await res.json().catch(() => null)) as { signature?: unknown } | null;
+    if (!res.ok || typeof out?.signature !== 'string') throw new Error(stop);
+    return out.signature;
   }
   return rpcCall<string>('sendTransaction', [toBase64(signed.serialize()), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3 }]);
 }

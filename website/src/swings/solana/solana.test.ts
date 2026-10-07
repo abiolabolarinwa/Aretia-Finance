@@ -4,6 +4,7 @@ import fc from 'fast-check';
 import { buildCpmmSwapTransaction, cpmmSwapInstruction, MAX_PRIORITY_MICRO_LAMPORTS, swapBaseInputDiscriminator, WSOL_MINT, type CpmmSwapStep } from './builder.js';
 import { parseConfigState, parsePoolState, RAYDIUM_CPMM_PROGRAM, RaydiumCpmmAdapter, sortMints, tokenAccountAmount, type SolRpc } from './raydiumCpmm.js';
 import { DirectSolanaProvider } from './directSolana.js';
+import { findTip, JITO_TIP_ACCOUNTS } from './jito.js';
 import { getAmountOut, getAmountOutCpmm } from '../engine/amm.js';
 import { AretiaDexRegistry } from '../engine/registry.js';
 import { SOLANA_DEXES } from '../dex/entries.js';
@@ -374,6 +375,39 @@ describe('DirectSolanaProvider', () => {
       expect(found.rejected.map((r) => r.providerId)).toEqual(['jupiter']);
       const off = new AretiaRouter({ providers, adapters: [], now: () => 1_000_000, isChainEnabled: () => true });
       expect((await off.findRoutes(req)).routes).toHaveLength(2);
+    });
+  });
+
+  describe('protected sending', () => {
+    it('adds a Jito tip inside the transaction the user signs, says so, and marks the payload for private sending', async () => {
+      const { rpc } = rpcWith();
+      const p = provider(rpc);
+      const q = await p.getQuote({ ...req, execution: { protect: true, tipLamports: 25_000 } });
+      const prepared = await p.buildTransaction(q);
+      expect(prepared.simulation.blockers).toEqual([]);
+      const payload = prepared.payload as { transaction: web3.VersionedTransaction; steps: string[]; protectedSubmission?: { tipLamports: number } };
+      expect(payload.protectedSubmission).toEqual({ tipLamports: 25_000 });
+      const tip = findTip(payload.transaction);
+      expect(tip).toMatchObject({ from: USER, lamports: 25_000n });
+      expect(JITO_TIP_ACCOUNTS).toContain(tip!.account);
+      expect(payload.steps.at(-1)).toMatch(/tip.*Jito.*only if the swap/);
+      expect(prepared.simulation.warnings.join(' ')).toMatch(/Protected sending is on/);
+    });
+
+    it('uses a default tip, and a normal swap carries no tip and no private-sending mark', async () => {
+      const p = provider(rpcWith().rpc);
+      const protectedPrepared = await p.buildTransaction(await p.getQuote({ ...req, execution: { protect: true } }));
+      expect((protectedPrepared.payload as { protectedSubmission: { tipLamports: number } }).protectedSubmission.tipLamports).toBe(10_000);
+      const plain = await p.buildTransaction(await p.getQuote(req));
+      expect((plain.payload as { protectedSubmission?: unknown }).protectedSubmission).toBeUndefined();
+      expect(findTip((plain.payload as { transaction: web3.VersionedTransaction }).transaction)).toBeNull();
+    });
+
+    it('refuses a tip outside the cap instead of quietly changing it', async () => {
+      const p = provider(rpcWith().rpc);
+      for (const tipLamports of [5, 5_000_000]) {
+        await expect(p.buildTransaction(await p.getQuote({ ...req, execution: { protect: true, tipLamports } }))).rejects.toMatchObject({ code: 'invalid' });
+      }
     });
   });
 

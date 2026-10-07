@@ -175,6 +175,8 @@ export interface DexProvider {
   readonly id: string;
   readonly name: string;
   supports(chain: ChainId): boolean;
+  /** True when this provider can carry the Aretia ACT buyback inside the transaction it builds. Aggregator routes cannot. */
+  readonly executesBuyback?: boolean;
   getQuote(request: SwapRequest, signal?: AbortSignal): Promise<Quote>;
   /** Builds and checks the transaction for a quote. Throws SwingsError if the quote cannot be executed safely. */
   buildTransaction(quote: Quote): Promise<PreparedSwap>;

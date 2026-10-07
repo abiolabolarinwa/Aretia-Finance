@@ -8,7 +8,7 @@
  *  - one quote executes at most once, and a broadcast is never retried here;
  *  - nothing is sent without an explicit confirmation naming the quote.
  */
-import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
+import { DEFAULT_FEE_CONFIG, planBuyback } from '../core/fee.js';
 import { sameToken } from '../core/token.js';
 import { summarizeQuote, type ExecutionSummary } from '../core/summary.js';
 import {
@@ -175,6 +175,7 @@ export class AretiaRouter {
         return;
       }
       const problems = this.executabilityProblems(result.value, request);
+      if (!active[i]!.executesBuyback && planBuyback(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('This route cannot carry the Aretia ACT buyback, so it is not offered while the buyback is on.');
       if (problems.length > 0) {
         rejected.push({ providerId, reasons: problems });
         this.emit({ type: 'quote-rejected', providerId, reasons: problems });
@@ -232,6 +233,7 @@ export class AretiaRouter {
     if (!summary.canProceed) throw new SwingsError('config-missing', summary.aretiaBuyback.reasons.join(' ') || 'The Aretia fee configuration is incomplete.');
     const provider = this.providers.find((p) => p.id === quote.providerId);
     if (!provider) throw new SwingsError('invalid', 'The provider for this quote is no longer available.');
+    if (summary.aretiaBuyback.state === 'ready' && !provider.executesBuyback) throw new SwingsError('config-missing', 'This route cannot carry the Aretia ACT buyback, so it cannot be executed while the buyback is on.');
     return provider.buildTransaction(quote);
   }
 

@@ -13,8 +13,9 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { DEFAULT_FEE_CONFIG, planBuyback } from '../core/fee.js';
 import { normalizeTokenRef } from '../core/token.js';
-import { SwingsError, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
+import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
 import type { ProviderHealth } from '../engine/health.js';
 import type { AretiaDexRegistry } from '../engine/registry.js';
 import type { LiquidityPool } from '../engine/types.js';
@@ -24,6 +25,8 @@ import { simulateSolanaSwap, type SolanaSimResult } from './simulate.js';
 import { createSolanaVenues, type SolanaVenue } from './venues.js';
 
 export const SOLANA_QUOTE_TTL_MS = 12_000;
+/** The ACT mint, the asset the buyback buys. */
+export const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 /** SOL a swap may use beyond the amount: fees, priority fee and rent for several new accounts. */
 const OVERHEAD_LAMPORTS = 8_000_000n;
 /** Intermediate tokens a route may pass through. */
@@ -40,6 +43,10 @@ export interface DirectSolanaDeps {
   rpc: SolRpc;
   registry: AretiaDexRegistry;
   health?: ProviderHealth;
+  /** The Aretia fee policy. Defaults to the shipped one, which is off. */
+  fee?: AretiaFeeConfig;
+  /** The mint the buyback buys. Always ACT outside tests. */
+  actMint?: string;
   now?: () => number;
 }
 
@@ -51,6 +58,8 @@ interface LegRaw {
   tokenOut: string;
   amountIn: bigint;
   minOut: bigint;
+  /** Set on the buyback's last leg: the ACT goes to this owner, not the user. */
+  outOwner?: string;
 }
 
 interface SolanaRaw {
@@ -59,6 +68,8 @@ interface SolanaRaw {
   nativeIn: boolean;
   nativeOut: boolean;
   reasons: string[];
+  /** The ACT buyback carried in the same transaction, when the fee policy is on. */
+  buyback?: { amount: bigint; owner: string; expectedOut: bigint; legs: LegRaw[] };
 }
 
 interface Leg {
@@ -68,6 +79,7 @@ interface Leg {
   tokenOut: TokenRef;
   amountIn: bigint;
   minOut: bigint;
+  outOwner?: string;
 }
 
 interface Plan {
@@ -97,10 +109,16 @@ const short = (a: string): string => `${a.slice(0, 6)}…`;
 export class DirectSolanaProvider implements DexProvider {
   readonly id = 'aretia-sol';
   readonly name = 'Aretia Router';
+  /** This provider puts the ACT buyback inside the transaction it builds, so it may be used while the buyback is on. */
+  readonly executesBuyback = true;
   private readonly now: () => number;
+  private readonly fee: AretiaFeeConfig;
+  private readonly act: string;
 
   constructor(private readonly deps: DirectSolanaDeps) {
     this.now = deps.now ?? Date.now;
+    this.fee = deps.fee ?? DEFAULT_FEE_CONFIG;
+    this.act = deps.actMint ?? ACT_MINT;
   }
 
   supports(chain: SwapRequest['chain']): boolean {
@@ -120,7 +138,8 @@ export class DirectSolanaProvider implements DexProvider {
       programIn: leg.venue.programFor(leg.pool, leg.tokenIn.address),
       programOut: leg.venue.programFor(leg.pool, leg.tokenOut.address),
       amountIn: leg.amountIn,
-      label: leg.venue.label(leg.pool, leg.amountIn, leg.minOut),
+      label: (leg.outOwner ? 'Aretia ACT buyback: ' : '') + leg.venue.label(leg.pool, leg.amountIn, leg.minOut),
+      ...(leg.outOwner ? { outOwner: leg.outOwner } : {}),
       swapInstruction: (i, o) => leg.venue.swapInstruction(user, leg.pool, leg.tokenIn, leg.tokenOut, i, o, leg.amountIn, leg.minOut),
     };
   }
@@ -198,18 +217,10 @@ export class DirectSolanaProvider implements DexProvider {
     return ideal > out ? Number(((ideal - out) * 10_000n) / ideal) : 0;
   }
 
-  async getQuote(request: SwapRequest): Promise<Quote> {
-    if (request.chain !== 'solana') throw new SwingsError('invalid', 'The Aretia Solana router only swaps on Solana.');
-    const from = normalizeTokenRef('solana', request.from.address);
-    const to = normalizeTokenRef('solana', request.to.address);
-    if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens.');
-    if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
-    if (!this.supports('solana')) throw new SwingsError('no-route', 'No Solana venue is available right now.');
-
-    const web3 = await this.deps.web3();
-    const req: SwapRequest = { ...request, from, to };
-    const venues = createSolanaVenues(web3, this.deps.rpc, this.deps.registry, this.now);
-    const blockhash = await this.blockhash();
+  /** Every route that can fill `req` (direct, two-hop, split), best first. Throws no-route when none can. */
+  private async findPlans(web3: typeof Web3, req: SwapRequest, venues: SolanaVenue[], blockhash: string): Promise<{ plans: Plan[]; read: string }> {
+    const { from, to } = req;
+    const request = req;
     const hubs = SOLANA_HUBS.filter((h) => h !== from.address && h !== to.address).map((address): TokenRef => ({ chain: 'solana', address }));
 
     // Read every pool the plans might use, in parallel.
@@ -305,26 +316,53 @@ export class DirectSolanaProvider implements DexProvider {
 
     if (plans.length === 0) throw new SwingsError('no-route', 'No pool Aretia reads directly can fill this trade.');
     plans.sort((x, y) => (x.amountOut !== y.amountOut ? (x.amountOut > y.amountOut ? -1 : 1) : x.legs.length - y.legs.length));
+    const counts = new Map<string, number>();
+    for (const d of direct) counts.set(d.venue.name, (counts.get(d.venue.name) ?? 0) + 1);
+    const read = [...counts].map(([name, n]) => `${n} ${name} pool${n === 1 ? '' : 's'} read`).join(', ');
+    return { plans, read };
+  }
+  async getQuote(request: SwapRequest): Promise<Quote> {
+    if (request.chain !== 'solana') throw new SwingsError('invalid', 'The Aretia Solana router only swaps on Solana.');
+    const from = normalizeTokenRef('solana', request.from.address);
+    const to = normalizeTokenRef('solana', request.to.address);
+    if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens.');
+    if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
+    if (!this.supports('solana')) throw new SwingsError('no-route', 'No Solana venue is available right now.');
+
+    const web3 = await this.deps.web3();
+    const req: SwapRequest = { ...request, from, to };
+    const venues = createSolanaVenues(web3, this.deps.rpc, this.deps.registry, this.now);
+    const blockhash = await this.blockhash();
+    const { plans, read } = await this.findPlans(web3, req, venues, blockhash);
     const chosen = plans[0]!;
     const slip = BigInt(request.slippageBps);
     const minOut = after(chosen.amountOut, slip);
     if (minOut <= 0n) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
 
-    // Each leg's on-chain floor. Hop 1 must deliver at least what hop 2 sells; the last leg ends at the quote's minimum.
-    // A split's legs each carry the same slippage on their own expected share, so the sum is never under `minOut`.
-    let legs: LegRaw[];
-    if (chosen.shape === 'two-hop') legs = [{ ...this.rawOf(chosen.legs[0]!), minOut: chosen.legs[1]!.amountIn }, { ...this.rawOf(chosen.legs[1]!), minOut }];
-    else if (chosen.shape === 'split') legs = chosen.legs.map((l, i) => ({ ...this.rawOf(l), minOut: after(chosen.legOuts[i]!, slip) }));
-    else legs = [{ ...this.rawOf(chosen.legs[0]!), minOut }];
+    const legs = this.finalLegs(chosen, minOut, slip);
     if (legs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
 
+    // The ACT buyback, when the policy is on: an extra swap of the same input into ACT, in this same transaction.
+    const buy = planBuyback(request.amountIn, 'solana', this.fee);
+    let buyback: SolanaRaw['buyback'];
+    if (buy.state === 'blocked') throw new SwingsError('config-missing', buy.reasons.join(' '));
+    if (buy.state === 'ready' && buy.amount > 0n) {
+      const owner = this.fee.chains.solana.buybackExecutorAddress!;
+      if (from.address === this.act) throw new SwingsError('not-enabled', 'The ACT buyback cannot be carried by a swap that sells ACT, so this swap is not offered while the buyback is on.');
+      const act: TokenRef = { chain: 'solana', address: this.act };
+      const sub = await this.findPlans(web3, { ...req, to: act, amountIn: buy.amount }, venues, blockhash).catch(() => null);
+      if (!sub) throw new SwingsError('no-route', 'The ACT buyback has no route right now, so this swap is not offered while the buyback is on.');
+      const bPlan = sub.plans[0]!;
+      const bMin = after(bPlan.amountOut, slip);
+      const bLegs = this.finalLegs(bPlan, bMin, slip).map((l) => (l.tokenOut === this.act ? { ...l, outOwner: owner } : l));
+      if (bLegs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The ACT buyback is too small to set a minimum, so this swap is not offered while the buyback is on.');
+      buyback = { amount: buy.amount, owner, expectedOut: bPlan.amountOut, legs: bLegs };
+    }
+
     const label = (p: Plan): string => (p.shape === 'direct' ? p.legs[0]!.venue.name : p.shape === 'two-hop' ? 'two hops' : 'split');
-    const counts = new Map<string, number>();
-    for (const d of direct) counts.set(d.venue.name, (counts.get(d.venue.name) ?? 0) + 1);
-    const read = [...counts].map(([name, n]) => `${n} ${name} pool${n === 1 ? '' : 's'} read`).join(', ');
     const compared = plans.slice(0, 5).map((p) => `${label(p)} pays ${p.amountOut}`).join('; ') + (plans.length > 5 ? `; and ${plans.length - 5} more that pay less` : '');
     const fetchedAt = this.now();
-    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons] };
+    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons, ...(buyback ? [`Aretia ACT buyback: ${buyback.amount} (raw, on top of your amount) is swapped into ACT for ${buyback.owner.slice(0, 6)}… in the same transaction.`] : [])], ...(buyback ? { buyback } : {}) };
     return {
       id: `aretia-sol:${fetchedAt}:${from.address.slice(0, 6)}:${to.address.slice(0, 6)}`,
       providerId: this.id,
@@ -334,7 +372,7 @@ export class DirectSolanaProvider implements DexProvider {
       minOut,
       priceImpactBps: chosen.impactBps,
       route: { legs: chosen.legs.map((l) => ({ venue: l.venue.name, from: l.tokenIn, to: l.tokenOut, shareBps: chosen.shape === 'split' ? Number((l.amountIn * 10_000n) / request.amountIn) : 10_000 })) },
-      costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+      costs: { network: null, provider: null, aretiaBuyback: buyback ? { amount: buyback.amount, asset: from } : { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + SOLANA_QUOTE_TTL_MS,
       raw,
@@ -342,7 +380,31 @@ export class DirectSolanaProvider implements DexProvider {
   }
 
   private rawOf(l: Leg): LegRaw {
-    return { entryId: l.venue.id, poolAddress: l.pool.ref.address, tokenIn: l.tokenIn.address, tokenOut: l.tokenOut.address, amountIn: l.amountIn, minOut: l.minOut };
+    return { entryId: l.venue.id, poolAddress: l.pool.ref.address, tokenIn: l.tokenIn.address, tokenOut: l.tokenOut.address, amountIn: l.amountIn, minOut: l.minOut, ...(l.outOwner ? { outOwner: l.outOwner } : {}) };
+  }
+
+  /**
+   * Each leg's on-chain floor. Hop 1 must deliver at least what hop 2 sells; the last leg ends at the plan's minimum.
+   * A split's legs each carry the same slippage on their own expected share, so the sum is never under the minimum.
+   */
+  private finalLegs(plan: Plan, minOut: bigint, slip: bigint): LegRaw[] {
+    if (plan.shape === 'two-hop') return [{ ...this.rawOf(plan.legs[0]!), minOut: plan.legs[1]!.amountIn }, { ...this.rawOf(plan.legs[1]!), minOut }];
+    if (plan.shape === 'split') return plan.legs.map((l, i) => ({ ...this.rawOf(l), minOut: after(plan.legOuts[i]!, slip) }));
+    return [{ ...this.rawOf(plan.legs[0]!), minOut }];
+  }
+
+  /** Reads every pool of these legs again, now, and rebuilds the legs from what is on-chain at this moment. */
+  private async restore(venues: SolanaVenue[], raw: LegRaw[]): Promise<Leg[]> {
+    const legs: Leg[] = [];
+    for (const l of raw) {
+      const venue = venues.find((v) => v.id === l.entryId);
+      const tokenIn: TokenRef = { chain: 'solana', address: l.tokenIn };
+      const tokenOut: TokenRef = { chain: 'solana', address: l.tokenOut };
+      const pool = venue ? (await this.track(venue.id, () => venue.getPools(tokenIn, tokenOut))).find((p) => p.ref.address === l.poolAddress && p.status === 'active') : undefined;
+      if (!venue || !pool) throw new SwingsError('no-route', 'A pool in this quote is no longer available. Get a new quote.');
+      legs.push({ venue, pool, tokenIn, tokenOut, amountIn: l.amountIn, minOut: l.minOut, ...(l.outOwner ? { outOwner: l.outOwner } : {}) });
+    }
+    return legs;
   }
 
   // ------------------------------------------------------------------ building the real transaction
@@ -364,18 +426,15 @@ export class DirectSolanaProvider implements DexProvider {
     const venues = createSolanaVenues(web3, this.deps.rpc, this.deps.registry, this.now);
 
     // 1. Read every pool in the route again, now, and rebuild the legs from what is on-chain at this moment.
-    const legs: Leg[] = [];
-    for (const l of raw.legs) {
-      const venue = venues.find((v) => v.id === l.entryId);
-      const tokenIn: TokenRef = { chain: 'solana', address: l.tokenIn };
-      const tokenOut: TokenRef = { chain: 'solana', address: l.tokenOut };
-      const pool = venue ? (await this.track(venue.id, () => venue.getPools(tokenIn, tokenOut))).find((p) => p.ref.address === l.poolAddress && p.status === 'active') : undefined;
-      if (!venue || !pool) throw new SwingsError('no-route', 'A pool in this quote is no longer available. Get a new quote.');
-      legs.push({ venue, pool, tokenIn, tokenOut, amountIn: l.amountIn, minOut: l.minOut });
-      if (venue.localQuote && raw.shape === 'direct' && venue.localQuote(pool, tokenIn, l.amountIn) < quote.minOut) {
-        blockers.push('The price has moved since the quote: the pool would now pay less than your minimum. Get a new quote.');
-      }
+    const mainLegs = await this.restore(venues, raw.legs);
+    if (raw.shape === 'direct') {
+      const l = mainLegs[0]!;
+      if (l.venue.localQuote && l.venue.localQuote(l.pool, l.tokenIn, l.amountIn) < quote.minOut) blockers.push('The price has moved since the quote: the pool would now pay less than your minimum. Get a new quote.');
     }
+    const buyLegs = raw.buyback ? await this.restore(venues, raw.buyback.legs) : [];
+    const legs = [...buyLegs, ...mainLegs];
+    const totalIn = quote.inAmount + (raw.buyback?.amount ?? 0n);
+    if (raw.buyback) warnings.push(`The Aretia ACT buyback of ${raw.buyback.amount} (raw) is taken from your wallet on top of the amount you are swapping, and bought into ACT in this same transaction.`);
 
     // 2. wSOL handling: never close a wSOL account that already holds something.
     const wsolAccount = ataAddress(web3, user, WSOL_MINT, TOKEN_PROGRAM_ID);
@@ -396,8 +455,16 @@ export class DirectSolanaProvider implements DexProvider {
 
     // 3. Run the exact transaction through the real programs and judge it by what it does to the wallet.
     if (blockers.length === 0) {
-      const sim = await this.simulate(built, user, { nativeIn: raw.nativeIn, outputIsNative: outputIsNativeNow, amountIn: quote.inAmount, minOut: quote.minOut });
+      const lastBuy = buyLegs.filter((l) => l.outOwner);
+      const treasuryAta = raw.buyback && lastBuy[0] ? ataAddress(web3, raw.buyback.owner, this.act, lastBuy[0].venue.programFor(lastBuy[0].pool, this.act)) : null;
+      const sim = await this.simulate(built, user, { nativeIn: raw.nativeIn, outputIsNative: outputIsNativeNow, amountIn: totalIn, minOut: quote.minOut }, treasuryAta ? [treasuryAta] : []);
       blockers.push(...sim.blockers);
+      if (treasuryAta && sim.blockers.length === 0) {
+        const w = sim.watched[0];
+        const got = w ? (w.post ?? 0n) - (w.pre ?? 0n) : 0n;
+        const floor = lastBuy.reduce((n, l) => n + l.minOut, 0n);
+        if (got < floor) blockers.push('The ACT buyback would not arrive at the configured address, so the swap was stopped.');
+      }
       if (sim.opensOutputAccount) warnings.push('This swap opens a token account in your wallet, which costs a small amount of SOL.');
     }
 

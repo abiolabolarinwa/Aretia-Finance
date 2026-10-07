@@ -130,6 +130,8 @@ export interface RouteStep {
   amountIn: bigint;
   /** Plain-language line describing this swap instruction. */
   label: string;
+  /** Deliver the output to this owner's associated account instead of the user's (the user pays its rent). Used by the buyback only. */
+  outOwner?: string;
   /** Builds the venue's swap instruction for the user's accounts. */
   swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
 }
@@ -163,12 +165,15 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   const programOf = new Map<string, string>();
   for (const st of o.steps) {
     programOf.set(st.tokenIn.address, st.programIn);
-    programOf.set(st.tokenOut.address, st.programOut);
+    if (!st.outOwner) programOf.set(st.tokenOut.address, st.programOut);
   }
   const accounts: Record<string, string> = {};
   for (const [mint, program] of programOf) accounts[mint] = ataAddress(web3, o.user, mint, program);
   const routeIn = o.steps[0]!.tokenIn.address;
   const routeOut = o.steps[o.steps.length - 1]!.tokenOut.address;
+  if (o.steps[o.steps.length - 1]!.outOwner) throw new SwingsError('invalid', 'The last step of a route must pay the user.');
+  const recipients = new Map<string, string>();
+  for (const st of o.steps) if (st.outOwner) recipients.set(st.outOwner + ':' + st.tokenOut.address, ataAddress(web3, st.outOwner, st.tokenOut.address, st.programOut));
 
   const ixs: Web3.TransactionInstruction[] = [
     web3.ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(o.computeUnits ?? 200_000 * o.steps.length, 1_400_000) }),
@@ -189,8 +194,14 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
     ixs.push(createAtaIdempotentInstruction(web3, o.user, accounts[mint]!, o.user, mint, program));
     steps.push(`Make sure your ${mint.slice(0, 4)}… token account exists (you pay its rent only if it is new).`);
   }
+  for (const [key, ata] of recipients) {
+    const st = o.steps.find((s) => s.outOwner && s.outOwner + ':' + s.tokenOut.address === key)!;
+    ixs.push(createAtaIdempotentInstruction(web3, o.user, ata, st.outOwner!, st.tokenOut.address, st.programOut));
+    steps.push(`Make sure the ${st.tokenOut.address.slice(0, 4)}… account of ${st.outOwner!.slice(0, 4)}… exists (you pay its rent only if it is new).`);
+  }
   for (const st of o.steps) {
-    ixs.push(await st.swapInstruction(accounts[st.tokenIn.address]!, accounts[st.tokenOut.address]!));
+    const dest = st.outOwner ? recipients.get(st.outOwner + ':' + st.tokenOut.address)! : accounts[st.tokenOut.address]!;
+    ixs.push(await st.swapInstruction(accounts[st.tokenIn.address]!, dest));
     steps.push(st.label);
   }
   // wSOL accounts this transaction opened (as input, output or a stop on the way) are closed again, returning their SOL.

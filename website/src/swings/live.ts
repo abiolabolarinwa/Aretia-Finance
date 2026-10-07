@@ -6,6 +6,7 @@
  * signing through the user's own wallet). This is the only swings file that imports from scripts/,
  * and the only place providers and adapters are registered, so adding one is a one-line change here.
  */
+import { DEFAULT_FEE_CONFIG } from './core/fee.js';
 import { fetchAccount, loadWeb3, rpcCall } from '../scripts/walletSend';
 import { fetchQuote, planSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
 import { parseMint } from '../scripts/walletTools';
@@ -89,7 +90,9 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   const health = new ProviderHealth();
   const registry = new AretiaDexRegistry([...EVM_DEXES, ...SOLANA_DEXES], health);
   const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health });
-  const directSolana = new DirectSolanaProvider({ web3: loadWeb3, rpc: rpcCall, registry, health });
+  // One fee policy for the router and the provider that carries the buyback. It ships off (core/fee.ts).
+  const feeConfig = DEFAULT_FEE_CONFIG;
+  const directSolana = new DirectSolanaProvider({ web3: loadWeb3, rpc: rpcCall, registry, health, fee: feeConfig });
   // The aggregators (Jupiter, 0x) are NON-CORE. They take part only while the operator allows it (SWINGS_AGGREGATORS),
   // and 0x only when its key is configured. Switching them off leaves Aretia's own routing as the only source.
   const aggregator = (p: DexProvider, extra: () => boolean = () => true): DexProvider => ({
@@ -101,6 +104,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   });
 
   return new AretiaRouter({
+    feeConfig,
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
     providers: [direct, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],

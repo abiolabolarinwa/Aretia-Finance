@@ -415,11 +415,53 @@ describe('live: PumpSwap (pump.fun AMM), simulation only', () => {
     const buyOnly = await buildRouteTransaction(web3, { user: PAYER, steps: stepsFor(null), nativeIn: true, nativeOut: false, closeWsol: false, recentBlockhash: blockhash });
     const simBuy = await simulateSolanaSwap(rpc, buyOnly.transaction, { user: PAYER, inAccount: buyOnly.inAccount, outAccount: buyOnly.outAccount, inputIsSol: true, outputIsSol: false, amountIn: 20_000_000n, minOut: 1n, overheadLamports: 10_000_000n });
     expect(simBuy.blockers).toEqual([]);
-    const bought = simBuy.verdict.received;
+    const bought = simBuy.verdict.received ?? 0n;
+    expect(bought).toBeGreaterThan(0n);
     console.log('pumpswap buy delivers', bought);
     const both = await buildRouteTransaction(web3, { user: PAYER, steps: stepsFor(bought / 2n), nativeIn: true, nativeOut: false, closeWsol: false, recentBlockhash: blockhash });
     const simBoth = await simulateSolanaSwap(rpc, both.transaction, { user: PAYER, inAccount: both.inAccount, outAccount: both.outAccount, inputIsSol: true, outputIsSol: false, amountIn: 20_000_000n, minOut: 1n, overheadLamports: 10_000_000n, watch: [both.accounts[SOL]!] });
     console.log('pumpswap buy+sell ok', simBoth.blockers, simBoth.verdict.received);
     expect(simBoth.logs.join(' ')).not.toMatch(/failed/);
+  }, 300_000);
+});
+
+import { MeteoraDlmmAdapter } from './meteoraDlmm.js';
+
+describe('live: Meteora DLMM, simulation only', () => {
+  it('finds real SOL/USDC pools from the program\'s own presets, and parses what they hold', async () => {
+    const adapter = new MeteoraDlmmAdapter(web3, rpc);
+    const presets = await adapter.presets();
+    console.log('dlmm presets', presets.length);
+    expect(presets.length).toBeGreaterThan(50);
+    const pools = await adapter.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: USDC });
+    console.log('dlmm SOL/USDC pools', pools.length, pools.slice(0, 3).map((p) => [p.ref.address.slice(0, 6), p.reserve0, p.reserve1, p.feePpm, p.extra!.binStep]));
+    expect(pools.length).toBeGreaterThan(0);
+    for (const p of pools) expect(p.status).toBe('active');
+  }, 180_000);
+
+  it('the router prices through DLMM when it pays most, and the real program accepts the whole transaction', async () => {
+    await new Promise((r) => setTimeout(r, 2500));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+    for (const [label, from, to, amount] of [['1 SOL -> USDC', SOL, USDC, 1_000_000_000n], ['100 USDC -> SOL', USDC, SOL, 100_000_000n]] as const) {
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const reasons = (q.raw as { reasons: string[] }).reasons.join(' ');
+      console.log('dlmm router', label, q.expectedOut, (q.raw as { shape: string }).shape, reasons.slice(0, 220));
+      const prepared = await p.buildTransaction(q);
+      console.log('dlmm router prepared', label, prepared.simulation.ok, prepared.simulation.blockers);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
+
+  it('a DLMM-only swap is accepted by the real program in both directions', async () => {
+    await new Promise((r) => setTimeout(r, 2500));
+    const registry = new AretiaDexRegistry(SOLANA_DEXES.filter((e) => e.id === 'meteora-dlmm'));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry });
+    for (const [label, from, to, amount] of [['0.5 SOL -> USDC', SOL, USDC, 500_000_000n], ['50 USDC -> SOL', USDC, SOL, 50_000_000n]] as const) {
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const prepared = await p.buildTransaction(q);
+      console.log('dlmm only', label, 'out', q.expectedOut, 'ok', prepared.simulation.ok, prepared.simulation.blockers);
+      expect((q.raw as { legs: { entryId: string }[] }).legs.every((l) => l.entryId === 'meteora-dlmm')).toBe(true);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
   }, 300_000);
 });

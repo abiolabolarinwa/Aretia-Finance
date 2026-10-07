@@ -452,6 +452,17 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     notes: 'Priced by simulating the swap on the program itself. Pools with Token-2022 mints are not routed.',
   },
   {
+    id: 'meteora-dlmm',
+    name: 'Meteora DLMM',
+    chain: 'solana',
+    protocol: 'meteora',
+    model: 'concentrated',
+    mechanism: 'solana-program',
+    router: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo',
+    status: 'ACTIVE',
+    notes: "Liquidity in price bins. Pools of the program's published presets only; priced by simulating the swap on the program itself.",
+  },
+  {
     id: 'pumpswap',
     name: 'PumpSwap',
     chain: 'solana',

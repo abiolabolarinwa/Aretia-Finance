@@ -144,6 +144,51 @@ describe('EVM wallet discovery and adapter', () => {
     await expect(liar.switchChain(8453)).rejects.toMatchObject({ code: 'invalid' });
   });
 
+  describe('a wallet that does not have the network yet', () => {
+    /** A wallet that knows only Ethereum until it is asked to add a network. */
+    function walletWithout(chainId: number, opts: { declineAdd?: boolean } = {}) {
+      const calls: { method: string; params?: unknown[] }[] = [];
+      let current = 1;
+      const adapter = new Eip1193WalletAdapter({
+        request: async ({ method, params }) => {
+          calls.push({ method, params });
+          if (method === 'wallet_switchEthereumChain') {
+            if ((params as { chainId: string }[])[0]!.chainId === '0x' + chainId.toString(16) && !calls.some((c) => c.method === 'wallet_addEthereumChain')) throw { code: 4902 };
+            current = chainId;
+            return null;
+          }
+          if (method === 'wallet_addEthereumChain') {
+            if (opts.declineAdd) throw { code: 4001 };
+            current = chainId;
+            return null;
+          }
+          if (method === 'eth_chainId') return '0x' + current.toString(16);
+          return null;
+        },
+      });
+      return { adapter, calls };
+    }
+
+    it('offers to add Arbitrum, Optimism and Avalanche from its own stored parameters, then confirms the switch', async () => {
+      for (const id of [42161, 10, 43114]) {
+        const { adapter, calls } = walletWithout(id);
+        await adapter.switchChain(id);
+        const add = calls.find((c) => c.method === 'wallet_addEthereumChain');
+        expect(add, String(id)).toBeDefined();
+        expect((add!.params as { chainId: string; rpcUrls: string[]; blockExplorerUrls: string[] }[])[0]).toMatchObject({ chainId: '0x' + id.toString(16) });
+        expect((add!.params as { rpcUrls: string[] }[])[0]!.rpcUrls.every((u) => u.startsWith('https://'))).toBe(true);
+      }
+    });
+
+    it('does not add a network Aretia holds no parameters for, and respects a declined add', async () => {
+      const { adapter, calls } = walletWithout(999);
+      await expect(adapter.switchChain(999)).rejects.toMatchObject({ code: 'invalid' });
+      expect(calls.some((c) => c.method === 'wallet_addEthereumChain')).toBe(false);
+      const declined = walletWithout(42161, { declineAdd: true });
+      await expect(declined.adapter.switchChain(42161)).rejects.toMatchObject({ code: 'rejected' });
+    });
+  });
+
   it('rejects a bad transaction hash from the wallet', async () => {
     const w = new Eip1193WalletAdapter(fakeProvider(() => 'not-a-hash'));
     await expect(w.sendTransaction({ from: USER, to: ROUTER })).rejects.toBeInstanceOf(Error);

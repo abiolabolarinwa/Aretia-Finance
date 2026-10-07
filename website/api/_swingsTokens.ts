@@ -29,6 +29,9 @@ export interface TokensEnv extends ProxyEnv {
   EVM_RPC_BNB?: string;
   EVM_RPC_POLYGON?: string;
   EVM_RPC_BASE?: string;
+  EVM_RPC_ARBITRUM?: string;
+  EVM_RPC_OPTIMISM?: string;
+  EVM_RPC_AVALANCHE?: string;
   /** Optional: Etherscan v2 key for contract-source verification, and the 0x key for token-tax data. */
   ETHERSCAN_API_KEY?: string;
   ZEROX_API_KEY?: string;

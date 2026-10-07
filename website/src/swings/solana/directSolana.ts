@@ -434,6 +434,24 @@ export class DirectSolanaProvider implements DexProvider {
       const l = mainLegs[0]!;
       if (l.venue.localQuote && l.venue.localQuote(l.pool, l.tokenIn, l.amountIn) < quote.minOut) blockers.push('The price has moved since the quote: the pool would now pay less than your minimum. Get a new quote.');
     }
+    // A two-hop route sells at hop 2 a little less than hop 1 delivers. Prices move between the quote and now, so what
+    // hop 1 delivers is measured again, on the programs, and hop 2 is sized from that. The final minimum is unchanged.
+    if (raw.shape === 'two-hop' && mainLegs.length === 2) {
+      try {
+        const [first, second] = mainLegs as [Leg, Leg];
+        const hub = first.tokenOut;
+        const learned = await this.probe(web3, { ...request, amountIn: first.amountIn }, [{ ...first, minOut: 1n }, { ...second, amountIn: 1n, minOut: 1n }], await this.blockhash(), hub.address);
+        if (learned.watched !== null) {
+          const hop2In = after(learned.watched + 1n, HOP_BUFFER_BPS);
+          if (hop2In > 0n) {
+            first.minOut = hop2In;
+            second.amountIn = hop2In;
+          }
+        }
+      } catch {
+        // Keep the quoted sizes: the whole transaction is still simulated below, and a bad fit blocks the swap.
+      }
+    }
     const buyLegs = raw.buyback ? await this.restore(venues, raw.buyback.legs) : [];
     const legs = [...buyLegs, ...mainLegs];
     const totalIn = quote.inAmount + (raw.buyback?.amount ?? 0n);

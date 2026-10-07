@@ -221,7 +221,7 @@ describe('live: buying ACT through the Aretia Solana router, end to end (nothing
       const p = provider();
       const quote = await p.getQuote(req(from, ACT, amount));
       console.log(label, '->', 'ACT quote', quote.expectedOut, 'min', quote.minOut, 'impact bps', quote.priceImpactBps, '|', (quote.raw as { reasons: string[] }).reasons[0]);
-      expect((quote.raw as { kind: string }).kind).toBe('damm');
+      expect((quote.raw as { legs: { entryId: string }[] }).legs.some((l) => l.entryId === 'meteora-damm-v2')).toBe(true); // ACT's only pools are DAMM v2, whatever the route shape
       const prepared = await p.buildTransaction(quote);
       console.log(label, 'prepared ok:', prepared.simulation.ok, prepared.simulation.blockers);
       expect(prepared.simulation.blockers).toEqual([]);

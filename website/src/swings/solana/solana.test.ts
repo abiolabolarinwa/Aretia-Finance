@@ -334,12 +334,12 @@ describe('DirectSolanaProvider', () => {
       expect(q.costs.aretiaBuyback.amount).toBe(0n);
     });
 
-    it('adds 0.87% of the input as a separate swap into ACT, delivered to the configured address, in the same transaction', async () => {
+    it('adds 0.55% of the input as a separate swap into ACT, delivered to the configured address, in the same transaction', async () => {
       const { rpc } = rpcWith({ watchPayout: 10n ** 9n });
       const p = withFee(rpc, fee());
       const q = await p.getQuote(req);
       const raw = q.raw as { buyback: { amount: bigint; owner: string; legs: { outOwner?: string; minOut: bigint; amountIn: bigint }[] } };
-      expect(raw.buyback.amount).toBe((10_000_000n * 87n) / 10_000n);
+      expect(raw.buyback.amount).toBe((10_000_000n * 55n) / 10_000n);
       expect(raw.buyback.owner).toBe(TREASURY);
       expect(raw.buyback.legs.at(-1)!.outOwner).toBe(TREASURY);
       expect(raw.buyback.legs[0]!.amountIn).toBe(raw.buyback.amount);
@@ -350,7 +350,7 @@ describe('DirectSolanaProvider', () => {
       const payload = prepared.payload as { steps: string[] };
       expect(payload.steps.some((x) => /Aretia ACT buyback/.test(x))).toBe(true);
       expect(payload.steps.some((x) => /account of/.test(x))).toBe(true);
-      expect(prepared.simulation.warnings.join(' ')).toMatch(/buyback of 8700/);
+      expect(prepared.simulation.warnings.join(' ')).toMatch(/buyback of 5500/);
     });
 
     it('stops the swap when the simulation shows the ACT would not reach the configured address', async () => {
@@ -360,10 +360,36 @@ describe('DirectSolanaProvider', () => {
       expect(prepared.simulation.blockers.join(' ')).toMatch(/buyback would not arrive/);
     });
 
-    it('fails closed: enabled without an executor address, or when ACT is the token being sold', async () => {
+    it('fails closed when it is enabled without an executor address', async () => {
       await expect(withFee(rpcWith().rpc, fee({ executor: undefined })).getQuote(req)).rejects.toMatchObject({ code: 'config-missing' });
-      const sellingAct = new DirectSolanaProvider({ web3: async () => web3, rpc: rpcWith().rpc, registry: registry(), fee: fee(), actMint: WSOL_MINT, now: () => 1_000_000 });
-      await expect(sellingAct.getQuote(req)).rejects.toMatchObject({ code: 'not-enabled' });
+    });
+
+    it('selling ACT itself carries the buyback as that much ACT sent to the owner, with no swap', async () => {
+      // The harness's pools are SOL/USDC, so USDC stands in for ACT: selling it is selling "ACT".
+      const p = new DirectSolanaProvider({ web3: async () => web3, rpc: rpcWith().rpc, registry: registry(), fee: fee(), actMint: USDC, now: () => 1_000_000 });
+      const q = await p.getQuote({ ...req, from: { chain: 'solana', address: USDC }, to: { chain: 'solana', address: WSOL_MINT }, amountIn: 1_000_000n });
+      const raw = q.raw as { buyback: { amount: bigint; owner: string; legs: unknown[]; transfer?: boolean } };
+      expect(raw.buyback).toMatchObject({ amount: (1_000_000n * 55n) / 10_000n, owner: TREASURY, legs: [], transfer: true });
+      expect(q.inAmount).toBe(1_000_000n); // the user's swap is not reduced
+      expect(q.costs.aretiaBuyback.amount).toBe(raw.buyback.amount);
+    });
+
+    it('the route builder runs the ACT transfer after the accounts exist and before the swap', async () => {
+      const { buildRouteTransaction } = await import('./builder.js');
+      const { transferCheckedInstruction, createAtaIdempotentInstruction } = await import('../../scripts/walletTools.js');
+      const dest = new web3.Keypair().publicKey.toBase58();
+      const built = await buildRouteTransaction(web3, {
+        user: USER,
+        steps: [{ tokenIn: { chain: 'solana', address: USDC }, tokenOut: { chain: 'solana', address: WSOL_MINT }, programIn: TOKEN_PROGRAM_ID, programOut: TOKEN_PROGRAM_ID, amountIn: 5n, label: 'swap', swapInstruction: async () => web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(USER), toPubkey: new web3.PublicKey(dest), lamports: 1 }) }],
+        nativeIn: false,
+        nativeOut: false,
+        closeWsol: false,
+        recentBlockhash: web3.PublicKey.default.toBase58(),
+        prelude: (accounts) => ({ ixs: [createAtaIdempotentInstruction(web3, USER, dest, dest, USDC, TOKEN_PROGRAM_ID), transferCheckedInstruction(web3, TOKEN_PROGRAM_ID, accounts[USDC]!, USDC, dest, USER, 3n, 6)], steps: ['prelude step'] }),
+      });
+      const i = built.steps.indexOf('prelude step');
+      expect(i).toBeGreaterThan(0);
+      expect(built.steps.indexOf('swap')).toBeGreaterThan(i);
     });
 
     it('the router drops a provider that cannot carry the buyback while it is on, and offers it when it is off', async () => {

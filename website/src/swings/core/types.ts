@@ -209,7 +209,7 @@ export type FeeMode = 'BUYBACK';
 
 export interface AretiaBuybackPolicy {
   enabled: boolean;
-  /** Basis points of the qualifying transaction value (87 = 0.87%). */
+  /** Basis points of the qualifying transaction value (55 = 0.55%). */
   rateBps: number;
   asset: 'ACT';
   mode: FeeMode;

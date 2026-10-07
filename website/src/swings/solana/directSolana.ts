@@ -12,14 +12,14 @@
  * carries that account, so the simulation runs from the account that would really sign.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../../scripts/walletTools.js';
 import { DEFAULT_FEE_CONFIG, planBuyback } from '../core/fee.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
 import type { ProviderHealth } from '../engine/health.js';
 import type { AretiaDexRegistry } from '../engine/registry.js';
 import type { LiquidityPool } from '../engine/types.js';
-import { buildRouteTransaction, WSOL_MINT, type BuiltRoute, type RouteStep } from './builder.js';
+import { buildRouteTransaction, WSOL_MINT, type BuiltRoute, type RouteBuildOptions, type RouteStep } from './builder.js';
 import { checkTip, DEFAULT_TIP_LAMPORTS, pickTipAccount } from './jito.js';
 import type { SolRpc } from './raydiumCpmm.js';
 import { simulateSolanaSwap, type SolanaSimResult } from './simulate.js';
@@ -28,6 +28,9 @@ import { createSolanaVenues, type SolanaVenue } from './venues.js';
 export const SOLANA_QUOTE_TTL_MS = 12_000;
 /** The ACT mint, the asset the buyback buys. */
 export const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
+export const ACT_DECIMALS = 9;
+/** ACT charges up to 1.5% on every transfer; the receiver may get this much less than was sent. A margin above it. */
+const ACT_TRANSFER_FEE_MARGIN_BPS = 200n;
 /** SOL a swap may use beyond the amount: fees, priority fee and rent for several new accounts. */
 const OVERHEAD_LAMPORTS = 8_000_000n;
 /** Intermediate tokens a route may pass through. */
@@ -70,7 +73,7 @@ interface SolanaRaw {
   nativeOut: boolean;
   reasons: string[];
   /** The ACT buyback carried in the same transaction, when the fee policy is on. */
-  buyback?: { amount: bigint; owner: string; expectedOut: bigint; legs: LegRaw[] };
+  buyback?: { amount: bigint; owner: string; expectedOut: bigint; legs: LegRaw[]; /** Selling ACT itself: the buyback is that much ACT sent to the owner, with no swap. */ transfer?: boolean };
 }
 
 interface Leg {
@@ -147,8 +150,8 @@ export class DirectSolanaProvider implements DexProvider {
     };
   }
 
-  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number } }, blockhash: string): Promise<BuiltRoute> {
-    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}) });
+  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number }; prelude?: RouteBuildOptions['prelude'] }, blockhash: string): Promise<BuiltRoute> {
+    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}), ...(o.prelude ? { prelude: o.prelude } : {}) });
   }
 
   private async blockhash(): Promise<string> {
@@ -351,7 +354,10 @@ export class DirectSolanaProvider implements DexProvider {
     if (buy.state === 'blocked') throw new SwingsError('config-missing', buy.reasons.join(' '));
     if (buy.state === 'ready' && buy.amount > 0n) {
       const owner = this.fee.chains.solana.buybackExecutorAddress!;
-      if (from.address === this.act) throw new SwingsError('not-enabled', 'The ACT buyback cannot be carried by a swap that sells ACT, so this swap is not offered while the buyback is on.');
+      if (from.address === this.act) {
+        // Selling ACT: nothing to buy. The buyback is the same share, in ACT, sent to the owner.
+        buyback = { amount: buy.amount, owner, expectedOut: buy.amount, legs: [], transfer: true };
+      } else {
       const act: TokenRef = { chain: 'solana', address: this.act };
       const sub = await this.findPlans(web3, { ...req, to: act, amountIn: buy.amount }, venues, blockhash).catch(() => null);
       if (!sub) throw new SwingsError('no-route', 'The ACT buyback has no route right now, so this swap is not offered while the buyback is on.');
@@ -360,6 +366,7 @@ export class DirectSolanaProvider implements DexProvider {
       const bLegs = this.finalLegs(bPlan, bMin, slip).map((l) => (l.tokenOut === this.act ? { ...l, outOwner: owner } : l));
       if (bLegs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The ACT buyback is too small to set a minimum, so this swap is not offered while the buyback is on.');
       buyback = { amount: buy.amount, owner, expectedOut: bPlan.amountOut, legs: bLegs };
+      }
     }
 
     const label = (p: Plan): string => (p.shape === 'direct' ? p.legs[0]!.venue.name : p.shape === 'two-hop' ? 'two hops' : 'split');
@@ -476,18 +483,31 @@ export class DirectSolanaProvider implements DexProvider {
     const protect = request.execution?.protect === true;
     const tipLamports = protect ? checkTip(request.execution?.tipLamports ?? DEFAULT_TIP_LAMPORTS) : 0;
     if (protect) warnings.push(`Protected sending is on: this swap will be sent privately through Jito, with a tip of ${tipLamports} lamports (${tipLamports / 1e9} SOL). It lowers the chance of being sandwiched; it is not a guarantee.`);
-    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}) }, await this.blockhash());
+    // Selling ACT: the buyback is a plain ACT transfer to the owner's account, made before the swap (the user's own ACT
+    // account is the route's input). ACT is a Token-2022 mint; its program comes from the pool that holds it.
+    const actProgram = raw.buyback?.transfer ? mainLegs[0]!.venue.programFor(mainLegs[0]!.pool, this.act) : '';
+    const transfer = raw.buyback?.transfer ? raw.buyback : null;
+    const prelude = transfer
+      ? (accounts: Record<string, string>) => {
+          const dest = ataAddress(web3, transfer.owner, this.act, actProgram);
+          return {
+            ixs: [createAtaIdempotentInstruction(web3, user, dest, transfer.owner, this.act, actProgram), transferCheckedInstruction(web3, actProgram, accounts[this.act]!, this.act, dest, user, transfer.amount, ACT_DECIMALS)],
+            steps: [`Aretia ACT buyback: send ${transfer.amount} (raw) of ACT to ${transfer.owner.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
+          };
+        }
+      : undefined;
+    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}), ...(prelude ? { prelude } : {}) }, await this.blockhash());
 
     // 3. Run the exact transaction through the real programs and judge it by what it does to the wallet.
     if (blockers.length === 0) {
       const lastBuy = buyLegs.filter((l) => l.outOwner);
-      const treasuryAta = raw.buyback && lastBuy[0] ? ataAddress(web3, raw.buyback.owner, this.act, lastBuy[0].venue.programFor(lastBuy[0].pool, this.act)) : null;
+      const treasuryAta = raw.buyback?.transfer ? ataAddress(web3, raw.buyback.owner, this.act, actProgram) : raw.buyback && lastBuy[0] ? ataAddress(web3, raw.buyback.owner, this.act, lastBuy[0].venue.programFor(lastBuy[0].pool, this.act)) : null;
       const sim = await this.simulate(built, user, { nativeIn: raw.nativeIn, outputIsNative: outputIsNativeNow, amountIn: totalIn, minOut: quote.minOut }, treasuryAta ? [treasuryAta] : []);
       blockers.push(...sim.blockers);
       if (treasuryAta && sim.blockers.length === 0) {
         const w = sim.watched[0];
         const got = w ? (w.post ?? 0n) - (w.pre ?? 0n) : 0n;
-        const floor = lastBuy.reduce((n, l) => n + l.minOut, 0n);
+        const floor = raw.buyback?.transfer ? raw.buyback.amount - (raw.buyback.amount * ACT_TRANSFER_FEE_MARGIN_BPS) / 10_000n : lastBuy.reduce((n, l) => n + l.minOut, 0n);
         if (got < floor) blockers.push('The ACT buyback would not arrive at the configured address, so the swap was stopped.');
       }
       if (sim.opensOutputAccount) warnings.push('This swap opens a token account in your wallet, which costs a small amount of SOL.');

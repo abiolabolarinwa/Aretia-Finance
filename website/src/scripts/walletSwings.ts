@@ -568,7 +568,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : 'Paid in SOL; shown by your wallet before you sign'],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia fee', sum.aretiaBuyback.state === 'off' ? 'None' : sum.aretiaBuyback.state === 'ready' ? `${fmt(sum.aretiaBuyback.amount, from.decimals)} ${from.symbol} buys ACT` : 'Blocked: configuration incomplete'],
+      ['Aretia buyback', sum.aretiaBuyback.state === 'off' ? 'None' : sum.aretiaBuyback.state === 'ready' ? `${fmt(sum.aretiaBuyback.amount, from.decimals)} ${from.symbol} (0.55%) goes to buying ACT, on top of your swap` : 'Blocked: configuration incomplete'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });

@@ -312,7 +312,7 @@ describe('live: the ACT buyback inside the same transaction (a test configuratio
     console.log('buyback', raw.buyback.amount, 'lamports ->', raw.buyback.expectedOut, 'ACT (raw), legs', raw.buyback.legs.length, '|', raw.reasons.at(-1));
     const prepared = await p.buildTransaction(q);
     console.log('buyback tx ok:', prepared.simulation.ok, prepared.simulation.blockers);
-    expect(raw.buyback.amount).toBe(8_700_000n);
+    expect(raw.buyback.amount).toBe(5_500_000n);
     expect(prepared.simulation.blockers).toEqual([]);
   }, 180_000);
 });

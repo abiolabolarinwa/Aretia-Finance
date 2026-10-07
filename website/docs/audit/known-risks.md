@@ -10,7 +10,7 @@
 8. **Rate limits are in-memory per serverless instance**: a brake, not a guarantee.
 9. **Analytics** are in-memory in the session unless the operator enables the anonymous event sink, which stores allow-listed aggregate fields only.
 10. *(resolved)* EIP-55 checksums are verified; a mixed-case address with a wrong checksum is rejected.
-11. **The Trade tab still charges the old 1% fee**, which conflicts with the stated 87 bps buyback model. Decision pending.
+11. **The Trade tab still charges the old 1% fee**, which conflicts with the stated 55 bps buyback model. Decision pending.
 12. **The ACT buyback has no execution path.** Its economics (funding source, slippage, failure and circular-route handling) are unreviewed.
 13. **Dependency advisories:** 11 reported by `npm audit --omit=dev` (7 moderate, 4 high), through `@solana/web3.js` and `@bonfida/spl-name-service`; every remaining fix is a breaking major upgrade.
 14. **A lying RPC** can misreport state; simulation and broadcast use the same RPC.

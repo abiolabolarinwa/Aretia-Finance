@@ -39,7 +39,7 @@ Aretia Swings must not be described as live or production-ready. Critical checks
 1. Triage the dependency advisories.
 2. Run a small real Solana swap through Swings; verify balances and the confirmation.
 3. Apply the schema, set env vars, run discovery, and inspect real rows against a block explorer.
-4. Resolve the Trade-tab 1% fee versus the 87 bps buyback, and review the buyback execution design.
+4. Resolve the Trade-tab 1% fee versus the 55 bps buyback, and review the buyback execution design.
 5. For each EVM chain: key, verified contract list, wallet connection, fee config, a small real swap, then enable.
 6. Add a SAST and secret scan to CI.
 7. Commit, tag, and hand the tag to an external auditor (see `docs/audit/`).

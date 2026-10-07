@@ -43,7 +43,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 | 13-15 Routing, optimisation, split | Deterministic scoring with stored reasons; venues compared per swap; **splits execute atomically**: Solana (several swaps, one transaction, each leg with its own on-chain floor) and EVM (Uniswap V3 fee tiers of one pair in one router `multicall`). V2-style splits across routers need a contract and are not offered |
 | 16-17 Transaction builders, simulation | EVM V2, V3 (single, path, split), Aerodrome, Balancer, Curve; Solana Raydium CPMM, Orca, Meteora DAMM v2: inspectable output, simulated on the real programs before signing |
 | 18 Execution engine | Direct routes run through the same once-only, confirm-then-sign, track path as everything else |
-| 19 ACT buyback | **Solana executor built, OFF by default and fail-closed**: an extra swap of 0.87% of the input into ACT, delivered to the configured address, in the SAME transaction (see below). EVM: not built (ACT has no EVM liquidity) |
+| 19 ACT buyback | **Solana executor built, OFF by default and fail-closed**: an extra swap of 0.55% of the input into ACT, delivered to the configured address, in the SAME transaction (see below). EVM: not built (ACT has no EVM liquidity) |
 | 22 Swings UI | Direct routes are the default on every chain; the screen labels who priced and built each quote |
 | 23 Same-chain swaps | Solana, Ethereum, BNB, Polygon, Base all have a direct path. EVM chains are off until the operator enables them |
 | 24 Provider health | Built and wired into every direct provider |
@@ -56,7 +56,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 - All four EVM chains: Aretia's V2 maths equals the venue router's own `getAmountsOut`; V3, PancakeSwap V3, Aerodrome, Balancer and Curve routers accept Aretia-built transactions and pay the quoted amount.
 - **EVM split:** 10,000 ETH to USDC on Uniswap V3 (Ethereum): Aretia split it 50/50 between the 0.05% and 0.3% pools, the real router accepted the two-leg multicall and paid exactly the quoted amount.
 - Solana: the real Raydium CPMM, Orca Whirlpool and Meteora DAMM v2 programs accept Aretia-built swaps. Whole routes (direct, two-hop USDC to SOL to ACT) are accepted when simulated from a funded account.
-- **Solana buyback:** with a test configuration the router built the user's swap plus an 8,700,000-lamport (0.87% of 1 SOL) swap into ACT for a throwaway address, in one transaction, and the real programs accepted it.
+- **Solana buyback:** with a test configuration the router built the user's swap plus an 5,500,000-lamport (0.55% of 1 SOL) swap into ACT for a throwaway address, in one transaction, and the real programs accepted it.
 - **Solana indexer:** against mainnet it found real Raydium CPMM pool creations and decoded them (21 tokens in one 6-hour window, with on-chain decimals and real block times).
 - The EVM indexer decodes real `PairCreated` events on four chains.
 
@@ -70,7 +70,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 - Public RPC rate limits make the live suite occasionally flaky when run all at once.
 
 ### ACT buyback (Solana): how it works and what is still needed
-- Rate: 87 bps of the swap's input amount (`planBuyback`, one place). It is **in addition to** the user's amount: the user's swap is never reduced, and the buyback is shown as its own line.
+- Rate: 55 bps of the swap's input amount (`planBuyback`, one place). It is **in addition to** the user's amount: the user's swap is never reduced, and the buyback is shown as its own line.
 - Mechanism: the router prices a second swap of the same input token into ACT through its own routes (direct, two-hop or split) and puts it in the same transaction, BEFORE the user's swap, with its own on-chain floor. The ACT lands in the associated account of `buybackExecutorAddress`; the user pays that account's rent if it is new.
 - Verification before signing: the whole transaction is simulated, the user's spend must equal amount plus buyback, and the simulation must show the ACT arriving at the configured address at no less than the floor. Otherwise the swap is blocked.
 - **Off by default** (`DEFAULT_FEE_CONFIG`). Turning it on needs the owner to set `policy.enabled`, `chains.solana.enabled`, a treasury address and `buybackExecutorAddress` in `core/fee.ts` (code review, then deploy). If anything is missing, quotes fail with `config-missing`; nothing falls back to another address.
@@ -143,7 +143,7 @@ Checks at this point: `npm test` 168 passing, `npm run test:live` 12 read-only l
 - **0x end to end.** No `ZEROX_API_KEY`, so no 0x quote has ever been fetched. The parser is tested against the documented shape only, and the claim that `transaction.to` is the AllowanceHolder in this flow is from documentation, not observation.
 - **Database.** Schemas 0001 and 0002 have not been applied; discovery has never written a row.
 - **ACT buyback.** Policy only, disabled, no executor. The economics need your decision and review.
-- **Trade-tab 1% fee** still conflicts with the 87 bps model. I did not change production fee behaviour without your decision.
+- **Trade-tab 1% fee** still conflicts with the 55 bps model. I did not change production fee behaviour without your decision.
 - **Dependency advisories** (11 in production): need major upgrades (`@solana/web3.js` 3.x; `@bonfida/spl-name-service`) that touch the whole existing wallet. Needs its own migration and testing.
 - **CI and CodeQL** need a push to GitHub to run.
 - **Optional services** untested live: Etherscan source check, 0x tax lookup (no keys).

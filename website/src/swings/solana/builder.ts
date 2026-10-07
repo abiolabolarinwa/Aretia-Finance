@@ -150,6 +150,8 @@ export interface RouteBuildOptions {
   priorityMicroLamports?: number;
   /** Protected submission: a tip to one of Jito's tip accounts, added last so it is paid only if the swap ran. */
   tip?: { account: string; lamports: number };
+  /** Extra instructions that run after the token accounts exist and before the swaps (for example the ACT buyback transfer). */
+  prelude?: (accounts: Record<string, string>) => { ixs: Web3.TransactionInstruction[]; steps: string[] };
 }
 
 export interface BuiltRoute extends BuiltSwap {
@@ -196,6 +198,11 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
     if (mint === routeIn) continue;
     ixs.push(createAtaIdempotentInstruction(web3, o.user, accounts[mint]!, o.user, mint, program));
     steps.push(`Make sure your ${mint.slice(0, 4)}… token account exists (you pay its rent only if it is new).`);
+  }
+  if (o.prelude) {
+    const extra = o.prelude(accounts);
+    ixs.push(...extra.ixs);
+    steps.push(...extra.steps);
   }
   for (const [key, ata] of recipients) {
     const st = o.steps.find((s) => s.outOwner && s.outOwner + ':' + s.tokenOut.address === key)!;

@@ -599,13 +599,13 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     {
       const picked = s.to ?? s.from;
       const target = picked
-        ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol }
+        ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol, icon: picked.icon ?? null }
         : s.chain === 'solana'
-          ? { address: ACT_MINT, symbol: 'ACT' }
-          : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol };
+          ? { address: ACT_MINT, symbol: 'ACT', icon: null }
+          : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
       if (target.address) {
         card.append(swapChart.element);
-        swapChart.show(s.chain, target.address, target.symbol);
+        swapChart.show(s.chain, target.address, target.symbol, target.icon);
       } else swapChart.hide();
     }
 
@@ -870,7 +870,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       for (const [k, v] of rows) dl.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
       const chart = createChartPanel();
       card.append(dl, chart.element);
-      chart.show(r.ref.chain, r.ref.address, r.symbol);
+      chart.show(r.ref.chain, r.ref.address, r.symbol, r.logo);
       card.append(el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
       if (!r.risk) card.append(el('p', { class: 'wapp__fine', text: 'No risk assessment has been run for this token yet.' }));
       else {

@@ -3,7 +3,31 @@
 ## Direction change (read this first)
 The target is now a **standalone, Aretia-owned engine** (direct DEX integrations, Aretia routing, Aretia transaction construction), not an aggregator client. The earlier work (Jupiter and 0x providers, `AretiaRouter` over provider quotes) is kept as **non-core**: benchmarking and migration only. See `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`.
 
-### Standalone engine: what exists (tests: 328 unit and property, about 70 live read-only)
+### Competing with aggregators: what was added after the first pass
+| Area | State |
+|---|---|
+| Shadow mode | Aretia versus the best aggregator for the same request is recorded anonymously (chain, winner, rival, difference in basis points). Migration 0003 adds the columns and the `swings_shadow_summary` view. The better route is the one executed either way |
+| More Solana venues | **Meteora DLMM** (pools derived from the program's own preset list; bin arrays by swap direction), **PumpSwap** (pump.fun's AMM, canonical pools; needed three trailing accounts the on-chain IDL does not list yet, found from real swaps), alongside Orca, Raydium CPMM and DAMM v2. All priced by the program itself and accepted by the real programs in simulation |
+| More chains | **Arbitrum, Optimism, Avalanche** (migration 0004 widens the database checks) |
+| More EVM venues | SushiSwap V2 (Ethereum, Polygon, Base, Arbitrum), Pangolin and Trader Joe V1 (Avalanche, which names its native-coin calls after AVAX), Velodrome (Optimism), Uniswap V3 on BNB, Arbitrum, Optimism and Avalanche, PancakeSwap V2 and V3 on Ethereum, Base and Arbitrum, more Curve pools. Every entry was run against the real contracts; wrong addresses from memory (Optimism Curve, PancakeSwap on Base and Arbitrum) were caught and fixed that way |
+| Safety by default | Before buying a token the swap screen runs the risk engine against the chain and says plainly what was found, what passed and what could not be checked. High-risk and restricted tokens need an explicit acknowledgement. Unchecked signals are never counted as passed |
+| Protected sending (Solana) | Optional Jito sending: the tip is inside the transaction the user signs and is paid only if the swap succeeds; a relay (`/api/swings-submit`) refuses anything unsigned, untipped, over the tip cap, or tipped by someone other than the signer. Fail-closed: if the private send fails nothing goes out the public way. Off unless `SWINGS_PROTECTED_SUBMIT=on` |
+| Public quote API | `/api/swings-quote`: Aretia's own routing as a read-only API for other apps (route, unsigned transaction, simulation). Off unless `SWINGS_PUBLIC_API=on`, rate limited. Fees and referral splits are **not** built |
+| Staged rollout | `SWINGS_CANARY_WALLETS` limits who can review and sign while real swaps are proven (hashes only reach the page). Runbook: `real-swap-runbook.md` |
+
+**Benchmark against Jupiter after these additions (quotes only):** 1 SOL to USDC -0.01%; 100 SOL to USDC 0.00%; 100 USDT to SOL -0.05%; 0.5 SOL to ACT 0.00%; 100 USDC to ACT -0.15%. What remains is liquidity on proprietary AMMs (Kipseli, HumidiFi, Scorch, Manifest and others) that Aretia does not read.
+
+**Not built from the competitive plan, and why**
+- *Real swaps and the external audit:* they need your wallet, funds and an auditor. See `real-swap-runbook.md`.
+- *Raydium AMM v4 and CLMM, Manifest, the proprietary AMMs:* not yet. AMM v4 and CLMM have no on-chain IDL and need their layouts verified against the chain; Manifest is an open order book that needs its own adapter; the proprietary AMMs are largely closed.
+- *Uniswap V4, Aerodrome Slipstream, Camelot, Trader Joe Liquidity Book, Maverick, Fluid:* separate interfaces, not yet.
+- *Private transactions on EVM:* a page cannot submit a signed EVM transaction to a private relay, because wallets sign and send in one step. The practical option is for the user to add a protected RPC to their wallet; Aretia can only say so.
+- *ACT and climate routing:* the buyback and ACT pools are in. A safer path for climate and ESG tokens needs your curated list of which tokens count; the registry's `verified` flag exists for it and discovery never sets it.
+- *Limit orders, recurring buys, price alerts, cross-chain:* limit orders and recurring buys need either an on-chain program or a keeper that holds permissions over user funds; both are security-critical and not built. Cross-chain needs bridge integrations.
+- *Referral and integrator fees:* a money-moving design that needs your decision and legal review.
+- *Making Swings the default swap:* deliberately not done until real swaps have succeeded.
+
+### Standalone engine: what exists (tests: 373 unit and property, about 90 live read-only)
 | Milestone | State |
 |---|---|
 | 0 Audit | `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`. Secrets check repeated: nothing sensitive tracked |

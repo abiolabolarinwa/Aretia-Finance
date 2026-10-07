@@ -14,6 +14,10 @@ Nothing here needs to be done for the Solana swap, which works with the existing
 | `SOLANA_RPC_URL` | existing | Already used by `/api/rpc`; discovery reuses it. |
 | `SWINGS_EVM_CHAINS` | `/api/swings-status` | The operator's explicit switch per EVM chain, for example `base,polygon`. Aretia's own router needs no third-party key, so this alone enables a chain. Unlisted chains stay off. |
 | `SWINGS_AGGREGATORS` | `/api/swings-status` | Set to `off` to remove Jupiter and 0x from quotes so only Aretia's own routing is used. Default on (they are non-core). Switching off today makes Solana prices worse: see `milestone-status.md`. |
+| `SWINGS_CANARY_WALLETS` | `/api/swings-status` | Staged rollout: comma-separated wallet addresses allowed to review and sign. Unset means everyone. Only SHA-256 hashes reach the page. See `real-swap-runbook.md`. |
+| `SWINGS_PROTECTED_SUBMIT` | `/api/swings-status`, `/api/swings-submit` | Set to `on` to offer protected (Jito) sending for Solana swaps. Off unless set. |
+| `SWINGS_PUBLIC_API` | `/api/swings-quote` | Set to `on` to serve the public read-only quote API. Off unless set. It needs a keyed `SOLANA_RPC_URL`: on the public node a Solana quote takes about 20 seconds, so also allow the function a longer `maxDuration` on Vercel. |
+| `EVM_RPC_ARBITRUM`, `EVM_RPC_OPTIMISM`, `EVM_RPC_AVALANCHE` | discovery, quote API | Optional, like the other `EVM_RPC_*` variables. |
 | `PUBLIC_SWINGS_ANALYTICS` | `/api/swings-events`, `/api/swings-status` | Set to `1` to store anonymous aggregate events (needs migration 0002 and the database variables). Off by default. |
 | `ETHERSCAN_API_KEY` | discovery | Optional: contract-source verification for EVM tokens. |
 

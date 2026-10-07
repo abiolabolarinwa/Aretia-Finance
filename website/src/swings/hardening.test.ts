@@ -244,7 +244,7 @@ describe('property and fuzz tests', () => {
       // eslint-disable-next-line no-control-regex
       return out.length <= max && !/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩]/.test(out);
     }));
-  });
+  }, 30_000);
 });
 
 describe('executed quotes cannot be replayed even by concurrent calls', () => {

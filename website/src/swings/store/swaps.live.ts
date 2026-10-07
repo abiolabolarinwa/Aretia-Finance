@@ -24,7 +24,7 @@ const rpc: SolRpc = async <T>(method: string, params: unknown[]): Promise<T> => 
   throw new Error(`rpc ${method}: rate limited`);
 };
 
-interface GeckoRow extends Array<number> {}
+type GeckoRow = number[];
 async function geckoHourly(pool: string, side: 'base' | 'quote' = 'base'): Promise<Map<number, GeckoRow>> {
   const res = await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/pools/${pool}/ohlcv/hour?aggregate=1&limit=168&currency=token&token=${side}`);
   const body = (await res.json()) as { data?: { attributes?: { ohlcv_list?: GeckoRow[] } } };

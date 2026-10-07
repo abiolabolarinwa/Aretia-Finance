@@ -12,7 +12,7 @@ export function selector(signature: string): string {
   return hex(keccak256(new TextEncoder().encode(signature)).slice(0, 4));
 }
 
-export type AbiArg = { t: 'uint'; v: bigint } | { t: 'address'; v: string } | { t: 'address[]'; v: string[] } | { t: 'bytes'; v: string } | { t: 'bytes[]'; v: string[] };
+export type AbiArg = { t: 'uint'; v: bigint } | { t: 'address'; v: string } | { t: 'address[]'; v: string[] } | { t: 'bytes'; v: string } | { t: 'bytes[]'; v: string[] } | { t: 'bool'; v: boolean } | { t: 'words[]'; v: string[][] };
 
 export const uint = (v: bigint): AbiArg => ({ t: 'uint', v });
 export const address = (v: string): AbiArg => ({ t: 'address', v });
@@ -20,6 +20,15 @@ export const addressArray = (v: string[]): AbiArg => ({ t: 'address[]', v });
 /** `v` is hex, with or without 0x. */
 export const bytes = (v: string): AbiArg => ({ t: 'bytes', v });
 export const bytesArray = (v: string[]): AbiArg => ({ t: 'bytes[]', v });
+export const bool = (v: boolean): AbiArg => ({ t: 'bool', v });
+/**
+ * An array of static tuples (each tuple a fixed list of 32-byte words, for example `(address,address,bool,address)[]`).
+ * Each inner string is one word as hex.
+ */
+export const tupleArray = (v: string[][]): AbiArg => ({ t: 'words[]', v });
+/** A word for an address or bool member of a tuple. */
+export const wordOfAddress = (a: string): string => word(a.replace(/^0x/, '').toLowerCase());
+export const wordOfBool = (b: boolean): string => word(b ? '1' : '0');
 
 export const word = (h: string): string => h.padStart(64, "0");
 const clean = (h: string): string => h.replace(/^0x/, '').toLowerCase();
@@ -33,6 +42,7 @@ function encodeWord(a: AbiArg): string {
     if (!/^0x[0-9a-fA-F]{40}$/.test(a.v)) throw new SwingsError('invalid', 'Invalid address.');
     return word(a.v.slice(2).toLowerCase());
   }
+  if (a.t === 'bool') return word(a.v ? '1' : '0');
   throw new SwingsError('invalid', 'Not a static type.');
 }
 
@@ -58,10 +68,11 @@ function encodeDynamic(a: AbiArg): string {
     });
     return word(items.length.toString(16)) + heads.join('') + items.join('');
   }
+  if (a.t === 'words[]') return word(a.v.length.toString(16)) + a.v.map((tuple) => tuple.map((w) => word(w.replace(/^0x/, ''))).join('')).join('');
   throw new SwingsError('invalid', 'Not a dynamic type.');
 }
 
-const isDynamic = (a: AbiArg): boolean => a.t === 'address[]' || a.t === 'bytes' || a.t === 'bytes[]';
+const isDynamic = (a: AbiArg): boolean => a.t === 'address[]' || a.t === 'bytes' || a.t === 'bytes[]' || a.t === 'words[]';
 
 /** `0x` + selector + head (static values and offsets) + tail (dynamic values). A static tuple is passed as its flat members. */
 export function encodeCall(signature: string, args: AbiArg[]): string {

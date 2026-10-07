@@ -13,7 +13,7 @@ import { worstStatus } from './health.js';
 import type { DexStatus, PoolModel } from './types.js';
 
 /** How swaps on this venue are executed. New mechanisms get a new value and a new adapter. */
-export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'solana-program';
+export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'evm-aerodrome-router' | 'evm-balancer-vault' | 'evm-curve-pool' | 'solana-program';
 
 export interface DexEntry {
   id: string;
@@ -32,6 +32,8 @@ export interface DexEntry {
   wrappedNative?: string;
   /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair (for example ACT's own pools). */
   knownPools?: string[];
+  /** V3-style venues: the fee tiers (in hundredths of a basis point) their factory may hold pools for. */
+  feeTiers?: number[];
   status: DexStatus;
   notes?: string;
 }

@@ -104,7 +104,8 @@ export class EvmV3Adapter {
     if (amountIn <= 0n) throw new SwingsError('invalid', 'The amount must be above zero.');
 
     const jobs: Promise<V3Route | null>[] = [];
-    for (const fee of V3_FEE_TIERS) {
+    const tiers = this.entry.feeTiers ?? V3_FEE_TIERS;
+    for (const fee of tiers) {
       jobs.push(
         (async () => ((await this.hasPool(a.address, b.address, fee)) ? this.quoteSingle(a.address, b.address, fee, amountIn, block) : null))().catch(() => null),
       );
@@ -115,7 +116,7 @@ export class EvmV3Adapter {
         (async () => {
           const first: number[] = [];
           const second: number[] = [];
-          for (const fee of V3_FEE_TIERS) {
+          for (const fee of tiers) {
             if (await this.hasPool(a.address, hub, fee)) first.push(fee);
             if (await this.hasPool(hub, b.address, fee)) second.push(fee);
           }

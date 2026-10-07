@@ -13,7 +13,11 @@ import { AretiaDexRegistry, type DexEntry } from '../engine/registry.js';
 import { LiquidityStore } from '../engine/liquidity.js';
 import { RoutingEngine } from '../engine/routing.js';
 import { quoteConstantProduct } from '../engine/amm.js';
-import { EVM_DEXES, EVM_V2_DEXES, EVM_V3_DEXES } from './entries.js';
+import { EVM_AERODROME, EVM_BALANCER, EVM_CURVE, EVM_DEXES, EVM_PANCAKE_V3, EVM_V2_DEXES, EVM_V3_DEXES } from './entries.js';
+import { buildCurveSwap, EvmCurveAdapter, inspectCurveSwap } from './evmCurve.js';
+import { keccak256 } from '../core/keccak.js';
+import { buildBalancerSwap, EvmBalancerAdapter, inspectBalancerSwap, simulateBalancerSwap } from './evmBalancer.js';
+import { buildAerodromeSwap, EvmAerodromeAdapter, inspectAerodromeSwap } from './evmAerodrome.js';
 import { buildV3Swap, EvmV3Adapter, inspectV3Swap, simulateV3Swap } from './evmV3.js';
 import { HUB_TOKENS } from './hubs.js';
 import { EvmV2Adapter } from './evmV2.js';
@@ -157,7 +161,7 @@ describe('live: DirectEvmProvider end to end on all four chains (nothing signed 
   }
 });
 
-for (const entry of EVM_V3_DEXES) {
+for (const entry of [...EVM_V3_DEXES, ...EVM_PANCAKE_V3]) {
   describe(`live: ${entry.id}`, () => {
     const read = publicRead(entry.chain);
     const stable = STABLE[entry.chain]!;
@@ -207,8 +211,8 @@ for (const entry of EVM_V3_DEXES) {
   });
 }
 
-describe('live: Uniswap V3 multi-hop (exactInput) on the real router', () => {
-  for (const entry of EVM_V3_DEXES) {
+describe('live: V3 multi-hop (exactInput) on the real router', () => {
+  for (const entry of [...EVM_V3_DEXES, ...EVM_PANCAKE_V3]) {
     it(`${entry.id}: a forced two-hop path is quoted by the venue and the router pays the same`, async () => {
       await wait(800);
       const read = publicRead(entry.chain);
@@ -219,8 +223,8 @@ describe('live: Uniswap V3 multi-hop (exactInput) on the real router', () => {
       const ends = (HUB_TOKENS[entry.chain] ?? []).map((h) => h.address).filter((a) => a !== wrapped && a !== mid);
       let chosen: { out: string; f1: number; f2: number } | null = null;
       for (const out of ends) {
-        for (const f1 of [500, 3000, 100, 10_000]) {
-          for (const f2 of [100, 500, 3000, 10_000]) {
+        for (const f1 of entry.feeTiers ?? [500, 3000, 100, 10_000]) {
+          for (const f2 of entry.feeTiers ?? [100, 500, 3000, 10_000]) {
             if (!chosen && (await adapter.hasPool(wrapped, mid, f1)) && (await adapter.hasPool(mid, out, f2))) chosen = { out, f1, f2 };
           }
         }
@@ -243,4 +247,150 @@ describe('live: Uniswap V3 multi-hop (exactInput) on the real router', () => {
       expect(drift * 100n).toBeLessThan(quote!.amountOut);
     });
   }
+});
+
+describe('live: Aerodrome (Base) direct', () => {
+  const entry = EVM_AERODROME[0]!;
+  const read = publicRead('base');
+  const USDC_BASE = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+  const from = '0x' + '1'.repeat(40);
+  const hubs = (HUB_TOKENS.base ?? []).map((h) => h.address);
+
+  it('router and factory are real contracts', async () => {
+    for (const a of [entry.router!, entry.factory!]) expect(((await read('eth_getCode', [a, 'latest'])) as string).length).toBeGreaterThan(10);
+  });
+
+  it('prices ETH -> USDC by the router, builds the swap, and the real router accepts it and pays the same', async () => {
+    await wait(800);
+    const adapter = new EvmAerodromeAdapter(entry, read);
+    const amountIn = 10n ** 17n;
+    const route = await adapter.bestRoute(entry.wrappedNative!, USDC_BASE, amountIn, hubs);
+    console.log('aerodrome best', route && { hops: route.hops.map((h) => (h.stable ? 'stable' : 'volatile')), out: route.amountOut });
+    expect(route).not.toBeNull();
+    const minOut = (route!.amountOut * 98n) / 100n;
+    const plan = buildAerodromeSwap(entry, { hops: route!.hops, amountIn, minOut, recipient: from, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+    expect(inspectAerodromeSwap(plan.data)).toMatchObject({ function: 'swapExactETHForTokens', minOut, recipient: from, hops: route!.hops.map((h) => ({ ...h })) });
+    const sim = await simulateV2Swap(read, plan, from, { balanceOverride: 10n ** 24n });
+    console.log('aerodrome simulation', sim.ok, sim.error ?? '', sim.amounts?.[sim.amounts.length - 1]);
+    expect(sim.ok, sim.error ?? '').toBe(true);
+    const paid = sim.amounts![sim.amounts!.length - 1]!;
+    const drift = paid > route!.amountOut ? paid - route!.amountOut : route!.amountOut - paid;
+    expect(drift * 200n).toBeLessThan(route!.amountOut);
+    const bad = buildAerodromeSwap(entry, { hops: route!.hops, amountIn, minOut: route!.amountOut * 2n, recipient: from, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+    expect((await simulateV2Swap(read, bad, from, { balanceOverride: 10n ** 24n })).ok).toBe(false);
+  });
+
+  it('a stable pool and a two-hop route price too, when they exist', async () => {
+    await wait(800);
+    const adapter = new EvmAerodromeAdapter(entry, read);
+    const stableOnly = await adapter.quote([{ from: USDC_BASE, to: '0xeb466342c4d449bc9f53a865d5cb90586f405215', stable: true, factory: entry.factory! }], 1_000_000n);
+    console.log('USDC -> axlUSDC stable pool out', stableOnly);
+    const twoHop = await adapter.quote([{ from: entry.wrappedNative!, to: USDC_BASE, stable: false, factory: entry.factory! }, { from: USDC_BASE, to: '0xeb466342c4d449bc9f53a865d5cb90586f405215', stable: true, factory: entry.factory! }], 10n ** 16n);
+    console.log('WETH -> USDC -> axlUSDC out', twoHop);
+    expect(stableOnly === null || stableOnly > 0n).toBe(true);
+  });
+});
+
+describe('live: Balancer V2 direct', () => {
+  const from = '0x' + '1'.repeat(40);
+  for (const entry of EVM_BALANCER) {
+    it(`${entry.id}: the Vault knows every listed pool, and lists tokens that match what Aretia expects`, async () => {
+      await wait(600);
+      const adapter = new EvmBalancerAdapter(entry, publicRead(entry.chain));
+      let known = 0;
+      for (const id of entry.knownPools!) {
+        const tokens = await adapter.poolTokens(id);
+        if (tokens) known++;
+        else console.log(entry.id, 'pool id not known to the Vault (drained or removed):', id);
+      }
+      console.log(entry.id, `${known}/${entry.knownPools!.length} pools known to the Vault`);
+      expect(known).toBeGreaterThan(0);
+    });
+  }
+
+  it('Ethereum: prices WETH -> BAL by the Vault, builds batchSwap, and the real Vault accepts it and pays the same', async () => {
+    await wait(800);
+    const entry = EVM_BALANCER.find((e) => e.chain === 'ethereum')!;
+    const read = publicRead('ethereum');
+    const adapter = new EvmBalancerAdapter(entry, read);
+    const BAL = '0xba100000625a3754423978a60c9317c58a424e3d';
+    const amountIn = 10n ** 17n;
+    const route = await adapter.bestRoute(entry.wrappedNative!, BAL, amountIn);
+    console.log('balancer eth route', route && { steps: route.steps.length, out: route.amountOut });
+    expect(route).not.toBeNull();
+    const minOut = (route!.amountOut * 98n) / 100n;
+    const plan = buildBalancerSwap(entry, { steps: route!.steps, assets: route!.assets, amountIn, minOut, recipient: from, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+    expect(inspectBalancerSwap(plan.data)).toMatchObject({ recipient: from, deadline: expect.any(Number) });
+    const lastIdx = route!.steps[route!.steps.length - 1]!.assetOut;
+    const sim = await simulateBalancerSwap(read, plan, from, lastIdx, { balanceOverride: 10n ** 24n });
+    console.log('balancer simulation', sim.ok, sim.error ?? '', sim.amountOut);
+    expect(sim.ok, sim.error ?? '').toBe(true);
+    const drift = sim.amountOut! > route!.amountOut ? sim.amountOut! - route!.amountOut : route!.amountOut - sim.amountOut!;
+    expect(drift * 100n).toBeLessThan(route!.amountOut);
+    const bad = buildBalancerSwap(entry, { steps: route!.steps, assets: route!.assets, amountIn, minOut: route!.amountOut * 2n, recipient: from, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+    expect((await simulateBalancerSwap(read, bad, from, lastIdx, { balanceOverride: 10n ** 24n })).ok).toBe(false);
+  });
+
+  it('Ethereum: a two-hop route (WBTC -> WETH -> BAL) is priced by the Vault', async () => {
+    await wait(800);
+    const entry = EVM_BALANCER.find((e) => e.chain === 'ethereum')!;
+    const adapter = new EvmBalancerAdapter(entry, publicRead('ethereum'));
+    const WBTC = '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
+    const BAL = '0xba100000625a3754423978a60c9317c58a424e3d';
+    const route = await adapter.bestRoute(WBTC, BAL, 10_000n);
+    console.log('WBTC->BAL', route && { steps: route.steps.length, out: route.amountOut });
+    expect(route?.steps.length).toBe(2);
+  });
+});
+
+describe('live: Curve direct', () => {
+  const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  const word = (v: string | bigint) => (typeof v === 'bigint' ? v.toString(16) : v.replace('0x', '')).padStart(64, '0');
+  /** storage slot of mapping[key] where the mapping sits at `slot` */
+  const slotOf = (key: string, slot: string): string => '0x' + hex(keccak256(Uint8Array.from((word(key) + word(slot)).match(/../g)!, (h) => Number.parseInt(h, 16))));
+
+  for (const entry of EVM_CURVE) {
+    it(`${entry.id}: every listed pool answers coins() and a live get_dy`, async () => {
+      await wait(700);
+      const adapter = new EvmCurveAdapter(entry, publicRead(entry.chain));
+      let usable = 0;
+      for (const pool of entry.knownPools!) {
+        const coins = await adapter.coins(pool);
+        if (!coins) {
+          console.log(entry.id, 'pool not usable (no int128 coins):', pool);
+          continue;
+        }
+        const dy = await adapter.quote(pool, 0, 1, 10n ** 6n);
+        console.log(entry.id, pool.slice(0, 8), 'coins', coins.map((c) => c.slice(0, 8)), 'get_dy(0,1,1e6) =', dy);
+        if (dy !== null) usable++;
+      }
+      expect(usable).toBeGreaterThan(0);
+    });
+  }
+
+  it('Ethereum 3pool: DAI -> USDC priced by the pool, built, and the real pool accepts it and agrees (token balance and allowance set by node state override)', async () => {
+    await wait(800);
+    const entry = EVM_CURVE.find((e) => e.chain === 'ethereum')!;
+    const read = publicRead('ethereum');
+    const adapter = new EvmCurveAdapter(entry, read);
+    const DAI = '0x6b175474e89094c44da98b954eedeac495271d0f';
+    const USDC_ETH = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+    const amountIn = 1_000n * 10n ** 18n;
+    const route = await adapter.bestRoute(DAI, USDC_ETH, amountIn);
+    console.log('curve route', route);
+    expect(route).not.toBeNull();
+    const user = '0x' + '1'.repeat(40);
+    const plan = buildCurveSwap(entry, { pool: route!.pool, i: route!.i, j: route!.j, tokenIn: DAI, amountIn, minOut: (route!.amountOut * 99n) / 100n });
+    expect(inspectCurveSwap(plan.to, plan.data)).toMatchObject({ pool: route!.pool, i: route!.i, j: route!.j, amountIn });
+    // DAI keeps balanceOf at storage slot 2 and allowance at slot 3.
+    const balanceSlot = slotOf(user, '2');
+    const allowanceSlot = slotOf(route!.pool, slotOf(user, '3'));
+    const overrides = { [DAI]: { stateDiff: { [balanceSlot]: '0x' + word(amountIn * 2n), [allowanceSlot]: '0x' + word(amountIn * 2n) } } };
+    const run = (minOut: bigint) => read('eth_call', [{ from: user, to: plan.to, data: buildCurveSwap(entry, { pool: route!.pool, i: route!.i, j: route!.j, tokenIn: DAI, amountIn, minOut }).data }, 'latest', overrides]);
+    const ok = await run((route!.amountOut * 99n) / 100n).then(() => true, (e: Error) => { console.log('curve sim error:', e.message.slice(0, 200)); return false; });
+    expect(ok).toBe(true);
+    // A floor above the pool's output must be refused by the pool.
+    const refused = await run(route!.amountOut * 2n).then(() => false, () => true);
+    expect(refused).toBe(true);
+  });
 });

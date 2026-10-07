@@ -18,6 +18,9 @@ import { buildV2Swap, simulateV2Swap } from '../execution/evmV2Builder.js';
 import { HUB_TOKENS } from './hubs.js';
 import { EvmV2Adapter } from './evmV2.js';
 import { buildV3Swap, EvmV3Adapter, simulateV3Swap } from './evmV3.js';
+import { buildAerodromeSwap, EvmAerodromeAdapter, type AeroHop } from './evmAerodrome.js';
+import { buildBalancerSwap, EvmBalancerAdapter, simulateBalancerSwap, type BalancerStep } from './evmBalancer.js';
+import { buildCurveSwap, EvmCurveAdapter } from './evmCurve.js';
 
 export const DIRECT_QUOTE_TTL_MS = 15_000;
 const DEADLINE_SECONDS = 20 * 60;
@@ -35,12 +38,18 @@ export interface DirectEvmDeps {
 }
 
 interface DirectRaw {
-  kind: 'v2' | 'v3';
+  kind: 'v2' | 'v3' | 'aero' | 'balancer' | 'curve';
   entryId: string;
   /** Token addresses along the route. */
   path: string[];
   /** V3 only: the fee tier of each hop. */
   fees: number[];
+  /** Aerodrome only: the pools (volatile or stable) of each hop. */
+  aeroHops?: AeroHop[];
+  /** Balancer only: the Vault steps and the asset list they index. */
+  balancer?: { steps: BalancerStep[]; assets: string[] };
+  /** Curve only: the pool and the coin indices. */
+  curve?: { pool: string; i: number; j: number };
   nativeIn: boolean;
   nativeOut: boolean;
   block: string;
@@ -49,7 +58,10 @@ interface DirectRaw {
 }
 
 interface Candidate {
-  kind: 'v2' | 'v3';
+  kind: 'v2' | 'v3' | 'aero' | 'balancer' | 'curve';
+  aeroHops?: AeroHop[];
+  balancer?: { steps: BalancerStep[]; assets: string[] };
+  curve?: { pool: string; i: number; j: number };
   entryId: string;
   path: string[];
   fees: number[];
@@ -74,7 +86,7 @@ export class DirectEvmProvider implements DexProvider {
   }
 
   private venues(chain: ChainId): DexEntry[] {
-    return this.deps.registry.routable(chain).filter((e) => e.mechanism === 'evm-v2-router' || e.mechanism === 'evm-v3-router');
+    return this.deps.registry.routable(chain).filter((e) => e.mechanism === 'evm-v2-router' || e.mechanism === 'evm-v3-router' || e.mechanism === 'evm-aerodrome-router' || e.mechanism === 'evm-balancer-vault' || e.mechanism === 'evm-curve-pool');
   }
 
   private track<T>(id: string, work: () => Promise<T>): Promise<T> {
@@ -102,7 +114,7 @@ export class DirectEvmProvider implements DexProvider {
     const head = BigInt((await read('eth_blockNumber', [])) as string);
     if (signal?.aborted) throw new SwingsError('provider-failed', 'The request was cancelled.');
     const hubs = [...(HUB_TOKENS[chain] ?? []).map((h) => h.address), ...(this.deps.extraHubs?.(chain) ?? [])];
-    const candidates = (await Promise.all([this.v2Candidate(venues, chain, tokenIn, tokenOut, request.amountIn, hubs, head, read), ...this.v3Candidates(venues, tokenIn, tokenOut, request.amountIn, hubs, head, read, nativeOut)])).flat().filter((c): c is Candidate => c !== null);
+    const candidates = (await Promise.all([this.v2Candidate(venues, chain, tokenIn, tokenOut, request.amountIn, hubs, head, read), ...this.v3Candidates(venues, tokenIn, tokenOut, request.amountIn, hubs, head, read, nativeOut), ...this.aeroCandidates(venues, tokenIn, tokenOut, request.amountIn, hubs, head, read), ...this.balancerCandidates(venues, tokenIn, tokenOut, request.amountIn, head, read), ...this.curveCandidates(venues, tokenIn, tokenOut, request.amountIn, head, read, nativeIn || nativeOut)])).flat().filter((c): c is Candidate => c !== null);
     if (candidates.length === 0) throw new SwingsError('no-route', 'No route was found through the venues Aretia reads directly.');
 
     // Most output wins; on a tie the route with fewer hops. The comparison is written into the reasoning.
@@ -112,7 +124,7 @@ export class DirectEvmProvider implements DexProvider {
     const minOut = (best.amountOut * BigInt(10_000 - request.slippageBps)) / 10_000n;
     if (minOut <= 0n) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
     const fetchedAt = this.now();
-    const raw: DirectRaw = { kind: best.kind, entryId: best.entryId, path: best.path, fees: best.fees, nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
+    const raw: DirectRaw = { kind: best.kind, entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
     const venueName = this.deps.registry.get(best.entryId)?.name ?? best.entryId;
     return {
       id: `aretia:${chain}:${fetchedAt}:${best.path[0]!.slice(2, 8)}:${best.path[best.path.length - 1]!.slice(2, 8)}`,
@@ -168,6 +180,81 @@ export class DirectEvmProvider implements DexProvider {
     }
   }
 
+  /** The best pool each Curve venue offers, priced by the pool itself. Token-to-token only: these pools hold ERC-20 coins. */
+  private curveCandidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, head: bigint, read: EvmRead, usesNative: boolean): Promise<Candidate[]>[] {
+    if (usesNative) return [];
+    return venues
+      .filter((e) => e.mechanism === 'evm-curve-pool')
+      .map(async (entry): Promise<Candidate[]> => {
+        try {
+          const adapter = new EvmCurveAdapter(entry, read);
+          const route = await this.track(entry.id, () => adapter.bestRoute(tokenIn.address, tokenOut.address, amountIn, head));
+          if (!route) return [];
+          let impactBps: number | null = null;
+          if (amountIn >= 100n) {
+            const small = await adapter.quote(route.pool, route.i, route.j, amountIn / 100n, head);
+            if (small && small > 0n) {
+              const ideal = small * 100n;
+              impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
+            }
+          }
+          return [{ kind: 'curve', entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [], curve: { pool: route.pool, i: route.i, j: route.j }, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} pool ${route.pool.slice(0, 8)}… priced by the pool itself at block ${head}.`] }];
+        } catch {
+          return [];
+        }
+      });
+  }
+
+  /** The best route each Balancer venue offers through its curated pools, priced by the Vault itself. */
+  private balancerCandidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, head: bigint, read: EvmRead): Promise<Candidate[]>[] {
+    return venues
+      .filter((e) => e.mechanism === 'evm-balancer-vault')
+      .map(async (entry): Promise<Candidate[]> => {
+        try {
+          const adapter = new EvmBalancerAdapter(entry, read);
+          const route = await this.track(entry.id, () => adapter.bestRoute(tokenIn.address, tokenOut.address, amountIn, head));
+          if (!route) return [];
+          let impactBps: number | null = null;
+          if (amountIn >= 100n) {
+            const small = await adapter.quote(route.steps, route.assets, amountIn / 100n, head);
+            if (small && small > 0n) {
+              const ideal = small * 100n;
+              impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
+            }
+          }
+          const path = [route.assets[route.steps[0]!.assetIn]!, ...route.steps.map((s) => route.assets[s.assetOut]!)];
+          return [{ kind: 'balancer', entryId: entry.id, path, fees: [], balancer: { steps: route.steps, assets: route.assets }, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} priced by its own Vault at block ${head} through ${route.steps.length} pool${route.steps.length === 1 ? '' : 's'}.`] }];
+        } catch {
+          return [];
+        }
+      });
+  }
+
+  /** The best route each Aerodrome-style venue offers, priced by its own router. */
+  private aeroCandidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, hubs: string[], head: bigint, read: EvmRead): Promise<Candidate[]>[] {
+    return venues
+      .filter((e) => e.mechanism === 'evm-aerodrome-router')
+      .map(async (entry): Promise<Candidate[]> => {
+        try {
+          const adapter = new EvmAerodromeAdapter(entry, read);
+          const route = await this.track(entry.id, () => adapter.bestRoute(tokenIn.address, tokenOut.address, amountIn, hubs, head));
+          if (!route) return [];
+          let impactBps: number | null = null;
+          if (amountIn >= 100n) {
+            const small = await adapter.quote(route.hops, amountIn / 100n, head);
+            if (small && small > 0n) {
+              const ideal = small * 100n;
+              impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
+            }
+          }
+          const path = [route.hops[0]!.from, ...route.hops.map((h) => h.to)];
+          return [{ kind: 'aero', entryId: entry.id, path, fees: [], aeroHops: route.hops, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} priced by its own router at block ${head} (${route.hops.map((h) => (h.stable ? 'stable' : 'volatile')).join(', ')} pool${route.hops.length === 1 ? '' : 's'}).`] }];
+        } catch {
+          return [];
+        }
+      });
+  }
+
   /** The best route each V3 venue offers, from the venue's own quoter. V3 output cannot be the native coin in this version. */
   private v3Candidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, hubs: string[], head: bigint, read: EvmRead, nativeOut: boolean): Promise<Candidate[]>[] {
     if (nativeOut) return [];
@@ -204,7 +291,7 @@ export class DirectEvmProvider implements DexProvider {
     const info = CHAINS[chain];
     const raw = quote.raw as DirectRaw;
     const entry = this.deps.registry.get(raw.entryId);
-    if (!entry || entry.chain !== chain || !entry.router) throw new SwingsError('invalid', 'The venue for this quote is no longer available.');
+    if (!entry || entry.chain !== chain || (!entry.router && entry.mechanism !== 'evm-curve-pool')) throw new SwingsError('invalid', 'The venue for this quote is no longer available.');
     const status = this.deps.registry.effectiveStatus(entry.id);
     if (status !== 'ACTIVE' && status !== 'DEGRADED') throw new SwingsError('not-enabled', `${entry.name} is not accepting swaps right now.`);
     if (info.evmChainId === null) throw new SwingsError('invalid', 'Not an EVM chain.');
@@ -217,7 +304,13 @@ export class DirectEvmProvider implements DexProvider {
 
     const deadline = Math.floor(this.now() / 1000) + DEADLINE_SECONDS;
     const plan =
-      raw.kind === 'v3'
+      raw.kind === 'curve'
+        ? buildCurveSwap(entry, { pool: raw.curve?.pool ?? '', i: raw.curve?.i ?? -1, j: raw.curve?.j ?? -1, tokenIn: raw.path[0]!, amountIn: quote.inAmount, minOut: quote.minOut })
+        : raw.kind === 'balancer'
+        ? buildBalancerSwap(entry, { steps: raw.balancer?.steps ?? [], assets: raw.balancer?.assets ?? [], amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000))
+        : raw.kind === 'aero'
+        ? buildAerodromeSwap(entry, { hops: raw.aeroHops ?? [], amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000))
+        : raw.kind === 'v3'
         ? buildV3Swap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : buildV2Swap(entry, { path: raw.path, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000));
 
@@ -225,6 +318,9 @@ export class DirectEvmProvider implements DexProvider {
     let venueOut: bigint | null;
     try {
       if (raw.kind === 'v3') venueOut = (await new EvmV3Adapter(entry, read).quotePath(raw.path, raw.fees, quote.inAmount))?.amountOut ?? null;
+      else if (raw.kind === 'aero') venueOut = await new EvmAerodromeAdapter(entry, read).quote(raw.aeroHops ?? [], quote.inAmount);
+      else if (raw.kind === 'curve') venueOut = raw.curve ? await new EvmCurveAdapter(entry, read).quote(raw.curve.pool, raw.curve.i, raw.curve.j, quote.inAmount) : null;
+      else if (raw.kind === 'balancer') venueOut = raw.balancer ? await new EvmBalancerAdapter(entry, read).quote(raw.balancer.steps, raw.balancer.assets, quote.inAmount) : null;
       else {
         const out = (await read('eth_call', [{ to: entry.router, data: encodeCall('getAmountsOut(uint256,address[])', [uint(quote.inAmount), addressArray(raw.path)]) }, 'latest'])) as string;
         const amounts = decodeUintArray(out);
@@ -250,10 +346,12 @@ export class DirectEvmProvider implements DexProvider {
       try {
         const bal = wordToBigInt(words((await read('eth_call', [{ to: token, data: encodeCall('balanceOf(address)', [address(taker)]) }, 'latest'])) as string)[0] ?? '0');
         if (bal < quote.inAmount) blockers.push('Your balance is too low for this swap.');
-        const allowance = wordToBigInt(words((await read('eth_call', [{ to: token, data: encodeCall('allowance(address,address)', [address(taker), address(entry.router)]) }, 'latest'])) as string)[0] ?? '0');
+        // The spender is whatever the built transaction needs approved: the router, the Vault, or a Curve pool.
+        const spender = plan.approval?.spender ?? entry.router!;
+        const allowance = wordToBigInt(words((await read('eth_call', [{ to: token, data: encodeCall('allowance(address,address)', [address(taker), address(spender)]) }, 'latest'])) as string)[0] ?? '0');
         if (allowance < quote.inAmount) {
           needsApproval = true;
-          approval = { tx: { from: taker, to: token, data: encodeApprove(entry.router, quote.inAmount) }, token, spender: entry.router, amount: quote.inAmount };
+          approval = { tx: { from: taker, to: token, data: encodeApprove(spender, quote.inAmount) }, token, spender, amount: quote.inAmount };
           warnings.push('This swap needs a one-time approval for exactly the amount you are selling. Your wallet will ask twice: approval first, then the swap.');
         }
       } catch {
@@ -271,7 +369,18 @@ export class DirectEvmProvider implements DexProvider {
     // 3. Simulate the exact transaction against the real router. With a pending approval it cannot succeed yet.
     if (needsApproval) warnings.push('The swap itself can only be simulated after the approval is mined.');
     else if (blockers.length === 0) {
-      if (raw.kind === 'v3') {
+      if (raw.kind === 'curve') {
+        // Curve pools return nothing on older pools, so success is simply "did not revert". The pool enforces the floor itself.
+        try {
+          await read('eth_call', [{ from: taker, to: plan.to, data: plan.data, value: '0x0' }, 'latest']);
+        } catch (e) {
+          blockers.push(`The network would reject this swap: ${e instanceof Error ? e.message.slice(0, 200) : 'simulation failed'}`);
+        }
+      } else if (raw.kind === 'balancer') {
+        const sim = await simulateBalancerSwap(read, plan, taker, raw.balancer?.steps[raw.balancer.steps.length - 1]?.assetOut ?? 1);
+        if (!sim.ok) blockers.push(`The network would reject this swap: ${sim.error ?? 'simulation failed'}`);
+        else if (sim.amountOut !== null && sim.amountOut < quote.minOut) blockers.push('The simulation shows the swap paying less than your minimum. It was blocked.');
+      } else if (raw.kind === 'v3') {
         const sim = await simulateV3Swap(read, plan, taker);
         if (!sim.ok) blockers.push(`The network would reject this swap: ${sim.error ?? 'simulation failed'}`);
         else if (sim.amountOut !== null && sim.amountOut < quote.minOut) blockers.push('The simulation shows the swap paying less than your minimum. It was blocked.');

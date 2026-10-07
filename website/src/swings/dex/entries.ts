@@ -116,8 +116,139 @@ export const EVM_V3_DEXES: readonly DexEntry[] = [
   },
 ];
 
+/**
+ * PancakeSwap V3 on BNB Chain: the same concentrated-liquidity design as Uniswap V3 with its own contracts and fee
+ * tiers (0.01%, 0.05%, 0.25%, 1%). `router` is its SmartRouter, which takes the same swap calls.
+ */
+export const EVM_PANCAKE_V3: readonly DexEntry[] = [
+  {
+    id: 'pancakeswap-v3-bnb',
+    name: 'PancakeSwap V3',
+    chain: 'bnb',
+    protocol: 'uniswap-v3',
+    model: 'concentrated',
+    mechanism: 'evm-v3-router',
+    router: '0x13f4ea83d0bd40e75c8222255bc855a974568dd4',
+    factory: '0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865',
+    quoter: '0xb048bbc1ee6b733fffcfb9e9cef7375518e25997',
+    feeTiers: [100, 500, 2500, 10_000],
+    wrappedNative: WRAPPED_NATIVE.bnb,
+    status: 'ACTIVE',
+  },
+];
+
+/** Aerodrome on Base: the largest venue there. Volatile and stable pools behind one router. */
+export const EVM_AERODROME: readonly DexEntry[] = [
+  {
+    id: 'aerodrome-base',
+    name: 'Aerodrome',
+    chain: 'base',
+    protocol: 'aerodrome',
+    model: 'constant-product',
+    mechanism: 'evm-aerodrome-router',
+    router: '0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43',
+    factory: '0x420dd381b31aef6683db6b902084cb0ffece40da',
+    wrappedNative: WRAPPED_NATIVE.base,
+    status: 'ACTIVE',
+    notes: 'Priced by the router itself (exact for volatile and stable pools).',
+  },
+];
+
+const BALANCER_VAULT = '0xba12222222228d8ba445958a75a0704d566bf2c8';
+
+/**
+ * Balancer V2: one Vault per chain holds every pool. The Vault cannot list pools by pair, so these are curated pool
+ * ids (weighted pools, chosen from Balancer's own listing by liquidity and re-checked on-chain before use). Liquidity
+ * on V2 has shrunk since late 2025, so only pools that still hold meaningful value are listed.
+ */
+export const EVM_BALANCER: readonly DexEntry[] = [
+  {
+    id: 'balancer-v2-ethereum',
+    name: 'Balancer V2',
+    chain: 'ethereum',
+    protocol: 'balancer',
+    model: 'constant-product',
+    mechanism: 'evm-balancer-vault',
+    router: BALANCER_VAULT,
+    wrappedNative: WRAPPED_NATIVE.ethereum,
+    knownPools: [
+      '0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014', // BAL / WETH
+      '0xa6f548df93de924d73be7d25dc02554c6bd66db500020000000000000000000e', // WBTC / WETH
+      '0x3de27efa2f1aa663ae5d458857e731c129069f29000200000000000000000588', // wstETH / AAVE
+      '0x39eb558131e5ebeb9f76a6cbf6898f6e6dce5e4e0002000000000000000005c8', // QI / WETH
+      '0x9232a548dd9e81bac65500b5e0d918f8ba93675c000200000000000000000423', // WETH / LIT
+      '0x92762b42a06dcdddc5b7362cfb01e631c4d44b40000200000000000000000182', // GNO / COW
+    ],
+    status: 'ACTIVE',
+  },
+  {
+    id: 'balancer-v2-polygon',
+    name: 'Balancer V2',
+    chain: 'polygon',
+    protocol: 'balancer',
+    model: 'constant-product',
+    mechanism: 'evm-balancer-vault',
+    router: BALANCER_VAULT,
+    wrappedNative: WRAPPED_NATIVE.polygon,
+    knownPools: [
+      '0x03cd191f589d12b0582a99808cf19851e468e6b500010000000000000000000a', // WBTC / USDC / WETH
+      '0x0297e37f1873d2dab4487aa67cd56b58e2f27875000100000000000000000002', // wPOL / USDC / WETH / BAL
+      '0x3bd8a254163f8328efcc4f8c36da566753462433000200000000000000000dc1', // USDC / TEL
+    ],
+    status: 'ACTIVE',
+  },
+  {
+    id: 'balancer-v2-base',
+    name: 'Balancer V2',
+    chain: 'base',
+    protocol: 'balancer',
+    model: 'constant-product',
+    mechanism: 'evm-balancer-vault',
+    router: BALANCER_VAULT,
+    wrappedNative: WRAPPED_NATIVE.base,
+    knownPools: [
+      '0x007bb7a4bfc214df06474e39142288e99540f2b3000200000000000000000191', // WETH / IMO
+      '0x5332584890d6e415a6dc910254d6430b8aab7e69000200000000000000000103', // OLAS / USDC
+      '0x2da6e67c45af2aaa539294d9fa27ea50ce4e2c5f0002000000000000000001a3', // WETH / OLAS
+    ],
+    status: 'ACTIVE',
+  },
+];
+
+/**
+ * Curve standard stable pools (int128-indexed, ERC-20 coins). Each pool is its own contract. Pool addresses are
+ * curated and re-checked on-chain (`coins`, a live `get_dy`) before use; a pool of another kind never routes.
+ */
+export const EVM_CURVE: readonly DexEntry[] = [
+  {
+    id: 'curve-ethereum',
+    name: 'Curve',
+    chain: 'ethereum',
+    protocol: 'curve',
+    model: 'stable',
+    mechanism: 'evm-curve-pool',
+    knownPools: [
+      '0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7', // 3pool: DAI / USDC / USDT
+      '0x4dece678ceceb27446b35c672dc7d61f30bad69e', // crvUSD / USDC
+    ],
+    wrappedNative: WRAPPED_NATIVE.ethereum,
+    status: 'ACTIVE',
+  },
+  {
+    id: 'curve-base',
+    name: 'Curve',
+    chain: 'base',
+    protocol: 'curve',
+    model: 'stable',
+    mechanism: 'evm-curve-pool',
+    knownPools: ['0xf6c5f01c7f3148891ad0e19df78743d31e390d1f'], // 4pool
+    wrappedNative: WRAPPED_NATIVE.base,
+    status: 'ACTIVE',
+  },
+];
+
 /** Every direct venue Aretia routes through. */
-export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES];
+export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE];
 
 /** Solana venues integrated directly. Raydium CPMM only so far: constant-product pools, single hop, no Token-2022. */
 export const SOLANA_DEXES: readonly DexEntry[] = [

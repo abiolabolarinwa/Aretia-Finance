@@ -37,7 +37,7 @@ export const DEFAULT_FEE_CONFIG: AretiaFeeConfig = {
  * The one switch that turns the buyback on in the product. It ships FALSE: turning it on changes what every Aretia
  * Solana swap costs the user, so it is a deliberate, reviewed change to this line and nothing else.
  */
-export const BUYBACK_LIVE = false;
+export const BUYBACK_LIVE = true;
 
 /**
  * What the product runs. Solana: the buyback at 0.55%, when `BUYBACK_LIVE` is true, and both the treasury and the receiver of the ACT are the

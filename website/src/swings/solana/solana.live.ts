@@ -465,3 +465,21 @@ describe('live: Meteora DLMM, simulation only', () => {
     }
   }, 300_000);
 });
+
+import { LIVE_FEE_CONFIG } from '../core/fee.js';
+
+describe('live: the product configuration, with the buyback on (nothing signed or sent)', () => {
+  it('SOL -> USDC and USDC -> ACT carry the 0.55% buyback to the configured wallet and the real programs accept them', async () => {
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee: LIVE_FEE_CONFIG });
+    for (const [label, from, to, amount] of [['1 SOL -> USDC', SOL, USDC, 1_000_000_000n], ['100 USDC -> SOL', USDC, SOL, 100_000_000n]] as const) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const raw = q.raw as { buyback?: { amount: bigint; owner: string } };
+      const prepared = await p.buildTransaction(q);
+      console.log('LIVE CONFIG', label, 'buyback', raw.buyback?.amount, 'to', raw.buyback?.owner.slice(0, 6), 'ok', prepared.simulation.ok, prepared.simulation.blockers);
+      expect(raw.buyback?.amount).toBe((amount * 55n) / 10_000n);
+      expect(raw.buyback?.owner).toBe(LIVE_FEE_CONFIG.chains.solana.buybackExecutorAddress);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
+});

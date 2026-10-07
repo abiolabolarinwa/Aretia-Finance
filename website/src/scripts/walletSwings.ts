@@ -12,7 +12,7 @@
  */
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
-import { createChartPanel } from './walletChart';
+import { avatar, createChartPanel } from './walletChart';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
@@ -70,6 +70,19 @@ const ageText = (ms: number): string => {
   const m = Math.floor(ms / 60_000);
   return m < 60 ? `${Math.max(m, 1)}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
 };
+/** A stroked 24x24 icon from one path, built as real SVG so nothing is parsed from text. */
+function icon(path: string, size = 18): SVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(ns, 'path');
+  p.setAttribute('d', path);
+  svg.append(p);
+  return svg;
+}
 const banner = (kind: 'warn' | 'info' | 'ok', text: string): HTMLElement => el('p', { class: `wapp__banner wapp__banner--${kind}`, text });
 const isEvm = (c: ChainId): boolean => CHAINS[c].kind === 'evm';
 /** Says plainly which engine produced a quote: Aretia's own routing, or a non-core aggregator. */
@@ -94,6 +107,15 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
+  // The "Before you swap" dropdown is written in the page. One copy is kept and moved between redraws, so it stays open if the user opened it.
+  let guideEl: Element | null = null;
+  const guide = (): Element | null => {
+    if (!guideEl) {
+      const tpl = document.getElementById('sw-guide') as HTMLTemplateElement | null;
+      guideEl = (tpl?.content.firstElementChild?.cloneNode(true) as Element | undefined) ?? null;
+    }
+    return guideEl;
+  };
 
   const s = {
     chain: 'solana' as ChainId,
@@ -414,15 +436,22 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // ------------------------------------------------------------------ swap panel
 
   const tokenButton = (side: 'from' | 'to'): HTMLElement => {
-    const t = s[side];
-    const b = el('button', { class: 'wapp__btn wapp__btn--ghost', attrs: { type: 'button', 'data-sw-pick': side, 'aria-label': side === 'from' ? 'Choose the token you pay' : 'Choose the token you receive' } });
-    b.append(el('strong', { text: t ? t.symbol : 'Select token' }), el('small', { text: t ? ` ${t.mint === EVM_NATIVE_ADDRESS ? 'native' : short(t.mint)}` : '' }));
-    if (t && t.verified === false) b.append(el('small', { text: ' · unverified' }));
+    const tk = s[side];
+    const b = el('button', { class: 'wapp__token-btn', attrs: { type: 'button', 'data-sw-pick': side, 'aria-haspopup': 'listbox', 'aria-label': side === 'from' ? 'Choose the token you pay' : 'Choose the token you receive' } });
+    b.append(tk ? avatar(tk.symbol, tk.icon ?? null) : el('span', { class: 'wapp-avatar', text: '?' }), el('span', { text: tk ? tk.symbol : 'Select token' }));
+    if (tk && tk.verified === false) b.append(el('small', { class: 'wapp-flag', text: 'unverified' }));
+    b.append(icon('M6 9l6 6 6-6', 14));
     b.addEventListener('click', () => {
       s.picker = s.picker?.side === side ? null : { side, query: '', results: [], loading: false };
       render();
     });
     return b;
+  };
+
+  /** The token's address under its box, so a look-alike name is never the only thing the user sees. */
+  const tokenNote = (side: 'from' | 'to'): HTMLElement => {
+    const tk = s[side];
+    return el('span', { class: 'wapp__sub', text: tk ? (tk.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(tk.mint)) : '' });
   };
 
   function renderPicker(): void {
@@ -590,8 +619,15 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     swapPanel.replaceChildren();
     const info = CHAINS[s.chain];
     const address = accountFor(s.chain);
-    const card = el('div', { class: 'wapp__card' });
-    card.append(el('span', { class: 'wapp__eyebrow', text: 'Network' }), chainPicker());
+    // Laid out like the Trade tab: the network on top, then the swap on the left and the chart on the right.
+    const netCard = el('div', { class: 'wapp__card' }, [el('span', { class: 'wapp__eyebrow', text: 'Network' }), chainPicker()]);
+    const card = el('div', { class: 'wapp__card wapp__swap' });
+    const side = el('div', { class: 'wapp__trade-side' });
+    const place = (): void => {
+      const g = guide();
+      if (g) side.append(g);
+      swapPanel.append(netCard, el('div', { class: 'wapp__grid wapp__grid--trade' }, [card, side]));
+    };
 
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
     // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
@@ -604,14 +640,16 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           ? { address: ACT_MINT, symbol: 'ACT', icon: null }
           : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
       if (target.address) {
-        card.append(swapChart.element);
+        const chartCard = el('div', { class: 'wapp__card' });
+        chartCard.append(swapChart.element);
+        side.append(chartCard);
         swapChart.show(s.chain, target.address, target.symbol, target.icon);
       } else swapChart.hide();
     }
 
     if (!isChainEnabled(s.chain)) {
       card.append(banner('warn', `${info.name} swaps are not enabled yet. Aretia Swings only turns a network on when quotes, simulation, signing and fee settings all work end to end there. Nothing on this network can be traded from this page today.`));
-      swapPanel.append(card);
+      place();
       return;
     }
     if (isEvm(s.chain)) card.append(evmConnect());
@@ -622,13 +660,12 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         card.append(banner('info', 'Connect a Solana wallet to get a quote. Aretia never holds your keys.'), connect);
       }
       if (s.error) card.append(banner('warn', s.error));
-      swapPanel.append(card);
+      place();
       return;
     }
 
     card.append(banner('info', `Same-chain swap on ${info.name}. Cross-chain swaps are not available yet.`));
-    card.append(el('span', { class: 'wapp__eyebrow', text: 'You pay' }));
-    const amount = el('input', { class: 'wapp__input', attrs: { inputmode: 'decimal', placeholder: '0.00', autocomplete: 'off', 'aria-label': 'Amount to pay' } });
+    const amount = el('input', { class: 'wapp__swap-amount', attrs: { inputmode: 'decimal', placeholder: '0.0', autocomplete: 'off', 'aria-label': 'Amount to pay' } });
     amount.value = s.amount;
     amount.addEventListener('input', () => {
       s.amount = amount.value;
@@ -638,12 +675,37 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         amount.focus();
       } else updateActions();
     });
-    card.append(el('div', { class: 'wapp__amount' }, [amount, tokenButton('from')]));
-    card.append(el('span', { class: 'wapp__eyebrow', text: 'You receive' }), tokenButton('to'));
+    card.append(
+      el('div', { class: 'wapp__swap-box' }, [
+        el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You pay' }), tokenNote('from')]),
+        el('div', { class: 'wapp__swap-main' }, [tokenButton('from'), amount]),
+      ]),
+    );
+    const flip = el('button', { class: 'wapp__swap-flip', attrs: { type: 'button', 'aria-label': 'Switch the two tokens' } }, [icon('M7 7h12l-3-3M17 17H5l3 3')]);
+    flip.addEventListener('click', () => {
+      const was = s.from;
+      s.from = s.to;
+      s.to = was;
+      s.picker = null;
+      s.amount = '';
+      resetQuote();
+      if (s.to) void loadSafety(s.chain, s.to.mint);
+      else s.safety = { key: '', loading: false, risk: null, acknowledged: false };
+      render();
+    });
+    card.append(flip);
+    // The estimate fills in once a quote has been fetched.
+    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? fromSmallestUnit(s.quote.expectedOut, s.to.decimals) : '0.0';
+    card.append(
+      el('div', { class: 'wapp__swap-box' }, [
+        el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive (estimate)' }), tokenNote('to')]),
+        el('div', { class: 'wapp__swap-main' }, [tokenButton('to'), el('output', { class: 'wapp__swap-out', text: estimate })]),
+      ]),
+    );
     card.append(el('div', { attrs: { 'data-sw-picker': '' } }));
 
-    const slip = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Slippage' } });
-    slip.append(el('span', { class: 'wapp__fine', text: 'Slippage' }));
+    const slip = el('div', { class: 'wapp__slip', attrs: { role: 'group', 'aria-label': 'Slippage' } });
+    slip.append(el('span', { class: 'wapp__eyebrow', text: 'Slippage' }));
     for (const bps of SLIPPAGE_PRESETS_BPS) {
       const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${bps / 100}%`, attrs: { type: 'button', 'aria-pressed': String(s.slippageBps === bps) } });
       b.addEventListener('click', () => {
@@ -720,7 +782,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       else card.append(banner('info', 'Still waiting for confirmation. Check the transaction before trying again; the swap may still land.'));
       if (ex.txId) card.append(el('a', { text: 'View transaction', attrs: { href: EXPLORER_TX[ex.chain] + encodeURIComponent(ex.txId), target: '_blank', rel: 'noopener noreferrer' } }));
     }
-    swapPanel.append(card);
+    place();
     renderPicker();
     updateActions();
   }

@@ -1,156 +1,178 @@
 /**
- * A price chart for the Swings screens, drawn with TradingView's open-source Lightweight Charts library (loaded only
- * when a chart is first shown, so the wallet page stays light). The data comes from a `CandleSource`
- * (src/swings/charts/candles.ts); the chart says where it came from and what pool it reads, and says so plainly when
- * there is nothing to draw. It holds no wallet or account data, and sends only the token address to the price service.
+ * The price chart for the Swings screens. It looks and works like the Trade tab's: a header with the token, its price
+ * and 24h change, three stat cards (24h volume, liquidity, 24h trades), and GeckoTerminal's embedded TradingView chart
+ * with its indicators toolbar and trades table underneath. It reuses the Trade tab's styles, so the two screens match.
  *
- * The element is created once and moved between renders by the caller, so the chart is not rebuilt every time the
- * screen redraws; it only reloads when the token or the timeframe changes.
+ * Which pool is shown is decided in src/swings/charts/pool.ts (pools paired with a major token first). The embed is a
+ * third-party page in a sandboxed frame: it receives only the pool address in its URL, and nothing about the wallet.
+ *
+ * The element is created once and moved between renders by the caller, so the frame is not reloaded every time the
+ * screen redraws; it only reloads when the token changes. The header refreshes every 30 seconds while it is on screen.
  */
-import { GeckoTerminalCandles, priceChangePercent, TIMEFRAMES, type CandleSeries, type CandleSource, type TimeframeId } from '../swings/charts/candles.js';
+import { embedUrl, GeckoPoolFinder, type PoolInfo } from '../swings/charts/pool.js';
 import { SwingsError, type ChainId } from '../swings/core/types.js';
 
 export interface ChartPanel {
   element: HTMLElement;
-  /** Shows the token's chart. Does nothing if it is already showing exactly this. */
-  show(chain: ChainId, address: string, symbol: string): void;
+  /** Shows the token's chart. Does nothing if it is already showing exactly this token. */
+  show(chain: ChainId, address: string, symbol: string, icon?: string | null): void;
   hide(): void;
 }
 
-const UP = '#1fa971';
-const DOWN = '#e5484d';
+const REFRESH_MS = 30_000;
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
-  n.className = cls;
+  if (cls) n.className = cls;
   if (text !== undefined) n.textContent = text;
   return n;
 }
 
-const compactUsd = (n: number): string => (n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(1)}k` : `$${n.toFixed(0)}`);
+const usd = (n: number | null): string => {
+  if (n === null) return '–';
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
-/** A price with enough digits to be useful for both $60,000 coins and $0.0000004 ones. */
-export function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return '–';
-  if (p >= 1000) return p.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (p >= 1) return p.toFixed(4);
-  return p.toPrecision(4);
+/** A price with enough digits for both $60,000 coins and $0.0000004 ones. */
+export function formatPrice(p: number | null): string {
+  if (p === null || !Number.isFinite(p) || p <= 0) return '—';
+  if (p >= 1000) return `$${p.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  if (p >= 1) return `$${p.toFixed(4)}`;
+  return `$${p.toPrecision(4).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
 }
 
-export function createChartPanel(source: CandleSource = new GeckoTerminalCandles()): ChartPanel {
-  const element = node('div', 'wapp__stack');
+function avatar(symbol: string, icon: string | null | undefined): HTMLElement {
+  const initials = (): HTMLElement => node('span', 'wapp-avatar', symbol.slice(0, 2).toUpperCase());
+  if (!icon || !/^https:\/\//.test(icon)) return initials();
+  const img = node('img', 'wapp-avatar');
+  img.alt = '';
+  img.width = 32;
+  img.height = 32;
+  img.loading = 'lazy';
+  img.referrerPolicy = 'no-referrer';
+  img.src = icon;
+  img.addEventListener('error', () => img.replaceWith(initials()), { once: true });
+  return img;
+}
+
+export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()): ChartPanel {
+  const element = node('div', 'wapp__chart wapp__stack');
   element.hidden = true;
-  const title = node('span', 'wapp__eyebrow');
-  const tfBar = node('div', 'wapp__seg');
-  tfBar.setAttribute('role', 'group');
-  tfBar.setAttribute('aria-label', 'Chart timeframe');
-  const canvas = node('div', '');
-  canvas.style.cssText = 'width:100%;height:260px;position:relative';
-  canvas.setAttribute('role', 'img');
-  const status = node('p', 'wapp__fine');
-  const credit = node('p', 'wapp__fine');
-  element.append(title, tfBar, canvas, status, credit);
+  const head = node('div', 'wapp__chart-head');
+  const title = node('div', 'wapp__chart-title');
+  const live = node('span', 'wapp__live');
+  live.hidden = true;
+  live.append(node('i', ''), document.createTextNode('Live'));
+  live.querySelector('i')!.setAttribute('aria-hidden', 'true');
+  head.append(title, live);
+  const priceRow = node('div', 'wapp__chart-price');
+  const price = node('strong', '', '—');
+  const change = node('span', '');
+  priceRow.append(price, change);
+  const stats = node('dl', 'wapp__chart-stats');
+  const plot = node('div', 'wapp__chart-plot');
+  plot.setAttribute('aria-live', 'polite');
+  const note = node('p', 'wapp__fine');
+  element.append(head, priceRow, stats, plot, note);
 
-  let timeframe: TimeframeId = '1h';
-  let current: { chain: ChainId; address: string; symbol: string } | null = null;
-  let loadedKey = '';
-  let controller: AbortController | null = null;
-  // The chart objects, created on first successful load.
-  let chart: import('lightweight-charts').IChartApi | null = null;
-  let candleSeries: import('lightweight-charts').ISeriesApi<'Candlestick'> | null = null;
-  let volumeSeries: import('lightweight-charts').ISeriesApi<'Histogram'> | null = null;
+  let current: { chain: ChainId; address: string; symbol: string; icon: string | null } | null = null;
+  let framedPool = '';
+  let seq = 0;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
-  const buttons = (Object.keys(TIMEFRAMES) as TimeframeId[]).map((id) => {
-    const b = node('button', 'wapp__chip wapp__chip--btn', TIMEFRAMES[id].label);
-    b.type = 'button';
-    b.addEventListener('click', () => {
-      if (timeframe === id) return;
-      timeframe = id;
-      load();
-    });
-    tfBar.append(b);
-    return { id, b };
-  });
-  const markTimeframe = (): void => buttons.forEach(({ id, b }) => b.setAttribute('aria-pressed', String(id === timeframe)));
-
-  function message(text: string): void {
-    canvas.style.visibility = 'hidden';
-    status.textContent = text;
-    credit.textContent = '';
+  function renderHeader(info: PoolInfo | null): void {
+    if (!current) return;
+    title.textContent = '';
+    title.append(avatar(current.symbol, current.icon), node('span', '', `${current.symbol} / USD`));
+    price.textContent = formatPrice(info?.priceUsd ?? null);
+    const c = info?.change24h ?? null;
+    change.className = c === null ? '' : c > 0 ? 'is-up' : c < 0 ? 'is-down' : '';
+    change.textContent = c === null ? '' : `${c >= 0 ? '+' : ''}${c.toFixed(2)}% · 24h`;
+    stats.textContent = '';
+    if (info) {
+      for (const [k, v] of [['24h volume', usd(info.volume24hUsd)], ['Liquidity', usd(info.liquidityUsd)], ['24h trades', info.trades24h === null ? '–' : String(info.trades24h)]] as const) {
+        const cell = node('div', '');
+        cell.append(node('dt', '', k), node('dd', '', v));
+        stats.append(cell);
+      }
+    }
+    live.hidden = !info;
+    note.textContent = info ? `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: GeckoTerminal, powered by TradingView.` : '';
   }
 
-  async function draw(series: CandleSeries, symbol: string, signal: AbortSignal): Promise<void> {
-    const lw = await import('lightweight-charts');
-    if (signal.aborted) return;
-    const text = getComputedStyle(element).color || '#888';
-    if (!chart) {
-      chart = lw.createChart(canvas, {
-        autoSize: true,
-        layout: { background: { type: lw.ColorType.Solid, color: 'transparent' }, textColor: text },
-        grid: { vertLines: { color: 'rgba(128,128,128,0.12)' }, horzLines: { color: 'rgba(128,128,128,0.12)' } },
-        rightPriceScale: { borderVisible: false },
-        timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
-        crosshair: { mode: lw.CrosshairMode.Normal },
-        localization: { priceFormatter: formatPrice },
-      });
-      candleSeries = chart.addSeries(lw.CandlestickSeries, { upColor: UP, downColor: DOWN, wickUpColor: UP, wickDownColor: DOWN, borderVisible: false, priceFormat: { type: 'custom', formatter: formatPrice, minMove: 1e-12 } });
-      volumeSeries = chart.addSeries(lw.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: '' });
-      volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    }
-    candleSeries!.setData(series.candles.map((c) => ({ time: c.time as import('lightweight-charts').UTCTimestamp, open: c.open, high: c.high, low: c.low, close: c.close })));
-    volumeSeries!.setData(series.candles.map((c) => ({ time: c.time as import('lightweight-charts').UTCTimestamp, value: c.volume, color: c.close >= c.open ? 'rgba(31,169,113,0.35)' : 'rgba(229,72,77,0.35)' })));
-    chart.timeScale().fitContent();
-    canvas.style.visibility = 'visible';
-    const change = priceChangePercent(series.candles);
-    const last = series.candles[series.candles.length - 1]!;
-    title.textContent = `${symbol} price (USD) · ${formatPrice(last.close)}${change === null ? '' : ` · ${change >= 0 ? '+' : ''}${change.toFixed(2)}% over this range`}`;
-    canvas.setAttribute('aria-label', `${symbol} price chart, last price ${formatPrice(last.close)}`);
-    status.textContent = `Pool: ${series.poolName}${series.liquidityUsd === null ? '' : ` · liquidity ${compactUsd(series.liquidityUsd)}`}. Price comes from this pool only and can differ from other venues.`;
-    credit.textContent = `Price data: ${series.source}. Chart: TradingView Lightweight Charts.`;
+  function showMessage(text: string): void {
+    plot.textContent = '';
+    plot.append(node('span', 'wapp__sub', text));
+    renderHeader(null);
+    framedPool = '';
   }
 
   function load(): void {
     if (!current) return;
-    markTimeframe();
-    const { chain, address, symbol } = current;
-    const key = `${chain}:${address}:${timeframe}`;
-    controller?.abort();
-    controller = new AbortController();
-    const { signal } = controller;
-    loadedKey = '';
-    title.textContent = `${symbol} price (USD)`;
-    status.textContent = 'Loading price history…';
-    credit.textContent = '';
-    source
-      .candles(chain, address, timeframe, signal)
-      .then(async (series) => {
-        if (signal.aborted) return;
-        await draw(series, symbol, signal);
-        if (!signal.aborted) loadedKey = key;
+    const mine = ++seq;
+    const { chain, address } = current;
+    renderHeader(null);
+    plot.textContent = '';
+    plot.append(node('span', 'wapp__sub', 'Loading chart…'));
+    finder
+      .find(chain, address)
+      .then((info) => {
+        if (mine !== seq || !current) return;
+        renderHeader(info);
+        if (framedPool === info.pool && plot.querySelector('iframe')) return;
+        plot.textContent = '';
+        const frame = node('iframe', 'wapp__chart-frame');
+        frame.title = `${current.symbol} live price chart and trades from GeckoTerminal`;
+        frame.loading = 'lazy';
+        frame.referrerPolicy = 'strict-origin-when-cross-origin';
+        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+        frame.src = embedUrl(info);
+        plot.append(frame);
+        framedPool = info.pool;
       })
       .catch((e: unknown) => {
-        if (signal.aborted) return;
-        message(e instanceof SwingsError ? e.message : 'The chart could not be drawn.');
+        if (mine !== seq) return;
+        showMessage(e instanceof SwingsError ? e.message : 'The chart could not be loaded.');
       });
+  }
+
+  function startTimer(): void {
+    clearInterval(timer);
+    timer = setInterval(() => {
+      // Stop when the panel is gone from the page or the tab is in the background.
+      if (!element.isConnected || document.hidden || element.hidden || !current) return;
+      const mine = seq;
+      finder
+        .find(current.chain, current.address, undefined, true)
+        .then((info) => {
+          if (mine === seq && current) renderHeader(info);
+        })
+        .catch(() => undefined);
+    }, REFRESH_MS);
   }
 
   return {
     element,
-    show(chain, address, symbol) {
-      const key = `${chain}:${address}:${timeframe}`;
+    show(chain, address, symbol, icon = null) {
       element.hidden = false;
-      if (current && current.chain === chain && current.address === address && (loadedKey === key || controller)) {
+      if (current && current.chain === chain && current.address === address) {
         current.symbol = symbol;
+        current.icon = icon;
         return;
       }
-      current = { chain, address, symbol };
+      current = { chain, address, symbol, icon };
+      framedPool = '';
       load();
+      startTimer();
     },
     hide() {
-      controller?.abort();
-      controller = null;
+      seq++;
+      clearInterval(timer);
       current = null;
-      loadedKey = '';
+      framedPool = '';
+      plot.textContent = '';
       element.hidden = true;
     },
   };

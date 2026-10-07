@@ -18,7 +18,7 @@ Date: 2026-10-06. Everything below was read from the repository or checked again
 | Router | `AretiaRouter`: compares *quotes from providers*; never sees pools. | `src/swings/router/router.ts` |
 | Token identity | `chain:address`, one `TokenRef`, EIP-55 verified. | `core/token.ts`, `core/keccak.ts` |
 | Token registry / discovery / risk | Postgres schema, repository, service, one worker shape for five chains, GeckoTerminal source, on-chain enrichers, explainable risk engine with an "Established" class. | `src/swings/tokens/`, `supabase/migrations/` |
-| ACT asset + fee | ACT mint `7Ut5njM9…` (Token-2022, 1.5% transfer fee, mint authority revoked); `AretiaBuybackPolicy` (87 bps) present, **disabled**, no executor. Trade tab still takes 1% (conflict, undecided). | `core/fee.ts`, `walletTools.ts` |
+| ACT asset + fee | ACT mint `7Ut5njM9…` (Token-2022, 1.5% transfer fee, mint authority revoked); `AretiaBuybackPolicy` (55 bps) present, **disabled**, no executor. Trade tab still takes 1% (conflict, undecided). | `core/fee.ts`, `walletTools.ts` |
 | Tests | Vitest: 168 unit/property/fuzz tests plus 12 read-only live checks. | `*.test.ts`, `*.live.ts` |
 | Backend | Vercel functions only (stateless). Database: Supabase schema written, **not applied**. No long-running process, no indexer host. | `api/`, `supabase/` |
 | Deployment | Vercel from `main`; CI workflows written, never run. | `vercel.json`, `.github/` |

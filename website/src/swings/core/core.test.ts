@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEE_CONFIG, MAX_BUYBACK_BPS, planBuyback, validateFeeConfig } from './fee.js';
+import { DEFAULT_FEE_CONFIG, MAX_BUYBACK_BPS, planBuyback, validateFeeConfig, LIVE_FEE_CONFIG, BUYBACK_LIVE } from './fee.js';
 import { normalizeTokenRef, parseTokenKey, sameToken, tokenKey } from './token.js';
 import { summarizeQuote } from './summary.js';
 import { CHAINS, type AretiaFeeConfig, type ChainId, type Quote } from './types.js';
@@ -51,8 +51,13 @@ describe('Aretia buyback policy', () => {
   it('ships off: zero fee on every chain', () => {
     for (const id of Object.keys(CHAINS) as ChainId[]) expect(planBuyback(1_000_000n, id)).toEqual({ state: 'off', amount: 0n, reasons: [] });
   });
-  it('is 87 bps by default', () => {
-    expect(DEFAULT_FEE_CONFIG.policy).toMatchObject({ rateBps: 87, asset: 'ACT', mode: 'BUYBACK' });
+  it('is 55 bps; the live configuration follows one switch and, when on, covers Solana only', () => {
+    expect(DEFAULT_FEE_CONFIG.policy).toMatchObject({ rateBps: 55, asset: 'ACT', mode: 'BUYBACK' });
+    expect(() => validateFeeConfig(LIVE_FEE_CONFIG)).not.toThrow();
+    expect(planBuyback(1_000_000n, 'solana', LIVE_FEE_CONFIG).state).toBe(BUYBACK_LIVE ? 'ready' : 'off');
+    const on: AretiaFeeConfig = { policy: { ...LIVE_FEE_CONFIG.policy, enabled: true }, chains: { ...LIVE_FEE_CONFIG.chains, solana: { ...LIVE_FEE_CONFIG.chains.solana, enabled: true } } };
+    expect(planBuyback(1_000_000n, 'solana', on)).toEqual({ state: 'ready', amount: 5_500n, reasons: [] });
+    for (const id of ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'] as const) expect(planBuyback(1_000_000n, id, on)).toEqual({ state: 'off', amount: 0n, reasons: [] });
   });
   it('blocks, rather than falling back, when addresses are missing', () => {
     const plan = planBuyback(1_000_000n, 'base', on('base'));
@@ -60,10 +65,10 @@ describe('Aretia buyback policy', () => {
     expect(plan.amount).toBe(0n);
     expect(plan.reasons).toHaveLength(2);
   });
-  it('computes 0.87% rounded down when fully configured', () => {
+  it('computes 0.55% rounded down when fully configured', () => {
     const cfg = on('base', { treasuryAddress: 'configured-treasury', buybackExecutorAddress: 'configured-executor' });
-    expect(planBuyback(1_000_000n, 'base', cfg)).toEqual({ state: 'ready', amount: 8_700n, reasons: [] });
-    expect(planBuyback(999n, 'base', cfg).amount).toBe(8n);
+    expect(planBuyback(1_000_000n, 'base', cfg)).toEqual({ state: 'ready', amount: 5_500n, reasons: [] });
+    expect(planBuyback(999n, 'base', cfg).amount).toBe(5n);
   });
   it('rejects rates above the ceiling or fractional bps', () => {
     const bad = (rateBps: number): AretiaFeeConfig => ({ ...DEFAULT_FEE_CONFIG, policy: { ...DEFAULT_FEE_CONFIG.policy, rateBps } });

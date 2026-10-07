@@ -7,7 +7,7 @@ import { publicRead } from '../chains/evmSession.js';
 import { EVM_V2_DEXES } from '../dex/entries.js';
 import { EvmFactoryDiscoverySource } from './evmIndexer.js';
 
-const LOOKBACK: Record<string, number> = { ethereum: 1_500, bnb: 4_000, polygon: 3_000, base: 6_000 };
+const LOOKBACK: Record<string, number> = { ethereum: 1_500, bnb: 4_000, polygon: 3_000, base: 6_000, arbitrum: 7_000, optimism: 4_000, avalanche: 4_000 };
 
 for (const entry of EVM_V2_DEXES) {
   describe(`live indexer: ${entry.id}`, () => {

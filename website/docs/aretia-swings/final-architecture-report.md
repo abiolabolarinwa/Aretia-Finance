@@ -37,7 +37,7 @@ Explainable weighted signals; unavailable signals listed and never guessed; no s
 Quote -> build -> simulate -> four-part review (swap, network, provider, Aretia) -> explicit confirmation naming the quote -> wallet signs -> broadcast once -> track. No automatic retry; declined signatures may retry, ambiguous failures may not.
 
 ## 9. ACT integration
-`AretiaBuybackPolicy` (87 bps, ACT, BUYBACK) and per-chain `AretiaChainFeeConfig`, centrally in `core/fee.ts`, disabled, capped at 100 bps, failing closed on missing addresses, shown separately and never deducted silently from output. No executor exists. Existing ACT mint identity is reused. The Trade tab's 1% fee is unchanged pending a decision.
+`AretiaBuybackPolicy` (55 bps, ACT, BUYBACK) and per-chain `AretiaChainFeeConfig`, centrally in `core/fee.ts`, disabled, capped at 100 bps, failing closed on missing addresses, shown separately and never deducted silently from output. No executor exists. Existing ACT mint identity is reused. The Trade tab's 1% fee is unchanged pending a decision.
 
 ## 10. Security model
 `security-model.md` (review table) and `docs/audit/`. Strong points: provider output untrusted and simulated; exact approvals; single execution; no secrets in the browser. Weak points: no MEV protection; EVM taxes undetected; EVM path never run live.

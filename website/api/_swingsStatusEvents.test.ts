@@ -7,7 +7,7 @@ const ORIGIN = 'https://aretiafinance.org';
 describe('status endpoint', () => {
   it('reports yes/no and chain ids only, never a secret', () => {
     const out = handleStatus({ method: 'GET', origin: ORIGIN, env: { ZEROX_API_KEY: 'secret-key-value', SWINGS_EVM_CHAINS: 'Base, polygon, solana, nonsense', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv-secret' } });
-    expect(JSON.parse(out.body)).toEqual({ evm: { configured: true, chains: ['base', 'polygon'] }, tokens: true, analytics: false, aggregators: true });
+    expect(JSON.parse(out.body)).toEqual({ evm: { configured: true, chains: ['base', 'polygon'] }, tokens: true, analytics: false, aggregators: true, canary: null, protectedSubmit: false });
     expect(out.body).not.toContain('secret');
     expect(out.body).not.toContain('supabase.co');
   });
@@ -32,17 +32,17 @@ describe('analytics events endpoint', () => {
 
   it('keeps only allow-listed fields and drops anything personal', () => {
     const e = cleanEvent({ name: 'swap', chain: 'base', provider: '0x', status: 'confirmed', ms: 5, account: '0xabc', txId: 'sig', amount: '5', note: 'hi' }, 7);
-    expect(e).toEqual({ at: 7, name: 'swap', chain: 'base', provider: '0x', status: 'confirmed', ms: 5, count: null });
+    expect(e).toEqual({ at: 7, name: 'swap', chain: 'base', provider: '0x', status: 'confirmed', ms: 5, count: null, rival: null, diff_bps: null });
     expect(JSON.stringify(e)).not.toMatch(/0xabc|sig|amount|hi/);
     expect(cleanEvent({ name: 'drop_tables' }, 1)).toBeNull();
-    expect(cleanEvent({ name: 'swap', chain: 'moon', provider: 'bad provider!', status: 'x', ms: -5 }, 1)).toEqual({ at: 1, name: 'swap', chain: null, provider: null, status: null, ms: null, count: null });
+    expect(cleanEvent({ name: 'swap', chain: 'moon', provider: 'bad provider!', status: 'x', ms: -5 }, 1)).toEqual({ at: 1, name: 'swap', chain: null, provider: null, status: null, ms: null, count: null, rival: null, diff_bps: null });
   });
   it('writes the cleaned rows with the server clock and no IP', async () => {
     const i = input({ events: [{ name: 'swap', chain: 'solana', provider: 'jupiter', status: 'confirmed', ms: 900, account: 'leak' }] });
     const out = await handleEvents(i);
     expect(out.status).toBe(202);
     const sent = (i.fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]![1].body as string;
-    expect(JSON.parse(sent)).toEqual([{ at: 1_000, name: 'swap', chain: 'solana', provider: 'jupiter', status: 'confirmed', ms: 900, count: null }]);
+    expect(JSON.parse(sent)).toEqual([{ at: 1_000, name: 'swap', chain: 'solana', provider: 'jupiter', status: 'confirmed', ms: 900, count: null, rival: null, diff_bps: null }]);
     expect(sent).not.toMatch(/leak|5\.5\.5\.5/);
   });
   it('is off unless analytics and the database are configured, and rejects junk', async () => {

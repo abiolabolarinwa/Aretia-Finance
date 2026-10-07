@@ -14,6 +14,10 @@ Nothing here needs to be done for the Solana swap, which works with the existing
 | `SOLANA_RPC_URL` | existing | Already used by `/api/rpc`; discovery reuses it. |
 | `SWINGS_EVM_CHAINS` | `/api/swings-status` | The operator's explicit switch per EVM chain, for example `base,polygon`. Aretia's own router needs no third-party key, so this alone enables a chain. Unlisted chains stay off. |
 | `SWINGS_AGGREGATORS` | `/api/swings-status` | Set to `off` to remove Jupiter and 0x from quotes so only Aretia's own routing is used. Default on (they are non-core). Switching off today makes Solana prices worse: see `milestone-status.md`. |
+| `SWINGS_CANARY_WALLETS` | `/api/swings-status` | Staged rollout: comma-separated wallet addresses allowed to review and sign. Unset means everyone. Only SHA-256 hashes reach the page. See `real-swap-runbook.md`. |
+| `SWINGS_PROTECTED_SUBMIT` | `/api/swings-status`, `/api/swings-submit` | Set to `on` to offer protected (Jito) sending for Solana swaps. Off unless set. |
+| `SWINGS_PUBLIC_API` | `/api/swings-quote` | Set to `on` to serve the public read-only quote API. Off unless set. It needs a keyed `SOLANA_RPC_URL`: on the public node a Solana quote takes about 20 seconds, so also allow the function a longer `maxDuration` on Vercel. |
+| `EVM_RPC_ARBITRUM`, `EVM_RPC_OPTIMISM`, `EVM_RPC_AVALANCHE` | discovery, quote API | Optional, like the other `EVM_RPC_*` variables. |
 | `PUBLIC_SWINGS_ANALYTICS` | `/api/swings-events`, `/api/swings-status` | Set to `1` to store anonymous aggregate events (needs migration 0002 and the database variables). Off by default. |
 | `ETHERSCAN_API_KEY` | discovery | Optional: contract-source verification for EVM tokens. |
 
@@ -40,5 +44,7 @@ Optional database tables: run `0002_swings_events.sql` too if you enable analyti
 ## Read-only live checks
 `npm run test:live` calls real public services (Jupiter quote, GeckoTerminal on five chains, public Solana and EVM nodes). It signs nothing and spends nothing. It can fail because a third party is down or rate-limiting (GeckoTerminal allows about 30 requests a minute).
 
-## The ACT buyback (0.87%)
-Policy object: `DEFAULT_BUYBACK_POLICY` and `DEFAULT_FEE_CONFIG` in `src/swings/core/fee.ts`. It ships off. The Solana executor is built (see `milestone-status.md`): while it is on, every Aretia Solana swap carries a second swap of 0.87% of the input into ACT, in the same transaction, delivered to `chains.solana.buybackExecutorAddress`. To turn it on, in code and after review: set `policy.enabled: true`, `chains.solana.enabled: true`, a `treasuryAddress` and a `buybackExecutorAddress` (the wallet that should receive the ACT), then test on a staging deployment with your own wallet. If any address is missing the swap fails with `config-missing` and nothing falls back to another address. While it is on, Jupiter and 0x quotes are dropped (they cannot carry it), and swaps that sell ACT are not offered. There is no EVM buyback.
+## The ACT buyback (0.55%)
+Rate: 55 bps, `DEFAULT_BUYBACK_POLICY` in `src/swings/core/fee.ts`. The product's configuration is `LIVE_FEE_CONFIG` in the same file, driven by one switch, `BUYBACK_LIVE`, which **ships `false`**. Flipping it to `true` turns the buyback on for every Aretia Solana swap: each carries a second swap of 0.55% of the input into ACT (or, when the user is selling ACT, 0.55% of that ACT sent as ACT), in the same transaction, to the owner's existing fee wallet (`SWAP_FEE_WALLET`). Change the receiver in `LIVE_FEE_CONFIG` only.
+
+While it is on: Jupiter and 0x quotes are dropped on that chain (they cannot carry it), the user's swap amount is never reduced (the buyback is on top, shown as its own line), and a missing address fails the quote with `config-missing`. EVM chains stay off: there is no ACT liquidity on them and no official EVM address. Test it on staging with the canary wallet first (`real-swap-runbook.md`, step 7).

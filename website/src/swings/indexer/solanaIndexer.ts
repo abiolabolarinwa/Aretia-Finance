@@ -242,7 +242,7 @@ export class SolanaPoolDiscoverySource implements DiscoverySource {
       const txs = await Promise.all(
         chosen.slice(i, i + 6).map(async (sig) => {
           try {
-            return { sig, tx: await this.rpc<TxJson | null>('getTransaction', [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'finalized' }]) };
+            return { sig, tx: await this.rpc<TxJson | null>('getTransaction', [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'finalized' }]) };
           } catch {
             return { sig, tx: null };
           }

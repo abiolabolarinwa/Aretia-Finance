@@ -6,7 +6,7 @@
  * signing through the user's own wallet). This is the only swings file that imports from scripts/,
  * and the only place providers and adapters are registered, so adding one is a one-line change here.
  */
-import { DEFAULT_FEE_CONFIG } from './core/fee.js';
+import { LIVE_FEE_CONFIG } from './core/fee.js';
 import { fetchAccount, loadWeb3, rpcCall } from '../scripts/walletSend';
 import { fetchQuote, planSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
 import { parseMint } from '../scripts/walletTools';
@@ -27,7 +27,9 @@ import { publicRead } from './chains/evmSession.js';
 import type { EvmWalletAdapter } from './chains/evmWallet.js';
 import { isChainEnabled, runtime } from './runtime.js';
 import { BeaconSink } from './observability/beacon.js';
-import { CHAINS, SwingsError, type ChainId } from './core/types.js';
+import { CHAINS, SwingsError, type ChainId, type TokenRisk } from './core/types.js';
+import { EvmTokenEnricher, SolanaTokenEnricher } from './tokens/enrich.js';
+import { normalizeTokenRef } from './core/token.js';
 
 /** Telemetry: counters and a bounded event buffer in memory. Anonymous aggregates are sent only when the server turns analytics on. */
 export const telemetry = new Telemetry([new BeaconSink(() => runtime.analytics)]);
@@ -90,8 +92,8 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   const health = new ProviderHealth();
   const registry = new AretiaDexRegistry([...EVM_DEXES, ...SOLANA_DEXES], health);
   const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health });
-  // One fee policy for the router and the provider that carries the buyback. It ships off (core/fee.ts).
-  const feeConfig = DEFAULT_FEE_CONFIG;
+  // One fee policy for the router and the provider that carries the buyback (core/fee.ts).
+  const feeConfig = LIVE_FEE_CONFIG;
   const directSolana = new DirectSolanaProvider({ web3: loadWeb3, rpc: rpcCall, registry, health, fee: feeConfig });
   // The aggregators (Jupiter, 0x) are NON-CORE. They take part only while the operator allows it (SWINGS_AGGREGATORS),
   // and 0x only when its key is configured. Switching them off leaves Aretia's own routing as the only source.
@@ -108,7 +110,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
     providers: [direct, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
-    adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan) })],
+    adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
   });
 }
 
@@ -116,5 +118,26 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
 export function registerEvmWallet(router: AretiaRouter, wallet: EvmWalletAdapter): void {
   for (const id of Object.keys(CHAINS) as ChainId[]) {
     if (CHAINS[id].kind === 'evm') router.registerAdapter(new EvmChainAdapter(id, wallet, { read: publicRead(id) }));
+  }
+}
+
+/**
+ * The risk assessment of one token, run in the page against the chain itself (the same engine and signals the New
+ * Tokens tab uses). Returns null when the token cannot be read or the checks fail: the screen then says no
+ * assessment could be made, never that the token is safe.
+ */
+export async function assessTokenSafety(chain: ChainId, address: string): Promise<TokenRisk | null> {
+  try {
+    const ref = normalizeTokenRef(chain, address);
+    if (!ref) return null;
+    if (chain === 'solana') {
+      const out = await new SolanaTokenEnricher(rpcCall).enrich({ ref, source: 'swap-screen' });
+      return out?.risk ?? null;
+    }
+    const read = publicRead(chain);
+    const out = await new EvmTokenEnricher(<T,>(method: string, params: unknown[]) => read(method, params) as Promise<T>).enrich({ ref, source: 'swap-screen' });
+    return out?.risk ?? null;
+  } catch {
+    return null;
   }
 }

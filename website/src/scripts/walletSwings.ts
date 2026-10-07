@@ -10,18 +10,21 @@
  * Aretia's RPC proxy. EVM quotes go to Aretia's /api/swings-0x (which calls 0x); EVM reads go to the
  * chain's public node. Token lists call Aretia's /api/swings-tokens. History stays in this browser.
  */
-import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord } from '../swings/core/types.js';
+import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
+import { describeSafety } from '../swings/tokens/safety.js';
+import { createChartPanel } from './walletChart';
+import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
 import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { ageInfo } from '../swings/tokens/registry.js';
-import { createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
+import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
-import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
+import { isCanaryAllowed, isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter } from '../swings/router/router.js';
-import { fetchSizeImpact, searchTokens, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
+import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
 
 export interface SwingsHolding {
@@ -46,6 +49,9 @@ const EXPLORER_TX: Readonly<Record<ChainId, string>> = {
   ethereum: 'https://etherscan.io/tx/',
   bnb: 'https://bscscan.com/tx/',
   polygon: 'https://polygonscan.com/tx/',
+  arbitrum: 'https://arbiscan.io/tx/',
+  optimism: 'https://optimistic.etherscan.io/tx/',
+  avalanche: 'https://snowtrace.io/tx/',
   base: 'https://basescan.org/tx/',
 };
 
@@ -85,6 +91,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     knownToken: (mint) => picked.get(mint) ?? null,
   });
   const evm = new EvmSession();
+  // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
+  const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
 
   const s = {
@@ -94,6 +102,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     amount: '',
     slippageBps: 50,
     slippageTouched: false,
+    /** Solana only: send privately through Jito, with a small tip, to lower the chance of being sandwiched. */
+    protect: false,
     phase: 'idle' as Phase,
     quote: null as Quote | null,
     alternatives: [] as Quote[],
@@ -106,6 +116,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     notice: null as string | null,
     picker: null as null | { side: 'from' | 'to'; query: string; results: TokenInfo[]; loading: boolean },
     walletChoices: null as null | { uuid: string; name: string }[],
+    /** The safety assessment of the token being bought, keyed so a slow answer for an old token is ignored. */
+    safety: { key: '', loading: false, risk: null as TokenRisk | null, acknowledged: false },
     seq: 0,
   };
 
@@ -142,6 +154,21 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     s.picker = null;
     if (!s.slippageTouched) s.slippageBps = defaultSlippageBps(checked.mint === ACT_MINT || s.from?.mint === ACT_MINT || s.to?.mint === ACT_MINT);
     resetQuote();
+    if (side === 'to') void loadSafety(chain, checked.mint);
+    render();
+  }
+
+  /** Assesses the token being bought, in the page, against the chain. A slow answer for a token no longer chosen is dropped. */
+  async function loadSafety(chain: ChainId, mint: string): Promise<void> {
+    const key = `${chain}:${mint}`;
+    if (mint === EVM_NATIVE_ADDRESS || mint === SOL_MINT) {
+      s.safety = { key, loading: false, risk: null, acknowledged: false };
+      return;
+    }
+    s.safety = { key, loading: true, risk: null, acknowledged: false };
+    const risk = await assessTokenSafety(chain, mint);
+    if (s.safety.key !== key) return;
+    s.safety = { key, loading: false, risk, acknowledged: false };
     render();
   }
 
@@ -260,17 +287,22 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         amountIn,
         slippageBps: s.slippageBps,
         account: { chain, address },
+        ...(s.protect && chain === 'solana' && runtime.protectedSubmit ? { execution: { protect: true } } : {}),
       });
       if (mySeq !== s.seq) return;
       s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
-      const best = search.routes[0];
+      // Protected sending only exists on Aretia's own Solana routes. Other providers' routes would go the normal way,
+      // so while it is on they are not offered at all: it must never look protected when it is not.
+      const protectedOnly = s.protect && chain === 'solana' && runtime.protectedSubmit;
+      const routes = protectedOnly ? search.routes.filter((r) => r.providerId === 'aretia-sol') : search.routes;
+      const best = routes[0];
       if (!best) {
         s.phase = 'idle';
-        s.error = `No executable route was found.${search.rejected.length ? ' ' + search.rejected.flatMap((r) => r.reasons).join(' ') : ''}`;
+        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : `No executable route was found.${search.rejected.length ? ' ' + search.rejected.flatMap((r) => r.reasons).join(' ') : ''}`;
         return render();
       }
       s.quote = best;
-      s.alternatives = search.routes.slice(1);
+      s.alternatives = routes.slice(1);
       s.phase = 'quoted';
       render();
       if (best.providerId === 'jupiter') {
@@ -299,6 +331,11 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (!s.quote) return;
     const mySeq = s.seq;
     const quote = s.quote;
+    if (!(await isCanaryAllowed(quote.request.account.address))) {
+      s.error = 'Aretia Swings is in a staged rollout and your wallet is not in the first group yet. You can still get quotes. Nothing was signed or sent.';
+      render();
+      return;
+    }
     s.phase = 'preparing';
     s.error = null;
     render();
@@ -482,6 +519,41 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     return box;
   }
 
+  /** Whether the token being bought needs an explicit "I understand" before the swap can go on. */
+  const safetyNeedsAck = (): boolean => !!s.to && s.safety.key === `${s.chain}:${s.to.mint}` && !s.safety.loading && describeSafety(s.safety.risk).needsAcknowledgement && !s.safety.acknowledged;
+
+  /** The plain-language safety check of the token being bought: what was found, what passed, what could not be checked. */
+  function safetyBlock(): HTMLElement | null {
+    if (!s.to || s.to.mint === EVM_NATIVE_ADDRESS || s.to.mint === SOL_MINT || s.safety.key !== `${s.chain}:${s.to.mint}`) return null;
+    const box = el('div', { class: 'wapp__stack' });
+    box.append(el('span', { class: 'wapp__eyebrow', text: `Safety check: ${s.to.symbol}` }));
+    if (s.safety.loading) {
+      box.append(el('p', { class: 'wapp__fine', text: 'Checking this token on-chain…' }));
+      return box;
+    }
+    const v = describeSafety(s.safety.risk);
+    box.append(banner(v.tone === 'ok' ? 'ok' : v.tone === 'info' ? 'info' : 'warn', v.headline));
+    if (v.concerns.length > 0) {
+      const list = el('ul', { class: 'wapp__fine' });
+      for (const c of v.concerns) list.append(el('li', { text: `${c.severe ? 'Serious: ' : ''}${c.text}` }));
+      box.append(list);
+    }
+    const checked = `${v.passed} check${v.passed === 1 ? '' : 's'} passed.${v.unchecked.length > 0 ? ` Could not be checked: ${v.unchecked.join(', ')}.` : ''} A token that passes these is not guaranteed safe.`;
+    box.append(el('p', { class: 'wapp__fine', text: checked }));
+    if (v.needsAcknowledgement) {
+      const label = el('label', { class: 'wapp__fine' });
+      const box2 = el('input', { attrs: { type: 'checkbox' } });
+      box2.checked = s.safety.acknowledged;
+      box2.addEventListener('change', () => {
+        s.safety.acknowledged = box2.checked;
+        updateActions();
+      });
+      label.append(box2, el('span', { text: ' I understand these risks and want to continue.' }));
+      box.append(label);
+    }
+    return box;
+  }
+
   function summaryRows(quote: Quote): HTMLElement {
     const sum = summarizeQuote(quote);
     const to = s.to!;
@@ -500,7 +572,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : 'Paid in SOL; shown by your wallet before you sign'],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia fee', sum.aretiaBuyback.state === 'off' ? 'None' : sum.aretiaBuyback.state === 'ready' ? `${fmt(sum.aretiaBuyback.amount, from.decimals)} ${from.symbol} buys ACT` : 'Blocked: configuration incomplete'],
+      ['Aretia buyback', sum.aretiaBuyback.state === 'off' ? 'None' : sum.aretiaBuyback.state === 'ready' ? `${fmt(sum.aretiaBuyback.amount, from.decimals)} ${from.symbol} (0.55%) goes to buying ACT, on top of your swap` : 'Blocked: configuration incomplete'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });
@@ -520,6 +592,22 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const address = accountFor(s.chain);
     const card = el('div', { class: 'wapp__card' });
     card.append(el('span', { class: 'wapp__eyebrow', text: 'Network' }), chainPicker());
+
+    // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
+    // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
+    // coin elsewhere). A native EVM coin is charted through its wrapped token.
+    {
+      const picked = s.to ?? s.from;
+      const target = picked
+        ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol }
+        : s.chain === 'solana'
+          ? { address: ACT_MINT, symbol: 'ACT' }
+          : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol };
+      if (target.address) {
+        card.append(swapChart.element);
+        swapChart.show(s.chain, target.address, target.symbol);
+      } else swapChart.hide();
+    }
 
     if (!isChainEnabled(s.chain)) {
       card.append(banner('warn', `${info.name} swaps are not enabled yet. Aretia Swings only turns a network on when quotes, simulation, signing and fee settings all work end to end there. Nothing on this network can be traded from this page today.`));
@@ -567,6 +655,18 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       slip.append(b);
     }
     card.append(slip);
+    if (s.chain === 'solana' && runtime.protectedSubmit) {
+      const label = el('label', { class: 'wapp__fine' });
+      const box = el('input', { attrs: { type: 'checkbox' } });
+      box.checked = s.protect;
+      box.addEventListener('change', () => {
+        s.protect = box.checked;
+        resetQuote();
+        render();
+      });
+      label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
+      card.append(label);
+    }
 
     const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
     card.append(actions);
@@ -594,6 +694,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       const q = s.quote;
       card.append(el('span', { class: 'wapp__eyebrow', text: s.phase === 'review' || s.phase === 'signing' || s.phase === 'tracking' || s.phase === 'done' ? 'Final review' : 'Best route found' }));
       card.append(summaryRows(q));
+      const safety = safetyBlock();
+      if (safety) card.append(safety);
       const exp = expiryLabel(q);
       card.append(el('p', { class: 'wapp__fine', text: exp.text, attrs: { 'data-sw-expiry': '' } }));
       if (s.alternatives.length > 0) {
@@ -641,10 +743,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       if (problem) actions.append(el('span', { class: 'wapp__fine', text: problem }));
       else if (s.amount.trim() && amountIn === null) actions.append(el('span', { class: 'wapp__fine', text: 'Enter a valid amount.' }));
     } else if (s.phase === 'quoted' || s.phase === 'preparing') {
-      actions.append(btn(s.phase === 'preparing' ? 'Checking…' : 'Review swap', () => void review(), 'primary', s.phase === 'preparing' || expired));
+      actions.append(btn(s.phase === 'preparing' ? 'Checking…' : 'Review swap', () => void review(), 'primary', s.phase === 'preparing' || expired || safetyNeedsAck()));
       actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'preparing'));
     } else if (s.phase === 'review' || s.phase === 'signing') {
-      const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !expired;
+      const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !expired && !safetyNeedsAck();
       actions.append(btn(s.phase === 'signing' ? 'Waiting for your wallet…' : 'Confirm and sign in your wallet', () => void confirm(), 'primary', s.phase === 'signing' || !ok));
       actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'signing'));
     } else if (s.phase === 'done') {
@@ -766,7 +868,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ];
       const dl = el('dl', { class: 'wapp__rows' });
       for (const [k, v] of rows) dl.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
-      card.append(dl, el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
+      const chart = createChartPanel();
+      card.append(dl, chart.element);
+      chart.show(r.ref.chain, r.ref.address, r.symbol);
+      card.append(el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
       if (!r.risk) card.append(el('p', { class: 'wapp__fine', text: 'No risk assessment has been run for this token yet.' }));
       else {
         card.append(el('p', { class: 'wapp__fine', text: r.risk.score === null ? 'Not enough data to give a score. This is not a good sign or a bad one.' : `Score ${r.risk.score}/100 (higher means more concerns found). Classification: ${RISK_LABELS[r.risk.status]}.` }));

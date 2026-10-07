@@ -14,6 +14,9 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
   bnb: 'https://bsc-rpc.publicnode.com',
   polygon: 'https://polygon-bor-rpc.publicnode.com',
   base: 'https://base-rpc.publicnode.com',
+  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  optimism: 'https://optimism-rpc.publicnode.com',
+  avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
 };
 
 export type EvmRead = (method: string, params: unknown[]) => Promise<unknown>;

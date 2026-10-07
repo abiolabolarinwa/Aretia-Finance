@@ -1,0 +1,19 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [
+    "api/**/*",
+    "src/swings/**/*",
+    "scripts/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "src/swings/**/*.live.ts"
+  ],
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true
+  }
+}

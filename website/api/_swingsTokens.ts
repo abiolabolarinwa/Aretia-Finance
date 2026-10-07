@@ -29,6 +29,9 @@ export interface TokensEnv extends ProxyEnv {
   EVM_RPC_BNB?: string;
   EVM_RPC_POLYGON?: string;
   EVM_RPC_BASE?: string;
+  EVM_RPC_ARBITRUM?: string;
+  EVM_RPC_OPTIMISM?: string;
+  EVM_RPC_AVALANCHE?: string;
   /** Optional: Etherscan v2 key for contract-source verification, and the 0x key for token-tax data. */
   ETHERSCAN_API_KEY?: string;
   ZEROX_API_KEY?: string;
@@ -105,7 +108,7 @@ export async function handleTokens(input: TokensInput): Promise<TokensOutput> {
   }
 }
 
-const EVM_ENV: Readonly<Record<Exclude<ChainId, 'solana'>, keyof TokensEnv>> = { ethereum: 'EVM_RPC_ETHEREUM', bnb: 'EVM_RPC_BNB', polygon: 'EVM_RPC_POLYGON', base: 'EVM_RPC_BASE' };
+const EVM_ENV: Readonly<Record<Exclude<ChainId, 'solana'>, keyof TokensEnv>> = { ethereum: 'EVM_RPC_ETHEREUM', bnb: 'EVM_RPC_BNB', polygon: 'EVM_RPC_POLYGON', base: 'EVM_RPC_BASE', arbitrum: 'EVM_RPC_ARBITRUM', optimism: 'EVM_RPC_OPTIMISM', avalanche: 'EVM_RPC_AVALANCHE' };
 
 function rpcFor(url: string, fetchImpl: typeof fetch) {
   return async <T>(method: string, params: unknown[]): Promise<T> => {

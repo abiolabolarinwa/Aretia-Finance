@@ -9,6 +9,7 @@
 import type * as Web3 from '@solana/web3.js';
 import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
+import { tipInstruction } from './jito.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { RAYDIUM_CPMM_PROGRAM } from './raydiumCpmm.js';
 
@@ -133,7 +134,7 @@ export interface RouteStep {
   /** Deliver the output to this owner's associated account instead of the user's (the user pays its rent). Used by the buyback only. */
   outOwner?: string;
   /** Builds the venue's swap instruction for the user's accounts. */
-  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction>;
+  swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction | Web3.TransactionInstruction[]>;
 }
 
 export interface RouteBuildOptions {
@@ -147,6 +148,10 @@ export interface RouteBuildOptions {
   recentBlockhash: string;
   computeUnits?: number;
   priorityMicroLamports?: number;
+  /** Protected submission: a tip to one of Jito's tip accounts, added last so it is paid only if the swap ran. */
+  tip?: { account: string; lamports: number };
+  /** Extra instructions that run after the token accounts exist and before the swaps (for example the ACT buyback transfer). */
+  prelude?: (accounts: Record<string, string>) => { ixs: Web3.TransactionInstruction[]; steps: string[] };
 }
 
 export interface BuiltRoute extends BuiltSwap {
@@ -194,6 +199,11 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
     ixs.push(createAtaIdempotentInstruction(web3, o.user, accounts[mint]!, o.user, mint, program));
     steps.push(`Make sure your ${mint.slice(0, 4)}… token account exists (you pay its rent only if it is new).`);
   }
+  if (o.prelude) {
+    const extra = o.prelude(accounts);
+    ixs.push(...extra.ixs);
+    steps.push(...extra.steps);
+  }
   for (const [key, ata] of recipients) {
     const st = o.steps.find((s) => s.outOwner && s.outOwner + ':' + s.tokenOut.address === key)!;
     ixs.push(createAtaIdempotentInstruction(web3, o.user, ata, st.outOwner!, st.tokenOut.address, st.programOut));
@@ -201,13 +211,18 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   }
   for (const st of o.steps) {
     const dest = st.outOwner ? recipients.get(st.outOwner + ':' + st.tokenOut.address)! : accounts[st.tokenOut.address]!;
-    ixs.push(await st.swapInstruction(accounts[st.tokenIn.address]!, dest));
+    const made = await st.swapInstruction(accounts[st.tokenIn.address]!, dest);
+    ixs.push(...(Array.isArray(made) ? made : [made]));
     steps.push(st.label);
   }
   // wSOL accounts this transaction opened (as input, output or a stop on the way) are closed again, returning their SOL.
   if (o.closeWsol && programOf.has(WSOL_MINT) && (o.nativeIn || o.nativeOut || (routeIn !== WSOL_MINT && routeOut !== WSOL_MINT))) {
     ixs.push(closeAccount(web3, accounts[WSOL_MINT]!, o.user, o.user));
     steps.push(o.nativeOut ? 'Unwrap the received wSOL back to SOL.' : 'Close the temporary wSOL account and return its SOL.');
+  }
+  if (o.tip) {
+    ixs.push(tipInstruction(web3, o.user, o.tip.lamports, o.tip.account));
+    steps.push(`Pay a ${o.tip.lamports} lamport tip to Jito for protected (private) sending. It is paid only if the swap above succeeds.`);
   }
   const message = new web3.TransactionMessage({ payerKey: new web3.PublicKey(o.user), recentBlockhash: o.recentBlockhash, instructions: ixs }).compileToV0Message();
   return { transaction: new web3.VersionedTransaction(message), steps, inAccount: accounts[routeIn]!, outAccount: accounts[routeOut]!, accounts };

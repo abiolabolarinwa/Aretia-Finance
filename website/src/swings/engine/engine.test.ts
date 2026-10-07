@@ -101,7 +101,7 @@ describe('health and registry', () => {
   });
   it('combines registry flag and health, and a venue can be removed without touching anything else', () => {
     const health = new ProviderHealth({ minSamples: 1, disableAt: 0.5 });
-    const reg = new AretiaDexRegistry(EVM_V2_DEXES, health);
+    const reg = new AretiaDexRegistry(EVM_V2_DEXES.filter((e) => e.chain !== 'base' || e.id === 'uniswap-v2-base'), health);
     expect(reg.routable('base').map((e) => e.id)).toEqual(['uniswap-v2-base']);
     reg.setStatus('uniswap-v2-base', 'MAINTENANCE');
     expect(reg.routable('base')).toEqual([]);

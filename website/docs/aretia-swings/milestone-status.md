@@ -3,7 +3,34 @@
 ## Direction change (read this first)
 The target is now a **standalone, Aretia-owned engine** (direct DEX integrations, Aretia routing, Aretia transaction construction), not an aggregator client. The earlier work (Jupiter and 0x providers, `AretiaRouter` over provider quotes) is kept as **non-core**: benchmarking and migration only. See `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`.
 
-### Standalone engine: what exists (tests: 328 unit and property, about 70 live read-only)
+### Competing with aggregators: what was added after the first pass
+| Area | State |
+|---|---|
+| Price charts | A TradingView-style chart (TradingView's open-source Lightweight Charts) on the swap screen and the token detail, with 15m/1h/4h/1D candles and volume. Candles come from GeckoTerminal behind a `CandleSource` seam, chosen from the token's deepest pool **paired with a major token** (reported liquidity alone can be inflated by a made-up token), and refuse to draw invalid or duplicate candles. The screen names the pool and the data source. Aretia's own candle history needs an indexer that stores every swap and is not built. TradingView's full Advanced Charts library (indicators, drawing tools) needs a licence from TradingView and is not included |
+| Buyback rate and switch | 0.55% (55 bps). Selling ACT carries it as ACT sent to the receiver. The product configuration is `LIVE_FEE_CONFIG` behind one switch, `BUYBACK_LIVE`, which ships **false** (see `setup.md`) |
+| Fixes found in review | server functions were never type-checked (now `npm run typecheck:api`, also in CI; it found missing env types for the new chains); wallets lacking Arbitrum, Optimism or Avalanche now get an add-network prompt; two-hop builds re-measure hop 1 so normal price movement cannot starve hop 2 |
+| Shadow mode | Aretia versus the best aggregator for the same request is recorded anonymously (chain, winner, rival, difference in basis points). Migration 0003 adds the columns and the `swings_shadow_summary` view. The better route is the one executed either way |
+| More Solana venues | **Meteora DLMM** (pools derived from the program's own preset list; bin arrays by swap direction), **PumpSwap** (pump.fun's AMM, canonical pools; needed three trailing accounts the on-chain IDL does not list yet, found from real swaps), alongside Orca, Raydium CPMM and DAMM v2. All priced by the program itself and accepted by the real programs in simulation |
+| More chains | **Arbitrum, Optimism, Avalanche** (migration 0004 widens the database checks) |
+| More EVM venues | SushiSwap V2 (Ethereum, Polygon, Base, Arbitrum), Pangolin and Trader Joe V1 (Avalanche, which names its native-coin calls after AVAX), Velodrome (Optimism), Uniswap V3 on BNB, Arbitrum, Optimism and Avalanche, PancakeSwap V2 and V3 on Ethereum, Base and Arbitrum, more Curve pools. Every entry was run against the real contracts; wrong addresses from memory (Optimism Curve, PancakeSwap on Base and Arbitrum) were caught and fixed that way |
+| Safety by default | Before buying a token the swap screen runs the risk engine against the chain and says plainly what was found, what passed and what could not be checked. High-risk and restricted tokens need an explicit acknowledgement. Unchecked signals are never counted as passed |
+| Protected sending (Solana) | Optional Jito sending: the tip is inside the transaction the user signs and is paid only if the swap succeeds; a relay (`/api/swings-submit`) refuses anything unsigned, untipped, over the tip cap, or tipped by someone other than the signer. Fail-closed: if the private send fails nothing goes out the public way. Off unless `SWINGS_PROTECTED_SUBMIT=on` |
+| Public quote API | `/api/swings-quote`: Aretia's own routing as a read-only API for other apps (route, unsigned transaction, simulation). Off unless `SWINGS_PUBLIC_API=on`, rate limited. Fees and referral splits are **not** built |
+| Staged rollout | `SWINGS_CANARY_WALLETS` limits who can review and sign while real swaps are proven (hashes only reach the page). Runbook: `real-swap-runbook.md` |
+
+**Benchmark against Jupiter after these additions (quotes only):** 1 SOL to USDC -0.01%; 100 SOL to USDC 0.00%; 100 USDT to SOL -0.05%; 0.5 SOL to ACT 0.00%; 100 USDC to ACT -0.15%. What remains is liquidity on proprietary AMMs (Kipseli, HumidiFi, Scorch, Manifest and others) that Aretia does not read.
+
+**Not built from the competitive plan, and why**
+- *Real swaps and the external audit:* they need your wallet, funds and an auditor. See `real-swap-runbook.md`.
+- *Raydium AMM v4 and CLMM, Manifest, the proprietary AMMs:* not yet. AMM v4 and CLMM have no on-chain IDL and need their layouts verified against the chain; Manifest is an open order book that needs its own adapter; the proprietary AMMs are largely closed.
+- *Uniswap V4, Aerodrome Slipstream, Camelot, Trader Joe Liquidity Book, Maverick, Fluid:* separate interfaces, not yet.
+- *Private transactions on EVM:* a page cannot submit a signed EVM transaction to a private relay, because wallets sign and send in one step. The practical option is for the user to add a protected RPC to their wallet; Aretia can only say so.
+- *ACT and climate routing:* the buyback and ACT pools are in. A safer path for climate and ESG tokens needs your curated list of which tokens count; the registry's `verified` flag exists for it and discovery never sets it.
+- *Limit orders, recurring buys, price alerts, cross-chain:* limit orders and recurring buys need either an on-chain program or a keeper that holds permissions over user funds; both are security-critical and not built. Cross-chain needs bridge integrations.
+- *Referral and integrator fees:* a money-moving design that needs your decision and legal review.
+- *Making Swings the default swap:* deliberately not done until real swaps have succeeded.
+
+### Standalone engine: what exists (tests: 373 unit and property, about 90 live read-only)
 | Milestone | State |
 |---|---|
 | 0 Audit | `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`. Secrets check repeated: nothing sensitive tracked |
@@ -19,7 +46,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 | 13-15 Routing, optimisation, split | Deterministic scoring with stored reasons; venues compared per swap; **splits execute atomically**: Solana (several swaps, one transaction, each leg with its own on-chain floor) and EVM (Uniswap V3 fee tiers of one pair in one router `multicall`). V2-style splits across routers need a contract and are not offered |
 | 16-17 Transaction builders, simulation | EVM V2, V3 (single, path, split), Aerodrome, Balancer, Curve; Solana Raydium CPMM, Orca, Meteora DAMM v2: inspectable output, simulated on the real programs before signing |
 | 18 Execution engine | Direct routes run through the same once-only, confirm-then-sign, track path as everything else |
-| 19 ACT buyback | **Solana executor built, OFF by default and fail-closed**: an extra swap of 0.87% of the input into ACT, delivered to the configured address, in the SAME transaction (see below). EVM: not built (ACT has no EVM liquidity) |
+| 19 ACT buyback | **Solana executor built, OFF by default and fail-closed**: an extra swap of 0.55% of the input into ACT, delivered to the configured address, in the SAME transaction (see below). EVM: not built (ACT has no EVM liquidity) |
 | 22 Swings UI | Direct routes are the default on every chain; the screen labels who priced and built each quote |
 | 23 Same-chain swaps | Solana, Ethereum, BNB, Polygon, Base all have a direct path. EVM chains are off until the operator enables them |
 | 24 Provider health | Built and wired into every direct provider |
@@ -32,7 +59,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 - All four EVM chains: Aretia's V2 maths equals the venue router's own `getAmountsOut`; V3, PancakeSwap V3, Aerodrome, Balancer and Curve routers accept Aretia-built transactions and pay the quoted amount.
 - **EVM split:** 10,000 ETH to USDC on Uniswap V3 (Ethereum): Aretia split it 50/50 between the 0.05% and 0.3% pools, the real router accepted the two-leg multicall and paid exactly the quoted amount.
 - Solana: the real Raydium CPMM, Orca Whirlpool and Meteora DAMM v2 programs accept Aretia-built swaps. Whole routes (direct, two-hop USDC to SOL to ACT) are accepted when simulated from a funded account.
-- **Solana buyback:** with a test configuration the router built the user's swap plus an 8,700,000-lamport (0.87% of 1 SOL) swap into ACT for a throwaway address, in one transaction, and the real programs accepted it.
+- **Solana buyback:** with a test configuration the router built the user's swap plus an 5,500,000-lamport (0.55% of 1 SOL) swap into ACT for a throwaway address, in one transaction, and the real programs accepted it.
 - **Solana indexer:** against mainnet it found real Raydium CPMM pool creations and decoded them (21 tokens in one 6-hour window, with on-chain decimals and real block times).
 - The EVM indexer decodes real `PairCreated` events on four chains.
 
@@ -46,7 +73,7 @@ The target is now a **standalone, Aretia-owned engine** (direct DEX integrations
 - Public RPC rate limits make the live suite occasionally flaky when run all at once.
 
 ### ACT buyback (Solana): how it works and what is still needed
-- Rate: 87 bps of the swap's input amount (`planBuyback`, one place). It is **in addition to** the user's amount: the user's swap is never reduced, and the buyback is shown as its own line.
+- Rate: 55 bps of the swap's input amount (`planBuyback`, one place). It is **in addition to** the user's amount: the user's swap is never reduced, and the buyback is shown as its own line.
 - Mechanism: the router prices a second swap of the same input token into ACT through its own routes (direct, two-hop or split) and puts it in the same transaction, BEFORE the user's swap, with its own on-chain floor. The ACT lands in the associated account of `buybackExecutorAddress`; the user pays that account's rent if it is new.
 - Verification before signing: the whole transaction is simulated, the user's spend must equal amount plus buyback, and the simulation must show the ACT arriving at the configured address at no less than the floor. Otherwise the swap is blocked.
 - **Off by default** (`DEFAULT_FEE_CONFIG`). Turning it on needs the owner to set `policy.enabled`, `chains.solana.enabled`, a treasury address and `buybackExecutorAddress` in `core/fee.ts` (code review, then deploy). If anything is missing, quotes fail with `config-missing`; nothing falls back to another address.
@@ -119,7 +146,7 @@ Checks at this point: `npm test` 168 passing, `npm run test:live` 12 read-only l
 - **0x end to end.** No `ZEROX_API_KEY`, so no 0x quote has ever been fetched. The parser is tested against the documented shape only, and the claim that `transaction.to` is the AllowanceHolder in this flow is from documentation, not observation.
 - **Database.** Schemas 0001 and 0002 have not been applied; discovery has never written a row.
 - **ACT buyback.** Policy only, disabled, no executor. The economics need your decision and review.
-- **Trade-tab 1% fee** still conflicts with the 87 bps model. I did not change production fee behaviour without your decision.
+- **Trade-tab 1% fee** still conflicts with the 55 bps model. I did not change production fee behaviour without your decision.
 - **Dependency advisories** (11 in production): need major upgrades (`@solana/web3.js` 3.x; `@bonfida/spl-name-service`) that touch the whole existing wallet. Needs its own migration and testing.
 - **CI and CodeQL** need a push to GitHub to run.
 - **Optional services** untested live: Etherscan source check, 0x tax lookup (no keys).

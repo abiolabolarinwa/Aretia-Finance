@@ -92,6 +92,19 @@ export async function discoverWallets(host: EventHost = window as unknown as Eve
 // ------------------------------------------------------------------ adapter
 
 const hex = (n: number): string => '0x' + n.toString(16);
+/**
+ * What a wallet needs to add a network it does not have yet. These are each chain's own public endpoints and explorers;
+ * the wallet shows them to the user, who approves or declines. Swap reads and simulation never use these.
+ */
+export const CHAIN_ADD_PARAMS: Readonly<Record<number, { chainName: string; nativeCurrency: { name: string; symbol: string; decimals: number }; rpcUrls: string[]; blockExplorerUrls: string[] }>> = {
+  56: { chainName: 'BNB Smart Chain', nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }, rpcUrls: ['https://bsc-dataseed.binance.org'], blockExplorerUrls: ['https://bscscan.com'] },
+  137: { chainName: 'Polygon', nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 }, rpcUrls: ['https://polygon-rpc.com'], blockExplorerUrls: ['https://polygonscan.com'] },
+  8453: { chainName: 'Base', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.base.org'], blockExplorerUrls: ['https://basescan.org'] },
+  42161: { chainName: 'Arbitrum One', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://arb1.arbitrum.io/rpc'], blockExplorerUrls: ['https://arbiscan.io'] },
+  10: { chainName: 'OP Mainnet', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.optimism.io'], blockExplorerUrls: ['https://optimistic.etherscan.io'] },
+  43114: { chainName: 'Avalanche C-Chain', nativeCurrency: { name: 'Avalanche', symbol: 'AVAX', decimals: 18 }, rpcUrls: ['https://api.avax.network/ext/bc/C/rpc'], blockExplorerUrls: ['https://snowtrace.io'] },
+};
+
 const isUserRejection = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { code?: number }).code === 4001;
 
 /** EvmWalletAdapter over any EIP-1193 provider. */
@@ -130,7 +143,15 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
       await this.request('wallet_switchEthereumChain', [{ chainId: hex(chainId) }]);
     } catch (e) {
       if (isUserRejection(e)) throw new SwingsError('rejected', 'The network switch was declined.');
-      throw new SwingsError('invalid', 'Your wallet could not switch to that network. Add it in the wallet and try again.');
+      // 4902: the wallet does not know this network. Offer to add it, from the parameters Aretia holds for it, and nothing else.
+      const params = (e as { code?: number }).code === 4902 ? CHAIN_ADD_PARAMS[chainId] : undefined;
+      if (!params) throw new SwingsError('invalid', 'Your wallet could not switch to that network. Add it in the wallet and try again.');
+      try {
+        await this.request('wallet_addEthereumChain', [{ chainId: hex(chainId), ...params }]);
+      } catch (e2) {
+        if (isUserRejection(e2)) throw new SwingsError('rejected', 'Adding the network was declined.');
+        throw new SwingsError('invalid', 'Your wallet could not add that network. Add it in the wallet and try again.');
+      }
     }
     // Do not trust the switch call: confirm the wallet is really on the chain the swap was built for.
     if ((await this.getChainId()) !== chainId) throw new SwingsError('invalid', 'The wallet did not switch networks.');

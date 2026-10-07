@@ -312,7 +312,7 @@ describe('live: the ACT buyback inside the same transaction (a test configuratio
     console.log('buyback', raw.buyback.amount, 'lamports ->', raw.buyback.expectedOut, 'ACT (raw), legs', raw.buyback.legs.length, '|', raw.reasons.at(-1));
     const prepared = await p.buildTransaction(q);
     console.log('buyback tx ok:', prepared.simulation.ok, prepared.simulation.blockers);
-    expect(raw.buyback.amount).toBe(8_700_000n);
+    expect(raw.buyback.amount).toBe(5_500_000n);
     expect(prepared.simulation.blockers).toEqual([]);
   }, 180_000);
 });
@@ -339,4 +339,147 @@ describe('benchmark: Aretia Solana router against Jupiter (quotes only, nothing 
       expect(aretia.expectedOut).toBeGreaterThan(0n);
     }, 120_000);
   }
+});
+
+import { findTip, JITO_TIP_ACCOUNTS } from './jito.js';
+
+describe('live: protected sending (nothing signed or sent)', () => {
+  it('Jito publishes exactly the tip accounts Aretia pays', async () => {
+    const res = await fetch('https://mainnet.block-engine.jito.wtf/api/v1/bundles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTipAccounts', params: [] }) });
+    const body = (await res.json()) as { result: string[] };
+    expect([...body.result].sort()).toEqual([...JITO_TIP_ACCOUNTS].sort());
+  });
+
+  it('a swap with a tip is accepted by the real programs, and the tip is in the transaction', async () => {
+    await new Promise((r) => setTimeout(r, 2000));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+    const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: SOL }, to: { chain: 'solana', address: USDC }, amountIn: 1_000_000_000n, slippageBps: 100, account: { chain: 'solana', address: PAYER }, execution: { protect: true, tipLamports: 20_000 } });
+    const prepared = await p.buildTransaction(q);
+    const payload = prepared.payload as { transaction: web3.VersionedTransaction; protectedSubmission?: { tipLamports: number } };
+    console.log('protected tx ok:', prepared.simulation.ok, prepared.simulation.blockers, findTip(payload.transaction));
+    expect(prepared.simulation.blockers).toEqual([]);
+    expect(findTip(payload.transaction)?.lamports).toBe(20_000n);
+    expect(payload.protectedSubmission?.tipLamports).toBe(20_000);
+  }, 120_000);
+});
+
+import { PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
+import { buildRouteTransaction } from './builder.js';
+import { TOKEN_PROGRAM_ID as SPL_TOKEN } from '../../scripts/walletTools.js';
+
+describe('live: PumpSwap (pump.fun AMM), simulation only', () => {
+  /** Real PumpSwap pools against SOL, by liquidity, from GeckoTerminal; the pool itself is then found by derivation, not trusted from the list. */
+  async function topTokens(limit: number): Promise<string[]> {
+    const res = await fetch('https://api.geckoterminal.com/api/v2/networks/solana/dexes/pumpswap/pools?page=1');
+    const body = (await res.json()) as { data: { attributes: { name: string; reserve_in_usd: string }; relationships: { base_token: { data: { id: string } }; quote_token: { data: { id: string } } } }[] };
+    return body.data
+      .filter((p) => p.relationships.quote_token.data.id === `solana_${SOL}`)
+      .sort((a, b) => Number(b.attributes.reserve_in_usd) - Number(a.attributes.reserve_in_usd))
+      .slice(0, limit)
+      .map((p) => p.relationships.base_token.data.id.replace('solana_', ''));
+  }
+
+  it('the router finds the canonical pool, quotes by the program, builds, and the real program accepts SOL -> token', async () => {
+    const candidates = await topTokens(5);
+    const finder = new PumpSwapAdapter(web3, rpc);
+    const mints: string[] = [];
+    // Tokens whose pool was made by someone other than pump.fun have no canonical pool: a stated limit, not a failure.
+    for (const m of candidates) if ((await finder.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: m })).length > 0) mints.push(m);
+    console.log('pumpswap: tokens with a canonical pool', mints.length, 'of', candidates.length);
+    expect(mints.length).toBeGreaterThan(0);
+    for (const mint of mints.slice(0, 3)) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: SOL }, to: { chain: 'solana', address: mint }, amountIn: 20_000_000n, slippageBps: 300, account: { chain: 'solana', address: PAYER } });
+      const legs = (q.raw as { legs: { entryId: string }[] }).legs.map((l) => l.entryId);
+      const prepared = await p.buildTransaction(q);
+      console.log('pumpswap', mint.slice(0, 8), 'out', q.expectedOut, 'via', legs.join('+'), 'ok', prepared.simulation.ok, prepared.simulation.blockers);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
+
+  it('buy then sell in one transaction: the real program accepts both directions of Aretia-built swaps', async () => {
+    const [mint] = await topTokens(1);
+    const adapter = new PumpSwapAdapter(web3, rpc);
+    const [pool] = await adapter.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: mint! });
+    expect(pool).toBeDefined();
+    const tokenIn = { chain: 'solana' as const, address: SOL };
+    const token = { chain: 'solana' as const, address: mint! };
+    const baseProgram = pool!.extra!.baseProgram!;
+    const blockhash = (await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }])).value.blockhash;
+    const stepsFor = (sellAmount: bigint | null) => [
+      { tokenIn, tokenOut: token, programIn: SPL_TOKEN, programOut: baseProgram, amountIn: 20_000_000n, label: 'buy', swapInstruction: (i: string, o: string) => pumpSwapInstructions(web3, adapter, PAYER, pool!, tokenIn, i, o, 20_000_000n, 1n) },
+      ...(sellAmount === null ? [] : [{ tokenIn: token, tokenOut: tokenIn, programIn: baseProgram, programOut: SPL_TOKEN, amountIn: sellAmount, label: 'sell', swapInstruction: (i: string, o: string) => pumpSwapInstructions(web3, adapter, PAYER, pool!, token, i, o, sellAmount, 1n) }]),
+    ];
+    // First learn what the buy delivers, then sell half of it in the same transaction.
+    const buyOnly = await buildRouteTransaction(web3, { user: PAYER, steps: stepsFor(null), nativeIn: true, nativeOut: false, closeWsol: false, recentBlockhash: blockhash });
+    const simBuy = await simulateSolanaSwap(rpc, buyOnly.transaction, { user: PAYER, inAccount: buyOnly.inAccount, outAccount: buyOnly.outAccount, inputIsSol: true, outputIsSol: false, amountIn: 20_000_000n, minOut: 1n, overheadLamports: 10_000_000n });
+    expect(simBuy.blockers).toEqual([]);
+    const bought = simBuy.verdict.received ?? 0n;
+    expect(bought).toBeGreaterThan(0n);
+    console.log('pumpswap buy delivers', bought);
+    const both = await buildRouteTransaction(web3, { user: PAYER, steps: stepsFor(bought / 2n), nativeIn: true, nativeOut: false, closeWsol: false, recentBlockhash: blockhash });
+    const simBoth = await simulateSolanaSwap(rpc, both.transaction, { user: PAYER, inAccount: both.inAccount, outAccount: both.outAccount, inputIsSol: true, outputIsSol: false, amountIn: 20_000_000n, minOut: 1n, overheadLamports: 10_000_000n, watch: [both.accounts[SOL]!] });
+    console.log('pumpswap buy+sell ok', simBoth.blockers, simBoth.verdict.received);
+    expect(simBoth.logs.join(' ')).not.toMatch(/failed/);
+  }, 300_000);
+});
+
+import { MeteoraDlmmAdapter } from './meteoraDlmm.js';
+
+describe('live: Meteora DLMM, simulation only', () => {
+  it('finds real SOL/USDC pools from the program\'s own presets, and parses what they hold', async () => {
+    const adapter = new MeteoraDlmmAdapter(web3, rpc);
+    const presets = await adapter.presets();
+    console.log('dlmm presets', presets.length);
+    expect(presets.length).toBeGreaterThan(50);
+    const pools = await adapter.getPools({ chain: 'solana', address: SOL }, { chain: 'solana', address: USDC });
+    console.log('dlmm SOL/USDC pools', pools.length, pools.slice(0, 3).map((p) => [p.ref.address.slice(0, 6), p.reserve0, p.reserve1, p.feePpm, p.extra!.binStep]));
+    expect(pools.length).toBeGreaterThan(0);
+    for (const p of pools) expect(p.status).toBe('active');
+  }, 180_000);
+
+  it('the router prices through DLMM when it pays most, and the real program accepts the whole transaction', async () => {
+    await new Promise((r) => setTimeout(r, 2500));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
+    for (const [label, from, to, amount] of [['1 SOL -> USDC', SOL, USDC, 1_000_000_000n], ['100 USDC -> SOL', USDC, SOL, 100_000_000n]] as const) {
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const reasons = (q.raw as { reasons: string[] }).reasons.join(' ');
+      console.log('dlmm router', label, q.expectedOut, (q.raw as { shape: string }).shape, reasons.slice(0, 220));
+      const prepared = await p.buildTransaction(q);
+      console.log('dlmm router prepared', label, prepared.simulation.ok, prepared.simulation.blockers);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
+
+  it('a DLMM-only swap is accepted by the real program in both directions', async () => {
+    await new Promise((r) => setTimeout(r, 2500));
+    const registry = new AretiaDexRegistry(SOLANA_DEXES.filter((e) => e.id === 'meteora-dlmm'));
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry });
+    for (const [label, from, to, amount] of [['0.5 SOL -> USDC', SOL, USDC, 500_000_000n], ['50 USDC -> SOL', USDC, SOL, 50_000_000n]] as const) {
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const prepared = await p.buildTransaction(q);
+      console.log('dlmm only', label, 'out', q.expectedOut, 'ok', prepared.simulation.ok, prepared.simulation.blockers);
+      expect((q.raw as { legs: { entryId: string }[] }).legs.every((l) => l.entryId === 'meteora-dlmm')).toBe(true);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
+});
+
+import { LIVE_FEE_CONFIG } from '../core/fee.js';
+
+describe('live: the product configuration, with the buyback on (nothing signed or sent)', () => {
+  it('SOL -> USDC and USDC -> ACT carry the 0.55% buyback to the configured wallet and the real programs accept them', async () => {
+    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee: LIVE_FEE_CONFIG });
+    for (const [label, from, to, amount] of [['1 SOL -> USDC', SOL, USDC, 1_000_000_000n], ['100 USDC -> SOL', USDC, SOL, 100_000_000n]] as const) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: from }, to: { chain: 'solana', address: to }, amountIn: amount, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
+      const raw = q.raw as { buyback?: { amount: bigint; owner: string } };
+      const prepared = await p.buildTransaction(q);
+      console.log('LIVE CONFIG', label, 'buyback', raw.buyback?.amount, 'to', raw.buyback?.owner.slice(0, 6), 'ok', prepared.simulation.ok, prepared.simulation.blockers);
+      expect(raw.buyback?.amount).toBe((amount * 55n) / 10_000n);
+      expect(raw.buyback?.owner).toBe(LIVE_FEE_CONFIG.chains.solana.buybackExecutorAddress);
+      expect(prepared.simulation.blockers).toEqual([]);
+    }
+  }, 300_000);
 });

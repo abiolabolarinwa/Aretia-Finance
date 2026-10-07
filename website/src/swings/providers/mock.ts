@@ -22,7 +22,7 @@ export class MockDexProvider implements DexProvider {
   }
 
   supports(chain: ChainId): boolean {
-    return (this.options.chains ?? ['solana', 'ethereum', 'bnb', 'polygon', 'base']).includes(chain);
+    return (this.options.chains ?? ['solana', 'ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche']).includes(chain);
   }
 
   async getQuote(request: SwapRequest): Promise<Quote> {

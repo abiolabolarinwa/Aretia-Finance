@@ -11,6 +11,8 @@ import { quoteConstantProduct } from '../engine/amm.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { dammSwapInstruction, MeteoraDammAdapter } from './meteoraDamm.js';
 import { OrcaWhirlpoolAdapter, whirlpoolSwapInstruction } from './orcaWhirlpool.js';
+import { PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
+import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
 import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
@@ -28,7 +30,8 @@ export interface SolanaVenue {
   localQuote?(pool: LiquidityPool, tokenIn: TokenRef, amountIn: bigint): bigint;
   /** The token program that owns a mint, which decides its associated-account address. */
   programFor(pool: LiquidityPool, mint: string): string;
-  swapInstruction(user: string, pool: LiquidityPool, tokenIn: TokenRef, tokenOut: TokenRef, inAccount: string, outAccount: string, amountIn: bigint, minOut: bigint): Promise<Web3.TransactionInstruction>;
+  /** One instruction, or several when the venue needs accounts created first (all in the same transaction). */
+  swapInstruction(user: string, pool: LiquidityPool, tokenIn: TokenRef, tokenOut: TokenRef, inAccount: string, outAccount: string, amountIn: bigint, minOut: bigint): Promise<Web3.TransactionInstruction | Web3.TransactionInstruction[]>;
   /** One line for the review screen. */
   label(pool: LiquidityPool, amountIn: bigint, minOut: bigint): string;
 }
@@ -59,6 +62,26 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
         getPools: (a, b) => adapter.getPools(a, b),
         programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.programA! : pool.extra!.programB!),
         swapInstruction: (user, pool, _tokenIn, _tokenOut, i, o, amountIn, minOut) => dammSwapInstruction(web3, user, pool, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'meteora-dlmm') {
+      const adapter = new MeteoraDlmmAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.programX! : pool.extra!.programY!),
+        swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => dlmmSwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'pumpswap') {
+      const adapter = new PumpSwapAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
+        swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => pumpSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
         label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
       });
     } else if (entry.id === 'orca-whirlpool') {

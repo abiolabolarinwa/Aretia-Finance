@@ -30,7 +30,7 @@ export const PAIR_CREATED_TOPIC = hex(keccak256(new TextEncoder().encode('PairCr
 /** Blocks to wait before trusting an event. Deeper where a chain reorganises more. */
 const DOLLAR_SYMBOLS = new Set(['USDC', 'USDT', 'DAI']);
 
-export const CONFIRMATIONS: Readonly<Record<ChainId, number>> = { solana: 0, ethereum: 12, bnb: 15, polygon: 64, base: 10 };
+export const CONFIRMATIONS: Readonly<Record<ChainId, number>> = { solana: 0, ethereum: 12, bnb: 15, polygon: 64, base: 10, arbitrum: 20, optimism: 10, avalanche: 6 };
 
 export interface EvmIndexerOptions {
   now?: () => number;

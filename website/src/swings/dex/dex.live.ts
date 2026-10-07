@@ -30,6 +30,9 @@ const STABLE: Record<string, string> = {
   bnb: '0x55d398326f99059ff775485246999027b3197955', // USDT (BSC)
   polygon: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174', // USDC.e
   base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+  arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', // USDC
+  optimism: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', // USDC
+  avalanche: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', // USDC
 };
 const tok = (chain: ChainId, address: string): TokenRef => ({ chain, address });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -360,8 +363,13 @@ describe('live: Curve direct', () => {
           console.log(entry.id, 'pool not usable (no int128 coins):', pool);
           continue;
         }
-        const dy = await adapter.quote(pool, 0, 1, 10n ** 6n);
-        console.log(entry.id, pool.slice(0, 8), 'coins', coins.map((c) => c.slice(0, 8)), 'get_dy(0,1,1e6) =', dy);
+        // Coins have 6 or 18 decimals: try one whole unit of each, so a dust-sized probe cannot read as "no pool".
+        let dy: bigint | null = null;
+        for (const dx of [10n ** 6n, 10n ** 18n]) {
+          dy = await adapter.quote(pool, 0, 1, dx);
+          if (dy !== null) break;
+        }
+        console.log(entry.id, pool.slice(0, 8), 'coins', coins.map((c) => c.slice(0, 8)), 'get_dy(0,1) =', dy);
         if (dy !== null) usable++;
       }
       expect(usable).toBeGreaterThan(0);
@@ -418,4 +426,28 @@ describe('live: Uniswap V3 split across fee tiers (Ethereum), one multicall on t
       expect(drift * 200n).toBeLessThan(q.expectedOut);
     }, 120_000);
   }
+});
+
+describe('live: Velodrome (Optimism) direct', () => {
+  const entry = EVM_AERODROME.find((e) => e.id === 'velodrome-optimism')!;
+  const read = publicRead('optimism');
+  const from = '0x' + '1'.repeat(40);
+  const hubs = (HUB_TOKENS.optimism ?? []).map((h) => h.address);
+
+  it('router and factory are real contracts, and the real router prices, accepts and pays an Aretia-built swap', async () => {
+    await wait(800);
+    for (const a of [entry.router!, entry.factory!]) expect(((await read('eth_getCode', [a, 'latest'])) as string).length).toBeGreaterThan(10);
+    const adapter = new EvmAerodromeAdapter(entry, read);
+    const amountIn = 10n ** 17n;
+    const route = await adapter.bestRoute(entry.wrappedNative!, STABLE.optimism!, amountIn, hubs);
+    console.log('velodrome best', route && { hops: route.hops.map((h) => (h.stable ? 'stable' : 'volatile')), out: route.amountOut });
+    expect(route).not.toBeNull();
+    const plan = buildAerodromeSwap(entry, { hops: route!.hops, amountIn, minOut: (route!.amountOut * 98n) / 100n, recipient: from, deadline: Math.floor(Date.now() / 1000) + 600, nativeIn: true });
+    const sim = await simulateV2Swap(read, plan, from, { balanceOverride: 10n ** 24n });
+    console.log('velodrome simulation', sim.ok, sim.error ?? '', sim.amounts?.[sim.amounts.length - 1]);
+    expect(sim.ok, sim.error ?? '').toBe(true);
+    const paid = sim.amounts![sim.amounts!.length - 1]!;
+    const drift = paid > route!.amountOut ? paid - route!.amountOut : route!.amountOut - paid;
+    expect(drift * 200n).toBeLessThan(route!.amountOut);
+  });
 });

@@ -36,7 +36,7 @@ async function fresh(): Promise<{ db: PGlite; sql: SqlClient }> {
 describe('migration files', () => {
   it('are numbered without gaps and have checksums', () => {
     const m = loadMigrations(files);
-    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql']);
+    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql']);
     expect(m[0]!.checksum).toBe(checksumOf(files[0]!.sql));
   });
 
@@ -57,8 +57,8 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { onStep: (s) => steps.push(s) });
-    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql']);
-    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql']);
+    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql']);
+    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql']);
     const rows = await sql.query('select name from public.aretia_schema_migrations order by name');
     expect(rows.map((r) => r.name)).toEqual(done);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('token_registry','discovery_cursors','swings_events')"))[0]!.n).toBe(3);
@@ -76,7 +76,7 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { dryRun: true, onStep: (s) => steps.push(s) });
-    expect(done).toHaveLength(2);
+    expect(done).toHaveLength(4);
     expect(steps[0]).toMatch(/Would apply/);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name = 'token_registry'"))[0]!.n).toBe(0);
   });
@@ -86,7 +86,7 @@ describe('the schema, on a real Postgres engine', () => {
     await applyMigrations(sql, loadMigrations(files));
     const edited = loadMigrations(files.map((f, i) => (i === 0 ? { ...f, sql: f.sql + '\n-- edited' } : f)));
     await expect(planMigrations(sql, edited)).rejects.toThrow(/changed after it was applied/);
-    await expect(planMigrations(sql, loadMigrations(files.slice(1).map((f) => ({ ...f, name: '0001_other.sql' }))))).rejects.toThrow(/not in the folder/);
+    await expect(planMigrations(sql, loadMigrations(files.slice(1, 2).map((f) => ({ ...f, name: '0001_other.sql' }))))).rejects.toThrow(/not in the folder/);
   });
 
   it('rolls a failing migration back completely and says which one failed', async () => {
@@ -106,6 +106,7 @@ describe('what the tables enforce', () => {
     const { db, sql } = await fresh();
     await applyMigrations(sql, loadMigrations(files));
     await db.exec(valid);
+    await db.exec(valid.replace("'solana:abc'", "'arbitrum:abc'").replace("'solana', 'abc'", "'arbitrum', 'abc'"));
     await expect(db.exec(valid)).rejects.toThrow(/duplicate key/);
     await expect(db.exec(valid.replace("'solana:abc'", "'x:1'").replace("'solana', 'abc'", "'cardano', 'abc'"))).rejects.toThrow(/check constraint/);
     await expect(db.exec(valid.replace("'solana:abc'", "'x:2'").replace("'discovered'", "'endorsed'"))).rejects.toThrow(/check constraint/);
@@ -119,10 +120,15 @@ describe('what the tables enforce', () => {
     const { db, sql } = await fresh();
     await applyMigrations(sql, loadMigrations(files));
     const cols = (await sql.query("select column_name from information_schema.columns where table_name = 'swings_events' order by column_name")).map((r) => r.column_name);
-    expect(cols).toEqual(['at', 'chain', 'count', 'id', 'ms', 'name', 'provider', 'status']);
+    expect(cols).toEqual(['at', 'chain', 'count', 'diff_bps', 'id', 'ms', 'name', 'provider', 'rival', 'status']);
     await db.exec("insert into public.swings_events (at, name, chain, provider, status, ms, count) values (1, 'swap', 'base', 'aretia', 'confirmed', 120, 3)");
     await expect(db.exec("insert into public.swings_events (at, name) values (1, 'wallet_address_seen')")).rejects.toThrow(/check constraint/);
+    await db.exec("insert into public.swings_events (at, name, chain, provider, rival, diff_bps) values (1, 'shadow', 'solana', 'aretia-sol', 'jupiter', -12), (2, 'shadow', 'solana', 'jupiter', 'aretia-sol', 4)");
+    await expect(db.exec("insert into public.swings_events (at, name, diff_bps) values (1, 'shadow', 50000)")).rejects.toThrow(/check constraint/);
+    const summary = await sql.query('select winner, comparisons::int as n, aretia_behind::int as behind, aretia_level_or_ahead::int as ahead from public.swings_shadow_summary order by winner');
+    expect(summary).toEqual([{ winner: 'aretia-sol', n: 1, behind: 1, ahead: 0 }, { winner: 'jupiter', n: 1, behind: 0, ahead: 1 }]);
     await expect(db.exec("insert into public.swings_events (at, name, chain) values (1, 'swap', 'dogechain')")).rejects.toThrow(/check constraint/);
+    await db.exec("insert into public.swings_events (at, name, chain) values (1, 'swap', 'arbitrum'), (2, 'swap', 'optimism'), (3, 'swap', 'avalanche')");
   });
 
   it('row level security is on for every table and no policy grants anything: the browser roles see nothing, the service role sees everything', async () => {

@@ -593,6 +593,22 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const card = el('div', { class: 'wapp__card' });
     card.append(el('span', { class: 'wapp__eyebrow', text: 'Network' }), chainPicker());
 
+    // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
+    // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
+    // coin elsewhere). A native EVM coin is charted through its wrapped token.
+    {
+      const picked = s.to ?? s.from;
+      const target = picked
+        ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol }
+        : s.chain === 'solana'
+          ? { address: ACT_MINT, symbol: 'ACT' }
+          : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol };
+      if (target.address) {
+        card.append(swapChart.element);
+        swapChart.show(s.chain, target.address, target.symbol);
+      } else swapChart.hide();
+    }
+
     if (!isChainEnabled(s.chain)) {
       card.append(banner('warn', `${info.name} swaps are not enabled yet. Aretia Swings only turns a network on when quotes, simulation, signing and fee settings all work end to end there. Nothing on this network can be traded from this page today.`));
       swapPanel.append(card);
@@ -651,16 +667,6 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
       card.append(label);
     }
-
-    // The price chart of the token being bought. A native EVM coin is charted through its wrapped token.
-    if (s.to) {
-      const native = s.to.mint === EVM_NATIVE_ADDRESS;
-      const address = native ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : s.to.mint;
-      if (address) {
-        card.append(swapChart.element);
-        swapChart.show(s.chain, address, s.to.symbol);
-      } else swapChart.hide();
-    } else swapChart.hide();
 
     const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
     card.append(actions);

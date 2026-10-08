@@ -11,13 +11,32 @@ import type { ChainId, SwapExecution } from '../core/types.js';
 import type { RouterEvent } from '../router/router.js';
 
 /** Field names that are never recorded, whatever their value. */
-const SECRET_KEYS = /seed|mnemonic|passphrase|password|private|secret|keypair|signature|signed|apikey|api_key|authorization|token$/i;
+const SECRET_KEYS = /seed|mnemonic|passphrase|password|private|secret|keypair|signature|signed|apikey|api_key|authorization|bearer|cookie|session|otp|cvv|cvc|card|iban|account_?(number|no)|routing|ssn|passport|token$/i;
 const LONG_SECRETISH = /^(?:[A-Za-z0-9+/=_-]{80,}|0x[0-9a-fA-F]{80,})$/;
 
 /** Returns a copy that is safe to log: secret-named fields removed, long opaque strings and addresses masked. */
+/**
+ * Strings are cleaned before they are kept: a link loses its query string and fragment (checkout links carry the
+ * provider key and a signature there), a bearer token is removed, and long opaque blobs are masked.
+ */
+function cleanString(value: string): string {
+  let v = value;
+  v = v.replace(/https?:\/\/[^\s"'<>]+/gi, (url) => {
+    try {
+      const u = new URL(url);
+      return `${u.origin}${u.pathname}`;
+    } catch {
+      return '[link]';
+    }
+  });
+  v = v.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]');
+  if (LONG_SECRETISH.test(v)) return '[redacted blob]';
+  return v.length > 300 ? v.slice(0, 300) + '…' : v;
+}
+
 export function redact(value: unknown, depth = 0): unknown {
   if (depth > 6) return '[deep]';
-  if (typeof value === 'string') return LONG_SECRETISH.test(value) ? '[redacted blob]' : value.length > 300 ? value.slice(0, 300) + '…' : value;
+  if (typeof value === 'string') return cleanString(value);
   if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return value.slice(0, 50).map((v) => redact(v, depth + 1));
   if (typeof value === 'object' && value !== null) {
@@ -38,7 +57,12 @@ export type TelemetryEvent =
   | { name: 'token_indexed'; chain: ChainId; count: number }
   | { name: 'token_index_failed'; chain: ChainId; message: string }
   | { name: 'risk_assessed'; chain: ChainId; status: string }
-  | { name: 'risk_failed'; chain: ChainId };
+  | { name: 'risk_failed'; chain: ChainId }
+  | { name: 'settlement_quote'; provider: string; chain: ChainId; found: number; declined: number; failed: number; ms: number }
+  | { name: 'execution_state'; kind: 'settlement' | 'plan'; id: string; from: string; to: string; ms: number }
+  | { name: 'execution_failed'; kind: 'settlement' | 'plan'; id: string; reason: string; fundsMayBeAtRisk: boolean }
+  | { name: 'ramp_options'; provider: string; chain: ChainId; side: string; offered: boolean; reason: string | null }
+  | { name: 'recovery_flagged'; kind: 'settlement' | 'plan'; id: string; severity: string };
 
 export interface LoggedEvent {
   at: number;

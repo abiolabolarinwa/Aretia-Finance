@@ -123,3 +123,18 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 **M46 recovery** (`plan/recovery.ts`): says where the funds are first; never suggests sending again when a send may have gone through; never uses the word lost; flags records that disagree; flags a ramp open for a day.
 **Tests:** `plan/plan.test.ts` (18), `plan/runner.test.ts` (21), including property tests. **Typecheck/Lint/Build:** pass.
 **Known limitations:** quotes for a whole plan must be fetched leg by leg by the caller (the planner gives shapes, not prices); the settlement executor needs the original settlement quote object, which is held in memory, so a plan resumed after a reload with an expired quote needs a fresh quote (reported as needs-requote); no screen yet drives a multi-step plan end to end.
+
+## Milestone 47: ACT economic integration
+
+**Status:** complete. **Rate discrepancy to resolve:** the milestone specification says 0.87%; the product runs the 0.55% (55 bps) the owner set, read from `core/fee.ts`. This work uses the configured rate and never copies a number: a test fails if any new module hard-codes one. Confirm which rate is intended; changing it is one line in `core/fee.ts`.
+**Implemented:** `src/swings/economics/act.ts`. No second generic fee exists. The ACT allocation applies to a plan on at most ONE swap step (the first on a network where it is switched on and ready), so a multi-step plan does not charge the same money twice; ramps and settlements carry no Aretia charge. A blocked allocation (missing address) is reported, not silently zero. `disclose()` lists the amount, network fees, venue fees, settlement fees, provider (ramp) fees and the ACT allocation each on their own line and in their own asset. `assertAutomaticBuybackAllowed` refuses any unattended buyback unless `SWINGS_AUTOMATIC_BUYBACK=on` and an executor are set; nothing calls it, because today the allocation rides inside the user's own signed swap.
+**Owner decision needed:** which step of a multi-step plan should carry the allocation (today: the first eligible swap), and whether a plan with no swap (only a ramp and a USDC move) should carry one (today: none).
+**Tests:** `economics/act.test.ts` (8). 
+
+## Milestone 48: execution intelligence
+
+**Status:** complete, deterministic, no model. `src/swings/intelligence/insights.ts`: a cautious provider reliability score (lower confidence bound, so two successes are not trusted like two hundred; only the last 7 days count), a plain comparison of what choosing one route costs or saves in amount and time, and warnings for a single option, an outlier, a risky or slow route. It advises only; it never overrides the engines' checks or executes anything. **Tests:** `intelligence/insights.test.ts` (6, with property tests).
+
+## Milestone 49: observability
+
+**Status:** complete. `observability/execution.ts` records every settlement and plan state change exactly once (through store wrappers), failures with whether funds may be at risk, search outcomes with the providers' reasons, and recovery flags: ids and states only, never addresses, hashes, amounts or links. `redact` was strengthened: links lose their query string (checkout links carry the provider key and a signature), bearer tokens are removed, and payment and identity fields (card, cvv, iban, account number, passport, session, cookie, otp) are removed by name. A broken sink cannot break an execution. **Tests:** `observability/execution.test.ts` (8). Nothing is sent anywhere: the data stays in memory unless a reviewed server sink is added.

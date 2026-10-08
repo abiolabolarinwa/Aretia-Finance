@@ -1,5 +1,6 @@
 /** GET/PUT /api/swings-records: optional recovery copies of Swings executions and plans. See _swingsRecords.ts. */
 import { handleRecords } from './_swingsRecords.js';
+import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
   method?: string;
@@ -22,7 +23,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   for (const [k, v] of Object.entries(req.query ?? {})) query[k] = one(v) ?? undefined;
   const out = await handleRecords({
     method: req.method ?? 'GET',
-    origin: one(req.headers.origin),
+    origin: requestOrigin(req.headers),
     ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
     contentType: one(req.headers['content-type']),
     query,

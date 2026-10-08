@@ -3,6 +3,7 @@
  * (Vercel Cron sends it as a bearer token). See _swingsTokens.ts.
  */
 import { handleDiscover } from './_swingsTokens.js';
+import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
   method?: string;
@@ -19,7 +20,7 @@ const one = (v: string | string[] | undefined): string | null => (Array.isArray(
 export default async function handler(req: Req, res: Res): Promise<void> {
   const out = await handleDiscover({
     method: req.method ?? 'GET',
-    origin: one(req.headers.origin),
+    origin: requestOrigin(req.headers),
     authorization: one(req.headers.authorization),
     ip: 'cron',
     query: {},

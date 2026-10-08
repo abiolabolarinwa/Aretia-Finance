@@ -128,7 +128,6 @@ const buyTips = [
       <header class="wapp__top">
         <h1 data-title>Dashboard</h1>
         <div class="wapp__chips">
-          <span class="wapp__chip">Solana · mainnet</span>
           <button type="button" class="wapp__chip wapp__chip--btn" data-refresh>Refresh</button>
         </div>
       </header>
@@ -381,7 +380,7 @@ const buyTips = [
 
       <div data-pane="swings" class="wapp__pane" hidden>
         <div class="wapp__stack">
-          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Aretia Swings">
+          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Aretia Swings" data-sw-tabs>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap Coins</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">Find Tokens</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Marketplace</button>
@@ -903,10 +902,19 @@ const buyTips = [
     .wapp[data-view='swings'] .wapp__rail { position: static; flex-direction: row; height: auto; padding: 10px 16px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--color-border); }
     body:has(.wapp[data-view='swings']) .nav--wallet .nav__bar { padding-left: 16px; }
   }
+
+  /* Swings: no page title; the tabs sit in the top bar beside the search box; the chart takes the freed space */
+  .wapp[data-view='swings'] .wapp__top h1 { display: none; }
+  .wapp[data-view='swings'] .wapp__top:not(:has(.wapp__chips, .wapp-search, .wapp__seg--tabs)) { display: none; }
+  .nav__bar > .wapp__seg--tabs { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0 0 0 12px; }
+  .nav__bar > .wapp__seg--tabs .wapp__chip { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+  body:not(:has(.wapp[data-view='swings'])) .nav__bar > .wapp__seg--tabs { display: none; }
+  .nav__bar > .wapp-search { flex: 0 1 380px; margin: 0; }
+  [data-sw-panel='swap'] .wapp__chart-plot { height: calc(100vh - 300px); }
   /* Swap Coins: a narrow swap panel and a chart that takes the rest of the screen */
   [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
   @media (max-width: 960px) { [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); } }
-  [data-sw-panel='swap'] .wapp__chart-plot { height: calc(100vh - 340px); min-height: 460px; }
+  [data-sw-panel='swap'] .wapp__chart-plot { min-height: 460px; }
   [data-sw-panel='swap'] .wapp__chart-frame { height: calc(100% + var(--dex-footer-crop)); margin-bottom: 0; }
   .wapp__chart { gap: 10px; }
   .wapp__chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }

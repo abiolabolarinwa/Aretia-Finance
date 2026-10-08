@@ -1172,8 +1172,9 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   function showTab(name: string): void {
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
-    if (intro) intro.textContent = TAB_INTRO[name] ?? '';
-    root!.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
+    // The swap screen needs the room for its chart, so it has no explanation line.
+    if (intro) intro.textContent = name === 'swap' ? '' : (TAB_INTRO[name] ?? '');
+    document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
     if (name === 'new') newTokens.ensureLoaded();
     if (name === 'markets') markets.ensureLoaded();
@@ -1181,10 +1182,24 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (name === 'transfer') showTransferMode(transferMode);
     if (name === 'swap') render();
   }
-  root.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
+  document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
 
   // ---- the top-bar search opens a token here, with its chart
   mountTokenSearch();
+
+  // The tabs sit in the top bar beside the search box on a wide screen, and back above the page on a narrow one.
+  const tabBar = root.querySelector<HTMLElement>('[data-sw-tabs]');
+  const tabHome = tabBar?.parentElement ?? null;
+  const tabNext = tabBar?.nextElementSibling ?? null;
+  const placeTabs = (): void => {
+    if (!tabBar || !tabHome) return;
+    const bar = document.querySelector<HTMLElement>('header.nav .nav__bar');
+    const search = document.querySelector<HTMLElement>('[data-wapp-search]');
+    if (window.matchMedia('(min-width: 1081px)').matches && bar && search?.parentElement === bar) search.after(tabBar);
+    else tabHome.insertBefore(tabBar, tabNext);
+  };
+  window.matchMedia('(min-width: 1081px)').addEventListener('change', placeTabs);
+  placeTabs();
   window.addEventListener(OPEN_TOKEN_EVENT, (e) => {
     const t = (e as CustomEvent<SearchHit>).detail;
     void (async () => {

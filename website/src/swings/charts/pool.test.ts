@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { embedUrl, GeckoPoolFinder, pickPool, type GeckoPool } from './pool.js';
+import { dexScreenerEmbedUrl, embedUrl, GeckoPoolFinder, pickPool, type GeckoPool } from './pool.js';
 
 const ACT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -89,5 +89,25 @@ describe('GeckoPoolFinder', () => {
     const info = await new GeckoPoolFinder(f).find('ethereum', '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2');
     expect(info.network).toBe('eth');
     expect(String((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0])).toContain('/networks/eth/tokens/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/pools');
+  });
+});
+
+describe('dexScreenerEmbedUrl', () => {
+  it('points at the real DexScreener host with the networks own name, in the light embedded style', () => {
+    const u = new URL(dexScreenerEmbedUrl('bnb', '0xabc'));
+    expect(u.origin).toBe('https://dexscreener.com');
+    expect(u.pathname).toBe('/bsc/0xabc');
+    expect(u.searchParams.get('embed')).toBe('1');
+    expect(u.searchParams.get('theme')).toBe('light');
+    expect(u.searchParams.get('info')).toBe('0');
+    expect(new URL(dexScreenerEmbedUrl('solana', 'P')).pathname).toBe('/solana/P');
+    expect(new URL(dexScreenerEmbedUrl('avalanche', 'P')).pathname).toBe('/avalanche/P');
+  });
+
+  it('cannot be pointed elsewhere by a pool value', () => {
+    const u = new URL(dexScreenerEmbedUrl('base', '../../evil?x=1#y'));
+    expect(u.origin).toBe('https://dexscreener.com');
+    expect(u.pathname.startsWith('/base/')).toBe(true);
+    expect(u.hash).toBe('');
   });
 });

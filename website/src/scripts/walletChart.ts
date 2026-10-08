@@ -9,7 +9,7 @@
  * The element is created once and moved between renders by the caller, so the frame is not reloaded every time the
  * screen redraws; it only reloads when the token changes. The header refreshes every 30 seconds while it is on screen.
  */
-import { embedUrl, GeckoPoolFinder, type PoolInfo } from '../swings/charts/pool.js';
+import { dexScreenerEmbedUrl, GeckoPoolFinder, type PoolInfo } from '../swings/charts/pool.js';
 import { SwingsError, type ChainId } from '../swings/core/types.js';
 
 export interface ChartPanel {
@@ -99,7 +99,7 @@ export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()
       }
     }
     live.hidden = !info;
-    note.textContent = info ? `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: GeckoTerminal, powered by TradingView.` : '';
+    note.textContent = info ? `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: DexScreener.` : '';
   }
 
   function showMessage(text: string): void {
@@ -124,11 +124,11 @@ export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()
         if (framedPool === info.pool && plot.querySelector('iframe')) return;
         plot.textContent = '';
         const frame = node('iframe', 'wapp__chart-frame');
-        frame.title = `${current.symbol} live price chart and trades from GeckoTerminal`;
+        frame.title = `${current.symbol} live price chart and trades from DexScreener`;
         frame.loading = 'lazy';
         frame.referrerPolicy = 'strict-origin-when-cross-origin';
         frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
-        frame.src = embedUrl(info);
+        frame.src = dexScreenerEmbedUrl(current.chain, info.pool);
         plot.append(frame);
         framedPool = info.pool;
       })

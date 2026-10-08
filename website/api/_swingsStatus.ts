@@ -7,6 +7,7 @@
  * listed is off. Aretia's own router needs no third-party key. ZEROX_API_KEY only enables the optional, non-core 0x
  * benchmarking provider.
  */
+import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { createHash } from 'node:crypto';
 import { isOriginAllowed, type ProxyEnv } from './_rpcProxy.js';
 
@@ -56,9 +57,9 @@ export function handleStatus(input: { method: string; origin: string | null; env
   const chains = evmChainsFromEnv(env.SWINGS_EVM_CHAINS);
   const body = {
     evm: { configured, chains },
-    tokens: Boolean(env.SUPABASE_URL?.trim() && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
+    tokens: Boolean(supabaseBase(env.SUPABASE_URL) && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
     // Whether the optional recovery copy of executions can be kept on the server.
-    records: Boolean(env.SUPABASE_URL?.trim() && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
+    records: Boolean(supabaseBase(env.SUPABASE_URL) && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
     analytics: env.PUBLIC_SWINGS_ANALYTICS === '1',
     aggregators: env.SWINGS_AGGREGATORS !== 'off',
     canary: canaryHashes(env.SWINGS_CANARY_WALLETS),

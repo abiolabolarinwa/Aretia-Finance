@@ -8,3 +8,19 @@
 export function supabaseHeaders(key: string): Record<string, string> {
   return key.startsWith('eyJ') ? { apikey: key, authorization: `Bearer ${key}` } : { apikey: key };
 }
+
+/**
+ * The project address, tidied: quotes and spaces removed, `https://` added if it was left off, and any trailing slash or
+ * `/rest/v1` removed (the code adds that itself). Only the host is kept, so a pasted dashboard link or a path cannot
+ * send requests anywhere else. Returns null if nothing usable is left.
+ */
+export function supabaseBase(value: string | undefined): string | null {
+  const raw = (value ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return u.protocol === 'https:' && u.hostname.includes('.') ? `https://${u.host}` : null;
+  } catch {
+    return null;
+  }
+}

@@ -73,6 +73,26 @@ export function allowedOrigins(env: ProxyEnv): string[] {
   return [...BASE_ORIGINS, ...extra];
 }
 
+/**
+ * The origin a request really comes from. Browsers send an Origin header on cross-site requests and on same-site
+ * requests that change something, but NOT on a plain same-site GET, so the page asking its own server for settings
+ * arrived with no origin and was refused. For that case only, the browser's own Sec-Fetch-Site: same-origin marker
+ * (which page scripts cannot set) lets the Referer's origin stand in. Anything else still needs a real Origin header.
+ */
+export function requestOrigin(headers: Record<string, string | string[] | undefined>): string | null {
+  const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+  const origin = one(headers.origin);
+  if (origin) return origin;
+  if (one(headers['sec-fetch-site']) !== 'same-origin') return null;
+  const referer = one(headers.referer);
+  if (!referer) return null;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function isOriginAllowed(origin: string | null, env: ProxyEnv): boolean {
   if (!origin) return false;
   if (allowedOrigins(env).includes(origin)) return true;

@@ -4,6 +4,7 @@
  * for setup.
  */
 import { handleRamp } from './_ramp.js';
+import { requestOrigin } from './_rpcProxy.js';
 
 // Just what this handler uses of Vercel's Node request and response objects.
 interface Req {
@@ -24,7 +25,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const forwarded = one(req.headers['x-forwarded-for']);
   const out = await handleRamp({
     method: req.method ?? 'GET',
-    origin: one(req.headers.origin),
+    origin: requestOrigin(req.headers),
     ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
     contentType: one(req.headers['content-type']),
     body,

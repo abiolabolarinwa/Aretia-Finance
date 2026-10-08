@@ -1,5 +1,6 @@
 /** POST /api/swings-events: anonymous aggregate analytics. See _swingsEvents.ts for what it will and will not store. */
 import { handleEvents } from './_swingsEvents.js';
+import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
   method?: string;
@@ -19,7 +20,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const forwarded = one(req.headers['x-forwarded-for']);
   const out = await handleEvents({
     method: req.method ?? 'GET',
-    origin: one(req.headers.origin),
+    origin: requestOrigin(req.headers),
     ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
     contentType: one(req.headers['content-type']),
     body,

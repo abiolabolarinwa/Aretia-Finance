@@ -1,5 +1,6 @@
 /** POST /api/swings-submit: forwards a user-signed Solana swap to Jito for protected sending. See _swingsSubmit.ts. */
 import { handleSubmit } from './_swingsSubmit.js';
+import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
   method?: string;
@@ -19,7 +20,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const forwarded = one(req.headers['x-forwarded-for']);
   const out = await handleSubmit({
     method: req.method ?? 'POST',
-    origin: one(req.headers.origin),
+    origin: requestOrigin(req.headers),
     ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
     contentType: one(req.headers['content-type']),
     body,

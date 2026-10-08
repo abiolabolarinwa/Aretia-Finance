@@ -267,6 +267,49 @@ type View = 'dashboard' | 'send' | 'trade' | 'swings' | 'activity' | 'shield' | 
 const VIEWS: View[] = ['dashboard', 'send', 'trade', 'swings', 'activity', 'shield', 'intent', 'safesend', 'universal'];
 const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', swings: 'Aretia Swings', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
+/**
+ * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
+ * CSS variable on the page, so the top bar and the content move with it.
+ */
+function initSidebar(): void {
+  const KEY = 'aretia.wallet.sidebar';
+  const root = document.documentElement;
+  const wapp = document.querySelector<HTMLElement>('[data-wapp]');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-collapse]');
+  if (!wapp || !toggle) return;
+
+  let collapsed = false;
+  try {
+    collapsed = window.localStorage.getItem(KEY) === 'collapsed';
+  } catch {
+    // storage blocked: the sidebar simply starts open each time
+  }
+  const apply = (): void => {
+    if (collapsed) root.dataset.wappSidebar = 'collapsed';
+    else delete root.dataset.wappSidebar;
+    const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', label);
+    toggle.title = label;
+  };
+  // With the labels hidden, a hover tooltip says what each icon is.
+  document.querySelectorAll<HTMLElement>('.wapp__nav button, [data-lock]').forEach((b) => {
+    if (!b.title) b.title = b.textContent?.trim() ?? '';
+  });
+  apply();
+  toggle.addEventListener('click', () => {
+    collapsed = !collapsed;
+    apply();
+    try {
+      window.localStorage.setItem(KEY, collapsed ? 'collapsed' : 'expanded');
+    } catch {
+      // not remembered, still works for this visit
+    }
+  });
+  // Turn the width animation on only after the first paint, so a remembered state does not slide in on load.
+  requestAnimationFrame(() => requestAnimationFrame(() => wapp.classList.add('wapp--ready')));
+}
+
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
   if (!root) return;
@@ -1624,6 +1667,7 @@ export function initWalletApp(): void {
     return true;
   };
   void loadKnownIcons();
+  initSidebar();
   onRoute();
   if (!wire()) {
     // wallet.js loads just before this script; wait briefly if it is a tick behind.

@@ -177,7 +177,7 @@ const pricePair = POOLS[0].address;
   @media (min-width: 961px) {
     /* The wallet sidebar (248px, full height) carries the logo; the bar only spans the main column. */
     .nav--wallet .nav__brand { display: none; }
-    .nav--wallet .nav__bar { box-sizing: border-box; width: 100%; max-width: none; margin: 0; padding-left: calc(248px + 36px); padding-right: 36px; }
+    .nav--wallet .nav__bar { box-sizing: border-box; width: 100%; max-width: none; margin: 0; padding-left: calc(var(--wapp-side, 248px) + 36px); transition: padding-left 200ms ease; padding-right: 36px; }
   }
   @media (max-width: 1080px) {
     .nav__menu, .nav__actions { display: none; }

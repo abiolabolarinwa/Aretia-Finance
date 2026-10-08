@@ -43,7 +43,7 @@ export function formatPrice(p: number | null): string {
   return `$${p.toPrecision(4).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
 }
 
-function avatar(symbol: string, icon: string | null | undefined): HTMLElement {
+export function avatar(symbol: string, icon: string | null | undefined): HTMLElement {
   const initials = (): HTMLElement => node('span', 'wapp-avatar', symbol.slice(0, 2).toUpperCase());
   if (!icon || !/^https:\/\//.test(icon)) return initials();
   const img = node('img', 'wapp-avatar');

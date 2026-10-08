@@ -70,6 +70,10 @@ export class MockSettlementProvider implements SettlementProvider {
     return [{ stepId: 'send', chain, description: 'Mock send (tests only)', unsigned: { kind: 'evm', tx: { from: quote.intent.sender, to: '0x' + '0'.repeat(40) }, chainId: 0 } }];
   }
 
+  allowedDestinations(): readonly string[] {
+    return ['0x' + '0'.repeat(40)];
+  }
+
   async buildDestination(): Promise<SettlementTransaction | null> {
     return null;
   }

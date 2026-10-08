@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "db:migrate": "node scripts/apply-migrations.ts"
+    "db:migrate": "node scripts/apply-migrations.ts",
+    "readiness": "node scripts/readiness.ts"
   },
   "dependencies": {
     "@bonfida/spl-name-service": "^4.0.1",

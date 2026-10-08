@@ -10,6 +10,8 @@
  * Aretia's RPC proxy. EVM quotes go to Aretia's /api/swings-0x (which calls 0x); EVM reads go to the
  * chain's public node. Token lists call Aretia's /api/swings-tokens. History stays in this browser.
  */
+import { initCrossChain } from './walletCrossChain.js';
+import { initRamp } from './walletRamp.js';
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { avatar, createChartPanel } from './walletChart';
@@ -96,6 +98,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
   const swapPanel = panel('swap');
   const activityPanel = panel('activity');
+  const movePanel = panel('move');
+  const rampPanel = panel('ramp');
 
   // Tokens the user picked, by address: names and icons only. Decimals are re-read from the chain.
   const picked = new Map<string, TokenInfo>();
@@ -107,6 +111,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
+  const crossChain = initCrossChain(movePanel, evm, (c) => isChainEnabled(c));
+  const ramp = initRamp(rampPanel, evm, () => host.getAddress(), (c) => isChainEnabled(c));
   // The "Before you swap" dropdown is written in the page. One copy is kept and moved between redraws, so it stays open if the user opened it.
   let guideEl: Element | null = null;
   const guide = (): Element | null => {
@@ -1054,6 +1060,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (name === 'new') newTokens.ensureLoaded();
     if (name === 'markets') markets.ensureLoaded();
     if (name === 'activity') renderActivity();
+    if (name === 'move') crossChain.draw();
+    if (name === 'ramp') ramp.draw();
     if (name === 'swap') render();
   }
   root.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));

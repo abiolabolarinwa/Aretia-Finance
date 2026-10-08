@@ -335,6 +335,11 @@ export class CctpSettlementProvider implements SettlementProvider {
     };
   }
 
+  allowedDestinations(chain: ChainId): readonly string[] {
+    const usdc = CCTP_USDC[chain];
+    return usdc ? [usdc, CCTP_CONTRACTS.tokenMessenger, CCTP_CONTRACTS.messageTransmitter] : [];
+  }
+
   executionIdFor(sourceChain: ChainId, sourceTx: string): string {
     return executionIdOf(this.id, sourceChain, sourceTx);
   }

@@ -521,7 +521,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     railEl.replaceChildren();
     for (const id of CHAIN_IDS) {
       const off = runtime.loaded && !isChainEnabled(id);
-      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', 'data-name': off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(s.chain === id), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
+      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', title: off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(s.chain === id), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
       b.append(el('img', { attrs: { src: `/assets/chains/${id}.png`, alt: '', width: '36', height: '36', draggable: 'false' } }));
       b.addEventListener('click', () => selectChain(id));
       railEl.append(b);
@@ -1034,7 +1034,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     function draw(): void {
       target.replaceChildren();
       const card = el('div', { class: 'wapp__card' });
-      card.append(el('h2', { class: 'wapp__h2', text: mode === 'new' ? 'New tokens' : 'Markets' }));
+      card.append(el('h2', { class: 'wapp__h2', text: mode === 'new' ? 'Find tokens' : 'Marketplace' }));
       card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Tokens Aretia has detected with a trading pool. Discovery is not endorsement: a token appearing here says nothing about whether it is safe, honest or worth buying.' : 'Tokens Aretia has indexed, ranked by liquidity or volume. Being large or listed is not an endorsement, and liquidity can be withdrawn.' }));
       const search = el('input', { class: 'wapp__input', attrs: { placeholder: 'Search by symbol, name or contract address', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search tokens' } });
       search.value = f.query;

@@ -17,7 +17,11 @@
  * Sources, 7 Oct 2026: developers.circle.com/cctp (supported chains, finality), iris-api.circle.com (fees, attestations),
  * contract addresses from Circle's EVM smart contracts page.
  */
+import type * as Web3 from '@solana/web3.js';
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import type { SolRpc } from '../solana/raydiumCpmm.js';
+import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, usedNonceAddress } from './cctpSolana.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
 import { executionIdOf, parseExecutionId, type SettlementCost, type SettlementIntent, type SettlementProvider, type SettlementQuote, type SettlementStatus, type SettlementStep, type SettlementTransaction, type SupportAnswer } from './types.js';
@@ -57,9 +61,16 @@ const ATTEST_SECONDS: Readonly<Record<'fast' | 'standard', Partial<Record<ChainI
 /** Time to send the source transaction and to claim on the destination, on top of the attestation. */
 const HANDLING_SECONDS = 60;
 
+/** What the provider needs to touch Solana: a node, and the (lazily loaded) Solana library. Absent means Solana is not offered. */
+export interface SolanaCctpDeps {
+  rpc: SolRpc;
+  web3: () => Promise<typeof Web3>;
+}
+
 export interface CctpOptions {
   mode: 'fast' | 'standard';
   read: (chain: ChainId) => EvmRead;
+  solana?: SolanaCctpDeps;
   fetchImpl?: typeof fetch;
   now?: () => number;
   irisBase?: string;
@@ -86,6 +97,9 @@ interface CctpRaw {
 }
 
 const isEvmAddress = (a: string): boolean => /^0x[0-9a-fA-F]{40}$/.test(a);
+const isSolana = (c: ChainId): boolean => CHAINS[c].kind === 'solana';
+const validAddress = (c: ChainId, a: string): boolean => (isSolana(c) ? isSolanaAddress(a) : isEvmAddress(a));
+const SOLANA_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 const bytes32OfAddress = (a: string): string => '0x' + '0'.repeat(24) + a.slice(2).toLowerCase();
 const ZERO32 = '0x' + '0'.repeat(64);
 
@@ -145,8 +159,8 @@ export class CctpSettlementProvider implements SettlementProvider {
     if (src === undefined) return no(intent.sourceChain === 'bnb' ? 'Circle does not offer USDC settlement on BNB Chain.' : `Circle's USDC settlement is not available on ${CHAINS[intent.sourceChain].name}.`);
     if (dst === undefined) return no(intent.destinationChain === 'bnb' ? 'Circle does not offer USDC settlement on BNB Chain.' : `Circle's USDC settlement is not available on ${CHAINS[intent.destinationChain].name}.`);
     if (intent.sourceAsset.address.toLowerCase() !== CCTP_USDC[intent.sourceChain]!.toLowerCase() || intent.destinationAsset.address.toLowerCase() !== CCTP_USDC[intent.destinationChain]!.toLowerCase()) return no('This route settles native USDC to native USDC only.');
-    if (CHAINS[intent.sourceChain].kind !== 'evm' || CHAINS[intent.destinationChain].kind !== 'evm') return no('Aretia cannot yet build the Solana side of a USDC settlement, so this route is not offered.');
-    if (!isEvmAddress(intent.sender) || !isEvmAddress(intent.recipient)) return no('The sender and recipient must be valid addresses on their chains.');
+    if ((isSolana(intent.sourceChain) || isSolana(intent.destinationChain)) && !this.o.solana) return no('The Solana side of a USDC settlement is not available in this context, so this route is not offered.');
+    if (!validAddress(intent.sourceChain, intent.sender) || !validAddress(intent.destinationChain, intent.recipient)) return no('The sender and recipient must be valid addresses on their chains.');
     if (this.o.mode === 'fast' && !FAST_SOURCE.has(intent.sourceChain)) return no(`${CHAINS[intent.sourceChain].name} does not offer fast transfer as a source; the standard transfer is the option there.`);
     const fees = await this.fees(src, dst, signal);
     if ('error' in fees) return no(fees.error);
@@ -157,8 +171,19 @@ export class CctpSettlementProvider implements SettlementProvider {
     return { supported: true, reason: null };
   }
 
+  private async solanaAccount(address: string): Promise<Uint8Array | null> {
+    const r = await this.o.solana!.rpc<{ value: { data: [string, string] } | null }>('getAccountInfo', [address, { encoding: 'base64', commitment: 'confirmed' }]);
+    return r.value ? Uint8Array.from(atob(r.value.data[0]), (c) => c.charCodeAt(0)) : null;
+  }
+
   private async burnLimit(chain: ChainId): Promise<bigint | null> {
     try {
+      if (isSolana(chain)) {
+        // On Solana the limit is stored in the USDC "local token" account of the Token Messenger Minter program.
+        const web3 = await this.o.solana!.web3();
+        const data = await this.solanaAccount(cctpSolanaAddresses(web3).localToken);
+        return data ? readBurnLimit(data) : null;
+      }
       const out = await this.o.read(chain)('eth_call', [{ to: CCTP_CONTRACTS.tokenMinter, data: encodeFunction('burnLimitsPerMessage(address)', [CCTP_USDC[chain]!]) }, 'latest']);
       const [v] = decodeParams(['uint256'], String(out)) as [bigint];
       return v;
@@ -193,8 +218,8 @@ export class CctpSettlementProvider implements SettlementProvider {
       const a = await this.fastAllowance(signal);
       if (a !== null && amount > a) throw new SwingsError('invalid', 'That amount is above the fast-transfer allowance right now. Use the standard transfer for a larger amount.');
     }
-    const allowance = await this.allowance(intent.sourceChain, intent.sender);
-    const needsApproval = allowance < amount;
+    // Solana burns are signed by the owner directly, so there is no separate approval there.
+    const needsApproval = isSolana(intent.sourceChain) ? false : (await this.allowance(intent.sourceChain, intent.sender)) < amount;
     const attest = ATTEST_SECONDS[this.o.mode][intent.sourceChain];
     if (attest === undefined) throw new SwingsError('no-route', 'No timing is published for this route.');
     const srcName = CHAINS[intent.sourceChain].name;
@@ -233,6 +258,7 @@ export class CctpSettlementProvider implements SettlementProvider {
       requirements: [
         ...(needsApproval ? ['One approval for exactly this amount on the source chain.'] : []),
         `A little ${CHAINS[intent.destinationChain].nativeSymbol} on ${dstName} to pay the network fee when you claim.`,
+        ...(isSolana(intent.destinationChain) ? ['If you have never held USDC on Solana with this wallet, the claim also pays a small one-time rent (about 0.002 SOL) to open your USDC account.'] : []),
         'Keep this page or your activity record: the claim step needs the burn transaction.',
       ],
       raw,
@@ -256,8 +282,28 @@ export class CctpSettlementProvider implements SettlementProvider {
     if (this.now() >= quote.expiresAt) throw new SwingsError('expired', 'This quote has expired. Get a new one.');
     const raw = quote.raw as CctpRaw;
     const { intent } = quote;
+    if (!validAddress(intent.sourceChain, intent.sender) || !validAddress(intent.destinationChain, intent.recipient)) throw new SwingsError('invalid', 'This settlement cannot be built for these addresses.');
+
+    if (isSolana(intent.sourceChain)) {
+      const solana = this.o.solana;
+      if (!solana) throw new SwingsError('invalid', 'The Solana side is not available here.');
+      if (isSolana(intent.destinationChain)) throw new SwingsError('invalid', 'Both sides are Solana.');
+      const web3 = await solana.web3();
+      const { value } = await solana.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+      const transaction = buildDepositForBurn(web3, { owner: intent.sender, amount: raw.amount, destinationDomain: raw.dstDomain, mintRecipient: evmAddressBytes32(intent.recipient), maxFee: raw.maxFee, minFinalityThreshold: raw.minFinalityThreshold, recentBlockhash: value.blockhash, messageEventKey: web3.Keypair.generate() });
+      return [{ stepId: 'burn', chain: 'solana', description: `Burn ${raw.amount} (raw) USDC on Solana so it can be minted to ${intent.recipient} on ${CHAINS[intent.destinationChain].name}`, unsigned: { kind: 'solana', transaction } }];
+    }
+
     const chainId = CHAINS[intent.sourceChain].evmChainId;
-    if (chainId === null || !isEvmAddress(intent.recipient) || !isEvmAddress(intent.sender)) throw new SwingsError('invalid', 'This settlement cannot be built for these addresses.');
+    if (chainId === null) throw new SwingsError('invalid', 'This settlement cannot be built for these addresses.');
+    // To a Solana recipient the burn names the recipient's USDC token account (derived here), not their wallet.
+    let mintRecipient = bytes32OfAddress(intent.recipient);
+    if (isSolana(intent.destinationChain)) {
+      const solana = this.o.solana;
+      if (!solana) throw new SwingsError('invalid', 'The Solana side is not available here.');
+      const web3 = await solana.web3();
+      mintRecipient = '0x' + [...new web3.PublicKey(ataAddress(web3, intent.recipient, SOLANA_USDC, TOKEN_PROGRAM_ID)).toBytes()].map((x) => x.toString(16).padStart(2, '0')).join('');
+    }
     const out: SettlementTransaction[] = [];
     if (raw.needsApproval) {
       out.push({ stepId: 'approve', chain: intent.sourceChain, description: `Approve exactly ${raw.amount} (raw) USDC for Circle's token messenger`, unsigned: { kind: 'evm', chainId, tx: { from: intent.sender, to: raw.usdc, data: encodeFunction('approve(address,uint256)', [raw.tokenMessenger, raw.amount]), value: '0x0' } } });
@@ -272,7 +318,7 @@ export class CctpSettlementProvider implements SettlementProvider {
         tx: {
           from: intent.sender,
           to: raw.tokenMessenger,
-          data: encodeFunction('depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)', [raw.amount, raw.dstDomain, bytes32OfAddress(intent.recipient), raw.usdc, ZERO32, raw.maxFee, raw.minFinalityThreshold]),
+          data: encodeFunction('depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)', [raw.amount, raw.dstDomain, mintRecipient, raw.usdc, ZERO32, raw.maxFee, raw.minFinalityThreshold]),
           value: '0x0',
         },
       },
@@ -291,6 +337,11 @@ export class CctpSettlementProvider implements SettlementProvider {
   }
 
   private async nonceUsed(chain: ChainId, nonce: string): Promise<boolean> {
+    if (isSolana(chain)) {
+      // On Solana a used message leaves an account named after its nonce.
+      const web3 = await this.o.solana!.web3();
+      return (await this.solanaAccount(usedNonceAddress(web3, hexToBytes(nonce)))) !== null;
+    }
     const out = await this.o.read(chain)('eth_call', [{ to: CCTP_CONTRACTS.messageTransmitter, data: encodeFunction('usedNonces(bytes32)', [nonce]) }, 'latest']);
     const [v] = decodeParams(['uint256'], String(out)) as [bigint];
     return v !== 0n;
@@ -300,8 +351,9 @@ export class CctpSettlementProvider implements SettlementProvider {
     const at = this.now();
     const parsed = parseExecutionId(executionId);
     const status = (code: SettlementStatus['code'], message: string): SettlementStatus => ({ executionId, code, destinationTxHash: null, message, updatedAt: at });
-    if (!parsed || parsed.providerId !== this.id || !/^0x[0-9a-fA-F]{64}$/.test(parsed.sourceTx)) return status('unknown', 'This is not a settlement this provider can follow.');
-    const srcChain = parsed.sourceChain as ChainId;
+    const srcChain = parsed?.sourceChain as ChainId;
+    const validTx = !!parsed && (CHAINS[srcChain]?.kind === 'solana' ? SOLANA_SIGNATURE.test(parsed.sourceTx) : /^0x[0-9a-fA-F]{64}$/.test(parsed.sourceTx));
+    if (!parsed || parsed.providerId !== this.id || !validTx) return status('unknown', 'This is not a settlement this provider can follow.');
     const src = CCTP_DOMAIN[srcChain];
     const dstChain = quote?.intent.destinationChain;
     if (src === undefined) return status('unknown', 'The source chain is not one this provider settles from.');
@@ -325,17 +377,34 @@ export class CctpSettlementProvider implements SettlementProvider {
     if (!m || m.status !== 'complete' || !m.attestation || !m.message) return null;
     // Never mint twice: if the message was already used on the destination, there is nothing to send.
     if (m.nonce && (await this.nonceUsed(quote.intent.destinationChain, m.nonce))) return null;
-    const chainId = CHAINS[quote.intent.destinationChain].evmChainId;
+    const dst = quote.intent.destinationChain;
+
+    if (isSolana(dst)) {
+      const solana = this.o.solana;
+      if (!solana) throw new SwingsError('invalid', 'The Solana side is not available here.');
+      const web3 = await solana.web3();
+      const addr = cctpSolanaAddresses(web3);
+      const messenger = await this.solanaAccount(addr.tokenMessenger);
+      if (!messenger) throw new SwingsError('provider-failed', 'The USDC program\'s settings could not be read, so the claim was not built.');
+      const { value } = await solana.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+      // The claim is built from Circle's attested message and refuses any message that does not pay this recipient's own USDC account.
+      const built = buildReceiveMessage(web3, { payer: quote.intent.recipient, recipientOwner: quote.intent.recipient, message: m.message, attestation: m.attestation, localDomain: CCTP_DOMAIN.solana!, feeRecipient: readFeeRecipient(web3, messenger), recentBlockhash: value.blockhash });
+      if (built.amount !== raw.amount) throw new SwingsError('invalid', 'The attested message is for a different amount than this move, so it was not claimed.');
+      return { stepId: 'mint', chain: dst, description: `Claim the USDC on Solana using Circle's attestation`, unsigned: { kind: 'solana', transaction: built.transaction } };
+    }
+
+    const chainId = CHAINS[dst].evmChainId;
     if (chainId === null) throw new SwingsError('invalid', 'The destination is not an EVM chain.');
     return {
       stepId: 'mint',
-      chain: quote.intent.destinationChain,
-      description: `Claim the USDC on ${CHAINS[quote.intent.destinationChain].name} using Circle's attestation`,
+      chain: dst,
+      description: `Claim the USDC on ${CHAINS[dst].name} using Circle's attestation`,
       unsigned: { kind: 'evm', chainId, tx: { from: quote.intent.recipient, to: CCTP_CONTRACTS.messageTransmitter, data: encodeFunction('receiveMessage(bytes,bytes)', [m.message, m.attestation]), value: '0x0' } },
     };
   }
 
   allowedDestinations(chain: ChainId): readonly string[] {
+    if (isSolana(chain)) return this.o.solana ? SOLANA_CCTP_PROGRAMS : [];
     const usdc = CCTP_USDC[chain];
     return usdc ? [usdc, CCTP_CONTRACTS.tokenMessenger, CCTP_CONTRACTS.messageTransmitter] : [];
   }

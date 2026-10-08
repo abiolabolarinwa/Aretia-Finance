@@ -154,7 +154,7 @@ describe('the source code keeps the rules', () => {
   });
 
   it('only talks to hosts on its list', () => {
-    const allowed = new Set(['iris-api.circle.com', 'buy.moonpay.com', 'buy-sandbox.moonpay.com', 'sell.moonpay.com', 'sell-sandbox.moonpay.com', 'etherscan.io', 'basescan.org', 'arbiscan.io', 'optimistic.etherscan.io', 'polygonscan.com', 'snowtrace.io', 'solscan.io', 'bscscan.com', 'www.w3.org', 'localhost']);
+    const allowed = new Set(['iris-api.circle.com', 'buy.moonpay.com', 'buy-sandbox.moonpay.com', 'sell.moonpay.com', 'sell-sandbox.moonpay.com', 'etherscan.io', 'basescan.org', 'arbiscan.io', 'optimistic.etherscan.io', 'polygonscan.com', 'snowtrace.io', 'solscan.io', 'bscscan.com', 'www.w3.org', 'localhost', 'aretiafinance.org']);
     const found: string[] = [];
     for (const f of prod) for (const m of code(f).matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) if (!allowed.has(m[1]!.toLowerCase())) found.push(`${f}: ${m[1]}`);
     expect(found).toEqual([]);

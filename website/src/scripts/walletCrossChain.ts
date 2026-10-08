@@ -1,5 +1,5 @@
 /**
- * The "Move USDC" tab: move native USDC between EVM chains through Circle's CCTP. Quotes need no wallet; signing uses
+ * The "Move USDC" tab: move native USDC between EVM chains, and between Solana and an EVM chain, through Circle's CCTP. Quotes need no wallet; signing uses
  * the user's own wallet through the same checks as a swap. Everything the user is told comes from `crosschain/view.ts`.
  */
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
@@ -9,16 +9,14 @@ import { CCTP_USDC } from '../swings/settlement/cctp.js';
 import type { SettlementSearch } from '../swings/settlement/engine.js';
 import type { CrossChainRuntime } from './crossChainRuntime.js';
 import { connectWalletConnect, isProjectId } from '../swings/wallet/walletConnect.js';
-import { readBalance } from '../swings/chains/evmSession.js';
 import type { SettlementQuote } from '../swings/settlement/types.js';
 import { isCanaryAllowed } from '../swings/runtime.js';
 import { assessSettlement } from '../swings/settlement/safety.js';
-import { EVM_NATIVE_ADDRESS } from '../swings/core/types.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
 import { formatUnits, parseUnits, viewQuote, viewStatus } from '../swings/crosschain/view.js';
 
-const CHAIN_CHOICES: ChainId[] = ['ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
-const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', arbitrum: 'https://arbiscan.io/tx/', optimism: 'https://optimistic.etherscan.io/tx/', polygon: 'https://polygonscan.com/tx/', avalanche: 'https://snowtrace.io/tx/' };
+const CHAIN_CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
+const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', arbitrum: 'https://arbiscan.io/tx/', optimism: 'https://optimistic.etherscan.io/tx/', polygon: 'https://polygonscan.com/tx/', avalanche: 'https://snowtrace.io/tx/', solana: 'https://solscan.io/tx/' };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, children: (Node | null | false)[] = []): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
@@ -37,7 +35,7 @@ export const MOVE_CAP_RAW = 250_000_000n;
 const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
 
 export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw(): void } {
-  const { evm, isEnabled, reader, mirror, local, store, providers, engine, orchestrator, adoptWallet, copyOn, setCopy } = rt;
+  const { evm, isEnabled, mirror, local, store, providers, engine, orchestrator, adoptWallet, accountFor, usdcBalance, nativeBalance, copyOn, setCopy } = rt;
 
   const s = {
     from: 'ethereum' as ChainId,
@@ -58,12 +56,8 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
 
   async function loadBalance(): Promise<void> {
     s.balance = null;
-    if (!evm.account) return;
-    try {
-      s.balance = await readBalance(reader(s.from), evm.account, CCTP_USDC[s.from]!);
-    } catch {
-      s.balance = null;
-    }
+    const owner = accountFor(s.from);
+    if (owner) s.balance = await usdcBalance(s.from, owner);
   }
 
   async function getQuotes(): Promise<void> {
@@ -71,14 +65,17 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     s.search = null;
     s.chosen = null;
     const raw = parseUnits(s.amount, 6);
-    if (!evm.account) return void (s.error = 'Connect a wallet first.');
+    const sender = accountFor(s.from);
+    const recipient = accountFor(s.to);
+    if (!sender) return void (s.error = `Connect a ${CHAINS[s.from].kind === 'solana' ? 'Solana' : 'EVM'} wallet for ${CHAINS[s.from].name} first.`);
+    if (!recipient) return void (s.error = `Connect a ${CHAINS[s.to].kind === 'solana' ? 'Solana' : 'EVM'} wallet to receive on ${CHAINS[s.to].name}. The USDC is sent to your own account there.`);
     if (raw === null || raw <= 0n) return void (s.error = 'Enter an amount of USDC, for example 25.');
     if (s.from === s.to) return void (s.error = 'Choose two different networks.');
     if (s.balance !== null && raw > s.balance) return void (s.error = `You have ${formatUnits(s.balance, 6)} USDC on ${CHAINS[s.from].name}, which is less than ${formatUnits(raw, 6)}.`);
     s.busy = true;
     draw();
     try {
-      s.search = await engine.quote({ sourceChain: s.from, sourceAsset: { chain: s.from, address: CCTP_USDC[s.from]! }, sourceAmount: raw, destinationChain: s.to, destinationAsset: { chain: s.to, address: CCTP_USDC[s.to]! }, sender: evm.account, recipient: evm.account }, 'balanced');
+      s.search = await engine.quote({ sourceChain: s.from, sourceAsset: { chain: s.from, address: CCTP_USDC[s.from]! }, sourceAmount: raw, destinationChain: s.to, destinationAsset: { chain: s.to, address: CCTP_USDC[s.to]! }, sender, recipient }, 'balanced');
       s.chosen = s.search.quotes[0] ?? null;
     } catch (e) {
       s.error = e instanceof SwingsError ? e.message : 'Quotes could not be fetched.';
@@ -252,13 +249,15 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
   function draw(): void {
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'Move USDC between networks' }), el('p', { class: 'wapp__fine', text: "Uses Circle's CCTP: your USDC is burned on one network and Circle mints the same amount on the other. No wrapped token, no third-party bridge. Native USDC only; BNB Chain and Solana are not offered here yet." }));
-    if (!evm.account) {
+    card.append(el('h2', { class: 'wapp__h2', text: 'Move USDC between networks' }), el('p', { class: 'wapp__fine', text: "Uses Circle's CCTP: your USDC is burned on one network and Circle mints the same amount on the other. No wrapped token, no third-party bridge. Native USDC only; BNB Chain is not offered. The USDC always goes to your own account on the other network, so moving to or from Solana needs a Solana wallet and an EVM wallet both connected." }));
+    const involves = (kind: 'solana' | 'evm'): boolean => [s.from, s.to].some((c) => CHAINS[c].kind === kind);
+    if (!s.record && involves('evm') && !evm.account) {
       card.append(connectBox());
       if (s.error) card.append(banner('warn', s.error));
-      return void root.append(card);
     }
-    card.append(el('p', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}. The USDC arrives at this same account.` }));
+    if (!s.record && involves('solana') && !rt.solanaAddress()) card.append(banner('info', 'Connect a Solana wallet with the Connect wallet button at the top of the page to use Solana here.'));
+    const connected = [evm.account ? `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}` : null, rt.solanaAddress() ? `Solana · ${short(rt.solanaAddress()!)}` : null].filter(Boolean).join('   ');
+    if (connected) card.append(el('p', { class: 'wapp__fine', text: connected }));
     if (s.record) {
       root.append(card, statusCard(s.record));
       if (s.error) card.append(banner('warn', s.error));
@@ -284,7 +283,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
           void run(async () => {
             const q = s.chosen!;
             if (!(await isCanaryAllowed(q.intent.sender))) throw new SwingsError('not-enabled', 'Moving USDC is limited to a first group of wallets while it is being proven. This wallet is not in that group yet.');
-            const [native, existing] = await Promise.all([readBalance(reader(q.intent.destinationChain), q.intent.recipient, EVM_NATIVE_ADDRESS).catch(() => null), store.list()]);
+            const [native, existing] = await Promise.all([nativeBalance(q.intent.destinationChain, q.intent.recipient), store.list()]);
             const verdict = assessSettlement(q, { now: Date.now(), provider: providers.find((p) => p.id === q.providerId) ?? null, enabledChains: CHAIN_CHOICES.filter(isEnabled), sourceBalance: s.balance, destinationNativeBalance: native, existing, maxAmount: MOVE_CAP_RAW });
             if (verdict.verdict === 'block') throw new SwingsError('invalid', verdict.blockers.join(' '));
             for (const c of verdict.confirmations) if (!window.confirm(`${c}
@@ -301,7 +300,8 @@ Continue anyway?`)) return;
 
   // Pick up an unfinished move after a reload.
   void orchestrator.active().then(async (list) => {
-    const mine = list.find((r) => evm.account && r.quote.intent.sender.toLowerCase() === evm.account.toLowerCase());
+    const accounts = [evm.account, rt.solanaAddress()].filter((a): a is string => !!a).map((a) => a.toLowerCase());
+    const mine = list.find((r) => accounts.includes(r.quote.intent.sender.toLowerCase()));
     if (mine) {
       s.record = mine;
       await adoptWallet();

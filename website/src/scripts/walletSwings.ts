@@ -117,7 +117,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
-  const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c));
+  const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
   const crossChain = initCrossChain(movePanel, chainRuntime);
   const planTab = initPlan(planPanel, chainRuntime);
   const ramp = initRamp(rampPanel, evm, () => host.getAddress(), (c) => isChainEnabled(c));

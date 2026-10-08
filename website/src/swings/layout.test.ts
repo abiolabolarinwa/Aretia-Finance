@@ -17,3 +17,10 @@ describe('wallet page wiring', () => {
     expect(read('src/pages/wallet/index.astro')).toMatch(/\.wapp__swap:has\(\.wapp__picker:not\(\[hidden\]\)\)\s*\{\s*min-height/);
   });
 });
+
+describe('the swap chart window', () => {
+  it('anchors the chart frame to the top, so the cropped strip is the provider footer and not the toolbar', () => {
+    const css = readFileSync(join(process.cwd(), 'src/pages/wallet/index.astro'), 'utf8');
+    expect(css).toMatch(/\[data-sw-panel='swap'\] \.wapp__chart-plot \{ align-items: start; \}/);
+  });
+});

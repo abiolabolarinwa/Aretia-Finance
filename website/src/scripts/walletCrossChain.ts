@@ -8,6 +8,7 @@ import { runtime } from '../swings/runtime.js';
 import { CCTP_USDC } from '../swings/settlement/cctp.js';
 import type { SettlementSearch } from '../swings/settlement/engine.js';
 import type { CrossChainRuntime } from './crossChainRuntime.js';
+import { connectWalletConnect, isProjectId } from '../swings/wallet/walletConnect.js';
 import { readBalance } from '../swings/chains/evmSession.js';
 import type { SettlementQuote } from '../swings/settlement/types.js';
 import { isCanaryAllowed } from '../swings/runtime.js';
@@ -32,6 +33,8 @@ const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.sl
 
 /** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
 export const MOVE_CAP_RAW = 250_000_000n;
+
+const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
 
 export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw(): void } {
   const { evm, isEnabled, reader, mirror, local, store, providers, engine, orchestrator, adoptWallet, copyOn, setCopy } = rt;
@@ -131,8 +134,13 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Find wallets', attrs: { type: 'button' } });
       b.addEventListener('click', () => void evm.discover().then((ws) => { s.walletChoices = ws.map((w) => ({ uuid: w.info.uuid, name: w.info.name })); draw(); }));
       box.append(b);
-    } else if (s.walletChoices.length === 0) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
+    } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
     else {
+      if (isProjectId(WC_PROJECT_ID)) {
+        const wc = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Connect with WalletConnect (phone or hardware wallet)', attrs: { type: 'button' } });
+        wc.addEventListener('click', () => void connectWalletConnect(evm, WC_PROJECT_ID).then(adoptWallet).then(loadBalance).then(draw).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'WalletConnect could not be connected.'; draw(); }));
+        box.append(wc);
+      }
       for (const w of s.walletChoices) {
         const b = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `Connect ${w.name}`, attrs: { type: 'button' } });
         b.addEventListener('click', () => void evm.connect(w.uuid).then(adoptWallet).then(loadBalance).then(draw).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'The wallet could not be connected.'; draw(); }));

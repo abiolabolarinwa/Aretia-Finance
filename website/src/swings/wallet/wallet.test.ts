@@ -379,7 +379,7 @@ describe('listWalletProviders', () => {
   it('lists what is really there, marks the rest unavailable with a reason, and never pretends WalletConnect works', () => {
     const list = listWalletProviders({ aretiaSolanaHost: true, evmWallets: [wallet('1', 'MetaMask', 'io.metamask'), wallet('2', 'Rabby', 'io.rabby')] });
     expect(list.map((p) => [p.id, p.available])).toEqual([['aretia-solana', true], ['io.metamask', true], ['io.rabby', true], ['walletconnect', false]]);
-    expect(list.find((p) => p.id === 'walletconnect')!.note).toMatch(/not built yet/);
+    expect(list.find((p) => p.id === 'walletconnect')!.note).toMatch(/not switched on.*no WalletConnect project id/);
     expect(list[0]!.note).toMatch(/Phantom, Solflare, Backpack/);
   });
   it('says so when there is no Solana host or no EVM wallet, and labels an unidentified injected wallet', () => {

@@ -22,6 +22,8 @@ export interface ProviderSources {
   aretiaSolanaHost: boolean;
   /** Wallets announced through EIP-6963. */
   evmWallets: readonly DiscoveredWallet[];
+  /** Whether a WalletConnect project id is configured for this site. */
+  walletConnectConfigured?: boolean;
 }
 
 export function listWalletProviders(src: ProviderSources): WalletProviderInfo[] {
@@ -57,8 +59,8 @@ export function listWalletProviders(src: ProviderSources): WalletProviderInfo[] 
     name: 'WalletConnect',
     chainType: 'evm',
     kind: 'walletconnect',
-    available: false,
-    note: 'WalletConnect (phone and hardware wallets without a browser extension) is not built yet. Nothing here pretends otherwise.',
+    available: src.walletConnectConfigured === true,
+    note: src.walletConnectConfigured === true ? 'Connect a phone wallet, or a hardware wallet through its app, by scanning a QR code.' : 'WalletConnect is built but not switched on: this site has no WalletConnect project id yet.',
     icon: null,
   });
   return out;

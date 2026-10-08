@@ -14,6 +14,7 @@ import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
+import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { avatar, createChartPanel } from './walletChart';
@@ -93,6 +94,8 @@ const isEvm = (c: ChainId): boolean => CHAINS[c].kind === 'evm';
 const providerLabel = (id: string): string => (id === 'aretia' || id === 'aretia-sol' ? 'Aretia Router (direct from the venues)' : id === 'jupiter' ? 'Jupiter (outside aggregator)' : id === '0x' ? '0x (outside aggregator)' : id);
 
 type Phase = 'idle' | 'quoting' | 'quoted' | 'preparing' | 'review' | 'signing' | 'tracking' | 'done';
+
+const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
 
 export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
@@ -536,8 +539,24 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         });
       });
       box.append(b);
-    } else if (s.walletChoices.length === 0) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
+    } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
     else {
+      if (isProjectId(WC_PROJECT_ID)) {
+        const wc = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Connect with WalletConnect (phone or hardware wallet)', attrs: { type: 'button' } });
+        wc.addEventListener('click', () => {
+          void connectWalletConnect(evm, WC_PROJECT_ID)
+            .then(() => {
+              if (evm.adapter) registerEvmWallet(router, evm.adapter);
+              s.error = null;
+              render();
+            })
+            .catch((e: unknown) => {
+              s.error = e instanceof SwingsError ? e.message : 'WalletConnect could not be connected.';
+              render();
+            });
+        });
+        box.append(wc);
+      }
       for (const w of s.walletChoices) {
         const b = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `Connect ${w.name}`, attrs: { type: 'button' } });
         b.addEventListener('click', () => {
@@ -1071,6 +1090,16 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (name === 'swap') render();
   }
   root.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
+
+  // A saved WalletConnect session reconnects without a prompt; the library loads only if one exists.
+  if (isProjectId(WC_PROJECT_ID) && hasSavedSession()) {
+    void restoreWalletConnect(evm, WC_PROJECT_ID).then((account) => {
+      if (account && evm.adapter) {
+        registerEvmWallet(router, evm.adapter);
+        render();
+      }
+    });
+  }
 
   void loadRuntime().then(() => {
     render();

@@ -88,3 +88,16 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 **Security considerations:** only public data is stored. Signing is refused unless the connected wallet is the account named in the quote.
 **Known limitations:** Solana confirmation is not wired; there is no server-side copy of executions, so clearing the browser loses the record (the transactions themselves are on-chain and the execution id can be rebuilt from the burn hash); REFUNDED is reachable only through an explicit `recordRefund` with a transaction hash, since no provider reports refunds yet.
 **Next milestone:** 35, the cross-chain Swing screen on top of this, and moving the Swings UI onto the wallet session manager.
+
+## Milestone 35: cross-chain Swing experience
+
+**Status:** built, typechecked and built into the site; not clicked through in a browser here (the preview browser refused localhost) and never run with a real wallet and real funds.
+**Implemented:** a "Move USDC" tab in Swings (`src/scripts/walletCrossChain.ts`, wired in `walletSwings.ts` and `wallet/index.astro`): pick two EVM networks and an amount, see every quote with its fees listed separately, the steps, the trust statement and the risks, start the move, follow it, claim on the destination, resume after a reload, and resolve a step Aretia could not determine. All wording comes from `src/swings/crosschain/view.ts` (exact amounts, no floating point; a status says the funds arrived only when COMPLETED). It never switches network without a confirmation prompt. It honours the staged-rollout list and the operator's network switches.
+**Tests:** `crosschain/view.test.ts` (8, with property test on amount formatting). **Typecheck/Lint/Build:** pass.
+**Known limitations:** EVM to EVM only; BNB Chain and Solana are not offered; the claim step needs the user's gas on the destination.
+
+## Milestone 36: settlement safety engine
+
+**Status:** complete and wired into the Move USDC start button.
+**Implemented:** `src/swings/settlement/safety.ts`: `assessSettlement` returns allow, confirm or block. It blocks on anything it cannot verify (no balance, no cap configured, no declared provider addresses), a network that is off, an invalid address, a recipient the user did not choose, an amount over the cap (`MOVE_CAP_RAW`, 250 USDC while proving), too little balance, a nearly-expired quote, a high-risk route, a fee above 1% and a duplicate in-flight move. It asks for acknowledgement when there is no gas to claim with, the recipient is another account on purpose, or the route is medium risk.
+**Tests:** `safety.test.ts`, 7. **Typecheck/Lint/Build:** pass.

@@ -383,6 +383,7 @@ const buyTips = [
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">New Tokens</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Markets</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="move" aria-selected="false">Move USDC</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="activity" aria-selected="false">Activity</button>
           </div>
           <div data-sw-panel="swap" class="wapp__stack"></div>
@@ -399,6 +400,7 @@ const buyTips = [
           </template>
           <div data-sw-panel="new" class="wapp__stack" hidden></div>
           <div data-sw-panel="markets" class="wapp__stack" hidden></div>
+          <div data-sw-panel="move" class="wapp__stack" hidden></div>
           <div data-sw-panel="activity" class="wapp__stack" hidden></div>
           <p class="wapp__fine">
             Aretia Swings finds routes through outside liquidity providers and shows you the quote, the minimum you will receive and every fee before anything is signed. Your wallet signs; Aretia never holds your keys. The Swap tab shows which networks are enabled; the rest are marked not enabled yet. Swaps are not sent through a protected route, so large trades in thin pools can be sandwiched. Quotes are not guarantees, and a token being listed here is never an endorsement.

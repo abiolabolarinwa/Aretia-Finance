@@ -122,6 +122,8 @@ const buyTips = [
       </div>
     </aside>
 
+    <nav class="wapp__rail" data-rail aria-label="Networks"></nav>
+
     <section class="wapp__main">
       <header class="wapp__top">
         <h1 data-title>Dashboard</h1>
@@ -379,16 +381,13 @@ const buyTips = [
 
       <div data-pane="swings" class="wapp__pane" hidden>
         <div class="wapp__stack">
-          <div class="wapp__seg" role="tablist" aria-label="Aretia Swings">
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">New tokens</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Markets</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="move" aria-selected="false">Move USDC</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="ramp" aria-selected="false">Buy &amp; Sell</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="plan" aria-selected="false">Plan</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="activity" aria-selected="false">Activity</button>
+          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Aretia Swings">
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap Coins</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">Find Tokens</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Marketplace</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="ramp" aria-selected="false">USDC to Fiat</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="transfer" aria-selected="false">USDC Transfer</button>
           </div>
-          <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
           <div data-sw-panel="swap" class="wapp__stack"></div>
           <template id="sw-guide">
             <details class="wapp__guide">
@@ -403,10 +402,15 @@ const buyTips = [
           </template>
           <div data-sw-panel="new" class="wapp__stack" hidden></div>
           <div data-sw-panel="markets" class="wapp__stack" hidden></div>
-          <div data-sw-panel="move" class="wapp__stack" hidden></div>
           <div data-sw-panel="ramp" class="wapp__stack" hidden></div>
-          <div data-sw-panel="plan" class="wapp__stack" hidden></div>
-          <div data-sw-panel="activity" class="wapp__stack" hidden></div>
+          <div data-sw-panel="transfer" class="wapp__stack" hidden>
+            <div class="wapp__seg wapp__seg--sub" role="tablist" aria-label="USDC Transfer" data-transfer-modes>
+              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="move" aria-selected="true">Move between networks</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="plan" aria-selected="false">Buy with cash, then send</button>
+            </div>
+            <div class="wapp__stack" data-transfer-pane="move"></div>
+            <div class="wapp__stack" data-transfer-pane="plan" hidden></div>
+          </div>
           <details class="wapp__fineprint">
             <summary>Good to know before you use Swings</summary>
             <ul>
@@ -536,6 +540,7 @@ const buyTips = [
       </div>
 
       <div data-pane="activity" class="wapp__pane" hidden>
+        <div class="wapp__card" data-swings-activity></div>
         <div class="wapp__card">
           <h2 class="wapp__h2">Recent transactions</h2>
           <div data-activity></div>
@@ -857,6 +862,54 @@ const buyTips = [
     [data-sw-panel='swap'] .wapp__grid--trade { align-items: start; }
     [data-sw-panel='swap'] .wapp__grid--trade > .wapp__swap { position: sticky; top: 16px; }
   }
+
+  /* ---- Swings layout: network logos in a slim column beside the sidebar, centred tabs, a chart that fills the screen ---- */
+  .wapp__rail { display: none; }
+  .wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr); }
+  .wapp[data-view='swings'] .wapp__rail { position: sticky; top: 0; z-index: 40; align-self: start; display: flex; flex-direction: column; align-items: center; gap: 10px; box-sizing: border-box; height: 100vh; padding: calc(var(--nav-height) + 16px) 0 16px; overflow-y: auto; background: var(--color-bg); border-right: 1px solid var(--color-border); }
+  body:has(.wapp[data-view='swings']) .nav--wallet .nav__bar { padding-left: calc(var(--wapp-side, 248px) + 76px + 36px); }
+  .wapp__netbtn { position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; background: var(--color-bg-alt); border: 2px solid transparent; border-radius: 50%; cursor: pointer; transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
+  .wapp__netbtn img { display: block; width: 36px; height: 36px; object-fit: cover; border-radius: 50%; }
+  .wapp__netbtn:hover { transform: scale(1.06); box-shadow: 0 4px 14px rgba(20, 10, 80, 0.16); }
+  .wapp__netbtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__netbtn[aria-pressed='true'] { border-color: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-soft); }
+  .wapp__netbtn[data-off='true'] { opacity: 0.45; filter: grayscale(0.8); }
+  .wapp__netbtn[data-off='true']:hover { opacity: 0.8; }
+  .wapp__netbtn::after { content: attr(data-name); position: absolute; left: calc(100% + 10px); top: 50%; z-index: 5; padding: 4px 9px; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; pointer-events: none; background: #1d1170; border-radius: 8px; opacity: 0; transform: translate(-4px, -50%); transition: opacity 120ms ease, transform 120ms ease; }
+  .wapp__netbtn:hover::after, .wapp__netbtn:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+  .wapp__seg--tabs { justify-content: center; gap: 10px; }
+  .wapp__seg--tabs .wapp__chip { padding: 9px 18px; font-size: 14px; }
+  .wapp__seg--sub { justify-content: center; }
+  .wapp__intro { margin-inline: auto; text-align: center; }
+  /* Search box in the top bar, on the same line as the network and price chips */
+  .wapp-search { position: relative; flex: 1 1 auto; min-width: 200px; max-width: 560px; margin: 0 auto; }
+  .wapp-search__icon { position: absolute; left: 14px; top: 50%; display: grid; color: var(--color-muted); transform: translateY(-50%); pointer-events: none; }
+  .wapp-search__icon svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .wapp-search__input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 14px 0 38px; font: inherit; font-size: 14px; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; }
+  .wapp-search__input:focus { outline: 2px solid var(--color-brand); outline-offset: 1px; }
+  .wapp-search__list { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 90; display: grid; gap: 2px; max-height: min(70vh, 460px); margin: 0; padding: 6px; overflow-y: auto; list-style: none; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 16px; box-shadow: 0 16px 40px rgba(20, 10, 80, 0.18); }
+  .wapp-search__list[hidden] { display: none; }
+  .wapp-search__note { padding: 10px 12px; font-size: 13px; color: var(--color-muted); }
+  .wapp-search__item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; font: inherit; text-align: left; color: var(--color-strong); background: none; border: 0; border-radius: 12px; cursor: pointer; }
+  .wapp-search__row[aria-selected='true'] .wapp-search__item, .wapp-search__item:hover { background: var(--color-brand-soft); }
+  .wapp-search__logo { width: 28px; height: 28px; font-size: 10px; }
+  .wapp-search__text { display: grid; flex: 1; min-width: 0; }
+  .wapp-search__text strong { font-size: 14px; }
+  .wapp-search__text small { overflow: hidden; font-size: 12px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-search__side { display: grid; justify-items: end; gap: 2px; font-size: 11px; color: var(--color-muted); }
+  .wapp-search__new { padding: 1px 8px; font-size: 11px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 999px; }
+  @media (max-width: 1080px) { .wapp__top .wapp-search { order: 3; flex-basis: 100%; max-width: none; } .wapp__top { flex-wrap: wrap; } }
+  @media (max-width: 960px) {
+    .wapp[data-view='swings'] { grid-template-columns: minmax(0, 1fr); }
+    .wapp[data-view='swings'] .wapp__rail { position: static; flex-direction: row; height: auto; padding: 10px 16px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--color-border); }
+    .wapp__netbtn::after { display: none; }
+    body:has(.wapp[data-view='swings']) .nav--wallet .nav__bar { padding-left: 16px; }
+  }
+  /* Swap Coins: a narrow swap panel and a chart that takes the rest of the screen */
+  [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
+  @media (max-width: 960px) { [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); } }
+  [data-sw-panel='swap'] .wapp__chart-plot { height: calc(100vh - 340px); min-height: 460px; }
+  [data-sw-panel='swap'] .wapp__chart-frame { height: calc(100% + var(--dex-footer-crop)); margin-bottom: 0; }
   .wapp__chart { gap: 10px; }
   .wapp__chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
   .wapp__chart-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-strong); }

@@ -1589,6 +1589,7 @@ export function initWalletApp(): void {
     renderChrome();
     renderSwap();
     if (currentView() === 'swings') swings.onShow();
+    if (currentView() === 'activity') swings.onActivityShow();
     if (currentView() === 'trade') {
       void loadWeb3();
       void ensureChart();

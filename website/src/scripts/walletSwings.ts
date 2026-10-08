@@ -21,6 +21,7 @@ import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnec
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { avatar, createChartPanel } from './walletChart';
+import { cachedLogo, ensureLogos } from '../swings/tokens/logos.js';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
@@ -453,10 +454,23 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   // ------------------------------------------------------------------ swap panel
 
+  // Real token pictures: what the screen already knows, else one lookup per token, then a quiet redraw.
+  const logoOf = (chain: ChainId, t: TokenInfo | null | undefined): string | null => (t ? (t.icon ?? cachedLogo(chain, t.mint)) : null);
+  let logoTimer: ReturnType<typeof setTimeout> | undefined;
+  function wantLogos(chain: ChainId, tokens: (TokenInfo | null | undefined)[]): void {
+    const missing = tokens.filter((t): t is TokenInfo => !!t && !logoOf(chain, t)).map((t) => t.mint);
+    if (missing.length === 0) return;
+    void ensureLogos(chain, missing).then((gotAny) => {
+      if (!gotAny) return;
+      clearTimeout(logoTimer);
+      logoTimer = setTimeout(() => (s.picker ? renderPicker() : render()), 150);
+    });
+  }
+
   const tokenButton = (side: 'from' | 'to'): HTMLElement => {
     const tk = s[side];
     const b = el('button', { class: 'wapp__token-btn', attrs: { type: 'button', 'data-sw-pick': side, 'aria-haspopup': 'listbox', 'aria-label': side === 'from' ? 'Choose the token you pay' : 'Choose the token you receive' } });
-    b.append(tk ? avatar(tk.symbol, tk.icon ?? null) : el('span', { class: 'wapp-avatar', text: '?' }), el('span', { text: tk ? tk.symbol : 'Select token' }));
+    b.append(tk ? avatar(tk.symbol, logoOf(s.chain, tk)) : el('span', { class: 'wapp-avatar', text: '?' }), el('span', { text: tk ? tk.symbol : 'Select token' }));
     if (tk && tk.verified === false) b.append(el('small', { class: 'wapp-flag', text: 'unverified' }));
     b.append(icon('M6 9l6 6 6-6', 14));
     b.addEventListener('click', () => {
@@ -484,7 +498,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const list = el('div', { class: 'wapp__stack' });
     const row = (t: TokenInfo): HTMLElement => {
       const b = el('button', { class: 'wapp__asset', attrs: { type: 'button' } });
-      b.append(el('span', {}, [el('strong', { text: t.symbol }), el('small', { text: `${t.name ? t.name + ' · ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' · unverified' : ''}` })]));
+      b.append(avatar(t.symbol, logoOf(s.chain, t)), el('span', {}, [el('strong', { text: t.symbol }), el('small', { text: `${t.name ? t.name + ' · ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' · unverified' : ''}` })]));
       b.addEventListener('click', () => void pick(p.side, t));
       return b;
     };
@@ -492,6 +506,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (p.loading) list.append(el('p', { class: 'wapp__fine', text: 'Searching…' }));
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
     for (const t of items.slice(0, 12)) list.append(row(t));
+    wantLogos(s.chain, items.slice(0, 12));
     box.append(input, list);
     input.focus();
   }
@@ -664,6 +679,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     swapPanel.replaceChildren();
     const info = CHAINS[s.chain];
     const address = accountFor(s.chain);
+    wantLogos(s.chain, [s.from, s.to]);
     // Laid out like the Trade tab: the network on top, then the swap on the left and the chart on the right.
     const card = el('div', { class: 'wapp__card wapp__swap' });
     const side = el('div', { class: 'wapp__trade-side' });
@@ -945,8 +961,9 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
     function tokenAvatar(r: TokenRecord): HTMLElement {
       const box = el('span', { class: 'wapp-avatar wapp__tokencard-logo', text: (r.symbol || '?').slice(0, 2).toUpperCase() });
-      if (r.logo && /^https:\/\//.test(r.logo)) {
-        const img = el('img', { class: 'wapp-avatar wapp__tokencard-logo', attrs: { src: r.logo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', width: '40', height: '40' } });
+      const logo = r.logo ?? cachedLogo(r.ref.chain, r.ref.address);
+      if (logo && /^https:\/\//.test(logo)) {
+        const img = el('img', { class: 'wapp-avatar wapp__tokencard-logo', attrs: { src: logo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', width: '40', height: '40' } });
         img.addEventListener('error', () => img.replaceWith(box));
         return img;
       }
@@ -1076,6 +1093,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         else {
           const grid = el('div', { class: 'wapp__tokengrid' });
           for (const { record, symbolCollision } of rows) grid.append(row(record, symbolCollision));
+          // Tokens with no picture get one looked up, then the cards redraw once.
+          const byChain = new Map<ChainId, string[]>();
+          for (const { record } of rows) if (!record.logo && !cachedLogo(record.ref.chain, record.ref.address)) byChain.set(record.ref.chain, [...(byChain.get(record.ref.chain) ?? []), record.ref.address]);
+          if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
           card.append(grid);
         }
       }

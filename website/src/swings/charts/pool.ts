@@ -26,6 +26,13 @@ export interface PoolInfo {
   volume24hUsd: number | null;
   liquidityUsd: number | null;
   trades24h: number | null;
+  /** First token of the drawn pair (the chart prices this one) and the second. Set when the chart comes from DexScreener. */
+  baseSymbol?: string;
+  quoteSymbol?: string;
+  /** True when the token being looked at is the pair's first token, so the chart shows the token itself. */
+  targetIsBase?: boolean;
+  /** The first token's picture. */
+  icon?: string | null;
 }
 
 export interface GeckoPool {
@@ -43,7 +50,7 @@ export interface GeckoPool {
 }
 
 const SOLANA_MAJORS = ['So11111111111111111111111111111111111111112', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'];
-const majorsOf = (chain: ChainId): Set<string> => new Set((chain === 'solana' ? SOLANA_MAJORS : (HUB_TOKENS[chain] ?? []).map((h) => h.address)).map((a) => a.toLowerCase()));
+export const majorsOf = (chain: ChainId): Set<string> => new Set((chain === 'solana' ? SOLANA_MAJORS : (HUB_TOKENS[chain] ?? []).map((h) => h.address)).map((a) => a.toLowerCase()));
 
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : v;

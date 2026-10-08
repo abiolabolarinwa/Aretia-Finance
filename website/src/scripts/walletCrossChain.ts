@@ -3,20 +3,16 @@
  * the user's own wallet through the same checks as a swap. Everything the user is told comes from `crosschain/view.ts`.
  */
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
-import { EvmSession, publicRead, readBalance } from '../swings/chains/evmSession.js';
-import { EvmBridgeWallet, type EvmEventSource } from '../swings/wallet/evmBridgeWallet.js';
-import { WalletSessionManager } from '../swings/wallet/sessionManager.js';
-import { CCTP_USDC, cctpProviders } from '../swings/settlement/cctp.js';
-import { SettlementQuoteEngine, type SettlementSearch } from '../swings/settlement/engine.js';
+import { restoreFromCode } from '../swings/orchestrator/remote.js';
+import { runtime } from '../swings/runtime.js';
+import { CCTP_USDC } from '../swings/settlement/cctp.js';
+import type { SettlementSearch } from '../swings/settlement/engine.js';
+import type { CrossChainRuntime } from './crossChainRuntime.js';
+import { readBalance } from '../swings/chains/evmSession.js';
 import type { SettlementQuote } from '../swings/settlement/types.js';
 import { isCanaryAllowed } from '../swings/runtime.js';
 import { assessSettlement } from '../swings/settlement/safety.js';
 import { EVM_NATIVE_ADDRESS } from '../swings/core/types.js';
-import { CrossChainOrchestrator } from '../swings/orchestrator/orchestrator.js';
-import { StorageExecutionStore } from '../swings/orchestrator/store.js';
-import { mirroredExecutionStore, RecordMirror, restoreFromCode } from '../swings/orchestrator/remote.js';
-import { runtime } from '../swings/runtime.js';
-import { WalletExecutionGateway } from '../swings/orchestrator/walletGateway.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
 import { formatUnits, parseUnits, viewQuote, viewStatus } from '../swings/crosschain/view.js';
 
@@ -37,27 +33,8 @@ const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.sl
 /** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
 export const MOVE_CAP_RAW = 250_000_000n;
 
-export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (chain: ChainId) => boolean): { draw(): void } {
-  const reader = (chain: ChainId) => publicRead(chain);
-  const wallets = new WalletSessionManager(null);
-  const gateway = new WalletExecutionGateway(wallets, reader, async (r) => window.confirm(`Your wallet is on ${r.from ? CHAINS[r.from].name : 'another network'}. Switch it to ${CHAINS[r.to].name}? Nothing is sent by switching.`));
-  const local = new StorageExecutionStore(window.localStorage);
-  const mirror = new RecordMirror();
-  const COPY_KEY = 'aretia-swings-recovery-copy';
-  const copyOn = (): boolean => {
-    try {
-      return window.localStorage.getItem(COPY_KEY) === 'on' && runtime.recordsConfigured === true;
-    } catch {
-      return false;
-    }
-  };
-  let copyBehind = false;
-  const store = mirroredExecutionStore(local, mirror, copyOn, (r) => {
-    copyBehind = r !== 'saved';
-  });
-  const providers = cctpProviders({ read: reader });
-  const engine = new SettlementQuoteEngine(providers);
-  const orchestrator = new CrossChainOrchestrator({ store, providers, gateway });
+export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw(): void } {
+  const { evm, isEnabled, reader, mirror, local, store, providers, engine, orchestrator, adoptWallet, copyOn, setCopy } = rt;
 
   const s = {
     from: 'ethereum' as ChainId,
@@ -75,15 +52,6 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
     notice: null as string | null,
   };
   let timer: number | null = null;
-
-  async function adoptWallet(): Promise<void> {
-    if (!evm.adapter || !evm.account) return;
-    const provider = evm.wallets.find((w) => w.info.name === evm.walletName)?.provider;
-    const bridge = new EvmBridgeWallet('evm-page', evm.walletName ?? 'EVM wallet', evm.adapter, { read: reader, events: provider as EvmEventSource | undefined });
-    await bridge.restore();
-    wallets.add(bridge);
-    wallets.setActive('evm-page');
-  }
 
   async function loadBalance(): Promise<void> {
     s.balance = null;
@@ -208,7 +176,7 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
       }
       card.append(ul);
     }
-    card.append(el('p', { class: 'wapp__fine' }, [el('span', { text: 'Recovery code: ' }), el('code', { text: r.id }), el('span', { text: copyOn() ? (copyBehind ? ' (the server copy is behind; this browser has the latest)' : ' (a copy is kept on Aretia\'s server)') : ' (kept only in this browser)' })]));
+    card.append(el('p', { class: 'wapp__fine' }, [el('span', { text: 'Recovery code: ' }), el('code', { text: r.id }), el('span', { text: copyOn() ? (rt.state.copyBehind ? ' (the server copy is behind; this browser has the latest)' : ' (a copy is kept on Aretia\'s server)') : ' (kept only in this browser)' })]));
     const actions = el('div', { class: 'wapp__row-actions' });
     if (v.next === 'sign') {
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: s.busy ? 'Working…' : 'Continue', attrs: { type: 'button' } });
@@ -249,11 +217,7 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
     if (runtime.recordsConfigured === true) {
       const box = el('input', { attrs: { type: 'checkbox', ...(copyOn() ? { checked: '' } : {}) } });
       box.addEventListener('change', () => {
-        try {
-          window.localStorage.setItem(COPY_KEY, box.checked ? 'on' : 'off');
-        } catch {
-          // a convenience only
-        }
+        setCopy(box.checked);
         draw();
       });
       c.append(el('label', { class: 'wapp__row-actions' }, [box, el('span', { text: 'Keep a recovery copy of my moves on Aretia\'s server' })]), el('p', { class: 'wapp__fine', text: 'The copy holds the move\'s states, amounts, transaction hashes and the two wallet addresses. It has no keys. Only the recovery code opens it, so keep that code safe; anyone who has it can read the copy.' }));

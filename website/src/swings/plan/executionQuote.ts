@@ -198,3 +198,23 @@ export function combineLegs(id: string, legs: ExecutionLeg[]): ExecutionQuote {
     warnings,
   };
 }
+
+/**
+ * A settlement step whose amount is not known yet because it depends on what the step before delivers. It carries no
+ * amounts and no fee figure, and says so, so the whole plan's final amount stays unknown until the step is really quoted.
+ */
+export function pendingSettlementLeg(id: string, from: { chain: ChainId; address: string }, to: { chain: ChainId; address: string }, estimatedSeconds: number | null, symbol = 'USDC', decimals = 6): ExecutionLeg {
+  return {
+    id,
+    kind: 'settlement',
+    title: `Move ${symbol} from ${CHAINS[from.chain].name} to ${CHAINS[to.chain].name}`,
+    input: { chain: from.chain, assetKey: key(from.address), symbol, decimals, amount: null },
+    output: { chain: to.chain, assetKey: key(to.address), symbol, decimals, amount: null },
+    fees: [{ label: 'Settlement fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
+    estimatedSeconds,
+    risk: 'low',
+    signatures: 3,
+    expiresAt: Number.MAX_SAFE_INTEGER,
+    notes: ['This step is priced and checked again when the money has arrived, from the amount that actually arrived.'],
+  };
+}

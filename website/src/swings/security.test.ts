@@ -135,7 +135,7 @@ describe('the source code keeps the rules', () => {
   const root = process.cwd();
   const dirs = ['src/swings/settlement', 'src/swings/orchestrator', 'src/swings/ramp', 'src/swings/plan', 'src/swings/intent', 'src/swings/economics', 'src/swings/crosschain', 'src/swings/intelligence', 'src/swings/wallet'];
   const files = (d: string): string[] => readdirSync(join(root, d)).flatMap((f) => (statSync(join(root, d, f)).isDirectory() ? files(join(d, f)) : /\.ts$/.test(f) && !/\.test\.ts$|\.live\.ts$|testing\.ts$/.test(f) ? [join(d, f)] : []));
-  const prod = [...dirs.flatMap(files), 'src/scripts/walletCrossChain.ts', 'src/scripts/walletRamp.ts'];
+  const prod = [...dirs.flatMap(files), 'src/scripts/walletCrossChain.ts', 'src/scripts/walletRamp.ts', 'src/scripts/walletPlan.ts', 'src/scripts/crossChainRuntime.ts'];
   const code = (f: string): string => readFileSync(join(root, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
   it('scans a real set of files (so a pass means something)', () => {

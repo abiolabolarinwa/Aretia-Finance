@@ -5,13 +5,13 @@
  * (Supabase) is one repository implementation (see supabase.ts); tests use the in-memory one. Identity
  * is always `chain:address` (core/token.ts). Third-party text is untrusted and is cleaned on the way in.
  */
-import { isOffensive } from './safeText.js';
+import { isOffensive, isUnsafeName } from './safeText.js';
 import { normalizeTokenRef, tokenKey } from '../core/token.js';
 import type { ChainId, RiskStatus, TokenRecord, TokenRef, TokenRisk } from '../core/types.js';
 
 /** The same record with an abusive name and its picture removed. */
 export function maskIfOffensive(r: TokenRecord): TokenRecord {
-  return isOffensive(r.symbol, r.name) ? { ...r, symbol: '[hidden]', name: 'Name hidden because it is abusive', logo: null } : r;
+  return isUnsafeName(r.symbol, r.name) ? { ...r, symbol: '[hidden]', name: 'Name hidden because it is abusive or imitates another token', logo: null } : r;
 }
 
 export interface RecentFilter {
@@ -165,7 +165,7 @@ export class TokenRegistryService {
     const exact = await this.repo.findByAddress(asAddress);
     const records = exact.length > 0 ? exact : await this.repo.searchText(q, limit);
     // An abusive token reached by its exact address is shown with its name masked: the address is the user's own choice.
-    const shown = (exact.length > 0 ? records.map(maskIfOffensive) : records.filter((r) => !isOffensive(r.symbol, r.name))).slice(0, limit);
+    const shown = (exact.length > 0 ? records.map(maskIfOffensive) : records.filter((r) => !isUnsafeName(r.symbol, r.name))).slice(0, limit);
     // A collision is judged against the whole registry, not just this page of results.
     const out: SearchResult[] = [];
     for (const record of shown) {
@@ -181,7 +181,7 @@ export class TokenRegistryService {
     const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
     const rows = await this.repo.listRecent(filter.chain, 500);
     const kept = rows.filter((r) => {
-      if (isOffensive(r.symbol, r.name)) return false;
+      if (isUnsafeName(r.symbol, r.name)) return false;
       if (filter.hideRisky && (r.risk?.status === 'high' || r.risk?.status === 'restricted')) return false;
       if (filter.maxAgeHours !== undefined && ageInfo(r, now).ms > filter.maxAgeHours * 3_600_000) return false;
       if (filter.minLiquidityUsd !== undefined && (r.liquidityUsd ?? 0) < filter.minLiquidityUsd) return false;

@@ -85,6 +85,19 @@ describe('Marketplace rows from GeckoTerminal', () => {
     expect(parseGeckoPools({ data: 'x' }, NOW)).toEqual([]);
   });
 
+  it('work out the network from the token id when the list does not name it, including networks whose id has an underscore', () => {
+    const noNet = pool();
+    delete (noNet.data[0]!.relationships as Record<string, unknown>).network;
+    expect(parseGeckoPools(noNet, NOW)[0]!.chain).toBe('solana');
+    const poly = pool({}, { address: '0x' + 'ab'.repeat(20) }, 'polygon_pos');
+    delete (poly.data[0]!.relationships as Record<string, unknown>).network;
+    expect(parseGeckoPools(poly, NOW)[0]!.chain).toBe('polygon');
+  });
+
+  it('hide a token whose name imitates another with look-alike letters', () => {
+    expect(parseGeckoPools(pool({}, { symbol: 'ՍЅᎠТ', name: 'ՍЅᎠТ' }), NOW)).toEqual([]);
+  });
+
   it('drop an unsafe picture link', () => {
     expect(parseGeckoPools(pool({}, { image_url: 'javascript:alert(1)' }), NOW)[0]!.icon).toBeNull();
   });

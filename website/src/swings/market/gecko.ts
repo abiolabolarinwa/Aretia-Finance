@@ -7,7 +7,7 @@
  */
 import { GECKO_NETWORK } from '../charts/pool.js';
 import { CHAIN_IDS, SwingsError, type ChainId } from '../core/types.js';
-import { isOffensive } from '../tokens/safeText.js';
+import { isUnsafeName } from '../tokens/safeText.js';
 import type { Changes, MarketRow } from './types.js';
 
 export type MarketKind = 'trending' | 'top' | 'gainers' | 'new';
@@ -52,8 +52,10 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
   const rows: MarketRow[] = [];
   for (const p of b.data) {
     const a = p.attributes;
-    const chain = NETWORK_TO_CHAIN.get(String(p.relationships?.network?.data?.id ?? ''));
-    const token = tokens.get(String(p.relationships?.base_token?.data?.id ?? ''));
+    const tokenId = String(p.relationships?.base_token?.data?.id ?? '');
+    // Some lists name the network on each pool, some do not; the token's own id always starts with it.
+    const chain = NETWORK_TO_CHAIN.get(String(p.relationships?.network?.data?.id ?? '')) ?? [...NETWORK_TO_CHAIN].find(([id]) => tokenId.startsWith(`${id}_`))?.[1];
+    const token = tokens.get(tokenId);
     const address = token?.attributes?.address;
     const pool = a?.address;
     if (!a || !chain || !token || typeof address !== 'string' || typeof pool !== 'string' || !/^[A-Za-z0-9]{20,}$/.test(pool)) continue;
@@ -62,7 +64,7 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
     const symbol = clean(token.attributes?.symbol, 20) || clean(first, 20);
     const name = clean(token.attributes?.name, 60);
     const quoteSymbol = clean((second ?? '').split(' ')[0], 20);
-    if (!symbol || isOffensive(symbol, name)) continue;
+    if (!symbol || isUnsafeName(symbol, name)) continue;
     const tx = (w: Window): { buys?: number; sells?: number; buyers?: number; sellers?: number } | undefined => a.transactions?.[w];
     const t24 = tx('h24');
     const created = typeof a.pool_created_at === 'string' ? Date.parse(a.pool_created_at) : NaN;

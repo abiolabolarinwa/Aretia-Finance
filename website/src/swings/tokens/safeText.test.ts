@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isOffensive } from './safeText.js';
+import { hasLookalikeLetters, isOffensive, isUnsafeName } from './safeText.js';
 import { InMemoryTokenRepository, TokenRegistryService } from './registry.js';
 import type { TokenRecord } from '../core/types.js';
 
@@ -58,5 +58,20 @@ describe('the registry hides what the filter catches', () => {
     const { service } = await setup();
     expect(await service.search('FAGGOT')).toEqual([]);
     expect(await service.search('DUVAL')).toEqual([]);
+  });
+});
+
+describe('look-alike letters', () => {
+  it('catches a token dressed up as another with Armenian, Cherokee or Cyrillic letters, but not a name written wholly in another system', () => {
+    expect(hasLookalikeLetters('ՍЅᎠТ')).toBe(true); // an "USDT" spelled with look-alikes
+    expect(hasLookalikeLetters('РЕРЕ')).toBe(true); // "PEPE" in Cyrillic capitals
+    expect(hasLookalikeLetters('USDT', 'Tether')).toBe(false);
+    for (const ok of ['华夏', '시세', 'ビット', 'مصر', 'ACT • Aretia']) expect(hasLookalikeLetters(ok), ok).toBe(false);
+  });
+
+  it('unsafe means abusive or look-alike', () => {
+    expect(isUnsafeName('FAGGOT')).toBe(true);
+    expect(isUnsafeName('ՍЅᎠТ')).toBe(true);
+    expect(isUnsafeName('USDT', 'Tether')).toBe(false);
   });
 });

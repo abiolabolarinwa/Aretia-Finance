@@ -913,6 +913,34 @@ const buyTips = [
   body:not(:has(.wapp[data-view='swings'])) .nav__bar > .wapp__seg--tabs { display: none; }
   .nav__bar > .wapp-search { flex: 1 1 280px; min-width: 170px; max-width: 380px; margin: 0; }
   [data-sw-panel='swap'] .wapp__chart-plot { height: calc(100vh - 300px); }
+
+  /* ---- Find Tokens and Marketplace: a light table of tokens, one row each ---- */
+  .wapp-mt__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .wapp-mt__bar .wapp__input { width: auto; min-width: 150px; }
+  .wapp-mt__check { display: inline-flex; align-items: center; gap: 8px; }
+  .wapp-mt { overflow-x: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
+  .wapp-mt__table { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-mt__table th { position: sticky; top: 0; z-index: 1; padding: 11px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-align: right; text-transform: uppercase; white-space: nowrap; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
+  .wapp-mt__table th.wapp-mt__rank, .wapp-mt__table th.wapp-mt__tokenhead { text-align: left; }
+  .wapp-mt__sort { padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; cursor: pointer; }
+  .wapp-mt__sort:hover, .wapp-mt__sort:focus-visible { color: var(--color-brand); outline: none; }
+  .wapp-mt__row td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--color-border); }
+  .wapp-mt__row { cursor: pointer; }
+  .wapp-mt__row:hover td { background: var(--color-brand-soft); }
+  .wapp-mt__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+  .wapp-mt__row:last-child td { border-bottom: 0; }
+  .wapp-mt__table td.wapp-mt__rank { width: 40px; color: var(--color-muted); text-align: left; }
+  .wapp-mt__token { min-width: 250px; text-align: left; }
+  .wapp-mt__cell { display: flex; align-items: center; gap: 10px; }
+  .wapp-mt__logo { width: 32px; height: 32px; font-size: 11px; }
+  .wapp-mt__names { display: grid; min-width: 0; }
+  .wapp-mt__line { display: flex; align-items: baseline; gap: 6px; }
+  .wapp-mt__line strong { font-size: 14px; }
+  .wapp-mt__line small, .wapp-mt__fullname { font-size: 12px; color: var(--color-muted); }
+  .wapp-mt__fullname { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+  .wapp-mt__chain { flex: none; width: 14px; height: 14px; margin-left: auto; border-radius: 50%; }
+  .wapp-mt__num.is-up { color: #1b8a4b; }
+  .wapp-mt__num.is-down { color: #b3261e; }
   /* Swap Coins: a narrow swap panel and a chart that takes the rest of the screen */
   [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
   @media (max-width: 960px) { [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); } }

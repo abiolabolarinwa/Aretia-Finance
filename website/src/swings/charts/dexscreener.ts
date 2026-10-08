@@ -17,14 +17,17 @@ import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type ChainId } from '../core/types.js';
 import { DEXSCREENER_CHAIN, GECKO_NETWORK, majorsOf, type PoolInfo } from './pool.js';
 
-interface DexPair {
+export interface DexPair {
   chainId?: string;
   pairAddress?: string;
   baseToken?: { address?: string; symbol?: string; name?: string };
   quoteToken?: { address?: string; symbol?: string; name?: string };
   priceUsd?: string | number;
-  priceChange?: { h24?: number | string };
-  volume?: { h24?: number | string };
+  priceChange?: Partial<Record<'m5' | 'h1' | 'h6' | 'h24', number | string>>;
+  volume?: Partial<Record<'m5' | 'h1' | 'h6' | 'h24', number | string>>;
+  marketCap?: number | string;
+  fdv?: number | string;
+  pairCreatedAt?: number;
   liquidity?: { usd?: number | string };
   txns?: { h24?: { buys?: number; sells?: number } };
   info?: { imageUrl?: string };
@@ -37,8 +40,14 @@ const num = (v: unknown): number | null => {
 const lc = (v: string | undefined): string => (v ?? '').toLowerCase();
 const cleanSymbol = (v: unknown): string => (typeof v === 'string' ? [...v].filter((c) => c.charCodeAt(0) > 31).join('').trim().slice(0, 20) : '');
 
-/** Picks the pair to draw for a token. Pure. */
-export function pickDexPair(chain: ChainId, address: string, pairs: unknown): PoolInfo | null {
+export interface ChosenPair {
+  p: DexPair;
+  isBase: boolean;
+  liq: number;
+}
+
+/** Chooses the pair for a token from DexScreener's list of pairs. Pure. */
+export function chooseDexPair(chain: ChainId, address: string, pairs: unknown): ChosenPair | null {
   if (!Array.isArray(pairs)) return null;
   const slug = DEXSCREENER_CHAIN[chain];
   const token = chain === 'solana' ? address : address.toLowerCase();
@@ -52,7 +61,14 @@ export function pickDexPair(chain: ChainId, address: string, pairs: unknown): Po
   const reasonable = usable.filter((x) => x.isBase && x.liq >= Math.max(1000, deepest * 0.05));
   const order = (a: (typeof usable)[number], b: (typeof usable)[number]): number => (a.paired === b.paired ? 0 : a.paired ? -1 : 1) || b.liq - a.liq || b.vol - a.vol;
   const best = (reasonable.length > 0 ? reasonable : usable).sort(order)[0]!;
-  const p = best.p;
+  return { p: best.p, isBase: best.isBase, liq: best.liq };
+}
+
+/** Picks the pair to draw for a token. Pure. */
+export function pickDexPair(chain: ChainId, address: string, pairs: unknown): PoolInfo | null {
+  const chosen = chooseDexPair(chain, address, pairs);
+  if (!chosen) return null;
+  const { p, isBase, liq } = chosen;
   const price = num(p.priceUsd);
   const buys = p.txns?.h24?.buys;
   const sells = p.txns?.h24?.sells;
@@ -66,11 +82,11 @@ export function pickDexPair(chain: ChainId, address: string, pairs: unknown): Po
     priceUsd: price !== null && price > 0 ? price : null,
     change24h: num(p.priceChange?.h24),
     volume24hUsd: num(p.volume?.h24),
-    liquidityUsd: best.liq > 0 ? best.liq : null,
+    liquidityUsd: liq > 0 ? liq : null,
     trades24h: typeof buys === 'number' && typeof sells === 'number' ? buys + sells : null,
     baseSymbol,
     quoteSymbol,
-    targetIsBase: best.isBase,
+    targetIsBase: isBase,
     icon: typeof image === 'string' && /^https:\/\//.test(image) ? image : null,
   };
 }

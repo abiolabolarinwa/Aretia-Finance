@@ -15,6 +15,10 @@ import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { marketTable, type TableState } from './walletMarketTable.js';
+import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
+import { rowsFromRecords } from '../swings/market/registryRows.js';
+import type { MarketRow } from '../swings/market/types.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -27,7 +31,6 @@ import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
 import { RISK_LABELS } from '../swings/tokens/risk.js';
-import { ageInfo } from '../swings/tokens/registry.js';
 import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
 import { isCanaryAllowed, isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
@@ -75,10 +78,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: stri
 
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 const usd = (n: number | null): string => (n === null ? 'n/a' : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`);
-const ageText = (ms: number): string => {
-  const m = Math.floor(ms / 60_000);
-  return m < 60 ? `${Math.max(m, 1)}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
-};
 /** A stroked 24x24 icon from one path, built as real SVG so nothing is parsed from text. */
 function icon(path: string, size = 18): SVGElement {
   const ns = 'http://www.w3.org/2000/svg';
@@ -898,24 +897,31 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   // ------------------------------------------------------------------ token lists (New Tokens, Markets)
 
+  const market = new GeckoMarket();
+
   function tokenBrowser(target: HTMLElement, mode: 'new' | 'markets') {
-    const f = mode === 'new' ? { chain: '' as '' | ChainId, age: '24', liquidity: '0', risk: '', sort: 'newest', query: '', hideRisky: true } : { chain: '' as '' | ChainId, age: '0', liquidity: '10000', risk: '', sort: 'liquidity', query: '', hideRisky: true };
-    let tokens: TokenRecord[] | null = null;
-    let hits: { record: TokenRecord; symbolCollision: boolean }[] | null = null;
+    // Find Tokens lists Aretia's registry of newly detected tokens; Marketplace lists what is trading now.
+    const f = { chain: '' as '' | ChainId, age: '24', liquidity: '0', risk: '', sort: 'newest', hideRisky: true };
+    const m = { kind: 'trending' as MarketKind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
+    let rows: MarketRow[] | null = null;
+    const records = new Map<string, TokenRecord>();
+    let tsort: TableState = { key: null, dir: 'desc' };
     let error: string | null = null;
     let loading = false;
     let selected: TokenRecord | null = null;
     let seq = 0;
+    const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
 
-    async function load(): Promise<void> {
+    async function load(silent = false): Promise<void> {
       const mine = ++seq;
-      loading = true;
-      error = null;
-      draw();
+      if (!silent) {
+        loading = true;
+        error = null;
+        draw();
+      }
       try {
-        const q = new URLSearchParams();
-        if (f.query.trim().length >= 2) q.set('q', f.query.trim());
-        else {
+        if (mode === 'new') {
+          const q = new URLSearchParams();
           if (f.chain) q.set('chain', f.chain);
           if (f.age !== '0') q.set('maxAgeHours', f.age);
           if (f.liquidity !== '0') q.set('minLiquidityUsd', f.liquidity);
@@ -923,23 +929,29 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           // Asking for high-risk tokens on purpose overrides the hide switch.
           if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted') q.set('hideRisky', '1');
           q.set('sort', f.sort);
-        }
-        const res = await fetch(`/api/swings-tokens?${q}`);
-        const body = (await res.json().catch(() => null)) as { tokens?: TokenRecord[]; results?: { record: TokenRecord; symbolCollision: boolean }[]; message?: string } | null;
-        if (mine !== seq) return;
-        if (!res.ok) throw new Error(body?.message ?? 'Token discovery is unavailable right now.');
-        // An answer that is not our JSON shape (an error page, a missing endpoint) must not read as "no tokens".
-        if (!body || (!Array.isArray(body.tokens) && !Array.isArray(body.results))) throw new Error('Token discovery is unavailable right now.');
-        if (f.query.trim().length >= 2) {
-          hits = body.results ?? [];
-          tokens = null;
+          q.set('limit', '60');
+          const res = await fetch(`/api/swings-tokens?${q}`);
+          const body = (await res.json().catch(() => null)) as { tokens?: TokenRecord[]; message?: string } | null;
+          if (mine !== seq) return;
+          if (!res.ok) throw new Error(body?.message ?? 'Token discovery is unavailable right now.');
+          // An answer that is not our JSON shape (an error page, a missing endpoint) must not read as "no tokens".
+          if (!body || !Array.isArray(body.tokens)) throw new Error('Token discovery is unavailable right now.');
+          const recs = body.tokens;
+          const filled = await rowsFromRecords(recs);
+          if (mine !== seq) return;
+          records.clear();
+          for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
+          rows = filled;
         } else {
-          tokens = body.tokens ?? [];
-          hits = null;
+          const got = await market.load({ kind: m.kind, chain: m.chain, window: m.window });
+          if (mine !== seq) return;
+          rows = got;
         }
+        error = null;
       } catch (e) {
         if (mine !== seq) return;
-        error = e instanceof Error ? e.message : 'Token discovery is unavailable right now.';
+        // A background refresh that fails keeps the table already on screen.
+        if (!silent || rows === null) error = e instanceof Error ? e.message : 'The list is unavailable right now.';
       }
       loading = false;
       draw();
@@ -953,51 +965,24 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       return sel;
     }
 
-    function riskBadge(r: TokenRecord): HTMLElement {
-      const st = r.risk?.status ?? 'unknown';
-      const tone = st === 'high' || st === 'restricted' ? 'bad' : st === 'elevated' ? 'warn' : st === 'established' || st === 'verified' ? 'on' : 'off';
-      return el('span', { class: `wapp__state wapp__state--${tone}`, text: `${RISK_LABELS[st]}${r.risk?.score != null ? ` · ${r.risk.score}/100` : ''}` });
-    }
-
-    function tokenAvatar(r: TokenRecord): HTMLElement {
-      const box = el('span', { class: 'wapp-avatar wapp__tokencard-logo', text: (r.symbol || '?').slice(0, 2).toUpperCase() });
-      const logo = r.logo ?? cachedLogo(r.ref.chain, r.ref.address);
-      if (logo && /^https:\/\//.test(logo)) {
-        const img = el('img', { class: 'wapp-avatar wapp__tokencard-logo', attrs: { src: logo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', width: '40', height: '40' } });
-        img.addEventListener('error', () => img.replaceWith(box));
-        return img;
-      }
-      return box;
-    }
-
-    function statCell(label: string, value: string): HTMLElement {
-      return el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
-    }
-
-    /** One token as a square card: who it is, how risky it looks, and the numbers that matter at a glance. */
-    function row(r: TokenRecord, collision: boolean): HTMLElement {
-      const age = ageInfo(r, Date.now());
-      const st = r.risk?.status ?? 'unknown';
-      const edge = st === 'high' || st === 'restricted' ? 'bad' : st === 'elevated' ? 'warn' : 'plain';
-      const b = el('button', { class: `wapp__tokencard wapp__tokencard--${edge}`, attrs: { type: 'button', 'aria-label': `${r.symbol} on ${CHAINS[r.ref.chain].name}: open details` } });
-      const head = el('div', { class: 'wapp__tokencard-head' }, [
-        tokenAvatar(r),
-        el('span', { class: 'wapp__tokencard-name' }, [el('strong', { text: r.symbol }), el('small', { text: r.name || 'No name given' })]),
-      ]);
-      const meta = el('div', { class: 'wapp__tokencard-meta' }, [el('span', { class: 'wapp__tokencard-chain', text: CHAINS[r.ref.chain].name }), riskBadge(r)]);
-      const stats = el('dl', { class: 'wapp__tokencard-stats' }, [
-        statCell(age.basis === 'detected' ? 'Seen' : 'Pool age', age.ms === null ? 'Unknown' : ageText(age.ms)),
-        statCell('Liquidity', usd(r.liquidityUsd)),
-        statCell('24h volume', usd(r.volume24hUsd)),
-        statCell('Holders', r.holderCount === null ? 'Not known' : String(r.holderCount)),
-      ]);
-      const foot = el('div', { class: 'wapp__tokencard-foot', text: `${r.pools[0]?.venue ?? 'No pool'} · ${short(r.ref.address)}${collision ? ' · name shared with other tokens' : ''}` });
-      b.append(head, meta, stats, foot);
-      b.addEventListener('click', () => {
-        selected = r;
-        draw();
-      });
+    function chip(label: string, pressed: boolean, onClick: () => void): HTMLElement {
+      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-pressed': String(pressed) } });
+      b.addEventListener('click', onClick);
       return b;
+    }
+
+    /** A row was clicked: Find Tokens opens the token's detail and safety notes; Marketplace opens it in Swap Coins. */
+    function openRow(r: MarketRow): void {
+      if (mode === 'new') {
+        const rec = records.get(rowKey(r.chain, r.address));
+        if (rec) {
+          selected = rec;
+          draw();
+          target.scrollIntoView({ block: 'start' });
+        }
+        return;
+      }
+      window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail: { chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon, decimals: r.decimals, liquidityUsd: r.liquidityUsd, priceUsd: r.priceUsd, fresh: false, risk: null } satisfies SearchHit }));
     }
 
     function detail(r: TokenRecord): HTMLElement {
@@ -1050,72 +1035,73 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
     function draw(): void {
       target.replaceChildren();
-      const card = el('div', { class: 'wapp__card' });
+      if (selected) target.append(detail(selected));
+      const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2', text: mode === 'new' ? 'Find tokens' : 'Marketplace' }));
-      card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Tokens Aretia has detected with a trading pool. Discovery is not endorsement: a token appearing here says nothing about whether it is safe, honest or worth buying.' : 'Tokens Aretia has indexed, ranked by liquidity or volume. Being large or listed is not an endorsement, and liquidity can be withdrawn.' }));
-      const search = el('input', { class: 'wapp__input', attrs: { placeholder: 'Search by symbol, name or contract address', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search tokens' } });
-      search.value = f.query;
-      search.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          f.query = search.value;
+      card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Tokens Aretia has just detected with a trading pool, with Aretia\'s safety rating. Discovery is not endorsement: a token appearing here says nothing about whether it is safe, honest or worth buying.' : 'What is trading right now across the networks. Busy does not mean safe, and liquidity can be withdrawn.' }));
+      const bar = el('div', { class: 'wapp-mt__bar' });
+      if (mode === 'markets') {
+        const kinds: [MarketKind, string][] = [['trending', 'Trending'], ['top', 'Top'], ['gainers', 'Gainers'], ['new', 'New pairs']];
+        const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
+        for (const [k, label] of kinds) kindBox.append(chip(label, m.kind === k, () => { m.kind = k; tsort = { key: null, dir: 'desc' }; void load(); }));
+        bar.append(kindBox);
+        if (m.kind === 'trending' || m.kind === 'gainers') {
+          const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
+          for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) win.append(chip(label, m.window === w, () => { m.window = w; void load(); }));
+          bar.append(win);
+        }
+        bar.append(select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { m.chain = v as typeof m.chain; void load(); }));
+      } else {
+        const reload = (): void => {
           selected = null;
           void load();
-        }
-      });
-      card.append(search);
-      const reload = (): void => {
-        f.query = '';
-        selected = null;
-        void load();
-      };
-      const filters = el('div', { class: 'wapp__seg' });
-      filters.append(
-        select('Network', f.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { f.chain = v as typeof f.chain; reload(); }),
-        select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; reload(); }),
-        select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; reload(); }),
-        select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Not enough data']], (v) => { f.risk = v; reload(); }),
-        select('Sort', f.sort, [['newest', 'Newest'], ['liquidity', 'Most liquidity'], ['volume', 'Most volume']], (v) => { f.sort = v; reload(); }),
-      );
-      card.append(filters);
-      const hide = el('input', { attrs: { type: 'checkbox', id: `hide-risky-${mode}` } });
-      hide.checked = f.hideRisky;
-      hide.addEventListener('change', () => {
-        f.hideRisky = hide.checked;
-        reload();
-      });
-      card.append(el('label', { class: 'wapp__row-actions wapp__fine', attrs: { for: `hide-risky-${mode}` } }, [hide, el('span', { text: 'Hide risky tokens (rated High risk or Restricted). Abusive names are always hidden.' })]));
+        };
+        bar.append(
+          select('Network', f.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { f.chain = v as typeof f.chain; reload(); }),
+          select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; reload(); }),
+          select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; reload(); }),
+          select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Not enough data']], (v) => { f.risk = v; reload(); }),
+        );
+        const hide = el('input', { attrs: { type: 'checkbox', id: 'hide-risky-new' } });
+        hide.checked = f.hideRisky;
+        hide.addEventListener('change', () => {
+          f.hideRisky = hide.checked;
+          reload();
+        });
+        bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-new' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
+      }
+      card.append(bar);
       if (error) card.append(banner('warn', error));
-      else if (loading) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
-      else if (tokens === null && hits === null) card.append(el('p', { class: 'wapp__fine', text: 'Choose filters or search to load tokens.' }));
+      else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
+      else if (rows.length === 0) card.append(el('p', { class: 'wapp__fine', text: mode === 'new' && f.hideRisky ? 'No tokens match. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
-        const rows = hits ?? (tokens ?? []).map((record) => ({ record, symbolCollision: false }));
-        if (rows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'No tokens match. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'No tokens match. Nothing has been detected with these filters yet.' }));
-        else {
-          const grid = el('div', { class: 'wapp__tokengrid' });
-          for (const { record, symbolCollision } of rows) grid.append(row(record, symbolCollision));
-          // Tokens with no picture get one looked up, then the cards redraw once.
-          const byChain = new Map<ChainId, string[]>();
-          for (const { record } of rows) if (!record.logo && !cachedLogo(record.ref.chain, record.ref.address)) byChain.set(record.ref.chain, [...(byChain.get(record.ref.chain) ?? []), record.ref.address]);
-          if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-          card.append(grid);
-        }
+        card.append(marketTable({ rows, sort: tsort, showRisk: mode === 'new', onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; draw(); }, onOpen: openRow }));
+        // Tokens with no picture get one looked up, then the table redraws once.
+        const byChain = new Map<ChainId, string[]>();
+        for (const r of rows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
+        if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
+        card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Numbers come from each token\'s main pool (DexScreener); a dash means the source did not report it. Click a token for its safety notes, chart and the swap.' : 'Numbers come from GeckoTerminal, per pool. A dash means the pool did not report it. Click a token to chart and swap it.' }));
       }
       target.append(card);
-      if (selected) target.append(detail(selected));
     }
+
+    // The lists refresh by themselves once a minute while they are on screen.
+    setInterval(() => {
+      if (!target.hidden && !document.hidden && rows !== null && !loading) void load(true);
+    }, 60_000);
 
     return {
       draw,
       ensureLoaded(): void {
-        if (tokens === null && hits === null && !loading) void load();
+        if (rows === null && !loading) void load();
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
       setChain(id: ChainId): void {
-        if (f.chain === id) return;
-        f.chain = id;
+        if (mode === 'new' ? f.chain === id : m.chain === id) return;
+        if (mode === 'new') f.chain = id;
+        else m.chain = id;
         selected = null;
-        f.query = '';
-        if (tokens !== null || hits !== null || loading) void load();
+        if (rows !== null || loading) void load();
         else draw();
       },
     };

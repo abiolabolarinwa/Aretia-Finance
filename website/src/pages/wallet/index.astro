@@ -918,6 +918,10 @@ const buyTips = [
   @media (max-width: 960px) { [data-sw-panel='swap'] .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); } }
   [data-sw-panel='swap'] .wapp__chart-plot { min-height: 460px; }
   [data-sw-panel='swap'] .wapp__chart-frame { height: calc(100% + var(--dex-footer-crop)); margin-bottom: 0; }
+  /* The frame is taller than its window so DexScreener's footer strip falls outside it; anchor the frame to the TOP so only the footer is cut, not the toolbar. */
+  [data-sw-panel='swap'] .wapp__chart-plot { align-items: start; }
+  /* Base's own mark is a rounded blue square, not a circle. */
+  .wapp__netbtn img[src$='/base.png'] { border-radius: 22%; }
   .wapp__chart { gap: 10px; }
   .wapp__chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
   .wapp__chart-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-strong); }

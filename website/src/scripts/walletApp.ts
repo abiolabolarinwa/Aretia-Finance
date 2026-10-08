@@ -1597,7 +1597,9 @@ export function initWalletApp(): void {
     if (currentView() === 'send') void loadWeb3();
   }
   window.addEventListener('hashchange', onRoute);
-  document.querySelectorAll<HTMLElement>('[data-nav]').forEach((b) => b.addEventListener('click', () => (location.hash = `#/${b.dataset.nav}`)));
+  // Only the wallet's own buttons navigate. The site's top bar also carries a data-nav attribute (for its own script), and the
+  // Swings tabs and search box now sit inside it, so a bare [data-nav] selector sent every click there to the dashboard.
+  document.querySelectorAll<HTMLElement>('[data-wapp] [data-nav]').forEach((b) => b.addEventListener('click', () => (location.hash = `#/${b.dataset.nav}`)));
 
   $('[data-connect]')?.addEventListener('click', () => {
     const navButton = document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button');

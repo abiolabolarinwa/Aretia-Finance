@@ -831,6 +831,8 @@ const buyTips = [
   .wapp__swap-go:disabled { cursor: not-allowed; opacity: 0.55; }
   .wapp__picker { position: absolute; inset: 12px; z-index: 5; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 14px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 18px; box-shadow: var(--shadow-float, 0 18px 40px rgba(20, 10, 80, 0.2)); }
   .wapp__picker[hidden] { display: none; }
+  /* The token list opens inside the swap card, so the card must be tall enough for it even when little else is shown. */
+  .wapp__swap:has(.wapp__picker:not([hidden])) { min-height: min(520px, calc(100vh - 160px)); }
   .wapp__picker-list { display: grid; align-content: start; gap: 2px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
   .wapp__picker-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; font: inherit; text-align: left; color: var(--color-strong); background: none; border: 0; border-radius: 12px; cursor: pointer; }
   .wapp__picker-list button:hover { background: var(--color-brand-soft); }

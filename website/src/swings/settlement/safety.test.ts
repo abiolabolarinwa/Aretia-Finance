@@ -35,7 +35,7 @@ describe('settlement safety fails closed', () => {
 
   it('blocks a fee above the allowed share, and a high-risk route', async () => {
     const pricey = new MockSettlementProvider({ id: 'p', now: () => NOW, feeBps: 300 });
-    expect(assessSettlement(await quote(intent(), pricey), ctx({ provider: pricey })).blockers.join(' ')).toMatch(/settlement fee is 3.00%/);
+    expect(assessSettlement(await quote(intent(), pricey), ctx({ provider: pricey })).blockers.join(' ')).toMatch(/transfer fee is 3.00%/);
     const risky = new MockSettlementProvider({ id: 'p', now: () => NOW, risk: 'high' });
     expect(assessSettlement(await quote(intent(), risky), ctx({ provider: risky })).blockers.join(' ')).toMatch(/high risk/);
   });

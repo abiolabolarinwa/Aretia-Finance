@@ -19,6 +19,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
+import { formatUnits } from '../crosschain/view.js';
 import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
 import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, usedNonceAddress } from './cctpSolana.js';
@@ -212,7 +213,7 @@ export class CctpSettlementProvider implements SettlementProvider {
     const maxFee = feeFor(amount, bps);
     const limit = (await this.burnLimit(intent.sourceChain))!;
     if (amount > limit) throw new SwingsError('invalid', 'That amount is above the largest single USDC transfer this route allows.');
-    if (amount <= maxFee) throw new SwingsError('invalid', 'That amount is too small to cover the settlement fee.');
+    if (amount <= maxFee) throw new SwingsError('invalid', 'That amount is too small to cover the transfer fee.');
     if (this.o.mode === 'fast') {
       // Fast transfer is limited by an allowance Circle publishes; a larger transfer would not be fast.
       const a = await this.fastAllowance(signal);
@@ -225,10 +226,10 @@ export class CctpSettlementProvider implements SettlementProvider {
     const srcName = CHAINS[intent.sourceChain].name;
     const dstName = CHAINS[intent.destinationChain].name;
     const steps: SettlementStep[] = [
-      ...(needsApproval ? [{ id: 'approve', kind: 'approve' as const, chain: intent.sourceChain, description: `Approve exactly ${amount} (raw) USDC on ${srcName} for Circle's token messenger`, requiresSignature: true, estimatedSeconds: 15 }] : []),
-      { id: 'burn', kind: 'send', chain: intent.sourceChain, description: `Burn the USDC on ${srcName} (Circle mints it on ${dstName})`, requiresSignature: true, estimatedSeconds: 15 },
-      { id: 'attest', kind: 'wait', chain: intent.sourceChain, description: `Wait for Circle's attestation (${this.o.mode === 'fast' ? 'fast' : 'standard'} transfer)`, requiresSignature: false, estimatedSeconds: attest },
-      { id: 'mint', kind: 'receive', chain: intent.destinationChain, description: `Claim the USDC on ${dstName} (needs a little ${CHAINS[intent.destinationChain].nativeSymbol} for the network fee)`, requiresSignature: true, estimatedSeconds: 30 },
+      ...(needsApproval ? [{ id: 'approve', kind: 'approve' as const, chain: intent.sourceChain, description: `Allow Circle's contract to use exactly ${formatUnits(amount, 6)} USDC on ${srcName} (a permission for this move only)`, requiresSignature: true, estimatedSeconds: 15 }] : []),
+      { id: 'burn', kind: 'send', chain: intent.sourceChain, description: `Send ${formatUnits(amount, 6)} USDC from ${srcName}`, requiresSignature: true, estimatedSeconds: 15 },
+      { id: 'attest', kind: 'wait', chain: intent.sourceChain, description: `Wait for Circle to confirm it (about ${attest >= 90 ? Math.round(attest / 60) + ' minutes' : attest + ' seconds'})`, requiresSignature: false, estimatedSeconds: attest },
+      { id: 'mint', kind: 'receive', chain: intent.destinationChain, description: `Collect the USDC on ${dstName}: one more approval, which needs a little ${CHAINS[intent.destinationChain].nativeSymbol} for the network fee`, requiresSignature: true, estimatedSeconds: 30 },
     ];
     const usdcAsset = intent.sourceAsset;
     const settlementFee: SettlementCost = { chain: intent.sourceChain, asset: usdcAsset, amount: maxFee, description: this.o.mode === 'fast' ? `Circle's fast-transfer fee (${bps} bps), taken from the amount` : 'Circle charges nothing for a standard transfer' };

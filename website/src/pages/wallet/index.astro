@@ -381,13 +381,14 @@ const buyTips = [
         <div class="wapp__stack">
           <div class="wapp__seg" role="tablist" aria-label="Aretia Swings">
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">New Tokens</button>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">New tokens</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Markets</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="move" aria-selected="false">Move USDC</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="ramp" aria-selected="false">Buy &amp; Sell</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="plan" aria-selected="false">Plan</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="activity" aria-selected="false">Activity</button>
           </div>
+          <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
           <div data-sw-panel="swap" class="wapp__stack"></div>
           <template id="sw-guide">
             <details class="wapp__guide">
@@ -406,9 +407,17 @@ const buyTips = [
           <div data-sw-panel="ramp" class="wapp__stack" hidden></div>
           <div data-sw-panel="plan" class="wapp__stack" hidden></div>
           <div data-sw-panel="activity" class="wapp__stack" hidden></div>
-          <p class="wapp__fine">
-            Aretia Swings finds routes through outside liquidity providers and shows you the quote, the minimum you will receive and every fee before anything is signed. Your wallet signs; Aretia never holds your keys. The Swap tab shows which networks are enabled; the rest are marked not enabled yet. Swaps are not sent through a protected route, so large trades in thin pools can be sandwiched. Quotes are not guarantees, and a token being listed here is never an endorsement.
-          </p>
+          <details class="wapp__fineprint">
+            <summary>Good to know before you use Swings</summary>
+            <ul>
+              <li><strong>Your wallet signs everything.</strong> Aretia never holds your keys or your money.</li>
+              <li><strong>You see the cost first.</strong> The quote, the least you will receive and every fee are shown before anything is signed.</li>
+              <li><strong>Quotes are not promises.</strong> Prices move, and a quote runs out after a short time.</li>
+              <li><strong>Big trades in small pools can be sandwiched.</strong> Swaps are not sent through a protected route.</li>
+              <li><strong>A coin being listed is not a recommendation.</strong> Check the safety notes and the address before you buy.</li>
+              <li>The Swap tab marks any network that is switched off.</li>
+            </ul>
+          </details>
         </div>
       </div>
 
@@ -808,6 +817,27 @@ const buyTips = [
   .wapp__tag--ok { color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
   .wapp__tag--warn { color: var(--color-warn); background: rgba(178, 94, 9, 0.1); }
   .wapp__trade-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; min-width: 0; }
+
+  .wapp__intro { margin: 0; font-size: 14px; line-height: 1.5; color: var(--color-muted); max-width: 70ch; }
+  .wapp__intro:empty { display: none; }
+  .wapp__fineprint { padding: 4px 2px; font-size: 13px; color: var(--color-muted); }
+  .wapp__fineprint > summary { cursor: pointer; font-weight: 600; color: var(--color-strong); }
+  .wapp__fineprint ul { display: grid; gap: 6px; margin: 10px 0 0; padding-left: 18px; line-height: 1.5; }
+  .wapp__steps { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; counter-reset: wstep; font-size: 12px; color: var(--color-muted); }
+  .wapp__steps li { counter-increment: wstep; display: inline-flex; align-items: center; gap: 6px; }
+  .wapp__steps li::before { content: counter(wstep); display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 11px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 50%; }
+  .wapp__more { padding: 2px 0; font-size: 13px; color: var(--color-muted); }
+  .wapp__more > summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
+  .wapp__more > p, .wapp__more > div { margin: 8px 0 0; line-height: 1.5; }
+  .wapp__step-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .wapp__step-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 14px; line-height: 1.45; }
+  .wapp__step-list .wapp__step-n { display: grid; place-items: center; width: 22px; height: 22px; font-size: 12px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 50%; }
+  .wapp__step-list small { display: block; color: var(--color-muted); }
+  /* The swap stays in view while the long chart and trade list scroll past it. */
+  @media (min-width: 1000px) {
+    [data-sw-panel='swap'] .wapp__grid--trade { align-items: start; }
+    [data-sw-panel='swap'] .wapp__grid--trade > .wapp__swap { position: sticky; top: 16px; }
+  }
   .wapp__chart { gap: 10px; }
   .wapp__chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
   .wapp__chart-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-strong); }
@@ -823,10 +853,10 @@ const buyTips = [
   .wapp__chart-price span { font-size: 14px; font-weight: 600; }
   .wapp__chart-price .is-up { color: var(--color-ok); }
   .wapp__chart-price .is-down { color: #b3261e; }
-  .wapp__chart-plot { position: relative; min-height: 420px; display: grid; align-items: center; overflow: hidden; border-radius: 14px; }
+  .wapp__chart-plot { position: relative; min-height: 360px; display: grid; align-items: center; overflow: hidden; border-radius: 14px; border: 1px solid var(--color-border); }
   /* The embed ends with a DexScreener footer strip; the plot clips that strip off. Tune the crop here. */
   .wapp__chart { --dex-footer-crop: 46px; }
-  .wapp__chart-frame { display: block; width: 100%; height: 640px; margin-bottom: calc(var(--dex-footer-crop) * -1); border: 0; background: #fff; }
+  .wapp__chart-frame { display: block; width: 100%; height: clamp(520px, 78vh, 700px); margin-bottom: calc(var(--dex-footer-crop) * -1); border: 0; background: #fff; }
   .wapp__chart-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
   .wapp__chart-stats:empty { display: none; }
   .wapp__chart-stats > div { display: grid; gap: 2px; padding: 8px 10px; background: var(--color-bg-alt); border-radius: 12px; }

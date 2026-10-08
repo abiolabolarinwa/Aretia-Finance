@@ -496,7 +496,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const wrap = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Network' } });
     for (const id of CHAIN_IDS) {
       const b = el('button', { class: 'wapp__chip wapp__chip--btn', attrs: { type: 'button', 'aria-pressed': String(s.chain === id) } });
-      b.append(el('span', { text: CHAINS[id].name }), el('small', { text: isChainEnabled(id) ? ' · Enabled' : runtime.loaded ? ' · Off' : ' · Checking…' }));
+      b.append(el('span', { text: CHAINS[id].name }), el('small', { text: isChainEnabled(id) ? '' : runtime.loaded ? ' · Off' : ' · Checking…' }));
       b.addEventListener('click', () => {
         if (s.chain !== id) {
           s.chain = id;
@@ -529,7 +529,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       box.append(row);
       return box;
     }
-    box.append(banner('info', 'Connect an EVM wallet to swap on this network. Aretia never holds your keys; the wallet signs.'));
+    box.append(banner('info', 'Connect your wallet to swap on this network. Use a wallet for Ethereum-style networks, such as MetaMask, Coinbase Wallet or Rabby. Aretia never holds your keys.'));
     if (s.walletChoices === null) {
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Find wallets', attrs: { type: 'button' } });
       b.addEventListener('click', () => {
@@ -1078,7 +1078,19 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   // ------------------------------------------------------------------ tabs
 
+  const TAB_INTRO: Record<string, string> = {
+    swap: 'Exchange one coin for another. You see the price, the least you will get and every fee before anything is signed.',
+    new: 'Coins that have just got a trading pool. New does not mean safe: read the safety notes before you buy.',
+    markets: 'Coins ranked by how much trading money is behind them. Large does not mean safe either.',
+    move: 'Send USDC (a coin that tracks the US dollar) from one network to another, for example Ethereum to Base. Your wallet approves each step.',
+    ramp: 'Buy USDC with a bank card or transfer, or sell it for cash, through a licensed provider. Aretia never touches your money.',
+    plan: 'Buy USDC with cash and have it end up on the network you want, one guided step at a time.',
+    activity: 'Your recent swaps from this browser.',
+  };
+
   function showTab(name: string): void {
+    const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
+    if (intro) intro.textContent = TAB_INTRO[name] ?? '';
     root!.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
     if (name === 'new') newTokens.ensureLoaded();
@@ -1100,6 +1112,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       }
     });
   }
+
+  showTab('swap');
 
   void loadRuntime().then(() => {
     render();

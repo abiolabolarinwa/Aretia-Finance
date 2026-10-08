@@ -172,7 +172,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
   function draw(): void {
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'Buy or sell USDC' }), el('ol', { class: 'wapp__steps' }, ['Choose your country and amount', 'See your options', 'Finish on the provider\'s page', 'The USDC lands in your wallet'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'A licensed provider takes your payment and checks who you are on its own page, so Aretia never sees your card or documents. Aretia never holds your money.' }));
+    card.append(el('h2', { class: 'wapp__h2', text: 'USDC to Fiat: sell USDC for cash, or buy it' }), el('ol', { class: 'wapp__steps' }, ['Choose your country and amount', 'See your options', 'Finish on the provider\'s page', 'The USDC lands in your wallet'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'A licensed provider takes your payment and checks who you are on its own page, so Aretia never sees your card or documents. Aretia never holds your money.' }));
     if (s.avail === undefined) {
       void load();
       card.append(el('p', { class: 'wapp__fine', text: 'Checking what is available…' }));

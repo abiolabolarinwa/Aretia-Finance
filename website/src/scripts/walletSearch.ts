@@ -31,7 +31,7 @@ function logoFor(h: SearchHit): HTMLElement {
 export function mountTokenSearch(): void {
   if (document.querySelector('[data-wapp-search]')) return;
   const wrap = el('div', { class: 'wapp-search', attrs: { 'data-wapp-search': '' } });
-  const input = el('input', { class: 'wapp-search__input', attrs: { type: 'search', placeholder: 'Search any token: name, symbol or contract address', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'wapp-search-list', 'aria-label': 'Search tokens' } });
+  const input = el('input', { class: 'wapp-search__input', attrs: { type: 'search', placeholder: 'Search any token', title: 'Search by name, symbol or contract address', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'wapp-search-list', 'aria-label': 'Search tokens' } });
   const icon = el('span', { class: 'wapp-search__icon', attrs: { 'aria-hidden': 'true' } });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');

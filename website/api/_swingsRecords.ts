@@ -14,6 +14,7 @@
  *  - same allowed-origin rule and rate limit as the other functions; off unless the database is configured.
  */
 import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
+import { supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
 
 export interface RecordsEnv extends ProxyEnv {
   SUPABASE_URL?: string;
@@ -83,7 +84,7 @@ export async function handleRecords(input: RecordsInput): Promise<{ status: numb
   const key = input.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) return err(503, 'not-configured');
   if (overLimit(`records:${input.ip}`, input.now)) return err(429, 'rate-limit');
-  const db = { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json' };
+  const db = { ...supabaseHeaders(key), 'content-type': 'application/json' };
   const table = `${url}/rest/v1/swings_records`;
 
   try {

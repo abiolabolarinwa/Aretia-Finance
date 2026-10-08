@@ -45,8 +45,8 @@ Every provider sits behind an Aretia interface; nothing above the providers name
 
 | | Swap | Move USDC (CCTP) | Buy / sell USDC (MoonPay) |
 |---|---|---|---|
-| Solana | Built (direct venues, multi-hop, split); simulated against real programs | **Not offered** (builders not written) | Buy and sell listed by MoonPay; Solana balance watching not wired |
-| Ethereum, Base, Arbitrum, Optimism, Polygon, Avalanche | Built (V2/V3 venues); simulated | Offered EVM to EVM; fast transfer from Ethereum, Optimism, Arbitrum, Base | Buy on all six; sell on Ethereum, Arbitrum, Base, Polygon (MoonPay lists no sell on Optimism or Avalanche) |
+| Solana | Built (direct venues, multi-hop, split); simulated against real programs | Offered to and from the six EVM networks (burn and claim builders checked against the real programs and real past claims; never executed) | Buy and sell listed by MoonPay; Solana balance watching not wired |
+| Ethereum, Base, Arbitrum, Optimism, Polygon, Avalanche | Built (V2/V3 venues); simulated | Offered EVM to EVM and to and from Solana; fast transfer from Ethereum, Optimism, Arbitrum, Base, Solana | Buy on all six; sell on Ethereum, Arbitrum, Base, Polygon (MoonPay lists no sell on Optimism or Avalanche) |
 | BNB Chain | Built | **Not offered** (Circle does not support USDC there) | Not offered |
 
 ## 5. Security model
@@ -68,11 +68,10 @@ Operator controls (Vercel environment variables): `SWINGS_EVM_CHAINS`, `SWINGS_C
 ## 9. Not done, stated plainly
 
 - No real swap, CCTP move or ramp order has been executed; no sandbox ramp run; sell flow unverified.
-- Solana CCTP builders; WalletConnect (listed as unavailable); Solana confirmation inside the orchestrator gateway; Solana balance watching for ramps.
-- A screen that drives a multi-step plan end to end (the pieces exist and are tested; the Move USDC and Buy & Sell tabs are separate).
-- Server-side storage of executions and plans; Aretia-owned candles served from stored swaps; EVM swap-log indexing.
+- WalletConnect is built but off until a WalletConnect project id is set, and has never been used with a real phone. Solana balance watching for ramps is not wired. The Plan tab covers buying and moving between EVM networks only.
+- Server-side recovery copies exist (opt-in; migration 0005 not yet applied to Aretia's database). Aretia-owned candles served from stored swaps; EVM swap-log indexing.
 - Raydium AMM v4 and CLMM, Manifest, Uniswap V4 routing.
-- Content security policy, subresource integrity, external audit, dependency advisories (11).
+- Subresource integrity; a content security policy enforced in full (today only `object-src`, `base-uri`, `frame-ancestors` and `form-action` are enforced and the full policy is report-only); external audit (see `audit-package.md`); 3 moderate dependency advisories remain, inside a library's Node-only server code.
 - Testnet integration runs: integration checks are read-only against mainnet; no testnet harness exists.
 
 ## 10. Extension points

@@ -216,6 +216,28 @@ describe('recovery from an interruption', () => {
     expect((await b.orch.start(stuck.id)).state).toBe('SETTLEMENT_PENDING');
   });
 
+  it('an unclear failure while sending (not a plain refusal) is never retried: the step is flagged, not reset', async () => {
+    const { orch, provider, gateway } = setup();
+    const r = await orch.create(await quoteOf(provider));
+    gateway.failNext = new Error('socket hang up');
+    const out = await orch.start(r.id);
+    expect(out.needsAttention).toMatch(/could not tell whether the approve transaction was sent/);
+    expect(out.steps['approve']!.status).toBe('sending');
+    expect(gateway.sent).toEqual([]);
+    await expect(orch.start(r.id)).rejects.toThrow(/cannot continue by itself/);
+  });
+
+  it('a plain refusal is safe to retry: nothing was sent, so the step goes back to pending', async () => {
+    const { orch, provider, gateway } = setup();
+    const r = await orch.create(await quoteOf(provider));
+    gateway.failNext = new SwingsError('invalid', 'The wallet is on the wrong network.');
+    await expect(orch.start(r.id)).rejects.toThrow(/wrong network/);
+    const again = await orch.get(r.id);
+    expect(again!.steps['approve']!.status).toBe('pending');
+    expect(again!.needsAttention).toBeNull();
+    expect((await orch.start(r.id)).state).toBe('SETTLEMENT_PENDING');
+  });
+
   it('after a reload in SOURCE_SUBMITTED it only follows the confirmation, and sends nothing', async () => {
     const store = new InMemoryExecutionStore();
     const a = setup({ store });

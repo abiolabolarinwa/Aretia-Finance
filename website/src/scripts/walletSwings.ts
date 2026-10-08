@@ -14,6 +14,9 @@ import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
+import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
+import type { SearchHit } from '../swings/tokens/globalSearch.js';
+import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
@@ -97,15 +100,16 @@ type Phase = 'idle' | 'quoting' | 'quoted' | 'preparing' | 'review' | 'signing' 
 
 const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
 
-export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void } {
+export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void; onActivityShow(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
-  if (!root) return { onShow() {}, onWalletChange() {} };
+  if (!root) return { onShow() {}, onWalletChange() {}, onActivityShow() {} };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
   const swapPanel = panel('swap');
-  const activityPanel = panel('activity');
-  const movePanel = panel('move');
+  // Swaps and moves are listed in the sidebar's Activity page, not in a tab here.
+  const activityPanel = document.querySelector<HTMLElement>('[data-swings-activity]') ?? el('div');
   const rampPanel = panel('ramp');
-  const planPanel = panel('plan');
+  const movePanel = root.querySelector<HTMLElement>('[data-transfer-pane="move"]')!;
+  const planPanel = root.querySelector<HTMLElement>('[data-transfer-pane="plan"]')!;
 
   // Tokens the user picked, by address: names and icons only. Decimals are re-read from the chain.
   const picked = new Map<string, TokenInfo>();
@@ -492,25 +496,36 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     input.focus();
   }
 
-  function chainPicker(): HTMLElement {
-    const wrap = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Network' } });
-    for (const id of CHAIN_IDS) {
-      const b = el('button', { class: 'wapp__chip wapp__chip--btn', attrs: { type: 'button', 'aria-pressed': String(s.chain === id) } });
-      b.append(el('span', { text: CHAINS[id].name }), el('small', { text: isChainEnabled(id) ? '' : runtime.loaded ? ' · Off' : ' · Checking…' }));
-      b.addEventListener('click', () => {
-        if (s.chain !== id) {
-          s.chain = id;
-          s.from = null;
-          s.to = null;
-          s.picker = null;
-          s.amount = '';
-          resetQuote();
-        }
-        render();
-      });
-      wrap.append(b);
+  // ------------------------------------------------------------------ network rail (logos beside the sidebar)
+
+  const railEl = document.querySelector<HTMLElement>('[data-rail]');
+
+  /** Chooses a network for the whole Swings page: the swap, the chart and the token lists all follow it. */
+  function selectChain(id: ChainId): void {
+    if (s.chain !== id) {
+      s.chain = id;
+      s.from = null;
+      s.to = null;
+      s.picker = null;
+      s.amount = '';
+      resetQuote();
     }
-    return wrap;
+    newTokens.setChain(id);
+    markets.setChain(id);
+    renderRail();
+    render();
+  }
+
+  function renderRail(): void {
+    if (!railEl) return;
+    railEl.replaceChildren();
+    for (const id of CHAIN_IDS) {
+      const off = runtime.loaded && !isChainEnabled(id);
+      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', 'data-name': off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(s.chain === id), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
+      b.append(el('img', { attrs: { src: `/assets/chains/${id}.png`, alt: '', width: '36', height: '36', draggable: 'false' } }));
+      b.addEventListener('click', () => selectChain(id));
+      railEl.append(b);
+    }
   }
 
   function evmConnect(): HTMLElement {
@@ -650,13 +665,12 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const info = CHAINS[s.chain];
     const address = accountFor(s.chain);
     // Laid out like the Trade tab: the network on top, then the swap on the left and the chart on the right.
-    const netCard = el('div', { class: 'wapp__card' }, [el('span', { class: 'wapp__eyebrow', text: 'Network' }), chainPicker()]);
     const card = el('div', { class: 'wapp__card wapp__swap' });
     const side = el('div', { class: 'wapp__trade-side' });
     const place = (): void => {
       const g = guide();
       if (g) side.append(g);
-      swapPanel.append(netCard, el('div', { class: 'wapp__grid wapp__grid--trade' }, [card, side]));
+      swapPanel.append(el('div', { class: 'wapp__grid wapp__grid--trade' }, [card, side]));
     };
 
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
@@ -1074,6 +1088,15 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ensureLoaded(): void {
         if (tokens === null && hits === null && !loading) void load();
       },
+      /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
+      setChain(id: ChainId): void {
+        if (f.chain === id) return;
+        f.chain = id;
+        selected = null;
+        f.query = '';
+        if (tokens !== null || hits !== null || loading) void load();
+        else draw();
+      },
     };
   }
 
@@ -1084,9 +1107,23 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   function renderActivity(): void {
     activityPanel.replaceChildren();
-    const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'Your swaps' }));
-    card.append(el('p', { class: 'wapp__fine', text: 'Swaps made through Aretia Swings in this browser. This list is stored only on this device and is not sent to Aretia.' }));
+    const card = activityPanel;
+    card.append(el('h2', { class: 'wapp__h2', text: 'Your swaps and moves' }));
+    card.append(el('p', { class: 'wapp__fine', text: 'Swaps and USDC transfers made through Aretia Swings in this browser. This list is stored only on this device and is not sent to Aretia.' }));
+    void chainRuntime.orchestrator.active().then((moves) => {
+      if (moves.length === 0) return;
+      const box = el('div', { class: 'wapp__stack' }, [el('span', { class: 'wapp__eyebrow', text: 'USDC transfers in progress' })]);
+      for (const m of moves) {
+        const v = viewStatus(m, false);
+        const go = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Open', attrs: { type: 'button' } });
+        go.addEventListener('click', () => {
+          location.hash = '#/swings';
+          showTab('transfer');
+        });
+        box.append(el('div', { class: 'wapp__provider' }, [el('div', {}, [el('strong', { text: `${CHAINS[m.quote.intent.sourceChain].name} to ${CHAINS[m.quote.intent.destinationChain].name}` }), el('span', { text: `${v.title}. ${v.detail}` })]), go]));
+      }
+      card.insertBefore(box, card.children[2] ?? null);
+    });
     const items = [...history.list(host.getAddress()), ...history.list(evm.account)].sort((a, b) => b.at - a.at);
     if (items.length === 0) card.append(el('p', { class: 'wapp__fine', text: host.getAddress() || evm.account ? 'No swaps yet.' : 'Connect a wallet to see its swaps.' }));
     for (const i of items) {
@@ -1109,20 +1146,29 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       row.append(right);
       card.append(row);
     }
-    activityPanel.append(card);
+
   }
 
   // ------------------------------------------------------------------ tabs
 
   const TAB_INTRO: Record<string, string> = {
-    swap: 'Exchange one coin for another. You see the price, the least you will get and every fee before anything is signed.',
+    swap: 'Exchange one coin for another on the network you picked on the left. You see the price, the least you will get and every fee before anything is signed.',
     new: 'Coins that have just got a trading pool. New does not mean safe: read the safety notes before you buy.',
     markets: 'Coins ranked by how much trading money is behind them. Large does not mean safe either.',
-    move: 'Send USDC (a coin that tracks the US dollar) from one network to another, for example Ethereum to Base. Your wallet approves each step.',
-    ramp: 'Buy USDC with a bank card or transfer, or sell it for cash, through a licensed provider. Aretia never touches your money.',
-    plan: 'Buy USDC with cash and have it end up on the network you want, one guided step at a time.',
-    activity: 'Your recent swaps from this browser.',
+    ramp: 'Turn USDC into cash, or buy USDC with a bank card or transfer, through a licensed provider. Aretia never touches your money.',
+    transfer: 'Send USDC from one network to another, or buy USDC with cash and have it end up where you want it. Your wallet approves each step.',
   };
+
+  type TransferMode = 'move' | 'plan';
+  let transferMode: TransferMode = 'move';
+  function showTransferMode(mode: TransferMode): void {
+    transferMode = mode;
+    root!.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
+    root!.querySelectorAll<HTMLElement>('[data-transfer-pane]').forEach((p) => (p.hidden = p.dataset.transferPane !== mode));
+    if (mode === 'move') crossChain.draw();
+    else planTab.draw();
+  }
+  root.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : 'move')));
 
   function showTab(name: string): void {
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
@@ -1131,13 +1177,26 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
     if (name === 'new') newTokens.ensureLoaded();
     if (name === 'markets') markets.ensureLoaded();
-    if (name === 'activity') renderActivity();
-    if (name === 'move') crossChain.draw();
     if (name === 'ramp') ramp.draw();
-    if (name === 'plan') planTab.draw();
+    if (name === 'transfer') showTransferMode(transferMode);
     if (name === 'swap') render();
   }
   root.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
+
+  // ---- the top-bar search opens a token here, with its chart
+  mountTokenSearch();
+  window.addEventListener(OPEN_TOKEN_EVENT, (e) => {
+    const t = (e as CustomEvent<SearchHit>).detail;
+    void (async () => {
+      if (location.hash !== '#/swings') {
+        location.hash = '#/swings';
+        await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
+      }
+      selectChain(t.chain);
+      showTab('swap');
+      if (t.decimals !== null) await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, icon: t.icon, verified: null }, t.chain);
+    })();
+  });
 
   // A saved WalletConnect session reconnects without a prompt; the library loads only if one exists.
   if (isProjectId(WC_PROJECT_ID) && hasSavedSession()) {
@@ -1151,7 +1210,9 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
   showTab('swap');
 
+  renderRail();
   void loadRuntime().then(() => {
+    renderRail();
     render();
     newTokens.draw();
     markets.draw();
@@ -1167,6 +1228,9 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     onWalletChange() {
       resetQuote();
       render();
+      renderActivity();
+    },
+    onActivityShow() {
       renderActivity();
     },
   };

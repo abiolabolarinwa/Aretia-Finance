@@ -9,7 +9,9 @@
  * The element is created once and moved between renders by the caller, so the frame is not reloaded every time the
  * screen redraws; it only reloads when the token changes. The header refreshes every 30 seconds while it is on screen.
  */
-import { dexScreenerEmbedUrl, GeckoPoolFinder, type PoolInfo } from '../swings/charts/pool.js';
+import { dexScreenerEmbedUrl, type PoolInfo } from '../swings/charts/pool.js';
+import { DexScreenerPoolFinder, type PoolFinder } from '../swings/charts/dexscreener.js';
+import { cachedLogo } from '../swings/tokens/logos.js';
 import { SwingsError, type ChainId } from '../swings/core/types.js';
 
 export interface ChartPanel {
@@ -57,7 +59,7 @@ export function avatar(symbol: string, icon: string | null | undefined): HTMLEle
   return img;
 }
 
-export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()): ChartPanel {
+export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder()): ChartPanel {
   const element = node('div', 'wapp__chart wapp__stack');
   element.hidden = true;
   const head = node('div', 'wapp__chart-head');
@@ -85,7 +87,11 @@ export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()
   function renderHeader(info: PoolInfo | null): void {
     if (!current) return;
     title.textContent = '';
-    title.append(avatar(current.symbol, current.icon), node('span', '', `${current.symbol} / USD`));
+    // The header names the pair that is drawn. When the token is the pair's first token that is just "TOKEN / USD";
+    // otherwise (the token is only ever the second token of its pools) it names the real pair, so header and chart agree.
+    const mismatch = !!info && info.targetIsBase === false;
+    const heading = mismatch ? `${info!.baseSymbol} / ${info!.quoteSymbol}` : `${current.symbol} / USD`;
+    title.append(mismatch ? avatar(info!.baseSymbol ?? '?', info!.icon ?? null) : avatar(current.symbol, current.icon ?? info?.icon ?? cachedLogo(current.chain, current.address)), node('span', '', heading));
     price.textContent = formatPrice(info?.priceUsd ?? null);
     const c = info?.change24h ?? null;
     change.className = c === null ? '' : c > 0 ? 'is-up' : c < 0 ? 'is-down' : '';
@@ -99,7 +105,11 @@ export function createChartPanel(finder: GeckoPoolFinder = new GeckoPoolFinder()
       }
     }
     live.hidden = !info;
-    note.textContent = info ? `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: DexScreener.` : '';
+    note.textContent = info
+      ? mismatch
+        ? `${current.symbol} is the second token in its trading pools, so the chart shows ${info.baseSymbol} priced in ${info.quoteSymbol} (pool ${info.poolName}). The price is from this pool only and can differ from other venues. Chart and trades: DexScreener.`
+        : `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: DexScreener.`
+      : '';
   }
 
   function showMessage(text: string): void {

@@ -78,3 +78,13 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 **Security:** nothing is signed or sent here; approvals are for exactly the amount; the claim never repeats a used message.
 **Known limitations:** the Solana CCTP builders are not written; network fees are not estimated; no real burn has been signed on mainnet. The contract addresses were checked by live reads, not by a mainnet transfer.
 **Next:** Milestone 34, the cross-chain execution orchestrator with a persisted state machine.
+
+## Milestone 34: cross-chain execution orchestrator
+
+**Status:** complete as a tested library. It is not yet wired into the Swings screen (that is Milestone 35), and records are kept in the browser, not in Aretia's database.
+**Implemented:** `src/swings/orchestrator/`: `states.ts` (the 12 states, a checked transition table, bigint-safe save format), `store.ts` (in-memory and browser-storage stores with version-checked writes), `orchestrator.ts` (create, start, advance, claim, resolve-attention, record-refund), `walletGateway.ts` (signing through the wallet session manager with the account, network and destination checks). `SettlementProvider` gained `allowedDestinations(chain)`; a transaction calling any other address is refused, and a provider declaring none cannot be signed for.
+**Rules enforced and tested:** no way out of a final state; COMPLETED only from the destination states and only on the provider's report that the destination has the value; a quote can expire only before anything is sent; a step is saved as `sending` before the wallet is asked, so a crash flags the step for the user instead of resending; an approval already sent is never sent again; a declined signature returns to QUOTED; two simultaneous runs and two-tab overwrites are refused; an unknown provider answer changes nothing.
+**Tests:** 18 new (497 in total), including a property test on the transition table. **Typecheck/Lint/Build:** pass.
+**Security considerations:** only public data is stored. Signing is refused unless the connected wallet is the account named in the quote.
+**Known limitations:** Solana confirmation is not wired; there is no server-side copy of executions, so clearing the browser loses the record (the transactions themselves are on-chain and the execution id can be rebuilt from the burn hash); REFUNDED is reachable only through an explicit `recordRefund` with a transaction hash, since no provider reports refunds yet.
+**Next milestone:** 35, the cross-chain Swing screen on top of this, and moving the Swings UI onto the wallet session manager.

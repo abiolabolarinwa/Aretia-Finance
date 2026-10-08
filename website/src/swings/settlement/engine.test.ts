@@ -35,7 +35,7 @@ describe('SettlementQuoteEngine', () => {
 
   it('survives a provider that fails or hangs, reporting it, and still answers from the others', async () => {
     const down = mock({ id: 'down', failQuote: true });
-    const hangs: SettlementProvider = { ...mock({ id: 'hangs' }), id: 'hangs', name: 'h', supports: () => new Promise(() => undefined), getQuote: () => new Promise(() => undefined), buildSettlement: async () => [], buildDestination: async () => null, trackSettlement: async () => { throw new Error('unused'); } };
+    const hangs: SettlementProvider = { ...mock({ id: 'hangs' }), id: 'hangs', name: 'h', supports: () => new Promise(() => undefined), getQuote: () => new Promise(() => undefined), buildSettlement: async () => [], allowedDestinations: () => [], buildDestination: async () => null, trackSettlement: async () => { throw new Error('unused'); } };
     const ok = mock({ id: 'ok' });
     const search = await engine([down, hangs, ok], { timeoutMs: 30 }).quote(intent());
     expect(search.quotes.map((q) => q.providerId)).toEqual(['ok']);

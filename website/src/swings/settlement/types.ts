@@ -132,6 +132,11 @@ export interface SettlementProvider {
   buildSettlement(quote: SettlementQuote): Promise<SettlementTransaction[]>;
   /** The destination-chain transaction once the provider is ready to release the funds, or null if it is not ready. */
   buildDestination(quote: SettlementQuote, executionId: string): Promise<SettlementTransaction | null>;
+  /**
+   * The only addresses this provider's transactions may call on a chain (token, messenger and so on), from Aretia's own
+   * tables, never from the quote. The orchestrator refuses to sign a transaction that calls anything else.
+   */
+  allowedDestinations(chain: ChainId): readonly string[];
   /** Where a settlement is, given the id the provider issues from the source transaction. */
   trackSettlement(executionId: string, quote?: SettlementQuote): Promise<SettlementStatus>;
 }

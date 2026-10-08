@@ -52,7 +52,7 @@ export function viewQuote(q: SettlementQuote, now: number, decimals = USDC_DECIM
   const src = CHAINS[q.intent.sourceChain].name;
   const dst = CHAINS[q.intent.destinationChain].name;
   const fees = [
-    { label: 'Settlement fee', value: q.settlementFee.amount === 0n ? 'None' : `${formatUnits(q.settlementFee.amount, decimals)} ${symbol}` },
+    { label: 'Transfer fee', value: q.settlementFee.amount === 0n ? 'None' : `${formatUnits(q.settlementFee.amount, decimals)} ${symbol}` },
     ...(q.networkFees ?? []).map((f) => ({ label: `Network fee on ${CHAINS[f.chain].name}`, value: `${formatUnits(f.amount, CHAINS[f.chain].nativeDecimals ?? 18)} ${CHAINS[f.chain].nativeSymbol}` })),
     ...(q.networkFees === null ? [{ label: 'Network fees', value: `Not estimated. You pay them in ${CHAINS[q.intent.sourceChain].nativeSymbol} on ${src} and ${CHAINS[q.intent.destinationChain].nativeSymbol} on ${dst}.` }] : []),
   ];

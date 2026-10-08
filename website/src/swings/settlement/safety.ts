@@ -75,7 +75,7 @@ export function assessSettlement(q: SettlementQuote, c: SafetyContext): SafetyVe
 
   const maxBps = c.maxFeeBps ?? 100;
   const feeBps = q.sourceAmount > 0n ? Number((q.settlementFee.amount * 10_000n) / q.sourceAmount) : 10_000;
-  if (feeBps > maxBps) blockers.push(`The settlement fee is ${(feeBps / 100).toFixed(2)}% of the amount, above the ${(maxBps / 100).toFixed(2)}% allowed.`);
+  if (feeBps > maxBps) blockers.push(`The transfer fee is ${(feeBps / 100).toFixed(2)}% of the amount, above the ${(maxBps / 100).toFixed(2)}% allowed.`);
 
   if (c.sourceBalance === null) blockers.push('Your balance on the sending network could not be read, so enough funds cannot be confirmed.');
   else if (c.sourceBalance < q.sourceAmount) blockers.push('Your balance on the sending network is less than the amount.');

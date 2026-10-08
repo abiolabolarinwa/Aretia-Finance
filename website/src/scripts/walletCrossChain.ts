@@ -126,7 +126,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
 
   function connectBox(): HTMLElement {
     const box = el('div', { class: 'wapp__stack' });
-    box.append(banner('info', 'Connect an EVM wallet to move USDC. Aretia never holds your keys; your wallet signs.'));
+    box.append(banner('info', 'Connect your wallet to continue. Use a wallet for Ethereum-style networks, such as MetaMask, Coinbase Wallet or Rabby. Aretia never holds your keys.'));
     if (s.walletChoices === null) {
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Find wallets', attrs: { type: 'button' } });
       b.addEventListener('click', () => void evm.discover().then((ws) => { s.walletChoices = ws.map((w) => ({ uuid: w.info.uuid, name: w.info.name })); draw(); }));
@@ -217,8 +217,8 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
   }
 
   function recoveryCard(): HTMLElement {
-    const c = el('div', { class: 'wapp__card' });
-    c.append(el('span', { class: 'wapp__eyebrow', text: 'Recovery' }));
+    const c = el('details', { class: 'wapp__card wapp__more' });
+    c.append(el('summary', { text: 'Recovery: keep or restore a record of your moves' }));
     if (runtime.recordsConfigured === true) {
       const box = el('input', { attrs: { type: 'checkbox', ...(copyOn() ? { checked: '' } : {}) } });
       box.addEventListener('change', () => {
@@ -249,7 +249,11 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
   function draw(): void {
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'Move USDC between networks' }), el('p', { class: 'wapp__fine', text: "Uses Circle's CCTP: your USDC is burned on one network and Circle mints the same amount on the other. No wrapped token, no third-party bridge. Native USDC only; BNB Chain is not offered. The USDC always goes to your own account on the other network, so moving to or from Solana needs a Solana wallet and an EVM wallet both connected." }));
+    card.append(el('h2', { class: 'wapp__h2', text: 'Move USDC to another network' }));
+    const steps = el('ol', { class: 'wapp__steps' });
+    for (const t of ['Pick the networks and amount', 'Check the quote', 'Approve in your wallet', 'Collect on the other network']) steps.append(el('li', { text: t }));
+    card.append(steps);
+    card.append(el('details', { class: 'wapp__more' }, [el('summary', { text: 'How does this work, and is it safe?' }), el('p', { text: "Circle, the company that issues USDC, lets USDC be sent between networks without a bridge: your USDC is destroyed on the first network and Circle issues the same amount on the second. You never hold a wrapped copy, and nobody else holds your funds in between." }), el('p', { text: 'The USDC always goes to your own account on the other network. To move to or from Solana you need both a Solana wallet and an Ethereum-style wallet connected. BNB Chain is not supported by Circle.' }), el('p', { text: 'The last step needs a little of the other network\'s coin (for example ETH on Base) to pay its network fee. If you do not have any, get some first.' })]));
     const involves = (kind: 'solana' | 'evm'): boolean => [s.from, s.to].some((c) => CHAINS[c].kind === kind);
     if (!s.record && involves('evm') && !evm.account) {
       card.append(connectBox());

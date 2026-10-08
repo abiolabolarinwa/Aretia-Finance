@@ -84,7 +84,7 @@ const fiatLine = (code: string, amount: number | null): AmountLine => ({ chain: 
 export function legFromSettlement(q: SettlementQuote, symbol = 'USDC', decimals = 6): ExecutionLeg {
   const i = q.intent;
   const src = { chain: i.sourceChain, assetKey: key(i.sourceAsset.address), symbol, decimals };
-  const fees: FeeLine[] = [{ label: 'Settlement fee', kind: 'settlement', assetKey: src.assetKey, symbol, decimals, amount: q.settlementFee.amount }];
+  const fees: FeeLine[] = [{ label: 'Transfer fee', kind: 'settlement', assetKey: src.assetKey, symbol, decimals, amount: q.settlementFee.amount }];
   if (q.networkFees === null) fees.push({ label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${i.sourceChain}`, symbol: CHAINS[i.sourceChain].nativeSymbol, decimals: CHAINS[i.sourceChain].nativeDecimals, amount: null });
   else for (const f of q.networkFees) fees.push({ label: `Network fee on ${CHAINS[f.chain].name}`, kind: 'network', assetKey: `native:${f.chain}`, symbol: CHAINS[f.chain].nativeSymbol, decimals: CHAINS[f.chain].nativeDecimals, amount: f.amount });
   return {
@@ -210,7 +210,7 @@ export function pendingSettlementLeg(id: string, from: { chain: ChainId; address
     title: `Move ${symbol} from ${CHAINS[from.chain].name} to ${CHAINS[to.chain].name}`,
     input: { chain: from.chain, assetKey: key(from.address), symbol, decimals, amount: null },
     output: { chain: to.chain, assetKey: key(to.address), symbol, decimals, amount: null },
-    fees: [{ label: 'Settlement fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
+    fees: [{ label: 'Transfer fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
     estimatedSeconds,
     risk: 'low',
     signatures: 3,

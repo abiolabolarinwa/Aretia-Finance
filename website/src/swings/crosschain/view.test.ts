@@ -37,7 +37,7 @@ describe('quote view', () => {
     const v = viewQuote(q, NOW);
     expect(v.youSend).toBe('25.5 USDC on Ethereum');
     expect(v.youReceive).toBe('25.4745 USDC on Base');
-    expect(v.fees.map((f) => f.label)).toEqual(['Settlement fee', 'Network fees']);
+    expect(v.fees.map((f) => f.label)).toEqual(['Transfer fee', 'Network fees']);
     expect(v.fees[1]!.value).toMatch(/Not estimated.*ETH on Ethereum and ETH on Base/);
     expect(v.steps.at(-1)!.chain).toBe('Base');
     expect(v.secondsLeft).toBe(60);

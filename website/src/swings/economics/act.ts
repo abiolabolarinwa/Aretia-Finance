@@ -52,7 +52,7 @@ export interface DisclosureLine {
 }
 
 const ORDER: FeeKind[] = ['network', 'dex', 'settlement', 'ramp', 'aretia-buyback'];
-const TITLE: Record<FeeKind, string> = { network: 'Network fees', dex: 'Venue fees', settlement: 'Settlement fees', ramp: 'Provider fees (buy or sell)', 'aretia-buyback': 'ACT allocation' };
+const TITLE: Record<FeeKind, string> = { network: 'Network fees', dex: 'Venue fees', settlement: 'Transfer fees', ramp: 'Provider fees (buy or sell)', 'aretia-buyback': 'ACT allocation' };
 
 /** Every cost on its own line, in its own asset. Nothing is merged and no generic "fee" is invented. */
 export function disclose(q: ExecutionQuote): DisclosureLine[] {

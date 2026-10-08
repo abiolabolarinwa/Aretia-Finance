@@ -131,7 +131,7 @@ export function initPlan(root: HTMLElement, rt: CrossChainRuntime): { draw(): vo
     s.review = null;
     const amount = /^\d+$/.test(s.amount.trim()) ? Number(s.amount.trim()) : null;
     const wallet = evm.account;
-    if (!wallet) return void (s.error = 'Connect an EVM wallet first (in the Swap or Move USDC tab).');
+    if (!wallet) return void (s.error = 'Connect your wallet first (in the Swap or Move USDC tab).');
     if (amount === null || amount < 1) return void (s.error = 'Enter a whole amount of at least 1.');
     if (!s.country) return void (s.error = 'Choose your country in the Buy & Sell tab first: availability depends on it.');
     for (const c of new Set([s.buyOn, s.deliverTo])) if (!isEnabled(c)) return void (s.error = `${CHAINS[c].name} is not switched on for Swings.`);
@@ -290,7 +290,7 @@ export function initPlan(root: HTMLElement, rt: CrossChainRuntime): { draw(): vo
     root.replaceChildren();
     if (s.plan) return void root.append(planView(s.plan));
     const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'Plan a journey' }), el('p', { class: 'wapp__fine', text: 'Buy USDC with your bank or card and have it end up on the network you want. Each step starts only when the one before is proven by your own wallet balance. If anything cannot be verified, the plan waits and your money stays where it is.' }));
+    card.append(el('h2', { class: 'wapp__h2', text: 'Buy USDC and send it where you want it' }), el('ol', { class: 'wapp__steps' }, ['Choose what to buy and where it should end up', 'Review the steps and costs', 'Pay on the provider\'s page', 'Aretia moves it for you, step by step'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'Each step starts only when the one before is proven by your own wallet balance. If anything cannot be checked, the plan waits and your money stays where it is.' }));
     if (s.avail === undefined) {
       void load();
       card.append(el('p', { class: 'wapp__fine', text: 'Checking what is available…' }));

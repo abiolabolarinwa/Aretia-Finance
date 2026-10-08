@@ -1,0 +1,30 @@
+name: swings-discover
+
+# Asks the site to look for new tokens every 10 minutes (Vercel's free plan has no frequent cron).
+# It does nothing until a repository secret named CRON_SECRET exists, and that secret must match the CRON_SECRET
+# set in Vercel. Nothing here deploys or changes code. GitHub may delay a scheduled run by several minutes.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Skip until the secret is set
+        if: env.CRON_SECRET == ''
+        run: echo "CRON_SECRET is not set as a repository secret, so nothing was run."
+      - name: Run discovery
+        if: env.CRON_SECRET != ''
+        run: |
+          status=$(curl -sS -m 120 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" https://aretiafinance.org/api/swings-discover)
+          echo "HTTP ${status}"
+          head -c 600 response.json || true
+          echo
+          test "$status" = "200"

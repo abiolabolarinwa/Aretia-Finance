@@ -10,8 +10,11 @@
  * Aretia's RPC proxy. EVM quotes go to Aretia's /api/swings-0x (which calls 0x); EVM reads go to the
  * chain's public node. Token lists call Aretia's /api/swings-tokens. History stays in this browser.
  */
+import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
+import { initPlan } from './walletPlan.js';
+import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { avatar, createChartPanel } from './walletChart';
@@ -92,6 +95,8 @@ const providerLabel = (id: string): string => (id === 'aretia' || id === 'aretia
 
 type Phase = 'idle' | 'quoting' | 'quoted' | 'preparing' | 'review' | 'signing' | 'tracking' | 'done';
 
+const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
+
 export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
   if (!root) return { onShow() {}, onWalletChange() {} };
@@ -100,6 +105,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   const activityPanel = panel('activity');
   const movePanel = panel('move');
   const rampPanel = panel('ramp');
+  const planPanel = panel('plan');
 
   // Tokens the user picked, by address: names and icons only. Decimals are re-read from the chain.
   const picked = new Map<string, TokenInfo>();
@@ -111,7 +117,9 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   const history = new SwapHistory(browserStorage());
-  const crossChain = initCrossChain(movePanel, evm, (c) => isChainEnabled(c));
+  const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
+  const crossChain = initCrossChain(movePanel, chainRuntime);
+  const planTab = initPlan(planPanel, chainRuntime);
   const ramp = initRamp(rampPanel, evm, () => host.getAddress(), (c) => isChainEnabled(c));
   // The "Before you swap" dropdown is written in the page. One copy is kept and moved between redraws, so it stays open if the user opened it.
   let guideEl: Element | null = null;
@@ -531,8 +539,24 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         });
       });
       box.append(b);
-    } else if (s.walletChoices.length === 0) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
+    } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
     else {
+      if (isProjectId(WC_PROJECT_ID)) {
+        const wc = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Connect with WalletConnect (phone or hardware wallet)', attrs: { type: 'button' } });
+        wc.addEventListener('click', () => {
+          void connectWalletConnect(evm, WC_PROJECT_ID)
+            .then(() => {
+              if (evm.adapter) registerEvmWallet(router, evm.adapter);
+              s.error = null;
+              render();
+            })
+            .catch((e: unknown) => {
+              s.error = e instanceof SwingsError ? e.message : 'WalletConnect could not be connected.';
+              render();
+            });
+        });
+        box.append(wc);
+      }
       for (const w of s.walletChoices) {
         const b = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `Connect ${w.name}`, attrs: { type: 'button' } });
         b.addEventListener('click', () => {
@@ -1062,9 +1086,20 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     if (name === 'activity') renderActivity();
     if (name === 'move') crossChain.draw();
     if (name === 'ramp') ramp.draw();
+    if (name === 'plan') planTab.draw();
     if (name === 'swap') render();
   }
   root.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
+
+  // A saved WalletConnect session reconnects without a prompt; the library loads only if one exists.
+  if (isProjectId(WC_PROJECT_ID) && hasSavedSession()) {
+    void restoreWalletConnect(evm, WC_PROJECT_ID).then((account) => {
+      if (account && evm.adapter) {
+        registerEvmWallet(router, evm.adapter);
+        render();
+      }
+    });
+  }
 
   void loadRuntime().then(() => {
     render();

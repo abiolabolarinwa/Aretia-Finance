@@ -15,6 +15,7 @@
 import { SwingsError } from '../core/types.js';
 import type { ChainId } from '../core/types.js';
 import { executionIdOf, parseExecutionId, type SettlementProvider, type SettlementQuote, type SettlementTransaction } from '../settlement/types.js';
+import { secureId } from './remote.js';
 import { applyTransition, hasCommitted, isFinal, type ExecutionRecord, type ExecutionState, type StepProgress } from './states.js';
 import type { ExecutionStore } from './store.js';
 
@@ -43,7 +44,7 @@ export class CrossChainOrchestrator {
   constructor(options: OrchestratorOptions) {
     this.o = {
       now: Date.now,
-      newId: () => `x_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+      newId: () => secureId('x'),
       confirmPollMs: 4_000,
       confirmTimeoutMs: 10 * 60_000,
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -107,7 +108,10 @@ export class CrossChainOrchestrator {
         try {
           hash = await this.o.gateway.send(tx, { address: r.quote.intent.sender, allowedDestinations: allowed });
         } catch (e) {
-          const rejected = e instanceof SwingsError && e.code === 'rejected';
+          // A refusal Aretia or the wallet states plainly (SwingsError) means nothing was sent. Anything else, such as a
+          // network error while sending, is ambiguous: the transaction may have gone through, so it is never retried.
+          if (!(e instanceof SwingsError)) return this.attention(r, `Aretia could not tell whether the ${tx.stepId} transaction was sent (${e instanceof Error ? e.message.slice(0, 120) : 'unknown error'}). Check your wallet history before doing anything else.`);
+          const rejected = e.code === 'rejected';
           r = await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'pending', hash: null, updatedAt: this.o.now() });
           if (rejected && !hasCommitted(r)) return this.move(r, 'QUOTED', 'The signature was declined; nothing was sent.');
           if (rejected) return r; // an earlier step (the approval) was sent; stay put so the user can resume
@@ -195,6 +199,7 @@ export class CrossChainOrchestrator {
       try {
         hash = await this.o.gateway.send(tx, { address: r.quote.intent.recipient, allowedDestinations: provider.allowedDestinations(tx.chain) });
       } catch (e) {
+        if (!(e instanceof SwingsError)) return this.attention(r, `Aretia could not tell whether the claim was sent (${e instanceof Error ? e.message.slice(0, 120) : 'unknown error'}). Check your wallet history before claiming again.`);
         await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'pending', hash: null, updatedAt: this.o.now() });
         throw e;
       }

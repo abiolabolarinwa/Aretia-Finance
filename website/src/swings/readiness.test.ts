@@ -16,7 +16,7 @@ describe('readiness', () => {
   });
 
   it('is ready for a first group only when the live settings are right and the first-use tests are attested', () => {
-    const canaryDone: Attestations = { ...file, 'real-swap-solana': { done: true, date: '2026-10-08' }, 'real-swap-evm': { done: true, date: '2026-10-08' }, 'real-cctp-move': { done: true, date: '2026-10-08' }, 'moonpay-sandbox-buy': { done: true, date: '2026-10-08' }, 'db-migrations': { done: true, date: '2026-10-08' } };
+    const canaryDone: Attestations = { ...file, 'real-swap-solana': { done: true, date: '2026-10-08' }, 'real-swap-evm': { done: true, date: '2026-10-08' }, 'real-cctp-move': { done: true, date: '2026-10-08' }, 'real-cctp-solana': { done: true, date: '2026-10-08' }, 'moonpay-sandbox-buy': { done: true, date: '2026-10-08' }, 'db-migrations': { done: true, date: '2026-10-08' } };
     const r = evaluate(good, canaryDone);
     expect(r.canary.ready).toBe(true);
     expect(r.public.ready).toBe(false);

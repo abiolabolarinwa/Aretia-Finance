@@ -47,13 +47,16 @@ This extends `ARETIA_SWINGS_THREAT_MODEL.md` (same-chain swaps) to the cross-cha
 
 - **A tampered page.** Aretia is a non-custodial web page. If the page or its hosting is compromised, an attacker can change what is shown and what is built. The wallet's own confirmation screen is the last line of defence. There is no subresource pinning or signed-release check yet.
 - **A malicious browser extension or compromised wallet** can alter what the user sees or approves.
+- **Wallets that rewrite Solana transactions** (for example adding guard instructions) change the message, which Aretia's check refuses; the user would see an error rather than a loss. Not exercised with real wallets.
+- **Solana burn to the wrong account.** A burn from Solana names a 20-byte EVM address; a burn from EVM to Solana names the recipient's USDC token account, which Aretia derives. The claim refuses any message that pays a different account, but a burn already made to a wrong account cannot be undone.
+- **An unclear send failure** (a network error while submitting) is never retried automatically; the user must check their wallet history and say what happened.
 - **Browser storage is not secret.** Records hold public data only, but a script running on the page (cross-site scripting) could change them. Signing re-reads the wallet and re-checks the account, network and destination, so a changed record cannot widen what is signed, but it could cause a refusal or a misleading screen.
 - **Address poisoning and clipboard attacks** on addresses the user pastes: Aretia shows the destination, but cannot know it is the user's.
 - **Provider insolvency or shutdown** (Circle, MoonPay): outside Aretia's control.
 - **Public RPC availability**: reads can fail; Aretia then says "unreadable" and does nothing. Receipts from a lying node could mislead a confirmation step; the chain's own contract still enforces the real result.
 - **Ramp price and order status are unknown to Aretia.** It cannot warn about a bad rate or follow an order.
 - **The sell flow is unverified** against a real MoonPay account and is off unless the operator turns it on.
-- **No server-side copy of executions.** Clearing the browser loses the local record; the transactions remain on-chain.
+- **Recovery copies are opt-in and keyed only by a long random code.** Anyone who has the code can read the copy (two wallet addresses, amounts, hashes). Without opting in, clearing the browser loses the local record; the transactions remain on-chain.
 - **No external audit, no formal verification, and no real-funds mainnet run** of any cross-chain flow has been done.
 
 ## Before turning cross-chain on for the public

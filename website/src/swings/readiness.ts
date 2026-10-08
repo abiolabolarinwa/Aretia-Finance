@@ -44,7 +44,8 @@ export interface Readiness {
 const MANUAL: { id: string; area: string; level: 'canary' | 'public'; title: string }[] = [
   { id: 'real-swap-solana', area: 'Swaps', level: 'canary', title: 'A real swap on Solana, signed and confirmed with a small amount' },
   { id: 'real-swap-evm', area: 'Swaps', level: 'canary', title: 'A real swap on one EVM network (Base), signed and confirmed with a small amount' },
-  { id: 'real-cctp-move', area: 'Settlement', level: 'canary', title: 'A real USDC move between two networks through CCTP, burn to claim, with a small amount' },
+  { id: 'real-cctp-move', area: 'Settlement', level: 'canary', title: 'A real USDC move between two EVM networks through CCTP, burn to claim, with a small amount' },
+  { id: 'real-cctp-solana', area: 'Settlement', level: 'canary', title: 'A real USDC move from Solana to an EVM network and back through CCTP, with a small amount' },
   { id: 'moonpay-sandbox-buy', area: 'Ramps', level: 'canary', title: 'A MoonPay sandbox purchase delivered to a test wallet' },
   { id: 'db-migrations', area: 'Data', level: 'canary', title: 'Database migrations applied to the production database' },
   { id: 'moonpay-sandbox-sell', area: 'Ramps', level: 'public', title: 'MoonPay sell checked in the sandbox before selling is switched on' },

@@ -57,6 +57,8 @@ export function handleStatus(input: { method: string; origin: string | null; env
   const body = {
     evm: { configured, chains },
     tokens: Boolean(env.SUPABASE_URL?.trim() && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
+    // Whether the optional recovery copy of executions can be kept on the server.
+    records: Boolean(env.SUPABASE_URL?.trim() && env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
     analytics: env.PUBLIC_SWINGS_ANALYTICS === '1',
     aggregators: env.SWINGS_AGGREGATORS !== 'off',
     canary: canaryHashes(env.SWINGS_CANARY_WALLETS),

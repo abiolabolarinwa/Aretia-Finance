@@ -14,6 +14,8 @@ export interface RuntimeConfig {
   evmConfigured: boolean;
   evmChains: ChainId[];
   tokensConfigured: boolean;
+  /** The server can keep an optional recovery copy of executions. */
+  recordsConfigured?: boolean;
   analytics: boolean;
   /** Whether the non-core aggregator providers (Jupiter, 0x) may take part. The operator can switch them off. */
   aggregators: boolean;
@@ -38,7 +40,7 @@ export function parseStatus(body: unknown): Omit<RuntimeConfig, 'loaded'> {
   const configured = evm.configured === true;
   const chains = Array.isArray(evm.chains) ? evm.chains.filter((c): c is ChainId => isChainId(c) && CHAINS[c].kind === 'evm') : [];
   const canary = Array.isArray(b.canary) ? b.canary.filter((h): h is string => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h)) : null;
-  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, analytics: b.analytics === true, aggregators: b.aggregators !== false, canary, protectedSubmit: b.protectedSubmit === true };
+  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, recordsConfigured: b.records === true, analytics: b.analytics === true, aggregators: b.aggregators !== false, canary, protectedSubmit: b.protectedSubmit === true };
 }
 
 export async function loadRuntime(fetchImpl: typeof fetch = fetch): Promise<void> {

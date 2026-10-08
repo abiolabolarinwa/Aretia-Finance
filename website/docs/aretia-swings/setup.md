@@ -48,3 +48,10 @@ Optional database tables: run `0002_swings_events.sql` too if you enable analyti
 Rate: 55 bps, `DEFAULT_BUYBACK_POLICY` in `src/swings/core/fee.ts`. The product's configuration is `LIVE_FEE_CONFIG` in the same file, driven by one switch, `BUYBACK_LIVE`, which **ships `false`**. Flipping it to `true` turns the buyback on for every Aretia Solana swap: each carries a second swap of 0.55% of the input into ACT (or, when the user is selling ACT, 0.55% of that ACT sent as ACT), in the same transaction, to the owner's existing fee wallet (`SWAP_FEE_WALLET`). Change the receiver in `LIVE_FEE_CONFIG` only.
 
 While it is on: Jupiter and 0x quotes are dropped on that chain (they cannot carry it), the user's swap amount is never reduced (the buyback is on top, shown as its own line), and a missing address fails the quote with `config-missing`. EVM chains stay off: there is no ACT liquidity on them and no official EVM address. Test it on staging with the canary wallet first (`real-swap-runbook.md`, step 7).
+
+## WalletConnect (phone and hardware wallets)
+
+1. Create a free project at the WalletConnect Cloud dashboard (cloud.reown.com) and copy its **project id** (32 characters). It is public by design; it identifies your site, it is not a secret.
+2. In Vercel, set `PUBLIC_WALLETCONNECT_PROJECT_ID` (a build-time variable, so redeploy). In the dashboard, add `aretiafinance.org` as an allowed domain.
+3. A "Connect with WalletConnect" button then appears next to the browser wallets in the Swap and Move USDC tabs. A saved session reconnects without a prompt; the large WalletConnect library loads only when someone uses it or has a saved session.
+Without the id nothing changes: the button is not shown. Test with a small amount on one network before telling anyone it is available.

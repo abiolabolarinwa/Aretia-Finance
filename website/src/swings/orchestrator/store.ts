@@ -14,6 +14,8 @@ export interface ExecutionStore {
   /** Writes `record` only if the stored version is `expectedVersion`; returns the saved record with a new version. */
   update(record: ExecutionRecord, expectedVersion: number): Promise<ExecutionRecord>;
   list(): Promise<ExecutionRecord[]>;
+  /** Puts a record back exactly as it was (version included), for recovery. Replaces an older copy of the same id only. */
+  restore?(record: ExecutionRecord): Promise<ExecutionRecord>;
 }
 
 const clone = (r: ExecutionRecord): ExecutionRecord => parseRecord(serializeRecord(r));
@@ -40,6 +42,13 @@ export class InMemoryExecutionStore implements ExecutionStore {
     const saved = { ...clone(record), version: expectedVersion + 1 };
     this.items.set(record.id, serializeRecord(saved));
     return clone(saved);
+  }
+
+  async restore(record: ExecutionRecord): Promise<ExecutionRecord> {
+    const current = this.items.get(record.id);
+    if (current && parseRecord(current).version >= record.version) throw new SwingsError('invalid', 'A newer copy already exists here.');
+    this.items.set(record.id, serializeRecord(clone(record)));
+    return clone(record);
   }
 
   async list(): Promise<ExecutionRecord[]> {
@@ -102,6 +111,15 @@ export class StorageExecutionStore implements ExecutionStore {
     items[record.id] = serializeRecord(saved);
     this.save(items);
     return clone(saved);
+  }
+
+  async restore(record: ExecutionRecord): Promise<ExecutionRecord> {
+    const items = this.load();
+    const current = items[record.id];
+    if (current && parseRecord(current).version >= record.version) throw new SwingsError('invalid', 'A newer copy already exists here.');
+    items[record.id] = serializeRecord(clone(record));
+    this.save(items);
+    return clone(record);
   }
 
   async list(): Promise<ExecutionRecord[]> {

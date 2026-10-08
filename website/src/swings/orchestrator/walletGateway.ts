@@ -16,6 +16,8 @@ export class WalletExecutionGateway implements ExecutionGateway {
     private readonly read: (chain: ChainId) => EvmRead,
     /** Asks the user before the wallet is moved to another network. Without it a wrong network is simply refused. */
     private readonly confirmSwitch?: (request: NetworkSwitchRequest) => Promise<boolean>,
+    /** Where a Solana transaction stands. Without it Solana confirmations are refused rather than guessed. */
+    private readonly solanaStatus?: (signature: string) => Promise<'confirmed' | 'failed' | 'pending'>,
   ) {}
 
   async send(tx: SettlementTransaction, expect: { address: string; allowedDestinations: readonly string[] }): Promise<string> {
@@ -35,9 +37,25 @@ export class WalletExecutionGateway implements ExecutionGateway {
   }
 
   async confirmation(chain: ChainId, hash: string): Promise<'confirmed' | 'failed' | 'pending'> {
-    if (chain === 'solana') throw new SwingsError('invalid', 'Solana confirmations are not wired into this gateway yet.');
+    if (chain === 'solana') {
+      if (!this.solanaStatus) throw new SwingsError('invalid', 'Solana confirmations are not available here.');
+      return this.solanaStatus(hash);
+    }
     const receipt = (await this.read(chain)('eth_getTransactionReceipt', [hash])) as { status?: string } | null;
     if (!receipt) return 'pending';
     return receipt.status === '0x1' ? 'confirmed' : 'failed';
   }
+}
+
+type SolRpcCall = <T>(method: string, params: unknown[]) => Promise<T>;
+
+/** Reads a Solana transaction's outcome. "Confirmed" needs the cluster to say confirmed or finalized and no error. */
+export function solanaSignatureStatus(rpc: SolRpcCall): (signature: string) => Promise<'confirmed' | 'failed' | 'pending'> {
+  return async (signature) => {
+    const r = await rpc<{ value: ({ err: unknown; confirmationStatus?: string } | null)[] }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
+    const s = r.value[0];
+    if (!s) return 'pending';
+    if (s.err) return 'failed';
+    return s.confirmationStatus === 'confirmed' || s.confirmationStatus === 'finalized' ? 'confirmed' : 'pending';
+  };
 }

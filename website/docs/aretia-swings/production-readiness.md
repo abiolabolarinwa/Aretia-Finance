@@ -14,7 +14,7 @@ What changed since the milestone-25 checklist further down: wallet abstraction a
 |---|---|
 | Real money moved through any Swings flow | **Never.** No swap, no CCTP move and no ramp order has been signed or paid on mainnet |
 | Same-chain swaps | Built on Solana and seven EVM networks; simulated against real programs; not signed |
-| USDC settlement (CCTP) | Quotes, limits and support checks proven against Circle and the real chains read-only; EVM to EVM only; Solana and BNB Chain not offered |
+| USDC settlement (CCTP) | Quotes, limits and support checks proven against Circle and the real chains read-only; EVM to EVM and Solana to and from EVM; BNB Chain not offered. The Solana burn is proven by simulation on the real program and the Solana claim by identity with real past claims, but neither has been executed |
 | Cross-chain orchestration | Tested with fakes at the edges only; never run with a real wallet |
 | Ramps | MoonPay link building and signing tested; never run with real or sandbox keys; sell is off by default and unverified |
 | Live site | EVM networks are all on by default (set `SWINGS_EVM_CHAINS=base` to narrow); only the two wallets on the staged-rollout list can sign |

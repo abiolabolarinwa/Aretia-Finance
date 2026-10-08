@@ -2,6 +2,7 @@
   "real-swap-solana": { "done": false },
   "real-swap-evm": { "done": false },
   "real-cctp-move": { "done": false },
+  "real-cctp-solana": { "done": false },
   "moonpay-sandbox-buy": { "done": false },
   "db-migrations": { "done": false },
   "moonpay-sandbox-sell": { "done": false },

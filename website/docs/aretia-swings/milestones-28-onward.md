@@ -159,3 +159,15 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 ## Overall
 
 Milestones 28 to 53 are implemented as tested code and documents. Final gate on 8 October 2026: 622 tests in 48 files pass; typecheck, API typecheck, lint and build pass. Nothing here has moved real money. The things that stand between this and a first real use are listed in `production-readiness.md` and are mostly yours to do: apply the database migrations, run the small real tests, supply MoonPay sandbox keys, decide the two economics questions, and commission a review.
+
+## Follow-up work after milestone 53 (8 October 2026)
+
+Items from the "still not done" list:
+
+- **Solana CCTP: done as code, not executed.** `settlement/cctpSolana.ts` builds the burn and the claim from Circle's published program source. `cctpSolana.live.ts` checks it against mainnet: derived accounts match real accounts; the burn is simulated on the real program from a real USDC holder and succeeds; the claim, rebuilt from the messages of real past claims, has identical accounts (20, in order) and identical instruction data. That check also found and fixed a wrong assumption (a Solana burn names the recipient's USDC token account, not the wallet). The provider offers Solana to and from the six EVM networks when given the Solana tools, and the Move USDC tab now includes Solana. No Solana move has been executed with real funds.
+- **WalletConnect: built, off until a project id is set** (`PUBLIC_WALLETCONNECT_PROJECT_ID`, see `setup.md`). Loaded only on use; saved sessions reconnect without a prompt; every existing safety check applies. Tested with a fake provider only.
+- **A screen that runs a multi-step plan end to end: done** (Plan tab): buy USDC on one network with a bank or card and have it end up on another. The move step is priced and safety-checked when the money has arrived (`plan/deferred.ts`). EVM networks only; swap steps are not in the screen.
+- **Server-side storage of executions: done as opt-in recovery copies** (migration `0005_swings_records.sql`, `/api/swings-records`, recovery code and restore in Move USDC). The migration is not applied to Aretia's database yet.
+- **Content security policy: partly done.** `object-src`, `base-uri`, `frame-ancestors` and `form-action` are enforced; the full policy is sent as report-only because it still needs inline scripts and could not be tested in a browser here. An enforced full policy needs script nonces or hashes.
+- **External audit: cannot be done by me.** `audit-package.md` gives a reviewer the scope, the evidence, the gaps and specific questions. Preparing it, a self-review fixed two real problems: an unclear send failure used to reset the step (which could allow a second burn) and now flags it instead; and record ids now come from the secure random generator since the id doubles as the recovery code.
+- **Dependency advisories: 11 down to 3** (moderate, in a library's Node-only server code) by overrides, including replacing `bigint-buffer` with a maintained fork.

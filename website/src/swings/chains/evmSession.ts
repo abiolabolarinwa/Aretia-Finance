@@ -7,7 +7,7 @@
  * endpoint (publicnode), the same kind of disclosure the Solana path makes.
  */
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
-import { discoverWallets, Eip1193WalletAdapter, type DiscoveredWallet, type EvmWalletAdapter } from './evmWallet.js';
+import { discoverWallets, Eip1193WalletAdapter, type DiscoveredWallet, type Eip1193Provider, type EvmWalletAdapter } from './evmWallet.js';
 
 export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>> = {
   ethereum: 'https://ethereum-rpc.publicnode.com',
@@ -104,6 +104,8 @@ export class EvmSession {
   adapter: EvmWalletAdapter | null = null;
   walletName: string | null = null;
   account: string | null = null;
+  /** The provider of the connected wallet, kept so a wallet that has its own session (WalletConnect) can be closed. */
+  provider: Eip1193Provider | null = null;
 
   constructor(private readonly host?: EventHost) {}
 
@@ -120,6 +122,7 @@ export class EvmSession {
     const first = accounts[0];
     if (!first) throw new SwingsError('invalid', 'The wallet shared no account.');
     this.adapter = adapter;
+    this.provider = w.provider;
     this.walletName = w.info.name;
     this.account = first;
     return first;
@@ -127,6 +130,13 @@ export class EvmSession {
 
   async disconnect(): Promise<void> {
     await this.adapter?.disconnect();
+    const closable = this.provider as { disconnect?: () => Promise<void> } | null;
+    try {
+      await closable?.disconnect?.();
+    } catch {
+      // The page forgets the wallet either way.
+    }
+    this.provider = null;
     this.adapter = null;
     this.walletName = null;
     this.account = null;

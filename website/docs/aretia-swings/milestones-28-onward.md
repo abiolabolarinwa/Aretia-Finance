@@ -138,3 +138,24 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 ## Milestone 49: observability
 
 **Status:** complete. `observability/execution.ts` records every settlement and plan state change exactly once (through store wrappers), failures with whether funds may be at risk, search outcomes with the providers' reasons, and recovery flags: ids and states only, never addresses, hashes, amounts or links. `redact` was strengthened: links lose their query string (checkout links carry the provider key and a signature), bearer tokens are removed, and payment and identity fields (card, cvv, iban, account number, passport, session, cookie, otp) are removed by name. A broken sink cannot break an execution. **Tests:** `observability/execution.test.ts` (8). Nothing is sent anywhere: the data stays in memory unless a reviewed server sink is added.
+
+## Milestone 50: security and threat model
+
+**Status:** complete. `docs/aretia-swings/threat-model-cross-chain.md` lists what is protected, who must be trusted, 17 threats each with its defence and the test that proves it, and the residual risks that are not defended (a tampered page, a malicious extension, address poisoning, provider failure, public-node lies, the unverified sell flow, no server-side records, no audit, no real-money run). `src/swings/security.test.ts` (14 tests) tries to break the promises: the wallet gateway refuses empty declared addresses, another account, an unlisted contract, a transaction from another account or network, and a silent network switch; the ramp service never returns its secret, refuses disallowed origins, wrong content types and oversized bodies, and wrong-kind addresses or unlisted networks; static scans fail the build on dynamic code execution, raw HTML insertion, a secret named in the browser code, a host outside the list, or key material in saved records. The scan was checked by planting a violation (it failed as it should) and removing it.
+
+## Milestone 51: end-to-end testing
+
+**Status:** complete for deterministic CI. `src/swings/e2e.test.ts` (7 tests) runs real code from the typed request through the planner, the ramp router, the real Circle provider (with a fake Circle service and fake chain), the safety engine, the orchestrator, the plan runner, observability and recovery, with stand-ins only at the network, the wallet signature and the provider web services. Covered: a full buy, move, claim, swap journey that completes only when each step is proven; a burn that fails on the network; a closed tab resumed with nothing sent twice; Circle unreachable (no route offered, a tracked move stays "unknown"). A separate test proves no production module imports the test provider, so a fake provider cannot succeed in production.
+**Not done:** testnet integration runs. The integration checks are read-only against mainnet (`npm run test:live`); there is no testnet harness for the cross-chain flows, and no real-money run.
+
+## Milestone 52: production readiness
+
+**Status:** complete as a runnable check; the verdict is still **not ready**. `npm run readiness` (`scripts/readiness.ts`, `src/swings/readiness.ts`) reads the live status endpoint and `docs/aretia-swings/readiness-attestations.json` and prints each gate; manual gates (real swaps, a real CCTP move, a MoonPay sandbox buy, database migrations, an audit, a content security policy, an incident plan) count as not done until someone records them with a date. Run on 8 October 2026 against the live site it reported: first group NO (7 gates open), public NO (12 open). It also showed that all seven EVM networks are on in production and outside aggregators are still on; `production-readiness.md` has the update and the quick switch-off steps. **Tests:** `readiness.test.ts` (7).
+
+## Milestone 53: architecture report
+
+**Status:** complete. `docs/aretia-swings/final-architecture-report.md` is rewritten for the current system: layers, what each layer promises and which test proves it, a chain-by-chain table of what is really available, the security model, the economics and the two open owner decisions, persistence, operations, a plain list of what is not done, and the extension points.
+
+## Overall
+
+Milestones 28 to 53 are implemented as tested code and documents. Final gate on 8 October 2026: 622 tests in 48 files pass; typecheck, API typecheck, lint and build pass. Nothing here has moved real money. The things that stand between this and a first real use are listed in `production-readiness.md` and are mostly yours to do: apply the database migrations, run the small real tests, supply MoonPay sandbox keys, decide the two economics questions, and commission a review.

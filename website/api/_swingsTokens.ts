@@ -6,6 +6,7 @@
  * The browser never sees database credentials: SUPABASE_SERVICE_ROLE_KEY lives in the server
  * environment. Without SUPABASE_URL and the key both endpoints answer 503 "not configured".
  */
+import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit, PUBLIC_FALLBACK_RPC, type ProxyEnv } from './_rpcProxy.js';
 import { CHAIN_IDS, isChainId, type ChainId } from '../src/swings/core/types.js';
 import { TokenRegistryService, type RecentFilter } from '../src/swings/tokens/registry.js';
@@ -57,7 +58,7 @@ export interface TokensOutput {
 const json = (status: number, data: unknown, headers: Record<string, string>): TokensOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
 
 function repoFor(env: TokensEnv, fetchImpl: typeof fetch): SupabaseTokenRepository | null {
-  const url = env.SUPABASE_URL?.trim();
+  const url = supabaseBase(env.SUPABASE_URL);
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   return url && key ? new SupabaseTokenRepository(url, key, fetchImpl) : null;
 }

@@ -6,7 +6,7 @@
  * Off unless SWINGS_ANALYTICS is "1" and the database is configured.
  */
 import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
-import { supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
+import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
 
 export interface EventsEnv extends ProxyEnv {
   SUPABASE_URL?: string;
@@ -66,7 +66,7 @@ export async function handleEvents(input: { method: string; origin: string | nul
   if (input.method !== 'POST') return reply(405, 'method');
   if (!allowed) return reply(403, 'origin');
   const { env } = input;
-  const url = env.SUPABASE_URL?.trim();
+  const url = supabaseBase(env.SUPABASE_URL);
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (env.PUBLIC_SWINGS_ANALYTICS !== '1' || !url || !key) return reply(503, 'not-configured');
   if (!(input.contentType ?? '').toLowerCase().includes('json') && !(input.contentType ?? '').toLowerCase().includes('text/plain')) return reply(415, 'content-type');

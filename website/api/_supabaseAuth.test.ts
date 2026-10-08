@@ -25,3 +25,31 @@ describe('Supabase keys', () => {
     expect(out.body).not.toContain('secret detail');
   });
 });
+
+import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
+
+describe('supabaseBase', () => {
+  it('adds https:// when it was left off, and tidies quotes, spaces, slashes and /rest/v1', () => {
+    expect(supabaseBase('xlwfcixknqlzudginsin.supabase.co')).toBe('https://xlwfcixknqlzudginsin.supabase.co');
+    expect(supabaseBase('  "https://abc.supabase.co/"  ')).toBe('https://abc.supabase.co');
+    expect(supabaseBase('https://abc.supabase.co/rest/v1')).toBe('https://abc.supabase.co');
+    expect(supabaseBase("'abc.supabase.co/rest/v1/'")).toBe('https://abc.supabase.co');
+  });
+
+  it('keeps only the host, so a pasted link cannot point requests elsewhere, and refuses plain http and nonsense', () => {
+    expect(supabaseBase('https://abc.supabase.co/dashboard/project/x?token=1')).toBe('https://abc.supabase.co');
+    expect(supabaseBase('http://abc.supabase.co')).toBeNull();
+    expect(supabaseBase('')).toBeNull();
+    expect(supabaseBase(undefined)).toBeNull();
+    expect(supabaseBase('localhost')).toBeNull();
+    expect(supabaseBase('not a url at all')).toBeNull();
+  });
+
+  it('the services now work with a host-only setting', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (u: string) => (urls.push(String(u)), new Response('[]'))) as unknown as typeof fetch;
+    const out = await handleTokens({ method: 'GET', origin: 'https://aretiafinance.org', ip: '9.9.9.1', query: {}, env: { SUPABASE_URL: 'xlwfcixknqlzudginsin.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_abc' }, fetchImpl, now: 1 } as never);
+    expect(out.status).toBe(200);
+    expect(urls[0]).toMatch(/^https:\/\/xlwfcixknqlzudginsin\.supabase\.co\/rest\/v1\/token_registry/);
+  });
+});

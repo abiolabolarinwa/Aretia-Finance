@@ -84,6 +84,8 @@ export const fromRow = (w: Row): TokenRecord => ({
 /** Escapes a value for use inside a PostgREST `ilike` filter. */
 const likeEscape = (s: string): string => s.replace(/[\\%_*(),]/g, (c) => `\\${c}`);
 
+import { supabaseHeaders } from './supabaseAuth.js';
+
 export class SupabaseTokenRepository implements TokenRepository {
   constructor(
     private readonly url: string,
@@ -94,7 +96,7 @@ export class SupabaseTokenRepository implements TokenRepository {
   private async call(path: string, init: RequestInit = {}): Promise<unknown> {
     const res = await this.fetchImpl(`${this.url.replace(/\/$/, '')}/rest/v1/${path}`, {
       ...init,
-      headers: { apikey: this.serviceKey, authorization: `Bearer ${this.serviceKey}`, 'content-type': 'application/json', ...(init.headers as Record<string, string>) },
+      headers: { ...supabaseHeaders(this.serviceKey), 'content-type': 'application/json', ...(init.headers as Record<string, string>) },
     });
     // Status only: the body can echo the query or the project, so it is never surfaced.
     if (!res.ok) throw new Error(`The token database answered ${res.status}.`);

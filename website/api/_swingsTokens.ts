@@ -103,8 +103,10 @@ export async function handleTokens(input: TokensInput): Promise<TokensOutput> {
   try {
     if (input.query.q !== undefined) return json(200, { results: await service.search(input.query.q, 20) }, headers);
     return json(200, { tokens: await service.listNew(parseFilter(input.query)) }, headers);
-  } catch {
-    return json(502, { error: 'database', message: 'The token database could not be reached.' }, headers);
+  } catch (e) {
+    // The status code only (for example 401 means the key was refused, 404 that the tables are missing). Never the body.
+    const detail = e instanceof Error ? /answered (\d{3})/.exec(e.message)?.[1] ?? null : null;
+    return json(502, { error: 'database', message: 'The token database could not be reached.', ...(detail ? { status: Number(detail) } : {}) }, headers);
   }
 }
 

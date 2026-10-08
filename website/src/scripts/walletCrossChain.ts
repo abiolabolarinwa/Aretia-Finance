@@ -14,6 +14,8 @@ import { assessSettlement } from '../swings/settlement/safety.js';
 import { EVM_NATIVE_ADDRESS } from '../swings/core/types.js';
 import { CrossChainOrchestrator } from '../swings/orchestrator/orchestrator.js';
 import { StorageExecutionStore } from '../swings/orchestrator/store.js';
+import { mirroredExecutionStore, RecordMirror, restoreFromCode } from '../swings/orchestrator/remote.js';
+import { runtime } from '../swings/runtime.js';
 import { WalletExecutionGateway } from '../swings/orchestrator/walletGateway.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
 import { formatUnits, parseUnits, viewQuote, viewStatus } from '../swings/crosschain/view.js';
@@ -39,7 +41,20 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
   const reader = (chain: ChainId) => publicRead(chain);
   const wallets = new WalletSessionManager(null);
   const gateway = new WalletExecutionGateway(wallets, reader, async (r) => window.confirm(`Your wallet is on ${r.from ? CHAINS[r.from].name : 'another network'}. Switch it to ${CHAINS[r.to].name}? Nothing is sent by switching.`));
-  const store = new StorageExecutionStore(window.localStorage);
+  const local = new StorageExecutionStore(window.localStorage);
+  const mirror = new RecordMirror();
+  const COPY_KEY = 'aretia-swings-recovery-copy';
+  const copyOn = (): boolean => {
+    try {
+      return window.localStorage.getItem(COPY_KEY) === 'on' && runtime.recordsConfigured === true;
+    } catch {
+      return false;
+    }
+  };
+  let copyBehind = false;
+  const store = mirroredExecutionStore(local, mirror, copyOn, (r) => {
+    copyBehind = r !== 'saved';
+  });
   const providers = cctpProviders({ read: reader });
   const engine = new SettlementQuoteEngine(providers);
   const orchestrator = new CrossChainOrchestrator({ store, providers, gateway });
@@ -56,6 +71,8 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
     record: null as ExecutionRecord | null,
     claimable: false,
     walletChoices: null as { uuid: string; name: string }[] | null,
+    restoreText: '',
+    notice: null as string | null,
   };
   let timer: number | null = null;
 
@@ -191,6 +208,7 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
       }
       card.append(ul);
     }
+    card.append(el('p', { class: 'wapp__fine' }, [el('span', { text: 'Recovery code: ' }), el('code', { text: r.id }), el('span', { text: copyOn() ? (copyBehind ? ' (the server copy is behind; this browser has the latest)' : ' (a copy is kept on Aretia\'s server)') : ' (kept only in this browser)' })]));
     const actions = el('div', { class: 'wapp__row-actions' });
     if (v.next === 'sign') {
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: s.busy ? 'Working…' : 'Continue', attrs: { type: 'button' } });
@@ -225,6 +243,40 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
     return card;
   }
 
+  function recoveryCard(): HTMLElement {
+    const c = el('div', { class: 'wapp__card' });
+    c.append(el('span', { class: 'wapp__eyebrow', text: 'Recovery' }));
+    if (runtime.recordsConfigured === true) {
+      const box = el('input', { attrs: { type: 'checkbox', ...(copyOn() ? { checked: '' } : {}) } });
+      box.addEventListener('change', () => {
+        try {
+          window.localStorage.setItem(COPY_KEY, box.checked ? 'on' : 'off');
+        } catch {
+          // a convenience only
+        }
+        draw();
+      });
+      c.append(el('label', { class: 'wapp__row-actions' }, [box, el('span', { text: 'Keep a recovery copy of my moves on Aretia\'s server' })]), el('p', { class: 'wapp__fine', text: 'The copy holds the move\'s states, amounts, transaction hashes and the two wallet addresses. It has no keys. Only the recovery code opens it, so keep that code safe; anyone who has it can read the copy.' }));
+    } else c.append(el('p', { class: 'wapp__fine', text: 'Your moves are kept in this browser only. If you clear its data, keep the transaction hashes from your wallet to follow a move.' }));
+    const code = el('input', { class: 'wapp__input', attrs: { placeholder: 'Recovery code (starts with x_)', 'aria-label': 'Recovery code', autocomplete: 'off', value: s.restoreText } });
+    code.addEventListener('input', () => { s.restoreText = code.value; });
+    const go = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Restore a move', attrs: { type: 'button' } });
+    go.addEventListener('click', () =>
+      void restoreFromCode(s.restoreText, mirror, local)
+        .then(async (rec) => {
+          s.record = rec;
+          s.notice = null;
+          await adoptWallet();
+          await poll();
+        })
+        .catch((e: unknown) => {
+          s.error = e instanceof SwingsError ? e.message : 'The move could not be restored.';
+        })
+        .finally(draw));
+    c.append(code, go);
+    return c;
+  }
+
   function draw(): void {
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
@@ -249,7 +301,7 @@ export function initCrossChain(root: HTMLElement, evm: EvmSession, isEnabled: (c
     get.addEventListener('click', () => void getQuotes().then(draw));
     card.append(get);
     if (s.error) card.append(banner('warn', s.error));
-    root.append(card);
+    root.append(card, recoveryCard());
     if (s.search) {
       for (const q of s.search.quotes) root.append(quoteCard(q));
       for (const d of s.search.declined) root.append(banner('info', `${d.providerId}: ${d.reason}`));

@@ -15,6 +15,7 @@
 import { SwingsError } from '../core/types.js';
 import type { ChainId } from '../core/types.js';
 import { executionIdOf, parseExecutionId, type SettlementProvider, type SettlementQuote, type SettlementTransaction } from '../settlement/types.js';
+import { secureId } from './remote.js';
 import { applyTransition, hasCommitted, isFinal, type ExecutionRecord, type ExecutionState, type StepProgress } from './states.js';
 import type { ExecutionStore } from './store.js';
 
@@ -43,7 +44,7 @@ export class CrossChainOrchestrator {
   constructor(options: OrchestratorOptions) {
     this.o = {
       now: Date.now,
-      newId: () => `x_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+      newId: () => secureId('x'),
       confirmPollMs: 4_000,
       confirmTimeoutMs: 10 * 60_000,
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),

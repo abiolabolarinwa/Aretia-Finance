@@ -7,6 +7,7 @@
  * on funds that did not arrive); an executor that throws changes nothing and the plan waits for the next call.
  */
 import { SwingsError } from '../core/types.js';
+import { secureId } from '../orchestrator/remote.js';
 import type { LegKind } from './executionQuote.js';
 import { hasBegun, isPlanFinal, movePlan, newPlan, type LegRef, type PlanLeg, type PlanRecord } from './state.js';
 import type { ExecutionQuote } from './executionQuote.js';
@@ -40,7 +41,7 @@ export class PlanRunner {
 
   constructor(private readonly o: RunnerOptions) {
     this.now = o.now ?? Date.now;
-    this.newId = o.newId ?? (() => `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`);
+    this.newId = o.newId ?? (() => secureId('p'));
   }
 
   async create(quote: ExecutionQuote): Promise<PlanRecord> {

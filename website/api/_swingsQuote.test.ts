@@ -40,9 +40,9 @@ describe('public quote API', () => {
     }
   });
 
-  it('keeps EVM chains off until the operator lists them, like the wallet', async () => {
+  it('follows the operator list for EVM chains, like the wallet (all on unless narrowed)', async () => {
     const q = { chain: 'base', from: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', to: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', amount: '1000', taker: '0x' + '1'.repeat(40) };
-    const out = await handleQuote(input({ query: q, env: { SWINGS_PUBLIC_API: 'on' } }));
+    const out = await handleQuote(input({ query: q, env: { SWINGS_PUBLIC_API: 'on', SWINGS_EVM_CHAINS: 'none' } }));
     expect(out.status).toBe(403);
     expect(JSON.parse(out.body).error).toBe('not-enabled');
   });

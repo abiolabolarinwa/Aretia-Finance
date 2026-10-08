@@ -13,6 +13,7 @@
  * wallet. Aggregators are never used here: the answer is Aretia's own routing only.
  */
 import { overLimit, PUBLIC_FALLBACK_RPC, type ProxyEnv } from './_rpcProxy.js';
+import { evmChainsFromEnv } from './_swingsStatus.js';
 import { publicRead, type EvmRead } from '../src/swings/chains/evmSession.js';
 import { normalizeTokenRef } from '../src/swings/core/token.js';
 import { CHAINS, isChainId, SwingsError, type ChainId, type DexProvider, type Quote } from '../src/swings/core/types.js';
@@ -108,7 +109,7 @@ export async function handleQuote(input: QuoteInput): Promise<QuoteOutput> {
 
     const info = CHAINS[chain as ChainId];
     if (info.kind === 'evm') {
-      const enabled = (input.env.SWINGS_EVM_CHAINS ?? '').split(',').map((c) => c.trim().toLowerCase());
+      const enabled = evmChainsFromEnv(input.env.SWINGS_EVM_CHAINS);
       if (!enabled.includes(chain)) throw new SwingsError('not-enabled', `${info.name} swaps are not enabled on this deployment.`);
     }
 

@@ -5,7 +5,7 @@ Everything an operator can do that changes what Swings does with other people's 
 | Operation | Where | Effect | Controls |
 |---|---|---|---|
 | Enable Solana for execution | `CHAINS.solana.executionEnabled` in `core/types.ts` | Lets the router quote and execute on it | Code change and review |
-| Enable an EVM chain | `SWINGS_EVM_CHAINS` env variable (needs `ZEROX_API_KEY`) | Lets the router quote and execute on that chain, with no code change | Operator-only; default empty; checklist in `setup.md` |
+| Narrow or switch off EVM networks | `SWINGS_EVM_CHAINS` env variable | EVM networks are on by default; this allow-list limits them (`none` = all off), with no code change | Operator-only; default is all on; checklist in `setup.md` |
 | Trust 0x contracts | `ZEROX_TRUSTED_CONTRACTS` in `providers/evm0x.ts` | Decides which contracts a swap may call or be approved to | Holds only the 0x AllowanceHolder from 0x's documentation; confirm on each explorer before enabling a chain |
 | Turn on analytics | `PUBLIC_SWINGS_ANALYTICS=1` | Stores anonymous aggregate events | Allow-listed fields only; off by default |
 | Turn on the ACT buyback | `DEFAULT_BUYBACK_POLICY.enabled` and per-chain `enabled` in `core/fee.ts` | Allocates 0.55% to buy ACT | Rate capped at 100 bps; refuses to run without treasury and executor addresses |

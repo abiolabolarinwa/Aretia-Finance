@@ -3,7 +3,8 @@
  * operator has switched on. The page never learns any secret, only yes/no and chain ids.
  *
  * A chain can execute when the code says so (`CHAINS[..].executionEnabled`, Solana) or when the operator lists
- * it in SWINGS_EVM_CHAINS. Aretia's own EVM router needs no third-party key, so the list alone decides.
+ * the server lists it. The server lists every EVM network unless the operator narrows the list with SWINGS_EVM_CHAINS.
+ * Aretia's own EVM router needs no third-party key. If the status cannot be read, EVM stays off.
  * The default is everything off. The 0x key only switches on the optional benchmarking provider.
  */
 import { CHAINS, isChainId, type ChainId } from './core/types.js';

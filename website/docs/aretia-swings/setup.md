@@ -12,7 +12,7 @@ Nothing here needs to be done for the Solana swap, which works with the existing
 | `CRON_SECRET` | `/api/swings-discover` | Authorises the scheduler. Without it the endpoint refuses everything. |
 | `EVM_RPC_ETHEREUM`, `EVM_RPC_BNB`, `EVM_RPC_POLYGON`, `EVM_RPC_BASE` | discovery | Optional. On-chain checks for EVM tokens. Without one, that chain's tokens are stored with no risk assessment. |
 | `SOLANA_RPC_URL` | existing | Already used by `/api/rpc`; discovery reuses it. |
-| `SWINGS_EVM_CHAINS` | `/api/swings-status` | The operator's explicit switch per EVM chain, for example `base,polygon`. Aretia's own router needs no third-party key, so this alone enables a chain. Unlisted chains stay off. |
+| `SWINGS_EVM_CHAINS` | `/api/swings-status` | EVM networks are **on by default** (all seven). When this is set it is an allow-list, for example `base,polygon`: any chain not listed is off. `none` turns every EVM network off. Aretia's own router needs no third-party key. |
 | `SWINGS_AGGREGATORS` | `/api/swings-status` | Set to `off` to remove Jupiter and 0x from quotes so only Aretia's own routing is used. Default on (they are non-core). Switching off today makes Solana prices worse: see `milestone-status.md`. |
 | `SWINGS_CANARY_WALLETS` | `/api/swings-status` | Staged rollout: comma-separated wallet addresses allowed to review and sign. Unset means everyone. Only SHA-256 hashes reach the page. See `real-swap-runbook.md`. |
 | `SWINGS_PROTECTED_SUBMIT` | `/api/swings-status`, `/api/swings-submit` | Set to `on` to offer protected (Jito) sending for Solana swaps. Off unless set. |
@@ -31,13 +31,13 @@ Local development: put values in `website/.env.local` (git-ignored).
 5. Check: `GET /api/swings-tokens` from the site origin should return `{"tokens":[...]}`.
 
 ## Turning on an EVM chain (do not skip steps)
-The code for EVM is built; turning a chain on is an operator action with no code change.
+All seven EVM networks are on by default. Narrowing or switching them off is an operator action with no code change. **No real swap has yet been signed on any of them**, so until the runbook is done, consider narrowing with `SWINGS_EVM_CHAINS` and `SWINGS_CANARY_WALLETS`.
 1. Nothing to set for Aretia's own router. (`ZEROX_API_KEY` only adds the optional, non-core 0x benchmark provider.)
 2. The venue contracts (`dex/entries.ts`) are proven by `npm run test:live`; run it before enabling a chain and confirm the addresses on the chain's block explorer.
 3. Leave the fee policy off (the default) unless the buyback design has been reviewed.
 4. Test with your own wallet and a small amount on that chain: quote, review, sign, confirm, check balances. Use a browser with your wallet and a staging deployment first.
-5. Only then add the chain to `SWINGS_EVM_CHAINS` in production, for example `base`. Start with one chain.
-6. To switch a chain off again, remove it from the variable. No deploy is needed beyond the environment change.
+5. To test one chain on its own, set `SWINGS_EVM_CHAINS=base` (for example) in production so only that chain is on.
+6. To switch every EVM network off, set it to `none`. To go back to all on, delete the variable. No deploy is needed beyond the environment change.
 
 Optional database tables: run `0002_swings_events.sql` too if you enable analytics.
 

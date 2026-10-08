@@ -78,6 +78,7 @@ export function parseFilter(q: Record<string, string | undefined>): RecentFilter
   if (vol !== undefined) f.minVolumeUsd = vol;
   const lim = n(q.limit);
   if (lim !== undefined) f.limit = Math.floor(lim);
+  if (q.hideRisky === '1' || q.hideRisky === 'true') f.hideRisky = true;
   if (q.sort === 'newest' || q.sort === 'liquidity' || q.sort === 'volume') f.sort = q.sort;
   if (q.risk) {
     const wanted = q.risk.split(',').filter((s): s is RiskStatus => (RISK_STATUSES as readonly string[]).includes(s));

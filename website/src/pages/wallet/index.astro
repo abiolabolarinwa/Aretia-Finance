@@ -709,6 +709,25 @@ const buyTips = [
   .wapp__state--on { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
   .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
   .wapp__state--off { color: var(--color-muted); background: var(--color-bg-alt); }
+  .wapp__state--bad { color: #8a1c14; background: rgba(179, 38, 30, 0.12); }
+  /* Token cards: a grid of squares, each one a whole token at a glance. */
+  .wapp__tokengrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+  .wapp__tokencard { display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; aspect-ratio: 1 / 1; min-width: 0; padding: 14px; font: inherit; text-align: left; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-top: 3px solid var(--color-border-strong); border-radius: 16px; cursor: pointer; transition: box-shadow 140ms ease, transform 140ms ease; }
+  .wapp__tokencard:hover { box-shadow: 0 6px 18px rgba(20, 10, 80, 0.1); transform: translateY(-1px); }
+  .wapp__tokencard:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp__tokencard--warn { border-top-color: #d08a1f; }
+  .wapp__tokencard--bad { border-top-color: #b3261e; }
+  .wapp__tokencard-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .wapp__tokencard-logo { width: 40px; height: 40px; font-size: 13px; }
+  .wapp__tokencard-name { display: grid; min-width: 0; }
+  .wapp__tokencard-name strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp__tokencard-name small { overflow: hidden; font-size: 12px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
+  .wapp__tokencard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .wapp__tokencard-chain { padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-brand-soft); border-radius: var(--radius-pill); }
+  .wapp__tokencard-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 8px 10px; margin: 0; }
+  .wapp__tokencard-stats dt { font-size: 11px; color: var(--color-muted); }
+  .wapp__tokencard-stats dd { margin: 0; overflow: hidden; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp__tokencard-foot { overflow: hidden; font-size: 11px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
   .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
   .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }

@@ -869,7 +869,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // ------------------------------------------------------------------ token lists (New Tokens, Markets)
 
   function tokenBrowser(target: HTMLElement, mode: 'new' | 'markets') {
-    const f = mode === 'new' ? { chain: '' as '' | ChainId, age: '24', liquidity: '0', risk: '', sort: 'newest', query: '' } : { chain: '' as '' | ChainId, age: '0', liquidity: '10000', risk: '', sort: 'liquidity', query: '' };
+    const f = mode === 'new' ? { chain: '' as '' | ChainId, age: '24', liquidity: '0', risk: '', sort: 'newest', query: '', hideRisky: true } : { chain: '' as '' | ChainId, age: '0', liquidity: '10000', risk: '', sort: 'liquidity', query: '', hideRisky: true };
     let tokens: TokenRecord[] | null = null;
     let hits: { record: TokenRecord; symbolCollision: boolean }[] | null = null;
     let error: string | null = null;
@@ -890,6 +890,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           if (f.age !== '0') q.set('maxAgeHours', f.age);
           if (f.liquidity !== '0') q.set('minLiquidityUsd', f.liquidity);
           if (f.risk) q.set('risk', f.risk);
+          // Asking for high-risk tokens on purpose overrides the hide switch.
+          if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted') q.set('hideRisky', '1');
           q.set('sort', f.sort);
         }
         const res = await fetch(`/api/swings-tokens?${q}`);
@@ -923,18 +925,43 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
 
     function riskBadge(r: TokenRecord): HTMLElement {
       const st = r.risk?.status ?? 'unknown';
-      const tone = st === 'high' || st === 'restricted' || st === 'elevated' ? 'warn' : 'off';
+      const tone = st === 'high' || st === 'restricted' ? 'bad' : st === 'elevated' ? 'warn' : st === 'established' || st === 'verified' ? 'on' : 'off';
       return el('span', { class: `wapp__state wapp__state--${tone}`, text: `${RISK_LABELS[st]}${r.risk?.score != null ? ` · ${r.risk.score}/100` : ''}` });
     }
 
+    function tokenAvatar(r: TokenRecord): HTMLElement {
+      const box = el('span', { class: 'wapp-avatar wapp__tokencard-logo', text: (r.symbol || '?').slice(0, 2).toUpperCase() });
+      if (r.logo && /^https:\/\//.test(r.logo)) {
+        const img = el('img', { class: 'wapp-avatar wapp__tokencard-logo', attrs: { src: r.logo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', width: '40', height: '40' } });
+        img.addEventListener('error', () => img.replaceWith(box));
+        return img;
+      }
+      return box;
+    }
+
+    function statCell(label: string, value: string): HTMLElement {
+      return el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
+    }
+
+    /** One token as a square card: who it is, how risky it looks, and the numbers that matter at a glance. */
     function row(r: TokenRecord, collision: boolean): HTMLElement {
       const age = ageInfo(r, Date.now());
-      const b = el('button', { class: 'wapp__asset', attrs: { type: 'button' } });
-      b.append(
-        el('span', {}, [el('strong', { text: r.symbol }), el('small', { text: `${r.name ? r.name + ' · ' : ''}${CHAINS[r.ref.chain].name} · ${short(r.ref.address)}${collision ? ' · other tokens share this symbol' : ''}` })]),
-        el('span', { class: 'wapp__fine', text: `${ageText(age.ms)}${age.basis === 'first-pool' ? ' since first pool' : age.basis === 'detected' ? ' since detected' : ''} · liq ${usd(r.liquidityUsd)} · vol ${usd(r.volume24hUsd)}` }),
-        riskBadge(r),
-      );
+      const st = r.risk?.status ?? 'unknown';
+      const edge = st === 'high' || st === 'restricted' ? 'bad' : st === 'elevated' ? 'warn' : 'plain';
+      const b = el('button', { class: `wapp__tokencard wapp__tokencard--${edge}`, attrs: { type: 'button', 'aria-label': `${r.symbol} on ${CHAINS[r.ref.chain].name}: open details` } });
+      const head = el('div', { class: 'wapp__tokencard-head' }, [
+        tokenAvatar(r),
+        el('span', { class: 'wapp__tokencard-name' }, [el('strong', { text: r.symbol }), el('small', { text: r.name || 'No name given' })]),
+      ]);
+      const meta = el('div', { class: 'wapp__tokencard-meta' }, [el('span', { class: 'wapp__tokencard-chain', text: CHAINS[r.ref.chain].name }), riskBadge(r)]);
+      const stats = el('dl', { class: 'wapp__tokencard-stats' }, [
+        statCell(age.basis === 'detected' ? 'Seen' : 'Pool age', age.ms === null ? 'Unknown' : ageText(age.ms)),
+        statCell('Liquidity', usd(r.liquidityUsd)),
+        statCell('24h volume', usd(r.volume24hUsd)),
+        statCell('Holders', r.holderCount === null ? 'Not known' : String(r.holderCount)),
+      ]);
+      const foot = el('div', { class: 'wapp__tokencard-foot', text: `${r.pools[0]?.venue ?? 'No pool'} · ${short(r.ref.address)}${collision ? ' · name shared with other tokens' : ''}` });
+      b.append(head, meta, stats, foot);
       b.addEventListener('click', () => {
         selected = r;
         draw();
@@ -1019,15 +1046,24 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         select('Sort', f.sort, [['newest', 'Newest'], ['liquidity', 'Most liquidity'], ['volume', 'Most volume']], (v) => { f.sort = v; reload(); }),
       );
       card.append(filters);
+      const hide = el('input', { attrs: { type: 'checkbox', id: `hide-risky-${mode}` } });
+      hide.checked = f.hideRisky;
+      hide.addEventListener('change', () => {
+        f.hideRisky = hide.checked;
+        reload();
+      });
+      card.append(el('label', { class: 'wapp__row-actions wapp__fine', attrs: { for: `hide-risky-${mode}` } }, [hide, el('span', { text: 'Hide risky tokens (rated High risk or Restricted). Abusive names are always hidden.' })]));
       if (error) card.append(banner('warn', error));
       else if (loading) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
       else if (tokens === null && hits === null) card.append(el('p', { class: 'wapp__fine', text: 'Choose filters or search to load tokens.' }));
       else {
-        const list = el('div', { class: 'wapp__stack' });
         const rows = hits ?? (tokens ?? []).map((record) => ({ record, symbolCollision: false }));
-        if (rows.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens match. Nothing has been detected with these filters yet.' }));
-        for (const { record, symbolCollision } of rows) list.append(row(record, symbolCollision));
-        card.append(list);
+        if (rows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'No tokens match. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'No tokens match. Nothing has been detected with these filters yet.' }));
+        else {
+          const grid = el('div', { class: 'wapp__tokengrid' });
+          for (const { record, symbolCollision } of rows) grid.append(row(record, symbolCollision));
+          card.append(grid);
+        }
       }
       target.append(card);
       if (selected) target.append(detail(selected));

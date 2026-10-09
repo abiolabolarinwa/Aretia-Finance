@@ -9,6 +9,7 @@ import { ageInfo } from '../tokens/registry.js';
 import { RISK_LABELS } from '../tokens/risk.js';
 import type { ChainId, TokenRecord } from '../core/types.js';
 import type { MarketRow } from './types.js';
+import { isFresh, rowNumbers } from './snapshot.js';
 
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : v;
@@ -17,6 +18,15 @@ const num = (v: unknown): number | null => {
 
 /** One registry token as a row, using DexScreener's pairs for it when there are any. Pure. */
 export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): MarketRow {
+  // Aretia's own fresh snapshot wins: no outside request was needed for it.
+  if (isFresh(r.market, now)) {
+    const st = r.risk?.status ?? 'unknown';
+    const nums = rowNumbers(r.market, r.firstPoolAt, now);
+    return {
+      chain: r.ref.chain, address: r.ref.address, symbol: r.symbol, quoteSymbol: '', name: r.name, icon: r.logo, decimals: r.decimals,
+      ...nums, ageMs: nums.ageMs ?? ageInfo(r, now).ms, traders24h: null, risk: { status: st, label: RISK_LABELS[st], score: r.risk?.score ?? null }, fresh: true,
+    };
+  }
   const chosen = chooseDexPair(r.ref.chain, r.ref.address, pairs);
   const p: DexPair | null = chosen?.isBase ? chosen.p : null;
   const age = ageInfo(r, now);
@@ -49,7 +59,9 @@ export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): Mark
 /** Adds market numbers to registry tokens, 30 tokens per DexScreener request. A failing request leaves those rows plain. */
 export async function rowsFromRecords(records: readonly TokenRecord[], fetchImpl: typeof fetch = (...a) => fetch(...a), now: () => number = Date.now): Promise<MarketRow[]> {
   const byChain = new Map<ChainId, TokenRecord[]>();
-  for (const r of records) byChain.set(r.ref.chain, [...(byChain.get(r.ref.chain) ?? []), r]);
+  const stamp = now();
+  // Only tokens without a fresh snapshot of Aretia's own are looked up outside.
+  for (const r of records.filter((x) => !isFresh(x.market, stamp))) byChain.set(r.ref.chain, [...(byChain.get(r.ref.chain) ?? []), r]);
   const pairsFor = new Map<string, unknown[]>();
   await Promise.all(
     [...byChain].flatMap(([chain, list]) =>

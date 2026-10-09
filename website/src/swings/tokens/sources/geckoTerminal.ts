@@ -7,6 +7,7 @@
 import { normalizeTokenRef } from '../../core/token.js';
 import type { ChainId } from '../../core/types.js';
 import type { TokenCandidate } from '../registry.js';
+import { marketFromAttributes } from '../../market/snapshot.js';
 import type { DiscoveryBatch, DiscoverySource } from '../discovery.js';
 
 const NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avax' };
@@ -56,6 +57,7 @@ export function parseNewPools(chain: ChainId, json: unknown): { candidates: Toke
       pool: { venue: String(obj(obj(rel?.dex)?.data)?.id ?? 'unknown'), address: a.address },
       liquidityUsd: num(a.reserve_in_usd),
       volume24hUsd: num(obj(a.volume_usd)?.h24),
+      market: marketFromAttributes(a, a.address, Date.now()),
       source: 'geckoterminal:new_pools',
     });
     const iso = new Date(created).toISOString();

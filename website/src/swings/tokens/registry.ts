@@ -7,7 +7,7 @@
  */
 import { isOffensive, isUnsafeName } from './safeText.js';
 import { normalizeTokenRef, tokenKey } from '../core/token.js';
-import type { ChainId, RiskStatus, TokenRecord, TokenRef, TokenRisk } from '../core/types.js';
+import type { ChainId, RiskStatus, TokenMarket, TokenRecord, TokenRef, TokenRisk } from '../core/types.js';
 
 /** The same record with an abusive name and its picture removed. */
 export function maskIfOffensive(r: TokenRecord): TokenRecord {
@@ -36,6 +36,8 @@ export interface TokenRepository {
   searchText(query: string, limit: number): Promise<TokenRecord[]>;
   /** Candidates for the New Tokens list. Filtering by age/risk is applied by the service. */
   listRecent(chain: ChainId | undefined, limit: number): Promise<TokenRecord[]>;
+  /** Tokens whose snapshot is oldest (or missing), first detected after `since`, for the refresh job. */
+  listForMarketRefresh?(chain: ChainId, since: number, limit: number): Promise<TokenRecord[]>;
   getCursor(source: string): Promise<string | null>;
   setCursor(source: string, cursor: string): Promise<void>;
 }
@@ -53,6 +55,8 @@ export interface TokenCandidate {
   liquidityUsd?: number | null;
   volume24hUsd?: number | null;
   holderCount?: number | null;
+  /** Market numbers read with the pool, kept as the token's snapshot. */
+  market?: TokenMarket | null;
   source: string;
   /** True when decimals/name came from the chain itself rather than an API. */
   onchain?: boolean;
@@ -139,10 +143,17 @@ export class TokenRegistryService {
       verified: existing?.verified ?? false,
       metadataConfidence: candidate.onchain || existing?.metadataConfidence === 'onchain' ? 'onchain' : decimals !== null ? 'api' : (existing?.metadataConfidence ?? 'unknown'),
       risk: existing?.risk ?? null,
+      market: candidate.market ?? existing?.market ?? null,
       updatedAt: now,
     };
     await this.repo.upsert(record);
     return record;
+  }
+
+  /** Stores a fresh market snapshot on an existing record. */
+  async setMarket(ref: TokenRef, market: TokenMarket): Promise<void> {
+    const r = await this.repo.get(ref);
+    if (r) await this.repo.upsert({ ...r, market, volume24hUsd: market.volume24hUsd ?? r.volume24hUsd, liquidityUsd: market.liquidityUsd ?? r.liquidityUsd, updatedAt: this.now() });
   }
 
   /** Stores a risk assessment (and any contract facts) on an existing record. */
@@ -216,6 +227,9 @@ export class InMemoryTokenRepository implements TokenRepository {
   async searchText(query: string, limit: number): Promise<TokenRecord[]> {
     const q = query.toLowerCase();
     return [...this.rows.values()].filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)).slice(0, limit);
+  }
+  async listForMarketRefresh(chain: ChainId, since: number, limit: number): Promise<TokenRecord[]> {
+    return [...this.rows.values()].filter((r) => r.ref.chain === chain && r.firstDetectedAt >= since).sort((a, b) => (a.market?.at ?? 0) - (b.market?.at ?? 0)).slice(0, limit);
   }
   async listRecent(chain: ChainId | undefined, limit: number): Promise<TokenRecord[]> {
     return [...this.rows.values()].filter((r) => !chain || r.ref.chain === chain).sort((a, b) => b.firstDetectedAt - a.firstDetectedAt).slice(0, limit);

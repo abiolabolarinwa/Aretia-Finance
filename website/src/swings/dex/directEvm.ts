@@ -67,6 +67,8 @@ interface DirectRaw {
   v3split?: { fee: number; amountIn: bigint; minOut: bigint }[];
   nativeIn: boolean;
   nativeOut: boolean;
+  /** V2 only: the share (in basis points) the token itself keeps of every buy, measured on the chain. Zero or absent: none. */
+  taxBps?: number;
   /** Launchpad only: the token on the curve and whether the user is buying it. */
   launch?: { token: string; buying: boolean; ref?: string };
   block: string;
@@ -89,6 +91,10 @@ interface Candidate {
   impactBps: number | null;
   reasons: string[];
 }
+
+/** The 20-minute deadline and the gas allowance used when a buy is measured. */
+const PROBE_GAS = '0x1e8480';
+const TAX_CACHE_MS = 5 * 60_000;
 
 const isNative = (t: TokenRef): boolean => t.address.toLowerCase() === EVM_NATIVE_ADDRESS;
 
@@ -148,20 +154,34 @@ export class DirectEvmProvider implements DexProvider {
     candidates.sort((a, b) => (a.amountOut !== b.amountOut ? (a.amountOut > b.amountOut ? -1 : 1) : a.path.length - b.path.length));
     const best = candidates[0]!;
     const comparison = candidates.map((c) => `${this.deps.registry.get(c.entryId)?.name ?? c.entryId} (${c.kind.toUpperCase()}, ${c.path.length - 1} hop${c.path.length === 2 ? '' : 's'}) pays ${c.amountOut}`).join('; ');
-    const minOut = (best.amountOut * BigInt(10_000 - request.slippageBps)) / 10_000n;
+    // A token that keeps part of every transfer delivers less than the router's price: quote what really arrives.
+    let expectedOut = best.amountOut;
+    let taxBps = 0;
+    const notes: string[] = [];
+    const buyEntry = best.kind === 'v2' && nativeIn ? this.deps.registry.get(best.entryId) : undefined;
+    if (buyEntry && !hubs.includes(tokenOut.address)) {
+      const ratio = await this.arrivalRatioBps(buyEntry, { path: best.path }, amountIn, best.amountOut, request.account.address.toLowerCase(), read).catch(() => null);
+      if (ratio !== null && ratio < 9_950) {
+        taxBps = 10_000 - ratio;
+        expectedOut = (best.amountOut * BigInt(ratio)) / 10_000n;
+        notes.push(`This token keeps about ${(taxBps / 100).toFixed(1)}% of every trade as its own fee. The amount shown is what you will actually receive after it.`);
+      }
+    }
+    const minOut = (expectedOut * BigInt(10_000 - request.slippageBps)) / 10_000n;
     if (minOut <= 0n) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
     const fetchedAt = this.now();
     const slip = BigInt(request.slippageBps);
     const v3split = best.v3split?.map((l) => ({ fee: l.fee, amountIn: l.amountIn, minOut: (l.out * (10_000n - slip)) / 10_000n }));
     if (v3split?.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
-    const raw: DirectRaw = { kind: best.kind, ...(best.v4 ? { v4: best.v4 } : {}), ...(best.launch ? { launch: best.launch } : {}), entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, ...(v3split ? { v3split } : {}), nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
+    const raw: DirectRaw = { kind: best.kind, ...(best.v4 ? { v4: best.v4 } : {}), ...(best.launch ? { launch: best.launch } : {}), entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, ...(v3split ? { v3split } : {}), nativeIn, nativeOut, ...(taxBps > 0 ? { taxBps } : {}), block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
     const venueName = this.deps.registry.get(best.entryId)?.name ?? best.entryId;
     return {
       id: `aretia:${chain}:${fetchedAt}:${best.path[0]!.slice(2, 8)}:${best.path[best.path.length - 1]!.slice(2, 8)}`,
       providerId: this.id,
       request: { ...request, from, to },
       inAmount: amountIn,
-      expectedOut: best.amountOut,
+      expectedOut,
+      ...(notes.length > 0 ? { notes } : {}),
       minOut,
       priceImpactBps: best.impactBps,
       route: { legs: best.v3split ? best.v3split.map((l) => ({ venue: `${venueName} ${l.fee / 10_000}%`, from: { chain, address: best.path[0]! }, to: { chain, address: best.path[1]! }, shareBps: Number((l.amountIn * 10_000n) / amountIn) })) : best.path.slice(0, -1).map((token, i) => ({ venue: venueName, from: { chain, address: token }, to: { chain, address: best.path[i + 1]! }, shareBps: 10_000 })) },
@@ -338,6 +358,38 @@ export class DirectEvmProvider implements DexProvider {
   }
 
   /** The trade divided between the two best fee tiers of the pair, each priced by the quoter; null unless it beats the single pool by enough. */
+  private readonly taxCache = new Map<string, { at: number; ratioBps: number | null }>();
+
+  /**
+   * How much of a buy actually arrives, measured by running the exact swap on the node and reading the balance after it
+   * (a trade simulation). A token that takes a fee on every transfer delivers less than the router's price says, and the
+   * quote must show what really arrives. Null when the node cannot simulate; the quote is then unchanged.
+   */
+  private async arrivalRatioBps(entry: DexEntry, raw: { path: string[] }, amountIn: bigint, expectedOut: bigint, taker: string, read: EvmRead): Promise<number | null> {
+    const token = raw.path[raw.path.length - 1]!;
+    const key = `${entry.chain}:${token}`;
+    const hit = this.taxCache.get(key);
+    if (hit && this.now() - hit.at < TAX_CACHE_MS) return hit.ratioBps;
+    let ratioBps: number | null = null;
+    try {
+      const plan = buildV2Swap(entry, { path: raw.path, amountIn, minOut: 1n, recipient: taker, deadline: Math.floor(this.now() / 1000) + DEADLINE_SECONDS, nativeIn: true, nativeOut: false, feeOnTransfer: true }, Math.floor(this.now() / 1000));
+      const balanceOf = '0x70a08231' + taker.slice(2).toLowerCase().padStart(64, '0');
+      const res = (await read('eth_simulateV1', [
+        { blockStateCalls: [{ stateOverrides: { [taker]: { balance: '0x' + (amountIn * 4n + 10n ** 18n).toString(16) } }, calls: [{ from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16), gas: PROBE_GAS }, { to: token, data: balanceOf }] }], validation: false },
+        'latest',
+      ])) as { calls?: { status?: string; returnData?: string }[] }[];
+      const calls = res?.[0]?.calls;
+      if (calls?.[0]?.status === '0x1' && typeof calls[1]?.returnData === 'string' && expectedOut > 0n) {
+        const arrived = BigInt(calls[1].returnData);
+        ratioBps = Number(arrived >= expectedOut ? 10_000n : (arrived * 10_000n) / expectedOut);
+      }
+    } catch {
+      ratioBps = null;
+    }
+    this.taxCache.set(key, { at: this.now(), ratioBps });
+    return ratioBps;
+  }
+
   private async v3Split(adapter: EvmV3Adapter, entry: DexEntry, route: V3Route, amountIn: bigint, head: bigint): Promise<Candidate | null> {
     const [a, b] = [route.tokens[0]!, route.tokens[1]!];
     const tiers = await adapter.tierQuotes(a, b, amountIn, head);
@@ -428,7 +480,8 @@ export class DirectEvmProvider implements DexProvider {
         ? buildSlipstreamSwap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : raw.kind === 'v3'
         ? buildV3Swap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
-        : buildV2Swap(entry, { path: raw.path, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000));
+        : // The fee-on-transfer router calls check what the buyer actually receives, so they are right for every token and the only ones that work for a token that keeps a fee.
+          buildV2Swap(entry, { path: raw.path, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, feeOnTransfer: true }, Math.floor(this.now() / 1000));
 
     // 1. Ask the venue itself what it would pay right now. This is the check that Aretia's numbers and the chain agree.
     let venueOut: bigint | null;
@@ -457,8 +510,10 @@ export class DirectEvmProvider implements DexProvider {
     if (venueOut === null) blockers.push(`${entry.name} could not price this route right now.`);
     else {
       if (venueOut < quote.minOut) blockers.push('The price has moved since the quote: the venue would now pay less than your minimum. Get a new quote.');
-      const diff = venueOut > quote.expectedOut ? venueOut - quote.expectedOut : quote.expectedOut - venueOut;
-      if (quote.expectedOut > 0n && (diff * 10_000n) / quote.expectedOut > MAX_DISAGREEMENT_BPS && venueOut >= quote.minOut) {
+      // The router prices before the token's own fee, the quote after it: compare like with like.
+      const expectedAtVenue = raw.taxBps ? (quote.expectedOut * 10_000n) / BigInt(10_000 - raw.taxBps) : quote.expectedOut;
+      const diff = venueOut > expectedAtVenue ? venueOut - expectedAtVenue : expectedAtVenue - venueOut;
+      if (expectedAtVenue > 0n && (diff * 10_000n) / expectedAtVenue > MAX_DISAGREEMENT_BPS && venueOut >= quote.minOut) {
         warnings.push(`The venue's price differs from the quote by ${Number((diff * 10_000n) / quote.expectedOut) / 100}%; the minimum you set still protects you.`);
       }
     }

@@ -873,7 +873,8 @@ const buyTips = [
   /* ---- Swap opened over the page it was started from ---- */
   .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }
   .wapp-swapdlg[hidden] { display: none; }
-  .wapp-swapdlg__box { position: relative; box-sizing: border-box; width: min(1180px, 100%); padding: 18px; background: var(--color-bg-alt); border-radius: var(--radius-xl); box-shadow: 0 24px 80px rgba(10, 6, 50, 0.35); }
+  .wapp-swapdlg__box { position: relative; box-sizing: border-box; width: min(560px, 100%); padding: 18px; background: var(--color-bg-alt); border-radius: var(--radius-xl); box-shadow: 0 24px 80px rgba(10, 6, 50, 0.35); }
+  .wapp-swapdlg .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); }
   .wapp-swapdlg__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .wapp-swapdlg__bar h2 { margin: 0; font-size: 1.15rem; color: var(--color-strong); }
   .wapp-swapdlg__close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font: inherit; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }

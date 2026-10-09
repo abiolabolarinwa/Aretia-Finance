@@ -477,7 +477,7 @@ export class DirectEvmProvider implements DexProvider {
         if (allowance < quote.inAmount) {
           needsApproval = true;
           approval = { tx: { from: taker, to: token, data: encodeApprove(spender, quote.inAmount) }, token, spender, amount: quote.inAmount };
-          warnings.push('This swap needs a one-time approval for exactly the amount you are selling. Your wallet will ask twice: approval first, then the swap.');
+          warnings.push('This swap needs a one-time approval for exactly the amount you are selling. A wallet that can batch asks you once; otherwise it asks for the approval first, then the swap.');
         }
       } catch {
         blockers.push('Your token balance could not be read, so the swap could not be checked.');
@@ -548,7 +548,7 @@ export class DirectEvmProvider implements DexProvider {
     }
 
     const fee = feePlan.state === 'ready' ? evmFeeTransfer(taker, raw.nativeIn ? EVM_NATIVE_ADDRESS : raw.path[0]!, feePlan.fee, feePlan.treasury) : null;
-    if (fee) warnings.push('The Aretia fee of 0.29% is sent first as its own transaction, then the swap. Your wallet will ask for each.');
+    if (fee) warnings.push('The Aretia fee of 0.29% travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step.');
     const payload: EvmSwapPayload = { chainId: info.evmChainId, taker, approval, ...(permit2 ? { permit2 } : {}), ...(fee ? { fee } : {}), swap: { from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16) } };
     return { quoteId: quote.id, chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }

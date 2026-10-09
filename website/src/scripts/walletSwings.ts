@@ -257,6 +257,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     /** The safety assessment of the token being bought, keyed so a slow answer for an old token is ignored. */
     safety: { key: '', loading: false, risk: null as TokenRisk | null, acknowledged: false },
     seq: 0,
+    /** When the price on screen was read, and when its transaction was last built and checked (ms). */
+    quotedAt: 0,
+    preparedAt: 0,
   };
 
   const accountFor = (chain: ChainId): string | null => (isEvm(chain) ? evm.account : host.getAddress());
@@ -294,6 +297,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     resetQuote();
     if (side === 'to') void loadSafety(chain, checked.mint);
     render();
+    scheduleAuto();
   }
 
   /** Assesses the token being bought, in the page, against the chain. A slow answer for a token no longer chosen is dropped. */
@@ -398,17 +402,40 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     return BigInt(held.raw.split('.')[0]!) < amountIn ? `You hold less ${s.from!.symbol} than that.` : null;
   }
 
-  async function getQuote(): Promise<void> {
+  /** A price this old is read again before anything is signed. */
+  const FRESH_MS = 8_000;
+  /** While the swap is on screen the price is read again this often, quietly. */
+  const REFRESH_MS = 6_000;
+  let swapBusy = false;
+  let autoTimer: ReturnType<typeof setTimeout> | undefined;
+  let detailsOpen = false;
+
+  /** Starts reading the price shortly after the person stops changing something, so nobody has to ask for one. */
+  function scheduleAuto(): void {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      if (s.from && s.to && s.from.mint !== s.to.mint && rawAmount() !== null && accountFor(s.chain) && s.phase === 'idle' && !s.error) void getQuote();
+    }, 450);
+  }
+
+  /**
+   * Reads the best price and checks the transaction for it, so the Swap button is ready the moment it is wanted.
+   * `silent` keeps what is on screen until the new price is ready, and drops a failure without a word: a quiet refresh
+   * must never blank the screen or show an error for a price nobody asked about.
+   */
+  async function getQuote(silent = false): Promise<void> {
     const address = accountFor(s.chain);
     const amountIn = rawAmount();
-    if (!address || !s.from || !s.to || amountIn === null) return;
+    if (!address || !s.from || !s.to || amountIn === null || s.from.mint === s.to.mint) return;
     const mySeq = ++s.seq;
-    s.phase = 'quoting';
-    s.error = null;
-    s.prepared = null;
-    s.execution = null;
-    s.extraBlockers = [];
-    render();
+    if (!silent || !s.quote) {
+      s.phase = 'quoting';
+      s.error = null;
+      s.prepared = null;
+      s.execution = null;
+      s.extraBlockers = [];
+      render();
+    }
     try {
       const chain = s.chain;
       if (isEvm(chain)) {
@@ -428,21 +455,26 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         ...(s.protect && chain === 'solana' && runtime.protectedSubmit ? { execution: { protect: true } } : {}),
       });
       if (mySeq !== s.seq) return;
-      s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
       // Protected sending only exists on Aretia's own Solana routes. Other providers' routes would go the normal way,
       // so while it is on they are not offered at all: it must never look protected when it is not.
       const protectedOnly = s.protect && chain === 'solana' && runtime.protectedSubmit;
       const routes = protectedOnly ? search.routes.filter((r) => r.providerId === 'aretia-sol') : search.routes;
       const best = routes[0];
       if (!best) {
+        if (silent && s.quote) return;
+        s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
         s.phase = 'idle';
-        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : `No executable route was found.${search.rejected.length ? ' ' + search.rejected.flatMap((r) => r.reasons).join(' ') : ''}`;
+        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : 'No route was found for this swap. Try a different amount or token.';
         return render();
       }
-      s.quote = best;
-      s.alternatives = routes.slice(1);
-      s.phase = 'quoted';
-      render();
+      s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
+      // A quiet refresh keeps the old price and its checked transaction on screen, and swaps both for the new pair at once,
+      // so a click can never meet a price whose transaction is not ready.
+      if (!silent || !s.quote) {
+        s.quote = best;
+        s.alternatives = routes.slice(1);
+        s.quotedAt = Date.now();
+      }
       if (best.providerId === 'jupiter') {
         // Jupiter's own figure is unreliable for thin tokens, so the page measures it against a smaller trade.
         void fetchSizeImpact(s.from.mint, s.to.mint, best.raw as JupiterQuote)
@@ -457,22 +489,23 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         // Aretia's own router measures it itself while pricing the route.
         s.sizeImpact = best.priceImpactBps === null ? null : best.priceImpactBps / 10_000;
       }
+      await prepareQuote(mySeq, best, silent, routes.slice(1));
     } catch (e) {
       if (mySeq !== s.seq) return;
+      if (silent && s.quote) return;
       s.phase = 'idle';
       s.error = e instanceof SwingsError ? e.message : 'The quote could not be fetched. Try again in a moment.';
       render();
     }
   }
 
-  async function review(): Promise<void> {
-    if (!s.quote) return;
-    const mySeq = s.seq;
-    const quote = s.quote;
-    // Swaps are open to every connected wallet. (The first-group list still guards USDC moves and plans.)
-    s.phase = 'preparing';
-    s.error = null;
-    render();
+  /** Builds and checks the transaction for a price already read, so a click on Swap goes straight to the wallet. */
+  async function prepareQuote(mySeq: number, quote: Quote, silent: boolean, alternatives: Quote[] = s.alternatives): Promise<void> {
+    if (!silent) {
+      s.phase = 'preparing';
+      s.error = null;
+      render();
+    }
     try {
       const prepared = await router.buildTransaction(quote);
       if (mySeq !== s.seq) return;
@@ -482,14 +515,42 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         const problem = evmGasProblem({ nativeBalance: native, networkFee: quote.costs.network?.amount ?? null, sellsNative: s.from.mint === EVM_NATIVE_ADDRESS, amountIn: quote.inAmount, nativeSymbol: CHAINS[quote.request.chain].nativeSymbol });
         if (problem) s.extraBlockers.push(problem);
       }
+      s.quote = quote;
+      s.alternatives = alternatives;
+      s.quotedAt = Date.now();
       s.prepared = prepared;
+      s.preparedAt = Date.now();
+      s.error = null;
       s.phase = 'review';
     } catch (e) {
       if (mySeq !== s.seq) return;
+      if (silent && s.prepared) return;
       s.phase = 'quoted';
       s.error = e instanceof SwingsError ? e.message : 'The swap could not be prepared. Nothing was sent.';
     }
     render();
+  }
+
+  /** Prepares the route on screen again (used when another route is chosen). */
+  async function review(): Promise<void> {
+    if (s.quote) await prepareQuote(s.seq, s.quote, false);
+  }
+
+  /**
+   * The one button: if the price and the checked transaction are fresh it goes straight to the wallet; if they are older
+   * than a few seconds they are read again first, quietly, and the wallet is asked with the new price. Nobody is made to
+   * ask for a new quote, and the minimum received still protects against a move in the last moments.
+   */
+  async function swapNow(): Promise<void> {
+    if (swapBusy) return;
+    swapBusy = true;
+    try {
+      const stale = !s.quote || !s.prepared || Date.now() - s.preparedAt > FRESH_MS || expiryLabel(s.quote).expired;
+      if (stale) await getQuote(true);
+      if (s.phase === 'review' && s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck()) await confirm();
+    } finally {
+      swapBusy = false;
+    }
   }
 
   function record(execution: SwapExecution, quote: Quote): void {
@@ -777,14 +838,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     // Laid out like the Trade tab: the network on top, then the swap on the left and the chart on the right.
     const card = swapCard;
     card.replaceChildren();
-    for (const old of [...swapSide.children]) if (old !== swapChartCard) old.remove();
-    // The swap sits in the left column; what the route costs and checks sits in the right one, above the chart,
-    // so the buttons stay in view while the details are read.
-    let detailsCard: HTMLElement | null = null;
-    const place = (): void => {
-      if (detailsCard && detailsCard.childElementCount > 0) swapSide.prepend(detailsCard);
-    };
-
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
     // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
     // coin elsewhere). A native EVM coin is charted through its wrapped token.
@@ -807,7 +860,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
 
     if (!isChainEnabled(s.chain)) {
       card.append(banner('warn', `${info.name} swaps are switched off at the moment, either by the operator or because the page could not reach its settings. Nothing on this network can be traded from this page right now. Reload to check again.`));
-      place();
       return;
     }
     // A wallet already connected in the sidebar is reused here without asking again; only when it has not shared an
@@ -828,11 +880,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         card.append(banner('info', 'Connect a Solana wallet to get a quote. Aretia never holds your keys.'), connect);
       }
       if (s.error) card.append(banner('warn', s.error));
-      place();
       return;
     }
 
-    card.append(banner('info', `Same-chain swap on ${info.name}. Cross-chain swaps are not available yet.`));
     const amount = el('input', { class: 'wapp__swap-amount', attrs: { inputmode: 'decimal', placeholder: '0.0', autocomplete: 'off', 'aria-label': 'Amount to pay' } });
     amount.value = s.amount;
     amount.addEventListener('input', () => {
@@ -840,8 +890,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       if (s.phase !== 'idle') {
         resetQuote();
         render();
-        amount.focus();
       } else updateActions();
+      scheduleAuto();
     });
     card.append(
       el('div', { class: 'wapp__swap-box' }, [
@@ -862,48 +912,24 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       render();
     });
     card.append(flip);
-    // The estimate fills in once a quote has been fetched.
-    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? shortAmount(fromSmallestUnit(s.quote.expectedOut, s.to.decimals)) : '0.0';
+    // The amount to receive fills in by itself as soon as a price is read.
+    const reading = s.phase === 'quoting' && rawAmount() !== null;
+    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? shortAmount(fromSmallestUnit(s.quote.expectedOut, s.to.decimals)) : reading ? '…' : '0.0';
     card.append(
       el('div', { class: 'wapp__swap-box' }, [
-        el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive (estimate)' }), tokenNote('to')]),
+        el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive' }), tokenNote('to')]),
         el('div', { class: 'wapp__swap-main' }, [tokenButton('to'), el('output', { class: 'wapp__swap-out', text: estimate })]),
       ]),
     );
     card.append(el('div', { attrs: { 'data-sw-picker': '' } }));
 
-    const slip = el('div', { class: 'wapp__slip', attrs: { role: 'group', 'aria-label': 'Slippage' } });
-    slip.append(el('span', { class: 'wapp__eyebrow', text: 'Slippage' }));
-    for (const bps of SLIPPAGE_PRESETS_BPS) {
-      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${bps / 100}%`, attrs: { type: 'button', 'aria-pressed': String(s.slippageBps === bps) } });
-      b.addEventListener('click', () => {
-        s.slippageBps = bps;
-        s.slippageTouched = true;
-        resetQuote();
-        render();
-      });
-      slip.append(b);
+    // What needs a decision, or stops the swap, stays in view. Everything else is in the Details beneath.
+    const ready = s.quote && s.phase !== 'idle' && s.phase !== 'quoting';
+    if (ready && safetyNeedsAck()) {
+      const safety = safetyBlock();
+      if (safety) card.append(safety);
     }
-    card.append(slip);
-    if (s.chain === 'solana' && runtime.protectedSubmit) {
-      const label = el('label', { class: 'wapp__fine' });
-      const box = el('input', { attrs: { type: 'checkbox' } });
-      box.checked = s.protect;
-      box.addEventListener('change', () => {
-        s.protect = box.checked;
-        resetQuote();
-        render();
-      });
-      label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
-      card.append(label);
-    }
-
-    const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
-    card.append(actions);
-    if (s.error) card.append(banner('warn', s.error));
-    if (s.notice) card.append(banner('info', s.notice));
-    const details = el('div', { class: 'wapp__card wapp__swap-details' });
-    detailsCard = details;
+    if (ready && s.prepared) for (const b of [...s.prepared.simulation.blockers, ...s.extraBlockers]) card.append(banner('warn', b));
     // The best route failed its checks. Another one may exist, but it is only offered, never used automatically.
     if (s.phase === 'quoted' && s.error && s.quote && s.alternatives.length > 0) {
       const alt = s.alternatives[0]!;
@@ -918,41 +944,76 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         void review();
       });
       offer.append(use);
-      details.append(offer);
+      card.append(offer);
     }
-    for (const f of s.failures) details.append(el('p', { class: 'wapp__fine', text: `A provider did not answer (${f}).${s.quote ? ' Other routes were used.' : ''}` }));
 
-    if (s.quote && s.phase !== 'idle' && s.phase !== 'quoting') {
-      const q = s.quote;
-      details.append(el('span', { class: 'wapp__eyebrow', text: s.phase === 'review' || s.phase === 'signing' || s.phase === 'tracking' || s.phase === 'done' ? 'Final review' : 'Best route found' }));
-      details.append(summaryRows(q));
-      const safety = safetyBlock();
-      if (safety) details.append(safety);
-      const exp = expiryLabel(q);
-      details.append(el('p', { class: 'wapp__fine', text: exp.text, attrs: { 'data-sw-expiry': '' } }));
-      if (s.alternatives.length > 0) {
-        const more = el('details', { class: 'wapp__more' }, [el('summary', { text: `${s.alternatives.length} other route${s.alternatives.length === 1 ? '' : 's'}` })]);
-        for (const alt of s.alternatives) more.append(el('p', { class: 'wapp__fine', text: `${providerLabel(alt.providerId)}: ${fromSmallestUnit(alt.expectedOut, s.to!.decimals)} ${s.to!.symbol}` }));
-        details.append(more);
-      }
-      const mev = assessMevExposure(q.request.slippageBps, s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000));
-      if (mev.level !== 'low') details.append(banner('warn', mev.note));
-      if (s.prepared) {
-        for (const b of [...s.prepared.simulation.blockers, ...s.extraBlockers]) details.append(banner('warn', b));
-        for (const w of s.prepared.simulation.warnings) details.append(banner('info', w));
-        if (s.prepared.simulation.ok && s.extraBlockers.length === 0 && (s.phase === 'review' || s.phase === 'signing')) details.append(banner('ok', 'The swap passed its pre-send checks. This is not a guarantee: prices can move before it lands, and the minimum above is the least you will accept.'));
-      }
-      for (const n of summarizeQuote(q).notes) if (!n.startsWith('No Aretia fee')) details.append(el('p', { class: 'wapp__fine', text: n }));
-    }
+    const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
+    card.append(actions);
+    if (s.error) card.append(banner('warn', s.error));
+    if (s.notice) card.append(banner('info', s.notice));
     if (s.phase === 'tracking') card.append(banner('info', 'Sent. Waiting for the network to confirm. Do not send it again.'));
     if (s.phase === 'done' && s.execution) {
       const ex = s.execution;
-      if (ex.status === 'confirmed') card.append(banner('ok', 'Confirmed on-chain.'));
+      if (ex.status === 'confirmed') card.append(banner('ok', 'Done. Confirmed on-chain.'));
       else if (ex.status === 'failed') card.append(banner('warn', ex.error ?? 'The transaction failed on-chain. Your tokens were not swapped.'));
       else card.append(banner('info', 'Still waiting for confirmation. Check the transaction before trying again; the swap may still land.'));
       if (ex.txId) card.append(el('a', { text: 'View transaction', attrs: { href: EXPLORER_TX[ex.chain] + encodeURIComponent(ex.txId), target: '_blank', rel: 'noopener noreferrer' } }));
     }
-    place();
+
+    // The details: settings and the full account of the route, closed unless the person opens them.
+    const more = el('details', { class: 'wapp__more wapp__swap-more' }, [el('summary', { text: 'Details' })]);
+    more.open = detailsOpen;
+    more.addEventListener('toggle', () => {
+      detailsOpen = more.open;
+    });
+    more.append(banner('info', `Same-chain swap on ${info.name}. Cross-chain swaps are not available yet.`));
+    const slip = el('div', { class: 'wapp__slip', attrs: { role: 'group', 'aria-label': 'Slippage' } });
+    slip.append(el('span', { class: 'wapp__eyebrow', text: 'Slippage' }));
+    for (const bps of SLIPPAGE_PRESETS_BPS) {
+      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${bps / 100}%`, attrs: { type: 'button', 'aria-pressed': String(s.slippageBps === bps) } });
+      b.addEventListener('click', () => {
+        s.slippageBps = bps;
+        s.slippageTouched = true;
+        resetQuote();
+        render();
+        scheduleAuto();
+      });
+      slip.append(b);
+    }
+    more.append(slip);
+    if (s.chain === 'solana' && runtime.protectedSubmit) {
+      const label = el('label', { class: 'wapp__fine' });
+      const box = el('input', { attrs: { type: 'checkbox' } });
+      box.checked = s.protect;
+      box.addEventListener('change', () => {
+        s.protect = box.checked;
+        resetQuote();
+        render();
+        scheduleAuto();
+      });
+      label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
+      more.append(label);
+    }
+    for (const f of s.failures) more.append(el('p', { class: 'wapp__fine', text: `A provider did not answer (${f}).${s.quote ? ' Other routes were used.' : ''}` }));
+    if (ready && s.quote) {
+      const q = s.quote;
+      more.append(el('span', { class: 'wapp__eyebrow', text: 'The route' }));
+      more.append(summaryRows(q));
+      if (!safetyNeedsAck()) {
+        const safety = safetyBlock();
+        if (safety) more.append(safety);
+      }
+      if (s.alternatives.length > 0) {
+        const others = el('details', { class: 'wapp__more' }, [el('summary', { text: `${s.alternatives.length} other route${s.alternatives.length === 1 ? '' : 's'}` })]);
+        for (const alt of s.alternatives) others.append(el('p', { class: 'wapp__fine', text: `${providerLabel(alt.providerId)}: ${fromSmallestUnit(alt.expectedOut, s.to!.decimals)} ${s.to!.symbol}` }));
+        more.append(others);
+      }
+      const mev = assessMevExposure(q.request.slippageBps, s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000));
+      if (mev.level !== 'low') more.append(banner('warn', mev.note));
+      if (s.prepared) for (const w of s.prepared.simulation.warnings) more.append(banner('info', w));
+      for (const n of summarizeQuote(q).notes) if (!n.startsWith('No Aretia fee')) more.append(el('p', { class: 'wapp__fine', text: n }));
+    }
+    card.append(more);
     renderPicker();
     updateActions();
   }
@@ -962,47 +1023,56 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     if (!actions) return;
     actions.replaceChildren();
     const amountIn = rawAmount();
-    const btn = (label: string, handler: () => void, kind: 'primary' | 'ghost' = 'primary', disabled = false): HTMLButtonElement => {
-      const b = el('button', { class: `wapp__btn wapp__btn--${kind}`, text: label, attrs: { type: 'button' } });
+    const btn = (label: string, handler: () => void, disabled = false): HTMLButtonElement => {
+      const b = el('button', { class: 'wapp__btn wapp__btn--primary wapp__swap-go', text: label, attrs: { type: 'button' } });
       b.disabled = disabled;
       b.addEventListener('click', handler);
       return b;
     };
     const problem = s.from && s.to && s.from.mint === s.to.mint ? 'Choose two different tokens.' : amountIn !== null ? balanceProblem(amountIn) : null;
-    const expired = s.quote ? expiryLabel(s.quote).expired : false;
-    if ((s.phase === 'quoted' || s.phase === 'review') && safetyNeedsAck()) actions.append(el('span', { class: 'wapp__fine', text: 'Read the safety notes below and tick the box to continue.' }));
-    if (s.phase === 'idle' || s.phase === 'quoting') {
-      actions.append(btn(s.phase === 'quoting' ? 'Getting quotes…' : 'Get quotes', () => void getQuote(), 'primary', s.phase === 'quoting' || !s.from || !s.to || amountIn === null || problem !== null));
-      if (problem) actions.append(el('span', { class: 'wapp__fine', text: problem }));
-      else if (s.amount.trim() && amountIn === null) actions.append(el('span', { class: 'wapp__fine', text: 'Enter a valid amount.' }));
-    } else if (s.phase === 'quoted' || s.phase === 'preparing') {
-      actions.append(btn(s.phase === 'preparing' ? 'Checking…' : 'Review swap', () => void review(), 'primary', s.phase === 'preparing' || expired || safetyNeedsAck()));
-      actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'preparing'));
-    } else if (s.phase === 'review' || s.phase === 'signing') {
-      const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !expired && !safetyNeedsAck();
-      actions.append(btn(s.phase === 'signing' ? 'Waiting for your wallet…' : 'Confirm and sign in your wallet', () => void confirm(), 'primary', s.phase === 'signing' || !ok));
-      actions.append(btn('New quote', () => void getQuote(), 'ghost', s.phase === 'signing'));
-    } else if (s.phase === 'done') {
+    if (s.phase === 'done') {
       actions.append(
         btn('New swap', () => {
           resetQuote();
+          s.amount = '';
           render();
-        }, 'ghost'),
+        }),
       );
+      return;
     }
+    if (s.phase === 'signing') return void actions.append(btn('Confirm in your wallet…', () => undefined, true));
+    if (s.phase === 'tracking') return void actions.append(btn('Waiting for the network…', () => undefined, true));
+    if (s.phase === 'quoted' && s.error) return void actions.append(btn('Try again', () => void getQuote()));
+    if (s.phase === 'idle' && s.error && amountIn !== null && s.from && s.to) return void actions.append(btn('Try again', () => void getQuote()));
+    if (s.phase === 'idle' || s.phase === 'quoting' || s.phase === 'preparing') {
+      const label = !s.from || !s.to ? 'Choose the tokens' : amountIn === null ? (s.amount.trim() ? 'Enter a valid amount' : 'Enter an amount') : problem ? problem : 'Getting the best price…';
+      actions.append(btn(label, () => undefined, true));
+      return;
+    }
+    // A price is on screen and its transaction has been checked: one button.
+    const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck();
+    actions.append(btn(safetyNeedsAck() ? 'Tick the box above to continue' : 'Swap', () => void swapNow(), !ok));
   }
 
+  /** Keeps the cursor in the amount box when the screen is redrawn around it (a quiet price refresh, a result arriving). */
   function render(): void {
+    const active = document.activeElement;
+    const inAmount = active instanceof HTMLInputElement && active.classList.contains('wapp__swap-amount');
+    const caret = inAmount ? active.selectionStart : null;
     renderSwap();
+    if (inAmount) {
+      const again = swapPanel.querySelector<HTMLInputElement>('.wapp__swap-amount');
+      if (again) {
+        again.focus();
+        if (caret !== null) again.setSelectionRange(caret, caret);
+      }
+    }
     clearInterval(ticker);
-    if (s.quote && (s.phase === 'quoted' || s.phase === 'review')) {
+    // While a checked price is on screen it is read again every few seconds, so it is always current when Swap is pressed.
+    if (s.quote && s.phase === 'review') {
       ticker = setInterval(() => {
-        if (!s.quote) return;
-        const exp = expiryLabel(s.quote);
-        const node = swapPanel.querySelector<HTMLElement>('[data-sw-expiry]');
-        if (node) node.textContent = exp.text;
-        updateActions();
-        if (exp.expired) clearInterval(ticker);
+        if (s.phase !== 'review' || swapBusy || document.hidden) return;
+        if (Date.now() - s.quotedAt > REFRESH_MS) void getQuote(true);
       }, 1000);
     }
   }
@@ -1508,6 +1578,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       evmResume.tried = false;
       autoSync();
       resetQuote();
+      scheduleAuto();
       render();
       renderActivity();
     },

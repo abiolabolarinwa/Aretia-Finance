@@ -54,18 +54,34 @@ export function scanQueries(mint: string): Query[] {
   ];
 }
 
-/** Candidate pool addresses holding `mint`, at most a few per venue. A failing query gives nothing, not an error. */
-export async function scanPools(rpc: ScanRpc, mint: string): Promise<string[]> {
-  if (SKIPPED_MINTS.has(mint) || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) return [];
+export interface ScanResult {
+  pools: string[];
+  /** How many of the questions the RPC could not answer, and the first reason (never an address or key). */
+  failed: number;
+  reason: string | null;
+}
+
+/** Candidate pool addresses holding `mint`, at most a few per venue, with how many questions failed. Never throws. */
+export async function scanPoolsDetailed(rpc: ScanRpc, mint: string): Promise<ScanResult> {
+  if (SKIPPED_MINTS.has(mint) || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) return { pools: [], failed: 0, reason: null };
+  let failed = 0;
+  let reason: string | null = null;
   const found = await Promise.all(
     scanQueries(mint).map(async (q) => {
       try {
         const rows = await rpc<{ pubkey?: string }[]>('getProgramAccounts', [q.program, { encoding: 'base64', dataSlice: { offset: 0, length: 0 }, filters: q.filters }]);
         return Array.isArray(rows) ? rows.map((r) => r.pubkey).filter((p): p is string => typeof p === 'string').slice(0, MAX_PER_VENUE) : [];
-      } catch {
+      } catch (e) {
+        failed++;
+        reason ??= (e instanceof Error ? e.message : 'failed').replace(/https?:\/\/\S+/g, '[url]').slice(0, 80);
         return [];
       }
     }),
   );
-  return [...new Set(found.flat())];
+  return { pools: [...new Set(found.flat())], failed, reason };
+}
+
+/** Candidate pool addresses holding `mint`. A failing query gives nothing, not an error. */
+export async function scanPools(rpc: ScanRpc, mint: string): Promise<string[]> {
+  return (await scanPoolsDetailed(rpc, mint)).pools;
 }

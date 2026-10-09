@@ -4,7 +4,7 @@
  * the swap code verifies each one on-chain before using it. Answers are kept for ten minutes per token.
  */
 import { isOriginAllowed, overLimit } from './_rpcProxy.js';
-import { scanPools, type ScanRpc } from '../src/swings/solana/poolScan.js';
+import { scanPoolsDetailed, type ScanRpc } from '../src/swings/solana/poolScan.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const KEEP_MS = 10 * 60_000;
@@ -33,17 +33,26 @@ export async function handlePools(input: TokensInput): Promise<TokensOutput> {
   const hit = cache.get(mint);
   if (hit && input.now - hit.at < KEEP_MS) return json(200, { pools: hit.pools, cached: true }, headers);
   if (overLimit(`pools:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
-  const url = input.env.SOLANA_RPC_URL?.trim() || SCAN_FALLBACK_RPC;
-  const rpc: ScanRpc = async <T>(method: string, params: unknown[]): Promise<T> => {
+  const rpcFor = (url: string): ScanRpc => async <T>(method: string, params: unknown[]): Promise<T> => {
     const res = await input.fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
     if (!res.ok) throw new Error(`RPC answered ${res.status}`);
-    const out = (await res.json()) as { result?: T };
-    if (out.result === undefined) throw new Error('RPC error');
+    const out = (await res.json()) as { result?: T; error?: { message?: string } };
+    if (out.result === undefined) throw new Error(`RPC error: ${out.error?.message ?? 'no result'}`);
     return out.result;
   };
-  const pools = await scanPools(rpc, mint);
-  if (cache.size > 2000) cache.clear();
-  cache.set(mint, { at: input.now, pools });
-  return json(200, { pools }, headers);
+  const keyed = input.env.SOLANA_RPC_URL?.trim();
+  let scan = await scanPoolsDetailed(rpcFor(keyed || SCAN_FALLBACK_RPC), mint);
+  let usedFallback = false;
+  // The paid provider may refuse some program-wide queries on its plan; the public endpoint then answers instead.
+  if (keyed && scan.pools.length === 0 && scan.failed > 0) {
+    scan = await scanPoolsDetailed(rpcFor(SCAN_FALLBACK_RPC), mint);
+    usedFallback = true;
+  }
+  // An empty answer is only kept when every question was answered (a real "none"); a failed one is retried next time.
+  if (scan.failed === 0 || scan.pools.length > 0) {
+    if (cache.size > 2000) cache.clear();
+    cache.set(mint, { at: input.now, pools: scan.pools });
+  }
+  return json(200, { pools: scan.pools, ...(scan.failed > 0 ? { failed: scan.failed, reason: scan.reason } : {}), ...(usedFallback ? { fallback: true } : {}) }, headers);
 }
 

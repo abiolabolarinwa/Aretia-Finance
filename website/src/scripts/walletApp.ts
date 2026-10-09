@@ -426,7 +426,7 @@ export function initWalletApp(): void {
       (bar.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, weight ?? 0))}%`;
       const priceCell = el('td', { class: 'num' });
       priceCell.append(h.price === null ? '—' : formatUsd(h.price));
-      if (h.priceSource) priceCell.title = h.thin ? `Price from ${h.priceSource}; the pool behind it is thin, so this is only indicative` : `Price from ${h.priceSource}`;
+      if (h.priceSource) priceCell.title = h.thin ? `Price from a public market feed; the pool behind it is thin, so this is only indicative` : 'Price from a public market feed';
       if (h.thin) priceCell.append(el('span', { class: 'wapp-flag', text: ' thin' }));
       tbody.append(
         el('tr', {}, [

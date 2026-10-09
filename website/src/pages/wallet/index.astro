@@ -341,10 +341,6 @@ const buyTips = [
 
       <div data-pane="swings" class="wapp__pane" hidden>
         <div class="wapp__stack">
-          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Markets" data-sw-tabs>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="true">Find Tokens</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Marketplace</button>
-          </div>
           <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
           <div data-sw-panel="swap" class="wapp__stack" hidden></div>
           <template id="sw-guide">
@@ -358,8 +354,7 @@ const buyTips = [
               </div>
             </details>
           </template>
-          <div data-sw-panel="new" class="wapp__stack"></div>
-          <div data-sw-panel="markets" class="wapp__stack" hidden></div>
+          <div data-sw-panel="markets" class="wapp__stack"></div>
           <details class="wapp__fineprint">
             <summary>Good to know before you use Swings</summary>
             <ul>
@@ -895,7 +890,6 @@ const buyTips = [
   .wapp-swapdlg__close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font: inherit; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
   .wapp-swapdlg__close:hover { background: var(--color-brand-soft); }
   .wapp-swapdlg__close:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-  .wapp-swapdlg [data-sw-panel='swap'] .wapp__chart-plot { height: 360px; }
   body:has(.wapp-swapdlg:not([hidden])) { overflow: hidden; }
 
   /* ---- Find Tokens and Marketplace: a light table of tokens, one row each ---- */

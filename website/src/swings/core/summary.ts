@@ -19,7 +19,10 @@ export interface ExecutionSummary {
 
 /** The four-part summary shown before signing. The fee is reported on its own and never folded into the swap. */
 export function summarizeQuote(quote: Quote, config: AretiaFeeConfig = DEFAULT_FEE_CONFIG): ExecutionSummary {
-  const fee = planAretiaFee(quote.request.amountIn, quote.request.chain, config);
+  const plan = planAretiaFee(quote.request.amountIn, quote.request.chain, config);
+  // The fee the quote itself took out is what was charged: a screen that has no fee policy of its own must not report "none".
+  const charged = quote.costs.aretiaFee.amount;
+  const fee = charged > 0n && plan.state !== 'blocked' ? { ...plan, state: 'ready' as const, fee: charged } : plan;
   const notes: string[] = [];
   if (quote.priceImpactBps === null) notes.push('The provider did not report a price impact.');
   else if (quote.priceImpactBps >= 300) notes.push(`High price impact: ${(quote.priceImpactBps / 100).toFixed(2)}%.`);

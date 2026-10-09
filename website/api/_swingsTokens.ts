@@ -107,6 +107,12 @@ export async function handleTokens(input: TokensInput): Promise<TokensOutput> {
   const service = new TokenRegistryService(repo, () => input.now);
   try {
     if (input.query.q !== undefined) return json(200, { results: await service.search(input.query.q, 20) }, headers);
+    // The ratings of tokens already on a screen: only what a table needs (rating and burned-liquidity share), by address.
+    if (input.query.addresses !== undefined) {
+      const wanted = [...new Set(input.query.addresses.split(',').map((a) => a.trim()).filter((a) => /^[A-Za-z0-9]{20,100}$/.test(a)))].slice(0, 80);
+      const records = await repo.findByAddresses([...wanted, ...wanted.map((a) => a.toLowerCase())]);
+      return json(200, { ratings: records.map((r) => ({ chain: r.ref.chain, address: r.ref.address, status: r.risk?.status ?? null, score: r.risk?.score ?? null, lockedPct: r.market?.lock && r.market.lock.pct >= 50 ? r.market.lock.pct : null })) }, headers);
+    }
     return json(200, { tokens: await service.listNew(parseFilter(input.query)) }, headers);
   } catch (e) {
     // The status code only (for example 401 means the key was refused, 404 that the tables are missing). Never the body.

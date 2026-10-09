@@ -31,6 +31,8 @@ export interface TokenRepository {
   get(ref: TokenRef): Promise<TokenRecord | null>;
   /** Every record with this exact address on any chain. */
   findByAddress(address: string): Promise<TokenRecord[]>;
+  /** Records for many addresses at once (the Marketplace asks for the ratings of the tokens on screen). */
+  findByAddresses(addresses: string[]): Promise<TokenRecord[]>;
   upsert(record: TokenRecord): Promise<void>;
   /** Case-insensitive substring match on symbol or name. */
   searchText(query: string, limit: number): Promise<TokenRecord[]>;
@@ -217,6 +219,10 @@ export class InMemoryTokenRepository implements TokenRepository {
 
   async get(ref: TokenRef): Promise<TokenRecord | null> {
     return this.rows.get(tokenKey(ref)) ?? null;
+  }
+  async findByAddresses(addresses: string[]): Promise<TokenRecord[]> {
+    const wanted = new Set(addresses);
+    return [...this.rows.values()].filter((r) => wanted.has(r.ref.address));
   }
   async findByAddress(address: string): Promise<TokenRecord[]> {
     return [...this.rows.values()].filter((r) => r.ref.address === address);

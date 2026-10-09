@@ -111,8 +111,8 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     live.hidden = !info;
     note.textContent = info
       ? mismatch
-        ? `${current.symbol} is the second token in its trading pools, so the chart shows ${info.baseSymbol} priced in ${info.quoteSymbol} (pool ${info.poolName}). The price is from this pool only and can differ from other venues. Chart and trades: DexScreener.`
-        : `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues. Chart and trades: DexScreener.`
+        ? `${current.symbol} is the second token in its trading pools, so the chart shows ${info.baseSymbol} priced in ${info.quoteSymbol} (pool ${info.poolName}). The price is from this pool only and can differ from other venues.`
+        : `Pool: ${info.poolName}. The price comes from this pool only and can differ from other venues.`
       : '';
   }
 
@@ -128,7 +128,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     if (!current) return;
     plot.textContent = '';
     const frame = node('iframe', 'wapp__chart-frame');
-    frame.title = `${current.symbol} live price chart and trades from DexScreener`;
+    frame.title = `${current.symbol} live price chart and trades`;
     frame.loading = 'lazy';
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
     frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');

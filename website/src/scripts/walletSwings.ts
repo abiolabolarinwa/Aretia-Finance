@@ -18,6 +18,7 @@ import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './wallet
 import { marketTable, type TableState } from './walletMarketTable.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromRecords } from '../swings/market/registryRows.js';
+import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { sortRows, type MarketRow } from '../swings/market/types.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
@@ -31,7 +32,6 @@ import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { assessMevExposure } from '../swings/core/mev.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
-import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
 import { isCanaryAllowed, isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
@@ -77,6 +77,14 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: stri
   return node;
 }
 
+/** An amount for the screen: long tails are cut (the transaction keeps every digit), small values keep six significant digits. */
+export function shortAmount(v: string): string {
+  const [whole = '', frac = ''] = v.split('.');
+  if (frac.length <= 8) return v;
+  const lead = /^0*/.exec(frac)![0].length;
+  const kept = frac.slice(0, Math.max(8, lead + 6)).replace(/0+$/, '');
+  return kept ? `${whole}.${kept}` : whole;
+}
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 /** A stroked 24x24 icon from one path, built as real SVG so nothing is parsed from text. */
 function icon(path: string, size = 18): SVGElement {
@@ -535,7 +543,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       s.amount = '';
       resetQuote();
     }
-    newTokens.setChain(id);
     markets.setChain(id);
     renderRail();
     render();
@@ -658,7 +665,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     const to = s.to!;
     const from = s.from!;
     const info = CHAINS[quote.request.chain];
-    const fmt = (raw: bigint, d: number) => fromSmallestUnit(raw, d);
+    const fmt = (raw: bigint, d: number) => shortAmount(fromSmallestUnit(raw, d));
     const impactBps = s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000);
     const mev = assessMevExposure(quote.request.slippageBps, impactBps);
     const rows: [string, string][] = [
@@ -669,7 +676,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       ['Price impact (your trade size)', impactBps === null ? 'Not available' : `${(impactBps / 100).toFixed(2)}%`],
       ['Sandwich exposure', mev.level],
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
-      ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : 'Paid in SOL; shown by your wallet before you sign'],
+      ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}; shown by your wallet before you sign`],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
       ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (0.29%), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
       ['Priced and built by', providerLabel(quote.providerId)],
@@ -708,7 +715,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         : s.chain === 'solana'
           ? { address: ACT_MINT, symbol: 'ACT', icon: null }
           : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
-      if (target.address) {
+      // Opened over the Marketplace, the token's chart is already on the page behind, so the swap window carries none.
+      if (target.address && !swapDialogOpen()) {
         swapChartCard.hidden = false;
         swapChart.show(s.chain, target.address, target.symbol, target.icon);
       } else {
@@ -765,7 +773,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     });
     card.append(flip);
     // The estimate fills in once a quote has been fetched.
-    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? fromSmallestUnit(s.quote.expectedOut, s.to.decimals) : '0.0';
+    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? shortAmount(fromSmallestUnit(s.quote.expectedOut, s.to.decimals)) : '0.0';
     card.append(
       el('div', { class: 'wapp__swap-box' }, [
         el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive (estimate)' }), tokenNote('to')]),
@@ -870,6 +878,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     };
     const problem = s.from && s.to && s.from.mint === s.to.mint ? 'Choose two different tokens.' : amountIn !== null ? balanceProblem(amountIn) : null;
     const expired = s.quote ? expiryLabel(s.quote).expired : false;
+    if ((s.phase === 'quoted' || s.phase === 'review') && safetyNeedsAck()) actions.append(el('span', { class: 'wapp__fine', text: 'Read the safety notes below and tick the box to continue.' }));
     if (s.phase === 'idle' || s.phase === 'quoting') {
       actions.append(btn(s.phase === 'quoting' ? 'Getting quotes…' : 'Get quotes', () => void getQuote(), 'primary', s.phase === 'quoting' || !s.from || !s.to || amountIn === null || problem !== null));
       if (problem) actions.append(el('span', { class: 'wapp__fine', text: problem }));
@@ -912,14 +921,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   const PAGE_SIZE = 50;
   const GECKO_PAGES = 10;
 
-  function tokenBrowser(target: HTMLElement, mode: 'new' | 'markets') {
-    // Find Tokens lists Aretia's registry of newly detected tokens; Marketplace lists what is trading now.
-    const f = { chain: '' as '' | ChainId, age: '24', liquidity: '0', risk: '', sort: 'newest', hideRisky: true };
-    const m = { kind: 'trending' as MarketKind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
+  function tokenBrowser(target: HTMLElement) {
+    // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
+    // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
+    type Kind = MarketKind | 'new';
+    const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
+    const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
     let rows: MarketRow[] | null = null;
     const records = new Map<string, TokenRecord>();
-    // Find Tokens opens with the busiest tokens first; the Marketplace lists keep their own ranking until a column is chosen.
-    const startSort = (): TableState => (mode === 'new' ? { key: 'volume', dir: 'desc' } : { key: null, dir: 'desc' });
+    // Aretia's own new-token list opens with the busiest first; the other lists keep their ranking until a column is chosen.
+    const startSort = (): TableState => (m.kind === 'new' ? { key: 'volume', dir: 'desc' } : { key: null, dir: 'desc' });
     let tsort: TableState = startSort();
     let pageNo = 1;
     let error: string | null = null;
@@ -937,15 +948,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         draw();
       }
       try {
-        if (mode === 'new') {
+        if (m.kind === 'new') {
           const q = new URLSearchParams();
-          if (f.chain) q.set('chain', f.chain);
+          if (m.chain) q.set('chain', m.chain);
           if (f.age !== '0') q.set('maxAgeHours', f.age);
           if (f.liquidity !== '0') q.set('minLiquidityUsd', f.liquidity);
           if (f.risk) q.set('risk', f.risk);
           // Asking for high-risk tokens on purpose overrides the hide switch.
           if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted') q.set('hideRisky', '1');
-          q.set('sort', f.sort);
+          q.set('sort', 'newest');
           q.set('limit', '500');
           const res = await fetch(`/api/swings-tokens?${q}`);
           const body = (await res.json().catch(() => null)) as { tokens?: TokenRecord[]; message?: string } | null;
@@ -962,7 +973,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         } else {
           const got = await market.load({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
           if (mine !== seq) return;
-          rows = got;
+          const rated = applyRatings(got, await fetchRatings(got));
+          if (mine !== seq) return;
+          rows = rated;
         }
         error = null;
       } catch (e) {
@@ -971,7 +984,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         if (!silent || rows === null) error = e instanceof Error ? e.message : 'The list is unavailable right now.';
       }
       loading = false;
+      // A refresh never redraws over an open token page: moving its chart frame would reload the chart.
+      if (silent && page) return;
       draw();
+    }
+
+    /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */
+    function visible(): MarketRow[] {
+      return (rows ?? []).filter((r) => {
+        if (f.liquidity !== '0' && (r.liquidityUsd ?? 0) < Number(f.liquidity)) return false;
+        if (f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
+        const st = r.risk?.status ?? 'unknown';
+        if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted' && (st === 'high' || st === 'restricted')) return false;
+        if (f.risk && st !== f.risk) return false;
+        return true;
+      });
     }
 
     function select(label: string, value: string, options: [string, string][], onChange: (v: string) => void): HTMLElement {
@@ -982,8 +1009,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       return sel;
     }
 
-    function chip(label: string, pressed: boolean, onClick: () => void): HTMLElement {
-      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-pressed': String(pressed) } });
+    function chip(label: string, pressed: boolean, onClick: () => void, title?: string): HTMLElement {
+      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-pressed': String(pressed), ...(title ? { title } : {}) } });
       b.addEventListener('click', onClick);
       return b;
     }
@@ -991,7 +1018,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     /** A row was clicked: the token page opens in place of the list, with a way back. */
     function openRow(r: MarketRow): void {
       const rec = records.get(rowKey(r.chain, r.address));
-      const riskNote = rec?.risk ? (rec.risk.score === null ? 'Aretia: not enough data to rate this token. That is not a good sign or a bad one.' : `Aretia rating: ${RISK_LABELS[rec.risk.status]} (concern score ${rec.risk.score}/100, higher means more concerns).`) : null;
+      const riskNote = r.risk
+        ? r.risk.score === null
+          ? 'Aretia: not enough data to rate this token. That is not a good sign or a bad one.'
+          : `Aretia rating: ${r.risk.label} (concern score ${r.risk.score}/100, higher means more concerns).`
+        : 'Aretia has not rated this token yet. That is not a good sign or a bad one.';
       page = true;
       draw();
       target.scrollIntoView({ block: 'start' });
@@ -1013,11 +1044,89 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       });
     }
 
+    /** A filter that changes which tokens Aretia's own list asks for goes back to the server; the others are applied here. */
+    const refilter = (): void => {
+      pageNo = 1;
+      if (m.kind === 'new') void load();
+      else draw();
+    };
+
+    function draw(): void {
+      if (page) {
+        // Taking a chart frame out of the page and putting it back reloads it, so an open token page is left exactly as it is.
+        if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
+        return;
+      }
+      target.replaceChildren();
+      const card = el('div', { class: 'wapp__card wapp-mt__card' });
+      card.append(el('h2', { class: 'wapp__h2', text: 'Marketplace' }));
+      card.append(el('p', { class: 'wapp__fine', text: 'What is trading across the networks, with Aretia\'s safety rating where Aretia has checked the token. Busy does not mean safe, a rating is not advice, and liquidity can be withdrawn by whoever put it there.' }));
+      const bar = el('div', { class: 'wapp-mt__bar' });
+      const kinds: [Kind, string, string][] = [['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
+      const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
+      for (const [k, label, tip] of kinds) {
+        kindBox.append(chip(label, m.kind === k, () => {
+          m.kind = k;
+          tsort = startSort();
+          pageNo = 1;
+          rows = null;
+          void load();
+        }, tip));
+      }
+      bar.append(kindBox);
+      if (m.kind === 'trending' || m.kind === 'gainers') {
+        const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
+        for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) {
+          win.append(chip(label, m.window === w, () => {
+            m.window = w;
+            pageNo = 1;
+            void load();
+          }));
+        }
+        bar.append(win);
+      }
+      bar.append(
+        select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
+          m.chain = v as typeof m.chain;
+          pageNo = 1;
+          void load();
+        }),
+        select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; refilter(); }),
+        select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
+        select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Not rated']], (v) => { f.risk = v; refilter(); }),
+      );
+      const hide = el('input', { attrs: { type: 'checkbox', id: 'hide-risky-mk' } });
+      hide.checked = f.hideRisky;
+      hide.addEventListener('change', () => {
+        f.hideRisky = hide.checked;
+        refilter();
+      });
+      bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
+      card.append(bar);
+      const shownRows = visible();
+      if (error) card.append(banner('warn', error));
+      else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
+      else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
+      else {
+        // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
+        const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
+        card.append(marketTable({ rows: shown, sort: tsort, showRisk: true, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: openRow }));
+        const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : GECKO_PAGES;
+        card.append(pager(pages));
+        // Tokens with no picture get one looked up, then the table redraws once.
+        const byChain = new Map<ChainId, string[]>();
+        for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
+        if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
+        card.append(el('p', { class: 'wapp__fine', text: 'Numbers come from each token\'s main pool; a dash means the source did not report it. The rating and the padlock are Aretia\'s own and appear only for tokens Aretia has checked; "Not rated" says nothing good or bad. Click a token for its chart, numbers and safety notes.' }));
+      }
+      target.append(card);
+    }
+
     /** Previous and next arrows with a page number box. */
     function pager(pages: number): HTMLElement {
       const go = (n: number): void => {
         pageNo = Math.min(Math.max(n, 1), pages);
-        if (mode === 'new') draw();
+        if (m.kind === 'new') draw();
         else void load();
         target.scrollIntoView({ block: 'start' });
       };
@@ -1039,68 +1148,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       ]);
     }
 
-    function draw(): void {
-      target.replaceChildren();
-      if (page) {
-        target.append(tokenPage.element);
-        return;
-      }
-      const card = el('div', { class: 'wapp__card wapp-mt__card' });
-      card.append(el('h2', { class: 'wapp__h2', text: mode === 'new' ? 'Find tokens' : 'Marketplace' }));
-      card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Tokens Aretia has just detected with a trading pool, with Aretia\'s safety rating. Discovery is not endorsement: a token appearing here says nothing about whether it is safe, honest or worth buying.' : 'What is trading right now across the networks. Busy does not mean safe, and liquidity can be withdrawn.' }));
-      const bar = el('div', { class: 'wapp-mt__bar' });
-      if (mode === 'markets') {
-        const kinds: [MarketKind, string][] = [['trending', 'Trending'], ['top', 'Top'], ['gainers', 'Gainers'], ['new', 'New pairs']];
-        const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
-        for (const [k, label] of kinds) kindBox.append(chip(label, m.kind === k, () => { m.kind = k; tsort = startSort(); pageNo = 1; void load(); }));
-        bar.append(kindBox);
-        if (m.kind === 'trending' || m.kind === 'gainers') {
-          const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
-          for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) win.append(chip(label, m.window === w, () => { m.window = w; pageNo = 1; void load(); }));
-          bar.append(win);
-        }
-        bar.append(select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { m.chain = v as typeof m.chain; pageNo = 1; void load(); }));
-      } else {
-        const reload = (): void => {
-          pageNo = 1;
-          void load();
-        };
-        bar.append(
-          select('Network', f.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { f.chain = v as typeof f.chain; reload(); }),
-          select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; reload(); }),
-          select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; reload(); }),
-          select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Not enough data']], (v) => { f.risk = v; reload(); }),
-        );
-        const hide = el('input', { attrs: { type: 'checkbox', id: 'hide-risky-new' } });
-        hide.checked = f.hideRisky;
-        hide.addEventListener('change', () => {
-          f.hideRisky = hide.checked;
-          reload();
-        });
-        bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-new' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
-      }
-      card.append(bar);
-      if (error) card.append(banner('warn', error));
-      else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
-      else if (rows.length === 0) card.append(el('p', { class: 'wapp__fine', text: mode === 'new' && f.hideRisky ? 'No tokens match. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
-      else {
-        // Find Tokens holds everything it fetched and pages through it after sorting; the Marketplace asks for one page at a time.
-        const shown = mode === 'new' ? (tsort.key ? sortRows(rows, tsort.key, tsort.dir) : rows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : rows;
-        card.append(marketTable({ rows: shown, sort: tsort, showRisk: mode === 'new', onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (mode === 'new') pageNo = 1; draw(); }, onOpen: openRow }));
-        const pages = mode === 'new' ? Math.max(1, Math.ceil(rows.length / PAGE_SIZE)) : GECKO_PAGES;
-        card.append(pager(pages));
-        // Tokens with no picture get one looked up, then the table redraws once.
-        const byChain = new Map<ChainId, string[]>();
-        for (const r of rows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
-        if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-        card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Numbers come from each token\'s main pool (DexScreener); a dash means the source did not report it. Click a token for its chart, numbers and safety notes.' : 'Numbers come from GeckoTerminal, per pool. A dash means the pool did not report it. Click a token for its chart and numbers.' }));
-      }
-      target.append(card);
-    }
-
-    // The lists refresh by themselves once a minute while they are on screen.
+    // The list refreshes by itself once a minute while it is on screen and no token page is open.
     setInterval(() => {
-      if (!target.hidden && !document.hidden && rows !== null && !loading) void load(true);
+      if (!target.hidden && !document.hidden && rows !== null && !loading && !page) void load(true);
     }, 60_000);
 
     return {
@@ -1110,17 +1160,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
       setChain(id: ChainId): void {
-        if (mode === 'new' ? f.chain === id : m.chain === id) return;
-        if (mode === 'new') f.chain = id;
-        else m.chain = id;
+        if (m.chain === id) return;
+        m.chain = id;
+        pageNo = 1;
         if (rows !== null || loading) void load();
         else draw();
       },
     };
   }
 
-  const newTokens = tokenBrowser(panel('new'), 'new');
-  const markets = tokenBrowser(panel('markets'), 'markets');
+  const markets = tokenBrowser(panel('markets'));
 
   // ------------------------------------------------------------------ Activity
 
@@ -1172,8 +1221,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
 
   const TAB_INTRO: Record<string, string> = {
     swap: '',
-    new: 'Coins that have just got a trading pool. New does not mean safe: read the safety notes before you buy.',
-    markets: 'Coins ranked by how much trading money is behind them. Large does not mean safe either.',
+    markets: '',
   };
   const PAY_INTRO: Record<string, string> = {
     send: '',
@@ -1206,14 +1254,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.addEventListener('click', () => showPayTab(b.dataset.payTab ?? 'send')));
 
   // The two lists (Find Tokens, Marketplace) are tabs; Swap is its own page and shows the same swap panel.
-  let listTab: 'new' | 'markets' = 'new';
   function showTab(name: string): void {
-    if (name === 'new' || name === 'markets') listTab = name;
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
     if (intro) intro.textContent = TAB_INTRO[name] ?? '';
     document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
-    if (name === 'new') newTokens.ensureLoaded();
     if (name === 'markets') markets.ensureLoaded();
     if (name === 'swap') render();
   }
@@ -1222,6 +1267,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   // ---- the swap, opened over the page it was started from (Marketplace, a token page) so nobody is sent away
   const swapDialog = document.querySelector<HTMLElement>('[data-swap-dialog]');
   const swapSlot = document.querySelector<HTMLElement>('[data-swap-dialog-slot]');
+  const swapDialogOpen = (): boolean => !!swapDialog && !swapDialog.hidden;
   const swapHome = swapPanel.parentElement;
   const swapNext = swapPanel.nextSibling;
   let dialogReturnFocus: HTMLElement | null = null;
@@ -1310,24 +1356,22 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     });
   }
 
-  showTab('new');
+  showTab('markets');
   showPayTab('send');
 
   renderRail();
   void loadRuntime().then(() => {
     renderRail();
     render();
-    newTokens.draw();
     markets.draw();
   });
 
   return {
     onShow(view) {
       closeSwapDialog();
-      showTab(view === 'swap' ? 'swap' : listTab);
+      showTab(view === 'swap' ? 'swap' : 'markets');
       render();
-      newTokens.draw();
-      markets.draw();
+        markets.draw();
       renderActivity();
     },
     onPayShow() {

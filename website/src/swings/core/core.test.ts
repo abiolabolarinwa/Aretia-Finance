@@ -122,6 +122,12 @@ describe('execution summary', () => {
     expect(s.notes).toContain('The network fee was not reported for this quote.');
     expect(s.canProceed).toBe(true);
   });
+  it('reports the fee the quote itself took out, even on a screen with no fee policy of its own', () => {
+    const charged = { ...quote, costs: { ...quote.costs, aretiaFee: { amount: 29n, asset: null } } };
+    const s = summarizeQuote(charged);
+    expect(s.aretiaFee).toMatchObject({ state: 'ready', amount: 29n });
+    expect(s.notes).not.toContain('No Aretia fee is charged on this swap.');
+  });
   it('cannot proceed when the fee is on but its address is missing', () => {
     const cfg: AretiaFeeConfig = { policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true }, chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana', enabled: true } } };
     const s = summarizeQuote(quote, cfg);

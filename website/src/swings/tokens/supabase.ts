@@ -132,6 +132,11 @@ export class SupabaseTokenRepository implements TokenRepository {
   listForMarketRefresh(chain: ChainId, since: number, limit: number): Promise<TokenRecord[]> {
     return this.rows(`token_registry?chain=eq.${chain}&first_detected_at=gte.${Math.floor(since)}&order=market_at.asc.nullsfirst&limit=${limit}`);
   }
+  findByAddresses(addresses: string[]): Promise<TokenRecord[]> {
+    const list = addresses.filter((a) => /^[A-Za-z0-9]{20,100}$/.test(a)).slice(0, 80);
+    if (list.length === 0) return Promise.resolve([]);
+    return this.rows(`token_registry?address=in.(${list.map((a) => `"${a}"`).join(',')})&limit=200`);
+  }
   searchText(query: string, limit: number): Promise<TokenRecord[]> {
     const q = encodeURIComponent(`*${likeEscape(query)}*`);
     return this.rows(`token_registry?or=(symbol.ilike.${q},name.ilike.${q})&order=liquidity_usd.desc.nullslast&limit=${limit}`);

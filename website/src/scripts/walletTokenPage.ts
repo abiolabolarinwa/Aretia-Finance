@@ -86,7 +86,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     frame.referrerPolicy = 'no-referrer';
     frame.loading = 'lazy';
     frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
-    parts.chart.replaceChildren(frame, el('p', 'wapp__fine', 'Chart and trades by DexScreener. Past prices say nothing certain about future ones.'));
+    parts.chart.replaceChildren(frame, el('p', 'wapp__fine', 'Past prices say nothing certain about future ones.'));
 
     const side = parts.side;
     side.replaceChildren();

@@ -135,7 +135,7 @@ export function marketTable(o: TableOptions): HTMLElement {
     if (o.showRisk) {
       const td = el('td');
       const tone = !r.risk ? 'off' : r.risk.status === 'high' || r.risk.status === 'restricted' ? 'bad' : r.risk.status === 'elevated' ? 'warn' : r.risk.status === 'established' || r.risk.status === 'verified' ? 'on' : 'off';
-      td.append(el('span', `wapp__state wapp__state--${tone}`, r.risk ? `${r.risk.label}${r.risk.score !== null ? ` · ${r.risk.score}` : ''}` : '–'));
+      td.append(el('span', `wapp__state wapp__state--${tone}`, r.risk ? `${r.risk.label}${r.risk.score !== null ? ` · ${r.risk.score}` : ''}` : 'Not rated'));
       tr.append(td);
     }
     tr.append(

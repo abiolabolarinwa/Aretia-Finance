@@ -9,8 +9,10 @@
  * token account). Every account list here was proven by simulating buys and sells on the real program (see
  * solana.live.ts). If PumpSwap changes its account list again, simulation fails and the route is simply not offered.
  *
- * Scope, stated plainly: canonical pump.fun pools only (index 0, created by the pump.fun program for a token that
- * graduated). Other creators' pools for the same pair are not discovered, because they cannot be derived from the pair.
+ * Which pools: the canonical pump.fun pool of the pair (index 0, created by the pump.fun program for a token that
+ * graduated) is derived from the pair. Pools other people created for the same pair cannot be derived, so their
+ * addresses come from Aretia's own on-chain scan (poolScan.ts), or DexScreener if that finds none, and each is accepted
+ * only after its account is read from the chain: owned by the PumpSwap program, holding exactly this pair.
  */
 import type * as Web3 from '@solana/web3.js';
 import { ataAddress } from '../../scripts/walletTools.js';
@@ -18,6 +20,8 @@ import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { tokenAccountAmount, type SolRpc } from './raydiumCpmm.js';
+import type { PoolHints } from './meteoraDbc.js';
+import { aretiaPoolHints } from './poolHints.js';
 
 export const PUMPSWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 /** The pump.fun bonding-curve program: it is the creator of every canonical PumpSwap pool, through a per-token authority. */
@@ -84,6 +88,7 @@ export class PumpSwapAdapter {
     private readonly web3: typeof Web3,
     private readonly rpc: SolRpc,
     private readonly now: () => number = Date.now,
+    private readonly hints: PoolHints = aretiaPoolHints(),
   ) {
     this.program = new web3.PublicKey(PUMPSWAP_PROGRAM);
   }
@@ -121,18 +126,21 @@ export class PumpSwapAdapter {
     return g;
   }
 
-  /** Canonical pools for a pair, in either order, that hold liquidity and allow buying and selling. */
+  /** Pools for a pair, in either order, that hold liquidity and allow buying and selling: the canonical one, and any other the chain shows. */
   async getPools(a: TokenRef, b: TokenRef): Promise<LiquidityPool[]> {
     const ta = normalizeTokenRef('solana', a.address);
     const tb = normalizeTokenRef('solana', b.address);
     if (!ta || !tb || ta.address === tb.address) throw new SwingsError('invalid', 'Invalid token pair.');
-    const candidates = [{ base: ta.address, quote: tb.address }, { base: tb.address, quote: ta.address }].map((c) => ({ ...c, pool: this.canonicalPool(c.base, c.quote) }));
-    const raw = await this.accounts(candidates.map((c) => c.pool));
+    const derived = [{ base: ta.address, quote: tb.address }, { base: tb.address, quote: ta.address }].map((c) => this.canonicalPool(c.base, c.quote));
+    const [ha, hb] = await Promise.all([this.hints(ta.address), this.hints(tb.address)]);
+    const addresses = [...new Set([...derived, ...ha, ...hb])].slice(0, 12);
+    const raw = await this.accounts(addresses);
+    const holdsPair = (s: PumpPool): boolean => (s.baseMint === ta.address && s.quoteMint === tb.address) || (s.baseMint === tb.address && s.quoteMint === ta.address);
     const found = raw
-      .map((acc, i) => ({ acc, c: candidates[i]! }))
-      .filter((x): x is { acc: { data: [string, string]; owner: string }; c: (typeof candidates)[number] } => x.acc !== null && x.acc.owner === PUMPSWAP_PROGRAM)
+      .map((acc, i) => ({ acc, c: { pool: addresses[i]! } }))
+      .filter((x): x is { acc: { data: [string, string]; owner: string }; c: { pool: string } } => x.acc !== null && x.acc.owner === PUMPSWAP_PROGRAM)
       .map((x) => ({ ...x, state: parsePumpPool(this.web3, fromBase64(x.acc.data[0])) }))
-      .filter((x): x is typeof x & { state: PumpPool } => x.state !== null && x.state.baseMint === x.c.base && x.state.quoteMint === x.c.quote && x.state.index === 0);
+      .filter((x): x is typeof x & { state: PumpPool } => x.state !== null && holdsPair(x.state));
     if (found.length === 0) return [];
     const [global, ...vaults] = [await this.globalConfig(), ...(await this.accounts(found.flatMap((f) => [f.state.baseVault, f.state.quoteVault])))];
     // Disabled buying or selling (flags 3 and 4) means the pool cannot be used in both directions.

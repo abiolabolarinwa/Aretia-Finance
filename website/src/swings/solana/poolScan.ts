@@ -13,6 +13,7 @@
 import { AMM_V4_PROGRAM } from './raydiumAmmV4.js';
 import { CLMM_PROGRAM } from './raydiumClmm.js';
 import { DBC_PROGRAM } from './meteoraDbc.js';
+import { PUMPSWAP_PROGRAM } from './pumpswap.js';
 
 export type ScanRpc = <T>(method: string, params: unknown[]) => Promise<T>;
 
@@ -20,6 +21,8 @@ const DISC_CLMM_POOL = Uint8Array.from([247, 237, 227, 245, 215, 195, 222, 70]);
 const DISC_DBC_POOL = Uint8Array.from([213, 224, 5, 209, 98, 69, 119, 92]);
 const AMM_V4_SIZE = 752;
 const MAX_PER_VENUE = 8;
+/** Size of a PumpSwap pool account, found by reading a real one. */
+const PUMP_POOL_SIZE = 301;
 
 /** Tokens that sit in too many pools to list. */
 export const SKIPPED_MINTS: ReadonlySet<string> = new Set([
@@ -45,6 +48,9 @@ export function scanQueries(mint: string): Query[] {
     { program: CLMM_PROGRAM, filters: [disc(DISC_CLMM_POOL), at(73)] },
     { program: CLMM_PROGRAM, filters: [disc(DISC_CLMM_POOL), at(105)] },
     { program: DBC_PROGRAM, filters: [disc(DISC_DBC_POOL), at(136)] },
+    // PumpSwap pools hold the base mint at byte 43 and the quote mint at byte 75.
+    { program: PUMPSWAP_PROGRAM, filters: [{ dataSize: PUMP_POOL_SIZE }, at(43)] },
+    { program: PUMPSWAP_PROGRAM, filters: [{ dataSize: PUMP_POOL_SIZE }, at(75)] },
   ];
 }
 

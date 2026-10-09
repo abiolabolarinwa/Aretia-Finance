@@ -53,8 +53,10 @@ describe('discovery endpoint', () => {
     const out = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl }));
     expect(out.status).toBe(200);
     const { runs } = JSON.parse(out.body) as { runs: { chain: string; error: string | null }[] };
-    // One third-party feed per chain, Aretia's own factory feed for each direct V2 venue, then its own Solana feed.
-    expect(runs.map((r) => r.chain)).toEqual([...CHAIN_IDS, ...EVM_V2_DEXES.map((e) => e.chain), 'solana']);
+    // Per chain: newest pools, then the trending pools, then (busy networks only) a second page of new pools. After those,
+    // Aretia's own factory feed for each direct V2 venue, then its own Solana feed.
+    const busy = ['solana', 'ethereum', 'bnb', 'base'];
+    expect(runs.map((r) => r.chain)).toEqual([...CHAIN_IDS.flatMap((c) => (busy.includes(c) ? [c, c, c] : [c, c])), ...EVM_V2_DEXES.map((e) => e.chain), 'solana']);
     expect(runs.every((r) => r.error !== null)).toBe(true);
   });
 });

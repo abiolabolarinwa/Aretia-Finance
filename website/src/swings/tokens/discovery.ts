@@ -74,7 +74,8 @@ export class TokenDiscoveryWorker {
         continue;
       }
       run.ingested++;
-      if (this.enricher) {
+      // A token already assessed is not re-checked on every run: trending feeds offer the same tokens again and again.
+      if (this.enricher && record.risk === null) {
         try {
           const enriched = await this.enricher.enrich(c);
           if (enriched) {

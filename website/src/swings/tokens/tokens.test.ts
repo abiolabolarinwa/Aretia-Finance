@@ -255,3 +255,21 @@ describe('Supabase row mapping', () => {
     expect(toRow(rec).key).toBe(`base:${EVM.toLowerCase()}`);
   });
 });
+
+describe('trending feed', () => {
+  it('offers every trending pool each run, with no cursor, and asks for the right page', async () => {
+    const { GeckoTerminalNewPoolsSource } = await import('./sources/geckoTerminal.js');
+    const urls: string[] = [];
+    const body = { data: [{ attributes: { address: 'PoolAddr1111111111111111111111111111', pool_created_at: '2020-01-01T00:00:00Z', reserve_in_usd: '5', volume_usd: { h24: '9' } }, relationships: { base_token: { data: { id: 'bsc_0x1111111111111111111111111111111111111111' } }, dex: { data: { id: 'pancakeswap' } } } }], included: [{ type: 'token', attributes: { address: '0x1111111111111111111111111111111111111111', symbol: 'BAI', name: 'Binance AI' } }] };
+    const f = (async (u: string) => { urls.push(u); return new Response(JSON.stringify(body)); }) as unknown as typeof fetch;
+    const t = new GeckoTerminalNewPoolsSource('bnb', f, { feed: 'trending' });
+    const a = await t.poll('2030-01-01T00:00:00Z');
+    expect(a.candidates).toHaveLength(1);
+    expect(a.nextCursor).toBeNull();
+    expect(urls[0]).toContain('/networks/bsc/trending_pools');
+    const p2 = new GeckoTerminalNewPoolsSource('bnb', f, { page: 2 });
+    expect(p2.id).toBe('geckoterminal:new_pools_p2:bnb');
+    await p2.poll(null);
+    expect(urls[1]).toContain('/networks/bsc/new_pools?include=base_token&page=2');
+  });
+});

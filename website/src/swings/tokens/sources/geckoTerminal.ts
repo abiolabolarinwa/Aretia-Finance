@@ -64,21 +64,36 @@ export function parseNewPools(chain: ChainId, json: unknown): { candidates: Toke
   return { candidates, newest };
 }
 
+export interface GeckoSourceOptions {
+  /** 'new' reads the newest pools; 'trending' reads the pools people are trading most right now, whatever their age. */
+  feed?: 'new' | 'trending';
+  /** Which page of the feed (20 pools each). Busy networks create more new pools between runs than one page holds. */
+  page?: number;
+}
+
 export class GeckoTerminalNewPoolsSource implements DiscoverySource {
   readonly id: string;
+  private readonly feed: 'new' | 'trending';
+  private readonly page: number;
   constructor(
     readonly chain: ChainId,
     private readonly fetchImpl: typeof fetch = fetch,
+    opts: GeckoSourceOptions = {},
   ) {
-    this.id = `geckoterminal:new_pools:${chain}`;
+    this.feed = opts.feed ?? 'new';
+    this.page = opts.page ?? 1;
+    this.id = this.feed === 'trending' ? `geckoterminal:trending:${chain}` : this.page === 1 ? `geckoterminal:new_pools:${chain}` : `geckoterminal:new_pools_p${this.page}:${chain}`;
   }
 
   async poll(cursor: string | null, signal?: AbortSignal): Promise<DiscoveryBatch> {
-    const res = await this.fetchImpl(`${BASE_URL}/networks/${NETWORK[this.chain]}/new_pools?include=base_token&page=1`, { headers: { accept: 'application/json' }, signal });
+    const path = this.feed === 'trending' ? 'trending_pools' : 'new_pools';
+    const res = await this.fetchImpl(`${BASE_URL}/networks/${NETWORK[this.chain]}/${path}?include=base_token&page=${this.page}`, { headers: { accept: 'application/json' }, signal });
     if (!res.ok) throw new Error(`GeckoTerminal answered ${res.status} for ${this.chain}.`);
-    const { candidates, newest } = parseNewPools(this.chain, await res.json());
+    const parsed = parseNewPools(this.chain, await res.json());
+    // Trending is not time-ordered: everything on it is offered every run, and ingest ignores what it already knows.
+    if (this.feed === 'trending') return { candidates: parsed.candidates.map((c) => ({ ...c, source: 'geckoterminal:trending' })), nextCursor: null };
     const since = cursor === null ? Number.NEGATIVE_INFINITY : Date.parse(cursor);
-    const fresh = candidates.filter((c) => (c.firstPoolAt ?? 0) > since);
-    return { candidates: fresh, nextCursor: newest !== null && (cursor === null || newest > cursor) ? newest : null };
+    const fresh = parsed.candidates.filter((c) => (c.firstPoolAt ?? 0) > since);
+    return { candidates: fresh, nextCursor: parsed.newest !== null && (cursor === null || parsed.newest > cursor) ? parsed.newest : null };
   }
 }

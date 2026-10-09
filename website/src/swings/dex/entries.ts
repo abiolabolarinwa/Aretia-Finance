@@ -506,7 +506,27 @@ export const EVM_CURVE: readonly DexEntry[] = [
 ];
 
 /** Every direct venue Aretia routes through. */
-export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE];
+/**
+ * Bonding-curve launchpads: where tokens trade from launch until their curve fills and they move to a normal DEX.
+ * Four.meme (BNB Chain): `router` is its token manager, `quoter` its helper contract.
+ */
+export const EVM_LAUNCHPADS: readonly DexEntry[] = [
+  {
+    id: 'fourmeme-bnb',
+    name: 'Four.meme',
+    chain: 'bnb',
+    protocol: 'fourmeme',
+    model: 'constant-product',
+    mechanism: 'evm-launchpad-curve',
+    router: '0x5c952063c7fc8610ffdb798152d69f0b9550762b',
+    quoter: '0xf251f83e40a78868fcfa3fa4599dad6494e46034',
+    wrappedNative: WRAPPED_NATIVE.bnb,
+    status: 'ACTIVE',
+    notes: "BNB Chain's meme launchpad. Open curves priced in BNB only. Priced by the launchpad's own helper contract, and the floor is enforced by the contract.",
+  },
+];
+
+export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS];
 
 /** Solana venues integrated directly. Raydium CPMM only so far: constant-product pools, single hop, no Token-2022. */
 export const SOLANA_DEXES: readonly DexEntry[] = [

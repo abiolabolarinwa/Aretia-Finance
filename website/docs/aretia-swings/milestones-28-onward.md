@@ -179,3 +179,9 @@ Tokens that have not yet filled their pump.fun curve now have a direct venue, `p
 Stated limits: SOL-priced curves only; completed curves are served by PumpSwap; the program needs two accounts after the ones its IDL lists (`bonding_curve_v2`, the buyback fee recipient), found by simulation, so a program change shows up as "route not offered", not as a wrong swap.
 
 Other launchpads seen as separate venues on GeckoTerminal's Solana list, not yet integrated: Raydium LaunchLab (letsbonk-fun), Meteora Dynamic Bonding Curve, Moonshot, Boop, Bags, Moonit, StonkFun, Virtuals (Solana). On other networks: Four.meme and Flap (BNB Chain), Virtuals (Base), Arena (Avalanche); their contracts have not been studied or proven here.
+
+## Follow-up: Four.meme launchpad (BNB Chain)
+
+Tokens still on a Four.meme curve now have a direct venue, `fourmeme-bnb` (`src/swings/dex/evmFourMeme.ts`). The launchpad's own helper contract (`getTokenInfo`, `tryBuy`, `trySell`) is the quoter, and its token manager is the counterparty: `buyTokenAMAP` for buys and the floor-carrying form of `sellToken` for sells. The contract enforces the floor itself. Proven live by simulation only (`fourMeme.live.ts`): the router quotes a BNB buy on a real open curve, builds a transaction the real contract accepts, a sell is accepted with a simulated balance and approval, and both refuse an impossible floor. Nothing was signed or sent.
+
+Stated limits: BNB-priced curves of the current token manager only; swaps against native BNB only (not token-to-token); older managers and curves priced in other coins are not offered; a graduated token is served by PancakeSwap. The sell-side simulation uses state overrides on the public node and assumes the token's balance and allowance mappings sit at slots 0 and 1 (checked for the tokens tested).

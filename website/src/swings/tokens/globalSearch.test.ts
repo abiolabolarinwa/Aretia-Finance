@@ -16,6 +16,14 @@ describe('GeckoTerminal search results', () => {
     expect(hits[0]!.liquidityUsd).toBe(5_000_000);
   });
 
+  it('read the real answer shape, where a pool names no network and only the token id says which one', () => {
+    const body = {
+      data: [{ attributes: { reserve_in_usd: '900', base_token_price_usd: '1' }, relationships: { base_token: { data: { id: `solana_${BONK}`, type: 'token' } }, quote_token: { data: { id: 'solana_So11111111111111111111111111111111111111112' } }, dex: { data: { id: 'orca' } } } }],
+      included: [{ id: `solana_${BONK}`, type: 'token', attributes: { address: BONK, name: 'Bonk', symbol: 'Bonk', decimals: 5, image_url: null } }],
+    };
+    expect(parseGeckoSearch(body).map((h) => [h.chain, h.symbol])).toEqual([['solana', 'Bonk']]);
+  });
+
   it('skip networks Swings does not support, malformed addresses, abusive names and missing tokens', () => {
     const hits = parseGeckoSearch(gecko([
       { network: 'ton', token: 'ton_x', address: 'EQabc'.repeat(8), symbol: 'TON', name: 'Ton' },

@@ -13,6 +13,8 @@ import { dexScreenerEmbedUrl, type PoolInfo } from '../swings/charts/pool.js';
 import { DexScreenerPoolFinder, type PoolFinder } from '../swings/charts/dexscreener.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { SwingsError, type ChainId } from '../swings/core/types.js';
+import { TIMEFRAMES } from '../swings/market/candles.js';
+import { drawCandles, fetchOwnCandles, MIN_CANDLES, OWN_TIMEFRAMES, type OwnTimeframe } from './walletOwnChart';
 
 export interface ChartPanel {
   element: HTMLElement;
@@ -81,6 +83,8 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
 
   let current: { chain: ChainId; address: string; symbol: string; icon: string | null } | null = null;
   let framedPool = '';
+  let framedKind: 'own' | 'embed' | '' = '';
+  let ownTf: OwnTimeframe = '1h';
   let seq = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -117,6 +121,53 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     plot.append(node('span', 'wapp__sub', text));
     renderHeader(null);
     framedPool = '';
+    framedKind = '';
+  }
+
+  function showEmbed(pool: string): void {
+    if (!current) return;
+    plot.textContent = '';
+    const frame = node('iframe', 'wapp__chart-frame');
+    frame.title = `${current.symbol} live price chart and trades from DexScreener`;
+    frame.loading = 'lazy';
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    frame.src = dexScreenerEmbedUrl(current.chain, pool);
+    plot.append(frame);
+    framedPool = pool;
+    framedKind = 'embed';
+  }
+
+  function showOwn(pool: string, candles: Parameters<typeof drawCandles>[1], since: number | null): void {
+    if (!current) return;
+    let canvas = plot.querySelector<HTMLCanvasElement>('canvas.wapp__own');
+    if (framedKind !== 'own' || !canvas) {
+      plot.textContent = '';
+      const bar = node('div', 'wapp__seg');
+      bar.setAttribute('role', 'group');
+      bar.setAttribute('aria-label', 'Chart interval');
+      for (const tf of OWN_TIMEFRAMES) {
+        const b = node('button', 'wapp__chip wapp__chip--btn', tf);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(tf === ownTf));
+        b.addEventListener('click', () => {
+          ownTf = tf;
+          framedKind = '';
+          load();
+        });
+        bar.append(b);
+      }
+      canvas = node('canvas', 'wapp__own');
+      canvas.style.cssText = 'width:100%;height:320px;display:block';
+      canvas.setAttribute('role', 'img');
+      plot.append(bar, canvas, node('p', 'wapp__fine', ''));
+    }
+    canvas.setAttribute('aria-label', `${current.symbol} price chart, ${ownTf} candles`);
+    drawCandles(canvas, candles, TIMEFRAMES[ownTf]);
+    const foot = plot.querySelector('p.wapp__fine');
+    if (foot) foot.textContent = `Aretia's own record of this pool's price${since ? `, kept since ${new Date(since).toLocaleDateString()}` : ''}. Readings are taken every few minutes, and a gap is a period Aretia did not record.`;
+    framedPool = pool;
+    framedKind = 'own';
   }
 
   function load(): void {
@@ -131,16 +182,17 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
       .then((info) => {
         if (mine !== seq || !current) return;
         renderHeader(info);
-        if (framedPool === info.pool && plot.querySelector('iframe')) return;
-        plot.textContent = '';
-        const frame = node('iframe', 'wapp__chart-frame');
-        frame.title = `${current.symbol} live price chart and trades from DexScreener`;
-        frame.loading = 'lazy';
-        frame.referrerPolicy = 'strict-origin-when-cross-origin';
-        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
-        frame.src = dexScreenerEmbedUrl(current.chain, info.pool);
-        plot.append(frame);
-        framedPool = info.pool;
+        const { chain: c0, address: a0 } = current;
+        void fetchOwnCandles(c0, info.pool, ownTf).then((own) => {
+          if (mine !== seq || !current || current.chain !== c0 || current.address !== a0) return;
+          if (own && own.candles.length >= MIN_CANDLES) {
+            // Aretia's own record is long enough to draw.
+            showOwn(info.pool, own.candles, own.since);
+            return;
+          }
+          if (framedPool === info.pool && framedKind === 'embed' && plot.querySelector('iframe')) return;
+          showEmbed(info.pool);
+        });
       })
       .catch((e: unknown) => {
         if (mine !== seq) return;
@@ -174,6 +226,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
       }
       current = { chain, address, symbol, icon };
       framedPool = '';
+      framedKind = '';
       load();
       startTimer();
     },
@@ -182,6 +235,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
       clearInterval(timer);
       current = null;
       framedPool = '';
+      framedKind = '';
       plot.textContent = '';
       element.hidden = true;
     },

@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { ACT, POOLS, PRODUCTS } from '../../data/site';
+import { ACT, PRODUCTS } from '../../data/site';
 
 // Universal and SafeSend are not usable on this page (mainnet + Solana only), so their tabs report
 // status. Copy comes from PRODUCTS, the single source the features page uses; the network rows
@@ -78,13 +78,9 @@ const buyTips = [
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="2" /><rect x="13.5" y="3" width="7.5" height="5" rx="2" /><rect x="13.5" y="11" width="7.5" height="10" rx="2" /><rect x="3" y="15" width="7.5" height="6" rx="2" /></svg>
           <span class="wapp__label">Dashboard</span>
         </button>
-        <button type="button" data-nav="trade">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
-          <span class="wapp__label">Trade</span>
-        </button>
         <button type="button" data-nav="swings">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
-          <span class="wapp__label">Aretia Swings</span>
+          <span class="wapp__label">Markets</span>
         </button>
         <button type="button" data-nav="activity">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
@@ -93,6 +89,10 @@ const buyTips = [
         <button type="button" data-nav="send">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
           <span class="wapp__label">Pay</span>
+        </button>
+        <button type="button" data-nav="swap">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
+          <span class="wapp__label">Swap</span>
         </button>
         <button type="button" data-nav="shield">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
@@ -152,7 +152,7 @@ const buyTips = [
             <div class="wapp__hero-cta">
               <button type="button" class="wapp__pill wapp__pill--solid" data-nav="send">Send</button>
               <button type="button" class="wapp__pill wapp__pill--outline" data-receive>Receive</button>
-              <button type="button" class="wapp__pill wapp__pill--outline" data-nav="trade">Trade</button>
+              <button type="button" class="wapp__pill wapp__pill--outline" data-nav="swap">Swap</button>
             </div>
           </div>
 
@@ -226,74 +226,24 @@ const buyTips = [
         </div>
       </div>
 
-      <div data-pane="trade" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card wapp__swap" data-swap>
-            <div class="wapp__swap-box">
-              <div class="wapp__row"><span class="wapp__eyebrow">You pay</span><span class="wapp__sub" data-swap-from-bal></span></div>
-              <div class="wapp__swap-main">
-                <button type="button" class="wapp__token-btn" data-token-btn="from" aria-haspopup="dialog" aria-label="Choose the token you pay with"></button>
-                <input class="wapp__swap-amount" data-swap-amount inputmode="decimal" autocomplete="off" placeholder="0.0" aria-label="Amount you pay" />
-              </div>
-              <div class="wapp__row"><span class="wapp__sub" data-swap-from-usd></span><button type="button" class="wapp__maxlink" data-swap-max>Max</button></div>
-            </div>
-            <button type="button" class="wapp__swap-flip" data-swap-flip aria-label="Switch the two tokens"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 7h12l-3-3M17 17H5l3 3" /></svg></button>
-            <div class="wapp__swap-box">
-              <div class="wapp__row"><span class="wapp__eyebrow">You receive (estimate)</span><span class="wapp__sub" data-swap-to-bal></span></div>
-              <div class="wapp__swap-main">
-                <button type="button" class="wapp__token-btn" data-token-btn="to" aria-haspopup="dialog" aria-label="Choose the token you receive"></button>
-                <output class="wapp__swap-out" data-swap-out>0.0</output>
-              </div>
-            </div>
-            <div class="wapp__picker" data-picker hidden role="dialog" aria-label="Choose a token">
-              <input class="wapp__input" data-picker-search placeholder="Search by name, symbol or mint" autocomplete="off" spellcheck="false" aria-label="Search tokens" />
-              <ul class="wapp__picker-list" data-picker-list></ul>
-            </div>
-            <div class="wapp__slip" role="group" aria-label="Slippage tolerance">
-              <span class="wapp__eyebrow">Slippage</span>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="auto" aria-pressed="true">Auto</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="50" aria-pressed="false">0.5%</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="100" aria-pressed="false">1%</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-slip="300" aria-pressed="false">3%</button>
-            </div>
-            <dl class="wapp__rows" data-swap-details></dl>
-            <div class="wapp__notes" data-swap-notes></div>
-            <button type="button" class="wapp__btn wapp__btn--primary wapp__swap-go" data-swap-go disabled>Enter an amount</button>
-            <div data-swap-review aria-live="polite"></div>
-          </div>
-          <div class="wapp__trade-side">
-            <div class="wapp__card wapp__chart" data-chart>
-              <div class="wapp__chart-head">
-                <div class="wapp__chart-title" data-chart-title></div>
-                <span class="wapp__live" data-chart-live hidden><i aria-hidden="true"></i>Live</span>
-              </div>
-              <div class="wapp__chart-price"><strong data-chart-price>—</strong><span data-chart-change></span></div>
-              <dl class="wapp__chart-stats" data-chart-stats></dl>
-              <div class="wapp__chart-plot" data-chart-plot aria-live="polite"><span class="wapp__sub">Loading chart…</span></div>
-            </div>
-            <details class="wapp__guide">
-              <summary><h2 class="wapp__h2">Before you trade</h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
-              <div class="wapp__guide-grid">
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2" /></svg></span><h3>Keep a little SOL</h3><p>Every swap pays a network fee in SOL, and your first ACT purchase opens your ACT account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</p></article>
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 5L5 19M7.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg></span><h3>ACT transfer fee</h3><p>ACT carries a {ACT.transferFee.totalPercent}% transfer fee on every move. It is already included in the amounts this screen shows.</p></article>
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5" /></svg></span><h3>Price floor</h3><p>The launch pools open at a $0.005 floor, so buying below it is impossible. ACT can only be sold back for as much as buyers have paid in.</p></article>
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4l9 16H3L12 4zM12 10v4M12 17h.01" /></svg></span><h3>Jupiter warnings</h3><p>Jupiter may show "Not sellable" and other warnings for new, thin tokens. They are automatic and do not mean ACT cannot be sold.</p></article>
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><h3>ACT mint</h3><code class="wapp-mono wapp__mint">{ACT.mint}</code><p>Other tokens can copy ACT's name. Only this mint is ACT.</p></article>
-              <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg></span><h3>Pools</h3>{POOLS.map((p) => (<p><a href={p.explorer} target="_blank" rel="noopener noreferrer">{p.pair}</a>{p.chart && <> · <a href={p.chart} target="_blank" rel="noopener noreferrer">chart</a></>}</p>))}</article>
-              </div>
-            </details>
-            <p class="wapp__fine">Swaps are quoted by Jupiter and checked here before your wallet is asked to sign. <button type="button" class="wapp__linkbtn" data-jup-toggle>Use Jupiter's own screen instead</button></p>
-          </div>
-        </div>
-      </div>
-
-      <div data-pane="trade-fallback" class="wapp__pane" data-jup-fallback hidden>
-        <div class="wapp__card wapp__card--widget">
-          <div id="jupiter-terminal" class="wapp__terminal"><span class="wapp__sub">Loading swap widget…</span></div>
-        </div>
-      </div>
-
       <div data-pane="send" class="wapp__pane" hidden>
+        <div class="wapp__stack wapp-pay">
+          <div class="wapp-pay__hub" role="tablist" aria-label="Pay">
+            <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="send" aria-selected="true">
+              <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
+              <span class="wapp-pay__text"><strong>Send</strong><span>Send SOL or a token to an address or a .sns name.</span></span>
+            </button>
+            <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="ramp" aria-selected="false">
+              <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6.5 9.5v.01M17.5 14.5v.01" /></svg></span>
+              <span class="wapp-pay__text"><strong>Cash out or top up</strong><span>Turn USDC into cash, or buy USDC with a card or bank transfer.</span></span>
+            </button>
+            <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="transfer" aria-selected="false">
+              <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 8h13l-3-3M20 16H7l3 3" /></svg></span>
+              <span class="wapp-pay__text"><strong>Move USDC</strong><span>Send USDC from one network to another.</span></span>
+            </button>
+          </div>
+          <p class="wapp__intro" data-pay-intro aria-live="polite"></p>
+          <div data-pay-panel="send">
         <div class="wapp__grid wapp__grid--trade">
           <div class="wapp__stack">
             <div class="wapp__card">
@@ -376,19 +326,27 @@ const buyTips = [
             </div>
           )}
         </div>
+          </div>
+          <div data-pay-panel="ramp" class="wapp__stack" hidden></div>
+          <div data-pay-panel="transfer" class="wapp__stack" hidden>
+            <div class="wapp__seg wapp__seg--sub" role="tablist" aria-label="USDC Transfer" data-transfer-modes>
+              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="move" aria-selected="true">Move between networks</button>
+              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="plan" aria-selected="false">Buy with cash, then send</button>
+            </div>
+            <div class="wapp__stack" data-transfer-pane="move"></div>
+            <div class="wapp__stack" data-transfer-pane="plan" hidden></div>
+          </div>
+        </div>
       </div>
 
       <div data-pane="swings" class="wapp__pane" hidden>
         <div class="wapp__stack">
-          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Aretia Swings" data-sw-tabs>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="swap" aria-selected="true">Swap Coins</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="false">Find Tokens</button>
+          <div class="wapp__seg wapp__seg--tabs" role="tablist" aria-label="Markets" data-sw-tabs>
+            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="new" aria-selected="true">Find Tokens</button>
             <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="markets" aria-selected="false">Marketplace</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="ramp" aria-selected="false">USDC to Fiat</button>
-            <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-sw-tab="transfer" aria-selected="false">USDC Transfer</button>
           </div>
           <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
-          <div data-sw-panel="swap" class="wapp__stack"></div>
+          <div data-sw-panel="swap" class="wapp__stack" hidden></div>
           <template id="sw-guide">
             <details class="wapp__guide">
               <summary><h2 class="wapp__h2">Before you swap</h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
@@ -400,17 +358,8 @@ const buyTips = [
               </div>
             </details>
           </template>
-          <div data-sw-panel="new" class="wapp__stack" hidden></div>
+          <div data-sw-panel="new" class="wapp__stack"></div>
           <div data-sw-panel="markets" class="wapp__stack" hidden></div>
-          <div data-sw-panel="ramp" class="wapp__stack" hidden></div>
-          <div data-sw-panel="transfer" class="wapp__stack" hidden>
-            <div class="wapp__seg wapp__seg--sub" role="tablist" aria-label="USDC Transfer" data-transfer-modes>
-              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="move" aria-selected="true">Move between networks</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" role="tab" data-transfer-mode="plan" aria-selected="false">Buy with cash, then send</button>
-            </div>
-            <div class="wapp__stack" data-transfer-pane="move"></div>
-            <div class="wapp__stack" data-transfer-pane="plan" hidden></div>
-          </div>
           <details class="wapp__fineprint">
             <summary>Good to know before you use Swings</summary>
             <ul>
@@ -549,6 +498,16 @@ const buyTips = [
     </section>
   </div>
 
+  <div class="wapp-swapdlg" data-swap-dialog hidden>
+    <div class="wapp-swapdlg__box" role="dialog" aria-modal="true" aria-labelledby="swapdlg-title">
+      <div class="wapp-swapdlg__bar">
+        <h2 id="swapdlg-title">Swap</h2>
+        <button type="button" class="wapp-swapdlg__close" data-swap-dialog-close aria-label="Close the swap window"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+      </div>
+      <div data-swap-dialog-slot></div>
+    </div>
+  </div>
+
   <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
   <!-- ?v= busts the long browser cache on /assets (served as immutable); bump it whenever wallet.js changes. -->
   <script is:inline src="/assets/wallet/wallet.js?v=20261005a"></script>
@@ -651,8 +610,7 @@ const buyTips = [
   .wapp[data-connected='false'][data-view='activity'] [data-pane='activity'] { display: none; }
   .wapp[data-connected='true'] .wapp__gate { display: none; }
   .wapp[data-connected='false'] [data-refresh] { display: none; }
-  .wapp[data-connected='false'][data-view='trade'] .wapp__gate { display: none; }
-
+  
   .wapp[data-connected='false'][data-view='send'] [data-pane='send'] { display: none; }
   .wapp__stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
   .wapp__buy { gap: 16px; grid-template-columns: minmax(0, 1fr); }
@@ -696,8 +654,7 @@ const buyTips = [
   .wapp__provider { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 16px; }
   .wapp__provider strong { color: var(--color-strong); }
   .wapp__provider span { display: block; font-size: 12px; color: var(--color-muted); }
-  .wapp:not([data-view='trade']) [data-pane='trade-fallback'] { display: none; }
-  .wapp[data-view='send'] [data-refresh] { display: none; }
+    .wapp[data-view='send'] [data-refresh] { display: none; }
   .wapp__amount { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .wapp__rows { display: grid; gap: 0; margin: 0; }
   .wapp__rows > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; font-size: 13px; border-top: 1px solid var(--color-border); }
@@ -736,8 +693,8 @@ const buyTips = [
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
   .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
   .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }
-  .wapp[data-connected='false'][data-view='swings'] .wapp__gate { display: none; }
-  .wapp[data-view='swings'] [data-refresh] { display: none; }
+  .wapp[data-connected='false']:is([data-view='swings'], [data-view='swap']) .wapp__gate { display: none; }
+  .wapp:is([data-view='swings'], [data-view='swap']) [data-refresh] { display: none; }
   .wapp__seg [role='tab'][aria-selected='true'] { color: #fff; background: var(--color-brand); }
   .wapp__form { display: grid; gap: 10px; }
   .wapp__input { box-sizing: border-box; width: 100%; padding: 12px 14px; font: inherit; font-size: 14px; color: var(--color-strong); background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md); }
@@ -867,9 +824,9 @@ const buyTips = [
 
   /* ---- Swings layout: network logos in a slim column beside the sidebar, centred tabs, a chart that fills the screen ---- */
   .wapp__rail { display: none; }
-  .wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr); }
-  .wapp[data-view='swings'] .wapp__rail { position: sticky; top: 0; z-index: 40; align-self: start; display: flex; flex-direction: column; align-items: center; gap: 10px; box-sizing: border-box; height: 100vh; padding: calc(var(--nav-height) + 16px) 0 16px; overflow-x: hidden; overflow-y: auto; background: var(--color-bg); border-right: 1px solid var(--color-border); }
-  body:has(.wapp[data-view='swings']) .nav--wallet .nav__bar { padding-left: calc(var(--wapp-side, 248px) + 76px + 36px); }
+  .wapp:is([data-view='swings'], [data-view='swap']) { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr); }
+  .wapp:is([data-view='swings'], [data-view='swap']) .wapp__rail { position: sticky; top: 0; z-index: 40; align-self: start; display: flex; flex-direction: column; align-items: center; gap: 10px; box-sizing: border-box; height: 100vh; padding: calc(var(--nav-height) + 16px) 0 16px; overflow-x: hidden; overflow-y: auto; background: var(--color-bg); border-right: 1px solid var(--color-border); }
+  body:has(.wapp:is([data-view='swings'], [data-view='swap'])) .nav--wallet .nav__bar { padding-left: calc(var(--wapp-side, 248px) + 76px + 36px); }
   .wapp__netbtn { position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; background: var(--color-bg-alt); border: 2px solid transparent; border-radius: 50%; cursor: pointer; transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
   .wapp__netbtn img { display: block; width: 36px; height: 36px; object-fit: cover; border-radius: 50%; }
   .wapp__netbtn:hover { transform: scale(1.06); box-shadow: 0 4px 14px rgba(20, 10, 80, 0.16); }
@@ -900,19 +857,46 @@ const buyTips = [
   .wapp-search__new { padding: 1px 8px; font-size: 11px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 999px; }
   @media (max-width: 1080px) { .wapp__top .wapp-search { order: 3; flex-basis: 100%; max-width: none; } .wapp__top { flex-wrap: wrap; } }
   @media (max-width: 960px) {
-    .wapp[data-view='swings'] { grid-template-columns: minmax(0, 1fr); }
-    .wapp[data-view='swings'] .wapp__rail { position: static; flex-direction: row; height: auto; padding: 10px 16px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--color-border); }
-    body:has(.wapp[data-view='swings']) .nav--wallet .nav__bar { padding-left: 16px; }
+    .wapp:is([data-view='swings'], [data-view='swap']) { grid-template-columns: minmax(0, 1fr); }
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__rail { position: static; flex-direction: row; height: auto; padding: 10px 16px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--color-border); }
+    body:has(.wapp:is([data-view='swings'], [data-view='swap'])) .nav--wallet .nav__bar { padding-left: 16px; }
   }
 
   /* Swings: no page title; the tabs sit in the top bar beside the search box; the chart takes the freed space */
-  .wapp[data-view='swings'] .wapp__top h1 { display: none; }
-  .wapp[data-view='swings'] .wapp__top:not(:has(.wapp__chips, .wapp-search, .wapp__seg--tabs)) { display: none; }
+  .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top h1 { display: none; }
+  .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top:not(:has(.wapp__chips, .wapp-search, .wapp__seg--tabs)) { display: none; }
   .nav__bar > .wapp__seg--tabs { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0 0 0 12px; }
   .nav__bar > .wapp__seg--tabs .wapp__chip { padding: 7px 11px; font-size: 12.5px; white-space: nowrap; }
   body:not(:has(.wapp[data-view='swings'])) .nav__bar > .wapp__seg--tabs { display: none; }
   .nav__bar > .wapp-search { flex: 1 1 280px; min-width: 170px; max-width: 380px; margin: 0; }
   [data-sw-panel='swap'] .wapp__chart-plot { height: calc(100vh - 300px); }
+
+  .wapp[data-view='swap'] [data-sw-tabs], .wapp[data-view='swap'] [data-sw-intro] { display: none; }
+
+  /* ---- Pay: three ways to move money, as cards ---- */
+  .wapp-pay__hub { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .wapp-pay__card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; font: inherit; text-align: left; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); cursor: pointer; transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
+  .wapp-pay__card:hover { transform: translateY(-1px); border-color: var(--color-border-strong); }
+  .wapp-pay__card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-pay__card[aria-selected='true'] { border-color: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-soft); }
+  .wapp-pay__icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 14px; }
+  .wapp-pay__icon svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp-pay__text { display: grid; gap: 3px; min-width: 0; }
+  .wapp-pay__text strong { font-size: 15px; }
+  .wapp-pay__text span { font-size: 12.5px; line-height: 1.4; color: var(--color-muted); }
+  @media (max-width: 860px) { .wapp-pay__hub { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- Swap opened over the page it was started from ---- */
+  .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }
+  .wapp-swapdlg[hidden] { display: none; }
+  .wapp-swapdlg__box { position: relative; box-sizing: border-box; width: min(1180px, 100%); padding: 18px; background: var(--color-bg-alt); border-radius: var(--radius-xl); box-shadow: 0 24px 80px rgba(10, 6, 50, 0.35); }
+  .wapp-swapdlg__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .wapp-swapdlg__bar h2 { margin: 0; font-size: 1.15rem; color: var(--color-strong); }
+  .wapp-swapdlg__close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font: inherit; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
+  .wapp-swapdlg__close:hover { background: var(--color-brand-soft); }
+  .wapp-swapdlg__close:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-swapdlg [data-sw-panel='swap'] .wapp__chart-plot { height: 360px; }
+  body:has(.wapp-swapdlg:not([hidden])) { overflow: hidden; }
 
   /* ---- Find Tokens and Marketplace: a light table of tokens, one row each ---- */
   .wapp-mt__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }

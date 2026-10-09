@@ -14,7 +14,7 @@ import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
-import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
 import { marketTable, type TableState } from './walletMarketTable.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromRecords } from '../swings/market/registryRows.js';
@@ -102,16 +102,17 @@ const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? 
 /** Where the 0.29% Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
 const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
-export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void; onActivityShow(): void } {
+export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
-  if (!root) return { onShow() {}, onWalletChange() {}, onActivityShow() {} };
+  if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {} };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
   const swapPanel = panel('swap');
   // Swaps and moves are listed in the sidebar's Activity page, not in a tab here.
   const activityPanel = document.querySelector<HTMLElement>('[data-swings-activity]') ?? el('div');
-  const rampPanel = panel('ramp');
-  const movePanel = root.querySelector<HTMLElement>('[data-transfer-pane="move"]')!;
-  const planPanel = root.querySelector<HTMLElement>('[data-transfer-pane="plan"]')!;
+  // Pay holds the cash-out and USDC-transfer screens; they are built here because they share this page's wallet and router.
+  const rampPanel = document.querySelector<HTMLElement>('[data-pay-panel="ramp"]')!;
+  const movePanel = document.querySelector<HTMLElement>('[data-transfer-pane="move"]')!;
+  const planPanel = document.querySelector<HTMLElement>('[data-transfer-pane="plan"]')!;
 
   // Tokens the user picked, by address: names and icons only. Decimals are re-read from the chain.
   const picked = new Map<string, TokenInfo>();
@@ -1135,8 +1136,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         const v = viewStatus(m, false);
         const go = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Open', attrs: { type: 'button' } });
         go.addEventListener('click', () => {
-          location.hash = '#/swings';
-          showTab('transfer');
+          location.hash = '#/send';
+          showPayTab('transfer');
         });
         box.append(el('div', { class: 'wapp__provider' }, [el('div', {}, [el('strong', { text: `${CHAINS[m.quote.intent.sourceChain].name} to ${CHAINS[m.quote.intent.destinationChain].name}` }), el('span', { text: `${v.title}. ${v.detail}` })]), go]));
       }
@@ -1170,9 +1171,12 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // ------------------------------------------------------------------ tabs
 
   const TAB_INTRO: Record<string, string> = {
-    swap: 'Exchange one coin for another on the network you picked on the left. You see the price, the least you will get and every fee before anything is signed.',
+    swap: '',
     new: 'Coins that have just got a trading pool. New does not mean safe: read the safety notes before you buy.',
     markets: 'Coins ranked by how much trading money is behind them. Large does not mean safe either.',
+  };
+  const PAY_INTRO: Record<string, string> = {
+    send: '',
     ramp: 'Turn USDC into cash, or buy USDC with a bank card or transfer, through a licensed provider. Aretia never touches your money.',
     transfer: 'Send USDC from one network to another, or buy USDC with cash and have it end up where you want it. Your wallet approves each step.',
   };
@@ -1181,26 +1185,72 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   let transferMode: TransferMode = 'move';
   function showTransferMode(mode: TransferMode): void {
     transferMode = mode;
-    root!.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
-    root!.querySelectorAll<HTMLElement>('[data-transfer-pane]').forEach((p) => (p.hidden = p.dataset.transferPane !== mode));
+    document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
+    document.querySelectorAll<HTMLElement>('[data-transfer-pane]').forEach((p) => (p.hidden = p.dataset.transferPane !== mode));
     if (mode === 'move') crossChain.draw();
     else planTab.draw();
   }
-  root.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : 'move')));
+  document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : 'move')));
 
+  // Pay: Send, Cash out or top up, and Move USDC are one page with three cards.
+  let payTab = 'send';
+  function showPayTab(name: string): void {
+    payTab = name;
+    document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.payTab === name)));
+    document.querySelectorAll<HTMLElement>('[data-pay-panel]').forEach((p) => (p.hidden = p.dataset.payPanel !== name));
+    const intro = document.querySelector<HTMLElement>('[data-pay-intro]');
+    if (intro) intro.textContent = PAY_INTRO[name] ?? '';
+    if (name === 'ramp') ramp.draw();
+    if (name === 'transfer') showTransferMode(transferMode);
+  }
+  document.querySelectorAll<HTMLElement>('[data-pay-tab]').forEach((b) => b.addEventListener('click', () => showPayTab(b.dataset.payTab ?? 'send')));
+
+  // The two lists (Find Tokens, Marketplace) are tabs; Swap is its own page and shows the same swap panel.
+  let listTab: 'new' | 'markets' = 'new';
   function showTab(name: string): void {
+    if (name === 'new' || name === 'markets') listTab = name;
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
-    // The swap screen needs the room for its chart, so it has no explanation line.
-    if (intro) intro.textContent = name === 'swap' ? '' : (TAB_INTRO[name] ?? '');
+    if (intro) intro.textContent = TAB_INTRO[name] ?? '';
     document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
     if (name === 'new') newTokens.ensureLoaded();
     if (name === 'markets') markets.ensureLoaded();
-    if (name === 'ramp') ramp.draw();
-    if (name === 'transfer') showTransferMode(transferMode);
     if (name === 'swap') render();
   }
-  document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'swap')));
+  document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'new')));
+
+  // ---- the swap, opened over the page it was started from (Marketplace, a token page) so nobody is sent away
+  const swapDialog = document.querySelector<HTMLElement>('[data-swap-dialog]');
+  const swapSlot = document.querySelector<HTMLElement>('[data-swap-dialog-slot]');
+  const swapHome = swapPanel.parentElement;
+  const swapNext = swapPanel.nextSibling;
+  let dialogReturnFocus: HTMLElement | null = null;
+  const onDialogKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') closeSwapDialog();
+  };
+  function openSwapDialog(): void {
+    if (!swapDialog || !swapSlot) return;
+    if (swapDialog.hidden) dialogReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    swapSlot.append(swapPanel);
+    swapPanel.hidden = false;
+    swapDialog.hidden = false;
+    document.addEventListener('keydown', onDialogKey);
+    render();
+    swapDialog.querySelector<HTMLElement>('[data-swap-dialog-close]')?.focus();
+  }
+  function closeSwapDialog(): void {
+    if (!swapDialog || swapDialog.hidden) return;
+    swapDialog.hidden = true;
+    document.removeEventListener('keydown', onDialogKey);
+    if (swapHome) swapHome.insertBefore(swapPanel, swapNext);
+    swapPanel.hidden = true;
+    dialogReturnFocus?.focus?.();
+    dialogReturnFocus = null;
+  }
+  swapDialog?.querySelector('[data-swap-dialog-close]')?.addEventListener('click', closeSwapDialog);
+  swapDialog?.addEventListener('mousedown', (e) => {
+    if (e.target === swapDialog) closeSwapDialog();
+  });
 
   // ---- the top-bar search opens a token here, with its chart
   mountTokenSearch();
@@ -1221,13 +1271,32 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   window.addEventListener(OPEN_TOKEN_EVENT, (e) => {
     const t = (e as CustomEvent<SearchHit>).detail;
     void (async () => {
-      if (location.hash !== '#/swings') {
-        location.hash = '#/swings';
+      const onSwapPage = location.hash === '#/swap';
+      const onMarkets = location.hash === '#/swings';
+      if (!onSwapPage && !onMarkets) {
+        location.hash = '#/swap';
         await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
       }
       selectChain(t.chain);
-      showTab('swap');
+      // From Markets the swap opens over the list; on the Swap page it is already in place.
+      if (onMarkets) openSwapDialog();
+      else showTab('swap');
       if (t.decimals !== null) await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, icon: t.icon, verified: null }, t.chain);
+    })();
+  });
+
+  // Intent hands over a swap it has read: the Swap page fills in both tokens and the amount, and the person reviews it there.
+  window.addEventListener(PREFILL_SWAP_EVENT, (e) => {
+    const d = (e as CustomEvent<{ from: { mint: string; symbol: string; decimals: number | null }; to: { mint: string; symbol: string; decimals: number | null }; amount: string }>).detail;
+    if (d.from.decimals === null || d.to.decimals === null) return;
+    void (async () => {
+      if (location.hash !== '#/swap') location.hash = '#/swap';
+      selectChain('solana');
+      showTab('swap');
+      await pick('from', { mint: d.from.mint, symbol: d.from.symbol, name: d.from.symbol, decimals: d.from.decimals!, icon: null, verified: null }, 'solana');
+      await pick('to', { mint: d.to.mint, symbol: d.to.symbol, name: d.to.symbol, decimals: d.to.decimals!, icon: null, verified: null }, 'solana');
+      s.amount = d.amount;
+      render();
     })();
   });
 
@@ -1241,7 +1310,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     });
   }
 
-  showTab('swap');
+  showTab('new');
+  showPayTab('send');
 
   renderRail();
   void loadRuntime().then(() => {
@@ -1252,11 +1322,16 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   });
 
   return {
-    onShow() {
+    onShow(view) {
+      closeSwapDialog();
+      showTab(view === 'swap' ? 'swap' : listTab);
       render();
       newTokens.draw();
       markets.draw();
       renderActivity();
+    },
+    onPayShow() {
+      showPayTab(payTab);
     },
     onWalletChange() {
       resetQuote();

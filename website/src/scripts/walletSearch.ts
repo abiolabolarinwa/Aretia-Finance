@@ -6,6 +6,8 @@ import { CHAINS } from '../swings/core/types.js';
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 
 export const OPEN_TOKEN_EVENT = 'aretia:open-token';
+/** Intent asks the Swap page to fill in a swap: { from, to: { mint, symbol, decimals }, amount }. Nothing is quoted or sent. */
+export const PREFILL_SWAP_EVENT = 'aretia:prefill-swap';
 
 const usd = (n: number | null): string => (n === null ? '' : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`);
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);

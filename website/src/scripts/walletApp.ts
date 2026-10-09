@@ -319,7 +319,7 @@ export function initWalletApp(): void {
   let activity: ActivityItem[] | null = null;
   let amountsHidden = false;
   let loadToken = 0;
-  const swings = initSwings({ getAddress: () => address, getHoldings: () => holdings, refresh: () => refresh() });
+  const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
 
   const currentView = (): View => {
     const raw = location.hash.replace(/^#\/?/, '');

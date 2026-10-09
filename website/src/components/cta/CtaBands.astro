@@ -1,33 +1,85 @@
 ---
-import Button from '../buttons/Button.astro';
+import ProductLogo from '../brand/ProductLogo.astro';
 import { LINKS } from '../../data/site';
+import type { ProductKey } from '../../lib/logos';
+
+/* The closing area on every page: first a way into each product, then the
+   last word. Links match the landing page's product cards. */
+const products: { key: ProductKey; name: string; line: string; href: string }[] = [
+  { key: 'wallet', name: 'Aretia Wallet', line: 'Self-custody across five chains', href: '/wallet/about' },
+  { key: 'swap', name: 'Aretia Swap', line: 'Swap with the price shown first', href: '/wallet' },
+  { key: 'pay', name: 'Aretia Pay', line: 'Send to a name, not an address', href: '/features#pay' },
+  { key: 'safesend', name: 'Aretia SafeSend', line: 'Cancel a send before it lands', href: '/features#safesend' },
+  { key: 'market', name: 'Aretia Market', line: 'Climate projects seeking capital', href: '/marketplace' },
+  { key: 'carbon', name: 'Aretia Carbon Credit', line: 'Registry-backed, then retired', href: '/carboncredit' },
+];
 ---
 
-<section class="bands" aria-labelledby="cta-title">
+<section class="more" aria-labelledby="more-title">
   <div class="container">
-    <div class="band" data-reveal="scale">
-      <h2 id="cta-title" class="heading">Your money, moving with purpose.</h2>
-      <p class="lead">ACT is live on Solana today, automatically funding a Climate Treasury on every transfer. Aretia Wallet brings self-custody across five chains as it ships.</p>
-      <div class="band__actions">
-        <Button href={LINKS.buyAct} size="lg" variant="gold" arrow>Get ACT</Button>
-        <Button href={LINKS.walletWaitlist} size="lg" variant="secondary">Wallet waitlist</Button>
+    <header class="more__head" data-reveal>
+      <h2 id="more-title" class="more__title">Everything Aretia does.</h2>
+      <a class="more__all" href="/features">See all features →</a>
+    </header>
+    <ul class="more__grid">
+      {products.map((p) => (
+        <li data-reveal>
+          <a class="more__tile" href={p.href}>
+            <ProductLogo product={p.key} size={48} />
+            <span class="more__name">{p.name}</span>
+            <span class="more__line">{p.line}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<section class="bands" aria-labelledby="cta-title">
+  <div class="band">
+    <div class="container band__inner">
+      <h2 id="cta-title" class="band__title" data-reveal>The future of money<br />should fund the future.</h2>
+      <p class="band__lead" data-reveal>ACT is live on Solana today, automatically funding a Climate Treasury on every transfer. The wallet brings self-custody across five chains as it ships.</p>
+      <div class="band__actions" data-reveal>
+        <a class="band__btn band__btn--white" href={LINKS.buyAct}>Get ACT</a>
+        <a class="band__btn band__btn--ghost" href={LINKS.walletWaitlist}>Join the wallet waitlist</a>
       </div>
-      <p class="band__note">The wallet's browser extension is in development and not yet on the Chrome Web Store.</p>
+      <p class="band__note">The wallet's browser extension is in development and not yet on the Web Store.</p>
     </div>
   </div>
 </section>
 
 <style>
-  .bands { padding-block: var(--space-2xl) var(--space-3xl); }
-  /* The last word on every page -- solid on the logo's own green, not a thin
-     tinted panel, so the final commitment reads with full confidence. */
-  .band { position: relative; overflow: hidden; isolation: isolate; text-align: center; display: grid; justify-items: center; gap: var(--space-md); padding: clamp(3rem, 8vw, 6.5rem) var(--gutter); border-radius: var(--radius-xl); background: var(--color-brand); color: #fff; }
-  .band .heading { color: #fff; }
-  .band .lead { margin-inline: auto; color: rgba(255, 255, 255, 0.78); }
-  .band__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: var(--space-xs); }
-  .band__actions :global(.btn--secondary) { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
-  .band__note { font-size: var(--text-micro); color: rgba(255, 255, 255, 0.6); }
+  .more { padding-block: var(--space-2xl) var(--space-xl); }
+  .more__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem 1.5rem; margin-bottom: var(--space-lg); }
+  .more__title { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 600; letter-spacing: -0.03em; }
+  .more__all { font-size: 0.9375rem; font-weight: 600; color: var(--color-brand-bright); }
+  .more__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  .more__grid li { display: flex; }
+  .more__tile { flex: 1; display: grid; align-content: start; gap: 6px; padding: 20px 18px 22px; border-radius: 22px; background: var(--color-bg-alt); transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out); }
+  .more__tile :global(.pl) { margin-bottom: 10px; }
+  .more__name { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.015em; color: var(--color-strong); }
+  .more__line { font-size: 0.8125rem; line-height: 1.4; color: var(--color-muted); }
+  @media (hover: hover) and (pointer: fine) { .more__tile:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -26px rgba(14, 11, 43, 0.45); } }
+
+  /* The last word on every page: a full-width band in the brand indigo,
+     the same close as the landing page. */
+  .bands { margin-top: var(--space-xl); }
+  .band { background: var(--color-brand); color: #fff; padding-block: clamp(4rem, 9vw, 7.5rem); text-align: center; }
+  .band__inner { display: grid; justify-items: center; gap: var(--space-md); }
+  .band__title { font-family: var(--font-topical); font-size: clamp(1.9rem, 4.6vw, 3.5rem); font-weight: 700; line-height: 1.08; color: #fff; text-wrap: balance; }
+  .band__lead { max-width: 36rem; font-size: var(--text-lead); line-height: 1.55; color: rgba(255, 255, 255, 0.8); }
+  .band__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+  .band__btn { display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 28px; border-radius: var(--radius-pill); font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-press) var(--ease-out); }
+  .band__btn:active { transform: scale(0.97); }
+  .band__btn--white { background: #fff; color: var(--color-strong); }
+  .band__btn--ghost { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); }
+  .band :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .band__note { font-size: var(--text-micro); color: rgba(255, 255, 255, 0.62); }
   @media (hover: hover) and (pointer: fine) {
-    .band__actions :global(.btn--secondary:hover) { border-color: #fff; background: rgba(255, 255, 255, 0.1); }
+    .band__btn--white:hover { background: var(--color-mint); }
+    .band__btn--ghost:hover { background: rgba(255, 255, 255, 0.12); }
   }
+  @media (max-width: 1100px) { .more__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .more__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

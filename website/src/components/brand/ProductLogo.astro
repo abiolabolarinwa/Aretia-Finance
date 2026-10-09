@@ -1,0 +1,28 @@
+---
+import { GLYPHS, PRODUCT_NAMES, type ProductKey } from '../../lib/logos';
+
+interface Props {
+  product: ProductKey;
+  size?: number;
+  /** Show the "Aretia <Product>" wordmark beside the mark. */
+  wordmark?: boolean;
+}
+const { product, size = 44, wordmark = false } = Astro.props;
+const label = PRODUCT_NAMES[product];
+const rest = label.replace('Aretia ', '');
+---
+
+<span class="pl" style={`--pl-size:${size}px`}>
+  <svg class="pl__mark" viewBox="0 0 64 64" width={size} height={size} role={wordmark ? undefined : 'img'} aria-label={wordmark ? undefined : label} aria-hidden={wordmark ? 'true' : undefined}>
+    <rect width="64" height="64" rx="16" fill="#150681"></rect>
+    <g set:html={GLYPHS[product]} />
+  </svg>
+  {wordmark && <span class="pl__word"><b>Aretia</b> {rest}</span>}
+</span>
+
+<style>
+  .pl { display: inline-flex; align-items: center; gap: calc(var(--pl-size) * 0.3); }
+  .pl__mark { flex: none; display: block; }
+  .pl__word { font-size: calc(var(--pl-size) * 0.4); line-height: 1; letter-spacing: -0.02em; color: inherit; white-space: nowrap; }
+  .pl__word b { font-weight: 700; }
+</style>

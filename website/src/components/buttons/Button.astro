@@ -35,13 +35,13 @@ const { href, variant = 'primary', size = 'md', arrow = false, external = false,
   }
   .btn--md { height: 44px; padding: 0 1.25rem; font-size: 0.9375rem; }
   .btn--lg { height: 52px; padding: 0 1.5rem; font-size: 1.0625rem; }
-  .btn--primary { background: var(--color-brand-bright); color: #fff; }
+  .btn--primary { background: var(--color-strong); color: #fff; }
   .btn--secondary { border-color: var(--color-border-strong); color: var(--color-strong); }
   .btn--gold { background: var(--color-gold-bright); color: #fff; }
   .btn--ghost { color: var(--color-brand-bright); padding-inline: 0.25rem; }
   .btn__arrow { display: inline-flex; transition: transform var(--duration-fast) var(--ease-out); }
   @media (hover: hover) and (pointer: fine) {
-    .btn--primary:hover { background: var(--color-brand); }
+    .btn--primary:hover { background: var(--color-brand-bright); }
     .btn--secondary:hover { border-color: var(--color-strong); background: rgba(0, 0, 0, 0.03); }
     .btn--gold:hover { background: var(--color-gold); }
     .btn--ghost:hover .btn__label { text-decoration: underline; }

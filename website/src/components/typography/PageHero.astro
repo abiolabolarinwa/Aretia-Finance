@@ -10,21 +10,37 @@ const { eyebrow, title, lead, align = 'left', size = 'display' } = Astro.props;
 ---
 
 <header class:list={['ph', `ph--${align}`]}>
-  <div class="container ph__inner">
-    <p class="eyebrow" data-reveal>{eyebrow}</p>
-    <h1 class:list={['ph__title', `ph__title--${size}`]} data-split="load" set:html={title} />
-    {lead && <p class="lead ph__lead" data-reveal>{lead}</p>}
-    <slot />
+  <div class="ph__frame">
+    <!-- The Aretia mark's three sticks, drawn large and quiet behind the copy. -->
+    <svg class="ph__sticks" viewBox="0 0 480 420" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="46" stroke-linecap="round">
+        <path d="M70 130 300 250" />
+        <path d="M70 300 300 180" />
+        <path d="M386 112 366 316" />
+      </g>
+    </svg>
+    <div class="container ph__inner">
+      <p class="hero-pill" data-reveal>{eyebrow}</p>
+      <h1 class:list={['ph__title', `ph__title--${size}`]} data-split="load" set:html={title} />
+      {lead && <p class="ph__lead" data-reveal>{lead}</p>}
+      <slot />
+    </div>
   </div>
 </header>
 
 <style>
-  .ph { position: relative; padding-top: calc(var(--nav-height) + clamp(4rem, 10vw, 8rem)); padding-bottom: clamp(3rem, 7vw, 6rem); overflow: hidden; isolation: isolate; }
+  /* The same inset, rounded, dark frame as the landing hero, so every page
+     opens in the same voice. */
+  .ph { padding: calc(var(--nav-height) + 8px) clamp(8px, 1.2vw, 16px) 0; }
+  .ph__frame { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; min-height: clamp(360px, 46vh, 520px); padding-block: clamp(3rem, 7vw, 5.5rem); border-radius: clamp(20px, 2.4vw, 36px); background: var(--color-strong); color: #fff; }
+  .ph__sticks { position: absolute; z-index: -1; right: clamp(-3rem, -2vw, 0rem); bottom: -12%; height: 118%; width: auto; max-width: 62%; color: rgba(184, 176, 255, 0.13); pointer-events: none; }
   .ph__inner { display: grid; gap: var(--space-md); justify-items: start; }
   .ph--center .ph__inner { justify-items: center; text-align: center; }
-  .ph--center .ph__lead { margin-inline: auto; }
-  .ph__title { font-family: var(--font-topical); }
+  .ph__title { font-family: var(--font-topical); color: #fff; }
   .ph__title--display { font-size: var(--text-display); max-width: 15ch; }
   .ph__title--mega { font-size: var(--text-mega); line-height: 0.92; }
-  .ph__lead { max-width: 42rem; }
+  .ph__lead { max-width: 42rem; font-size: var(--text-lead); line-height: 1.55; color: rgba(255, 255, 255, 0.82); }
+  .ph--center .ph__lead { margin-inline: auto; }
+  .ph :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  @media (max-width: 760px) { .ph__sticks { max-width: 90%; opacity: 0.7; } }
 </style>

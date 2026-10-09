@@ -8,12 +8,44 @@ interface Props {
 const { name } = Astro.props;
 const page = loadLegacyPage(name);
 // Pages that load assets/wallet/wallet.js need its connect button and styles.
+/* Puts every legacy page's own hero (.dhero) into the same inset dark frame
+   the rest of the site opens with. Loaded after the page CSS so it wins. */
+const HERO_OVERRIDE = `
+.legacy .dhero { background: #0e0b2b; color: #fff; margin: calc(var(--nav-height) + 8px) clamp(8px, 1.2vw, 16px) 0; border-radius: clamp(20px, 2.4vw, 36px); padding: clamp(48px, 6vw, 84px) 0; }
+.legacy .dhero-stage { display: none; }
+.legacy .dhero h1 { color: #fff !important; font-family: 'Rostex', 'Geist Variable', system-ui, sans-serif; font-weight: 700; letter-spacing: 0; line-height: 1.1; }
+.legacy .dhero h1 .hl { color: #b8b0ff !important; }
+.legacy .dhero-sub, .legacy .dhero-microcopy { color: rgba(255, 255, 255, 0.82) !important; }
+.legacy .dhero-eyebrow { background: rgba(255, 255, 255, 0.14); color: #fff; border: 0; backdrop-filter: blur(10px); }
+.legacy .dhero .pill-black { background: #fff; color: #0e0f12; }
+.legacy .dhero .pill-ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); border-color: transparent; }
+.legacy .dhero .chk { color: #b8b0ff; }
+.legacy .mp-hero { background: #0e0b2b; color: #fff; margin: calc(var(--nav-height) + 8px) clamp(8px, 1.2vw, 16px) 0; border-radius: clamp(20px, 2.4vw, 36px); padding: clamp(48px, 6vw, 84px) 0; }
+.legacy .mp-hero-stage { display: none; }
+.legacy .mp-hero h1 { color: #fff !important; font-family: 'Rostex', 'Geist Variable', system-ui, sans-serif; font-weight: 700; letter-spacing: 0; }
+.legacy .mp-hero h1 .hl, .legacy .mp-hero h1 .hl .gl { color: #b8b0ff !important; }
+.legacy .mp-hero-sub, .legacy .mp-hero-microcopy { color: rgba(255, 255, 255, 0.82) !important; }
+.legacy .mp-hero-eyebrow { background: rgba(255, 255, 255, 0.14); color: #fff; border: 0; }
+.legacy .mp-hero .pill-black { background: #fff; color: #0e0f12; }
+.legacy .mp-hero .pill-ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); border-color: transparent; }
+/* These pages load the wallet connect button, which switches the nav into the
+   wallet-app layout (no logo, no menu). They have no wallet sidebar, so
+   restore the normal site nav and keep the connect button. */
+.nav--wallet .nav__brand { display: flex !important; }
+.nav--wallet .nav__menu { display: block !important; }
+.nav--wallet .nav__bar { max-width: var(--max-width) !important; margin: 0 auto !important; padding: 0 var(--gutter) !important; }
+@media (max-width: 1080px) {
+  .nav--wallet .nav__menu { display: none !important; }
+  .nav--wallet .nav__toggle { display: block !important; }
+}
+`;
 const usesWallet = page.scripts.includes('/assets/wallet/wallet.js');
 ---
 
-<Base title={page.title} description={page.description} walletConnect={usesWallet} ctaBands={false}>
+<Base title={page.title} description={page.description} walletConnect={usesWallet} >
   {usesWallet && <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />}
   <Fragment slot="head"><style is:inline set:html={page.css} /></Fragment>
+  <Fragment slot="head"><style is:inline set:html={HERO_OVERRIDE} /></Fragment>
   <div class="legacy">
     <Fragment set:html={page.content} />
   </div>

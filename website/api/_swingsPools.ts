@@ -44,10 +44,12 @@ export async function handlePools(input: TokensInput): Promise<TokensOutput> {
   let scan = await scanPoolsDetailed(rpcFor(keyed || SCAN_FALLBACK_RPC), mint);
   let usedFallback = false;
   let keyedReason: string | null = null;
-  // The paid provider may refuse some program-wide queries on its plan; the public endpoint then answers instead.
-  if (keyed && scan.pools.length === 0 && scan.failed > 0) {
+  // The paid provider may refuse some program-wide queries on its plan (it still answers the others), so whatever it failed
+  // is asked again of the public endpoint and the two answers are joined.
+  if (keyed && scan.failed > 0) {
     keyedReason = scan.reason;
-    scan = await scanPoolsDetailed(rpcFor(SCAN_FALLBACK_RPC), mint);
+    const more = await scanPoolsDetailed(rpcFor(SCAN_FALLBACK_RPC), mint);
+    scan = { pools: [...new Set([...scan.pools, ...more.pools])], failed: more.failed, reason: more.reason };
     usedFallback = true;
   }
   // An empty answer is only kept when every question was answered (a real "none"); a failed one is retried next time.

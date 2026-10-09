@@ -28,6 +28,8 @@ export interface DexEntry {
   quoter?: string;
   /** Uniswap V4: the contract that reads a pool's state. */
   stateView?: string;
+  /** Uniswap V4: the PositionManager, which can turn a pool id back into its pool key. */
+  positionManager?: string;
   /** Default fee in parts per million, where the venue has one fixed fee (V2 forks). */
   feePpm?: number;
   /** The chain's wrapped native token, used when a path starts or ends in the native coin. */

@@ -1,8 +1,8 @@
-import { ACT as ACT_INFO, POOLS } from '../data/site';
+import { ACT as ACT_INFO } from '../data/site';
 import { initSwings } from './walletSwings';
-import { fetchQuote, fetchSizeImpact, planSwap, searchTokens, signAndSubmitSwap, type Quote, type SwapPlan, type TokenInfo } from './walletSwap';
-import { RPC_URL, loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
-import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidatesFor, defaultSlippageBps, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, splitSwapFee, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+import { PREFILL_SWAP_EVENT } from './walletSearch';
+import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
+import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -26,9 +26,7 @@ import { BASE_FEE_LAMPORTS, KNOWN_TOKENS, SWAP_SOL_OVERHEAD_LAMPORTS, candidates
  * element creation, never innerHTML.
  */
 
-const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const JUPITER_PLUGIN = 'https://plugin.jup.ag/plugin-v1.js';
 const MAX_MINTS = 100;
 /** Below this much SOL a swap can fail: the network fee, plus about 0.002 SOL to open a new token account. */
 const LOW_SOL = 0.003;
@@ -263,9 +261,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'trade' | 'swings' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'trade', 'swings', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', trade: 'Trade', swings: 'Aretia Swings', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'swings' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'swings', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', swings: 'Markets', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -324,7 +322,9 @@ export function initWalletApp(): void {
   const swings = initSwings({ getAddress: () => address, getHoldings: () => holdings, refresh: () => refresh() });
 
   const currentView = (): View => {
-    const h = location.hash.replace(/^#\/?/, '') as View;
+    const raw = location.hash.replace(/^#\/?/, '');
+    // Trade was folded into Swap, which covers more networks; old links still land somewhere useful.
+    const h = (raw === 'trade' ? 'swap' : raw) as View;
     return VIEWS.includes(h) ? h : 'dashboard';
   };
 
@@ -340,7 +340,9 @@ export function initWalletApp(): void {
       if (b.dataset.nav === view) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
-    document.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== view));
+    // The Swap page shows the same panel the Markets page is built on.
+    const pane = view === 'swap' ? 'swings' : view;
+    document.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== pane));
     const chip = $('[data-account]');
     if (chip) {
       chip.textContent = '';
@@ -355,7 +357,7 @@ export function initWalletApp(): void {
     }
     if (view === 'send') void loadMarketplace(); // the Buy card sits beside Send; it loads once
     const refresh = $<HTMLElement>('[data-refresh]');
-    if (refresh) refresh.hidden = !(address && (view === 'dashboard' || view === 'trade' || view === 'activity'));
+    if (refresh) refresh.hidden = !(address && (view === 'dashboard' || view === 'activity'));
     const addr = $('[data-address]');
     if (addr) addr.textContent = address ?? '';
     const scan = $<HTMLAnchorElement>('[data-solscan]');
@@ -389,7 +391,6 @@ export function initWalletApp(): void {
 
   function renderDashboard(error?: string): void {
     renderTopAssets();
-    renderSwap();
     const total = $('[data-total]');
     const sub = $('[data-total-sub]');
     const body = $('[data-holdings]');
@@ -485,582 +486,6 @@ export function initWalletApp(): void {
       activity = act.value;
       renderActivity();
     } else renderActivity(act.reason instanceof Error ? act.reason.message : 'unknown error');
-  }
-
-  // ---- swap tab (our own screen; Jupiter quotes and builds, the page checks before anything is signed)
-  const SOL = 'So11111111111111111111111111111111111111112';
-  const KNOWN_NAMES: Record<string, string> = { SOL: 'Solana', USDC: 'USD Coin', USDT: 'Tether USD', ACT: 'Aretia Finance Protocol' };
-  // ACT and SOL logos ship with the site so they always show; the others are fetched once and remembered.
-  const LOCAL_ICONS: Record<string, string> = { [ACT_INFO.mint]: '/assets/logo-mark.png', [SOL]: '/assets/chains/solana.png' };
-  const iconCache = new Map<string, string>(Object.entries(LOCAL_ICONS));
-  const tokenIcon = (tk: { mint: string; icon: string | null }): string | null => LOCAL_ICONS[tk.mint] ?? tk.icon ?? iconCache.get(tk.mint) ?? holding(tk.mint)?.icon ?? null;
-  const knownTokens: TokenInfo[] = KNOWN_TOKENS.map((k) => ({ mint: k.mint, symbol: k.symbol, name: KNOWN_NAMES[k.symbol] ?? k.symbol, decimals: k.decimals, icon: null, verified: k.symbol === 'ACT' ? null : true }));
-  async function loadKnownIcons(): Promise<void> {
-    try {
-      const found = await searchTokens(KNOWN_TOKENS.map((k) => k.mint).join(','));
-      for (const tk of found) if (tk.icon && KNOWN_TOKENS.some((k) => k.mint === tk.mint)) iconCache.set(tk.mint, tk.icon);
-      renderSwap();
-      void ensureChart();
-    } catch {
-      // The initials stay until the next visit.
-    }
-  }
-  const tokenByMint = (mint: string): TokenInfo | undefined => knownTokens.find((k) => k.mint === mint);
-  const swap = {
-    from: tokenByMint(SOL)!,
-    to: tokenByMint(ACT_INFO.mint)!,
-    amountText: '',
-    slip: 'auto' as 'auto' | number,
-    quote: null as Quote | null,
-    impact: null as number | null,
-    quoting: false,
-    error: null as string | null,
-    seq: 0,
-    busy: false,
-  };
-  let swapTimer: number | undefined;
-  const swapEls = () => ({
-    amount: $<HTMLInputElement>('[data-swap-amount]'),
-    out: $('[data-swap-out]'),
-    go: $<HTMLButtonElement>('[data-swap-go]'),
-    details: $('[data-swap-details]'),
-    notes: $('[data-swap-notes]'),
-    review: $('[data-swap-review]'),
-  });
-  const involvesAct = () => swap.from.mint === ACT_INFO.mint || swap.to.mint === ACT_INFO.mint;
-  const slipBps = () => (swap.slip === 'auto' ? defaultSlippageBps(involvesAct()) : swap.slip);
-  const holding = (mint: string) => holdings?.find((h) => h.mint === mint);
-  const fmtRaw = (raw: bigint, decimals: number) => formatAmount(Number(fromSmallestUnit(raw, decimals)));
-  const solText = (lamports: bigint) => `${fromSmallestUnit(lamports, 9)} SOL`;
-  const amountRaw = (): bigint | null => {
-    const r = swap.amountText ? toSmallestUnit(swap.amountText, swap.from.decimals) : null;
-    return r === null || BigInt(r) === 0n ? null : BigInt(r);
-  };
-
-  function tokenButton(side: 'from' | 'to'): void {
-    const btn = $<HTMLButtonElement>(`[data-token-btn="${side}"]`);
-    if (!btn) return;
-    const tk = swap[side];
-    btn.textContent = '';
-    btn.append(avatar({ icon: tokenIcon(tk), symbol: tk.symbol }), el('span', { text: tk.symbol }));
-    btn.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>');
-  }
-
-  function renderSwap(): void {
-    if (!$('[data-swap]')) return;
-    const { amount, out, go, details, notes } = swapEls();
-    if (!out || !go || !details || !notes || !amount) return;
-    tokenButton('from');
-    tokenButton('to');
-    const fromHold = holding(swap.from.mint);
-    const toHold = holding(swap.to.mint);
-    const bal = (h: Holding | undefined, tk: TokenInfo) => (address ? (holdings === null ? 'Loading…' : `Balance: ${formatAmount(h?.amount ?? 0)} ${tk.symbol}`) : '');
-    const fromBal = $('[data-swap-from-bal]');
-    const toBal = $('[data-swap-to-bal]');
-    if (fromBal) fromBal.textContent = bal(fromHold, swap.from);
-    if (toBal) toBal.textContent = bal(toHold, swap.to);
-    const fromUsd = $('[data-swap-from-usd]');
-    if (fromUsd) fromUsd.textContent = fromHold?.price != null && Number(swap.amountText) > 0 ? `≈ ${formatUsd(Number(swap.amountText) * fromHold.price)}` : '';
-    document.querySelectorAll<HTMLElement>('[data-slip]').forEach((b) => b.setAttribute('aria-pressed', String(String(swap.slip) === b.dataset.slip)));
-
-    // result
-    out.textContent = swap.quote ? fmtRaw(swap.quote.outAmount, swap.to.decimals) : '0.0';
-    void ensureChart();
-
-    // details
-    details.textContent = '';
-    if (swap.quote) {
-      const q = swap.quote;
-      const rate = Number(fromSmallestUnit(q.outAmount, swap.to.decimals)) / Number(fromSmallestUnit(q.inAmount, swap.from.decimals));
-      const row = (k: string, v: string) => details.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
-      row('Rate', `1 ${swap.from.symbol} ≈ ${formatAmount(rate)} ${swap.to.symbol}`);
-      const feeNow = splitSwapFee(amountRaw() ?? 0n).fee;
-      row('Aretia fee (1%)', `${fmtRaw(feeNow, swap.from.decimals)} ${swap.from.symbol}`);
-      row('Minimum you receive', `${fmtRaw(q.minOut, swap.to.decimals)} ${swap.to.symbol}`);
-      row('Price impact of your size', swap.impact === null ? '—' : swap.impact < 0.001 ? '<0.1%' : `${(swap.impact * 100).toFixed(1)}%`);
-      row('Slippage allowed', `${(slipBps() / 100).toString()}%${swap.slip === 'auto' ? ' (auto)' : ''}`);
-    }
-
-    // notes
-    notes.textContent = '';
-    const note = (kind: 'ok' | 'warn' | 'info', text: string) => notes.append(banner(kind, text));
-    const sol = holding(SOL)?.amount ?? 0;
-    if (address && holdings !== null && sol < LOW_SOL && swap.from.mint !== SOL) note('warn', lowSolMessage(sol));
-    for (const tk of [swap.from, swap.to]) {
-      if (tk.verified === false) note('warn', `${tk.symbol} is not verified by Jupiter. Anyone can create a token with this name. Check the mint address: ${tk.mint}`);
-    }
-    if (involvesAct()) note('info', `ACT is Aretia's own token. Jupiter flags it because it is new and thinly traded, and shows its price impact as −100%, which is not a real measure. ACT carries a ${ACT_INFO.transferFee.totalPercent}% transfer fee on every move; it is already included in the amounts shown here. Real mint: ${ACT_INFO.mint}`);
-    if (swap.impact !== null && swap.impact >= 0.05) note('warn', swap.impact >= 0.2 ? `Your trade would move the price by about ${(swap.impact * 100).toFixed(0)}%. This pool is thin: a smaller trade gets a much better price.` : `Your trade would move the price by about ${(swap.impact * 100).toFixed(1)}%.`);
-    if (swap.error) note('warn', swap.error);
-    if (swap.error && /no route/i.test(swap.error) && swap.from.mint === ACT_INFO.mint) note('info', 'ACT can only be sold for as much as buyers have paid into the pool. Try a smaller amount.');
-
-    // button
-    const raw = amountRaw();
-    let label = 'Review swap';
-    let disabled = false;
-    if (!address) label = 'Connect wallet';
-    else if (swap.from.mint === swap.to.mint) [label, disabled] = ['Choose two different tokens', true];
-    else if (!swap.amountText) [label, disabled] = ['Enter an amount', true];
-    else if (raw === null) [label, disabled] = [`Enter a valid ${swap.from.symbol} amount`, true];
-    else if (holdings !== null && raw > BigInt(fromHold?.raw ?? '0')) [label, disabled] = [`Not enough ${swap.from.symbol}`, true];
-    else if (swap.quoting) [label, disabled] = ['Getting a quote…', true];
-    else if (!swap.quote) [label, disabled] = ['No quote available', true];
-    go.textContent = label;
-    go.disabled = disabled || swap.busy;
-  }
-
-  async function requestQuote(): Promise<void> {
-    const mine = ++swap.seq;
-    const raw = amountRaw();
-    swap.quote = null;
-    swap.impact = null;
-    swap.error = null;
-    swap.quoting = false;
-    swapEls().review?.replaceChildren();
-    if (raw === null || swap.from.mint === swap.to.mint) return void renderSwap();
-    swap.quoting = true;
-    renderSwap();
-    try {
-      // Aretia's 1% comes off first; Jupiter quotes the rest.
-      const q = await fetchQuote(swap.from.mint, swap.to.mint, splitSwapFee(raw).net, slipBps());
-      if (mine !== swap.seq) return;
-      swap.quote = q;
-      swap.quoting = false;
-      renderSwap();
-      const impact = await fetchSizeImpact(swap.from.mint, swap.to.mint, q);
-      if (mine !== swap.seq) return;
-      swap.impact = impact;
-    } catch (e) {
-      if (mine !== swap.seq) return;
-      swap.error = e instanceof Error ? e.message : 'Could not get a quote.';
-      swap.quoting = false;
-    }
-    renderSwap();
-  }
-  function scheduleQuote(): void {
-    window.clearTimeout(swapTimer);
-    swap.seq++;
-    swap.quote = null;
-    swap.impact = null;
-    swapEls().review?.replaceChildren();
-    swapTimer = window.setTimeout(() => void requestQuote(), 450);
-    renderSwap();
-  }
-
-  /** Called by Intent: fills the swap screen and opens it. Nothing is reviewed or sent yet. */
-  function prefillSwap(fromMint: string, toMint: string, amountText: string): void {
-    const asToken = (mint: string): TokenInfo | undefined => {
-      const k = tokenByMint(mint);
-      if (k) return k;
-      const h = holding(mint);
-      return h && h.decimals !== null ? { mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null } : undefined;
-    };
-    const f = asToken(fromMint);
-    const t = asToken(toMint);
-    if (!f || !t) return;
-    swap.from = f;
-    swap.to = t;
-    swap.amountText = amountText;
-    const { amount } = swapEls();
-    if (amount) amount.value = amountText;
-    location.hash = '#/trade';
-    void requestQuote();
-  }
-
-  // token picker
-  let pickerSide: 'from' | 'to' | null = null;
-  let pickerSeq = 0;
-  function closePicker(): void {
-    pickerSide = null;
-    const panel = $<HTMLElement>('[data-picker]');
-    if (panel) panel.hidden = true;
-  }
-  function chooseToken(tk: TokenInfo): void {
-    if (!pickerSide) return;
-    const other = pickerSide === 'from' ? 'to' : 'from';
-    if (swap[other].mint === tk.mint) swap[other] = swap[pickerSide];
-    swap[pickerSide] = tk;
-    closePicker();
-    const { amount } = swapEls();
-    // The amount was typed for the old token's decimals: re-check it.
-    if (swap.amountText && toSmallestUnit(swap.amountText, swap.from.decimals) === null) {
-      swap.amountText = '';
-      if (amount) amount.value = '';
-    }
-    scheduleQuote();
-  }
-  function pickerRow(tk: TokenInfo): HTMLElement {
-    const h = holding(tk.mint);
-    const tag = tk.mint === ACT_INFO.mint ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Aretia' }) : tk.verified === true ? el('span', { class: 'wapp__tag wapp__tag--ok', text: 'Verified' }) : tk.verified === false ? el('span', { class: 'wapp__tag wapp__tag--warn', text: 'Unverified' }) : null;
-    const btn = el('button', { attrs: { type: 'button' } }, [
-      avatar({ icon: tokenIcon(tk), symbol: tk.symbol }),
-      el('span', { class: 'wapp__picker-name' }, [el('strong', {}, [document.createTextNode(tk.symbol), tag]), el('span', { text: `${tk.name} · ${shorten(tk.mint)}` })]),
-      el('span', { class: 'wapp__picker-bal', text: h ? formatAmount(h.amount) : '' }),
-    ]);
-    btn.addEventListener('click', () => chooseToken(tk));
-    return el('li', {}, [btn]);
-  }
-  async function renderPicker(query: string): Promise<void> {
-    const list = $('[data-picker-list]');
-    if (!list) return;
-    const q = query.trim().toLowerCase();
-    const local = new Map<string, TokenInfo>();
-    for (const tk of knownTokens) local.set(tk.mint, tk);
-    for (const h of holdings ?? []) if (h.decimals !== null && !local.has(h.mint)) local.set(h.mint, { mint: h.mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null });
-    const matches = [...local.values()].filter((tk) => !q || tk.symbol.toLowerCase().includes(q) || tk.name.toLowerCase().includes(q) || tk.mint.toLowerCase() === q);
-    matches.sort((a, b) => Number(Boolean(holding(b.mint))) - Number(Boolean(holding(a.mint))));
-    list.textContent = '';
-    for (const tk of matches) list.append(pickerRow(tk));
-    if (q.length < 2) return;
-    const mine = ++pickerSeq;
-    list.append(el('li', { class: 'wapp-sub', text: 'Searching Jupiter…' }));
-    try {
-      const found = await searchTokens(query);
-      if (mine !== pickerSeq) return;
-      list.lastElementChild?.remove();
-      for (const tk of found) if (!local.has(tk.mint)) list.append(pickerRow(tk));
-      if (list.children.length === 0) list.append(el('li', { class: 'wapp-sub', text: 'No tokens found.' }));
-    } catch {
-      if (mine !== pickerSeq) return;
-      list.lastElementChild?.remove();
-      list.append(el('li', { class: 'wapp-sub', text: 'Search is unavailable right now. Your own tokens are listed above.' }));
-    }
-  }
-  function openPicker(side: 'from' | 'to'): void {
-    pickerSide = side;
-    const panel = $<HTMLElement>('[data-picker]');
-    const search = $<HTMLInputElement>('[data-picker-search]');
-    if (!panel || !search) return;
-    panel.hidden = false;
-    search.value = '';
-    void renderPicker('');
-    search.focus();
-  }
-
-  // review and sign
-  function renderSwapReview(plan: SwapPlan, args: { user: string; from: TokenInfo; to: TokenInfo; amountRaw: bigint }, plannedAt: number): void {
-    const { review } = swapEls();
-    if (!review) return;
-    review.textContent = '';
-    const card = el('div', { class: 'wapp__result' });
-    review.append(card);
-    const v = plan.verdict;
-    const got = v.received ?? plan.quote.outAmount;
-    const rows: [string, string][] = [
-      ['You pay', `${fromSmallestUnit(v.paid ?? args.amountRaw, args.from.decimals)} ${args.from.symbol}`],
-      [v.received === null ? 'You receive about (quote)' : 'You receive about (simulated)', `${fmtRaw(got, args.to.decimals)} ${args.to.symbol}`],
-      ['Minimum you receive', `${fmtRaw(plan.quote.minOut, args.to.decimals)} ${args.to.symbol}`],
-      ['Network fee', `about ${solText(BASE_FEE_LAMPORTS + BigInt(plan.priorityFeeLamports))}`],
-    ];
-    rows.splice(1, 0, ['Aretia fee (1%, included above)', plan.feeRaw > 0n ? `${fromSmallestUnit(plan.feeRaw, args.from.decimals)} ${args.from.symbol}` : 'none on this swap']);
-    if (plan.opensOutputAccount) rows.push(['Opens your token account', 'about 0.002 SOL, paid by you']);
-    if (plan.opensFeeAccount) rows.push(['Opens the fee account (first time for this token)', 'about 0.002 SOL, paid by you']);
-    card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
-    const okBanner = plan.blockers.length === 0 ? banner('ok', 'Checked against your balances: nothing else in your wallet changes, and the swap would succeed. No funds have moved.') : null;
-    if (okBanner) card.append(okBanner);
-    for (const b of plan.blockers) card.append(banner('warn', b));
-    const canGo = plan.blockers.length === 0;
-    const status = el('div', { attrs: { 'aria-live': 'polite' } });
-    const actions = el('div', { class: 'wapp__row-actions' });
-    const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
-    const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
-    confirm.disabled = !canGo;
-    confirm.hidden = !canGo;
-    cancel.addEventListener('click', () => review.replaceChildren());
-    confirm.addEventListener('click', async () => {
-      if (swap.busy) return;
-      swap.busy = true;
-      confirm.disabled = true;
-      renderSwap();
-      status.textContent = '';
-      status.append(banner('info', 'Waiting for your wallet to approve…'));
-      try {
-        if (address !== args.user) throw new Error('The connected wallet changed. Review the swap again.');
-        let active = plan;
-        if (Date.now() - plannedAt > 25_000) {
-          // The quote and blockhash are about to go stale: rebuild from the same inputs and check again.
-          active = await planSwap({ ...args, slippageBps: slipBps(), heldOthers: (holdings ?? []).map((h) => ({ mint: h.mint, symbol: h.symbol })) });
-          if (active.blockers.length > 0 || active.quote.minOut < plan.quote.minOut * 98n / 100n) return void renderSwapReview(active, args, Date.now());
-        }
-        const signature = await signAndSubmitSwap(active);
-        status.textContent = '';
-        if (okBanner) okBanner.hidden = true; // "no funds have moved" is no longer true once it is sent
-        const link = (label: string) => el('a', { text: label, attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } });
-        status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link('View on Solscan')]));
-        actions.hidden = true;
-        const result = await waitForConfirmation(signature);
-        status.textContent = '';
-        const text = result === 'confirmed' ? 'Swap confirmed on Solana.' : result === 'failed' ? 'The swap failed on-chain. Nothing was exchanged; check Solscan for the reason.' : 'Not confirmed yet. It may still land; check Solscan.';
-        status.append(el('p', { class: `wapp__banner wapp__banner--${result === 'confirmed' ? 'ok' : result === 'failed' ? 'warn' : 'info'}` }, [document.createTextNode(`${text} `), link('View on Solscan')]));
-        if (result === 'confirmed') {
-          swap.amountText = '';
-          const { amount } = swapEls();
-          if (amount) amount.value = '';
-          swap.quote = null;
-        }
-        void refresh();
-      } catch (e) {
-        status.textContent = '';
-        status.append(banner('warn', friendlyError(e)));
-      } finally {
-        swap.busy = false;
-        confirm.disabled = false;
-        renderSwap();
-      }
-    });
-    actions.append(confirm, cancel);
-    card.append(actions, status);
-  }
-
-  async function onSwapGo(): Promise<void> {
-    if (!address) return void document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click();
-    const raw = amountRaw();
-    const { review, go } = swapEls();
-    if (raw === null || !review || !go) return;
-    review.textContent = '';
-    review.append(el('p', { class: 'wapp-sub', text: 'Building and checking the swap…' }));
-    go.disabled = true;
-    const args = { user: address, from: swap.from, to: swap.to, amountRaw: raw };
-    try {
-      const plan = await planSwap({ ...args, slippageBps: slipBps(), heldOthers: (holdings ?? []).map((h) => ({ mint: h.mint, symbol: h.symbol })), ...(swap.quote ? { quote: swap.quote } : {}) });
-      renderSwapReview(plan, args, plan.plannedAt);
-    } catch (e) {
-      review.textContent = '';
-      review.append(el('p', { class: 'wapp-error', text: friendlyError(e) }));
-    } finally {
-      renderSwap();
-    }
-  }
-
-  $('[data-swap-amount]')?.addEventListener('input', (e) => {
-    const v = (e.target as HTMLInputElement).value.replace(',', '.').trim();
-    swap.amountText = v;
-    scheduleQuote();
-  });
-  $('[data-swap-max]')?.addEventListener('click', () => {
-    const h = holding(swap.from.mint);
-    if (!h || h.raw === null) return;
-    let raw = BigInt(h.raw);
-    if (swap.from.mint === SOL) raw = raw > SWAP_SOL_OVERHEAD_LAMPORTS + 5_000n ? raw - SWAP_SOL_OVERHEAD_LAMPORTS - 5_000n : 0n; // leave room for fees and account opening
-    swap.amountText = fromSmallestUnit(raw, swap.from.decimals);
-    const { amount } = swapEls();
-    if (amount) amount.value = swap.amountText;
-    scheduleQuote();
-  });
-  $('[data-swap-flip]')?.addEventListener('click', () => {
-    [swap.from, swap.to] = [swap.to, swap.from];
-    swap.amountText = '';
-    const { amount } = swapEls();
-    if (amount) amount.value = '';
-    scheduleQuote();
-  });
-  document.querySelectorAll<HTMLElement>('[data-token-btn]').forEach((b) => b.addEventListener('click', () => openPicker(b.dataset.tokenBtn === 'to' ? 'to' : 'from')));
-  $('[data-picker-search]')?.addEventListener('input', (e) => void renderPicker((e.target as HTMLInputElement).value));
-  document.addEventListener('keydown', (e) => e.key === 'Escape' && closePicker());
-  document.addEventListener('click', (e) => {
-    const target = e.target as Element;
-    if (pickerSide && !target.closest('[data-picker]') && !target.closest('[data-token-btn]')) closePicker();
-  });
-  document.querySelectorAll<HTMLElement>('[data-slip]').forEach((b) =>
-    b.addEventListener('click', () => {
-      swap.slip = b.dataset.slip === 'auto' ? 'auto' : Number(b.dataset.slip);
-      scheduleQuote();
-    }),
-  );
-  $('[data-swap-go]')?.addEventListener('click', () => void onSwapGo());
-  $('[data-jup-toggle]')?.addEventListener('click', () => {
-    const box = $<HTMLElement>('[data-jup-fallback]');
-    if (!box) return;
-    box.hidden = !box.hidden;
-    if (!box.hidden) startJupiter();
-  });
-  // ---- live chart and trades (DexScreener's embed for the pair's best pool, plus a live price header)
-  interface DexPair {
-    /** Where the numbers came from; the chart embed follows it. Absent means DexScreener. */
-    source?: 'DexScreener' | 'GeckoTerminal';
-    pairAddress?: string;
-    priceUsd?: string;
-    priceChange?: { h24?: number };
-    volume?: { h24?: number };
-    liquidity?: { usd?: number };
-    txns?: { h24?: { buys?: number; sells?: number } };
-  }
-  const STABLES = new Set(KNOWN_TOKENS.filter((k) => k.symbol === 'USDC' || k.symbol === 'USDT').map((k) => k.mint));
-  const dexPairs = new Map<string, { at: number; pair: DexPair | null }>();
-  const chart = { mint: '', pair: '', timer: undefined as number | undefined, seq: 0 };
-  const DEX_PRICE_MS = 12_000;
-
-  /** What the chart shows: ACT when it is in the trade, else the first token that is not a stablecoin or SOL, else SOL. */
-  function chartSubject(): TokenInfo {
-    if (involvesAct()) return tokenByMint(ACT_INFO.mint)!;
-    const pick = [swap.to, swap.from].find((tk) => tk.mint !== SOL && !STABLES.has(tk.mint));
-    return pick ?? tokenByMint(SOL)!;
-  }
-
-  interface GeckoPool {
-    attributes?: {
-      address?: string;
-      base_token_price_usd?: string;
-      quote_token_price_usd?: string;
-      reserve_in_usd?: string;
-      price_change_percentage?: { h24?: string };
-      volume_usd?: { h24?: string };
-      transactions?: { h24?: { buys?: number; sells?: number } };
-    };
-    relationships?: { base_token?: { data?: { id?: string } } };
-  }
-
-  /** The most liquid pool for a token from GeckoTerminal, shaped like a DexScreener pair. Used when DexScreener has none. */
-  async function geckoPair(mint: string): Promise<DexPair | null> {
-    const r = await getJson<{ data?: GeckoPool[] }>(`https://api.geckoterminal.com/api/v2/networks/solana/tokens/${mint}/pools?page=1`);
-    const best = (r.data ?? [])
-      .filter((p) => typeof p.attributes?.address === 'string' && isSolanaAddress(p.attributes.address))
-      .sort((a, b) => Number(b.attributes?.reserve_in_usd ?? 0) - Number(a.attributes?.reserve_in_usd ?? 0))[0];
-    const a = best?.attributes;
-    if (!a?.address) return null;
-    // The pool prices both of its tokens; take the one we asked about.
-    const isBase = best?.relationships?.base_token?.data?.id === `solana_${mint}`;
-    const price = isBase ? a.base_token_price_usd : a.quote_token_price_usd;
-    return {
-      source: 'GeckoTerminal',
-      pairAddress: a.address,
-      ...(price !== undefined ? { priceUsd: price } : {}),
-      priceChange: { h24: Number(a.price_change_percentage?.h24) },
-      volume: { h24: Number(a.volume_usd?.h24 ?? 0) },
-      liquidity: { usd: Number(a.reserve_in_usd ?? 0) },
-      txns: { h24: { buys: a.transactions?.h24?.buys ?? 0, sells: a.transactions?.h24?.sells ?? 0 } },
-    };
-  }
-
-  /** The most liquid pool for a token: DexScreener first, GeckoTerminal when DexScreener has none. Null if neither does. */
-  async function bestPair(mint: string, fresh = false): Promise<DexPair | null> {
-    const cached = dexPairs.get(mint);
-    if (cached && !fresh && Date.now() - cached.at < 5_000) return cached.pair;
-    let best: DexPair | null;
-    try {
-      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${mint}`);
-      best = (Array.isArray(pairs) ? pairs : []).filter((p) => typeof p.pairAddress === 'string' && isSolanaAddress(p.pairAddress)).sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] ?? null;
-    } catch {
-      best = null; // DexScreener unreachable: try GeckoTerminal below
-    }
-    if (!best) {
-      try {
-        best = await geckoPair(mint);
-      } catch {
-        return cached?.pair ?? null;
-      }
-    }
-    dexPairs.set(mint, { at: Date.now(), pair: best });
-    return best;
-  }
-
-  function embedUrl(pairAddress: string, source: DexPair['source']): string {
-    if (source === 'GeckoTerminal') return `https://www.geckoterminal.com/solana/pools/${pairAddress}?${new URLSearchParams({ embed: '1', info: '0', swaps: '1', grayscale: '0', light_chart: '1', chart_type: 'price', resolution: '15m' })}`;
-    const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval: '15' });
-    return `https://dexscreener.com/solana/${pairAddress}?${q}`;
-  }
-
-  function renderChartHeader(subject: TokenInfo, pair: DexPair | null): void {
-    const title = $('[data-chart-title]');
-    if (title) {
-      title.textContent = '';
-      title.append(avatar({ icon: tokenIcon(subject), symbol: subject.symbol }), el('span', {}, [document.createTextNode(`${subject.symbol} / USD `), el('small', { text: subject.name })]));
-    }
-    const price = $('[data-chart-price]');
-    const change = $('[data-chart-change]');
-    const stats = $('[data-chart-stats]');
-    const live = $<HTMLElement>('[data-chart-live]');
-    const usd = pair?.priceUsd !== undefined ? Number(pair.priceUsd) : NaN;
-    if (price) price.textContent = Number.isFinite(usd) && usd > 0 ? formatPriceUsd(usd) : '—';
-    const h24 = pair?.priceChange?.h24;
-    if (change) {
-      change.className = typeof h24 !== 'number' ? '' : h24 > 0 ? 'is-up' : h24 < 0 ? 'is-down' : '';
-      change.textContent = typeof h24 === 'number' ? `${h24 >= 0 ? '+' : ''}${h24.toFixed(2)}% · 24h` : '';
-    }
-    if (stats) {
-      stats.textContent = '';
-      if (pair) {
-        const t24 = pair.txns?.h24;
-        for (const [k, v] of [['24h volume', formatUsd(pair.volume?.h24 ?? 0)], ['Liquidity', formatUsd(pair.liquidity?.usd ?? 0)], ['24h trades', String((t24?.buys ?? 0) + (t24?.sells ?? 0))]] as const) stats.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
-      }
-    }
-    if (live) live.hidden = !pair;
-    const open = $<HTMLAnchorElement>('[data-chart-open]');
-    if (open) open.href = pair?.pairAddress ? `https://dexscreener.com/solana/${pair.pairAddress}` : 'https://dexscreener.com';
-  }
-
-  /** Sub-cent prices need more places than a currency format gives. */
-  const formatPriceUsd = (n: number): string => (n >= 1 ? formatUsd(n) : `$${n.toPrecision(4).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`);
-
-  async function ensureChart(): Promise<void> {
-    const host = $<HTMLElement>('[data-chart-plot]');
-    if (!host || currentView() !== 'trade') return;
-    const subject = chartSubject();
-    renderChartHeader(subject, dexPairs.get(subject.mint)?.pair ?? null);
-    if (subject.mint === chart.mint && host.querySelector('iframe')) return;
-    chart.mint = subject.mint;
-    const mine = ++chart.seq;
-    host.textContent = '';
-    host.append(el('span', { class: 'wapp__sub', text: 'Loading chart…' }));
-    // ACT's own pool is known; anything else is looked up.
-    const pair = subject.mint === ACT_INFO.mint ? ((await bestPair(subject.mint, true)) ?? ({ pairAddress: POOLS[0]!.address, source: 'GeckoTerminal' } as DexPair)) : await bestPair(subject.mint, true);
-    if (mine !== chart.seq) return;
-    renderChartHeader(subject, pair);
-    host.textContent = '';
-    if (!pair?.pairAddress) return void host.append(el('span', { class: 'wapp__sub', text: `No chart is available for ${subject.symbol} yet.` }));
-    chart.pair = pair.pairAddress;
-    const frame = el('iframe', { class: 'wapp__chart-frame', attrs: { title: `${subject.symbol} live price chart and trades from ${pair.source ?? 'DexScreener'}`, loading: 'lazy', referrerpolicy: 'strict-origin-when-cross-origin', sandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox' } });
-    frame.src = embedUrl(pair.pairAddress, pair.source);
-    host.append(frame);
-  }
-
-  /** Keeps the price header live while the Trade tab is open and the page is visible. */
-  function startChartTimer(): void {
-    window.clearInterval(chart.timer);
-    chart.timer = window.setInterval(async () => {
-      if (document.hidden || currentView() !== 'trade') return;
-      const subject = chartSubject();
-      renderChartHeader(subject, await bestPair(subject.mint, true));
-    }, DEX_PRICE_MS);
-  }
-  startChartTimer();
-
-  // ---- trade widget (loaded only if the visitor asks for Jupiter's own screen)
-  let jupiterStarted = false;
-  let jupiterForm: Record<string, unknown> = { initialInputMint: SOL_MINT, initialOutputMint: ACT_MINT, fixedOutputMint: false };
-  /** `prefill` comes from Intent: the tokens and amount to show. It never submits anything. */
-  function startJupiter(prefill?: Record<string, unknown>): void {
-    if (prefill) jupiterForm = prefill;
-    const init = () => {
-      window.Jupiter?.init({
-        displayMode: 'integrated',
-        integratedTargetId: 'jupiter-terminal',
-        endpoint: RPC_URL,
-        enableWalletPassthrough: true,
-        passthroughWalletContextState: window.AretiaWallet?.getWalletContextState(),
-        formProps: jupiterForm,
-      });
-    };
-    if (jupiterStarted) {
-      if (prefill) init();
-      return;
-    }
-    jupiterStarted = true;
-    if (window.Jupiter) return init();
-    const s = document.createElement('script');
-    s.src = JUPITER_PLUGIN;
-    s.dataset.preload = '';
-    s.onload = () => {
-      // The plugin finishes registering window.Jupiter just after load.
-      let tries = 0;
-      const t = setInterval(() => {
-        if (window.Jupiter || ++tries > 50) {
-          clearInterval(t);
-          if (window.Jupiter) init();
-        }
-      }, 100);
-    };
-    document.head.append(s);
   }
 
   // ---- send tab
@@ -1529,22 +954,23 @@ export function initWalletApp(): void {
       const t = to.find((c) => c.mint === toPick.mint);
       const problems: string[] = [];
       if (from.length === 0) problems.push(`You do not hold ${intent.fromAssetSymbol} in this wallet.`);
-      if (to.length === 0) problems.push(`Intent does not know ${intent.toAssetSymbol}. It only swaps into tokens you hold, plus SOL, USDC, USDT and ACT. Use the Trade tab to search for others.`);
+      if (to.length === 0) problems.push(`Intent does not know ${intent.toAssetSymbol}. It only swaps into tokens you hold, plus SOL, USDC, USDT and ACT. Use the Swap page to search for others.`);
       if (f && t && f.mint === t.mint) problems.push('That swaps a token for itself.');
       if (f && f.amount !== null && Number(intent.amount) > f.amount) problems.push(`You hold ${formatAmount(f.amount)} ${f.symbol}, which is less than ${intent.amount}.`);
       const raw = f && f.decimals !== null ? toSmallestUnit(intent.amount, f.decimals) : null;
       if (f && f.decimals !== null && raw === null) problems.push(`${f.symbol} has ${f.decimals} decimal places, so ${intent.amount} is too precise.`);
-      if (f && f.decimals === null) actions.append(el('p', { class: 'wapp__banner wapp__banner--info', text: `Intent does not know how many decimals ${f.symbol} uses, so it will not fill in the amount. Enter it in the Trade tab.` }));
+      if (f && f.decimals === null) actions.append(el('p', { class: 'wapp__banner wapp__banner--info', text: `Intent does not know how many decimals ${f.symbol} uses, so it will not fill in the amount. Enter it on the Swap page.` }));
       for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
       // Not a blocker (the wallet may still have enough), but the usual reason a non-SOL swap fails.
       const sol = holdings?.find((h) => h.mint === SOL_MINT)?.amount ?? 0;
       if (f && f.mint !== SOL_MINT && sol < LOW_SOL) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: lowSolMessage(sol) }));
       const ready = f !== undefined && t !== undefined && problems.length === 0;
-      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Trade', attrs: { type: 'button' } });
+      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Swap', attrs: { type: 'button' } });
       go.disabled = !ready;
       go.addEventListener('click', () => {
         if (!f || !t) return;
-        prefillSwap(f.mint, t.mint, intent.amount);
+        window.dispatchEvent(new CustomEvent(PREFILL_SWAP_EVENT, { detail: { from: { mint: f.mint, symbol: f.symbol, decimals: f.decimals }, to: { mint: t.mint, symbol: t.symbol, decimals: t.decimals }, amount: intent.amount } }));
+        location.hash = '#/swap';
       });
       actions.append(go);
     };
@@ -1587,14 +1013,13 @@ export function initWalletApp(): void {
   // ---- wiring
   function onRoute(): void {
     renderChrome();
-    renderSwap();
-    if (currentView() === 'swings') swings.onShow();
-    if (currentView() === 'activity') swings.onActivityShow();
-    if (currentView() === 'trade') {
+    const view = currentView();
+    if (view === 'swings' || view === 'swap') swings.onShow(view);
+    if (view === 'activity') swings.onActivityShow();
+    if (view === 'send') {
       void loadWeb3();
-      void ensureChart();
+      swings.onPayShow();
     }
-    if (currentView() === 'send') void loadWeb3();
   }
   window.addEventListener('hashchange', onRoute);
   // Only the wallet's own buttons navigate. The site's top bar also carries a data-nav attribute (for its own script), and the
@@ -1669,7 +1094,6 @@ export function initWalletApp(): void {
     onWallet(api.getState());
     return true;
   };
-  void loadKnownIcons();
   initSidebar();
   onRoute();
   if (!wire()) {

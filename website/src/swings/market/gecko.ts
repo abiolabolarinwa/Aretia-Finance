@@ -101,6 +101,8 @@ export interface MarketQuery {
   /** '' means every supported network. */
   chain: ChainId | '';
   window: Window;
+  /** GeckoTerminal's page of 20 pools; it serves pages 1 to 10. */
+  page?: number;
 }
 
 export class GeckoMarket {
@@ -136,16 +138,17 @@ export class GeckoMarket {
 
   async load(q: MarketQuery, signal?: AbortSignal): Promise<MarketRow[]> {
     const inc = 'include=base_token';
+    const page = Math.min(Math.max(Math.floor(q.page ?? 1), 1), 10);
     const networks = q.chain ? [GECKO_NETWORK[q.chain]] : [];
     let rows: MarketRow[];
     if (q.kind === 'trending') {
-      rows = q.chain ? await this.list(`/networks/${networks[0]}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=1`, signal) : await this.list(`/networks/trending_pools?${inc}&duration=${DURATION[q.window]}&page=1`, signal);
+      rows = q.chain ? await this.list(`/networks/${networks[0]}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${page}`, signal) : await this.list(`/networks/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${page}`, signal);
     } else if (q.kind === 'new') {
-      rows = q.chain ? await this.list(`/networks/${networks[0]}/new_pools?${inc}&page=1`, signal) : await this.list(`/networks/new_pools?${inc}&page=1`, signal);
+      rows = q.chain ? await this.list(`/networks/${networks[0]}/new_pools?${inc}&page=${page}`, signal) : await this.list(`/networks/new_pools?${inc}&page=${page}`, signal);
     } else {
       // Top and Gainers start from the busiest pools. With no network chosen, each supported network is asked once.
       const nets = q.chain ? networks : CHAIN_IDS.map((c) => GECKO_NETWORK[c]);
-      const lists = await Promise.allSettled(nets.map((n) => this.list(`/networks/${n}/pools?${inc}&sort=h24_volume_usd_desc&page=1`, signal)));
+      const lists = await Promise.allSettled(nets.map((n) => this.list(`/networks/${n}/pools?${inc}&sort=h24_volume_usd_desc&page=${page}`, signal)));
       const ok = lists.filter((l): l is PromiseFulfilledResult<MarketRow[]> => l.status === 'fulfilled');
       if (ok.length === 0) throw (lists[0] as PromiseRejectedResult).reason;
       rows = ok.flatMap((l) => l.value);
@@ -159,6 +162,6 @@ export class GeckoMarket {
       if (seen.has(k)) return false;
       seen.add(k);
       return true;
-    }).slice(0, 100);
+    });
   }
 }

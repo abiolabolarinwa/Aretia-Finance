@@ -98,8 +98,8 @@ export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 's
  * The chart the wallet shows for now: DexScreener's embedded chart and trades for a pool, in the same light style the
  * Trade tab uses. (Aretia's own TradingView chart will replace it when it is ready.)
  */
-export function dexScreenerEmbedUrl(chain: ChainId, pool: string, interval = '15'): string {
-  const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval });
+export function dexScreenerEmbedUrl(chain: ChainId, pool: string, interval = '15', opts: { toolbar?: boolean } = {}): string {
+  const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: opts.toolbar ? '1' : '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval });
   return `https://dexscreener.com/${DEXSCREENER_CHAIN[chain]}/${encodeURIComponent(pool)}?${q}`;
 }
 

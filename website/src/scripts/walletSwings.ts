@@ -25,6 +25,7 @@ import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnec
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { avatar, createChartPanel } from './walletChart';
+import { createTokenPage } from './walletTokenPage';
 import { cachedLogo, ensureLogos } from '../swings/tokens/logos.js';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { summarizeQuote } from '../swings/core/summary.js';
@@ -77,7 +78,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: stri
 }
 
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
-const usd = (n: number | null): string => (n === null ? 'n/a' : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`);
 /** A stroked 24x24 icon from one path, built as real SVG so nothing is parsed from text. */
 function icon(path: string, size = 18): SVGElement {
   const ns = 'http://www.w3.org/2000/svg';
@@ -908,7 +908,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     let tsort: TableState = { key: null, dir: 'desc' };
     let error: string | null = null;
     let loading = false;
-    let selected: TokenRecord | null = null;
+    let page = false;
+    const tokenPage = createTokenPage();
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
 
@@ -971,71 +972,37 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       return b;
     }
 
-    /** A row was clicked: Find Tokens opens the token's detail and safety notes; Marketplace opens it in Swap Coins. */
+    /** A row was clicked: the token page opens in place of the list, with a way back. */
     function openRow(r: MarketRow): void {
-      if (mode === 'new') {
-        const rec = records.get(rowKey(r.chain, r.address));
-        if (rec) {
-          selected = rec;
+      const rec = records.get(rowKey(r.chain, r.address));
+      const riskNote = rec?.risk ? (rec.risk.score === null ? 'Aretia: not enough data to rate this token. That is not a good sign or a bad one.' : `Aretia rating: ${RISK_LABELS[rec.risk.status]} (concern score ${rec.risk.score}/100, higher means more concerns).`) : null;
+      page = true;
+      draw();
+      target.scrollIntoView({ block: 'start' });
+      void tokenPage.open({
+        chain: r.chain,
+        address: r.address,
+        symbol: r.symbol,
+        name: r.name,
+        icon: r.icon ?? rec?.logo ?? null,
+        riskNote,
+        onSwap: isChainEnabled(r.chain)
+          ? () => window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail: { chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon ?? rec?.logo ?? null, decimals: r.decimals ?? rec?.decimals ?? null, liquidityUsd: r.liquidityUsd, priceUsd: r.priceUsd, fresh: false, risk: null } satisfies SearchHit }))
+          : null,
+        onBack: () => {
+          tokenPage.close();
+          page = false;
           draw();
-          target.scrollIntoView({ block: 'start' });
-        }
-        return;
-      }
-      window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail: { chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon, decimals: r.decimals, liquidityUsd: r.liquidityUsd, priceUsd: r.priceUsd, fresh: false, risk: null } satisfies SearchHit }));
-    }
-
-    function detail(r: TokenRecord): HTMLElement {
-      const card = el('div', { class: 'wapp__card' });
-      const info = CHAINS[r.ref.chain];
-      card.append(el('h3', { class: 'wapp__h2', text: `${r.symbol} on ${info.name}` }));
-      card.append(banner('warn', 'Newly discovered tokens are not endorsed or approved by Aretia. Anyone can create a token, and many new tokens lose their value. Check the details below before trading.'));
-      const rows: [string, string][] = [
-        ['Name', r.name || 'Not provided'],
-        ['Address', r.ref.address],
-        ['Detected', `${new Date(r.firstDetectedAt).toLocaleString()} via ${r.discoverySource}`],
-        ['Pool created', r.firstPoolAt ? new Date(r.firstPoolAt).toLocaleString() : 'Unknown'],
-        ['Liquidity', usd(r.liquidityUsd)],
-        ['24h volume', usd(r.volume24hUsd)],
-        ['Holders', r.holderCount === null ? 'Not available' : String(r.holderCount)],
-        ['Trading pools', r.pools.length ? r.pools.map((p) => p.venue).join(', ') : 'None found'],
-        ['Metadata', r.metadataConfidence === 'onchain' ? 'Read from the chain' : r.metadataConfidence === 'api' ? 'From a third-party index, not yet confirmed on-chain' : 'Unconfirmed'],
-      ];
-      const dl = el('dl', { class: 'wapp__rows' });
-      for (const [k, v] of rows) dl.append(el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]));
-      const chart = createChartPanel();
-      card.append(dl, chart.element);
-      chart.show(r.ref.chain, r.ref.address, r.symbol, r.logo);
-      card.append(el('span', { class: 'wapp__eyebrow', text: 'Aretia token risk' }));
-      if (!r.risk) card.append(el('p', { class: 'wapp__fine', text: 'No risk assessment has been run for this token yet.' }));
-      else {
-        card.append(el('p', { class: 'wapp__fine', text: r.risk.score === null ? 'Not enough data to give a score. This is not a good sign or a bad one.' : `Score ${r.risk.score}/100 (higher means more concerns found). Classification: ${RISK_LABELS[r.risk.status]}.` }));
-        const list = el('ul', { class: 'wapp__list' });
-        const mark = { ok: '✓', warn: '⚠', bad: '✗', unavailable: '–' } as const;
-        for (const sig of r.risk.signals) list.append(el('li', { text: `${mark[sig.state]} ${sig.label}: ${sig.detail}` }));
-        card.append(list);
-      }
-      const act = el('div', { class: 'wapp__row-actions' });
-      if (isChainEnabled(r.ref.chain)) {
-        const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Swap into ${r.symbol}`, attrs: { type: 'button' } });
-        b.addEventListener('click', () => {
-          void pick('to', { mint: r.ref.address, symbol: r.symbol, name: r.name, decimals: r.decimals, icon: r.logo, verified: r.verified }, r.ref.chain).then(() => showTab('swap'));
-        });
-        act.append(b);
-      } else act.append(el('span', { class: 'wapp__fine', text: `Swaps on ${info.name} are switched off at the moment, so this token can be inspected but not traded here.` }));
-      const close = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Close', attrs: { type: 'button' } });
-      close.addEventListener('click', () => {
-        selected = null;
-        draw();
+        },
       });
-      act.append(close);
-      card.append(act);
-      return card;
     }
 
     function draw(): void {
       target.replaceChildren();
-      if (selected) target.append(detail(selected));
+      if (page) {
+        target.append(tokenPage.element);
+        return;
+      }
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2', text: mode === 'new' ? 'Find tokens' : 'Marketplace' }));
       card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Tokens Aretia has just detected with a trading pool, with Aretia\'s safety rating. Discovery is not endorsement: a token appearing here says nothing about whether it is safe, honest or worth buying.' : 'What is trading right now across the networks. Busy does not mean safe, and liquidity can be withdrawn.' }));
@@ -1053,7 +1020,6 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         bar.append(select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { m.chain = v as typeof m.chain; void load(); }));
       } else {
         const reload = (): void => {
-          selected = null;
           void load();
         };
         bar.append(
@@ -1080,7 +1046,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         const byChain = new Map<ChainId, string[]>();
         for (const r of rows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-        card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Numbers come from each token\'s main pool (DexScreener); a dash means the source did not report it. Click a token for its safety notes, chart and the swap.' : 'Numbers come from GeckoTerminal, per pool. A dash means the pool did not report it. Click a token to chart and swap it.' }));
+        card.append(el('p', { class: 'wapp__fine', text: mode === 'new' ? 'Numbers come from each token\'s main pool (DexScreener); a dash means the source did not report it. Click a token for its chart, numbers and safety notes.' : 'Numbers come from GeckoTerminal, per pool. A dash means the pool did not report it. Click a token for its chart and numbers.' }));
       }
       target.append(card);
     }
@@ -1100,7 +1066,6 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
         if (mode === 'new' ? f.chain === id : m.chain === id) return;
         if (mode === 'new') f.chain = id;
         else m.chain = id;
-        selected = null;
         if (rows !== null || loading) void load();
         else draw();
       },

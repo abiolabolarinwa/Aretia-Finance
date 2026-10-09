@@ -102,7 +102,7 @@ export async function cpmmSwapInstruction(web3: typeof Web3, user: string, step:
 const syncNative = (web3: typeof Web3, account: string): Web3.TransactionInstruction =>
   new web3.TransactionInstruction({ programId: new web3.PublicKey(TOKEN_PROGRAM_ID), keys: [{ pubkey: new web3.PublicKey(account), isSigner: false, isWritable: true }], data: Buffer.from([17]) });
 
-const closeAccount = (web3: typeof Web3, account: string, destination: string, owner: string): Web3.TransactionInstruction =>
+export const closeAccount = (web3: typeof Web3, account: string, destination: string, owner: string): Web3.TransactionInstruction =>
   new web3.TransactionInstruction({
     programId: new web3.PublicKey(TOKEN_PROGRAM_ID),
     keys: [

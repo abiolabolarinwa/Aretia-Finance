@@ -555,6 +555,17 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     notes: "pump.fun's AMM. Canonical pools of graduated pump.fun tokens only. Priced by simulating the swap on the program itself.",
   },
   {
+    id: 'pump-curve',
+    name: 'pump.fun bonding curve',
+    chain: 'solana',
+    protocol: 'pump-curve',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
+    status: 'ACTIVE',
+    notes: 'Where pump.fun tokens trade from launch until the curve fills and the token moves to PumpSwap. SOL-priced curves that are still open. Priced by simulating the swap on the program itself.',
+  },
+  {
     id: 'meteora-damm-v2',
     name: 'Meteora DAMM v2',
     chain: 'solana',

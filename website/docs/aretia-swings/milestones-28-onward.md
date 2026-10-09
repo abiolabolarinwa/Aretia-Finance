@@ -171,3 +171,11 @@ Items from the "still not done" list:
 - **Content security policy: partly done.** `object-src`, `base-uri`, `frame-ancestors` and `form-action` are enforced; the full policy is sent as report-only because it still needs inline scripts and could not be tested in a browser here. An enforced full policy needs script nonces or hashes.
 - **External audit: cannot be done by me.** `audit-package.md` gives a reviewer the scope, the evidence, the gaps and specific questions. Preparing it, a self-review fixed two real problems: an unclear send failure used to reset the step (which could allow a second burn) and now flags it instead; and record ids now come from the secure random generator since the id doubles as the recovery code.
 - **Dependency advisories: 11 down to 3** (moderate, in a library's Node-only server code) by overrides, including replacing `bigint-buffer` with a maintained fork.
+
+## Follow-up: pump.fun bonding curve (Solana)
+
+Tokens that have not yet filled their pump.fun curve now have a direct venue, `pump-curve` (`src/swings/solana/pumpCurve.ts`). The curve account is derived from the mint, parsed against the program's published IDL, and swapped with `buy_exact_sol_in` and `sell`; the program itself prices the swap by simulation from the user's account. Proven live by simulation only (`pumpCurve.live.ts`): a real open curve accepts the Aretia-built buy, a buy and sell in one transaction, and the router quotes and builds a curve swap. Nothing was signed or sent.
+
+Stated limits: SOL-priced curves only; completed curves are served by PumpSwap; the program needs two accounts after the ones its IDL lists (`bonding_curve_v2`, the buyback fee recipient), found by simulation, so a program change shows up as "route not offered", not as a wrong swap.
+
+Other launchpads seen as separate venues on GeckoTerminal's Solana list, not yet integrated: Raydium LaunchLab (letsbonk-fun), Meteora Dynamic Bonding Curve, Moonshot, Boop, Bags, Moonit, StonkFun, Virtuals (Solana). On other networks: Four.meme and Flap (BNB Chain), Virtuals (Base), Arena (Avalanche); their contracts have not been studied or proven here.

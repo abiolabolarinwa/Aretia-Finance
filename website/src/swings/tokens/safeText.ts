@@ -55,3 +55,19 @@ export function isOffensive(...texts: (string | null | undefined)[]): boolean {
   }
   return false;
 }
+
+/**
+ * Look-alike letters from other alphabets (Cyrillic, Armenian, Cherokee, Greek) are how a scam token passes for a real
+ * one: the top pool of a busy network can be a "USDT" spelled with Armenian and Cherokee letters. Names containing them
+ * are hidden. Names entirely in another writing system (Chinese, Korean, Arabic and so on) are not touched.
+ */
+const LOOKALIKE = /[Ͱ-ϿЀ-ԯ԰-֏Ꭰ-᏿ᲀ-᲏Ⲁ-⳿]/;
+
+export function hasLookalikeLetters(...texts: (string | null | undefined)[]): boolean {
+  return texts.some((t) => !!t && LOOKALIKE.test(t));
+}
+
+/** True if a name or symbol should be kept off the lists: abusive, or dressed up with look-alike letters. */
+export function isUnsafeName(...texts: (string | null | undefined)[]): boolean {
+  return isOffensive(...texts) || hasLookalikeLetters(...texts);
+}

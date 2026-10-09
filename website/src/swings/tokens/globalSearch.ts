@@ -8,7 +8,7 @@
  */
 import { GECKO_NETWORK } from '../charts/pool.js';
 import { CHAIN_IDS, type ChainId } from '../core/types.js';
-import { isOffensive } from './safeText.js';
+import { isOffensive, isUnsafeName } from './safeText.js';
 
 export interface SearchHit {
   chain: ChainId;
@@ -61,7 +61,7 @@ export function parseGeckoSearch(body: unknown): SearchHit[] {
     if (chain !== 'solana' && !/^0x[0-9a-fA-F]{40}$/.test(address)) continue;
     const symbol = text(t.attributes?.symbol, 20);
     const name = text(t.attributes?.name, 60);
-    if (!symbol || isOffensive(symbol, name)) continue;
+    if (!symbol || isUnsafeName(symbol, name)) continue;
     const decimals = t.attributes?.decimals;
     out.push({ chain, address, symbol, name, icon: safeIcon(t.attributes?.image_url), decimals: typeof decimals === 'number' && Number.isInteger(decimals) && decimals >= 0 && decimals <= 36 ? decimals : null, liquidityUsd: num(pool.attributes?.reserve_in_usd), priceUsd: num(pool.attributes?.base_token_price_usd), fresh: false, risk: null });
   }
@@ -83,7 +83,7 @@ export function parseRegistrySearch(body: unknown): SearchHit[] {
     if (!rec || !chain || !CHAIN_IDS.includes(chain) || typeof address !== 'string') continue;
     const symbol = text(rec.symbol, 20);
     const name = text(rec.name, 60);
-    if (!symbol || symbol === '[hidden]' || isOffensive(symbol, name)) continue;
+    if (!symbol || symbol === '[hidden]' || isUnsafeName(symbol, name)) continue;
     out.push({ chain, address, symbol, name, icon: safeIcon(rec.logo), decimals: typeof rec.decimals === 'number' ? rec.decimals : null, liquidityUsd: num(rec.liquidityUsd), priceUsd: null, fresh: true, risk: typeof rec.risk?.status === 'string' ? rec.risk.status : null });
   }
   return out;

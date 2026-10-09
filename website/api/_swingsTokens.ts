@@ -19,6 +19,7 @@ import { SolanaPoolDiscoverySource } from '../src/swings/indexer/solanaIndexer.j
 import { EVM_V2_DEXES } from '../src/swings/dex/entries.js';
 import { publicRead } from '../src/swings/chains/evmSession.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from '../src/swings/tokens/enrich.js';
+import { refreshSnapshots, type RefreshResult } from '../src/swings/market/snapshot.js';
 import type { RiskStatus } from '../src/swings/core/types.js';
 
 export interface TokensEnv extends ProxyEnv {
@@ -177,5 +178,17 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     const worker = new TokenDiscoveryWorker(new SolanaPoolDiscoverySource(() => import('@solana/web3.js'), solanaRpc, { now: () => input.now }), registry, repo, new SolanaTokenEnricher(solanaRpc, () => input.now), () => input.now);
     runs.push(await worker.runOnce());
   }
-  return json(200, { runs }, headers);
+  // Keep the market numbers of recently detected tokens fresh: one request per network for the 30 stalest snapshots.
+  const refresh: Record<string, RefreshResult> = {};
+  if (repo.listForMarketRefresh) {
+    for (const chain of CHAIN_IDS) {
+      try {
+        const stale = await repo.listForMarketRefresh(chain, input.now - 7 * 86_400_000, 30);
+        refresh[chain] = await refreshSnapshots(chain, stale, (r, m) => registry.setMarket(r.ref, m), input.fetchImpl, input.now);
+      } catch {
+        refresh[chain] = { asked: 0, updated: 0, error: 'The refresh list could not be read (has migration 0006 been run?).' };
+      }
+    }
+  }
+  return json(200, { runs, refresh }, headers);
 }

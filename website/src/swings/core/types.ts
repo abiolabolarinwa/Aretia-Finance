@@ -251,6 +251,19 @@ export interface TokenRisk {
 
 export type DiscoveryStatus = 'discovered' | 'tradable';
 
+/** A dated copy of a token's main-pool market numbers, kept in Aretia's registry. */
+export interface TokenMarket {
+  /** When the numbers were read, in ms. */
+  at: number;
+  pool: string;
+  priceUsd: number;
+  capUsd: number | null;
+  txns24h: number | null;
+  volume24hUsd: number | null;
+  change: { m5: number | null; h1: number | null; h6: number | null; h24: number | null };
+  liquidityUsd: number | null;
+}
+
 export interface TokenRecord {
   ref: TokenRef;
   symbol: string;
@@ -275,5 +288,7 @@ export interface TokenRecord {
   /** How far the symbol/name/decimals can be trusted: 'onchain' beats 'api'. */
   metadataConfidence: 'onchain' | 'api' | 'unknown';
   risk: TokenRisk | null;
+  /** Latest market snapshot, when the server has taken one. */
+  market?: TokenMarket | null;
   updatedAt: number;
 }

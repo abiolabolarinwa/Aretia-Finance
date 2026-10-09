@@ -6,6 +6,7 @@
  */
 import { GECKO_NETWORK } from '../charts/pool.js';
 import type { ChainId, TokenMarket, TokenRecord } from '../core/types.js';
+import { LOCK_MIN_PCT } from './lock.js';
 import type { MarketRow } from './types.js';
 
 /** A snapshot older than this is treated as missing by the page. */
@@ -38,8 +39,8 @@ export function marketFromAttributes(a: unknown, pool: string, now: number): Tok
 export const isFresh = (m: TokenMarket | null | undefined, now: number): m is TokenMarket => !!m && now - m.at >= 0 && now - m.at < SNAPSHOT_FRESH_MS;
 
 /** A market snapshot of a registry token as table-row numbers. Pure. */
-export function rowNumbers(m: TokenMarket, firstPoolAt: number | null, now: number): Pick<MarketRow, 'pool' | 'priceUsd' | 'capUsd' | 'txns24h' | 'volume24hUsd' | 'change' | 'liquidityUsd' | 'ageMs'> {
-  return { pool: m.pool, priceUsd: m.priceUsd, capUsd: m.capUsd, txns24h: m.txns24h, volume24hUsd: m.volume24hUsd, change: m.change, liquidityUsd: m.liquidityUsd, ageMs: firstPoolAt === null ? null : Math.max(0, now - firstPoolAt) };
+export function rowNumbers(m: TokenMarket, firstPoolAt: number | null, now: number): Pick<MarketRow, 'pool' | 'priceUsd' | 'capUsd' | 'txns24h' | 'volume24hUsd' | 'change' | 'liquidityUsd' | 'ageMs' | 'lockedPct'> {
+  return { pool: m.pool, priceUsd: m.priceUsd, capUsd: m.capUsd, txns24h: m.txns24h, volume24hUsd: m.volume24hUsd, change: m.change, liquidityUsd: m.liquidityUsd, lockedPct: m.lock && m.lock.pct >= LOCK_MIN_PCT ? m.lock.pct : null, ageMs: firstPoolAt === null ? null : Math.max(0, now - firstPoolAt) };
 }
 
 export interface RefreshResult {

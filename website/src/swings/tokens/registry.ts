@@ -153,7 +153,7 @@ export class TokenRegistryService {
   /** Stores a fresh market snapshot on an existing record. */
   async setMarket(ref: TokenRef, market: TokenMarket): Promise<void> {
     const r = await this.repo.get(ref);
-    if (r) await this.repo.upsert({ ...r, market, volume24hUsd: market.volume24hUsd ?? r.volume24hUsd, liquidityUsd: market.liquidityUsd ?? r.liquidityUsd, updatedAt: this.now() });
+    if (r) await this.repo.upsert({ ...r, market: { ...market, lock: market.lock ?? r.market?.lock ?? null }, volume24hUsd: market.volume24hUsd ?? r.volume24hUsd, liquidityUsd: market.liquidityUsd ?? r.liquidityUsd, updatedAt: this.now() });
   }
 
   /** Stores a risk assessment (and any contract facts) on an existing record. */

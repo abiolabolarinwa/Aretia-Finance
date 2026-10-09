@@ -34,6 +34,8 @@ export interface MarketRow {
   traders24h: number | null;
   change: Changes;
   liquidityUsd: number | null;
+  /** Share of the pool's liquidity proven burned, when Aretia checked and found some; otherwise null. */
+  lockedPct?: number | null;
   /** Aretia's own rating, only for tokens in its registry. */
   risk: { status: string; label: string; score: number | null } | null;
   /** In Aretia's registry of newly detected tokens. */

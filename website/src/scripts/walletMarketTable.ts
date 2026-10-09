@@ -62,6 +62,19 @@ function changeCell(n: number | null): HTMLElement {
   return td;
 }
 
+/** The liquidity figure, with a padlock when Aretia proved most of the pool's liquidity tokens are burned. */
+function liquidityCell(r: MarketRow): HTMLElement {
+  const td = el('td', 'wapp-mt__num', compactUsd(r.liquidityUsd));
+  if (r.lockedPct === null || r.lockedPct === undefined) return td;
+  const lock = el('span', 'wapp-mt__lock');
+  lock.title = `Locked: ${r.lockedPct.toFixed(r.lockedPct >= 99.95 ? 0 : 1)}% of this pool's liquidity tokens are burned, so that money cannot be withdrawn. Other liquidity in the pool, and tokens held by lock contracts, are not counted.`;
+  lock.setAttribute('role', 'img');
+  lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent burned`);
+  lock.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  td.prepend(lock);
+  return td;
+}
+
 export function marketTable(o: TableOptions): HTMLElement {
   const wrap = el('div', 'wapp-mt');
   const table = el('table', 'wapp-mt__table');
@@ -136,7 +149,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       changeCell(r.change.h1),
       changeCell(r.change.h6),
       changeCell(r.change.h24),
-      el('td', 'wapp-mt__num', compactUsd(r.liquidityUsd)),
+      liquidityCell(r),
     );
     body.append(tr);
   });

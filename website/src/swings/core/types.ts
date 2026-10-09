@@ -94,15 +94,15 @@ export interface Cost {
 
 /**
  * The four things a user pays, kept apart on purpose so none can hide inside another:
- * the intended swap, network cost, provider cost, and the Aretia ACT buyback.
+ * the intended swap, network cost, provider cost, and the Aretia fee.
  */
 export interface QuoteCosts {
   /** Gas or priority fees. `null` means the provider did not say; never guessed. */
   network: Cost | null;
   /** Fees charged by the DEX or aggregator. `null` when not itemised (they are then inside the output). */
   provider: Cost | null;
-  /** The Aretia ACT buyback allocation. Zero when the policy is off. See AretiaBuybackPolicy. */
-  aretiaBuyback: Cost;
+  /** The Aretia fee, in the asset the user is paying with. Zero when the policy is off. See AretiaFeePolicy. */
+  aretiaFee: Cost;
 }
 
 export interface Quote {
@@ -185,8 +185,8 @@ export interface DexProvider {
   readonly id: string;
   readonly name: string;
   supports(chain: ChainId): boolean;
-  /** True when this provider can carry the Aretia ACT buyback inside the transaction it builds. Aggregator routes cannot. */
-  readonly executesBuyback?: boolean;
+  /** True when this provider collects the Aretia fee with the swap it builds. A route that cannot is not offered while the fee is on. */
+  readonly carriesAretiaFee?: boolean;
   getQuote(request: SwapRequest, signal?: AbortSignal): Promise<Quote>;
   /** Builds and checks the transaction for a quote. Throws SwingsError if the quote cannot be executed safely. */
   buildTransaction(quote: Quote): Promise<PreparedSwap>;
@@ -205,27 +205,21 @@ export interface ChainAdapter {
 
 // ------------------------------------------------------------------ fee policy
 
-export type FeeMode = 'BUYBACK';
-
-export interface AretiaBuybackPolicy {
+export interface AretiaFeePolicy {
   enabled: boolean;
-  /** Basis points of the qualifying transaction value (55 = 0.55%). */
+  /** Basis points of the amount the user swaps (29 = 0.29%). */
   rateBps: number;
-  asset: 'ACT';
-  mode: FeeMode;
 }
 
 export interface AretiaChainFeeConfig {
   chainId: ChainId;
-  /** Where treasury-bound funds go. Never defaulted: unset means unset. */
+  /** Where the fee is sent on this network. Never defaulted: unset means unset. */
   treasuryAddress?: string;
-  /** The contract or account that performs the ACT buyback. */
-  buybackExecutorAddress?: string;
   enabled: boolean;
 }
 
 export interface AretiaFeeConfig {
-  policy: AretiaBuybackPolicy;
+  policy: AretiaFeePolicy;
   chains: Readonly<Record<ChainId, AretiaChainFeeConfig>>;
 }
 

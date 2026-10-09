@@ -8,7 +8,7 @@
  *  - one quote executes at most once, and a broadcast is never retried here;
  *  - nothing is sent without an explicit confirmation naming the quote.
  */
-import { DEFAULT_FEE_CONFIG, planBuyback } from '../core/fee.js';
+import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
 import { sameToken } from '../core/token.js';
 import { summarizeQuote, type ExecutionSummary } from '../core/summary.js';
 import {
@@ -177,7 +177,7 @@ export class AretiaRouter {
         return;
       }
       const problems = this.executabilityProblems(result.value, request);
-      if (!active[i]!.executesBuyback && planBuyback(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('An outside route was found, but it cannot include the small share of each swap that Aretia uses to buy ACT, so Aretia does not offer it.');
+      if (!active[i]!.carriesAretiaFee && planAretiaFee(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('An outside route was found, but it cannot collect the 0.29% Aretia fee, so Aretia does not offer it.');
       if (problems.length > 0) {
         rejected.push({ providerId, reasons: problems });
         this.emit({ type: 'quote-rejected', providerId, reasons: problems });
@@ -247,10 +247,10 @@ export class AretiaRouter {
     if (!this.enabled(quote.request.chain)) throw new SwingsError('not-enabled', `${CHAINS[quote.request.chain].name} swaps are not enabled yet.`);
     if (this.now() >= quote.expiresAt) throw new SwingsError('expired', 'This quote has expired. Get a new one.');
     const summary = this.summarize(quote);
-    if (!summary.canProceed) throw new SwingsError('config-missing', summary.aretiaBuyback.reasons.join(' ') || 'The Aretia fee configuration is incomplete.');
+    if (!summary.canProceed) throw new SwingsError('config-missing', summary.aretiaFee.reasons.join(' ') || 'The Aretia fee configuration is incomplete.');
     const provider = this.providers.find((p) => p.id === quote.providerId);
     if (!provider) throw new SwingsError('invalid', 'The provider for this quote is no longer available.');
-    if (summary.aretiaBuyback.state === 'ready' && !provider.executesBuyback) throw new SwingsError('config-missing', 'This route cannot carry the Aretia ACT buyback, so it cannot be executed while the buyback is on.');
+    if (summary.aretiaFee.state === 'ready' && !provider.carriesAretiaFee) throw new SwingsError('config-missing', 'This route cannot collect the Aretia fee, so it cannot be executed while the fee is on.');
     return provider.buildTransaction(quote);
   }
 

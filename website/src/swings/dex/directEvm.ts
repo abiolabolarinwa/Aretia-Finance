@@ -5,10 +5,12 @@
  * existing confirmation, once-only execution and tracking path; no aggregator is involved anywhere in it.
  */
 import type { EvmSwapPayload } from '../chains/evm.js';
+import { evmFeeTransfer } from '../chains/evmFee.js';
+import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
 import { encodeApprove } from '../chains/evm.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { normalizeTokenRef } from '../core/token.js';
-import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
+import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type AretiaFeeConfig, type ChainId, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
 import { address, addressArray, decodeUintArray, encodeCall, uint, wordToBigInt, words } from '../engine/abi.js';
 import type { ProviderHealth } from '../engine/health.js';
 import { LiquidityStore } from '../engine/liquidity.js';
@@ -37,6 +39,8 @@ export interface DirectEvmDeps {
   registry: AretiaDexRegistry;
   read: (chain: ChainId) => EvmRead;
   health?: ProviderHealth;
+  /** The Aretia fee policy. Defaults to the shipped neutral one, which is off. */
+  fee?: AretiaFeeConfig;
   now?: () => number;
   engine?: Partial<EngineDeps>;
   /** Extra intermediate tokens beyond the built-in hubs, for example from tests. */
@@ -90,6 +94,8 @@ const isNative = (t: TokenRef): boolean => t.address.toLowerCase() === EVM_NATIV
 export class DirectEvmProvider implements DexProvider {
   readonly id = 'aretia';
   readonly name = 'Aretia Router';
+  /** The fee is its own transaction before the swap, so this router collects it. */
+  readonly carriesAretiaFee = true;
   private readonly now: () => number;
 
   constructor(private readonly deps: DirectEvmDeps) {
@@ -116,6 +122,11 @@ export class DirectEvmProvider implements DexProvider {
     const to = normalizeTokenRef(chain, request.to.address);
     if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens on this network.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
+    // The Aretia fee comes out of the amount entered; the rest is what is routed and swapped.
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
+    const amountIn = feePlan.net;
+    if (amountIn <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
     const venues = this.venues(chain);
     if (venues.length === 0) throw new SwingsError('no-route', `No ${info.name} venue is available right now.`);
     const wrapped = venues[0]!.wrappedNative!;
@@ -129,7 +140,7 @@ export class DirectEvmProvider implements DexProvider {
     const head = BigInt((await read('eth_blockNumber', [])) as string);
     if (signal?.aborted) throw new SwingsError('provider-failed', 'The request was cancelled.');
     const hubs = [...(HUB_TOKENS[chain] ?? []).map((h) => h.address), ...(this.deps.extraHubs?.(chain) ?? [])];
-    const candidates = (await Promise.all([this.v2Candidate(venues, chain, tokenIn, tokenOut, request.amountIn, hubs, head, read), ...this.v3Candidates(venues, tokenIn, tokenOut, request.amountIn, hubs, head, read, nativeOut), ...this.aeroCandidates(venues, tokenIn, tokenOut, request.amountIn, hubs, head, read), ...this.balancerCandidates(venues, tokenIn, tokenOut, request.amountIn, head, read), ...this.curveCandidates(venues, tokenIn, tokenOut, request.amountIn, head, read, nativeIn || nativeOut), ...this.launchpadCandidates(venues, tokenIn, tokenOut, request.amountIn, head, read, nativeIn, nativeOut), ...this.v4Candidates(venues, tokenIn, tokenOut, request.amountIn, head, read, nativeIn, nativeOut)])).flat().filter((c): c is Candidate => c !== null);
+    const candidates = (await Promise.all([this.v2Candidate(venues, chain, tokenIn, tokenOut, amountIn, hubs, head, read), ...this.v3Candidates(venues, tokenIn, tokenOut, amountIn, hubs, head, read, nativeOut), ...this.aeroCandidates(venues, tokenIn, tokenOut, amountIn, hubs, head, read), ...this.balancerCandidates(venues, tokenIn, tokenOut, amountIn, head, read), ...this.curveCandidates(venues, tokenIn, tokenOut, amountIn, head, read, nativeIn || nativeOut), ...this.launchpadCandidates(venues, tokenIn, tokenOut, amountIn, head, read, nativeIn, nativeOut), ...this.v4Candidates(venues, tokenIn, tokenOut, amountIn, head, read, nativeIn, nativeOut)])).flat().filter((c): c is Candidate => c !== null);
     if (candidates.length === 0) throw new SwingsError('no-route', 'No route was found through the venues Aretia reads directly.');
 
     // Most output wins; on a tie the route with fewer hops. The comparison is written into the reasoning.
@@ -148,12 +159,12 @@ export class DirectEvmProvider implements DexProvider {
       id: `aretia:${chain}:${fetchedAt}:${best.path[0]!.slice(2, 8)}:${best.path[best.path.length - 1]!.slice(2, 8)}`,
       providerId: this.id,
       request: { ...request, from, to },
-      inAmount: request.amountIn,
+      inAmount: amountIn,
       expectedOut: best.amountOut,
       minOut,
       priceImpactBps: best.impactBps,
-      route: { legs: best.v3split ? best.v3split.map((l) => ({ venue: `${venueName} ${l.fee / 10_000}%`, from: { chain, address: best.path[0]! }, to: { chain, address: best.path[1]! }, shareBps: Number((l.amountIn * 10_000n) / request.amountIn) })) : best.path.slice(0, -1).map((token, i) => ({ venue: venueName, from: { chain, address: token }, to: { chain, address: best.path[i + 1]! }, shareBps: 10_000 })) },
-      costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+      route: { legs: best.v3split ? best.v3split.map((l) => ({ venue: `${venueName} ${l.fee / 10_000}%`, from: { chain, address: best.path[0]! }, to: { chain, address: best.path[1]! }, shareBps: Number((l.amountIn * 10_000n) / amountIn) })) : best.path.slice(0, -1).map((token, i) => ({ venue: venueName, from: { chain, address: token }, to: { chain, address: best.path[i + 1]! }, shareBps: 10_000 })) },
+      costs: { network: null, provider: null, aretiaFee: feePlan.fee > 0n ? { amount: feePlan.fee, asset: from } : { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + DIRECT_QUOTE_TTL_MS,
       raw,
@@ -390,6 +401,10 @@ export class DirectEvmProvider implements DexProvider {
 
     const read = this.deps.read(chain);
     const taker = request.account.address.toLowerCase();
+    // The Aretia fee, from the amount the user entered: its own transaction just before the swap.
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
+    const feeAmount = feePlan.fee;
     const blockers: string[] = [];
     const warnings: string[] = [];
     if (status === 'DEGRADED') warnings.push(`${entry.name} has been unreliable recently.`);
@@ -452,7 +467,7 @@ export class DirectEvmProvider implements DexProvider {
       const token = raw.path[0]!;
       try {
         const bal = wordToBigInt(words((await read('eth_call', [{ to: token, data: encodeCall('balanceOf(address)', [address(taker)]) }, 'latest'])) as string)[0] ?? '0');
-        if (bal < quote.inAmount) blockers.push('Your balance is too low for this swap.');
+        if (bal < quote.inAmount + feeAmount) blockers.push('Your balance is too low for this swap and the Aretia fee.');
         // The spender is whatever the built transaction needs approved: the router, the Vault, or a Curve pool.
         const spender = plan.approval?.spender ?? entry.router!;
         const allowance = wordToBigInt(words((await read('eth_call', [{ to: token, data: encodeCall('allowance(address,address)', [address(taker), address(spender)]) }, 'latest'])) as string)[0] ?? '0');
@@ -467,7 +482,7 @@ export class DirectEvmProvider implements DexProvider {
     } else {
       try {
         const nativeBal = BigInt((await read('eth_getBalance', [taker, 'latest'])) as string);
-        if (nativeBal < quote.inAmount) blockers.push(`Your ${info.nativeSymbol} balance is too low for this swap.`);
+        if (nativeBal < quote.inAmount + feeAmount) blockers.push(`Your ${info.nativeSymbol} balance is too low for this swap and the Aretia fee.`);
       } catch {
         blockers.push('Your balance could not be read, so the swap could not be checked.');
       }
@@ -528,7 +543,9 @@ export class DirectEvmProvider implements DexProvider {
       }
     }
 
-    const payload: EvmSwapPayload = { chainId: info.evmChainId, taker, approval, ...(permit2 ? { permit2 } : {}), swap: { from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16) } };
+    const fee = feePlan.state === 'ready' ? evmFeeTransfer(taker, raw.nativeIn ? EVM_NATIVE_ADDRESS : raw.path[0]!, feePlan.fee, feePlan.treasury) : null;
+    if (fee) warnings.push('The Aretia fee of 0.29% is sent first as its own transaction, then the swap. Your wallet will ask for each.');
+    const payload: EvmSwapPayload = { chainId: info.evmChainId, taker, approval, ...(permit2 ? { permit2 } : {}), ...(fee ? { fee } : {}), swap: { from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16) } };
     return { quoteId: quote.id, chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }
 }

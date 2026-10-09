@@ -12,8 +12,10 @@
  * so until then buildTransaction refuses with 'config-missing' rather than trusting an API response.
  */
 import { encodeApprove, type EvmSwapPayload } from '../chains/evm.js';
+import { evmFeeTransfer } from '../chains/evmFee.js';
+import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
 import { normalizeTokenRef, sameToken } from '../core/token.js';
-import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type Cost, type DexProvider, type PreparedSwap, type Quote, type RouteLeg, type SwapRequest } from '../core/types.js';
+import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type AretiaFeeConfig, type ChainId, type Cost, type DexProvider, type PreparedSwap, type Quote, type RouteLeg, type SwapRequest } from '../core/types.js';
 
 export const ZEROX_QUOTE_TTL_MS = 15_000;
 
@@ -46,6 +48,8 @@ export interface Evm0xDeps {
   /** Read-only eth_call / eth_estimateGas on the quote's chain; used for simulation. */
   rpc(chain: ChainId, method: string, params: unknown[]): Promise<unknown>;
   trusted?: Partial<Record<ChainId, ZeroXTrustedContracts>>;
+  /** The Aretia fee policy. Defaults to the shipped neutral one, which is off. */
+  fee?: AretiaFeeConfig;
   now?: () => number;
 }
 
@@ -101,6 +105,8 @@ export function parseZeroXQuote(json: unknown): ZeroXQuoteRaw {
 export class Evm0xProvider implements DexProvider {
   readonly id = '0x';
   readonly name = '0x';
+  /** The fee is its own transaction before the swap, so this route can collect it. */
+  readonly carriesAretiaFee = true;
   private readonly now: () => number;
 
   constructor(private readonly deps: Evm0xDeps) {
@@ -120,8 +126,11 @@ export class Evm0xProvider implements DexProvider {
     if (!from || !to || !taker || request.from.chain !== request.chain || request.to.chain !== request.chain) throw new SwingsError('invalid', 'Invalid token or wallet address for this network.');
     if (sameToken(from, to)) throw new SwingsError('invalid', 'Choose two different tokens.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
+    // The Aretia fee comes out of the amount entered; the rest is what 0x is asked to swap.
+    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
 
-    const json = await this.deps.quote({ chainId: info.evmChainId, sellToken: from.address, buyToken: to.address, sellAmount: request.amountIn.toString(), taker: taker.address, slippageBps: request.slippageBps }, signal);
+    const json = await this.deps.quote({ chainId: info.evmChainId, sellToken: from.address, buyToken: to.address, sellAmount: feePlan.net.toString(), taker: taker.address, slippageBps: request.slippageBps }, signal);
     const raw = parseZeroXQuote(json);
     const fetchedAt = this.now();
     const legs: RouteLeg[] = raw.fills.map((f) => ({
@@ -135,12 +144,12 @@ export class Evm0xProvider implements DexProvider {
       id: `0x:${request.chain}:${fetchedAt}:${from.address.slice(2, 8)}:${to.address.slice(2, 8)}`,
       providerId: this.id,
       request: { ...request, from, to, account: { chain: request.chain, address: taker.address } },
-      inAmount: request.amountIn,
+      inAmount: feePlan.net,
       expectedOut: BigInt(raw.buyAmount),
       minOut: BigInt(raw.minBuyAmount),
       priceImpactBps: null,
       route: { legs: legs.length > 0 ? legs : [{ venue: '0x', from, to, shareBps: 10_000 }] },
-      costs: { network, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+      costs: { network, provider: null, aretiaFee: feePlan.fee > 0n ? { amount: feePlan.fee, asset: from } : { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + ZEROX_QUOTE_TTL_MS,
       raw,
@@ -165,7 +174,7 @@ export class Evm0xProvider implements DexProvider {
     const sellNative = request.from.address === EVM_NATIVE_ADDRESS;
     const value = BigInt(raw.tx.value);
     // A swap may attach native coin only when selling it, and then exactly the amount entered.
-    if (sellNative ? value !== request.amountIn : value !== 0n) throw new SwingsError('invalid', 'The swap would move a different amount of native coin than you entered. It was blocked.');
+    if (sellNative ? value !== quote.inAmount : value !== 0n) throw new SwingsError('invalid', 'The swap would move a different amount of native coin than you entered. It was blocked.');
 
     const blockers: string[] = [];
     const warnings: string[] = [];
@@ -180,10 +189,10 @@ export class Evm0xProvider implements DexProvider {
     if (!sellNative && raw.allowance) {
       if (!inList(trusted.spenders, raw.allowance.spender)) throw new SwingsError('invalid', 'The swap asks to approve a contract Aretia does not recognise. It was blocked.');
       approval = {
-        tx: { from: request.account.address, to: request.from.address, data: encodeApprove(raw.allowance.spender, request.amountIn) },
+        tx: { from: request.account.address, to: request.from.address, data: encodeApprove(raw.allowance.spender, quote.inAmount) },
         token: request.from.address,
         spender: raw.allowance.spender,
-        amount: request.amountIn,
+        amount: quote.inAmount,
       };
       warnings.push('This swap needs a one-time approval for exactly the amount you are selling. Your wallet will ask twice: approval first, then the swap.');
     }
@@ -199,7 +208,23 @@ export class Evm0xProvider implements DexProvider {
       warnings.push('The swap itself can only be simulated after the approval is mined.');
     }
 
-    const payload: EvmSwapPayload = { chainId: info.evmChainId, taker: request.account.address, approval, swap };
+    // The Aretia fee: its own transaction, in the asset being sold, sent just before the swap. The balance must cover both.
+    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
+    const fee = feePlan.state === 'ready' ? evmFeeTransfer(request.account.address, request.from.address, feePlan.fee, feePlan.treasury) : null;
+    if (fee && !raw.balanceShort) {
+      try {
+        const holds = sellNative
+          ? BigInt((await this.deps.rpc(request.chain, 'eth_getBalance', [request.account.address, 'latest'])) as string)
+          : BigInt((await this.deps.rpc(request.chain, 'eth_call', [{ to: request.from.address, data: '0x70a08231' + request.account.address.slice(2).toLowerCase().padStart(64, '0') }, 'latest'])) as string);
+        if (holds < request.amountIn) blockers.push('Your balance is too low to cover the swap and the Aretia fee.');
+      } catch {
+        blockers.push('Your balance could not be read, so the swap and the Aretia fee could not be checked.');
+      }
+    }
+    if (fee) warnings.push('The Aretia fee of 0.29% is sent first as its own transaction, then the swap. Your wallet will ask for each.');
+
+    const payload: EvmSwapPayload = { chainId: info.evmChainId, taker: request.account.address, approval, ...(fee ? { fee } : {}), swap };
     return { quoteId: quote.id, chain: request.chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }
 }

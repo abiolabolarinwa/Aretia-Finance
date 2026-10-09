@@ -79,7 +79,7 @@ export class SolanaJupiterProvider implements DexProvider {
       // Jupiter's own impact figure is meaningless for tokens it has no reference price for, so it is not used.
       priceImpactBps: null,
       route: { legs: venues.map((venue) => ({ venue, from: request.from, to: request.to, shareBps: Math.floor(10_000 / venues.length) })) },
-      costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+      costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + JUPITER_QUOTE_TTL_MS,
       raw: q,

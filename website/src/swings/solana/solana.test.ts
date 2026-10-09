@@ -319,62 +319,68 @@ describe('DirectSolanaProvider', () => {
     expect((q.raw as { shape: string }).shape).toBe('direct');
   });
 
-  describe('the ACT buyback', () => {
-    // The buyback buys `actMint`; the tests point it at USDC so the harness's own pools can fill it.
+  describe('the Aretia fee', () => {
     const TREASURY = new web3.Keypair().publicKey.toBase58();
-    const fee = (over: { enabled?: boolean; executor?: string | undefined } = {}): AretiaFeeConfig => ({
+    const fee = (over: { enabled?: boolean; treasury?: string | undefined } = {}): AretiaFeeConfig => ({
       policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: over.enabled ?? true },
-      chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana', treasuryAddress: TREASURY, ...('executor' in over ? (over.executor ? { buybackExecutorAddress: over.executor } : {}) : { buybackExecutorAddress: TREASURY }), enabled: true } },
+      chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana', ...('treasury' in over ? (over.treasury ? { treasuryAddress: over.treasury } : {}) : { treasuryAddress: TREASURY }), enabled: true } },
     });
-    const withFee = (rpc: SolRpc, f: AretiaFeeConfig) => new DirectSolanaProvider({ web3: async () => web3, rpc, registry: registry(), fee: f, actMint: USDC, now: () => 1_000_000 });
+    const withFee = (rpc: SolRpc, f: AretiaFeeConfig) => new DirectSolanaProvider({ web3: async () => web3, rpc, registry: registry(), fee: f, now: () => 1_000_000 });
+    /** The harness knows no mint accounts; this one answers for USDC's, which the fee needs to read its decimals. */
+    const withMint = (rpc: SolRpc): SolRpc =>
+      (async (method: string, params: unknown[]) => {
+        if (method === 'getAccountInfo' && params[0] === USDC) {
+          const d = new Uint8Array(82);
+          d[44] = 6;
+          return { value: { data: [btoa(String.fromCharCode(...d)), 'base64'] } };
+        }
+        return rpc(method, params);
+      }) as SolRpc;
 
     it('is off by default: nothing extra in the quote or the transaction', async () => {
       const q = await provider(rpcWith().rpc).getQuote(req);
-      expect((q.raw as { buyback?: unknown }).buyback).toBeUndefined();
-      expect(q.costs.aretiaBuyback.amount).toBe(0n);
+      expect((q.raw as { fee?: unknown }).fee).toBeUndefined();
+      expect(q.costs.aretiaFee.amount).toBe(0n);
+      expect(q.inAmount).toBe(10_000_000n);
     });
 
-    it('adds 0.55% of the input as a separate swap into ACT, delivered to the configured address, in the same transaction', async () => {
-      const { rpc } = rpcWith({ watchPayout: 10n ** 9n });
+    it('takes 0.29% of the SOL entered, in SOL, out of that amount, in the same transaction, and swaps the rest', async () => {
+      const { rpc } = rpcWith();
       const p = withFee(rpc, fee());
       const q = await p.getQuote(req);
-      const raw = q.raw as { buyback: { amount: bigint; owner: string; legs: { outOwner?: string; minOut: bigint; amountIn: bigint }[] } };
-      expect(raw.buyback.amount).toBe((10_000_000n * 55n) / 10_000n);
-      expect(raw.buyback.owner).toBe(TREASURY);
-      expect(raw.buyback.legs.at(-1)!.outOwner).toBe(TREASURY);
-      expect(raw.buyback.legs[0]!.amountIn).toBe(raw.buyback.amount);
-      expect(q.inAmount).toBe(10_000_000n); // the user's swap is not reduced
-      expect(q.costs.aretiaBuyback.amount).toBe(raw.buyback.amount);
+      const raw = q.raw as { fee: { amount: bigint; treasury: string; native: boolean }; legs: { amountIn: bigint }[] };
+      expect(raw.fee).toMatchObject({ amount: 29_000n, treasury: TREASURY, native: true });
+      expect(q.inAmount).toBe(9_971_000n); // what was entered, less the fee
+      expect(raw.legs[0]!.amountIn).toBe(9_971_000n);
+      expect(q.costs.aretiaFee).toMatchObject({ amount: 29_000n, asset: { address: WSOL_MINT } });
+      expect(q.request.amountIn).toBe(10_000_000n);
       const prepared = await p.buildTransaction(q);
       expect(prepared.simulation.blockers).toEqual([]);
       const payload = prepared.payload as { steps: string[] };
-      expect(payload.steps.some((x) => /Aretia ACT buyback/.test(x))).toBe(true);
-      expect(payload.steps.some((x) => /account of/.test(x))).toBe(true);
-      expect(prepared.simulation.warnings.join(' ')).toMatch(/buyback of 5500/);
+      expect(payload.steps.some((x) => /Aretia fee: send 29000 lamports/.test(x))).toBe(true);
+      expect(prepared.simulation.warnings.join(' ')).toMatch(/Aretia fee of 29000/);
     });
 
-    it('stops the swap when the simulation shows the ACT would not reach the configured address', async () => {
-      const p = withFee(rpcWith({ watchPayout: 0n }).rpc, fee());
-      const prepared = await p.buildTransaction(await p.getQuote(req));
-      expect(prepared.simulation.ok).toBe(false);
-      expect(prepared.simulation.blockers.join(' ')).toMatch(/buyback would not arrive/);
-    });
-
-    it('fails closed when it is enabled without an executor address', async () => {
-      await expect(withFee(rpcWith().rpc, fee({ executor: undefined })).getQuote(req)).rejects.toMatchObject({ code: 'config-missing' });
-    });
-
-    it('selling ACT itself carries the buyback as that much ACT sent to the owner, with no swap', async () => {
-      // The harness's pools are SOL/USDC, so USDC stands in for ACT: selling it is selling "ACT".
-      const p = new DirectSolanaProvider({ web3: async () => web3, rpc: rpcWith().rpc, registry: registry(), fee: fee(), actMint: USDC, now: () => 1_000_000 });
+    it('takes it in the token being sold when the swap starts in a token, so a USDC seller pays in USDC', async () => {
+      const p = withFee(withMint(rpcWith().rpc), fee());
       const q = await p.getQuote({ ...req, from: { chain: 'solana', address: USDC }, to: { chain: 'solana', address: WSOL_MINT }, amountIn: 1_000_000n });
-      const raw = q.raw as { buyback: { amount: bigint; owner: string; legs: unknown[]; transfer?: boolean } };
-      expect(raw.buyback).toMatchObject({ amount: (1_000_000n * 55n) / 10_000n, owner: TREASURY, legs: [], transfer: true });
-      expect(q.inAmount).toBe(1_000_000n); // the user's swap is not reduced
-      expect(q.costs.aretiaBuyback.amount).toBe(raw.buyback.amount);
+      const raw = q.raw as { fee: { amount: bigint; mint: string; native: boolean } };
+      expect(raw.fee).toMatchObject({ amount: 2_900n, mint: USDC, native: false });
+      expect(q.inAmount).toBe(997_100n);
+      expect(q.costs.aretiaFee).toMatchObject({ amount: 2_900n, asset: { address: USDC } });
     });
 
-    it('the route builder runs the ACT transfer after the accounts exist and before the swap', async () => {
+    it('charges nothing, and swaps everything, when the amount is too small for a whole unit of fee', async () => {
+      const q = await withFee(rpcWith().rpc, fee()).getQuote({ ...req, amountIn: 300n });
+      expect((q.raw as { fee?: unknown }).fee).toBeUndefined();
+      expect(q.inAmount).toBe(300n);
+    });
+
+    it('fails closed when it is on without a fee address', async () => {
+      await expect(withFee(rpcWith().rpc, fee({ treasury: undefined })).getQuote(req)).rejects.toMatchObject({ code: 'config-missing' });
+    });
+
+    it('the route builder runs the fee transfer after the accounts exist and before the swap', async () => {
       const { buildRouteTransaction } = await import('./builder.js');
       const { transferCheckedInstruction, createAtaIdempotentInstruction } = await import('../../scripts/walletTools.js');
       const dest = new web3.Keypair().publicKey.toBase58();
@@ -392,8 +398,8 @@ describe('DirectSolanaProvider', () => {
       expect(built.steps.indexOf('swap')).toBeGreaterThan(i);
     });
 
-    it('the router drops a provider that cannot carry the buyback while it is on, and offers it when it is off', async () => {
-      const mk = (id: string, executesBuyback: boolean) => ({ id, name: id, executesBuyback, supports: () => true, getQuote: async (r: SwapRequest) => ({ id: id + ':1', providerId: id, request: r, inAmount: r.amountIn, expectedOut: 1000n, minOut: 990n, priceImpactBps: 0, route: { legs: [] }, costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } }, fetchedAt: 1_000_000, expiresAt: 1_100_000, raw: {} }), buildTransaction: async () => { throw new Error('unused'); } });
+    it('the router drops a provider that cannot collect the fee while it is on, and offers it when it is off', async () => {
+      const mk = (id: string, carriesAretiaFee: boolean) => ({ id, name: id, carriesAretiaFee, supports: () => true, getQuote: async (r: SwapRequest) => ({ id: id + ':1', providerId: id, request: r, inAmount: r.amountIn, expectedOut: 1000n, minOut: 990n, priceImpactBps: 0, route: { legs: [] }, costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } }, fetchedAt: 1_000_000, expiresAt: 1_100_000, raw: {} }), buildTransaction: async () => { throw new Error('unused'); } });
       const providers = [mk('aretia-sol', true), mk('jupiter', false)] as never;
       const on = new AretiaRouter({ providers, adapters: [], feeConfig: fee(), now: () => 1_000_000, isChainEnabled: () => true });
       const found = await on.findRoutes(req);

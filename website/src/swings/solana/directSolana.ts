@@ -12,8 +12,8 @@
  * carries that account, so the simulation runs from the account that would really sign.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../../scripts/walletTools.js';
-import { DEFAULT_FEE_CONFIG, planBuyback } from '../core/fee.js';
+import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../../scripts/walletTools.js';
+import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
 import type { ProviderHealth } from '../engine/health.js';
@@ -26,11 +26,6 @@ import { simulateSolanaSwap, type SolanaSimResult } from './simulate.js';
 import { createSolanaVenues, type SolanaVenue } from './venues.js';
 
 export const SOLANA_QUOTE_TTL_MS = 12_000;
-/** The ACT mint, the asset the buyback buys. */
-export const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
-export const ACT_DECIMALS = 9;
-/** ACT charges up to 1.5% on every transfer; the receiver may get this much less than was sent. A margin above it. */
-const ACT_TRANSFER_FEE_MARGIN_BPS = 200n;
 /** SOL a swap may use beyond the amount: fees, priority fee and rent for several new accounts. */
 const OVERHEAD_LAMPORTS = 8_000_000n;
 /** Intermediate tokens a route may pass through. */
@@ -47,10 +42,8 @@ export interface DirectSolanaDeps {
   rpc: SolRpc;
   registry: AretiaDexRegistry;
   health?: ProviderHealth;
-  /** The Aretia fee policy. Defaults to the shipped one, which is off. */
+  /** The Aretia fee policy. Defaults to the shipped neutral one, which is off. */
   fee?: AretiaFeeConfig;
-  /** The mint the buyback buys. Always ACT outside tests. */
-  actMint?: string;
   now?: () => number;
 }
 
@@ -62,8 +55,6 @@ interface LegRaw {
   tokenOut: string;
   amountIn: bigint;
   minOut: bigint;
-  /** Set on the buyback's last leg: the ACT goes to this owner, not the user. */
-  outOwner?: string;
 }
 
 interface SolanaRaw {
@@ -72,8 +63,8 @@ interface SolanaRaw {
   nativeIn: boolean;
   nativeOut: boolean;
   reasons: string[];
-  /** The ACT buyback carried in the same transaction, when the fee policy is on. */
-  buyback?: { amount: bigint; owner: string; expectedOut: bigint; legs: LegRaw[]; /** Selling ACT itself: the buyback is that much ACT sent to the owner, with no swap. */ transfer?: boolean };
+  /** The Aretia fee carried in the same transaction, when the fee policy is on: a transfer, in the asset being sold, to the fee address. */
+  fee?: { amount: bigint; treasury: string; mint: string; native: boolean };
 }
 
 interface Leg {
@@ -83,7 +74,6 @@ interface Leg {
   tokenOut: TokenRef;
   amountIn: bigint;
   minOut: bigint;
-  outOwner?: string;
 }
 
 interface Plan {
@@ -115,18 +105,16 @@ const short = (a: string): string => `${a.slice(0, 6)}…`;
 export class DirectSolanaProvider implements DexProvider {
   readonly id = 'aretia-sol';
   readonly name = 'Aretia Router';
-  /** This provider puts the ACT buyback inside the transaction it builds, so it may be used while the buyback is on. */
-  readonly executesBuyback = true;
+  /** This provider puts the Aretia fee inside the transaction it builds, so it may be used while the fee is on. */
+  readonly carriesAretiaFee = true;
   private readonly now: () => number;
   private readonly fee: AretiaFeeConfig;
-  private readonly act: string;
   /** Why pools that were found could not be used in the quote being worked out (a simulation refusal, an unanswered check). */
   private skipped: string[] = [];
 
   constructor(private readonly deps: DirectSolanaDeps) {
     this.now = deps.now ?? Date.now;
     this.fee = deps.fee ?? DEFAULT_FEE_CONFIG;
-    this.act = deps.actMint ?? ACT_MINT;
   }
 
   supports(chain: SwapRequest['chain']): boolean {
@@ -146,14 +134,21 @@ export class DirectSolanaProvider implements DexProvider {
       programIn: leg.venue.programFor(leg.pool, leg.tokenIn.address),
       programOut: leg.venue.programFor(leg.pool, leg.tokenOut.address),
       amountIn: leg.amountIn,
-      label: (leg.outOwner ? 'Aretia ACT buyback: ' : '') + leg.venue.label(leg.pool, leg.amountIn, leg.minOut),
-      ...(leg.outOwner ? { outOwner: leg.outOwner } : {}),
+      label: leg.venue.label(leg.pool, leg.amountIn, leg.minOut),
       swapInstruction: (i, o) => leg.venue.swapInstruction(user, leg.pool, leg.tokenIn, leg.tokenOut, i, o, leg.amountIn, leg.minOut),
     };
   }
 
   private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number }; prelude?: RouteBuildOptions['prelude'] }, blockhash: string): Promise<BuiltRoute> {
     return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}), ...(o.prelude ? { prelude: o.prelude } : {}) });
+  }
+
+  /** A mint's decimals, read from the mint account itself (byte 44 for both token programs). */
+  private async mintDecimals(mint: string): Promise<number> {
+    const r = await this.deps.rpc<{ value: { data: [string, string] } | null }>('getAccountInfo', [mint, { encoding: 'base64', commitment: 'confirmed' }]);
+    const d = r.value ? Uint8Array.from(atob(r.value.data[0]), (c) => c.charCodeAt(0)) : null;
+    if (!d || d.length < 82 || d[44]! > 18) throw new SwingsError('invalid', 'The token being sold could not be read, so the Aretia fee could not be set up.');
+    return d[44]!;
   }
 
   private async blockhash(): Promise<string> {
@@ -349,10 +344,14 @@ export class DirectSolanaProvider implements DexProvider {
     const to = normalizeTokenRef('solana', request.to.address);
     if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
+    // The Aretia fee comes out of the amount entered, in the asset being sold; the rest is what is routed and swapped.
+    const feePlan = planAretiaFee(request.amountIn, 'solana', this.fee);
+    if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
+    if (feePlan.net <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
     if (!this.supports('solana')) throw new SwingsError('no-route', 'No Solana venue is available right now.');
 
     const web3 = await this.deps.web3();
-    const req: SwapRequest = { ...request, from, to };
+    const req: SwapRequest = { ...request, from, to, amountIn: feePlan.net };
     const venues = createSolanaVenues(web3, this.deps.rpc, this.deps.registry, this.now);
     const blockhash = await this.blockhash();
     const { plans, read } = await this.findPlans(web3, req, venues, blockhash);
@@ -364,41 +363,23 @@ export class DirectSolanaProvider implements DexProvider {
     const legs = this.finalLegs(chosen, minOut, slip);
     if (legs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
 
-    // The ACT buyback, when the policy is on: an extra swap of the same input into ACT, in this same transaction.
-    const buy = planBuyback(request.amountIn, 'solana', this.fee);
-    let buyback: SolanaRaw['buyback'];
-    if (buy.state === 'blocked') throw new SwingsError('config-missing', buy.reasons.join(' '));
-    if (buy.state === 'ready' && buy.amount > 0n) {
-      const owner = this.fee.chains.solana.buybackExecutorAddress!;
-      if (from.address === this.act) {
-        // Selling ACT: nothing to buy. The buyback is the same share, in ACT, sent to the owner.
-        buyback = { amount: buy.amount, owner, expectedOut: buy.amount, legs: [], transfer: true };
-      } else {
-      const act: TokenRef = { chain: 'solana', address: this.act };
-      const sub = await this.findPlans(web3, { ...req, to: act, amountIn: buy.amount }, venues, blockhash).catch(() => null);
-      if (!sub) throw new SwingsError('no-route', 'The ACT buyback has no route right now, so this swap is not offered while the buyback is on.');
-      const bPlan = sub.plans[0]!;
-      const bMin = after(bPlan.amountOut, slip);
-      const bLegs = this.finalLegs(bPlan, bMin, slip).map((l) => (l.tokenOut === this.act ? { ...l, outOwner: owner } : l));
-      if (bLegs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The ACT buyback is too small to set a minimum, so this swap is not offered while the buyback is on.');
-      buyback = { amount: buy.amount, owner, expectedOut: bPlan.amountOut, legs: bLegs };
-      }
-    }
+    // The Aretia fee, taken in the same transaction: SOL for a swap that starts in SOL, otherwise the token being sold.
+    const fee: SolanaRaw['fee'] = feePlan.state === 'ready' && feePlan.fee > 0n ? { amount: feePlan.fee, treasury: feePlan.treasury, mint: from.address, native: isWsol(from) } : undefined;
 
     const label = (p: Plan): string => (p.shape === 'direct' ? p.legs[0]!.venue.name : p.shape === 'two-hop' ? 'two hops' : 'split');
     const compared = plans.slice(0, 5).map((p) => `${label(p)} pays ${p.amountOut}`).join('; ') + (plans.length > 5 ? `; and ${plans.length - 5} more that pay less` : '');
     const fetchedAt = this.now();
-    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons, ...(buyback ? [`Aretia ACT buyback: ${buyback.amount} (raw, on top of your amount) is swapped into ACT for ${buyback.owner.slice(0, 6)}… in the same transaction.`] : [])], ...(buyback ? { buyback } : {}) };
+    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons, ...(fee ? [`Aretia fee: ${fee.amount} (raw, 0.29% of the amount entered) is sent to ${fee.treasury.slice(0, 6)}… in the same transaction, in ${fee.native ? 'SOL' : 'the token you are selling'}.`] : [])], ...(fee ? { fee } : {}) };
     return {
       id: `aretia-sol:${fetchedAt}:${from.address.slice(0, 6)}:${to.address.slice(0, 6)}`,
       providerId: this.id,
-      request: req,
-      inAmount: request.amountIn,
+      request: { ...req, amountIn: request.amountIn },
+      inAmount: feePlan.net,
       expectedOut: chosen.amountOut,
       minOut,
       priceImpactBps: chosen.impactBps,
-      route: { legs: chosen.legs.map((l) => ({ venue: l.venue.name, from: l.tokenIn, to: l.tokenOut, shareBps: chosen.shape === 'split' ? Number((l.amountIn * 10_000n) / request.amountIn) : 10_000 })) },
-      costs: { network: null, provider: null, aretiaBuyback: buyback ? { amount: buyback.amount, asset: from } : { amount: 0n, asset: null } },
+      route: { legs: chosen.legs.map((l) => ({ venue: l.venue.name, from: l.tokenIn, to: l.tokenOut, shareBps: chosen.shape === 'split' ? Number((l.amountIn * 10_000n) / feePlan.net) : 10_000 })) },
+      costs: { network: null, provider: null, aretiaFee: fee ? { amount: fee.amount, asset: from } : { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + SOLANA_QUOTE_TTL_MS,
       raw,
@@ -406,7 +387,7 @@ export class DirectSolanaProvider implements DexProvider {
   }
 
   private rawOf(l: Leg): LegRaw {
-    return { entryId: l.venue.id, poolAddress: l.pool.ref.address, tokenIn: l.tokenIn.address, tokenOut: l.tokenOut.address, amountIn: l.amountIn, minOut: l.minOut, ...(l.outOwner ? { outOwner: l.outOwner } : {}) };
+    return { entryId: l.venue.id, poolAddress: l.pool.ref.address, tokenIn: l.tokenIn.address, tokenOut: l.tokenOut.address, amountIn: l.amountIn, minOut: l.minOut, };
   }
 
   /**
@@ -428,7 +409,7 @@ export class DirectSolanaProvider implements DexProvider {
       const tokenOut: TokenRef = { chain: 'solana', address: l.tokenOut };
       const pool = venue ? (await this.track(venue.id, () => venue.getPools(tokenIn, tokenOut))).find((p) => p.ref.address === l.poolAddress && p.status === 'active') : undefined;
       if (!venue || !pool) throw new SwingsError('no-route', 'A pool in this quote is no longer available. Get a new quote.');
-      legs.push({ venue, pool, tokenIn, tokenOut, amountIn: l.amountIn, minOut: l.minOut, ...(l.outOwner ? { outOwner: l.outOwner } : {}) });
+      legs.push({ venue, pool, tokenIn, tokenOut, amountIn: l.amountIn, minOut: l.minOut });
     }
     return legs;
   }
@@ -475,10 +456,10 @@ export class DirectSolanaProvider implements DexProvider {
         // Keep the quoted sizes: the whole transaction is still simulated below, and a bad fit blocks the swap.
       }
     }
-    const buyLegs = raw.buyback ? await this.restore(venues, raw.buyback.legs) : [];
-    const legs = [...buyLegs, ...mainLegs];
-    const totalIn = quote.inAmount + (raw.buyback?.amount ?? 0n);
-    if (raw.buyback) warnings.push(`The Aretia ACT buyback of ${raw.buyback.amount} (raw) is taken from your wallet on top of the amount you are swapping, and bought into ACT in this same transaction.`);
+    const legs = mainLegs;
+    // What leaves the wallet in all: the amount swapped and the Aretia fee, taken from the amount the user entered.
+    const totalIn = quote.inAmount + (raw.fee?.amount ?? 0n);
+    if (raw.fee) warnings.push(`The Aretia fee of ${raw.fee.amount} (raw, 0.29%) is taken from the amount you entered, in ${raw.fee.native ? 'SOL' : 'the token you are selling'}, in this same transaction.`);
 
     // 2. wSOL handling: never close a wSOL account that already holds something.
     const wsolAccount = ataAddress(web3, user, WSOL_MINT, TOKEN_PROGRAM_ID);
@@ -499,33 +480,31 @@ export class DirectSolanaProvider implements DexProvider {
     const protect = request.execution?.protect === true;
     const tipLamports = protect ? checkTip(request.execution?.tipLamports ?? DEFAULT_TIP_LAMPORTS) : 0;
     if (protect) warnings.push(`Protected sending is on: this swap will be sent privately through Jito, with a tip of ${tipLamports} lamports (${tipLamports / 1e9} SOL). It lowers the chance of being sandwiched; it is not a guarantee.`);
-    // Selling ACT: the buyback is a plain ACT transfer to the owner's account, made before the swap (the user's own ACT
-    // account is the route's input). ACT is a Token-2022 mint; its program comes from the pool that holds it.
-    const actProgram = raw.buyback?.transfer ? mainLegs[0]!.venue.programFor(mainLegs[0]!.pool, this.act) : '';
-    const transfer = raw.buyback?.transfer ? raw.buyback : null;
-    const prelude = transfer
-      ? (accounts: Record<string, string>) => {
-          const dest = ataAddress(web3, transfer.owner, this.act, actProgram);
+    // The Aretia fee is one transfer, made before the swap: SOL straight to the fee address, or the token being sold into the fee
+    // address's account for it (opened if it is new; the user pays its rent once).
+    const fee = raw.fee;
+    let prelude: RouteBuildOptions['prelude'];
+    if (fee) {
+      if (fee.native) {
+        prelude = () => ({ ixs: [solTransferInstruction(web3, user, fee.treasury, fee.amount)], steps: [`Aretia fee: send ${fee.amount} lamports (0.29%) to ${fee.treasury.slice(0, 6)}….`] });
+      } else {
+        const program = mainLegs[0]!.venue.programFor(mainLegs[0]!.pool, fee.mint);
+        const decimals = await this.mintDecimals(fee.mint);
+        prelude = (accounts) => {
+          const dest = ataAddress(web3, fee.treasury, fee.mint, program);
           return {
-            ixs: [createAtaIdempotentInstruction(web3, user, dest, transfer.owner, this.act, actProgram), transferCheckedInstruction(web3, actProgram, accounts[this.act]!, this.act, dest, user, transfer.amount, ACT_DECIMALS)],
-            steps: [`Aretia ACT buyback: send ${transfer.amount} (raw) of ACT to ${transfer.owner.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
+            ixs: [createAtaIdempotentInstruction(web3, user, dest, fee.treasury, fee.mint, program), transferCheckedInstruction(web3, program, accounts[fee.mint]!, fee.mint, dest, user, fee.amount, decimals)],
+            steps: [`Aretia fee: send ${fee.amount} (raw, 0.29%) of the token you are selling to ${fee.treasury.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
           };
-        }
-      : undefined;
+        };
+      }
+    }
     const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}), ...(prelude ? { prelude } : {}) }, await this.blockhash());
 
     // 3. Run the exact transaction through the real programs and judge it by what it does to the wallet.
     if (blockers.length === 0) {
-      const lastBuy = buyLegs.filter((l) => l.outOwner);
-      const treasuryAta = raw.buyback?.transfer ? ataAddress(web3, raw.buyback.owner, this.act, actProgram) : raw.buyback && lastBuy[0] ? ataAddress(web3, raw.buyback.owner, this.act, lastBuy[0].venue.programFor(lastBuy[0].pool, this.act)) : null;
-      const sim = await this.simulate(built, user, { nativeIn: raw.nativeIn, outputIsNative: outputIsNativeNow, amountIn: totalIn, minOut: quote.minOut }, treasuryAta ? [treasuryAta] : []);
+      const sim = await this.simulate(built, user, { nativeIn: raw.nativeIn, outputIsNative: outputIsNativeNow, amountIn: totalIn, minOut: quote.minOut });
       blockers.push(...sim.blockers);
-      if (treasuryAta && sim.blockers.length === 0) {
-        const w = sim.watched[0];
-        const got = w ? (w.post ?? 0n) - (w.pre ?? 0n) : 0n;
-        const floor = raw.buyback?.transfer ? raw.buyback.amount - (raw.buyback.amount * ACT_TRANSFER_FEE_MARGIN_BPS) / 10_000n : lastBuy.reduce((n, l) => n + l.minOut, 0n);
-        if (got < floor) blockers.push('The ACT buyback would not arrive at the configured address, so the swap was stopped.');
-      }
       if (sim.opensOutputAccount) warnings.push('This swap opens a token account in your wallet, which costs a small amount of SOL.');
     }
 

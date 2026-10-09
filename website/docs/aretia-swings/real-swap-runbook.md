@@ -11,7 +11,7 @@ Aretia Swings has never signed a real swap. Everything so far is proven by simul
 ## 0. Before any real swap
 1. Apply the database and run discovery (`docs/aretia-swings/setup.md`), so shadow comparisons are stored.
 2. Set `SWINGS_CANARY_WALLETS` to your own wallet address (comma-separate more later). Redeploy. Anyone else can still get quotes, but nobody else can review or sign. The page only ever receives hashes of the list.
-3. Leave the ACT buyback **off**. Test it separately, last (step 7).
+3. Test the 0.29% Aretia fee separately, last (step 7).
 4. Leave `SWINGS_PROTECTED_SUBMIT` and `SWINGS_PUBLIC_API` **off** until step 8.
 5. Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and `npm run test:live` on the commit you are deploying. Record the commit.
 
@@ -38,9 +38,9 @@ Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sens
 ## 6. Splits
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.
 
-## 7. The ACT buyback (last, and only if you decide to ship it)
-- Review `core/fee.ts` and decide the questions in `milestone-status.md` (on top versus inside, address, whether the Trade tab's 1% stays).
-- Set the config in code, deploy to a staging URL, and test with your canary wallet and a tiny amount: confirm the extra swap into ACT lands at the configured address and the user's own swap is unchanged.
+## 7. The Aretia fee (0.29%)
+- Set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` in Vercel (the address that receives EVM fees) and redeploy.
+- With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.29% of the SOL entered arrives at the fee wallet, in the same transaction; sell a little USDC and confirm the fee arrives in USDC; on one EVM network confirm the fee transaction is sent and confirmed before the swap, and arrives at the EVM fee address.
 
 ## 8. Optional features
 - Protected sending (`SWINGS_PROTECTED_SUBMIT=on`): test one small swap; confirm the tip is shown on the review screen and charged only on success.

@@ -34,7 +34,7 @@ Local development: put values in `website/.env.local` (git-ignored).
 All seven EVM networks are on by default. Narrowing or switching them off is an operator action with no code change. **No real swap has yet been signed on any of them**, so until the runbook is done, consider narrowing with `SWINGS_EVM_CHAINS` and `SWINGS_CANARY_WALLETS`.
 1. Nothing to set for Aretia's own router. (`ZEROX_API_KEY` only adds the optional, non-core 0x benchmark provider.)
 2. The venue contracts (`dex/entries.ts`) are proven by `npm run test:live`; run it before enabling a chain and confirm the addresses on the chain's block explorer.
-3. Leave the fee policy off (the default) unless the buyback design has been reviewed.
+3. The 0.29% Aretia fee is on for every network (see below); set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` before enabling any EVM network.
 4. Test with your own wallet and a small amount on that chain: quote, review, sign, confirm, check balances. Use a browser with your wallet and a staging deployment first.
 5. To test one chain on its own, set `SWINGS_EVM_CHAINS=base` (for example) in production so only that chain is on.
 6. To switch every EVM network off, set it to `none`. To go back to all on, delete the variable. No deploy is needed beyond the environment change.
@@ -44,10 +44,15 @@ Optional database tables: run `0002_swings_events.sql` too if you enable analyti
 ## Read-only live checks
 `npm run test:live` calls real public services (Jupiter quote, GeckoTerminal on five chains, public Solana and EVM nodes). It signs nothing and spends nothing. It can fail because a third party is down or rate-limiting (GeckoTerminal allows about 30 requests a minute).
 
-## The ACT buyback (0.55%)
-Rate: 55 bps, `DEFAULT_BUYBACK_POLICY` in `src/swings/core/fee.ts`. The product's configuration is `LIVE_FEE_CONFIG` in the same file, driven by one switch, `BUYBACK_LIVE`, which **ships `false`**. Flipping it to `true` turns the buyback on for every Aretia Solana swap: each carries a second swap of 0.55% of the input into ACT (or, when the user is selling ACT, 0.55% of that ACT sent as ACT), in the same transaction, to the owner's existing fee wallet (`SWAP_FEE_WALLET`). Change the receiver in `LIVE_FEE_CONFIG` only.
+## The Aretia fee (0.29%)
+Rate: 29 bps, `ARETIA_FEE_BPS` in `src/swings/core/fee.ts`, charged on every listed network. The ACT buyback has been removed. The fee is taken out of the amount the user enters (what they spend is exactly what they typed; the rest is swapped), in the asset they are paying with: SOL for a Solana swap that starts in SOL, USDC or USDT when they sell those, and the token being sold otherwise.
 
-While it is on: Jupiter and 0x quotes are dropped on that chain (they cannot carry it), the user's swap amount is never reduced (the buyback is on top, shown as its own line), and a missing address fails the quote with `config-missing`. EVM chains stay off: there is no ACT liquidity on them and no official EVM address. Test it on staging with the canary wallet first (`real-swap-runbook.md`, step 7).
+- **Solana:** one transfer inside the same transaction as the swap, to the owner's existing fee wallet (`SWAP_FEE_WALLET`). A token fee also opens the fee wallet's account for that token the first time (the user pays its rent once).
+- **EVM networks:** a separate transaction sent just before the swap (after any approval), confirmed first, and never sent twice for one quote. It goes to one address you set at build time: **`PUBLIC_ARETIA_EVM_FEE_ADDRESS`** (a public value, like the WalletConnect id). Until it is set, EVM swaps are paused with a plain message instead of letting them through without the fee.
+- **Routes that cannot collect it** are left out while it is on (Jupiter on Solana). Aretia's own routers and 0x collect it.
+- The public quote API (`/api/swings-quote`) only quotes and prepares for integrators and charges no fee.
+
+Test it on staging with the canary wallet first (`real-swap-runbook.md`, step 7).
 
 ## WalletConnect (phone and hardware wallets)
 

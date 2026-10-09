@@ -1,13 +1,41 @@
 {
-  "real-swap-solana": { "done": false },
-  "real-swap-evm": { "done": false },
-  "real-cctp-move": { "done": false },
-  "real-cctp-solana": { "done": false },
-  "moonpay-sandbox-buy": { "done": false },
-  "db-migrations": { "done": false },
-  "moonpay-sandbox-sell": { "done": false },
-  "real-cctp-fast": { "done": false },
-  "external-audit": { "done": false },
-  "csp": { "done": false },
-  "incident-plan": { "done": false }
+  "real-swap-solana": {
+    "done": false
+  },
+  "real-swap-evm": {
+    "done": false
+  },
+  "real-cctp-move": {
+    "done": false
+  },
+  "real-cctp-solana": {
+    "done": false
+  },
+  "moonpay-sandbox-buy": {
+    "done": false
+  },
+  "db-migrations": {
+    "done": false
+  },
+  "moonpay-sandbox-sell": {
+    "done": false
+  },
+  "real-cctp-fast": {
+    "done": false
+  },
+  "external-audit": {
+    "done": false
+  },
+  "csp": {
+    "done": false
+  },
+  "incident-plan": {
+    "done": false
+  },
+  "aretia-fee-evm": {
+    "done": false
+  },
+  "aretia-fee-solana": {
+    "done": false
+  }
 }

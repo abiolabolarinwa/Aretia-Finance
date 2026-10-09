@@ -30,7 +30,7 @@ function quoteFrom(providerId: string, out: bigint, over: Partial<Quote> = {}): 
     minOut: (out * 99n) / 100n,
     priceImpactBps: 10,
     route: { legs: [{ venue: providerId, from: request.from, to: request.to, shareBps: 10_000 }] },
-    costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+    costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
     fetchedAt: clock,
     expiresAt: clock + 20_000,
     raw: null,

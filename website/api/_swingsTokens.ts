@@ -19,8 +19,9 @@ import { SolanaPoolDiscoverySource } from '../src/swings/indexer/solanaIndexer.j
 import { EVM_V2_DEXES } from '../src/swings/dex/entries.js';
 import { publicRead } from '../src/swings/chains/evmSession.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from '../src/swings/tokens/enrich.js';
-import { refreshSnapshots, type RefreshResult } from '../src/swings/market/snapshot.js';
-import type { RiskStatus } from '../src/swings/core/types.js';
+import { fetchPoolMarkets, refreshSnapshots, type RefreshResult } from '../src/swings/market/snapshot.js';
+import { SupabaseTickStore, type TickInput } from '../src/swings/market/tickStore.js';
+import type { RiskStatus, TokenMarket } from '../src/swings/core/types.js';
 
 export interface TokensEnv extends ProxyEnv {
   SUPABASE_URL?: string;
@@ -179,16 +180,32 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     runs.push(await worker.runOnce());
   }
   // Keep the market numbers of recently detected tokens fresh: one request per network for the 30 stalest snapshots.
+  // Each reading is also recorded as a price tick, and so are the pools people have opened a chart for in the last day.
   const refresh: Record<string, RefreshResult> = {};
-  if (repo.listForMarketRefresh) {
-    for (const chain of CHAIN_IDS) {
+  const supabaseUrl = supabaseBase(input.env.SUPABASE_URL);
+  const ticks = supabaseUrl ? new SupabaseTickStore(supabaseUrl, input.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), input.fetchImpl) : null;
+  const tickOf = (chain: ChainId, pool: string, m: TokenMarket): TickInput => ({ chain, pool: chain === 'solana' ? pool : pool.toLowerCase(), ts: m.at, price: m.priceUsd, liq: m.liquidityUsd, vol24: m.volume24hUsd });
+  for (const chain of CHAIN_IDS) {
+    const recorded: TickInput[] = [];
+    if (repo.listForMarketRefresh) {
       try {
         const stale = await repo.listForMarketRefresh(chain, input.now - 7 * 86_400_000, 30);
-        refresh[chain] = await refreshSnapshots(chain, stale, (r, m) => registry.setMarket(r.ref, m), input.fetchImpl, input.now);
+        refresh[chain] = await refreshSnapshots(chain, stale, async (r, m) => { await registry.setMarket(r.ref, m); recorded.push(tickOf(chain, m.pool, m)); }, input.fetchImpl, input.now);
       } catch {
         refresh[chain] = { asked: 0, updated: 0, error: 'The refresh list could not be read (has migration 0006 been run?).' };
       }
     }
+    if (ticks) {
+      try {
+        const watched = await ticks.tracked(chain, input.now - 86_400_000, 30);
+        const { markets } = await fetchPoolMarkets(chain, watched, input.fetchImpl, input.now);
+        for (const m of markets.values()) recorded.push(tickOf(chain, m.pool, m));
+        await ticks.add(recorded);
+      } catch {
+        // Price history is optional until migration 0007 has been run; discovery itself is unaffected.
+      }
+    }
   }
+  if (ticks) await ticks.prune(input.now).catch(() => undefined);
   return json(200, { runs, refresh }, headers);
 }

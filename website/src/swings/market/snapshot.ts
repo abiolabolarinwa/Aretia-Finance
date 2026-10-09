@@ -48,8 +48,28 @@ export interface RefreshResult {
   error: string | null;
 }
 
+/** One GeckoTerminal request for up to 30 pools of one network. Keys are lower-cased pool addresses. A failure is returned, not thrown. */
+export async function fetchPoolMarkets(chain: ChainId, pools: readonly string[], fetchImpl: typeof fetch, now: number): Promise<{ markets: Map<string, TokenMarket>; error: string | null }> {
+  const markets = new Map<string, TokenMarket>();
+  const list = [...new Set(pools.map((p) => p.toLowerCase()))].slice(0, 30);
+  if (list.length === 0) return { markets, error: null };
+  try {
+    const res = await fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/multi/${list.join(',')}?include=base_token`, { headers: { accept: 'application/json' } });
+    if (!res.ok) return { markets, error: `GeckoTerminal answered ${res.status} for ${chain}.` };
+    const body = (await res.json()) as { data?: { attributes?: { address?: string } }[] };
+    for (const p of body.data ?? []) {
+      const pool = p.attributes?.address;
+      const m = pool ? marketFromAttributes(p.attributes, pool, now) : null;
+      if (pool && m) markets.set(pool.toLowerCase(), m);
+    }
+    return { markets, error: null };
+  } catch (e) {
+    return { markets, error: e instanceof Error ? e.message : 'The refresh failed.' };
+  }
+}
+
 /**
- * Refreshes the snapshots of the stalest tokens on one network: one GeckoTerminal request for up to 30 pools.
+ * Refreshes the snapshots of the stalest tokens on one network: one request for up to 30 pools.
  * Returns what changed; a failure is reported, not thrown, so one busy network does not stop the others.
  */
 export async function refreshSnapshots(
@@ -62,22 +82,14 @@ export async function refreshSnapshots(
   const withPool = records.filter((r) => r.pools[0]?.address).slice(0, 30);
   if (withPool.length === 0) return { asked: 0, updated: 0, error: null };
   const byPool = new Map(withPool.map((r) => [r.pools[0]!.address.toLowerCase(), r]));
-  try {
-    const res = await fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/multi/${[...byPool.keys()].join(',')}?include=base_token`, { headers: { accept: 'application/json' } });
-    if (!res.ok) return { asked: withPool.length, updated: 0, error: `GeckoTerminal answered ${res.status} for ${chain}.` };
-    const body = (await res.json()) as { data?: { attributes?: { address?: string } }[] };
-    let updated = 0;
-    for (const p of body.data ?? []) {
-      const pool = p.attributes?.address;
-      const rec = pool ? byPool.get(pool.toLowerCase()) : undefined;
-      const m = rec && pool ? marketFromAttributes(p.attributes, pool, now) : null;
-      if (rec && m) {
-        await save(rec, m);
-        updated++;
-      }
+  const { markets, error } = await fetchPoolMarkets(chain, [...byPool.keys()], fetchImpl, now);
+  let updated = 0;
+  for (const [pool, m] of markets) {
+    const rec = byPool.get(pool);
+    if (rec) {
+      await save(rec, m);
+      updated++;
     }
-    return { asked: withPool.length, updated, error: null };
-  } catch (e) {
-    return { asked: withPool.length, updated: 0, error: e instanceof Error ? e.message : 'The refresh failed.' };
   }
+  return { asked: withPool.length, updated, error };
 }

@@ -45,7 +45,8 @@ export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): Mark
     pool: p?.pairAddress ?? r.pools[0]?.address ?? '',
     priceUsd: price !== null && price > 0 ? price : null,
     capUsd: num(p?.marketCap) ?? num(p?.fdv),
-    ageMs: created !== null && created >= 0 ? created : age.ms,
+    // A favourite has no detection date of its own worth showing: without a pool date the age stays unknown.
+    ageMs: created !== null && created >= 0 ? created : r.discoverySource === 'favourite' ? null : age.ms,
     txns24h: typeof t?.buys === 'number' && typeof t?.sells === 'number' ? t.buys + t.sells : null,
     volume24hUsd: num(p?.volume?.h24) ?? r.volume24hUsd,
     traders24h: null,
@@ -54,6 +55,32 @@ export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): Mark
     risk: { status: st, label: RISK_LABELS[st], score: r.risk?.score ?? null },
     fresh: true,
   };
+}
+
+/** Table rows for favourite tokens: numbers from the main pool of each, the rest left blank. */
+export function rowsFromFavourites(favs: readonly { chain: ChainId; address: string; symbol: string; name: string; icon: string | null; addedAt: number }[], fetchImpl: typeof fetch = (...a) => fetch(...a), now: () => number = Date.now): Promise<MarketRow[]> {
+  const records: TokenRecord[] = favs.map((f) => ({
+    ref: { chain: f.chain, address: f.address },
+    symbol: f.symbol,
+    name: f.name,
+    decimals: 0,
+    logo: f.icon,
+    firstDetectedAt: f.addedAt,
+    discoverySource: 'favourite',
+    createdAt: null,
+    firstPoolAt: null,
+    discoveryStatus: 'discovered',
+    liquidityUsd: null,
+    volume24hUsd: null,
+    holderCount: null,
+    pools: [],
+    metadata: {},
+    verified: false,
+    metadataConfidence: 'unknown',
+    risk: null,
+    updatedAt: f.addedAt,
+  }));
+  return rowsFromRecords(records, fetchImpl, now).then((rows) => rows.map((r) => ({ ...r, decimals: null, risk: null, fresh: false })));
 }
 
 /** Adds market numbers to registry tokens, 30 tokens per DexScreener request. A failing request leaves those rows plain. */

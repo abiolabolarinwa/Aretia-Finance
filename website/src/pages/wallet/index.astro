@@ -343,17 +343,6 @@ const buyTips = [
         <div class="wapp__stack">
           <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
           <div data-sw-panel="swap" class="wapp__stack" hidden></div>
-          <template id="sw-guide">
-            <details class="wapp__guide">
-              <summary><h2 class="wapp__h2">Before you swap</h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
-              <div class="wapp__guide-grid">
-                <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2" /></svg></span><h3>Keep some for fees</h3><p>Every swap pays a network fee in that network's own coin (SOL, ETH, BNB and so on). Keep a little in the same wallet, or the swap will fail.</p></article>
-                <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 5L5 19M7.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg></span><h3>Slippage and the minimum</h3><p>The minimum you will receive is shown before you sign. If the price moves further than your slippage allows, the swap is rejected and nothing is exchanged.</p></article>
-                <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5" /></svg></span><h3>Quotes expire</h3><p>A quote is only good for a short time and the screen counts it down. If it runs out, get a new one rather than signing an old price.</p></article>
-                <article class="wapp__tile"><span class="wapp__tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><h3>Check the token</h3><p>Names and symbols are not unique, so look at the address under each box. Read the safety notes before you buy a token you do not know.</p></article>
-              </div>
-            </details>
-          </template>
           <div data-sw-panel="markets" class="wapp__stack"></div>
           <details class="wapp__fineprint">
             <summary>Good to know before you use Swings</summary>
@@ -893,6 +882,12 @@ const buyTips = [
   body:has(.wapp-swapdlg:not([hidden])) { overflow: hidden; }
 
   /* ---- Find Tokens and Marketplace: a light table of tokens, one row each ---- */
+  .wapp-mt__starcell, .wapp-mt__starhead { width: 28px; padding-right: 0; }
+  .wapp-mt__star { padding: 2px 4px; font-size: 17px; line-height: 1; color: var(--color-muted); background: none; border: 0; border-radius: 6px; cursor: pointer; }
+  .wapp-mt__star[aria-pressed='true'] { color: #d99a00; }
+  .wapp-mt__star:hover { color: #d99a00; }
+  .wapp-mt__star:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
+  .wapp-acct { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .wapp-mt__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }
   .wapp-mt__pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
   .wapp-mt__pager .wapp-mt__pageno { width: 64px; min-width: 0; text-align: center; }

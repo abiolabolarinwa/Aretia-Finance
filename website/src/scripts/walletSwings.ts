@@ -17,8 +17,10 @@ import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
 import { marketTable, type TableState } from './walletMarketTable.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
-import { rowsFromRecords } from '../swings/market/registryRows.js';
+import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRows.js';
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
+import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
+import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { sortRows, type MarketRow } from '../swings/market/types.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
@@ -135,27 +137,102 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   // These nodes live for the whole page. A browser reloads an iframe whenever it, or anything above it, is taken out of the
-  // page and put back, so the chart's ancestors must never be rebuilt: a render only refills the swap card and the guide.
+  // page and put back, so the chart's ancestors must never be rebuilt: a render only refills the swap card and the details.
   const swapCard = el('div', { class: 'wapp__card wapp__swap' });
   const swapChartCard = el('div', { class: 'wapp__card' }, [swapChart.element]);
   const swapSide = el('div', { class: 'wapp__trade-side' }, [swapChartCard]);
   const swapGrid = el('div', { class: 'wapp__grid wapp__grid--trade' }, [swapCard, swapSide]);
   swapPanel.append(swapGrid);
   const history = new SwapHistory(browserStorage());
+  const account = new AccountClient(browserStorage());
+  const favourites = new FavouriteStore(browserStorage());
+  let accountMessage: string | null = null;
+  let accountBusy = false;
+
+  /** Who would sign: the Ethereum-style wallet on an Ethereum-style network, otherwise the wallet connected in the sidebar. */
+  function signerNow(): Signer | null {
+    if (isEvm(s.chain)) {
+      const adapter = evm.adapter;
+      const address = evm.account;
+      if (!adapter || !address) return null;
+      const hex = (m: string): string => '0x' + [...new TextEncoder().encode(m)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      return { family: 'evm', address, sign: (m) => adapter.signMessage(hex(m), address) };
+    }
+    const address = host.getAddress();
+    const ctx = (window as unknown as { AretiaWallet?: { getWalletContextState(): { signMessage?: (m: Uint8Array) => Promise<Uint8Array> } } }).AretiaWallet?.getWalletContextState();
+    const signMessage = ctx?.signMessage;
+    if (!address || !signMessage) return null;
+    return { family: 'solana', address, sign: async (m) => btoa(String.fromCharCode(...(await signMessage(new TextEncoder().encode(m))))) };
+  }
+  const sessionNow = (): Session | null => {
+    const sg = signerNow();
+    return sg ? account.session(sg.family, sg.address) : null;
+  };
+
+  /** Brings this device and the wallet's saved copy together: favourites both ways, swap history both ways. */
+  async function syncAccount(session: Session): Promise<void> {
+    const data = await account.get(session);
+    const onlyHere = favourites.merge(data.favourites as unknown as Favourite[]);
+    for (const f of onlyHere) await account.setFavourite(session, f, true);
+    history.merge(data.trades);
+    const mine = history.list(session.address);
+    if (mine.length > 0) await account.saveTrades(session, mine);
+  }
+  const redrawAccount = (): void => {
+    markets.draw();
+    renderActivity();
+  };
+  async function signInNow(): Promise<void> {
+    const sg = signerNow();
+    if (!sg || accountBusy) return;
+    accountBusy = true;
+    accountMessage = null;
+    redrawAccount();
+    try {
+      const session = await account.signIn(sg);
+      await syncAccount(session);
+      accountMessage = 'Saved. Your favourites and swaps now follow this wallet.';
+    } catch (e) {
+      accountMessage = e instanceof SwingsError || e instanceof Error ? (/reject|declin|denied/i.test(e.message) ? 'The sign-in was declined, so nothing was saved.' : e.message) : 'Signing in did not work. Try again.';
+    }
+    accountBusy = false;
+    redrawAccount();
+  }
+  function autoSync(): void {
+    const session = sessionNow();
+    if (session) void syncAccount(session).then(redrawAccount).catch(() => undefined);
+  }
+  const pushTrades = (): void => {
+    const session = sessionNow();
+    if (session) void account.saveTrades(session, history.list(session.address)).catch(() => undefined);
+  };
+
+  /** The line that says whether favourites and swaps are saved to the wallet, with the one button to turn that on or off. */
+  function accountBar(): HTMLElement {
+    const bar = el('div', { class: 'wapp-acct' });
+    const session = sessionNow();
+    const sg = signerNow();
+    if (session) {
+      const off = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Sign out', attrs: { type: 'button' } });
+      off.addEventListener('click', () => {
+        account.signOut(sg!.family, sg!.address);
+        accountMessage = null;
+        redrawAccount();
+      });
+      bar.append(el('span', { class: 'wapp__fine', text: `Saved to ${short(session.address)}: your favourites and swaps follow this wallet on every device.` }), off);
+    } else if (sg) {
+      const on = el('button', { class: 'wapp__btn wapp__btn--ghost', text: accountBusy ? 'Waiting for your wallet…' : 'Save to my wallet', attrs: { type: 'button' } });
+      on.disabled = accountBusy;
+      on.addEventListener('click', () => void signInNow());
+      bar.append(on, el('span', { class: 'wapp__fine', text: 'Sign a free message (it is not a transaction and cannot move funds) to keep favourites and swap history on every device.' }));
+    } else bar.append(el('span', { class: 'wapp__fine', text: 'Connect a wallet to save favourites and swaps to it.' }));
+    if (accountMessage) bar.append(el('span', { class: 'wapp__fine', text: accountMessage }));
+    return bar;
+  }
   const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
   const crossChain = initCrossChain(movePanel, chainRuntime);
   const planTab = initPlan(planPanel, chainRuntime);
   const ramp = initRamp(rampPanel, evm, () => host.getAddress(), (c) => isChainEnabled(c));
-  // The "Before you swap" dropdown is written in the page. One copy is kept and moved between redraws, so it stays open if the user opened it.
-  let guideEl: Element | null = null;
-  const guide = (): Element | null => {
-    if (!guideEl) {
-      const tpl = document.getElementById('sw-guide') as HTMLTemplateElement | null;
-      guideEl = (tpl?.content.firstElementChild?.cloneNode(true) as Element | undefined) ?? null;
-    }
-    return guideEl;
-  };
-
   const s = {
     chain: 'solana' as ChainId,
     from: null as TokenInfo | null,
@@ -435,6 +512,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       status: execution.status,
     };
     history.save(item);
+    pushTrades();
   }
 
   async function confirm(): Promise<void> {
@@ -704,12 +782,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     const card = swapCard;
     card.replaceChildren();
     for (const old of [...swapSide.children]) if (old !== swapChartCard) old.remove();
-    // The swap sits in the left column; what the route costs and checks sits in the right one, above the chart and the guide,
+    // The swap sits in the left column; what the route costs and checks sits in the right one, above the chart,
     // so the buttons stay in view while the details are read.
     let detailsCard: HTMLElement | null = null;
     const place = (): void => {
-      const g = guide();
-      if (g) swapSide.append(g);
       if (detailsCard && detailsCard.childElementCount > 0) swapSide.prepend(detailsCard);
     };
 
@@ -958,7 +1034,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   function tokenBrowser(target: HTMLElement) {
     // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
     // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
-    type Kind = MarketKind | 'new';
+    type Kind = MarketKind | 'new' | 'favourites';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
     let rows: MarketRow[] | null = null;
@@ -1004,6 +1080,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
           records.clear();
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = filled;
+        } else if (m.kind === 'favourites') {
+          const favs = favourites.list().filter((f) => !m.chain || f.chain === m.chain);
+          const got = await rowsFromFavourites(favs);
+          if (mine !== seq) return;
+          const rated = applyRatings(got, await fetchRatings(got));
+          if (mine !== seq) return;
+          rows = rated;
         } else {
           const got = await loadList({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
           if (mine !== seq) return;
@@ -1047,6 +1130,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-pressed': String(pressed), ...(title ? { title } : {}) } });
       b.addEventListener('click', onClick);
       return b;
+    }
+
+    /** The star on a row: kept on this device at once, and saved to the wallet too when the person is signed in. */
+    function toggleFavourite(r: MarketRow): void {
+      const fav = { chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon };
+      const on = favourites.toggle(fav);
+      const session = sessionNow();
+      if (session) void account.setFavourite(session, fav, on).catch(() => undefined);
+      // Un-starring inside the Favourites list takes the row away.
+      if (!on && m.kind === 'favourites') void load(true);
     }
 
     /** A row was clicked: the token page opens in place of the list, with a way back. */
@@ -1096,7 +1189,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       card.append(el('h2', { class: 'wapp__h2', text: 'Marketplace' }));
       card.append(el('p', { class: 'wapp__fine', text: 'What is trading across the networks, with Aretia\'s safety rating where Aretia has checked the token. Busy does not mean safe, a rating is not advice, and liquidity can be withdrawn by whoever put it there.' }));
       const bar = el('div', { class: 'wapp-mt__bar' });
-      const kinds: [Kind, string, string][] = [['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
@@ -1137,15 +1230,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
+      card.append(accountBar());
       const shownRows = visible();
       if (error) card.append(banner('warn', error));
       else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
+      else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        card.append(marketTable({ rows: shown, sort: tsort, showRisk: true, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: openRow }));
-        const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : GECKO_PAGES;
+        card.append(marketTable({ rows: shown, sort: tsort, showRisk: true, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: openRow }));
+        const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : m.kind === 'favourites' ? 1 : GECKO_PAGES;
         card.append(pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
@@ -1211,6 +1306,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     activityPanel.replaceChildren();
     const card = activityPanel;
     card.append(el('h2', { class: 'wapp__h2', text: 'Your swaps and moves' }));
+    card.append(accountBar());
     card.append(el('p', { class: 'wapp__fine', text: 'Swaps and USDC transfers made through Aretia Swings in this browser. This list is stored only on this device and is not sent to Aretia.' }));
     void chainRuntime.orchestrator.active().then((moves) => {
       if (moves.length === 0) return;
@@ -1240,6 +1336,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
           const ex: SwapExecution = { id: i.id, quoteId: i.id, chain: i.chain, status: 'submitted', txId: i.txId!, startedAt: i.at, updatedAt: Date.now() };
           void router.trackExecution(ex, { timeoutMs: 4_000, intervalMs: 1_000 }).then((res) => {
             history.setStatus(i.id, res.status);
+            pushTrades();
             renderActivity();
           });
         });
@@ -1413,6 +1510,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     },
     onWalletChange() {
       evmResume.tried = false;
+      autoSync();
       resetQuote();
       render();
       renderActivity();

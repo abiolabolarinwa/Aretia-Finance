@@ -43,8 +43,10 @@ export async function handlePools(input: TokensInput): Promise<TokensOutput> {
   const keyed = input.env.SOLANA_RPC_URL?.trim();
   let scan = await scanPoolsDetailed(rpcFor(keyed || SCAN_FALLBACK_RPC), mint);
   let usedFallback = false;
+  let keyedReason: string | null = null;
   // The paid provider may refuse some program-wide queries on its plan; the public endpoint then answers instead.
   if (keyed && scan.pools.length === 0 && scan.failed > 0) {
+    keyedReason = scan.reason;
     scan = await scanPoolsDetailed(rpcFor(SCAN_FALLBACK_RPC), mint);
     usedFallback = true;
   }
@@ -53,6 +55,6 @@ export async function handlePools(input: TokensInput): Promise<TokensOutput> {
     if (cache.size > 2000) cache.clear();
     cache.set(mint, { at: input.now, pools: scan.pools });
   }
-  return json(200, { pools: scan.pools, ...(scan.failed > 0 ? { failed: scan.failed, reason: scan.reason } : {}), ...(usedFallback ? { fallback: true } : {}) }, headers);
+  return json(200, { pools: scan.pools, ...(scan.failed > 0 ? { failed: scan.failed, reason: scan.reason } : {}), ...(usedFallback ? { fallback: true, keyedReason } : {}) }, headers);
 }
 

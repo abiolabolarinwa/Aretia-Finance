@@ -19,7 +19,7 @@ export interface DexEntry {
   id: string;
   name: string;
   chain: ChainId;
-  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap';
+  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot';
   model: PoolModel;
   mechanism: SwapMechanism;
   /** Router (EVM) or program id (Solana). */
@@ -30,6 +30,8 @@ export interface DexEntry {
   feePpm?: number;
   /** The chain's wrapped native token, used when a path starts or ends in the native coin. */
   wrappedNative?: string;
+  /** Launchpads priced in an ERC-20 rather than the native coin: the token their curves are priced in. */
+  quoteAsset?: string;
   /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair (for example ACT's own pools). */
   knownPools?: string[];
   /** V2 forks on Avalanche name their native-coin functions after AVAX (`swapExactAVAXForTokens`) instead of ETH. */

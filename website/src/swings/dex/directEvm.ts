@@ -59,12 +59,15 @@ interface DirectRaw {
   v3split?: { fee: number; amountIn: bigint; minOut: bigint }[];
   nativeIn: boolean;
   nativeOut: boolean;
+  /** Launchpad only: the token on the curve and whether the user is buying it. */
+  launch?: { token: string; buying: boolean; ref?: string };
   block: string;
   reasons: string[];
   impactBps: number | null;
 }
 
 interface Candidate {
+  launch?: { token: string; buying: boolean; ref?: string };
   kind: 'v2' | 'v3' | 'aero' | 'balancer' | 'curve' | 'launchpad';
   aeroHops?: AeroHop[];
   balancer?: { steps: BalancerStep[]; assets: string[] };
@@ -135,7 +138,7 @@ export class DirectEvmProvider implements DexProvider {
     const slip = BigInt(request.slippageBps);
     const v3split = best.v3split?.map((l) => ({ fee: l.fee, amountIn: l.amountIn, minOut: (l.out * (10_000n - slip)) / 10_000n }));
     if (v3split?.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
-    const raw: DirectRaw = { kind: best.kind, entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, ...(v3split ? { v3split } : {}), nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
+    const raw: DirectRaw = { kind: best.kind, ...(best.launch ? { launch: best.launch } : {}), entryId: best.entryId, path: best.path, fees: best.fees, aeroHops: best.aeroHops, balancer: best.balancer, curve: best.curve, ...(v3split ? { v3split } : {}), nativeIn, nativeOut, block: head.toString(), reasons: [`Compared: ${comparison}.`, ...best.reasons], impactBps: best.impactBps };
     const venueName = this.deps.registry.get(best.entryId)?.name ?? best.entryId;
     return {
       id: `aretia:${chain}:${fetchedAt}:${best.path[0]!.slice(2, 8)}:${best.path[best.path.length - 1]!.slice(2, 8)}`,
@@ -193,9 +196,9 @@ export class DirectEvmProvider implements DexProvider {
 
   /** Bonding-curve launchpads: only a swap between the native coin and a token still on its curve, priced by the launchpad itself. */
   private launchpadCandidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, head: bigint, read: EvmRead, nativeIn: boolean, nativeOut: boolean): Promise<Candidate[]>[] {
-    if (!nativeIn && !nativeOut) return [];
     return venues
-      .filter((e) => e.mechanism === 'evm-launchpad-curve')
+      // A launchpad priced in the native coin needs the native coin on one side; one priced in a token needs that token.
+      .filter((e) => e.mechanism === 'evm-launchpad-curve' && (e.quoteAsset ? [tokenIn.address, tokenOut.address].includes(e.quoteAsset.toLowerCase()) : nativeIn || nativeOut))
       .map(async (entry): Promise<Candidate[]> => {
         try {
           const adapter = launchpadAdapter(entry, read);
@@ -210,7 +213,7 @@ export class DirectEvmProvider implements DexProvider {
               impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
             }
           }
-          return [{ kind: 'launchpad', entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [], amountOut: route.amountOut, impactBps, reasons: [`${entry.name} bonding curve, priced by the launchpad's own contract at block ${head}. The token is still on its curve, not yet on a DEX.`] }];
+          return [{ kind: 'launchpad', launch: { token: route.token, buying: route.buying, ...(route.ref ? { ref: route.ref } : {}) }, entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [], amountOut: route.amountOut, impactBps, reasons: [`${entry.name} bonding curve, priced by the launchpad's own contract at block ${head}. The token is still on its curve, not yet on a DEX.`] }];
         } catch {
           return [];
         }
@@ -364,7 +367,7 @@ export class DirectEvmProvider implements DexProvider {
     const deadline = Math.floor(this.now() / 1000) + DEADLINE_SECONDS;
     const plan =
       raw.kind === 'launchpad'
-        ? buildLaunchpadSwap(entry, { token: raw.nativeIn ? raw.path[1]! : raw.path[0]!, buying: raw.nativeIn, amountIn: quote.inAmount, minOut: quote.minOut })
+        ? buildLaunchpadSwap(entry, { token: raw.launch?.token ?? '', buying: raw.launch?.buying ?? false, amountIn: quote.inAmount, minOut: quote.minOut, deadline, ...(raw.launch?.ref ? { ref: raw.launch.ref } : {}) })
         : raw.kind === 'curve'
         ? buildCurveSwap(entry, { pool: raw.curve?.pool ?? '', i: raw.curve?.i ?? -1, j: raw.curve?.j ?? -1, tokenIn: raw.path[0]!, amountIn: quote.inAmount, minOut: quote.minOut })
         : raw.kind === 'balancer'
@@ -388,7 +391,7 @@ export class DirectEvmProvider implements DexProvider {
       else if (raw.kind === 'aero') venueOut = await new EvmAerodromeAdapter(entry, read).quote(raw.aeroHops ?? [], quote.inAmount);
       else if (raw.kind === 'launchpad') {
         const fm = launchpadAdapter(entry, read);
-        const q = raw.nativeIn ? await fm.quoteBuy(raw.path[1]!, quote.inAmount) : await fm.quoteSell(raw.path[0]!, quote.inAmount);
+        const q = raw.launch ? (raw.launch.buying ? await fm.quoteBuy(raw.launch.token, quote.inAmount) : await fm.quoteSell(raw.launch.token, quote.inAmount)) : null;
         venueOut = q?.amountOut ?? null;
       } else if (raw.kind === 'curve') venueOut = raw.curve ? await new EvmCurveAdapter(entry, read).quote(raw.curve.pool, raw.curve.i, raw.curve.j, quote.inAmount) : null;
       else if (raw.kind === 'balancer') venueOut = raw.balancer ? await new EvmBalancerAdapter(entry, read).quote(raw.balancer.steps, raw.balancer.assets, quote.inAmount) : null;

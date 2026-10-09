@@ -120,6 +120,8 @@ export class DirectSolanaProvider implements DexProvider {
   private readonly now: () => number;
   private readonly fee: AretiaFeeConfig;
   private readonly act: string;
+  /** Why pools that were found could not be used in the quote being worked out (a simulation refusal, an unanswered check). */
+  private skipped: string[] = [];
 
   constructor(private readonly deps: DirectSolanaDeps) {
     this.now = deps.now ?? Date.now;
@@ -177,7 +179,10 @@ export class DirectSolanaProvider implements DexProvider {
     const nativeIn = isWsol(request.from);
     const built = await this.build(web3, request.account.address, legs, { nativeIn, nativeOut: false, closeWsol: false }, blockhash);
     const sim = await this.simulate(built, request.account.address, { nativeIn, outputIsNative: false, amountIn: request.amountIn, minOut: 1n }, watchMint ? [built.accounts[watchMint]!] : []);
-    if (sim.blockers.length > 0) return { received: null, watched: null };
+    if (sim.blockers.length > 0) {
+      this.skipped.push(...sim.blockers);
+      return { received: null, watched: null };
+    }
     const w = sim.watched[0];
     return { received: sim.verdict.received, watched: w ? (w.post ?? 0n) - (w.pre ?? 0n) : null };
   }
@@ -191,7 +196,10 @@ export class DirectSolanaProvider implements DexProvider {
         return null;
       }
     }
-    const r = await this.probe(web3, { ...request, from: leg.tokenIn, amountIn: leg.amountIn }, [{ ...leg, minOut: 1n }], blockhash);
+    const r = await this.probe(web3, { ...request, from: leg.tokenIn, amountIn: leg.amountIn }, [{ ...leg, minOut: 1n }], blockhash).catch(() => {
+      this.skipped.push('the network did not answer the price check');
+      return { received: null, watched: null };
+    });
     return r.received !== null && r.received > 0n ? r.received : null;
   }
 
@@ -227,6 +235,7 @@ export class DirectSolanaProvider implements DexProvider {
   private async findPlans(web3: typeof Web3, req: SwapRequest, venues: SolanaVenue[], blockhash: string): Promise<{ plans: Plan[]; read: string }> {
     const { from, to } = req;
     const request = req;
+    this.skipped = [];
     const hubs = SOLANA_HUBS.filter((h) => h !== from.address && h !== to.address).map((address): TokenRef => ({ chain: 'solana', address }));
 
     // Read every pool the plans might use, in parallel.
@@ -320,7 +329,14 @@ export class DirectSolanaProvider implements DexProvider {
       if (bestSplit && bestSplit.amountOut > best.amountOut && ((bestSplit.amountOut - best.amountOut) * 10_000n) / best.amountOut >= SPLIT_MIN_GAIN_BPS) plans.push(bestSplit);
     }
 
-    if (plans.length === 0) throw new SwingsError('no-route', 'No pool Aretia reads directly can fill this trade.');
+    if (plans.length === 0) {
+      // Pools were found but none could be used: say why, because "no pool" would send the user looking in the wrong place.
+      if (direct.length > 0 && this.skipped.length > 0) {
+        const why = [...new Set(this.skipped)].slice(0, 2).join('; ');
+        throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}. A first swap into a token also needs a little extra SOL for the new token account and fees.`);
+      }
+      throw new SwingsError('no-route', 'No pool Aretia reads directly can fill this trade.');
+    }
     plans.sort((x, y) => (x.amountOut !== y.amountOut ? (x.amountOut > y.amountOut ? -1 : 1) : x.legs.length - y.legs.length));
     const counts = new Map<string, number>();
     for (const d of direct) counts.set(d.venue.name, (counts.get(d.venue.name) ?? 0) + 1);

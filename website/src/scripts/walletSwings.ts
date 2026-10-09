@@ -52,6 +52,8 @@ export interface SwingsHolding {
 
 export interface SwingsHost {
   getAddress(): string | null;
+  /** The name of the wallet connected in the sidebar (for example MetaMask), so the same wallet can be reused on EVM networks. */
+  getWalletName(): string | null;
   getHoldings(): SwingsHolding[] | null;
   refresh(): Promise<void>;
 }
@@ -560,6 +562,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     }
   }
 
+  const evmResume = { tried: false };
+
   function evmConnect(): HTMLElement {
     const box = el('div', { class: 'wapp__stack' });
     if (evm.account) {
@@ -700,9 +704,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     const card = swapCard;
     card.replaceChildren();
     for (const old of [...swapSide.children]) if (old !== swapChartCard) old.remove();
+    // The swap sits in the left column; what the route costs and checks sits in the right one, above the chart and the guide,
+    // so the buttons stay in view while the details are read.
+    let detailsCard: HTMLElement | null = null;
     const place = (): void => {
       const g = guide();
       if (g) swapSide.append(g);
+      if (detailsCard && detailsCard.childElementCount > 0) swapSide.prepend(detailsCard);
     };
 
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
@@ -729,6 +737,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       card.append(banner('warn', `${info.name} swaps are switched off at the moment, either by the operator or because the page could not reach its settings. Nothing on this network can be traded from this page right now. Reload to check again.`));
       place();
       return;
+    }
+    // A wallet already connected in the sidebar is reused here without asking again; only when it has not shared an
+    // EVM account yet does the page offer the connect buttons (already listed, no extra "find wallets" click).
+    if (isEvm(s.chain) && !evm.account && host.getAddress() && !evmResume.tried) {
+      evmResume.tried = true;
+      void evm.resume(host.getWalletName()).then(async (account) => {
+        if (account && evm.adapter) registerEvmWallet(router, evm.adapter);
+        else if (s.walletChoices === null) s.walletChoices = (await evm.discover()).map((w) => ({ uuid: w.info.uuid, name: w.info.name }));
+        render();
+      });
     }
     if (isEvm(s.chain)) card.append(evmConnect());
     if (!address) {
@@ -812,6 +830,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     card.append(actions);
     if (s.error) card.append(banner('warn', s.error));
     if (s.notice) card.append(banner('info', s.notice));
+    const details = el('div', { class: 'wapp__card wapp__swap-details' });
+    detailsCard = details;
     // The best route failed its checks. Another one may exist, but it is only offered, never used automatically.
     if (s.phase === 'quoted' && s.error && s.quote && s.alternatives.length > 0) {
       const alt = s.alternatives[0]!;
@@ -826,31 +846,31 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         void review();
       });
       offer.append(use);
-      card.append(offer);
+      details.append(offer);
     }
-    for (const f of s.failures) card.append(el('p', { class: 'wapp__fine', text: `A provider did not answer (${f}).${s.quote ? ' Other routes were used.' : ''}` }));
+    for (const f of s.failures) details.append(el('p', { class: 'wapp__fine', text: `A provider did not answer (${f}).${s.quote ? ' Other routes were used.' : ''}` }));
 
     if (s.quote && s.phase !== 'idle' && s.phase !== 'quoting') {
       const q = s.quote;
-      card.append(el('span', { class: 'wapp__eyebrow', text: s.phase === 'review' || s.phase === 'signing' || s.phase === 'tracking' || s.phase === 'done' ? 'Final review' : 'Best route found' }));
-      card.append(summaryRows(q));
+      details.append(el('span', { class: 'wapp__eyebrow', text: s.phase === 'review' || s.phase === 'signing' || s.phase === 'tracking' || s.phase === 'done' ? 'Final review' : 'Best route found' }));
+      details.append(summaryRows(q));
       const safety = safetyBlock();
-      if (safety) card.append(safety);
+      if (safety) details.append(safety);
       const exp = expiryLabel(q);
-      card.append(el('p', { class: 'wapp__fine', text: exp.text, attrs: { 'data-sw-expiry': '' } }));
+      details.append(el('p', { class: 'wapp__fine', text: exp.text, attrs: { 'data-sw-expiry': '' } }));
       if (s.alternatives.length > 0) {
         const more = el('details', { class: 'wapp__more' }, [el('summary', { text: `${s.alternatives.length} other route${s.alternatives.length === 1 ? '' : 's'}` })]);
         for (const alt of s.alternatives) more.append(el('p', { class: 'wapp__fine', text: `${providerLabel(alt.providerId)}: ${fromSmallestUnit(alt.expectedOut, s.to!.decimals)} ${s.to!.symbol}` }));
-        card.append(more);
+        details.append(more);
       }
       const mev = assessMevExposure(q.request.slippageBps, s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000));
-      if (mev.level !== 'low') card.append(banner('warn', mev.note));
+      if (mev.level !== 'low') details.append(banner('warn', mev.note));
       if (s.prepared) {
-        for (const b of [...s.prepared.simulation.blockers, ...s.extraBlockers]) card.append(banner('warn', b));
-        for (const w of s.prepared.simulation.warnings) card.append(banner('info', w));
-        if (s.prepared.simulation.ok && s.extraBlockers.length === 0 && (s.phase === 'review' || s.phase === 'signing')) card.append(banner('ok', 'The swap passed its pre-send checks. This is not a guarantee: prices can move before it lands, and the minimum above is the least you will accept.'));
+        for (const b of [...s.prepared.simulation.blockers, ...s.extraBlockers]) details.append(banner('warn', b));
+        for (const w of s.prepared.simulation.warnings) details.append(banner('info', w));
+        if (s.prepared.simulation.ok && s.extraBlockers.length === 0 && (s.phase === 'review' || s.phase === 'signing')) details.append(banner('ok', 'The swap passed its pre-send checks. This is not a guarantee: prices can move before it lands, and the minimum above is the least you will accept.'));
       }
-      for (const n of summarizeQuote(q).notes) if (!n.startsWith('No Aretia fee')) card.append(el('p', { class: 'wapp__fine', text: n }));
+      for (const n of summarizeQuote(q).notes) if (!n.startsWith('No Aretia fee')) details.append(el('p', { class: 'wapp__fine', text: n }));
     }
     if (s.phase === 'tracking') card.append(banner('info', 'Sent. Waiting for the network to confirm. Do not send it again.'));
     if (s.phase === 'done' && s.execution) {
@@ -921,6 +941,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   const PAGE_SIZE = 50;
   const GECKO_PAGES = 10;
 
+  /** The lists come from Aretia's server, which fetches them once for everyone; if that is unreachable the page asks the source itself. */
+  async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow; page: number }): Promise<MarketRow[]> {
+    try {
+      const res = await fetch(`/api/swings-market?kind=${q.kind}&chain=${q.chain}&window=${q.window}&page=${q.page}`);
+      if (res.ok) {
+        const body = (await res.json()) as { rows?: MarketRow[] };
+        if (Array.isArray(body.rows)) return body.rows;
+      }
+    } catch {
+      // fall through to the direct request
+    }
+    return market.load(q);
+  }
+
   function tokenBrowser(target: HTMLElement) {
     // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
     // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
@@ -971,7 +1005,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = filled;
         } else {
-          const got = await market.load({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
+          const got = await loadList({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
@@ -1378,6 +1412,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       showPayTab(payTab);
     },
     onWalletChange() {
+      evmResume.tried = false;
       resetQuote();
       render();
       renderActivity();

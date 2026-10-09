@@ -128,6 +128,35 @@ export class EvmSession {
     return first;
   }
 
+  /**
+   * Picks up a wallet the person has already connected to this site, without asking again: `eth_accounts` only answers
+   * with accounts the wallet has already shared, and never opens a prompt. The wallet whose name matches `preferName`
+   * (the one connected in the sidebar) is tried first. Returns the account, or null when none was shared yet.
+   */
+  async resume(preferName: string | null): Promise<string | null> {
+    if (this.account) return this.account;
+    const found = this.wallets.length > 0 ? this.wallets : await this.discover();
+    const want = (preferName ?? '').trim().toLowerCase();
+    const ordered = [...found].sort((a, b) => Number(b.info.name.toLowerCase() === want) - Number(a.info.name.toLowerCase() === want));
+    for (const w of ordered) {
+      // Only the wallet that is connected in the sidebar is reused; another one stays a choice for the person to make.
+      if (want && w.info.name.toLowerCase() !== want) continue;
+      try {
+        const adapter = new Eip1193WalletAdapter(w.provider);
+        const first = (await adapter.getAccounts())[0];
+        if (!first) continue;
+        this.adapter = adapter;
+        this.provider = w.provider;
+        this.walletName = w.info.name;
+        this.account = first;
+        return first;
+      } catch {
+        // a wallet that cannot answer stays a manual choice
+      }
+    }
+    return null;
+  }
+
   async disconnect(): Promise<void> {
     await this.adapter?.disconnect();
     const closable = this.provider as { disconnect?: () => Promise<void> } | null;

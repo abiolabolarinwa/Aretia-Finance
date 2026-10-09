@@ -140,7 +140,8 @@ export class AretiaRouter {
     if (quote.expectedOut <= 0n) problems.push('The quote returns nothing.');
     if (quote.minOut <= 0n) problems.push('The quote has no minimum output.');
     if (quote.minOut > quote.expectedOut) problems.push('The quote is inconsistent: minimum is above expected output.');
-    if (quote.inAmount !== request.amountIn) problems.push('The quote is for a different amount than you entered.');
+    // What the user entered is what is swapped plus the Aretia fee taken out of it.
+    if (quote.inAmount + quote.costs.aretiaFee.amount !== request.amountIn) problems.push('The quote is for a different amount than you entered.');
     if (!sameToken(quote.request.from, request.from) || !sameToken(quote.request.to, request.to)) problems.push('The quote is for different tokens than you chose.');
     if (quote.request.chain !== request.chain) problems.push('The quote is for a different network.');
     if (quote.priceImpactBps !== null && quote.priceImpactBps > this.maxImpact) problems.push(`Price impact ${(quote.priceImpactBps / 100).toFixed(2)}% is above the limit.`);

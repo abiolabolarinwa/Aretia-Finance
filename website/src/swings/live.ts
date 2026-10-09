@@ -20,6 +20,7 @@ import { ProviderHealth } from './engine/health.js';
 import type { DexProvider } from './core/types.js';
 import { SolanaJupiterProvider, type JupiterBackend } from './providers/solanaJupiter.js';
 import { AretiaRouter } from './router/router.js';
+import { ChainedEvmProvider } from './dex/chainedEvm.js';
 import { decimalsMismatch } from './core/token.js';
 import { routerEventSink, Telemetry } from './observability/telemetry.js';
 import { EvmChainAdapter } from './chains/evm.js';
@@ -98,6 +99,10 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   const health = new ProviderHealth();
   const registry = new AretiaDexRegistry([...EVM_DEXES, ...SOLANA_DEXES], health);
   const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health, fee: feeConfig });
+  // A launchpad token trades against the launchpad's own token (VIRTUAL, ARENA), so buying one with ETH or AVAX is two swaps. The
+  // second step uses a router with no fee: the first step already took it.
+  const directSecondStep = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health });
+  const chained = new ChainedEvmProvider({ first: direct, second: directSecondStep, registry, read: (chain) => publicRead(chain) });
   const directSolana = new DirectSolanaProvider({ web3: loadWeb3, rpc: rpcCall, registry, health, fee: feeConfig });
   // The aggregators (Jupiter, 0x) are NON-CORE. They take part only while the operator allows it (SWINGS_AGGREGATORS),
   // and 0x only when its key is configured. Switching them off leaves Aretia's own routing as the only source.
@@ -114,7 +119,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     feeConfig,
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
-    providers: [direct, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
+    providers: [direct, chained, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
     adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
   });
 }

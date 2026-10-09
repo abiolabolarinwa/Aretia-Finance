@@ -5,6 +5,7 @@ import type { EvmWalletAdapter } from './evmWallet.js';
 import { DirectEvmProvider } from '../dex/directEvm.js';
 import { EVM_V2_DEXES } from '../dex/entries.js';
 import { Evm0xProvider } from '../providers/evm0x.js';
+import { AretiaRouter } from '../router/router.js';
 import { DEFAULT_FEE_CONFIG, liveFeeConfig } from '../core/fee.js';
 import { AretiaDexRegistry } from '../engine/registry.js';
 import { selector, decodeUintArray } from '../engine/abi.js';
@@ -175,6 +176,18 @@ describe('the Aretia fee in the Aretia EVM router', () => {
     const prepared = await p.buildTransaction(await p.getQuote(req()));
     expect(prepared.simulation.ok).toBe(false);
     expect(prepared.simulation.blockers.join(' ')).toMatch(/swap and the Aretia fee/);
+  });
+
+  it('is accepted by the router as the amount the user entered: what is swapped plus the fee is exactly that amount', async () => {
+    const feeConfig = liveFeeConfig(FEE_ADDRESS);
+    const router = new AretiaRouter({ providers: [provider(feeConfig)], adapters: [], feeConfig, now: () => 1_000_000, isChainEnabled: () => true });
+    const found = await router.findRoutes(req());
+    expect(found.rejected).toEqual([]);
+    expect(found.routes).toHaveLength(1);
+    const q = found.routes[0]!;
+    expect(q.inAmount + q.costs.aretiaFee.amount).toBe(10n ** 17n);
+    expect(router.summarize(q).aretiaFee).toMatchObject({ state: 'ready', amount: q.costs.aretiaFee.amount });
+    expect((await router.buildTransaction(q)).simulation.ok).toBe(true);
   });
 
   it('pauses EVM swaps rather than skipping the fee when the EVM fee address is not set', async () => {

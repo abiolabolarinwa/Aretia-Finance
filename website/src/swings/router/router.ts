@@ -177,7 +177,7 @@ export class AretiaRouter {
         return;
       }
       const problems = this.executabilityProblems(result.value, request);
-      if (!active[i]!.executesBuyback && planBuyback(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('This route cannot carry the Aretia ACT buyback, so it is not offered while the buyback is on.');
+      if (!active[i]!.executesBuyback && planBuyback(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('An outside route was found, but it cannot include the small share of each swap that Aretia uses to buy ACT, so Aretia does not offer it.');
       if (problems.length > 0) {
         rejected.push({ providerId, reasons: problems });
         this.emit({ type: 'quote-rejected', providerId, reasons: problems });

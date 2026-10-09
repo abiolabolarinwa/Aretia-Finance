@@ -53,8 +53,9 @@ export function parseGeckoSearch(body: unknown): SearchHit[] {
   for (const t of b.included ?? []) if (t && t.type === 'token' && typeof t.id === 'string') tokens.set(t.id, t);
   const out: SearchHit[] = [];
   for (const pool of b.data) {
-    const chain = NETWORK_TO_CHAIN.get(String(pool.relationships?.network?.data?.id ?? ''));
     const tokenId = pool.relationships?.base_token?.data?.id;
+    // The search answer does not always name the network on each pool; the token's own id always starts with it ("solana_<mint>").
+    const chain = NETWORK_TO_CHAIN.get(String(pool.relationships?.network?.data?.id ?? '')) ?? (typeof tokenId === 'string' ? [...NETWORK_TO_CHAIN].find(([id]) => tokenId.startsWith(`${id}_`))?.[1] : undefined);
     const t = typeof tokenId === 'string' ? tokens.get(tokenId) : undefined;
     const address = t?.attributes?.address;
     if (!chain || !t || typeof address !== 'string' || address.length < 20) continue;

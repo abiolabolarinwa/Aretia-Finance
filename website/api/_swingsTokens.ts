@@ -124,6 +124,8 @@ function rpcFor(url: string, fetchImpl: typeof fetch) {
   };
 }
 
+const BUSY_CHAINS: ReadonlySet<ChainId> = new Set<ChainId>(['solana', 'ethereum', 'bnb', 'base']);
+
 export async function handleDiscover(input: TokensInput): Promise<TokensOutput> {
   const headers = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
@@ -150,6 +152,11 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     }
     const worker = new TokenDiscoveryWorker(new GeckoTerminalNewPoolsSource(chain, input.fetchImpl), registry, repo, enricher, () => input.now);
     runs.push(await worker.runOnce());
+    // Two more looks at the same network: a second page of new pools on the busiest networks, and the pools trading most
+    // right now (which finds active tokens whose pool was created while no run was looking).
+    const extra: GeckoTerminalNewPoolsSource[] = [new GeckoTerminalNewPoolsSource(chain, input.fetchImpl, { feed: 'trending' })];
+    if (BUSY_CHAINS.has(chain)) extra.push(new GeckoTerminalNewPoolsSource(chain, input.fetchImpl, { page: 2 }));
+    for (const source of extra) runs.push(await new TokenDiscoveryWorker(source, registry, repo, enricher, () => input.now).runOnce());
   }
   // Aretia's own feed: the factory events of each direct venue, read from confirmed blocks. It uses the same worker,
   // registry and cursors as the third-party feed above, and the same on-chain enrichment.

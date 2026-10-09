@@ -13,6 +13,8 @@ import { dammSwapInstruction, MeteoraDammAdapter } from './meteoraDamm.js';
 import { OrcaWhirlpoolAdapter, whirlpoolSwapInstruction } from './orcaWhirlpool.js';
 import { PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
 import { PumpCurveAdapter, pumpCurveInstructions } from './pumpCurve.js';
+import { LaunchlabAdapter, launchlabSwapInstruction } from './raydiumLaunchlab.js';
+import { DbcAdapter, dbcSwapInstruction } from './meteoraDbc.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
@@ -83,6 +85,26 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
         getPools: (a, b) => adapter.getPools(a, b),
         programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
         swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => pumpSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'meteora-dbc') {
+      const adapter = new DbcAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => dbcSwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'raydium-launchlab') {
+      const adapter = new LaunchlabAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => launchlabSwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
         label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
       });
     } else if (entry.id === 'pump-curve') {

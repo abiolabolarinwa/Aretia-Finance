@@ -38,7 +38,7 @@ export class MockDexProvider implements DexProvider {
       minOut: (out * BigInt(10_000 - request.slippageBps)) / 10_000n,
       priceImpactBps: 5,
       route: { legs: [{ venue: 'Mock pool', from: request.from, to: request.to, shareBps: 10_000 }] },
-      costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+      costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
       fetchedAt: now,
       expiresAt: now + 15_000,
       raw: null,

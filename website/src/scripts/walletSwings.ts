@@ -99,6 +99,8 @@ const providerLabel = (id: string): string => (id === 'aretia' || id === 'aretia
 type Phase = 'idle' | 'quoting' | 'quoted' | 'preparing' | 'review' | 'signing' | 'tracking' | 'done';
 
 const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
+/** Where the 0.29% Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
+const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
 export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange(): void; onActivityShow(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
@@ -114,6 +116,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // Tokens the user picked, by address: names and icons only. Decimals are re-read from the chain.
   const picked = new Map<string, TokenInfo>();
   const router: AretiaRouter = createLiveRouter({
+    evmFeeAddress: EVM_FEE_ADDRESS,
     heldOthers: () => (host.getHoldings() ?? []).map((h) => ({ mint: h.mint, symbol: h.symbol })),
     knownToken: (mint) => picked.get(mint) ?? null,
   });
@@ -651,7 +654,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const impactBps = s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000);
     const mev = assessMevExposure(quote.request.slippageBps, impactBps);
     const rows: [string, string][] = [
-      ['You pay', `${fmt(sum.swap.amountIn, from.decimals)} ${from.symbol}`],
+      ['You pay', `${fmt(sum.swap.amountIn + sum.aretiaFee.amount, from.decimals)} ${from.symbol}`],
       ['You receive (expected)', `${fmt(sum.swap.expectedOut, to.decimals)} ${to.symbol}`],
       ['Minimum you will receive', `${fmt(sum.swap.minOut, to.decimals)} ${to.symbol}`],
       ['Slippage allowed', `${(quote.request.slippageBps / 100).toFixed(2)}%`],
@@ -660,7 +663,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : 'Paid in SOL; shown by your wallet before you sign'],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia buyback', sum.aretiaBuyback.state === 'off' ? 'None' : sum.aretiaBuyback.state === 'ready' ? `${fmt(sum.aretiaBuyback.amount, from.decimals)} ${from.symbol} (0.55%) goes to buying ACT, on top of your swap` : 'Blocked: configuration incomplete'],
+      ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (0.29%), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });

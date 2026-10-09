@@ -14,6 +14,8 @@ export interface EvmSwapPayload {
   approval: { tx: EvmTxRequest; token: string; spender: string; amount: bigint } | null;
   /** Uniswap V4 only: Permit2's own approval for the router, sent after the token approval and before the swap. */
   permit2?: { tx: EvmTxRequest } | null;
+  /** The Aretia fee: a transfer of the fee, in the asset being sold, to the fee address, sent just before the swap. */
+  fee?: { tx: EvmTxRequest; token: string; amount: bigint; recipient: string } | null;
   swap: EvmTxRequest;
 }
 
@@ -45,6 +47,8 @@ export class EvmChainAdapter implements ChainAdapter {
   readonly chain: ChainId;
   private readonly chainId: number;
   private readonly sent = new Set<string>();
+  /** Quotes whose fee has been paid, so a retried swap never pays it twice. */
+  private readonly feePaid = new Set<string>();
 
   constructor(
     chain: ChainId,
@@ -95,6 +99,13 @@ export class EvmChainAdapter implements ChainAdapter {
       const hash = await this.wallet.sendTransaction(p.permit2.tx);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
+    }
+    if (p.fee && !this.feePaid.has(prepared.quoteId)) {
+      // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
+      const hash = await this.wallet.sendTransaction(p.fee.tx);
+      const status = await this.waitForReceipt(hash);
+      if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The fee transaction failed. The swap was not sent.' : 'The fee transaction is still pending. The swap was not sent; check your wallet, then get a new quote.');
+      this.feePaid.add(prepared.quoteId);
     }
     this.sent.add(prepared.quoteId);
     try {

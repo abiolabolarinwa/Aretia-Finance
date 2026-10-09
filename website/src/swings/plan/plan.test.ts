@@ -25,7 +25,7 @@ const rampLeg = async (priced = false): Promise<ExecutionLeg> => {
 const swapQuote = (over: Partial<Quote> = {}): Quote => ({
   id: 'sw', providerId: 'p', request: { chain: 'base', from: { chain: 'base', address: USDC.base! }, to: { chain: 'base', address: ACT_BASE }, amountIn: 90_000_000n, slippageBps: 50, account: { chain: 'base', address: '0xa' } },
   inAmount: 90_000_000n, expectedOut: 5_000n, minOut: 4_900n, priceImpactBps: 20, route: { legs: [] },
-  costs: { network: null, provider: { amount: 10n, asset: null }, aretiaBuyback: { amount: 495_000n, asset: null } }, fetchedAt: NOW, expiresAt: NOW + 30_000, raw: null, ...over,
+  costs: { network: null, provider: { amount: 10n, asset: null }, aretiaFee: { amount: 495_000n, asset: null } }, fetchedAt: NOW, expiresAt: NOW + 30_000, raw: null, ...over,
 });
 
 describe('ExecutionQuote', () => {
@@ -60,10 +60,10 @@ describe('ExecutionQuote', () => {
     expect(q.spend).toMatchObject({ symbol: 'USD', amount: 100n, chain: null });
   });
 
-  it('shows the swap worst case (minimum out), the ACT allocation as its own fee, and the worst risk of any leg', async () => {
+  it('shows the swap worst case (minimum out), the Aretia fee as its own fee, and the worst risk of any leg', async () => {
     const hi = legFromSwap(swapQuote({ priceImpactBps: 500 }), { symbol: 'USDC', decimals: 6 }, { symbol: 'ACT', decimals: 6 });
     expect(hi.output.amount).toBe(4_900n);
-    expect(hi.fees.find((f) => f.kind === 'aretia-buyback')!.amount).toBe(495_000n);
+    expect(hi.fees.find((f) => f.kind === 'aretia-fee')!.amount).toBe(495_000n);
     expect(hi.risk).toBe('high');
     const settle = await settlementLeg();
     expect(combineLegs('x', [settle, { ...hi, input: { ...hi.input, amount: 1n } }]).risk).toBe('high');

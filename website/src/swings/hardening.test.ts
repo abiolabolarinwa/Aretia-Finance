@@ -6,7 +6,7 @@ import { AretiaRouter } from './router/router.js';
 import { MockDexProvider } from './providers/mock.js';
 import { parseZeroXQuote } from './providers/evm0x.js';
 import { parseNewPools } from './tokens/sources/geckoTerminal.js';
-import { DEFAULT_FEE_CONFIG, planBuyback } from './core/fee.js';
+import { DEFAULT_FEE_CONFIG, planAretiaFee } from './core/fee.js';
 import { decimalsMismatch, normalizeTokenRef, parseTokenKey, tokenKey } from './core/token.js';
 import { CrossChainRouter, classifySwap } from './crosschain/types.js';
 import { redact, routerEventSink, summarize, Telemetry } from './observability/telemetry.js';
@@ -22,7 +22,7 @@ const request: SwapRequest = { chain: 'solana', from: { chain: 'solana', address
 const quote = (out: bigint, over: Partial<Quote> = {}): Quote => ({
   id: `q-${out}`, providerId: 'p', request, inAmount: 1_000_000n, expectedOut: out, minOut: (out * 99n) / 100n, priceImpactBps: 1,
   route: { legs: [{ venue: 'v', from: request.from, to: request.to, shareBps: 10_000 }] },
-  costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } }, fetchedAt: 0, expiresAt: Number.MAX_SAFE_INTEGER, raw: null, ...over,
+  costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } }, fetchedAt: 0, expiresAt: Number.MAX_SAFE_INTEGER, raw: null, ...over,
 });
 
 describe('failure handling: a hostile or broken swap transaction is caught by the simulation judge', () => {
@@ -153,21 +153,24 @@ describe('observability never records secrets', () => {
 });
 
 describe('property and fuzz tests', () => {
-  const cfg = (rateBps: number): AretiaFeeConfig => ({ policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true, rateBps }, chains: { ...DEFAULT_FEE_CONFIG.chains, base: { chainId: 'base', treasuryAddress: 't', buybackExecutorAddress: 'e', enabled: true } } });
+  const cfg = (rateBps: number): AretiaFeeConfig => ({ policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true, rateBps }, chains: { ...DEFAULT_FEE_CONFIG.chains, base: { chainId: 'base', treasuryAddress: 't', enabled: true } } });
 
-  it('buyback: never more than the rate, never more than the amount, never negative, monotonic', () => {
+  it('fee: never more than the rate, never more than the amount, never negative, monotonic, and it plus the rest is exactly what was entered', () => {
     fc.assert(
       fc.property(fc.bigInt({ min: 1n, max: 10n ** 30n }), fc.bigInt({ min: 0n, max: 10n ** 20n }), fc.integer({ min: 0, max: 100 }), (amount, extra, rate) => {
-        const a = planBuyback(amount, 'base', cfg(rate));
-        const b = planBuyback(amount + extra, 'base', cfg(rate));
+        const a = planAretiaFee(amount, 'base', cfg(rate));
+        const b = planAretiaFee(amount + extra, 'base', cfg(rate));
         if (a.state !== 'ready' || b.state !== 'ready') return false;
-        return a.amount >= 0n && a.amount <= amount && a.amount * 10_000n <= amount * BigInt(rate) && b.amount >= a.amount;
+        return a.fee >= 0n && a.fee <= amount && a.fee * 10_000n <= amount * BigInt(rate) && b.fee >= a.fee && a.fee + a.net === amount;
       }),
     );
   });
 
-  it('buyback: is zero whenever the policy is disabled, for any amount and chain', () => {
-    fc.assert(fc.property(fc.bigInt({ min: 0n, max: 10n ** 30n }), fc.constantFrom<ChainId>('solana', 'ethereum', 'bnb', 'polygon', 'base'), (amount, chain) => planBuyback(amount, chain).amount === 0n));
+  it('fee: is zero whenever the policy is disabled, for any amount and chain, and then everything is swapped', () => {
+    fc.assert(fc.property(fc.bigInt({ min: 0n, max: 10n ** 30n }), fc.constantFrom<ChainId>('solana', 'ethereum', 'bnb', 'polygon', 'base'), (amount, chain) => {
+      const p = planAretiaFee(amount, chain);
+      return p.fee === 0n && p.net === amount;
+    }));
   });
 
   it('token identity: normalising is idempotent and survives a key round trip for any EVM address', () => {
@@ -263,7 +266,7 @@ describe('executed quotes cannot be replayed even by concurrent calls', () => {
 });
 
 describe('shadow comparison', () => {
-  const quote = (providerId: string, out: bigint) => ({ id: providerId + ':1', providerId, request: { chain: 'solana', from: { chain: 'solana', address: 'a' }, to: { chain: 'solana', address: 'b' }, amountIn: 1n, slippageBps: 50, account: { chain: 'solana', address: 'c' } }, inAmount: 1n, expectedOut: out, minOut: out - 1n, priceImpactBps: 0, route: { legs: [] }, costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } }, fetchedAt: 1000, expiresAt: 100_000, raw: {} });
+  const quote = (providerId: string, out: bigint) => ({ id: providerId + ':1', providerId, request: { chain: 'solana', from: { chain: 'solana', address: 'a' }, to: { chain: 'solana', address: 'b' }, amountIn: 1n, slippageBps: 50, account: { chain: 'solana', address: 'c' } }, inAmount: 1n, expectedOut: out, minOut: out - 1n, priceImpactBps: 0, route: { legs: [] }, costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } }, fetchedAt: 1000, expiresAt: 100_000, raw: {} });
   const provider = (id: string, out: bigint) => ({ id, name: id, supports: () => true, getQuote: async () => quote(id, out), buildTransaction: async () => { throw new Error('unused'); } });
   const run = async (aretia: bigint, rival: bigint) => {
     const events: unknown[] = [];

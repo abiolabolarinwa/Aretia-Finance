@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEE_CONFIG, MAX_BUYBACK_BPS, planBuyback, validateFeeConfig, LIVE_FEE_CONFIG, BUYBACK_LIVE } from './fee.js';
+import { ARETIA_FEE_BPS, DEFAULT_FEE_CONFIG, liveFeeConfig, LIVE_FEE_CONFIG, MAX_FEE_BPS, planAretiaFee, validateFeeConfig } from './fee.js';
 import { normalizeTokenRef, parseTokenKey, sameToken, tokenKey } from './token.js';
 import { summarizeQuote } from './summary.js';
 import { CHAINS, type AretiaFeeConfig, type ChainId, type Quote } from './types.js';
@@ -42,46 +42,59 @@ describe('chains', () => {
   });
 });
 
-describe('Aretia buyback policy', () => {
-  const on = (chain: 'solana' | 'base', extra: Partial<AretiaFeeConfig['chains']['base']> = {}): AretiaFeeConfig => ({
-    policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true },
-    chains: { ...DEFAULT_FEE_CONFIG.chains, [chain]: { ...DEFAULT_FEE_CONFIG.chains[chain], enabled: true, ...extra } },
+describe('Aretia fee policy', () => {
+  const EVM_FEE = '0x1111111111111111111111111111111111111111';
+
+  it('ships off: no fee on any chain, and everything entered is swapped', () => {
+    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id)).toEqual({ state: 'off', fee: 0n, net: 1_000_000n, treasury: null, reasons: [] });
   });
 
-  it('ships off: zero fee on every chain', () => {
-    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planBuyback(1_000_000n, id)).toEqual({ state: 'off', amount: 0n, reasons: [] });
+  it('is 29 basis points (0.29%), and the live configuration is on for every network', () => {
+    expect(ARETIA_FEE_BPS).toBe(29);
+    expect(DEFAULT_FEE_CONFIG.policy).toEqual({ enabled: false, rateBps: 29 });
+    const live = liveFeeConfig(EVM_FEE);
+    expect(() => validateFeeConfig(live)).not.toThrow();
+    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id, live)).toMatchObject({ state: 'ready', fee: 2_900n, net: 997_100n });
   });
-  it('is 55 bps; the live configuration follows one switch and, when on, covers Solana only', () => {
-    expect(DEFAULT_FEE_CONFIG.policy).toMatchObject({ rateBps: 55, asset: 'ACT', mode: 'BUYBACK' });
-    expect(() => validateFeeConfig(LIVE_FEE_CONFIG)).not.toThrow();
-    expect(planBuyback(1_000_000n, 'solana', LIVE_FEE_CONFIG).state).toBe(BUYBACK_LIVE ? 'ready' : 'off');
-    const on: AretiaFeeConfig = { policy: { ...LIVE_FEE_CONFIG.policy, enabled: true }, chains: { ...LIVE_FEE_CONFIG.chains, solana: { ...LIVE_FEE_CONFIG.chains.solana, enabled: true } } };
-    expect(planBuyback(1_000_000n, 'solana', on)).toEqual({ state: 'ready', amount: 5_500n, reasons: [] });
-    for (const id of ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'] as const) expect(planBuyback(1_000_000n, id, on)).toEqual({ state: 'off', amount: 0n, reasons: [] });
-  });
-  it('blocks, rather than falling back, when addresses are missing', () => {
-    const plan = planBuyback(1_000_000n, 'base', on('base'));
-    expect(plan.state).toBe('blocked');
-    expect(plan.amount).toBe(0n);
-    expect(plan.reasons).toHaveLength(2);
-  });
-  it('computes 0.55% rounded down when fully configured', () => {
-    const cfg = on('base', { treasuryAddress: 'configured-treasury', buybackExecutorAddress: 'configured-executor' });
-    expect(planBuyback(1_000_000n, 'base', cfg)).toEqual({ state: 'ready', amount: 5_500n, reasons: [] });
-    expect(planBuyback(999n, 'base', cfg).amount).toBe(5n);
-  });
-  it('rejects rates above the ceiling or fractional bps', () => {
-    const bad = (rateBps: number): AretiaFeeConfig => ({ ...DEFAULT_FEE_CONFIG, policy: { ...DEFAULT_FEE_CONFIG.policy, rateBps } });
-    expect(() => validateFeeConfig(bad(MAX_BUYBACK_BPS + 1))).toThrow();
-    expect(() => validateFeeConfig(bad(8.7))).toThrow();
-    expect(() => validateFeeConfig(bad(-1))).toThrow();
-    expect(() => validateFeeConfig(bad(MAX_BUYBACK_BPS))).not.toThrow();
-  });
-  it('configures no EVM address by default', () => {
-    for (const id of ['ethereum', 'bnb', 'polygon', 'base'] as const) {
-      expect(DEFAULT_FEE_CONFIG.chains[id].treasuryAddress).toBeUndefined();
-      expect(DEFAULT_FEE_CONFIG.chains[id].buybackExecutorAddress).toBeUndefined();
+
+  it('splits the amount entered exactly into the fee and the rest, rounding the fee down', () => {
+    const live = liveFeeConfig(EVM_FEE);
+    for (const amount of [1n, 99n, 345n, 999n, 1_000_000n, 123_456_789_012n]) {
+      const p = planAretiaFee(amount, 'base', live);
+      expect(p.fee + p.net).toBe(amount);
+      expect(p.fee).toBe((amount * 29n) / 10_000n);
     }
+    expect(planAretiaFee(344n, 'solana', LIVE_FEE_CONFIG).fee).toBe(0n);
+    expect(planAretiaFee(345n, 'solana', LIVE_FEE_CONFIG).fee).toBe(1n);
+  });
+
+  it('sends Solana fees to the owner\'s fee wallet and EVM fees to the one EVM address supplied', () => {
+    expect(planAretiaFee(1_000_000n, 'solana', LIVE_FEE_CONFIG)).toMatchObject({ state: 'ready', treasury: DEFAULT_FEE_CONFIG.chains.solana.treasuryAddress });
+    expect(planAretiaFee(1_000_000n, 'ethereum', liveFeeConfig(EVM_FEE.toUpperCase().replace('0X', '0x')))).toMatchObject({ treasury: EVM_FEE });
+  });
+
+  it('blocks EVM swaps, rather than skipping the fee, until the EVM fee address is supplied or when it is malformed', () => {
+    for (const address of [undefined, '', 'nonsense', '0x123']) {
+      const plan = planAretiaFee(1_000_000n, 'base', liveFeeConfig(address));
+      expect(plan.state).toBe('blocked');
+      expect(plan.fee).toBe(0n);
+      expect(plan.reasons[0]).toMatch(/fee address/);
+    }
+    // Solana never needs the EVM address.
+    expect(planAretiaFee(1_000_000n, 'solana', liveFeeConfig()).state).toBe('ready');
+  });
+
+  it('refuses a zero amount, and a rate above the ceiling or in fractions of a basis point', () => {
+    expect(planAretiaFee(0n, 'solana', LIVE_FEE_CONFIG).state).toBe('blocked');
+    const bad = (rateBps: number): AretiaFeeConfig => ({ ...DEFAULT_FEE_CONFIG, policy: { ...DEFAULT_FEE_CONFIG.policy, rateBps } });
+    expect(() => validateFeeConfig(bad(MAX_FEE_BPS + 1))).toThrow();
+    expect(() => validateFeeConfig(bad(2.9))).toThrow();
+    expect(() => validateFeeConfig(bad(-1))).toThrow();
+    expect(() => validateFeeConfig(bad(MAX_FEE_BPS))).not.toThrow();
+  });
+
+  it('configures no EVM address by default', () => {
+    for (const id of ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'] as const) expect(DEFAULT_FEE_CONFIG.chains[id].treasuryAddress).toBeUndefined();
   });
 });
 
@@ -96,7 +109,7 @@ describe('execution summary', () => {
     minOut: 4_975n,
     priceImpactBps: 12,
     route: { legs: [{ venue: 'Raydium', from: sol, to: { chain: 'solana', address: WSOL }, shareBps: 10_000 }] },
-    costs: { network: null, provider: null, aretiaBuyback: { amount: 0n, asset: null } },
+    costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
     fetchedAt: 0,
     expiresAt: 1,
     raw: null,
@@ -104,13 +117,13 @@ describe('execution summary', () => {
   it('keeps the four parts separate and says when there is no Aretia fee', () => {
     const s = summarizeQuote(quote);
     expect(s.swap.expectedOut).toBe(5_000n);
-    expect(s.aretiaBuyback.state).toBe('off');
+    expect(s.aretiaFee.state).toBe('off');
     expect(s.notes).toContain('No Aretia fee is charged on this swap.');
     expect(s.notes).toContain('The network fee was not reported for this quote.');
     expect(s.canProceed).toBe(true);
   });
-  it('cannot proceed when an enabled buyback is misconfigured', () => {
-    const cfg: AretiaFeeConfig = { policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true }, chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { ...DEFAULT_FEE_CONFIG.chains.solana, enabled: true } } };
+  it('cannot proceed when the fee is on but its address is missing', () => {
+    const cfg: AretiaFeeConfig = { policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true }, chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana', enabled: true } } };
     const s = summarizeQuote(quote, cfg);
     expect(s.canProceed).toBe(false);
     expect(s.swap.expectedOut).toBe(5_000n); // the quoted output is never silently reduced

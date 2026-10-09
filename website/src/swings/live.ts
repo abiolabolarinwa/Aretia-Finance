@@ -6,7 +6,7 @@
  * signing through the user's own wallet). This is the only swings file that imports from scripts/,
  * and the only place providers and adapters are registered, so adding one is a one-line change here.
  */
-import { LIVE_FEE_CONFIG } from './core/fee.js';
+import { liveFeeConfig } from './core/fee.js';
 import { fetchAccount, loadWeb3, rpcCall } from '../scripts/walletSend';
 import { fetchQuote, planSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
 import { parseMint } from '../scripts/walletTools';
@@ -39,6 +39,8 @@ export interface LiveDeps {
   heldOthers: () => { mint: string; symbol: string }[];
   /** Tokens the user picked on screen, by mint: names and symbols come from here, decimals never do. */
   knownToken: (mint: string) => TokenInfo | null;
+  /** The address that receives the Aretia fee on EVM networks (a public value, set at build time). Without it EVM swaps are paused. */
+  evmFeeAddress?: string;
 }
 
 /** Decimals are read from the mint itself, so a lying token list cannot change how much is swapped. */
@@ -61,7 +63,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
         slippageBps: args.slippageBps,
         heldOthers: deps.heldOthers(),
         quote: args.quote as unknown as JupQuote,
-        // Swings carries no 1% fee. The Aretia ACT buyback is a separate, currently disabled policy.
+        // The old Trade-tab fee is not used here: Swings charges the Aretia fee (core/fee.ts) in the provider that builds the swap.
         feeBps: 0n,
       });
       // The plan is also the opaque payload the Solana adapter signs; the provider only reads its summary fields.
@@ -77,7 +79,11 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     },
   };
 
+  // One fee policy for the router and every provider that collects it (core/fee.ts). The EVM fee address is public and is set
+  // at build time; without it EVM swaps are paused rather than let through without the fee.
+  const feeConfig = liveFeeConfig(deps.evmFeeAddress);
   const evmProvider = new Evm0xProvider({
+    fee: feeConfig,
     quote: async (body, signal) => {
       const res = await fetch('/api/swings-0x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -91,9 +97,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   // Aretia's own EVM router: pools read from the venues, routing and transactions built here.
   const health = new ProviderHealth();
   const registry = new AretiaDexRegistry([...EVM_DEXES, ...SOLANA_DEXES], health);
-  const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health });
-  // One fee policy for the router and the provider that carries the buyback (core/fee.ts).
-  const feeConfig = LIVE_FEE_CONFIG;
+  const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health, fee: feeConfig });
   const directSolana = new DirectSolanaProvider({ web3: loadWeb3, rpc: rpcCall, registry, health, fee: feeConfig });
   // The aggregators (Jupiter, 0x) are NON-CORE. They take part only while the operator allows it (SWINGS_AGGREGATORS),
   // and 0x only when its key is configured. Switching them off leaves Aretia's own routing as the only source.
@@ -101,6 +105,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     id: p.id,
     name: p.name,
     supports: (chain) => runtime.aggregators && extra() && p.supports(chain),
+    ...(p.carriesAretiaFee ? { carriesAretiaFee: true } : {}),
     getQuote: (r, s) => p.getQuote(r, s),
     buildTransaction: (q) => p.buildTransaction(q),
   });

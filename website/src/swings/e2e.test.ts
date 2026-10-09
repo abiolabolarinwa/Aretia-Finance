@@ -21,7 +21,8 @@ import { CCTP_CONTRACTS, CCTP_USDC, CctpSettlementProvider } from './settlement/
 import { assessSettlement } from './settlement/safety.js';
 import { MoonPayRampProvider } from './ramp/moonpay.js';
 import { RampRouter } from './ramp/router.js';
-import { disclose, selectAllocation } from './economics/act.js';
+import { disclose, selectFee } from './economics/disclosure.js';
+import { liveFeeConfig } from './core/fee.js';
 import { observedExecutionStore, ObservedPlanStore } from './observability/execution.js';
 import { Telemetry } from './observability/telemetry.js';
 import { encodeFunction } from './engine/abiGeneric.js';
@@ -124,7 +125,9 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
     const lines = disclose(q);
     expect(lines.map((l) => l.kind)).toContain('ramp');
     expect(lines.map((l) => l.kind)).toContain('settlement');
-    expect(selectAllocation(q.legs, ['ethereum', 'ethereum', 'base']).legIndex).toBeNull(); // the allocation is Solana-only today
+    // The Aretia fee rides on the one swap in the plan (the third step), on any network once its fee address is set; until then it is blocked, not skipped.
+    expect(selectFee(q.legs, ['ethereum', 'ethereum', 'base'], liveFeeConfig('0x1111111111111111111111111111111111111111')).legIndex).toBe(2);
+    expect(selectFee(q.legs, ['ethereum', 'ethereum', 'base']).legIndex).toBeNull();
   });
 
   it('a safe, funded move passes the safety engine, and one with no gas needs acknowledgement', async () => {

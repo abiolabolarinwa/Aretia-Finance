@@ -16,7 +16,7 @@ describe('readiness', () => {
   });
 
   it('is ready for a first group only when the live settings are right and the first-use tests are attested', () => {
-    const canaryDone: Attestations = { ...file, 'real-swap-solana': { done: true, date: '2026-10-08' }, 'real-swap-evm': { done: true, date: '2026-10-08' }, 'real-cctp-move': { done: true, date: '2026-10-08' }, 'real-cctp-solana': { done: true, date: '2026-10-08' }, 'moonpay-sandbox-buy': { done: true, date: '2026-10-08' }, 'db-migrations': { done: true, date: '2026-10-08' } };
+    const canaryDone: Attestations = { ...file, 'real-swap-solana': { done: true, date: '2026-10-08' }, 'real-swap-evm': { done: true, date: '2026-10-08' }, 'real-cctp-move': { done: true, date: '2026-10-08' }, 'real-cctp-solana': { done: true, date: '2026-10-08' }, 'moonpay-sandbox-buy': { done: true, date: '2026-10-08' }, 'db-migrations': { done: true, date: '2026-10-08' }, 'aretia-fee-evm': { done: true, date: '2026-10-08' }, 'aretia-fee-solana': { done: true, date: '2026-10-08' } };
     const r = evaluate(good, canaryDone);
     expect(r.canary.ready).toBe(true);
     expect(r.public.ready).toBe(false);
@@ -27,8 +27,8 @@ describe('readiness', () => {
     expect(evaluate(good, allDone).public.ready).toBe(true);
   });
 
-  it('fails the live settings when no rollout list is set, aggregators are on, or too many networks are on', () => {
-    for (const bad of [{ canaryActive: false }, { aggregatorsOn: true }, { evmChains: ['ethereum', 'base', 'polygon'] }]) {
+  it('fails the live settings when no rollout list is set or too many networks are on', () => {
+    for (const bad of [{ canaryActive: false }, { evmChains: ['ethereum', 'base', 'polygon'] }]) {
       expect(evaluate({ ...good, ...bad }, allDone).canary.ready, JSON.stringify(bad)).toBe(false);
     }
   });

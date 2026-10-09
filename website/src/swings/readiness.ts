@@ -47,6 +47,8 @@ const MANUAL: { id: string; area: string; level: 'canary' | 'public'; title: str
   { id: 'real-cctp-move', area: 'Settlement', level: 'canary', title: 'A real USDC move between two EVM networks through CCTP, burn to claim, with a small amount' },
   { id: 'real-cctp-solana', area: 'Settlement', level: 'canary', title: 'A real USDC move from Solana to an EVM network and back through CCTP, with a small amount' },
   { id: 'moonpay-sandbox-buy', area: 'Ramps', level: 'canary', title: 'A MoonPay sandbox purchase delivered to a test wallet' },
+  { id: 'aretia-fee-evm', area: 'Fees', level: 'canary', title: 'The EVM fee address is set (PUBLIC_ARETIA_EVM_FEE_ADDRESS) and a small EVM swap showed the 0.29% fee arriving there' },
+  { id: 'aretia-fee-solana', area: 'Fees', level: 'canary', title: 'A small Solana swap showed the 0.29% fee arriving at the fee wallet (in SOL, and in USDC when selling USDC)' },
   { id: 'db-migrations', area: 'Data', level: 'canary', title: 'Database migrations applied to the production database' },
   { id: 'moonpay-sandbox-sell', area: 'Ramps', level: 'public', title: 'MoonPay sell checked in the sandbox before selling is switched on' },
   { id: 'real-cctp-fast', area: 'Settlement', level: 'public', title: 'A real fast-transfer CCTP move' },
@@ -63,7 +65,6 @@ export function evaluate(status: StatusFacts, attestations: Attestations): Readi
   const reach = status.reachable ? true : null;
   auto('status-reachable', 'Operations', 'canary', 'The live status endpoint answers', status.reachable, status.reachable ? 'Answered.' : 'It could not be reached, so nothing below can be confirmed.');
   auto('canary-list', 'Rollout', 'canary', 'Only a named first group can sign (staged rollout list is set)', reach === null ? null : status.canaryActive, status.canaryActive ? 'A staged-rollout list is active.' : 'No staged-rollout list: everyone could sign.');
-  auto('aggregators-off', 'Fees', 'canary', 'Outside aggregators are off while the ACT buyback is on', reach === null ? null : !status.aggregatorsOn, status.aggregatorsOn ? 'Aggregators are on; they cannot carry the buyback.' : 'Off.');
   auto('evm-narrowed', 'Rollout', 'canary', 'EVM networks are narrowed to the ones that have been proven', reach === null ? null : status.evmChains.length <= 2, `Enabled: ${status.evmChains.join(', ') || 'none'}.`);
   for (const m of MANUAL) {
     const a = attestations[m.id];

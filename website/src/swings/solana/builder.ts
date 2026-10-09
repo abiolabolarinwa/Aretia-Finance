@@ -131,8 +131,6 @@ export interface RouteStep {
   amountIn: bigint;
   /** Plain-language line describing this swap instruction. */
   label: string;
-  /** Deliver the output to this owner's associated account instead of the user's (the user pays its rent). Used by the buyback only. */
-  outOwner?: string;
   /** Builds the venue's swap instruction for the user's accounts. */
   swapInstruction: (inAccount: string, outAccount: string) => Promise<Web3.TransactionInstruction | Web3.TransactionInstruction[]>;
 }
@@ -150,7 +148,7 @@ export interface RouteBuildOptions {
   priorityMicroLamports?: number;
   /** Protected submission: a tip to one of Jito's tip accounts, added last so it is paid only if the swap ran. */
   tip?: { account: string; lamports: number };
-  /** Extra instructions that run after the token accounts exist and before the swaps (for example the ACT buyback transfer). */
+  /** Extra instructions that run after the token accounts exist and before the swaps (for example the Aretia fee transfer). */
   prelude?: (accounts: Record<string, string>) => { ixs: Web3.TransactionInstruction[]; steps: string[] };
 }
 
@@ -170,15 +168,12 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   const programOf = new Map<string, string>();
   for (const st of o.steps) {
     programOf.set(st.tokenIn.address, st.programIn);
-    if (!st.outOwner) programOf.set(st.tokenOut.address, st.programOut);
+    programOf.set(st.tokenOut.address, st.programOut);
   }
   const accounts: Record<string, string> = {};
   for (const [mint, program] of programOf) accounts[mint] = ataAddress(web3, o.user, mint, program);
   const routeIn = o.steps[0]!.tokenIn.address;
   const routeOut = o.steps[o.steps.length - 1]!.tokenOut.address;
-  if (o.steps[o.steps.length - 1]!.outOwner) throw new SwingsError('invalid', 'The last step of a route must pay the user.');
-  const recipients = new Map<string, string>();
-  for (const st of o.steps) if (st.outOwner) recipients.set(st.outOwner + ':' + st.tokenOut.address, ataAddress(web3, st.outOwner, st.tokenOut.address, st.programOut));
 
   const ixs: Web3.TransactionInstruction[] = [
     web3.ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(o.computeUnits ?? 200_000 * o.steps.length, 1_400_000) }),
@@ -204,13 +199,8 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
     ixs.push(...extra.ixs);
     steps.push(...extra.steps);
   }
-  for (const [key, ata] of recipients) {
-    const st = o.steps.find((s) => s.outOwner && s.outOwner + ':' + s.tokenOut.address === key)!;
-    ixs.push(createAtaIdempotentInstruction(web3, o.user, ata, st.outOwner!, st.tokenOut.address, st.programOut));
-    steps.push(`Make sure the ${st.tokenOut.address.slice(0, 4)}… account of ${st.outOwner!.slice(0, 4)}… exists (you pay its rent only if it is new).`);
-  }
   for (const st of o.steps) {
-    const dest = st.outOwner ? recipients.get(st.outOwner + ':' + st.tokenOut.address)! : accounts[st.tokenOut.address]!;
+    const dest = accounts[st.tokenOut.address]!;
     const made = await st.swapInstruction(accounts[st.tokenIn.address]!, dest);
     ixs.push(...(Array.isArray(made) ? made : [made]));
     steps.push(st.label);

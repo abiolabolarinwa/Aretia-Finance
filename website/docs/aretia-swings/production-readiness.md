@@ -18,7 +18,7 @@ What changed since the milestone-25 checklist further down: wallet abstraction a
 | Cross-chain orchestration | Tested with fakes at the edges only; never run with a real wallet |
 | Ramps | MoonPay link building and signing tested; never run with real or sandbox keys; sell is off by default and unverified |
 | Live site | EVM networks are all on by default (set `SWINGS_EVM_CHAINS=base` to narrow); only the two wallets on the staged-rollout list can sign |
-| ACT buyback | On for Solana at 0.55%; EVM off; never exercised with a real swap |
+| Aretia fee | 0.29% on every network, paid in the asset sold; the ACT buyback was removed; EVM needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS`; never exercised with a real swap |
 | Database | Migrations validated on a local Postgres engine; not applied to Aretia's project |
 | External review | None |
 
@@ -41,7 +41,7 @@ Set the variable in Vercel and redeploy: `SWINGS_EVM_CHAINS=none` turns every EV
 
 ## Verdict: NOT production ready
 
-The standalone engine is wired into the screen and has direct paths on all five chains, with Solana routing (direct, two-hop, atomic split) within 0.15% of Jupiter on the pairs tested. But it has not signed a single real swap, the ACT buyback has never been enabled, and the database schema has never been applied to Aretia's project. See `ARETIA_SWINGS_AUDIT_READINESS.md`.
+The standalone engine is wired into the screen and has direct paths on all five chains, with Solana routing (direct, two-hop, atomic split) within 0.15% of Jupiter on the pairs tested. But it has not signed a single real swap, the Aretia fee has never been collected from a real swap, and the database schema has never been applied to Aretia's project. See `ARETIA_SWINGS_AUDIT_READINESS.md`.
 
 Aretia Swings must not be described as live or production-ready. Critical checks below have not been done, and most of them need things only the owner can supply (keys, funds, a database, EVM addresses).
 
@@ -60,7 +60,7 @@ Aretia Swings must not be described as live or production-ready. Critical checks
 | 9 | Small-value real transactions | **Not done** |
 | 10 | Confirmations verified | **Not done** (logic unit-tested with fakes) |
 | 11 | Balances verified after a swap | **Not done** |
-| 12 | Fee accounting verified | **Not done**. Swings charges nothing; the buyback is disabled and has no executor |
+| 12 | Fee accounting verified | **Not done**. The 0.29% fee is built and simulated on the real programs; no real fee has been collected |
 | 13 | Token discovery verified | **Partial**: the real GeckoTerminal feed parses on all five chains; real Solana and EVM mints were enriched on-chain. Nothing has been written to a database |
 | 14 | Risk classifications verified | **Partial**: checked against real ACT (Token-2022, mint authority revoked) and real USDC on Ethereum. That found and fixed two defects. Not checked against a broad sample of new tokens |
 | 15 | Provider failover verified | **Partial**: unit-tested (timeouts, circuit breaker, explicit fallback offer); no live outage test |
@@ -78,7 +78,7 @@ Aretia Swings must not be described as live or production-ready. Critical checks
 1. Triage the dependency advisories.
 2. Run a small real Solana swap through Swings; verify balances and the confirmation.
 3. Apply the schema, set env vars, run discovery, and inspect real rows against a block explorer.
-4. Resolve the Trade-tab 1% fee versus the 55 bps buyback, and review the buyback execution design.
+4. Decide whether the Trade tab's 1% fee stays beside Swings' 0.29% fee, and set the EVM fee address.
 5. For each EVM chain: key, verified contract list, wallet connection, fee config, a small real swap, then enable.
 6. Add a SAST and secret scan to CI.
 7. Commit, tag, and hand the tag to an external auditor (see `docs/audit/`).

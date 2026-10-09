@@ -22,7 +22,7 @@ import { DeferredSettlementExecutor } from '../swings/plan/deferred.js';
 import { JsonVersionedStore } from '../swings/plan/store.js';
 import { isPlanFinal, type PlanRecord } from '../swings/plan/state.js';
 import { diagnosePlan, triage } from '../swings/plan/recovery.js';
-import { disclose } from '../swings/economics/act.js';
+import { disclose } from '../swings/economics/disclosure.js';
 import { formatUnits, durationText } from '../swings/crosschain/view.js';
 import type { SettlementQuote } from '../swings/settlement/types.js';
 import { MOVE_CAP_RAW } from './walletCrossChain.js';

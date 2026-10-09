@@ -138,7 +138,7 @@ export async function handleQuote(input: QuoteInput): Promise<QuoteOutput> {
       priceImpactBps: quote.priceImpactBps,
       route: quote.route.legs.map((l) => ({ venue: l.venue, from: l.from.address, to: l.to.address, shareBps: l.shareBps })),
       reasons: raw?.reasons ?? [],
-      aretiaBuyback: quote.costs.aretiaBuyback.amount,
+      aretiaFee: quote.costs.aretiaFee.amount,
       fetchedAt: quote.fetchedAt,
       expiresAt: quote.expiresAt,
     };

@@ -14,7 +14,7 @@ import type { RampQuote } from '../ramp/types.js';
 import type { SettlementQuote } from '../settlement/types.js';
 
 export type LegKind = 'ramp-buy' | 'settlement' | 'swap' | 'ramp-sell';
-export type FeeKind = 'ramp' | 'settlement' | 'network' | 'dex' | 'aretia-buyback';
+export type FeeKind = 'ramp' | 'settlement' | 'network' | 'dex' | 'aretia-fee';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 export interface AmountLine {
@@ -144,7 +144,7 @@ export function legFromSwap(q: Quote, from: TokenMeta, to: TokenMeta): Execution
   };
   cost('Network fee', 'network', q.costs.network);
   cost('Venue fee', 'dex', q.costs.provider);
-  if (q.costs.aretiaBuyback.amount > 0n) cost('ACT buyback allocation', 'aretia-buyback', q.costs.aretiaBuyback);
+  if (q.costs.aretiaFee.amount > 0n) cost('Aretia fee (0.29%)', 'aretia-fee', q.costs.aretiaFee);
   return {
     id: q.id,
     kind: 'swap',

@@ -81,6 +81,14 @@ export class SwapHistory {
     this.write([item, ...this.read().filter((i) => i.id !== item.id)]);
   }
 
+  /** Adds the items this device does not have yet (by id); the ones it has are kept as they are. Returns how many were new. */
+  merge(items: HistoryItem[]): number {
+    const have = new Set(this.read().map((i) => i.id));
+    const fresh = items.filter((i) => valid(i) && !have.has(i.id));
+    if (fresh.length > 0) this.write([...this.read(), ...fresh].sort((a, b) => b.at - a.at));
+    return fresh.length;
+  }
+
   setStatus(id: string, status: TransactionStatus): void {
     this.write(this.read().map((i) => (i.id === id ? { ...i, status } : i)));
   }

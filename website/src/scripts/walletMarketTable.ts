@@ -19,6 +19,8 @@ export interface TableOptions {
   showRisk: boolean;
   onSort(key: SortKey): void;
   onOpen(row: MarketRow): void;
+  /** A star on each row, to keep a token in the person's favourites. */
+  favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
@@ -96,6 +98,7 @@ export function marketTable(o: TableOptions): HTMLElement {
     c.append(b);
     return c;
   };
+  if (o.favourites) hr.append(th('', 'wapp-mt__starhead', undefined, 'Favourites'));
   hr.append(th('#', 'wapp-mt__rank'), th('Token', 'wapp-mt__tokenhead'));
   if (o.showRisk) hr.append(th('Aretia rating', '', undefined, 'Aretia\'s own rating of the token. It is not advice and is not a promise.'));
   for (const c of COLUMNS) hr.append(th(c.label, 'wapp-mt__numhead', c.key, c.title));
@@ -116,6 +119,29 @@ export function marketTable(o: TableOptions): HTMLElement {
         open();
       }
     });
+    if (o.favourites) {
+      const fav = o.favourites;
+      const on = fav.has(r);
+      const star = el('button', 'wapp-mt__star');
+      star.type = 'button';
+      star.setAttribute('aria-pressed', String(on));
+      star.setAttribute('aria-label', `${on ? 'Remove' : 'Add'} ${r.symbol} ${on ? 'from' : 'to'} favourites`);
+      star.title = on ? 'Remove from favourites' : 'Add to favourites';
+      star.textContent = on ? '★' : '☆';
+      // The row opens the token; the star only toggles the favourite.
+      star.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fav.toggle(r);
+        const now = fav.has(r);
+        star.setAttribute('aria-pressed', String(now));
+        star.textContent = now ? '★' : '☆';
+        star.title = now ? 'Remove from favourites' : 'Add to favourites';
+      });
+      star.addEventListener('keydown', (e) => e.stopPropagation());
+      const cell = el('td', 'wapp-mt__starcell');
+      cell.append(star);
+      tr.append(cell);
+    }
     tr.append(el('td', 'wapp-mt__rank', String(i + 1)));
     const tok = el('td', 'wapp-mt__token');
     const chain = el('img', 'wapp-mt__chain');

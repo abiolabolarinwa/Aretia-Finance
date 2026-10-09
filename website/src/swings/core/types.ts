@@ -106,6 +106,8 @@ export interface QuoteCosts {
 }
 
 export interface Quote {
+  /** Things the person should know before swapping, in plain words (for example that a token takes a fee on every trade). */
+  notes?: string[];
   id: string;
   providerId: string;
   request: SwapRequest;

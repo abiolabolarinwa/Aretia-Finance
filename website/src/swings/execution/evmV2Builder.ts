@@ -134,7 +134,8 @@ export async function simulateV2Swap(read: EvmRead, plan: EvmTxPlan, from: strin
     if (options.balanceOverride !== undefined) params.push({ [from]: { balance: '0x' + options.balanceOverride.toString(16) } });
     const out = await read('eth_call', params);
     if (typeof out !== 'string') return { ok: false, amounts: null, error: 'The node returned no result.' };
-    // The router returns the amounts array (a view of what each hop produced).
+    // The standard router returns the amounts array; the fee-on-transfer variants return nothing, and not reverting is the proof.
+    if (out === '0x') return { ok: true, amounts: null, error: null };
     return { ok: true, amounts: decodeUintArray(out), error: null };
   } catch (e) {
     return { ok: false, amounts: null, error: e instanceof Error ? e.message.slice(0, 200) : 'The simulation failed.' };

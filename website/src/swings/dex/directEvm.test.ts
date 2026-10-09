@@ -84,7 +84,7 @@ describe('DirectEvmProvider (Aretia router for EVM)', () => {
     expect(payload.approval).toBeNull();
     expect(payload.swap.to).toBe(entry.router);
     expect(payload.swap.value).toBe('0x' + (10n ** 17n).toString(16));
-    expect(inspectV2Swap(payload.swap.data)).toMatchObject({ function: 'swapExactETHForTokens', minOut: q.minOut, path: [WETH, USDC], recipient: USER });
+    expect(inspectV2Swap(payload.swap.data)).toMatchObject({ function: 'swapExactETHForTokensSupportingFeeOnTransferTokens', minOut: q.minOut, path: [WETH, USDC], recipient: USER });
   });
 
   it('asks for an exact-amount approval when the allowance is short, and says simulation waits for it', async () => {
@@ -161,5 +161,65 @@ describe('DirectEvmProvider (Aretia router for EVM)', () => {
     expect(sent).toHaveLength(1);
     await expect(router.executeRoute(prepared, quote, { quoteId: quote.id, confirmed: true })).rejects.toMatchObject({ code: 'invalid' });
     expect(decodeUintArray('0x' + word(32n) + word(1n) + word(7n))).toEqual([7n]);
+  });
+});
+
+describe('a token that keeps a fee on every trade', () => {
+  const TOKEN = '0x' + '77'.repeat(20);
+  const tok0 = BigInt(TOKEN) < BigInt(WETH) ? TOKEN : WETH;
+  const [a0, a1] = tok0 === TOKEN ? [2_000_000n * 10n ** 18n, 1_000n * 10n ** 18n] : [1_000n * 10n ** 18n, 2_000_000n * 10n ** 18n];
+  const makeNode = (arrivedShare: number | 'unavailable') => {
+    const read = vi.fn(async (method: string, params: unknown[]) => {
+      const call = (params?.[0] ?? {}) as { to?: string; data?: string };
+      const sel = call.data?.slice(2, 10);
+      if (method === 'eth_blockNumber') return '0x64';
+      if (method === 'eth_getBalance') return '0x' + (10n ** 20n).toString(16);
+      if (method === 'eth_simulateV1') {
+        if (arrivedShare === 'unavailable') throw new Error('method not found');
+        const amountIn = 10n ** 17n;
+        const out = getAmountOut(amountIn, tok0 === WETH ? a0 : a1, tok0 === WETH ? a1 : a0, 3000);
+        return [{ calls: [{ status: '0x1', returnData: '0x' }, { status: '0x1', returnData: '0x' + word((out * BigInt(Math.round(arrivedShare * 10_000))) / 10_000n) }] }];
+      }
+      if (call.to === entry.factory) {
+        // Only the WETH / token pair exists; every other pair the router asks about has no pool.
+        const asked = [call.data!.slice(10, 74), call.data!.slice(74, 138)].map((w) => '0x' + w.slice(24));
+        return asked.includes(TOKEN) && asked.includes(WETH.toLowerCase()) ? '0x' + word(PAIR) : '0x' + word(0n);
+      }
+      if (call.to === PAIR && sel === selector('token0()')) return '0x' + word(tok0);
+      if (call.to === PAIR && sel === selector('getReserves()')) return '0x' + word(a0) + word(a1) + word(1n);
+      if (call.to === entry.router && sel === selector('getAmountsOut(uint256,address[])')) {
+        const amountIn = BigInt('0x' + call.data!.slice(10, 74));
+        return '0x' + word(32n) + word(2n) + word(amountIn) + word(getAmountOut(amountIn, tok0 === WETH ? a0 : a1, tok0 === WETH ? a1 : a0, 3000));
+      }
+      if (sel === selector('balanceOf(address)')) return '0x' + word(10n ** 12n);
+      if (call.to === entry.router && sel !== undefined && inspectV2Swap(call.data!)) return '0x';
+      return '0x' + word(0n);
+    });
+    return new DirectEvmProvider({ registry: new AretiaDexRegistry([entry]), read: () => read as never, now: () => 1_000_000 });
+  };
+  const request = (): SwapRequest => ({ chain: 'base', from: { chain: 'base', address: EVM_NATIVE_ADDRESS }, to: { chain: 'base', address: TOKEN }, amountIn: 10n ** 17n, slippageBps: 100, account: { chain: 'base', address: USER } });
+
+  it('quotes what really arrives, sets the minimum on that, says so, and uses the router call that checks the real amount', async () => {
+    const p = makeNode(0.9576);
+    const q = await p.getQuote(request());
+    const plain = getAmountOut(10n ** 17n, tok0 === WETH ? a0 : a1, tok0 === WETH ? a1 : a0, 3000);
+    // The measured share is applied to the router's own price (within rounding of the test's pool maths).
+    expect(q.expectedOut).toBeGreaterThan((plain * 9_570n) / 10_000n);
+    expect(q.expectedOut).toBeLessThan((plain * 9_582n) / 10_000n);
+    expect(q.minOut).toBe((q.expectedOut * 9_900n) / 10_000n);
+    expect(q.notes?.[0]).toMatch(/4\.[23]%/);
+    const prepared = await p.buildTransaction(q);
+    expect(prepared.simulation.ok).toBe(true);
+    const data = (prepared.payload as { swap: { data: string } }).swap.data;
+    expect(inspectV2Swap(data)).toMatchObject({ function: 'swapExactETHForTokensSupportingFeeOnTransferTokens', minOut: q.minOut });
+  });
+
+  it('leaves the quote alone for an ordinary token, and when the node cannot run the measurement', async () => {
+    const plain = getAmountOut(10n ** 17n, tok0 === WETH ? a0 : a1, tok0 === WETH ? a1 : a0, 3000);
+    const ordinary = await makeNode(1).getQuote(request());
+    expect(ordinary.expectedOut).toBe(plain);
+    expect(ordinary.notes).toBeUndefined();
+    const blind = await makeNode('unavailable').getQuote(request());
+    expect(blind.expectedOut).toBe(plain);
   });
 });

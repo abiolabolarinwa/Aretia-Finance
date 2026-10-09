@@ -929,6 +929,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       const safety = safetyBlock();
       if (safety) card.append(safety);
     }
+    if (ready && s.quote?.notes) for (const n of s.quote.notes) card.append(banner('info', n));
     if (ready && s.prepared) for (const b of [...s.prepared.simulation.blockers, ...s.extraBlockers]) card.append(banner('warn', b));
     // The best route failed its checks. Another one may exist, but it is only offered, never used automatically.
     if (s.phase === 'quoted' && s.error && s.quote && s.alternatives.length > 0) {
@@ -949,14 +950,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
 
     const actions = el('div', { class: 'wapp__row-actions', attrs: { 'data-sw-actions': '' } });
     card.append(actions);
-    if (s.error) card.append(banner('warn', s.error));
+    // A failed swap is told once, below, with what to try; it is not repeated here.
+    if (s.error && !(s.phase === 'done' && s.execution?.status === 'failed')) card.append(banner('warn', s.error));
     if (s.notice) card.append(banner('info', s.notice));
     if (s.phase === 'tracking') card.append(banner('info', 'Sent. Waiting for the network to confirm. Do not send it again.'));
     if (s.phase === 'done' && s.execution) {
       const ex = s.execution;
       if (ex.status === 'confirmed') card.append(banner('ok', 'Done. Confirmed on-chain.'));
-      else if (ex.status === 'failed') card.append(banner('warn', ex.error ?? 'The transaction failed on-chain. Your tokens were not swapped.'));
-      else card.append(banner('info', 'Still waiting for confirmation. Check the transaction before trying again; the swap may still land.'));
+      else if (ex.status === 'failed') {
+        card.append(banner('warn', ex.error ?? 'The transaction failed on-chain. Your tokens were not swapped.'));
+        card.append(el('p', { class: 'wapp__fine', text: 'The usual reasons: the price moved more than your slippage allows (new tokens can move several percent in seconds), or the token keeps a fee on every trade. Open Details, choose a higher slippage such as 3%, and try again.' }));
+      } else card.append(banner('info', 'Still waiting for confirmation. Check the transaction before trying again; the swap may still land.'));
       if (ex.txId) card.append(el('a', { text: 'View transaction', attrs: { href: EXPLORER_TX[ex.chain] + encodeURIComponent(ex.txId), target: '_blank', rel: 'noopener noreferrer' } }));
     }
 

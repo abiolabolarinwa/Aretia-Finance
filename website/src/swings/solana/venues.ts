@@ -17,6 +17,9 @@ import { LaunchlabAdapter, launchlabSwapInstruction } from './raydiumLaunchlab.j
 import { DbcAdapter, dbcSwapInstruction } from './meteoraDbc.js';
 import { BoopAdapter, boopSwapInstructions } from './boopCurve.js';
 import { MoonshotAdapter, moonshotSwapInstructions } from './moonshotCurve.js';
+import { AmmV4Adapter, ammV4SwapInstruction } from './raydiumAmmV4.js';
+import { ClmmAdapter, clmmSwapInstruction } from './raydiumClmm.js';
+import { ManifestAdapter, manifestSwapInstruction } from './manifest.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
@@ -87,6 +90,40 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
         getPools: (a, b) => adapter.getPools(a, b),
         programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
         swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => pumpSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'manifest') {
+      const adapter = new ManifestAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => manifestSwapInstruction(web3, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'raydium-clmm') {
+      const adapter = new ClmmAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.program0! : pool.extra!.program1!),
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => {
+          const zeroForOne = tokenIn.address === pool.token0.address;
+          const arrays = await adapter.tickArraysFor(pool.ref.address, { tickCurrent: Number(pool.extra!.tickCurrent), tickSpacing: Number(pool.extra!.tickSpacing) }, zeroForOne);
+          return clmmSwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut, arrays);
+        },
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'raydium-amm-v4') {
+      const adapter = new AmmV4Adapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: () => TOKEN_PROGRAM_ID,
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => ammV4SwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
         label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
       });
     } else if (entry.id === 'moonshot') {

@@ -13,19 +13,21 @@ import { worstStatus } from './health.js';
 import type { DexStatus, PoolModel } from './types.js';
 
 /** How swaps on this venue are executed. New mechanisms get a new value and a new adapter. */
-export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'evm-aerodrome-router' | 'evm-balancer-vault' | 'evm-curve-pool' | 'evm-launchpad-curve' | 'solana-program';
+export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'evm-aerodrome-router' | 'evm-balancer-vault' | 'evm-curve-pool' | 'evm-launchpad-curve' | 'evm-v4-router' | 'solana-program';
 
 export interface DexEntry {
   id: string;
   name: string;
   chain: ChainId;
-  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot';
+  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot' | 'raydium-amm' | 'raydium-clmm' | 'uniswap-v4' | 'manifest';
   model: PoolModel;
   mechanism: SwapMechanism;
   /** Router (EVM) or program id (Solana). */
   router?: string;
   factory?: string;
   quoter?: string;
+  /** Uniswap V4: the contract that reads a pool's state. */
+  stateView?: string;
   /** Default fee in parts per million, where the venue has one fixed fee (V2 forks). */
   feePpm?: number;
   /** The chain's wrapped native token, used when a path starts or ends in the native coin. */

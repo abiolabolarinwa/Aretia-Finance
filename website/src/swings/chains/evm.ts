@@ -12,6 +12,8 @@ export interface EvmSwapPayload {
   taker: string;
   /** Exact-amount ERC-20 approval, present only when the current allowance is too low. */
   approval: { tx: EvmTxRequest; token: string; spender: string; amount: bigint } | null;
+  /** Uniswap V4 only: Permit2's own approval for the router, sent after the token approval and before the swap. */
+  permit2?: { tx: EvmTxRequest } | null;
   swap: EvmTxRequest;
 }
 
@@ -88,6 +90,11 @@ export class EvmChainAdapter implements ChainAdapter {
       const hash = await this.wallet.sendTransaction(p.approval.tx);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The approval transaction failed. The swap was not sent.' : 'The approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
+    }
+    if (p.permit2) {
+      const hash = await this.wallet.sendTransaction(p.permit2.tx);
+      const status = await this.waitForReceipt(hash);
+      if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
     this.sent.add(prepared.quoteId);
     try {

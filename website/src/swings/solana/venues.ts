@@ -17,7 +17,7 @@ import { LaunchlabAdapter, launchlabSwapInstruction } from './raydiumLaunchlab.j
 import { DbcAdapter, dbcSwapInstruction } from './meteoraDbc.js';
 import { BoopAdapter, boopSwapInstructions } from './boopCurve.js';
 import { MoonshotAdapter, moonshotSwapInstructions } from './moonshotCurve.js';
-import { AmmV4Adapter, ammV4SwapInstruction } from './raydiumAmmV4.js';
+import { AmmV4Adapter, AmmV4BookAdapter, ammV4BookSwapInstruction, ammV4SwapInstruction } from './raydiumAmmV4.js';
 import { ClmmAdapter, clmmSwapInstruction } from './raydiumClmm.js';
 import { ManifestAdapter, manifestSwapInstruction } from './manifest.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
@@ -114,6 +114,17 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
           const arrays = await adapter.tickArraysFor(pool.ref.address, { tickCurrent: Number(pool.extra!.tickCurrent), tickSpacing: Number(pool.extra!.tickSpacing) }, zeroForOne);
           return clmmSwapInstruction(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut, arrays);
         },
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'raydium-amm-v4-book') {
+      const amm = new AmmV4Adapter(web3, rpc, now);
+      const adapter = new AmmV4BookAdapter(web3, rpc, amm, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: () => TOKEN_PROGRAM_ID,
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => ammV4BookSwapInstruction(web3, amm, user, pool, tokenIn, i, o, amountIn, minOut),
         label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
       });
     } else if (entry.id === 'raydium-amm-v4') {

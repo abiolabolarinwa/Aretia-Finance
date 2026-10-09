@@ -568,7 +568,7 @@ export const EVM_LAUNCHPADS: readonly DexEntry[] = [
   },
 ];
 
-const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | 'bnb' | 'avalanche', router: string, quoter: string, stateView: string, poolManager: string): DexEntry => ({
+const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | 'bnb' | 'avalanche', router: string, quoter: string, stateView: string, poolManager: string, positionManager: string): DexEntry => ({
   id: `uniswap-v4-${chain}`,
   name: 'Uniswap V4',
   chain,
@@ -578,24 +578,25 @@ const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | '
   router,
   quoter,
   stateView,
+  positionManager,
   factory: poolManager,
   wrappedNative: WRAPPED_NATIVE[chain],
   status: 'ACTIVE',
-  notes: 'Pools with no hooks contract, standard fee tiers, one hop. The native coin trades directly (V4 pools hold it as address zero). Swaps go through the Universal Router and pull tokens through Permit2.',
+  notes: 'Hookless pools at the standard fee tiers, plus pools with a hooks contract found through DexScreener and verified on-chain, in one or two hops. The native coin trades directly (V4 pools hold it as address zero). Swaps go through the Universal Router and pull tokens through Permit2.',
 });
 
 /**
  * Uniswap V4, from Uniswap's published deployment list: Universal Router, V4 quoter, StateView and PoolManager per chain.
- * Only pools without a hooks contract are used.
+ * Hooked pools are used only when found and verified (see dex/evmV4.ts) and are always flagged to the user.
  */
 export const EVM_V4: readonly DexEntry[] = [
-  v4('ethereum', '0x66a9893cc07d91d95644aedd05d03f95e1dba8af', '0x52f0e24d1c21c8a0cb1e5a5dd6198556bd9e1203', '0x7ffe42c4a5deea5b0fec41c94c136cf115597227', '0x000000000004444c5dc75cb358380d2e3de08a90'),
-  v4('base', '0x6ff5693b99212da76ad316178a184ab56d299b43', '0x0d5e0f971ed27fbff6c2837bf31316121532048d', '0xa3c0c9b65bad0b08107aa264b0f3db444b867a71', '0x498581ff718922c3f8e6a244956af099b2652b2b'),
-  v4('arbitrum', '0xa51afafe0263b40edaef0df8781ea9aa03e381a3', '0x3972c00f7ed4885e145823eb7c655375d275a1c5', '0x76fd297e2d437cd7f76d50f01afe6160f86e9990', '0x360e68faccca8ca495c1b759fd9eee466db9fb32'),
-  v4('optimism', '0x851116d9223fabed8e56c0e6b8ad0c31d98b3507', '0x1f3131a13296fb91c90870043742c3cdbff1a8d7', '0xc18a3169788f4f75a170290584eca6395c75ecdb', '0x9a13f98cb987694c9f086b1f5eb990eea8264ec3'),
-  v4('polygon', '0x1095692a6237d83c6a72f3f5efedb9a670c49223', '0xb3d5c3dfc3a7aebff71895a7191796bffc2c81b9', '0x5ea1bd7974c8a611cbab0bdcafcb1d9cc9b3ba5a', '0x67366782805870060151383f4bbff9dab53e5cd6'),
-  v4('bnb', '0x1906c1d672b88cd1b9ac7593301ca990f94eae07', '0x9f75dd27d6664c475b90e105573e550ff69437b0', '0xd13dd3d6e93f276fafc9db9e6bb47c1180aee0c4', '0x28e2ea090877bf75740558f6bfb36a5ffee9e9df'),
-  v4('avalanche', '0x94b75331ae8d42c1b61065089b7d48fe14aa73b7', '0xbe40675bb704506a3c2ccfb762dcfd1e979845c2', '0xc3c9e198c735a4b97e3e683f391ccbdd60b69286', '0x06380c0e0912312b5150364b9dc4542ba0dbbc85'),
+  v4('ethereum', '0x66a9893cc07d91d95644aedd05d03f95e1dba8af', '0x52f0e24d1c21c8a0cb1e5a5dd6198556bd9e1203', '0x7ffe42c4a5deea5b0fec41c94c136cf115597227', '0x000000000004444c5dc75cb358380d2e3de08a90', '0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e'),
+  v4('base', '0x6ff5693b99212da76ad316178a184ab56d299b43', '0x0d5e0f971ed27fbff6c2837bf31316121532048d', '0xa3c0c9b65bad0b08107aa264b0f3db444b867a71', '0x498581ff718922c3f8e6a244956af099b2652b2b', '0x7c5f5a4bbd8fd63184577525326123b519429bdc'),
+  v4('arbitrum', '0xa51afafe0263b40edaef0df8781ea9aa03e381a3', '0x3972c00f7ed4885e145823eb7c655375d275a1c5', '0x76fd297e2d437cd7f76d50f01afe6160f86e9990', '0x360e68faccca8ca495c1b759fd9eee466db9fb32', '0xd88f38f930b7952f2db2432cb002e7abbf3dd869'),
+  v4('optimism', '0x851116d9223fabed8e56c0e6b8ad0c31d98b3507', '0x1f3131a13296fb91c90870043742c3cdbff1a8d7', '0xc18a3169788f4f75a170290584eca6395c75ecdb', '0x9a13f98cb987694c9f086b1f5eb990eea8264ec3', '0x3c3ea4b57a46241e54610e5f022e5c45859a1017'),
+  v4('polygon', '0x1095692a6237d83c6a72f3f5efedb9a670c49223', '0xb3d5c3dfc3a7aebff71895a7191796bffc2c81b9', '0x5ea1bd7974c8a611cbab0bdcafcb1d9cc9b3ba5a', '0x67366782805870060151383f4bbff9dab53e5cd6', '0x1ec2ebf4f37e7363fdfe3551602425af0b3ceef9'),
+  v4('bnb', '0x1906c1d672b88cd1b9ac7593301ca990f94eae07', '0x9f75dd27d6664c475b90e105573e550ff69437b0', '0xd13dd3d6e93f276fafc9db9e6bb47c1180aee0c4', '0x28e2ea090877bf75740558f6bfb36a5ffee9e9df', '0x7a4a5c919ae2541aed11041a1aeee68f1287f95b'),
+  v4('avalanche', '0x94b75331ae8d42c1b61065089b7d48fe14aa73b7', '0xbe40675bb704506a3c2ccfb762dcfd1e979845c2', '0xc3c9e198c735a4b97e3e683f391ccbdd60b69286', '0x06380c0e0912312b5150364b9dc4542ba0dbbc85', '0xb74b1f14d2754acfcbbe1a221023a5cf50ab8acd'),
 ];
 
 export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS, ...EVM_V4];
@@ -733,6 +734,17 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     router: 'MNFSTqtC93rEfYHB6hF82sKdZpUDFWkViLByLd1k1Ms',
     status: 'ACTIVE',
     notes: "Manifest's on-chain order books. Market addresses come from Manifest's public market list and are verified on-chain before use. Priced by simulating the swap on the program itself.",
+  },
+  {
+    id: 'raydium-amm-v4-book',
+    name: 'Raydium AMM (order book)',
+    chain: 'solana',
+    protocol: 'raydium-amm',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8',
+    status: 'ACTIVE',
+    notes: "The same pools as Raydium AMM, swapped the older way through each pool's own order book. Offered beside the newer form so a pool the program refuses to swap the newer way can still be used. Priced by simulating the swap on the program itself.",
   },
   {
     id: 'meteora-damm-v2',

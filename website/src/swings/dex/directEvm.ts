@@ -24,7 +24,7 @@ import { buildAerodromeSwap, EvmAerodromeAdapter, type AeroHop } from './evmAero
 import { buildBalancerSwap, EvmBalancerAdapter, simulateBalancerSwap, type BalancerStep } from './evmBalancer.js';
 import { buildCurveSwap, EvmCurveAdapter } from './evmCurve.js';
 import { buildLaunchpadSwap, launchpadAdapter } from './evmLaunchpad.js';
-import { buildV4Swap, EvmV4Adapter, permit2Allowance, permit2ApproveCall, PERMIT2, ZERO_ADDRESS, type V4PoolKey } from './evmV4.js';
+import { buildV4Swap, EvmV4Adapter, permit2Allowance, permit2ApproveCall, PERMIT2, routeHasHook, ZERO_ADDRESS, type V4Hop } from './evmV4.js';
 
 export const DIRECT_QUOTE_TTL_MS = 15_000;
 const DEADLINE_SECONDS = 20 * 60;
@@ -51,7 +51,7 @@ interface DirectRaw {
   kind: 'v2' | 'v3' | 'aero' | 'balancer' | 'curve' | 'launchpad' | 'v4';
   entryId: string;
   /** Uniswap V4 only: the pool and the direction. */
-  v4?: { key: V4PoolKey; zeroForOne: boolean };
+  v4?: { hops: V4Hop[]; wrapIn?: boolean; unwrapOut?: boolean };
   /** Token addresses along the route. */
   path: string[];
   /** V3 only: the fee tier of each hop. */
@@ -75,7 +75,7 @@ interface DirectRaw {
 
 interface Candidate {
   launch?: { token: string; buying: boolean; ref?: string };
-  v4?: { key: V4PoolKey; zeroForOne: boolean };
+  v4?: { hops: V4Hop[]; wrapIn?: boolean; unwrapOut?: boolean };
   kind: 'v2' | 'v3' | 'aero' | 'balancer' | 'curve' | 'launchpad' | 'v4';
   aeroHops?: AeroHop[];
   balancer?: { steps: BalancerStep[]; assets: string[] };
@@ -222,13 +222,13 @@ export class DirectEvmProvider implements DexProvider {
           if (!route) return [];
           let impactBps: number | null = null;
           if (amountIn >= 100n) {
-            const small = await adapter.quote(route.key, route.zeroForOne, amountIn / 100n, head);
+            const small = await adapter.quoteRoute(route.hops, amountIn / 100n, head);
             if (small && small > 0n) {
               const ideal = small * 100n;
               impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
             }
           }
-          return [{ kind: 'v4', v4: { key: route.key, zeroForOne: route.zeroForOne }, entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [route.key.fee], amountOut: route.amountOut, impactBps, reasons: [`${entry.name} pool with a ${route.key.fee / 10_000}% fee and no hooks, priced by the V4 quoter at block ${head}.`] }];
+          return [{ kind: 'v4', v4: { hops: route.hops, ...(route.wrapIn ? { wrapIn: true } : {}), ...(route.unwrapOut ? { unwrapOut: true } : {}) }, entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: route.hops.map((h) => h.key.fee), amountOut: route.amountOut, impactBps, reasons: [`${entry.name}: ${route.hops.length === 1 ? 'one pool' : `${route.hops.length} pools in a row`}, priced as a whole by the V4 quoter at block ${head}.${route.wrapIn ? ' The router wraps your coin first.' : ''}${route.unwrapOut ? ' The router unwraps the coin it receives.' : ''}${routeHasHook(route.hops) ? ' A pool on this route has a hooks contract (custom code).' : ''}`] }];
         } catch {
           return [];
         }
@@ -412,7 +412,7 @@ export class DirectEvmProvider implements DexProvider {
     const deadline = Math.floor(this.now() / 1000) + DEADLINE_SECONDS;
     const plan =
       raw.kind === 'v4' && raw.v4
-        ? buildV4Swap(entry, { key: raw.v4.key, zeroForOne: raw.v4.zeroForOne, amountIn: quote.inAmount, minOut: quote.minOut, deadline })
+        ? buildV4Swap(entry, { hops: raw.v4.hops, amountIn: quote.inAmount, minOut: quote.minOut, deadline, ...(raw.v4.wrapIn ? { wrapIn: true } : {}), ...(raw.v4.unwrapOut ? { unwrapOut: true } : {}) })
         : raw.kind === 'launchpad'
         ? buildLaunchpadSwap(entry, { token: raw.launch?.token ?? '', buying: raw.launch?.buying ?? false, amountIn: quote.inAmount, minOut: quote.minOut, deadline, ...(raw.launch?.ref ? { ref: raw.launch.ref } : {}) })
         : raw.kind === 'curve'
@@ -440,7 +440,7 @@ export class DirectEvmProvider implements DexProvider {
         const fm = launchpadAdapter(entry, read);
         const q = raw.launch ? (raw.launch.buying ? await fm.quoteBuy(raw.launch.token, quote.inAmount) : await fm.quoteSell(raw.launch.token, quote.inAmount)) : null;
         venueOut = q?.amountOut ?? null;
-      } else if (raw.kind === 'v4' && raw.v4) venueOut = await new EvmV4Adapter(entry, read).quote(raw.v4.key, raw.v4.zeroForOne, quote.inAmount);
+      } else if (raw.kind === 'v4' && raw.v4) venueOut = await new EvmV4Adapter(entry, read).quoteRoute(raw.v4.hops, quote.inAmount);
       else if (raw.kind === 'curve') venueOut = raw.curve ? await new EvmCurveAdapter(entry, read).quote(raw.curve.pool, raw.curve.i, raw.curve.j, quote.inAmount) : null;
       else if (raw.kind === 'balancer') venueOut = raw.balancer ? await new EvmBalancerAdapter(entry, read).quote(raw.balancer.steps, raw.balancer.assets, quote.inAmount) : null;
       else {
@@ -488,6 +488,7 @@ export class DirectEvmProvider implements DexProvider {
       }
     }
 
+    if (raw.kind === 'v4' && raw.v4 && routeHasHook(raw.v4.hops)) warnings.push('A pool on this route has a hooks contract: custom code Aretia has not reviewed. The swap was checked by simulation and your minimum is enforced, but a hook can behave differently later.');
     // Uniswap V4 pulls tokens through Permit2, which keeps its own allowance for the router: a second, one-off approval.
     let permit2: EvmSwapPayload['permit2'] = null;
     if (raw.kind === 'v4' && !raw.nativeIn && blockers.length === 0) {

@@ -11,7 +11,8 @@ const key = (): string => web3.Keypair.generate().publicKey.toBase58();
 const USER = key();
 const MINT = key();
 const CREATOR = key();
-const idle = new PumpSwapAdapter(web3, (async () => ({})) as never);
+const none = async (): Promise<string[]> => [];
+const idle = new PumpSwapAdapter(web3, (async () => ({})) as never, undefined, none);
 
 function poolBytes(over: { index?: number; base?: string; quote?: string; cashback?: boolean } = {}): { bytes: Uint8Array; baseVault: string; quoteVault: string } {
   const d = new Uint8Array(301);
@@ -69,10 +70,10 @@ describe('PumpSwapAdapter', () => {
     expect(idle.canonicalPool(MINT, WSOL)).not.toBe(idle.canonicalPool(WSOL, MINT));
   });
 
-  function rpcFor(opts: { pool?: ReturnType<typeof poolBytes>; global?: ReturnType<typeof globalBytes>; owner?: string; baseAmount?: bigint } = {}): SolRpc {
+  function rpcFor(opts: { pool?: ReturnType<typeof poolBytes>; global?: ReturnType<typeof globalBytes>; owner?: string; baseAmount?: bigint; at?: string } = {}): SolRpc {
     const pool = opts.pool ?? poolBytes();
     const global = opts.global ?? globalBytes();
-    const poolAddress = idle.canonicalPool(MINT, WSOL);
+    const poolAddress = opts.at ?? idle.canonicalPool(MINT, WSOL);
     return (async (_m: string, params: unknown[]) => ({
       value: (params[0] as string[]).map((a) => {
         if (a === poolAddress) return { data: [b64(pool.bytes), 'base64'], owner: opts.owner ?? PUMPSWAP_PROGRAM };
@@ -86,7 +87,7 @@ describe('PumpSwapAdapter', () => {
   const pair = [{ chain: 'solana' as const, address: MINT }, { chain: 'solana' as const, address: WSOL }] as const;
 
   it('finds the canonical pool of a pair in either order, with both token programs and the vault balances', async () => {
-    const a = new PumpSwapAdapter(web3, rpcFor(), () => 5);
+    const a = new PumpSwapAdapter(web3, rpcFor(), () => 5, none);
     for (const [x, y] of [[pair[0], pair[1]], [pair[1], pair[0]]] as const) {
       const pools = await a.getPools(x, y);
       expect(pools).toHaveLength(1);
@@ -95,13 +96,23 @@ describe('PumpSwapAdapter', () => {
     }
   });
 
-  it('refuses pools from another program, at another index, or naming other mints, and marks disabled or empty pools inactive', async () => {
-    expect(await new PumpSwapAdapter(web3, rpcFor({ owner: key() })).getPools(pair[0], pair[1])).toEqual([]);
-    expect(await new PumpSwapAdapter(web3, rpcFor({ pool: poolBytes({ index: 3 }) })).getPools(pair[0], pair[1])).toEqual([]);
-    expect(await new PumpSwapAdapter(web3, rpcFor({ pool: poolBytes({ base: key() }) })).getPools(pair[0], pair[1])).toEqual([]);
-    expect((await new PumpSwapAdapter(web3, rpcFor({ global: globalBytes({ disable: 0b01000 }) })).getPools(pair[0], pair[1]))[0]!.status).toBe('inactive');
-    expect((await new PumpSwapAdapter(web3, rpcFor({ baseAmount: 0n })).getPools(pair[0], pair[1]))[0]!.status).toBe('inactive');
-    await expect(new PumpSwapAdapter(web3, rpcFor()).getPools(pair[0], pair[0])).rejects.toThrow();
+  it('also takes a pool somebody else created for the pair (any index), once the chain shows it holds exactly this pair', async () => {
+    const other = key();
+    const hinted = async (): Promise<string[]> => [other];
+    const pools = await new PumpSwapAdapter(web3, rpcFor({ at: other, pool: poolBytes({ index: 7 }) }), undefined, hinted).getPools(pair[0], pair[1]);
+    expect(pools.map((p) => p.ref.address)).toEqual([other]);
+    // a hinted address whose account holds a different pair, or belongs to another program, is ignored
+    expect(await new PumpSwapAdapter(web3, rpcFor({ at: other, pool: poolBytes({ base: key() }) }), undefined, hinted).getPools(pair[0], pair[1])).toEqual([]);
+    expect(await new PumpSwapAdapter(web3, rpcFor({ at: other, owner: key() }), undefined, hinted).getPools(pair[0], pair[1])).toEqual([]);
+  });
+
+  it('refuses pools from another program or naming other mints, and marks disabled or empty pools inactive', async () => {
+    expect(await new PumpSwapAdapter(web3, rpcFor({ owner: key() }), undefined, none).getPools(pair[0], pair[1])).toEqual([]);
+    expect(await new PumpSwapAdapter(web3, rpcFor({ pool: poolBytes({ index: 3 }) }), undefined, none).getPools(pair[0], pair[1])).toHaveLength(1);
+    expect(await new PumpSwapAdapter(web3, rpcFor({ pool: poolBytes({ base: key() }) }), undefined, none).getPools(pair[0], pair[1])).toEqual([]);
+    expect((await new PumpSwapAdapter(web3, rpcFor({ global: globalBytes({ disable: 0b01000 }) }), undefined, none).getPools(pair[0], pair[1]))[0]!.status).toBe('inactive');
+    expect((await new PumpSwapAdapter(web3, rpcFor({ baseAmount: 0n }), undefined, none).getPools(pair[0], pair[1]))[0]!.status).toBe('inactive');
+    await expect(new PumpSwapAdapter(web3, rpcFor(), undefined, none).getPools(pair[0], pair[0])).rejects.toThrow();
   });
 });
 
@@ -110,7 +121,7 @@ describe('PumpSwap instructions', () => {
     const g = globalBytes();
     const p = poolBytes();
     const rpc = (async (_m: string, params: unknown[]) => ({ value: (params[0] as string[]).map((a) => (a === idle.globalConfigAddress() ? { data: [b64(g.bytes), 'base64'], owner: PUMPSWAP_PROGRAM } : null)) })) as SolRpc;
-    const adapter = new PumpSwapAdapter(web3, rpc);
+    const adapter = new PumpSwapAdapter(web3, rpc, undefined, none);
     const pool: LiquidityPool = { ref: { chain: 'solana', dex: 'pumpswap', address: idle.canonicalPool(MINT, WSOL) }, model: 'constant-product', token0: { chain: 'solana', address: MINT }, token1: { chain: 'solana', address: WSOL }, reserve0: 1n, reserve1: 1n, feePpm: 0, updatedAt: 1, block: null, status: 'active', extra: { baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, baseProgram: TOKEN_PROGRAM, quoteProgram: TOKEN_PROGRAM, cashback: '0' } };
     const inAcct = key();
     const outAcct = key();

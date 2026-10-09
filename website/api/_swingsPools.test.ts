@@ -15,11 +15,11 @@ describe('pools found from the chain', () => {
     resetPoolCache();
   });
 
-  it('asks five questions per token, with the mint at the right place of each pool layout', () => {
+  it('asks seven questions per token, with the mint at the right place of each pool layout', () => {
     const q = scanQueries(MINT);
-    expect(q).toHaveLength(5);
+    expect(q).toHaveLength(7);
     const offsets = q.map((x) => (x.filters.at(-1) as { memcmp: { offset: number } }).memcmp.offset);
-    expect(offsets).toEqual([400, 432, 73, 105, 136]);
+    expect(offsets).toEqual([400, 432, 73, 105, 136, 43, 75]);
   });
 
   it('returns the pools the chain lists, and keeps the answer', async () => {

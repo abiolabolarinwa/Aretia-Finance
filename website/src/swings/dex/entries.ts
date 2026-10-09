@@ -524,6 +524,18 @@ export const EVM_LAUNCHPADS: readonly DexEntry[] = [
     status: 'ACTIVE',
     notes: "BNB Chain's meme launchpad. Open curves priced in BNB only. Priced by the launchpad's own helper contract, and the floor is enforced by the contract.",
   },
+  {
+    id: 'flap-bnb',
+    name: 'Flap',
+    chain: 'bnb',
+    protocol: 'flap',
+    model: 'constant-product',
+    mechanism: 'evm-launchpad-curve',
+    router: '0xe2ce6ab80874fa9fa2aae65d277dd6b8e65c9de0',
+    wrappedNative: WRAPPED_NATIVE.bnb,
+    status: 'ACTIVE',
+    notes: "A bonding-curve launchpad on BNB Chain. Open curves priced in BNB only. The Portal contract quotes and swaps, and enforces the floor.",
+  },
 ];
 
 export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS];
@@ -584,6 +596,28 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     router: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
     status: 'ACTIVE',
     notes: 'Where pump.fun tokens trade from launch until the curve fills and the token moves to PumpSwap. SOL-priced curves that are still open. Priced by simulating the swap on the program itself.',
+  },
+  {
+    id: 'raydium-launchlab',
+    name: 'Raydium LaunchLab',
+    chain: 'solana',
+    protocol: 'launchlab',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: 'LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj',
+    status: 'ACTIVE',
+    notes: 'The launchpad behind LetsBonk and others: tokens still on their bonding curve, priced in SOL or USDC. Priced by simulating the swap on the program itself.',
+  },
+  {
+    id: 'meteora-dbc',
+    name: 'Meteora Dynamic Bonding Curve',
+    chain: 'solana',
+    protocol: 'meteora',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN',
+    status: 'ACTIVE',
+    notes: 'The launchpad engine behind Bags and many others: tokens still on their bonding curve. Pool addresses come from DexScreener and are verified on-chain before use. Priced by simulating the swap on the program itself.',
   },
   {
     id: 'meteora-damm-v2',

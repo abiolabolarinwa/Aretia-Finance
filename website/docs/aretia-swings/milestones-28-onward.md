@@ -185,3 +185,18 @@ Other launchpads seen as separate venues on GeckoTerminal's Solana list, not yet
 Tokens still on a Four.meme curve now have a direct venue, `fourmeme-bnb` (`src/swings/dex/evmFourMeme.ts`). The launchpad's own helper contract (`getTokenInfo`, `tryBuy`, `trySell`) is the quoter, and its token manager is the counterparty: `buyTokenAMAP` for buys and the floor-carrying form of `sellToken` for sells. The contract enforces the floor itself. Proven live by simulation only (`fourMeme.live.ts`): the router quotes a BNB buy on a real open curve, builds a transaction the real contract accepts, a sell is accepted with a simulated balance and approval, and both refuse an impossible floor. Nothing was signed or sent.
 
 Stated limits: BNB-priced curves of the current token manager only; swaps against native BNB only (not token-to-token); older managers and curves priced in other coins are not offered; a graduated token is served by PancakeSwap. The sell-side simulation uses state overrides on the public node and assumes the token's balance and allowance mappings sit at slots 0 and 1 (checked for the tokens tested).
+
+## Follow-up: Raydium LaunchLab and Meteora Dynamic Bonding Curve (Solana)
+
+Two more Solana launchpad venues, each proven live by simulation only (nothing signed or sent): a real open pool accepts the Aretia-built buy, a buy and sell in one transaction, and the router quotes and builds a swap.
+
+- `raydium-launchlab` (`raydiumLaunchlab.ts`): pools derived from the mint and a quote token (SOL or USDC); `buy_exact_in` / `sell_exact_in`. The live program needs three accounts after the ones its IDL lists (the system program, then the platform and creator fee vaults), found by simulation.
+- `meteora-dbc` (`meteoraDbc.ts`): a DBC pool cannot be derived from the pair, so candidate pool addresses come from DexScreener and every one is verified on-chain (owner program, the token's own mint, the config's quote token) before use; `swap2` in exact-in mode. This also covers Bags, which launches on DBC.
+
+Stated limits: curves still trading only; DBC tokens with a transfer hook are not covered; the DBC venue needs DexScreener to answer. Not built: Moonshot, Boop, Moonit (no public program definitions were available to prove against), and on other chains Virtuals (Base) and Arena (Avalanche).
+
+## Follow-up: Flap launchpad (BNB Chain)
+
+`flap-bnb` (`src/swings/dex/evmFlap.ts`): the Flap Portal is quoter and counterparty (`getTokenV8Safe`, `quoteExactInput`, `swapExactInput`), with the floor enforced by the contract. Both launchpads now sit behind one face (`evmLaunchpad.ts`) so the router treats them alike. Proven live by simulation only (`flap.live.ts`): the router quotes and builds a BNB buy the real contract accepts, and a real sell (a buy, an approval and a sell run in order in one simulated block with `eth_simulateV1`) is accepted, and refused with an impossible floor.
+
+Stated limits: BNB-priced curves still trading (status Tradable) only; BNB swaps only; migrated tokens are left to PancakeSwap. The Portal's state layout (status in word 0, quote token in word 9) is read from the Safe V8 form and checked live; a layout change makes the venue decline, not misprice.

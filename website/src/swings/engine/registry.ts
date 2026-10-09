@@ -13,13 +13,13 @@ import { worstStatus } from './health.js';
 import type { DexStatus, PoolModel } from './types.js';
 
 /** How swaps on this venue are executed. New mechanisms get a new value and a new adapter. */
-export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'evm-aerodrome-router' | 'evm-balancer-vault' | 'evm-curve-pool' | 'solana-program';
+export type SwapMechanism = 'evm-v2-router' | 'evm-v3-router' | 'evm-aerodrome-router' | 'evm-balancer-vault' | 'evm-curve-pool' | 'evm-launchpad-curve' | 'solana-program';
 
 export interface DexEntry {
   id: string;
   name: string;
   chain: ChainId;
-  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve';
+  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme';
   model: PoolModel;
   mechanism: SwapMechanism;
   /** Router (EVM) or program id (Solana). */

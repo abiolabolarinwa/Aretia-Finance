@@ -251,6 +251,14 @@ export interface TokenRisk {
 
 export type DiscoveryStatus = 'discovered' | 'tradable';
 
+/** What Aretia could prove about a pool's liquidity being unredeemable. Only ever 'burned'; see market/lock.ts. */
+export interface TokenLock {
+  /** Share of the pool's liquidity tokens that are burned, 0 to 100. */
+  pct: number;
+  kind: 'burned';
+  at: number;
+}
+
 /** A dated copy of a token's main-pool market numbers, kept in Aretia's registry. */
 export interface TokenMarket {
   /** When the numbers were read, in ms. */
@@ -262,6 +270,8 @@ export interface TokenMarket {
   volume24hUsd: number | null;
   change: { m5: number | null; h1: number | null; h6: number | null; h24: number | null };
   liquidityUsd: number | null;
+  /** Set when the pool's liquidity was checked and found (partly) burned. */
+  lock?: TokenLock | null;
 }
 
 export interface TokenRecord {

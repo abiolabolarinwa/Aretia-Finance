@@ -20,6 +20,7 @@ import { EVM_V2_DEXES } from '../src/swings/dex/entries.js';
 import { publicRead } from '../src/swings/chains/evmSession.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from '../src/swings/tokens/enrich.js';
 import { fetchPoolMarkets, refreshSnapshots, type RefreshResult } from '../src/swings/market/snapshot.js';
+import { checkLock } from '../src/swings/market/lock.js';
 import { SupabaseTickStore, type TickInput } from '../src/swings/market/tickStore.js';
 import type { RiskStatus, TokenMarket } from '../src/swings/core/types.js';
 
@@ -190,7 +191,21 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     if (repo.listForMarketRefresh) {
       try {
         const stale = await repo.listForMarketRefresh(chain, input.now - 7 * 86_400_000, 30);
-        refresh[chain] = await refreshSnapshots(chain, stale, async (r, m) => { await registry.setMarket(r.ref, m); recorded.push(tickOf(chain, m.pool, m)); }, input.fetchImpl, input.now);
+        // A pool's burn status changes rarely, so it is looked at again only every six hours.
+        const evmUrl = chain === 'solana' ? undefined : input.env[EVM_ENV[chain]]?.trim();
+        const reads = { sol: chain === 'solana' ? solanaRpc : undefined, evm: chain === 'solana' ? undefined : evmUrl ? ((method: string, params: unknown[]) => rpcFor(evmUrl, input.fetchImpl)<unknown>(method, params)) : publicRead(chain, input.fetchImpl) };
+        refresh[chain] = await refreshSnapshots(
+          chain,
+          stale,
+          async (r, m) => {
+            const known = r.market?.lock;
+            const lock = known && input.now - known.at < 6 * 3_600_000 ? known : await checkLock(chain, m.pool, reads, input.now);
+            await registry.setMarket(r.ref, lock ? { ...m, lock } : m);
+            recorded.push(tickOf(chain, m.pool, m));
+          },
+          input.fetchImpl,
+          input.now,
+        );
       } catch {
         refresh[chain] = { asked: 0, updated: 0, error: 'The refresh list could not be read (has migration 0006 been run?).' };
       }

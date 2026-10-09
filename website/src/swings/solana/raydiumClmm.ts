@@ -16,7 +16,8 @@ import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
-import { dexScreenerPoolHints, type PoolHints } from './meteoraDbc.js';
+import { type PoolHints } from './meteoraDbc.js';
+import { aretiaPoolHints } from './poolHints.js';
 import { type SolRpc } from './raydiumCpmm.js';
 
 export const CLMM_PROGRAM = 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK';
@@ -71,7 +72,7 @@ export class ClmmAdapter {
     private readonly web3: typeof Web3,
     private readonly rpc: SolRpc,
     private readonly now: () => number = Date.now,
-    private readonly hints: PoolHints = dexScreenerPoolHints(),
+    private readonly hints: PoolHints = aretiaPoolHints(),
   ) {
     this.program = new web3.PublicKey(CLMM_PROGRAM);
   }

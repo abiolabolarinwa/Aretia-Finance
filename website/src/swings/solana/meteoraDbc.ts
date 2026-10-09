@@ -18,6 +18,7 @@ import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { type SolRpc } from './raydiumCpmm.js';
+import { aretiaPoolHints } from './poolHints.js';
 
 export const DBC_PROGRAM = 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN';
 /** The program's fixed pool authority, from its published IDL. */
@@ -83,7 +84,7 @@ export class DbcAdapter {
     private readonly web3: typeof Web3,
     private readonly rpc: SolRpc,
     private readonly now: () => number = Date.now,
-    private readonly hints: PoolHints = dexScreenerPoolHints(),
+    private readonly hints: PoolHints = aretiaPoolHints(),
   ) {}
 
   eventAuthority = (): string => this.web3.PublicKey.findProgramAddressSync([enc('__event_authority')], new this.web3.PublicKey(DBC_PROGRAM))[0].toBase58();

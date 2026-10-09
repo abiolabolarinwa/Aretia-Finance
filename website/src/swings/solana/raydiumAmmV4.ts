@@ -18,7 +18,8 @@ import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
-import { dexScreenerPoolHints, type PoolHints } from './meteoraDbc.js';
+import { type PoolHints } from './meteoraDbc.js';
+import { aretiaPoolHints } from './poolHints.js';
 import { type SolRpc, tokenAccountAmount } from './raydiumCpmm.js';
 
 export const AMM_V4_PROGRAM = '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8';
@@ -57,7 +58,7 @@ export class AmmV4Adapter {
     private readonly web3: typeof Web3,
     private readonly rpc: SolRpc,
     private readonly now: () => number = Date.now,
-    private readonly hints: PoolHints = dexScreenerPoolHints(),
+    private readonly hints: PoolHints = aretiaPoolHints(),
   ) {}
 
   authority = (): string => this.web3.PublicKey.findProgramAddressSync([new TextEncoder().encode(AUTHORITY_SEED)], new this.web3.PublicKey(AMM_V4_PROGRAM))[0].toBase58();

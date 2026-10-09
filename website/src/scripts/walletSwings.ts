@@ -18,7 +18,7 @@ import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
 import { marketTable, type TableState } from './walletMarketTable.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromRecords } from '../swings/market/registryRows.js';
-import type { MarketRow } from '../swings/market/types.js';
+import { sortRows, type MarketRow } from '../swings/market/types.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -123,6 +123,13 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   const evm = new EvmSession();
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
+  // These nodes live for the whole page. A browser reloads an iframe whenever it, or anything above it, is taken out of the
+  // page and put back, so the chart's ancestors must never be rebuilt: a render only refills the swap card and the guide.
+  const swapCard = el('div', { class: 'wapp__card wapp__swap' });
+  const swapChartCard = el('div', { class: 'wapp__card' }, [swapChart.element]);
+  const swapSide = el('div', { class: 'wapp__trade-side' }, [swapChartCard]);
+  const swapGrid = el('div', { class: 'wapp__grid wapp__grid--trade' }, [swapCard, swapSide]);
+  swapPanel.append(swapGrid);
   const history = new SwapHistory(browserStorage());
   const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
   const crossChain = initCrossChain(movePanel, chainRuntime);
@@ -678,17 +685,16 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   }
 
   function renderSwap(): void {
-    swapPanel.replaceChildren();
     const info = CHAINS[s.chain];
     const address = accountFor(s.chain);
     wantLogos(s.chain, [s.from, s.to]);
     // Laid out like the Trade tab: the network on top, then the swap on the left and the chart on the right.
-    const card = el('div', { class: 'wapp__card wapp__swap' });
-    const side = el('div', { class: 'wapp__trade-side' });
+    const card = swapCard;
+    card.replaceChildren();
+    for (const old of [...swapSide.children]) if (old !== swapChartCard) old.remove();
     const place = (): void => {
       const g = guide();
-      if (g) side.append(g);
-      swapPanel.append(el('div', { class: 'wapp__grid wapp__grid--trade' }, [card, side]));
+      if (g) swapSide.append(g);
     };
 
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
@@ -702,11 +708,12 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           ? { address: ACT_MINT, symbol: 'ACT', icon: null }
           : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
       if (target.address) {
-        const chartCard = el('div', { class: 'wapp__card' });
-        chartCard.append(swapChart.element);
-        side.append(chartCard);
+        swapChartCard.hidden = false;
         swapChart.show(s.chain, target.address, target.symbol, target.icon);
-      } else swapChart.hide();
+      } else {
+        swapChartCard.hidden = true;
+        swapChart.hide();
+      }
     }
 
     if (!isChainEnabled(s.chain)) {
@@ -901,6 +908,8 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
   // ------------------------------------------------------------------ token lists (New Tokens, Markets)
 
   const market = new GeckoMarket();
+  const PAGE_SIZE = 50;
+  const GECKO_PAGES = 10;
 
   function tokenBrowser(target: HTMLElement, mode: 'new' | 'markets') {
     // Find Tokens lists Aretia's registry of newly detected tokens; Marketplace lists what is trading now.
@@ -908,7 +917,10 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
     const m = { kind: 'trending' as MarketKind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     let rows: MarketRow[] | null = null;
     const records = new Map<string, TokenRecord>();
-    let tsort: TableState = { key: null, dir: 'desc' };
+    // Find Tokens opens with the busiest tokens first; the Marketplace lists keep their own ranking until a column is chosen.
+    const startSort = (): TableState => (mode === 'new' ? { key: 'volume', dir: 'desc' } : { key: null, dir: 'desc' });
+    let tsort: TableState = startSort();
+    let pageNo = 1;
     let error: string | null = null;
     let loading = false;
     let page = false;
@@ -933,7 +945,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           // Asking for high-risk tokens on purpose overrides the hide switch.
           if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted') q.set('hideRisky', '1');
           q.set('sort', f.sort);
-          q.set('limit', '60');
+          q.set('limit', '500');
           const res = await fetch(`/api/swings-tokens?${q}`);
           const body = (await res.json().catch(() => null)) as { tokens?: TokenRecord[]; message?: string } | null;
           if (mine !== seq) return;
@@ -947,7 +959,7 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = filled;
         } else {
-          const got = await market.load({ kind: m.kind, chain: m.chain, window: m.window });
+          const got = await market.load({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
           if (mine !== seq) return;
           rows = got;
         }
@@ -1000,6 +1012,32 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       });
     }
 
+    /** Previous and next arrows with a page number box. */
+    function pager(pages: number): HTMLElement {
+      const go = (n: number): void => {
+        pageNo = Math.min(Math.max(n, 1), pages);
+        if (mode === 'new') draw();
+        else void load();
+        target.scrollIntoView({ block: 'start' });
+      };
+      const arrow = (label: string, aria: string, to: number, disabled: boolean): HTMLButtonElement => {
+        const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-label': aria } });
+        b.disabled = disabled;
+        b.addEventListener('click', () => go(to));
+        return b;
+      };
+      const input = el('input', { class: 'wapp__input wapp-mt__pageno', attrs: { inputmode: 'numeric', 'aria-label': 'Page number', value: String(pageNo) } });
+      input.value = String(pageNo);
+      input.addEventListener('change', () => go(Number(input.value) || 1));
+      return el('div', { class: 'wapp-mt__pager', attrs: { role: 'navigation', 'aria-label': 'Pages' } }, [
+        arrow('←', 'Previous page', pageNo - 1, pageNo <= 1 || loading),
+        el('span', { class: 'wapp__fine', text: 'Page' }),
+        input,
+        el('span', { class: 'wapp__fine', text: `of ${pages}` }),
+        arrow('→', 'Next page', pageNo + 1, pageNo >= pages || loading),
+      ]);
+    }
+
     function draw(): void {
       target.replaceChildren();
       if (page) {
@@ -1013,16 +1051,17 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       if (mode === 'markets') {
         const kinds: [MarketKind, string][] = [['trending', 'Trending'], ['top', 'Top'], ['gainers', 'Gainers'], ['new', 'New pairs']];
         const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
-        for (const [k, label] of kinds) kindBox.append(chip(label, m.kind === k, () => { m.kind = k; tsort = { key: null, dir: 'desc' }; void load(); }));
+        for (const [k, label] of kinds) kindBox.append(chip(label, m.kind === k, () => { m.kind = k; tsort = startSort(); pageNo = 1; void load(); }));
         bar.append(kindBox);
         if (m.kind === 'trending' || m.kind === 'gainers') {
           const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
-          for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) win.append(chip(label, m.window === w, () => { m.window = w; void load(); }));
+          for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) win.append(chip(label, m.window === w, () => { m.window = w; pageNo = 1; void load(); }));
           bar.append(win);
         }
-        bar.append(select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { m.chain = v as typeof m.chain; void load(); }));
+        bar.append(select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => { m.chain = v as typeof m.chain; pageNo = 1; void load(); }));
       } else {
         const reload = (): void => {
+          pageNo = 1;
           void load();
         };
         bar.append(
@@ -1044,7 +1083,11 @@ export function initSwings(host: SwingsHost): { onShow(): void; onWalletChange()
       else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
       else if (rows.length === 0) card.append(el('p', { class: 'wapp__fine', text: mode === 'new' && f.hideRisky ? 'No tokens match. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
-        card.append(marketTable({ rows, sort: tsort, showRisk: mode === 'new', onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; draw(); }, onOpen: openRow }));
+        // Find Tokens holds everything it fetched and pages through it after sorting; the Marketplace asks for one page at a time.
+        const shown = mode === 'new' ? (tsort.key ? sortRows(rows, tsort.key, tsort.dir) : rows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : rows;
+        card.append(marketTable({ rows: shown, sort: tsort, showRisk: mode === 'new', onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (mode === 'new') pageNo = 1; draw(); }, onOpen: openRow }));
+        const pages = mode === 'new' ? Math.max(1, Math.ceil(rows.length / PAGE_SIZE)) : GECKO_PAGES;
+        card.append(pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
         for (const r of rows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);

@@ -178,8 +178,8 @@ export class TokenRegistryService {
   /** The New Tokens list. Discovery is not endorsement: nothing here ranks by "quality". */
   async listNew(filter: RecentFilter = {}): Promise<TokenRecord[]> {
     const now = this.now();
-    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
-    const rows = await this.repo.listRecent(filter.chain, 500);
+    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 1000);
+    const rows = await this.repo.listRecent(filter.chain, 1000);
     const kept = rows.filter((r) => {
       if (isUnsafeName(r.symbol, r.name)) return false;
       if (filter.hideRisky && (r.risk?.status === 'high' || r.risk?.status === 'restricted')) return false;

@@ -113,8 +113,34 @@ export class EvmChainAdapter implements ChainAdapter {
     return hash;
   }
 
-  /** One payload, in order: approval, Permit2 approval, the Aretia fee, then the swap. Each is confirmed before the next is sent. */
+  /**
+   * One payload. When the wallet can send an all-or-nothing batch (EIP-5792) everything goes in ONE confirmation: the
+   * approval, the Permit2 approval, the Aretia fee and the swap, in that order. Otherwise they go one at a time, each
+   * confirmed before the next is sent.
+   */
   private async sendOne(p: EvmSwapPayload, quoteId: string): Promise<string> {
+    const calls: EvmTxRequest[] = [];
+    if (p.approval) calls.push(p.approval.tx);
+    if (p.permit2) calls.push(p.permit2.tx);
+    const feeDue = !!p.fee && !this.feePaid.has(quoteId);
+    if (p.fee && feeDue) calls.push(p.fee.tx);
+    calls.push(p.swap);
+    if (calls.length > 1 && this.wallet.sendBatch && this.wallet.supportsBatch && (await this.wallet.supportsBatch(this.chainId, p.taker).catch(() => false))) {
+      this.sent.add(quoteId);
+      try {
+        const hash = await this.wallet.sendBatch(this.chainId, p.taker, calls);
+        if (feeDue) this.feePaid.add(quoteId);
+        return hash;
+      } catch (e) {
+        // Declined, or failed after it was sent: no fallback (it would ask again, or repeat a failed swap).
+        if (!(e instanceof SwingsError && e.code === 'not-enabled')) {
+          if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
+          throw e;
+        }
+        // The wallet turned out not to batch: nothing was sent, so go one at a time.
+        this.sent.delete(quoteId);
+      }
+    }
     if (p.approval) {
       // Approval first, exact amount, and only continue once it is mined: the swap is never sent on a guess.
       const hash = await this.wallet.sendTransaction(p.approval.tx);

@@ -46,6 +46,17 @@ export interface EvmWalletAdapter {
   signMessage(message: string, account: string): Promise<string>;
   /** Read-only JSON-RPC through the wallet's own connection to its current chain. */
   request(method: string, params?: unknown[]): Promise<unknown>;
+  /**
+   * EIP-5792: whether the wallet can send several calls as ONE all-or-nothing batch for this account on this network.
+   * Optional; a wallet without it is simply used one transaction at a time.
+   */
+  supportsBatch?(chainId: number, account: string): Promise<boolean>;
+  /**
+   * Sends the calls as one batch: one confirmation in the wallet, and either every call happens or none does. Resolves to
+   * the hash of the last transaction once the batch is confirmed. Throws SwingsError('rejected') if the person declines,
+   * and SwingsError('not-enabled') if the wallet cannot batch after all (the caller then goes one at a time).
+   */
+  sendBatch?(chainId: number, account: string, calls: EvmTxRequest[]): Promise<string>;
 }
 
 // ------------------------------------------------------------------ discovery
@@ -175,6 +186,56 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
       if (isUserRejection(e)) throw new SwingsError('rejected', 'The transaction was declined in your wallet.');
       throw e;
     }
+  }
+
+  async supportsBatch(chainId: number, account: string): Promise<boolean> {
+    try {
+      const caps = (await this.request('wallet_getCapabilities', [account, [hex(chainId)]])) as Record<string, { atomic?: { status?: string } }> | null;
+      const status = caps?.[hex(chainId)]?.atomic?.status;
+      return status === 'supported' || status === 'ready';
+    } catch {
+      return false;
+    }
+  }
+
+  async sendBatch(chainId: number, account: string, calls: EvmTxRequest[]): Promise<string> {
+    let id: string;
+    try {
+      const res = await this.request('wallet_sendCalls', [
+        {
+          version: '2.0.0',
+          chainId: hex(chainId),
+          from: account,
+          // All or nothing: a half-done batch (a fee paid and no swap) is never acceptable.
+          atomicRequired: true,
+          calls: calls.map((c) => ({ to: c.to, ...(c.data ? { data: c.data } : {}), value: c.value ?? '0x0' })),
+        },
+      ]);
+      const got = typeof res === 'string' ? res : (res as { id?: unknown } | null)?.id;
+      if (typeof got !== 'string' || got.length === 0) throw new SwingsError('not-enabled', 'The wallet did not accept the batch.');
+      id = got;
+    } catch (e) {
+      if (isUserRejection(e)) throw new SwingsError('rejected', 'The transaction was declined in your wallet.');
+      if (e instanceof SwingsError) throw e;
+      // Any other refusal (method unknown, atomic batching not available): the caller falls back to one at a time.
+      throw new SwingsError('not-enabled', 'The wallet cannot send these together.');
+    }
+    // The wallet reports progress by id: 1xx pending, 2xx confirmed, 4xx/5xx failed.
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      const res = (await this.request('wallet_getCallsStatus', [id])) as { status?: number; receipts?: { transactionHash?: string; status?: string }[] } | null;
+      const code = res?.status ?? 100;
+      if (code >= 200 && code < 300) {
+        const receipts = res?.receipts ?? [];
+        const last = receipts[receipts.length - 1]?.transactionHash;
+        if (receipts.some((r) => r.status === '0x0')) throw new SwingsError('failed', 'The transaction failed. Nothing was spent except the network fee.');
+        if (typeof last === 'string' && /^0x[0-9a-fA-F]{64}$/.test(last)) return last;
+        throw new SwingsError('invalid', 'The wallet confirmed the batch but did not report its transaction.');
+      }
+      if (code >= 400) throw new SwingsError('failed', 'The transaction failed. Nothing was swapped.');
+      await new Promise((r) => setTimeout(r, 1_500));
+    }
+    throw new SwingsError('failed', 'The transaction is still pending. Check your wallet before trying again.');
   }
 
   async signMessage(message: string, account: string): Promise<string> {

@@ -194,7 +194,7 @@ export class Evm0xProvider implements DexProvider {
         spender: raw.allowance.spender,
         amount: quote.inAmount,
       };
-      warnings.push('This swap needs a one-time approval for exactly the amount you are selling. Your wallet will ask twice: approval first, then the swap.');
+      warnings.push('This swap needs a one-time approval for exactly the amount you are selling. A wallet that can batch asks you once; otherwise it asks for the approval first, then the swap.');
     }
 
     const swap = { from: request.account.address, to: raw.tx.to, data: raw.tx.data, value: hexQty(value), ...(raw.tx.gas ? { gas: hexQty(BigInt(raw.tx.gas)) } : {}) };
@@ -222,7 +222,7 @@ export class Evm0xProvider implements DexProvider {
         blockers.push('Your balance could not be read, so the swap and the Aretia fee could not be checked.');
       }
     }
-    if (fee) warnings.push('The Aretia fee of 0.29% is sent first as its own transaction, then the swap. Your wallet will ask for each.');
+    if (fee) warnings.push('The Aretia fee of 0.29% travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step.');
 
     const payload: EvmSwapPayload = { chainId: info.evmChainId, taker: request.account.address, approval, ...(fee ? { fee } : {}), swap };
     return { quoteId: quote.id, chain: request.chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };

@@ -15,6 +15,8 @@ import { PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
 import { PumpCurveAdapter, pumpCurveInstructions } from './pumpCurve.js';
 import { LaunchlabAdapter, launchlabSwapInstruction } from './raydiumLaunchlab.js';
 import { DbcAdapter, dbcSwapInstruction } from './meteoraDbc.js';
+import { BoopAdapter, boopSwapInstructions } from './boopCurve.js';
+import { MoonshotAdapter, moonshotSwapInstructions } from './moonshotCurve.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
@@ -85,6 +87,26 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
         getPools: (a, b) => adapter.getPools(a, b),
         programFor: (pool, mint) => (mint === pool.token0.address ? pool.extra!.baseProgram! : pool.extra!.quoteProgram!),
         swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => pumpSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'moonshot') {
+      const adapter = new MoonshotAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: () => TOKEN_PROGRAM_ID,
+        swapInstruction: (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => moonshotSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'boop') {
+      const adapter = new BoopAdapter(web3, rpc, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        programFor: () => TOKEN_PROGRAM_ID,
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, i, o, amountIn, minOut) => boopSwapInstructions(web3, adapter, user, pool, tokenIn, i, o, amountIn, minOut),
         label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
       });
     } else if (entry.id === 'meteora-dbc') {

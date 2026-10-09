@@ -193,10 +193,21 @@ Two more Solana launchpad venues, each proven live by simulation only (nothing s
 - `raydium-launchlab` (`raydiumLaunchlab.ts`): pools derived from the mint and a quote token (SOL or USDC); `buy_exact_in` / `sell_exact_in`. The live program needs three accounts after the ones its IDL lists (the system program, then the platform and creator fee vaults), found by simulation.
 - `meteora-dbc` (`meteoraDbc.ts`): a DBC pool cannot be derived from the pair, so candidate pool addresses come from DexScreener and every one is verified on-chain (owner program, the token's own mint, the config's quote token) before use; `swap2` in exact-in mode. This also covers Bags, which launches on DBC.
 
-Stated limits: curves still trading only; DBC tokens with a transfer hook are not covered; the DBC venue needs DexScreener to answer. Not built: Moonshot, Boop, Moonit (no public program definitions were available to prove against), and on other chains Virtuals (Base) and Arena (Avalanche).
+Stated limits: curves still trading only; DBC tokens with a transfer hook are not covered; the DBC venue needs DexScreener to answer. Moonshot/Moonit and Boop were built afterwards (below); Virtuals and Arena too.
 
 ## Follow-up: Flap launchpad (BNB Chain)
 
 `flap-bnb` (`src/swings/dex/evmFlap.ts`): the Flap Portal is quoter and counterparty (`getTokenV8Safe`, `quoteExactInput`, `swapExactInput`), with the floor enforced by the contract. Both launchpads now sit behind one face (`evmLaunchpad.ts`) so the router treats them alike. Proven live by simulation only (`flap.live.ts`): the router quotes and builds a BNB buy the real contract accepts, and a real sell (a buy, an approval and a sell run in order in one simulated block with `eth_simulateV1`) is accepted, and refused with an impossible floor.
 
 Stated limits: BNB-priced curves still trading (status Tradable) only; BNB swaps only; migrated tokens are left to PancakeSwap. The Portal's state layout (status in word 0, quote token in word 9) is read from the Safe V8 form and checked live; a layout change makes the venue decline, not misprice.
+
+## Follow-up: the remaining launchpads (Virtuals, Arena, Boop, Moonit)
+
+Every venue below was proven live by simulation only; nothing was signed or sent. Each is priced by its own contract or program, and the contract or program enforces the minimum output.
+
+- **Virtuals (Base)** `virtuals-base` (`evmVirtuals.ts`): Bonding V5 for the call, its router for approvals and prices, curves priced in VIRTUAL, so the venue swaps VIRTUAL for an agent token and back (ETH to VIRTUAL is the ordinary swap Aretia already makes; it is a separate step, not yet chained). The router's tax is applied to the quote; a token whose pair has an anti-sniper tax is not offered. Proven: approve, buy, approve and sell in order in one simulated block (`eth_simulateV1`) at 97% of the quote, and an impossible floor refused.
+- **Arena (Avalanche)** `arena-avalanche` (`evmArena.ts`): tokens are keyed by a numeric id, found by reading the launcher's records newest first through Multicall3 and remembered; curves are priced in ARENA and traded in whole tokens, so the quote finds the most whole tokens a budget buys with the launcher's own cost function. Proven: buy and sell each accepted (the Avalanche nodes have no `eth_simulateV1`, so they were simulated separately with balances and allowances given only inside the simulation), and a budget that is too small refused. A swap buys at least the minimum output in whole tokens and spends at most the amount chosen.
+- **Boop (Solana)** `boop` (`boopCurve.ts`): curve derived from the mint, `buy_token` and `sell_token`, native SOL. Proven: buy, and buy plus sell, both reaching the program and finishing.
+- **Moonit, formerly Moonshot (Solana)** `moonshot` (`moonshotCurve.ts`): curve derived from the mint (seed "token"), config at the "config_account" address, `buy` and `sell` in exact-in mode, native SOL. Proven the same way. Newer Moonshot tokens launch on Meteora DBC, which is covered separately.
+
+Stated limits: Virtuals and Arena swap against their own quote token only, not against the chain's native coin; Arena can only trade whole tokens; Virtuals tokens under an anti-sniper tax and Arena tokens older than the scan window (20,000 launches) are not found; the Boop and Moonit sell-side proofs ran after a buy in the same simulated transaction.

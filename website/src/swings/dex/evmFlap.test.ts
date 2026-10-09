@@ -79,10 +79,10 @@ describe('the Flap venue', () => {
 describe('the launchpad face', () => {
   it('picks the right adapter and builder for each launchpad, and refuses an unknown one', () => {
     expect(launchpadAdapter(entry, readWith())).toBeInstanceOf(EvmFlapAdapter);
-    expect(buildLaunchpadSwap(entry, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n }).data.startsWith('0x' + selector('swapExactInput((address,address,uint256,uint256,bytes))'))).toBe(true);
-    expect(buildLaunchpadSwap(fourMeme, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n }).data.startsWith('0x' + selector('buyTokenAMAP(address,uint256,uint256)'))).toBe(true);
+    expect(buildLaunchpadSwap(entry, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n, deadline: 9_999_999_999 }).data.startsWith('0x' + selector('swapExactInput((address,address,uint256,uint256,bytes))'))).toBe(true);
+    expect(buildLaunchpadSwap(fourMeme, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n, deadline: 9_999_999_999 }).data.startsWith('0x' + selector('buyTokenAMAP(address,uint256,uint256)'))).toBe(true);
     const unknown = { ...entry, protocol: 'uniswap-v2' as const };
     expect(() => launchpadAdapter(unknown, readWith())).toThrow(/not a launchpad/);
-    expect(() => buildLaunchpadSwap(unknown, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n })).toThrow(/not a launchpad/);
+    expect(() => buildLaunchpadSwap(unknown, { token: TOKEN, buying: true, amountIn: 1n, minOut: 1n, deadline: 9_999_999_999 })).toThrow(/not a launchpad/);
   });
 });

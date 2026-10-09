@@ -237,3 +237,16 @@ Proven live by simulation only (nothing signed or sent).
 - **Raydium AMM v4 through its order book** (`raydium-amm-v4-book`, `raydiumAmmV4.ts`): the same pools, swapped the older way (`swap_base_in`, through the pool's own order book), as a venue beside the newer form so the router keeps whichever pays more. Proven on a real pool (a buy, and a buy plus sell). No live pool was found that the newer form refuses and this form accepts: the pools that refused both (status 7, waiting to open) refused this form too, so what this adds in practice is a second working path, not a measured gain.
 
 Stated limits: the V4 hooks route trusts no hook (it only checks what a simulation shows now); a route is at most two pools; V4 pools whose id DexScreener does not list and the PositionManager does not know are not found.
+
+## Follow-up: ETH or AVAX into VIRTUAL or ARENA, then the token (two steps as one swap)
+
+`ChainedEvmProvider` (`dex/chainedEvm.ts`) offers a launchpad token against the native coin (or any token) as ONE quote and one review made of two swaps: coin for the launchpad's own token (VIRTUAL on Base, ARENA on Avalanche) through the ordinary routes, then that token for the launchpad token, or the same two in the other order when selling. It is offered only when a launchpad really has the token on its curve.
+
+- The first step carries the whole 0.29% Aretia fee; the second carries none.
+- The second step is built only after the first is confirmed, from what actually arrived (measured as the change in the middle token's balance, capped a little above what the first step was expected to deliver), then simulated like any swap. The executor (`EvmChainAdapter`) sends the first step with its approvals and fee, waits for it to be confirmed, then asks for the next.
+- The minimum shown covers both steps: each step gets half of the slippage the user chose, so together they accept no more than the user did, and the second step is refused if the price has moved so far that it could not honour the minimum shown.
+- If the second step cannot go ahead, the user is told plainly that the first went through and that they now hold the middle token, which is theirs.
+- Live proof (simulation only): on Base, ETH for a Virtuals agent token was quoted through Uniswap V3 then Virtuals; the first step, with the fee, was accepted by the real contracts, and the second was built and accepted from a simulated arrival of VIRTUAL.
+- A real bug fixed on the way: the router's own check that a quote is "for the amount you entered" compared the amount swapped with the amount entered, which the 0.29% fee (taken out of the amount entered) makes differ, so fee-on quotes from the Aretia routers would have been dropped. It now accepts amount swapped plus fee, and there is a test through the router.
+
+Stated limits: the two steps are two transactions the user signs, not one; the intermediate balance read assumes nothing else changes the user's balance of the middle token in between (the cap bounds the damage); the amount used for the second step is not simulated before the first is confirmed, only quoted.

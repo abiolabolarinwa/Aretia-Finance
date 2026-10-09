@@ -17,6 +17,12 @@ export interface EvmSwapPayload {
   /** The Aretia fee: a transfer of the fee, in the asset being sold, to the fee address, sent just before the swap. */
   fee?: { tx: EvmTxRequest; token: string; amount: bigint; recipient: string } | null;
   swap: EvmTxRequest;
+  /**
+   * A second swap that follows this one, for a route that has to go through a middle token (for example ETH to VIRTUAL, then
+   * VIRTUAL to an agent token). It is built only after this swap is confirmed, from what actually arrived, so it never guesses
+   * an amount. The executor sends this swap, waits for it to be confirmed, then asks for the next one.
+   */
+  nextStep?: () => Promise<EvmSwapPayload>;
 }
 
 export const isEvmPayload = (p: unknown): p is EvmSwapPayload => typeof p === 'object' && p !== null && 'swap' in p && 'chainId' in p && 'taker' in p;
@@ -81,7 +87,7 @@ export class EvmChainAdapter implements ChainAdapter {
   async signAndSubmit(prepared: PreparedSwap): Promise<string> {
     if (prepared.chain !== this.chain || !isEvmPayload(prepared.payload)) throw new SwingsError('invalid', 'This transaction is not for this network.');
     if (!prepared.simulation.ok) throw new SwingsError('simulation-failed', 'This swap failed its checks and was not sent.');
-    const p = prepared.payload;
+    let p: EvmSwapPayload = prepared.payload;
     if (p.chainId !== this.chainId) throw new SwingsError('invalid', 'The transaction was built for a different network.');
     if (this.sent.has(prepared.quoteId)) throw new SwingsError('invalid', 'This swap was already sent. Check your activity before trying again.');
 
@@ -89,6 +95,26 @@ export class EvmChainAdapter implements ChainAdapter {
     const accounts = await this.wallet.getAccounts();
     if (accounts[0]?.toLowerCase() !== p.taker.toLowerCase()) throw new SwingsError('invalid', 'The connected account changed. Review the swap again.');
 
+    let hash = await this.sendOne(p, prepared.quoteId);
+    // A route through a middle token: the first swap must be confirmed, then the next one is built from what arrived.
+    for (let step = 2; p.nextStep; step++) {
+      const status = await this.waitForReceipt(hash);
+      if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? `Step ${step - 1} of the route failed, so the next step was not sent.` : `Step ${step - 1} of the route is still pending, so the next step was not sent. Check your wallet; once it confirms you will hold the middle token.`);
+      let next: EvmSwapPayload;
+      try {
+        next = await p.nextStep();
+      } catch (e) {
+        throw new SwingsError('failed', `Step ${step - 1} of the route went through, but step ${step} could not be prepared: ${e instanceof Error ? e.message : 'it was refused'} You now hold the middle token from step ${step - 1}; you can swap it again from there.`);
+      }
+      if (next.chainId !== this.chainId || next.taker.toLowerCase() !== p.taker.toLowerCase()) throw new SwingsError('invalid', 'The next step of the route is for a different network or account. It was not sent.');
+      p = next;
+      hash = await this.sendOne(p, `${prepared.quoteId}#${step}`);
+    }
+    return hash;
+  }
+
+  /** One payload, in order: approval, Permit2 approval, the Aretia fee, then the swap. Each is confirmed before the next is sent. */
+  private async sendOne(p: EvmSwapPayload, quoteId: string): Promise<string> {
     if (p.approval) {
       // Approval first, exact amount, and only continue once it is mined: the swap is never sent on a guess.
       const hash = await this.wallet.sendTransaction(p.approval.tx);
@@ -100,18 +126,18 @@ export class EvmChainAdapter implements ChainAdapter {
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
-    if (p.fee && !this.feePaid.has(prepared.quoteId)) {
+    if (p.fee && !this.feePaid.has(quoteId)) {
       // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
       const hash = await this.wallet.sendTransaction(p.fee.tx);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The fee transaction failed. The swap was not sent.' : 'The fee transaction is still pending. The swap was not sent; check your wallet, then get a new quote.');
-      this.feePaid.add(prepared.quoteId);
+      this.feePaid.add(quoteId);
     }
-    this.sent.add(prepared.quoteId);
+    this.sent.add(quoteId);
     try {
       return await this.wallet.sendTransaction(p.swap);
     } catch (e) {
-      if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(prepared.quoteId);
+      if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
       throw e;
     }
   }

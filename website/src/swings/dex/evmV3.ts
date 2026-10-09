@@ -4,6 +4,11 @@
  * transaction itself. No aggregator is involved. (Aretia's own local concentrated-liquidity maths is a later
  * step; until then the venue's quoter is the source of truth, and pools are never split-simulated.)
  *
+ * The same adapter prices Slipstream (Aerodrome's and Velodrome's concentrated-liquidity pools, mechanism
+ * `evm-slipstream-router`): their pools are told apart by tick spacing instead of fee, the quoter and factory take that
+ * spacing as an `int24`, and the router has its own call layout (see evmSlipstream.ts). The numbers in `fees` are then
+ * tick spacings.
+ *
  * V3 limits in this version, stated plainly: the output of a swap cannot be the native coin (it would be the
  * wrapped token), and BNB Chain (PancakeSwap V3) is not integrated.
  */
@@ -24,6 +29,12 @@ const SIG = {
   exactSingle: 'exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))',
   exactPath: 'exactInput((bytes,address,uint256,uint256))',
   multicall: 'multicall(uint256,bytes[])',
+} as const;
+
+const SLIP_SIG = {
+  ...SIG,
+  getPool: 'getPool(address,address,int24)',
+  quoteSingle: 'quoteExactInputSingle((address,address,uint256,int24,uint160))',
 } as const;
 
 export interface V3Route {
@@ -52,7 +63,11 @@ export class EvmV3Adapter {
     readonly entry: DexEntry,
     private readonly read: EvmRead,
   ) {
-    if (entry.mechanism !== 'evm-v3-router' || !entry.factory || !entry.quoter || !entry.router) throw new SwingsError('invalid', `${entry.id} is not a complete V3 venue entry.`);
+    if ((entry.mechanism !== 'evm-v3-router' && entry.mechanism !== 'evm-slipstream-router') || !entry.factory || !entry.quoter || !entry.router) throw new SwingsError('invalid', `${entry.id} is not a complete V3 venue entry.`);
+  }
+
+  private get sig(): typeof SIG | typeof SLIP_SIG {
+    return this.entry.mechanism === 'evm-slipstream-router' ? SLIP_SIG : SIG;
   }
 
   private async call(to: string, data: string, block?: bigint): Promise<string> {
@@ -66,7 +81,7 @@ export class EvmV3Adapter {
     const key = [a, b].sort().join('|') + ':' + fee;
     const cached = this.poolCache.get(key);
     if (cached !== undefined) return cached;
-    const out = words(await this.call(this.entry.factory!, encodeCall(SIG.getPool, [address(a), address(b), uint(BigInt(fee))])));
+    const out = words(await this.call(this.entry.factory!, encodeCall(this.sig.getPool, [address(a), address(b), uint(BigInt(fee))])));
     const exists = out[0] !== undefined && wordToAddress(out[0]) !== ZERO;
     this.poolCache.set(key, exists);
     return exists;
@@ -74,7 +89,7 @@ export class EvmV3Adapter {
 
   private async quoteSingle(tokenIn: string, tokenOut: string, fee: number, amountIn: bigint, block?: bigint): Promise<V3Route | null> {
     try {
-      const w = words(await this.call(this.entry.quoter!, encodeCall(SIG.quoteSingle, [address(tokenIn), address(tokenOut), uint(amountIn), uint(BigInt(fee)), uint(0n)]), block));
+      const w = words(await this.call(this.entry.quoter!, encodeCall(this.sig.quoteSingle, [address(tokenIn), address(tokenOut), uint(amountIn), uint(BigInt(fee)), uint(0n)]), block));
       return { tokens: [tokenIn, tokenOut], fees: [fee], amountOut: wordToBigInt(w[0]!), gasEstimate: wordToBigInt(w[3] ?? '0') };
     } catch {
       return null; // a quoter revert means this pool cannot fill the trade

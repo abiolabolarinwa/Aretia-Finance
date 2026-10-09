@@ -383,6 +383,33 @@ export const EVM_AERODROME: readonly DexEntry[] = [
   },
 ];
 
+/**
+ * Slipstream: the concentrated-liquidity pools of Aerodrome on Base, by far the busiest venue there. Pools are told apart
+ * by tick spacing, so `feeTiers` lists the spacings. Every address was read back from the chain: the router's and the
+ * quoter's `factory()` is this factory, and the router's `WETH9()` is the wrapped native token.
+ *
+ * Velodrome's Slipstream on Optimism is NOT listed: the router that serves the main factory has no quoter Aretia could
+ * verify (the quoter that was found belongs to Velodrome's newer factory, which is a different deployment), and pricing
+ * with a mismatched quoter would quote pools the router does not swap in.
+ */
+export const EVM_SLIPSTREAM: readonly DexEntry[] = [
+  {
+    id: 'aerodrome-slipstream-base',
+    name: 'Aerodrome Slipstream',
+    chain: 'base',
+    protocol: 'aerodrome-slipstream',
+    model: 'concentrated',
+    mechanism: 'evm-slipstream-router',
+    router: '0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5',
+    factory: '0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a',
+    quoter: '0x254cf9e1e6e233aa1ac962cb9b05b2cfeaae15b0',
+    wrappedNative: WRAPPED_NATIVE.base,
+    feeTiers: [1, 50, 100, 200, 2000],
+    status: 'ACTIVE',
+    notes: 'Quoted by the venue\'s own quoter. Pools are chosen by tick spacing.',
+  },
+];
+
 const BALANCER_VAULT = '0xba12222222228d8ba445958a75a0704d566bf2c8';
 
 /**
@@ -599,7 +626,7 @@ export const EVM_V4: readonly DexEntry[] = [
   v4('avalanche', '0x94b75331ae8d42c1b61065089b7d48fe14aa73b7', '0xbe40675bb704506a3c2ccfb762dcfd1e979845c2', '0xc3c9e198c735a4b97e3e683f391ccbdd60b69286', '0x06380c0e0912312b5150364b9dc4542ba0dbbc85', '0xb74b1f14d2754acfcbbe1a221023a5cf50ab8acd'),
 ];
 
-export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS, ...EVM_V4];
+export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_SLIPSTREAM, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS, ...EVM_V4];
 
 /** Solana venues integrated directly. Raydium CPMM only so far: constant-product pools, single hop, no Token-2022. */
 export const SOLANA_DEXES: readonly DexEntry[] = [

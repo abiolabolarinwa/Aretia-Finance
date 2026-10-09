@@ -21,7 +21,7 @@ import { buildV3Split, buildV3Swap, EvmV3Adapter, simulateV3Swap, type V3Route }
 import { buildAerodromeSwap, EvmAerodromeAdapter, type AeroHop } from './evmAerodrome.js';
 import { buildBalancerSwap, EvmBalancerAdapter, simulateBalancerSwap, type BalancerStep } from './evmBalancer.js';
 import { buildCurveSwap, EvmCurveAdapter } from './evmCurve.js';
-import { buildFourMemeSwap, EvmFourMemeAdapter } from './evmFourMeme.js';
+import { buildLaunchpadSwap, launchpadAdapter } from './evmLaunchpad.js';
 
 export const DIRECT_QUOTE_TTL_MS = 15_000;
 const DEADLINE_SECONDS = 20 * 60;
@@ -198,7 +198,7 @@ export class DirectEvmProvider implements DexProvider {
       .filter((e) => e.mechanism === 'evm-launchpad-curve')
       .map(async (entry): Promise<Candidate[]> => {
         try {
-          const adapter = new EvmFourMemeAdapter(entry, read);
+          const adapter = launchpadAdapter(entry, read);
           const route = await this.track(entry.id, () => adapter.bestRoute(tokenIn.address, tokenOut.address, amountIn, head));
           if (!route) return [];
           // How far this trade moves the price: its rate against a trade 1/100th its size.
@@ -210,7 +210,7 @@ export class DirectEvmProvider implements DexProvider {
               impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
             }
           }
-          return [{ kind: 'launchpad', entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [], amountOut: route.amountOut, impactBps, reasons: [`${entry.name} bonding curve, priced by the launchpad's own helper contract at block ${head}. The token is still on its curve, not yet on a DEX.`] }];
+          return [{ kind: 'launchpad', entryId: entry.id, path: [tokenIn.address, tokenOut.address], fees: [], amountOut: route.amountOut, impactBps, reasons: [`${entry.name} bonding curve, priced by the launchpad's own contract at block ${head}. The token is still on its curve, not yet on a DEX.`] }];
         } catch {
           return [];
         }
@@ -364,7 +364,7 @@ export class DirectEvmProvider implements DexProvider {
     const deadline = Math.floor(this.now() / 1000) + DEADLINE_SECONDS;
     const plan =
       raw.kind === 'launchpad'
-        ? buildFourMemeSwap(entry, { token: raw.nativeIn ? raw.path[1]! : raw.path[0]!, buying: raw.nativeIn, amountIn: quote.inAmount, minOut: quote.minOut })
+        ? buildLaunchpadSwap(entry, { token: raw.nativeIn ? raw.path[1]! : raw.path[0]!, buying: raw.nativeIn, amountIn: quote.inAmount, minOut: quote.minOut })
         : raw.kind === 'curve'
         ? buildCurveSwap(entry, { pool: raw.curve?.pool ?? '', i: raw.curve?.i ?? -1, j: raw.curve?.j ?? -1, tokenIn: raw.path[0]!, amountIn: quote.inAmount, minOut: quote.minOut })
         : raw.kind === 'balancer'
@@ -387,7 +387,7 @@ export class DirectEvmProvider implements DexProvider {
       } else if (raw.kind === 'v3') venueOut = (await new EvmV3Adapter(entry, read).quotePath(raw.path, raw.fees, quote.inAmount))?.amountOut ?? null;
       else if (raw.kind === 'aero') venueOut = await new EvmAerodromeAdapter(entry, read).quote(raw.aeroHops ?? [], quote.inAmount);
       else if (raw.kind === 'launchpad') {
-        const fm = new EvmFourMemeAdapter(entry, read);
+        const fm = launchpadAdapter(entry, read);
         const q = raw.nativeIn ? await fm.quoteBuy(raw.path[1]!, quote.inAmount) : await fm.quoteSell(raw.path[0]!, quote.inAmount);
         venueOut = q?.amountOut ?? null;
       } else if (raw.kind === 'curve') venueOut = raw.curve ? await new EvmCurveAdapter(entry, read).quote(raw.curve.pool, raw.curve.i, raw.curve.j, quote.inAmount) : null;

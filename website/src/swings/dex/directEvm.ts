@@ -20,6 +20,7 @@ import { buildV2Swap, simulateV2Swap } from '../execution/evmV2Builder.js';
 import { HUB_TOKENS } from './hubs.js';
 import { EvmV2Adapter } from './evmV2.js';
 import { buildV3Split, buildV3Swap, EvmV3Adapter, simulateV3Swap, type V3Route } from './evmV3.js';
+import { buildSlipstreamSwap, simulateSlipstreamSwap } from './evmSlipstream.js';
 import { buildAerodromeSwap, EvmAerodromeAdapter, type AeroHop } from './evmAerodrome.js';
 import { buildBalancerSwap, EvmBalancerAdapter, simulateBalancerSwap, type BalancerStep } from './evmBalancer.js';
 import { buildCurveSwap, EvmCurveAdapter } from './evmCurve.js';
@@ -107,7 +108,7 @@ export class DirectEvmProvider implements DexProvider {
   }
 
   private venues(chain: ChainId): DexEntry[] {
-    return this.deps.registry.routable(chain).filter((e) => e.mechanism === 'evm-v2-router' || e.mechanism === 'evm-v3-router' || e.mechanism === 'evm-aerodrome-router' || e.mechanism === 'evm-balancer-vault' || e.mechanism === 'evm-curve-pool' || e.mechanism === 'evm-launchpad-curve' || e.mechanism === 'evm-v4-router');
+    return this.deps.registry.routable(chain).filter((e) => e.mechanism === 'evm-v2-router' || e.mechanism === 'evm-v3-router' || e.mechanism === 'evm-slipstream-router' || e.mechanism === 'evm-aerodrome-router' || e.mechanism === 'evm-balancer-vault' || e.mechanism === 'evm-curve-pool' || e.mechanism === 'evm-launchpad-curve' || e.mechanism === 'evm-v4-router');
   }
 
   private track<T>(id: string, work: () => Promise<T>): Promise<T> {
@@ -360,7 +361,7 @@ export class DirectEvmProvider implements DexProvider {
   private v3Candidates(venues: DexEntry[], tokenIn: TokenRef, tokenOut: TokenRef, amountIn: bigint, hubs: string[], head: bigint, read: EvmRead, nativeOut: boolean): Promise<Candidate[]>[] {
     if (nativeOut) return [];
     return venues
-      .filter((e) => e.mechanism === 'evm-v3-router')
+      .filter((e) => e.mechanism === 'evm-v3-router' || e.mechanism === 'evm-slipstream-router')
       .map(async (entry): Promise<Candidate[]> => {
         try {
           const adapter = new EvmV3Adapter(entry, read);
@@ -377,8 +378,8 @@ export class DirectEvmProvider implements DexProvider {
               impactBps = ideal > route.amountOut ? Number(((ideal - route.amountOut) * 10_000n) / ideal) : 0;
             }
           }
-          const single: Candidate = { kind: 'v3', entryId: entry.id, path: route.tokens, fees: route.fees, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} quoted by the venue's own on-chain quoter at block ${head}; fee tier${route.fees.length > 1 ? 's' : ''} ${route.fees.map((f) => f / 10_000 + '%').join(' then ')}.`] };
-          const split = route.tokens.length === 2 && impactBps !== null && impactBps >= SPLIT_IMPACT_BPS ? await this.v3Split(adapter, entry, route, amountIn, head).catch(() => null) : null;
+          const single: Candidate = { kind: 'v3', entryId: entry.id, path: route.tokens, fees: route.fees, amountOut: route.amountOut, impactBps, reasons: [`${entry.name} quoted by the venue's own on-chain quoter at block ${head}; ${entry.mechanism === 'evm-slipstream-router' ? `tick spacing${route.fees.length > 1 ? 's' : ''} ${route.fees.join(' then ')}` : `fee tier${route.fees.length > 1 ? 's' : ''} ${route.fees.map((f) => f / 10_000 + '%').join(' then ')}`}.`] };
+          const split = entry.mechanism === 'evm-v3-router' && route.tokens.length === 2 && impactBps !== null && impactBps >= SPLIT_IMPACT_BPS ? await this.v3Split(adapter, entry, route, amountIn, head).catch(() => null) : null;
           return split ? [single, split] : [single];
         } catch {
           return [];
@@ -423,6 +424,8 @@ export class DirectEvmProvider implements DexProvider {
         ? buildAerodromeSwap(entry, { hops: raw.aeroHops ?? [], amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000))
         : raw.kind === 'v3' && raw.v3split
         ? buildV3Split(entry, { tokenIn: raw.path[0]!, tokenOut: raw.path[1]!, legs: raw.v3split, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
+        : raw.kind === 'v3' && entry.mechanism === 'evm-slipstream-router'
+        ? buildSlipstreamSwap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : raw.kind === 'v3'
         ? buildV3Swap(entry, { tokens: raw.path, fees: raw.fees, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn }, Math.floor(this.now() / 1000))
         : buildV2Swap(entry, { path: raw.path, amountIn: quote.inAmount, minOut: quote.minOut, recipient: taker, deadline, nativeIn: raw.nativeIn, nativeOut: raw.nativeOut }, Math.floor(this.now() / 1000));
@@ -535,7 +538,7 @@ export class DirectEvmProvider implements DexProvider {
         if (!sim.ok) blockers.push(`The network would reject this swap: ${sim.error ?? 'simulation failed'}`);
         else if (sim.amountOut !== null && sim.amountOut < quote.minOut) blockers.push('The simulation shows the swap paying less than your minimum. It was blocked.');
       } else if (raw.kind === 'v3') {
-        const sim = await simulateV3Swap(read, plan, taker);
+        const sim = entry.mechanism === 'evm-slipstream-router' ? await simulateSlipstreamSwap(read, plan, taker) : await simulateV3Swap(read, plan, taker);
         if (!sim.ok) blockers.push(`The network would reject this swap: ${sim.error ?? 'simulation failed'}`);
         else if (sim.amountOut !== null && sim.amountOut < quote.minOut) blockers.push('The simulation shows the swap paying less than your minimum. It was blocked.');
       } else {

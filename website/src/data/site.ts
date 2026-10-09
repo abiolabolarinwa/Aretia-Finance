@@ -246,6 +246,7 @@ export const NAV: NavGroup[] = [
       { label: 'Climate Treasury', href: '/details', description: 'Where the 2% goes' },
       { label: 'Capital Marketplace', href: '/marketplace', description: 'Climate projects seeking capital' },
       { label: 'Submit a project', href: '/apply', description: 'Apply for catalyst funding' },
+      { label: 'Carbon Credit', href: '/carboncredit', description: 'Sandbox carbon-credit infrastructure' },
     ],
   },
   {

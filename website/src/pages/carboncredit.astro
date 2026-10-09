@@ -1,0 +1,158 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+import { paperClass, type PaperTheme } from '../lib/paper';
+
+const PAPERS: PaperTheme[] = ['brand', 'mint', 'ink', 'light', 'bright'];
+
+const steps = [
+  { n: '1', title: 'The registry authorises', body: 'A carbon registry decides which of its credits may go on a chain, how many, and where. Nothing happens without that authorisation.' },
+  { n: '2', title: 'A signed request', body: 'The organisation asks for those exact serial numbers to be tokenised, signed with its own key, once only, with an expiry.' },
+  { n: '3', title: 'A second person approves', body: 'The person who asked cannot approve. A different reviewer does, and large amounts can need more than one.' },
+  { n: '4', title: 'The registry is asked again', body: 'Just before anything is created, the registry is checked again. If the credit has changed status, the process stops.' },
+  { n: '5', title: 'Mint, then reconcile', body: 'The token is created on the chain. The registry, the ledger and the chain are then compared, and any difference is flagged.' },
+  { n: '6', title: 'Retirement needs the registry', body: 'Burning a token is not a retirement. A retirement counts only when the registry itself confirms it.' },
+];
+
+const protections = [
+  { title: 'No credit counted twice', body: 'Serial numbers cannot overlap across any organisation. The same credit cannot be put on two chains or requested twice, and a replayed request is refused.' },
+  { title: 'No quantity beyond what the registry authorised', body: 'The total is capped by the registry’s own authorisation, across every chain together. Burning does not make room to create more.' },
+  { title: 'When unsure, it stops', body: 'If a chain gives no clear answer, the item is held and never repeated until the chain proves what happened. It does not guess and mint again.' },
+  { title: 'Every action leaves a trail', body: 'Each privileged step is written to a tamper-evident log, so an edit or a removal can be detected.' },
+  { title: 'One organisation never sees another', body: 'Records are separated by organisation. Asking for another organisation’s record gets the same answer as asking for one that does not exist.' },
+];
+
+const built = [
+  'A simulated registry and two simulated chains, so every failure path can be shown without touching anything real.',
+  'The issuance, approval, reconciliation, retirement and cancellation workflow, with the protections above, covered by automated tests.',
+  'An EVM token contract, written and tested on a local test chain, and adapters for Solana and EVM tested against simulations.',
+  'A console for operators, a developer API with documentation, and a public explorer with signed asset passports.',
+  'A database design with the double-counting rules enforced by the database itself.',
+];
+const notBuilt = [
+  'No connection to any real registry. Each one needs its own documentation, credentials and written approval.',
+  'The contract is not deployed on any network and has not been audited.',
+  'No institutional key custody, no multi-factor sign-in, no independent security review, no penetration test.',
+  'No live credits. Every record in the demo is made up and labelled as sandbox.',
+];
+---
+
+<Base title="Carbon Credit" description="Aretia Carbon Infrastructure: sandbox software for putting registry-authorised carbon credits on a blockchain with controlled issuance, reconciliation and registry-confirmed retirement. Not live, not audited.">
+  <PageHero eyebrow="Aretia Carbon Infrastructure" title="Carbon credits on-chain, under the registry’s control." lead="We are building software that would let a carbon registry put credits it has authorised onto a blockchain, with every step checked and recorded. Today it is a working sandbox. It is not live." />
+
+  <div class="container notice" data-reveal role="note">
+    <strong>Please read first.</strong>
+    <p>This is early-stage software running on simulated data. No carbon registry is a customer, partner or approver of this work, and nothing here is a live carbon credit. It has not been independently audited. ACT is a separate token and is not a carbon credit.</p>
+  </div>
+
+  <div class="container chapters">
+    <section class:list={['chapter', paperClass(0, PAPERS)]} aria-labelledby="cc-idea">
+      <div class="chapter__grid">
+        <div class="chapter__label"><span class="chapter__n tnum">01</span><span class="label">The idea</span></div>
+        <div class="chapter__body">
+          <h2 id="cc-idea" class="heading" data-split>The registry stays in charge.</h2>
+          <p data-reveal>A carbon registry owns its standard and its decisions about which credits exist and who may do what with them. We do not replace that. We build the connection: authorised credits go onto a chain with controlled issuance, matching records on both sides, and a clear history.</p>
+          <p data-reveal>A token on a chain is not proof that a credit is real, sound or owned by anyone. In this design the registry’s record is always the one that counts, and the software’s job is to keep the chain from drifting away from it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class:list={['chapter', paperClass(1, PAPERS)]} aria-labelledby="cc-flow">
+      <div class="chapter__grid">
+        <div class="chapter__label"><span class="chapter__n tnum">02</span><span class="label">How a credit moves</span></div>
+        <div class="chapter__body">
+          <h2 id="cc-flow" class="heading" data-split>Six steps, each one checked.</h2>
+          <ol class="steps">
+            {steps.map((s) => (
+              <li data-reveal>
+                <span class="steps__n tnum">{s.n}</span>
+                <div><h3>{s.title}</h3><p>{s.body}</p></div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class:list={['chapter', paperClass(2, PAPERS)]} aria-labelledby="cc-safe">
+      <div class="chapter__grid">
+        <div class="chapter__label"><span class="chapter__n tnum">03</span><span class="label">What it protects against</span></div>
+        <div class="chapter__body">
+          <h2 id="cc-safe" class="heading" data-split>Built around the ways this can go wrong.</h2>
+          <ul class="cards">
+            {protections.map((p) => (
+              <li data-reveal><h3>{p.title}</h3><p>{p.body}</p></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class:list={['chapter', paperClass(3, PAPERS)]} aria-labelledby="cc-status">
+      <div class="chapter__grid">
+        <div class="chapter__label"><span class="chapter__n tnum">04</span><span class="label">Where it stands</span></div>
+        <div class="chapter__body">
+          <h2 id="cc-status" class="heading" data-split>What exists, and what does not.</h2>
+          <div class="status">
+            <div data-reveal>
+              <h3><span class="tag tag--built">Built, sandbox only</span></h3>
+              <ul>{built.map((b) => <li>{b}</li>)}</ul>
+            </div>
+            <div data-reveal>
+              <h3><span class="tag tag--not">Not done</span></h3>
+              <ul>{notBuilt.map((b) => <li>{b}</li>)}</ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class:list={['chapter', paperClass(4, PAPERS)]} aria-labelledby="cc-next">
+      <div class="chapter__grid">
+        <div class="chapter__label"><span class="chapter__n tnum">05</span><span class="label">Next</span></div>
+        <div class="chapter__body">
+          <h2 id="cc-next" class="heading" data-split>If you run a registry or an institution.</h2>
+          <p data-reveal>We would like to talk. Any real use needs the registry’s cooperation and technical access, legal and data-protection review, independent security assurance, and approval of the issuance and retirement workflows. A first pilot would run on simulated data until the registry authorises anything real.</p>
+          <p data-reveal>We can share the architecture, the security and key-management design, the double-counting method, the reconciliation specification, and a walkthrough of the sandbox.</p>
+          <div class="links" data-reveal>
+            <Button href="/contact" variant="secondary" arrow>Talk to us about a pilot</Button>
+            <Button href="/whitepaper" variant="ghost">Read the whitepaper</Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .notice { margin-bottom: var(--space-xl); padding: 1.1rem 1.4rem; border: 1px solid var(--c-accent); border-radius: var(--radius-lg); display: grid; gap: 0.35rem; }
+  .notice p { color: var(--c-muted); line-height: 1.6; margin: 0; }
+  .chapters { display: grid; gap: 16px; margin-bottom: var(--space-2xl); }
+  .chapter { border-radius: clamp(20px, 2.2vw, 32px); padding: clamp(2rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4.5rem); box-shadow: 0 24px 64px -32px rgba(14, 11, 43, 0.3); }
+  .chapter__grid { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); gap: var(--space-xl); }
+  .chapter__label { position: sticky; top: calc(var(--nav-height) + 32px); align-self: start; display: grid; gap: var(--space-sm); }
+  .chapter__label .label { color: var(--c-muted); }
+  .chapter__n { font-family: var(--font-topical); font-size: clamp(3rem, 7vw, 6rem); font-weight: 700; line-height: 0.9; color: var(--c-accent); }
+  .chapter__body { display: grid; gap: var(--space-md); max-width: 46rem; }
+  .chapter__body h2 { color: var(--c-fg); }
+  .chapter__body p { font-size: var(--text-lead); color: var(--c-muted); line-height: 1.7; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-md); }
+  .steps li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); gap: 1rem; align-items: start; }
+  .steps__n { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 999px; border: 1px solid var(--c-accent); color: var(--c-accent); font-weight: 700; }
+  .steps h3, .cards h3, .status h3 { font-size: 1.1rem; margin: 0 0 0.25rem; color: var(--c-fg); }
+  .steps p, .cards p { font-size: 1rem; margin: 0; color: var(--c-muted); line-height: 1.6; }
+  .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-md); }
+  .cards li { padding-bottom: var(--space-md); border-bottom: 1px solid rgba(127, 127, 127, 0.25); }
+  .cards li:last-child { border-bottom: 0; padding-bottom: 0; }
+  .status { display: grid; gap: var(--space-lg); }
+  .status ul { margin: 0.6rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.5rem; color: var(--c-muted); line-height: 1.6; }
+  .tag { display: inline-block; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.7rem; border-radius: 999px; border: 1px solid currentColor; }
+  .tag--built { color: var(--c-accent); }
+  .tag--not { color: var(--c-muted); }
+  .links { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  @media (max-width: 800px) {
+    .chapter__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+    .chapter__label { position: static; }
+  }
+</style>

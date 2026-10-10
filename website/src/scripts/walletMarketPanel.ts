@@ -9,6 +9,7 @@ import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/c
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
+import { sponsorBlock } from './walletSponsor.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 
 export interface MarketPanelOptions {
@@ -127,9 +128,9 @@ export function createMarketPanel(o: MarketPanelOptions) {
   /** Aretia's check, first in the panel: its rating, then what an on-chain look at the token found. */
   function checkBlock(r: MarketRow): HTMLElement {
     const box = el('div', 'wapp-mp__check');
-    box.append(el('span', 'wapp-mp__k', 'Aretia check'));
     const v0 = ratingView(r, check.state === 'loading' ? 'pending' : check.risk ? 'done' : 'failed');
     const head = el('div', 'wapp-mp__checkhead');
+    head.append(el('span', 'wapp-mp__k', 'Aretia check'));
     const chip = el('span', `wapp__state wapp__state--${v0.tone}${v0.soft ? ' wapp__state--soft' : ''}${v0.checking ? ' is-checking' : ''}`, v0.label);
     chip.title = v0.title;
     head.append(chip);
@@ -146,11 +147,19 @@ export function createMarketPanel(o: MarketPanelOptions) {
     box.append(el('p', `wapp-mp__headline wapp-mp__headline--${v.tone}`, v.headline));
     if (v.concerns.length > 0) {
       const list = el('ul', 'wapp-mp__concerns');
-      for (const c of v.concerns.slice(0, 4)) list.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
-      if (v.concerns.length > 4) list.append(el('li', '', `…and ${v.concerns.length - 4} more in the swap screen.`));
+      for (const c of v.concerns.slice(0, 2)) list.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
       box.append(list);
     }
-    box.append(el('p', 'wapp__fine', `${v.passed} check${v.passed === 1 ? '' : 's'} passed.${v.unchecked.length > 0 ? ` Not checked: ${v.unchecked.join(', ')}.` : ''} Passing is not a guarantee of safety.`));
+    // The rest of what was found and what was not checked, one click away so the panel stays short.
+    const more = el('details', 'wapp-mp__more');
+    more.append(el('summary', '', `What was checked (${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''})`));
+    if (v.concerns.length > 2) {
+      const rest = el('ul', 'wapp-mp__concerns');
+      for (const c of v.concerns.slice(2)) rest.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
+      more.append(rest);
+    }
+    more.append(el('p', 'wapp__fine', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}Passing is not a guarantee of safety. Anyone can create a token, Aretia does not endorse the tokens listed, and liquidity can be withdrawn by whoever put it there.`));
+    box.append(more);
     return box;
   }
 
@@ -242,8 +251,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     };
     info.append(line('Pair created', agoLong(d?.ageMs ?? r.ageMs)));
     if (d) {
-      if (d.pooledBase !== null) info.append(line(`Pooled ${d.baseSymbol}`, amount(d.pooledBase)));
-      if (d.pooledQuote !== null) info.append(line(`Pooled ${d.quoteSymbol}`, amount(d.pooledQuote)));
+      if (d.pooledBase !== null && d.pooledQuote !== null) info.append(line('Pooled', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
     }
     info.append(addressRow('Pair', d?.pair ?? r.pool, r.chain), addressRow('Token', r.address, r.chain));
     root.append(info);
@@ -258,7 +266,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
       }
       root.append(links);
     }
-    root.append(el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
+    // Paid or not, the card is labelled, sits after everything that helps a decision, and never changes the rating above.
+    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r), compact: true }));
   }
 
   /** Shows a row. The same row again only refreshes what is drawn; a new one starts its numbers and its check. */

@@ -1,0 +1,172 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import Button from '../components/buttons/Button.astro';
+import { LIMITS } from '../lib/sponsors';
+
+const places = [
+  {
+    n: '01',
+    paper: 'brand',
+    title: 'Beside a token',
+    body: 'When someone opens a token in Markets, your card sits in the panel beside it, below the numbers. Choose the chains you want to appear beside, such as Solana only.',
+  },
+  {
+    n: '02',
+    paper: 'mint',
+    title: 'Under the Markets list',
+    body: 'A wider card beneath the list of tokens, on every list: Trending, Top, Gainers, New and Favourites.',
+  },
+  {
+    n: '03',
+    paper: 'light',
+    title: 'For a set run',
+    body: 'You pick the dates. The card starts on the first day, stops after the last, and is shared fairly with any other sponsor in the same slot.',
+  },
+] as const;
+
+const rules = [
+  ['Always labelled', 'Every card says “Ad” and who it is from. It never looks like part of the rating, the numbers or a swap.'],
+  ['Never touches a rating', 'Paying does not change a token’s Aretia rating, and the safety check is shown whether or not a sponsor is beside it. A sponsored token shows its real rating.'],
+  ['Away from the decision', 'Cards sit below the numbers and nowhere near the Swap button or the signing steps.'],
+  ['No tracking, no outside code', 'A card is plain text and one link. We load nothing from you or from an ad network, and we do not follow people around.'],
+  ['We say no', 'No promised returns, no “claim your airdrop” links, nothing we would flag as high risk, and nothing we could not stand behind if a user asked us about it.'],
+] as const;
+
+const steps = [
+  ['Tell us what you want to promote', 'Use the form below: who you are, what the card is for, the chains and the dates you have in mind.'],
+  ['We review it', 'We read your link and your claims before agreeing. If something cannot be backed up, we will say so and suggest a change.'],
+  ['Send the card', `A headline (up to ${LIMITS.headline} characters), one line (up to ${LIMITS.body}), button text (up to ${LIMITS.cta}), an https link, and optionally a small logo.`],
+  ['It goes live', 'On your first day, for the run we agreed. A fixed price, quoted once we know the slot and the dates.'],
+] as const;
+---
+
+<Base title="Advertise" description="Direct sponsorships inside Aretia Wallet: one clearly labelled card, agreed with you, with no ad network and no tracking.">
+  <PageHero
+    eyebrow="Advertise"
+    title="Reach people while they choose a token."
+    lead="Direct sponsorships inside Aretia Wallet. One clearly labelled card, agreed with you. No ad network, no tracking, no scripts from anyone else."
+  >
+    <div class="hero-actions" data-reveal>
+      <a class="hero-btn" href="/contact?category=Advertising">Ask about a sponsorship <span aria-hidden="true">→</span></a>
+    </div>
+  </PageHero>
+
+  <section class="section" aria-labelledby="where-title">
+    <div class="container">
+      <p class="eyebrow" data-reveal>Where it appears</p>
+      <h2 id="where-title" class="heading" data-reveal>Two places, chosen with you.</h2>
+      <ul class="places">
+        {places.map((p) => (
+          <li class={`place paper paper--${p.paper}`} data-n={p.n} data-reveal>
+            <h3>{p.title}</h3>
+            <p>{p.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--alt" aria-labelledby="card-title">
+    <div class="container card-grid">
+      <div>
+        <p class="eyebrow" data-reveal>What a card is</p>
+        <h2 id="card-title" class="heading" data-reveal>Small, plain and honest.</h2>
+        <p class="lead" data-reveal>A headline, one line of copy and one link, with a small logo if you like. That is all, so it reads as what it is.</p>
+        <p class="muted note" data-reveal>Because Aretia does not track people, we cannot report clicks or sign-ups. Put your own tag on the link (for example <code>?utm_source=aretia</code>) and read the result in your own analytics.</p>
+      </div>
+      <div class="sample" data-reveal aria-label="An example of a card, not a real advertiser">
+        <p class="sample__label">Example of the format</p>
+        <aside class="card">
+          <div class="card__top"><span class="card__tag">Ad</span><span class="card__by">Your project</span></div>
+          <strong>Your headline goes here</strong>
+          <p>One short line saying what you offer and why it matters.</p>
+          <span class="card__cta">Button text</span>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="rules-title">
+    <div class="container">
+      <p class="eyebrow" data-reveal>Our rules</p>
+      <h2 id="rules-title" class="heading" data-reveal>What we promise the people who use the wallet.</h2>
+      <dl class="rules">
+        {rules.map(([k, v]) => (
+          <div data-reveal>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </section>
+
+  <section class="section section--alt" aria-labelledby="how-title">
+    <div class="container">
+      <p class="eyebrow" data-reveal>How it works</p>
+      <h2 id="how-title" class="heading" data-reveal>Four steps.</h2>
+      <ol class="steps">
+        {steps.map(([t, d], i) => (
+          <li data-reveal>
+            <span class="steps__n">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{t}</h3>
+            <p>{d}</p>
+          </li>
+        ))}
+      </ol>
+      <div class="cta" data-reveal>
+        <Button href="/contact?category=Advertising" arrow>Ask about a sponsorship</Button>
+        <p class="muted">Choose “Advertising” as the topic. We reply with the slot, the dates and a price.</p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero-actions { margin-top: var(--space-md); }
+  .hero-btn { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 26px; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; color: var(--color-strong); background: #fff; border-radius: var(--radius-pill); transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-press) var(--ease-out); }
+  .hero-btn:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) { .hero-btn:hover { background: var(--color-mint); } }
+  .places { list-style: none; margin: var(--space-lg) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .place { --mark-size: 7rem; display: grid; gap: 10px; align-content: start; min-height: 220px; padding: clamp(1.25rem, 2.4vw, 2rem); border-radius: 28px; }
+  .place h3 { font-size: 1.375rem; font-weight: 600; letter-spacing: -0.02em; color: var(--c-fg); }
+  .place p { max-width: 30ch; font-size: 0.9375rem; line-height: 1.55; color: var(--c-muted); }
+
+  .card-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+  .card-grid .heading, .card-grid .lead { margin-top: var(--space-sm); }
+  .note { margin-top: var(--space-md); max-width: 36rem; font-size: var(--text-small); }
+  .note code { padding: 1px 6px; font-size: 0.85em; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; }
+  .sample { display: grid; gap: 10px; justify-items: start; }
+  .sample__label { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .card { display: grid; gap: 8px; width: min(100%, 380px); padding: 16px 18px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-soft); }
+  .card__top { display: flex; align-items: center; gap: 8px; }
+  .card__tag { padding: 1px 7px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); border-radius: 5px; }
+  .card__by { font-size: 0.8125rem; color: var(--color-muted); }
+  .card strong { font-size: 1rem; color: var(--color-strong); }
+  .card p { font-size: 0.875rem; line-height: 1.5; color: var(--color-muted); }
+  .card__cta { justify-self: start; font-size: 0.875rem; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
+
+  .rules { margin: var(--space-lg) 0 0; display: grid; border-top: 1px solid var(--color-border-strong); }
+  .rules > div { display: grid; grid-template-columns: minmax(0, 0.4fr) minmax(0, 1fr); gap: 1rem 2rem; padding: 1.25rem 0; border-bottom: 1px solid var(--color-border); }
+  .rules dt { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.015em; color: var(--color-strong); }
+  .rules dd { margin: 0; max-width: 46rem; line-height: 1.6; color: var(--color-muted); }
+
+  .steps { list-style: none; margin: var(--space-lg) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: none; }
+  .steps li { display: grid; gap: 8px; align-content: start; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 20px; }
+  .steps__n { font-family: var(--font-topical); font-size: 1.5rem; color: var(--color-brand-bright); }
+  .steps h3 { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.015em; }
+  .steps p { font-size: 0.9rem; line-height: 1.55; color: var(--color-muted); }
+  .cta { display: grid; gap: 12px; justify-items: start; margin-top: var(--space-lg); }
+
+  @media (max-width: 1000px) {
+    .places { grid-template-columns: minmax(0, 1fr); }
+    .place { min-height: 0; }
+    .card-grid { grid-template-columns: minmax(0, 1fr); }
+    .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .rules > div { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+    .steps { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

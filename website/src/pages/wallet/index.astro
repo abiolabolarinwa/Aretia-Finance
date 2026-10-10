@@ -669,7 +669,19 @@ const buyTips = [
   .wapp-mt__row.is-selected td { background: var(--color-brand-soft); }
   @media (min-width: 1600px) {
     .wapp-mt__split { grid-template-columns: minmax(0, 1fr) 340px; }
-    .wapp-mp { display: grid; position: sticky; top: calc(var(--nav-height) + 12px); max-height: calc(100vh - var(--nav-height) - 24px); overflow-y: auto; gap: 12px; align-content: start; padding: 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
+    .wapp-mp { display: grid; position: sticky; top: calc(var(--nav-height) + 12px); max-height: calc(100vh - var(--nav-height) - 24px); overflow-y: auto; gap: 8px; align-content: start; padding: 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
+  }
+  /* Wide screens: the Markets card fills the screen. Only the token list scrolls (its header row stays put); the side panel stays where it is. */
+  @media (min-width: 1600px) {
+    /* The card's height is set from its position on the page (see fitCard), so it ends at the bottom of the screen. */
+    .wapp__card.wapp-mt__card { display: flex; flex-direction: column; box-sizing: border-box; }
+    .wapp-mt__card > * { flex: none; }
+    .wapp-mt__card > .wapp-mt__split { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+    .wapp-mt__main { min-width: 0; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 10px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg); }
+    .wapp-mt__main > .wapp-mt { overflow: visible; border: 0; border-radius: 0; }
+    .wapp-mt__main > :not(.wapp-mt) { margin-inline: 12px; }
+    .wapp-mt__main > :last-child { margin-bottom: 12px; }
+    .wapp-mp { position: static; max-height: none; height: 100%; }
   }
   .wapp-mp__head { display: flex; align-items: center; gap: 10px; }
   .wapp-mp__logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
@@ -678,34 +690,61 @@ const buyTips = [
   .wapp-mp__price { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
   .wapp-mp__k, .wapp-mp__tabk { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
   .wapp-mp__v { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--color-strong); overflow-wrap: anywhere; }
-  .wapp-mp__trio, .wapp-mp__flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .wapp-mp__duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .wapp-mp__stat { display: grid; gap: 2px; padding: 8px 6px; text-align: center; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 10px; min-width: 0; }
+  .wapp-mp__trio, .wapp-mp__flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .wapp-mp__duo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .wapp-mp__stat { display: grid; gap: 1px; padding: 6px 4px; text-align: center; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 10px; min-width: 0; }
   .wapp-mp__stat.is-up .wapp-mp__v { color: #1b8a4b; }
   .wapp-mp__stat.is-down .wapp-mp__v { color: #b3261e; }
-  .wapp-mp__win { display: grid; gap: 8px; }
+  .wapp-mp__win { display: grid; gap: 6px; }
   .wapp-mp__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--color-border); border-radius: 10px; }
-  .wapp-mp__tab { display: grid; gap: 1px; padding: 7px 4px; text-align: center; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--color-bg); border: 0; border-right: 1px solid var(--color-border); cursor: pointer; }
+  .wapp-mp__tab { display: grid; gap: 0; padding: 5px 4px; text-align: center; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--color-bg); border: 0; border-right: 1px solid var(--color-border); cursor: pointer; }
   .wapp-mp__tab:last-child { border-right: 0; }
   .wapp-mp__tab[aria-pressed='true'] { background: var(--color-bg-alt); box-shadow: inset 0 -2px 0 var(--color-brand); }
   .wapp-mp__tab.is-up strong { color: #1b8a4b; }
   .wapp-mp__tab.is-down strong { color: #b3261e; }
   .wapp-mp__meter { height: 6px; overflow: hidden; background: #d9534f; border-radius: 3px; }
   .wapp-mp__meter-buy { display: block; height: 100%; background: #1b8a4b; }
-  .wapp-mp__check { display: grid; gap: 8px; padding: 10px 12px; background: var(--color-brand-soft); border-radius: 10px; }
-  .wapp-mp__checkhead { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wapp-mp__check { display: grid; gap: 6px; padding: 8px 10px; background: var(--color-brand-soft); border-radius: 10px; }
+  .wapp-mp__checkhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .wapp-mp__headline { margin: 0; font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--color-strong); }
   .wapp-mp__headline--bad { color: #8a1c14; }
   .wapp-mp__headline--warn { color: #6b4300; }
   .wapp-mp__concerns { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.45; color: var(--color-strong); }
-  .wapp-mp__actions { display: grid; gap: 8px; }
+  .wapp-mp__actions { display: grid; gap: 6px; }
+  .wapp-mp__actions .wapp__btn { padding-block: 9px; }
+  .wapp-mp__more { font-size: 12.5px; color: var(--color-muted); }
+  .wapp-mp__more summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
+  .wapp-mp__more > * + * { margin-top: 6px; }
+  .wapp-mp__tiny { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
+  .wapp-ad--compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top cta' 'text text'; align-items: center; gap: 2px 8px; padding: 8px 12px; }
+  .wapp-ad--compact .wapp-ad__top { grid-area: top; }
+  .wapp-ad--compact .wapp-ad__cta { grid-area: cta; justify-self: end; }
+  .wapp-ad--compact .wapp-ad__text { grid-area: text; }
+  .wapp-ad--compact .wapp-ad__text strong { font-size: 12.5px; }
+  .wapp-mp__flow .wapp-mp__stat, .wapp-mp__win .wapp-mp__duo .wapp-mp__stat { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 6px 8px; text-align: left; }
+  .wapp-mp__actions .wapp-mp__duo .wapp__btn { padding-block: 6px; font-size: 13px; }
   .wapp-mp__info { display: grid; }
-  .wapp-mp__line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; border-top: 1px solid var(--color-border); }
+  .wapp-mp__line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; border-top: 1px solid var(--color-border); }
   .wapp-mp__lk { color: var(--color-muted); }
   .wapp-mp__lv { display: inline-flex; align-items: center; gap: 8px; color: var(--color-strong); font-variant-numeric: tabular-nums; }
   .wapp-mp__addr { padding: 2px 6px; font-size: 12px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
   .wapp-mp__copy, .wapp-mp__exp { padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
   .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */
+  .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 12px; }
+  .wapp-ad--house { background: transparent; border-style: dashed; }
+  .wapp-ad__top { display: flex; align-items: center; gap: 8px; }
+  .wapp-ad__tag { padding: 1px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); border-radius: 5px; }
+  .wapp-ad__tag--plain { border-color: transparent; padding-left: 0; background: none; }
+  .wapp-ad__by { font-size: 12px; color: var(--color-muted); }
+  .wapp-ad__body { display: flex; gap: 10px; align-items: flex-start; }
+  .wapp-ad__img { flex: none; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: var(--color-bg-alt); }
+  .wapp-ad__text { display: grid; gap: 2px; min-width: 0; }
+  .wapp-ad__text strong { font-size: 13.5px; color: var(--color-strong); }
+  .wapp-ad__text p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-muted); }
+  .wapp-ad__cta { justify-self: start; font-size: 12.5px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-mt__card > .wapp-ad { max-width: 560px; }
 
   /* ---- Price-alert pop-up (two seconds, then gone) and the Favourites page's alert list ---- */
   .wapp-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 300; display: grid; justify-items: end; pointer-events: none; }

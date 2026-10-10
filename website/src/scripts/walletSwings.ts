@@ -27,6 +27,7 @@ import { FavouriteStore, type Favourite } from '../swings/account/favourites.js'
 import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
+import { sponsorBlock } from './walletSponsor.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -1400,6 +1401,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       card.append(bar);
       card.append(accountBar());
       const shownRows = visible();
+      /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
+      let inMain: HTMLElement | null = null;
       if (error) card.append(banner('warn', error));
       else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
@@ -1408,17 +1411,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
         tableEl = marketTable({ rows: shown, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
-        card.append(el('div', { class: 'wapp-mt__split' }, [tableEl, panel.element]));
+        const main = el('div', { class: 'wapp-mt__main' }, [tableEl]);
+        inMain = main;
+        card.append(el('div', { class: 'wapp-mt__split' }, [main, panel.element]));
         const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : m.kind === 'favourites' ? 1 : GECKO_PAGES;
-        card.append(pager(pages));
+        main.append(pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-        card.append(el('p', { class: 'wapp__fine', text: 'Numbers come from each token\'s main pool; a dash means the source did not report it. The rating and the padlock are Aretia’s own. A faint rating is a first reading from the pool’s liquidity, trading and age; it firms up once Aretia has read the token’s contract on-chain, and it never says a token is safe. Click a token for its numbers and safety notes.' }));
+        main.append(el('p', { class: 'wapp__fine', text: 'Numbers come from each token\'s main pool; a dash means the source did not report it. The rating and the padlock are Aretia’s own. A faint rating is a first reading from the pool’s liquidity, trading and age; it firms up once Aretia has read the token’s contract on-chain, and it never says a token is safe. Click a token for its numbers and safety notes.' }));
+        main.append(sponsorBlock('market-footer', { seed: `${m.kind}:${m.chain}` }));
       }
-      if (m.kind === 'favourites') card.append(favouriteAlerts());
+      if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);
+      fitCard(card);
       // On a wide screen the panel opens on the selected row, or the first one when nothing is selected yet.
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();
@@ -1430,6 +1437,27 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
       }
     }
+
+    /**
+     * On a wide screen the Markets card ends at the bottom of the screen, so the page itself does not scroll: the list
+     * scrolls inside it and the side panel stays where it is. On a narrower screen it simply grows with its content.
+     */
+    function fitCard(card: HTMLElement): void {
+      if (!window.matchMedia('(min-width: 1600px)').matches) {
+        card.style.height = '';
+        return;
+      }
+      const top = card.getBoundingClientRect().top + window.scrollY;
+      // The page keeps 56px of padding below its content.
+      card.style.height = `${Math.max(480, Math.floor(window.innerHeight - top - 64))}px`;
+      // Anything the page keeps below the card (a note, say) takes its share too, so the page itself never scrolls.
+      const spill = document.documentElement.scrollHeight - window.innerHeight;
+      if (spill > 0) card.style.height = `${Math.max(480, card.getBoundingClientRect().height - spill)}px`;
+    }
+    window.addEventListener('resize', () => {
+      const card = target.querySelector<HTMLElement>('.wapp-mt__card');
+      if (card) fitCard(card);
+    });
 
     /** What the alerts do, and the recent ones, so a pop-up that has gone is never lost. */
     function favouriteAlerts(): HTMLElement {

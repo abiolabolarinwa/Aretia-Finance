@@ -1870,7 +1870,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // From Markets or Favourites the swap opens over the list; on the Swap page it is already in place.
       if (mode === 'markets-dialog') openSwapDialog();
       else showTab('swap');
-      if (t.decimals !== null) await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, icon: t.icon, verified: null }, t.chain);
+      // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
+      await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals ?? 0, icon: t.icon, verified: null }, t.chain);
     })();
   });
 

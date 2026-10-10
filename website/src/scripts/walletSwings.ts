@@ -938,10 +938,32 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   /** Whether the token being bought needs an explicit "I understand" before the swap can go on. */
   const safetyNeedsAck = (): boolean => !!s.to && s.safety.key === `${s.chain}:${s.to.mint}` && !s.safety.loading && describeSafety(s.safety.risk).needsAcknowledgement && !s.safety.acknowledged;
 
+  /** The tick box that must be set before a swap into a risky token can go on. */
+  function acknowledgement(text: string): HTMLElement {
+    const label = el('label', { class: 'wapp__fine' });
+    const input = el('input', { attrs: { type: 'checkbox' } });
+    input.checked = s.safety.acknowledged;
+    input.addEventListener('change', () => {
+      s.safety.acknowledged = input.checked;
+      updateActions();
+    });
+    label.append(input, el('span', { text }));
+    return label;
+  }
+
   /** The plain-language safety check of the token being bought: what was found, what passed, what could not be checked. */
   function safetyBlock(): HTMLElement | null {
     if (!s.to || s.to.mint === EVM_NATIVE_ADDRESS || s.to.mint === SOL_MINT || s.safety.key !== `${s.chain}:${s.to.mint}`) return null;
     const box = el('div', { class: 'wapp__stack' });
+    // In the pop-out the market panel beside it already shows these findings, so they are not repeated. Only the
+    // confirmation that gates the swap stays, since the Swap button waits on it.
+    if (swapDialog && !swapDialog.hidden) {
+      if (s.safety.loading) return null;
+      const v = describeSafety(s.safety.risk);
+      if (!v.needsAcknowledgement) return null;
+      box.append(acknowledgement(' I have read the risks for this token and want to continue.'));
+      return box;
+    }
     box.append(el('span', { class: 'wapp__eyebrow', text: `Know before you sign: ${s.to.symbol}` }));
     if (s.safety.loading) {
       box.append(el('p', { class: 'wapp__fine', text: 'Checking this token on-chain…' }));
@@ -956,17 +978,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     }
     const checked = `${v.passed} check${v.passed === 1 ? '' : 's'} passed.${v.unchecked.length > 0 ? ` Could not be checked: ${v.unchecked.join(', ')}.` : ''} A token that passes these is not guaranteed safe.`;
     box.append(el('p', { class: 'wapp__fine', text: checked }));
-    if (v.needsAcknowledgement) {
-      const label = el('label', { class: 'wapp__fine' });
-      const box2 = el('input', { attrs: { type: 'checkbox' } });
-      box2.checked = s.safety.acknowledged;
-      box2.addEventListener('change', () => {
-        s.safety.acknowledged = box2.checked;
-        updateActions();
-      });
-      label.append(box2, el('span', { text: ' I understand these risks and want to continue.' }));
-      box.append(label);
-    }
+    if (v.needsAcknowledgement) box.append(acknowledgement(' I understand these risks and want to continue.'));
     return box;
   }
 

@@ -36,6 +36,8 @@ export interface MarketRow {
   liquidityUsd: number | null;
   /** Share of the pool's liquidity proven burned, when Aretia checked and found some; otherwise null. */
   lockedPct?: number | null;
+  /** How the liquidity is locked: burned (permanent) or held in a locker until a date. Absent means burned, as Aretia's records say. */
+  lockInfo?: { kind: 'burned' | 'time-locked'; until: number | null; by?: string } | null;
   /** Aretia's own rating, only for tokens in its registry. */
   risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market' } | null;
   /** In Aretia's registry of newly detected tokens. */

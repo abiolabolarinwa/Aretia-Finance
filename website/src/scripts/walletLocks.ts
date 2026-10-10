@@ -8,11 +8,21 @@ import { LOCK_MIN_PCT } from '../swings/market/lock.js';
 import type { MarketRow } from '../swings/market/types.js';
 
 const TTL_MS = 30 * 60_000;
+/** A read that failed (a busy node) is tried again after this long; it is never remembered as "not locked". */
+const RETRY_MS = 30_000;
 const poolKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`;
 
+/** What a check found: how much of the pool's liquidity is locked, and how. */
+export interface LockFound {
+  pct: number;
+  kind: 'burned' | 'time-locked';
+  until: number | null;
+  by?: string | undefined;
+}
+
 export interface LockQueueOptions {
-  /** The share of the pool's liquidity that is burned, or null when it could not be shown. */
-  check(row: MarketRow): Promise<number | null>;
+  /** What was found for the pool, or null when no lock could be shown. */
+  check(row: MarketRow): Promise<LockFound | null>;
   /** Some checks finished (at most a few times a second). Call `sync` with the rows on screen. */
   onChange(): void;
   concurrency?: number;
@@ -20,21 +30,23 @@ export interface LockQueueOptions {
 }
 
 export function createLockQueue(o: LockQueueOptions) {
-  const done = new Map<string, { pct: number | null; at: number }>();
+  const done = new Map<string, { found: LockFound | null; at: number }>();
   const pending = new Set<string>();
+  const retryAt = new Map<string, number>();
   let waiting: MarketRow[] = [];
   let active = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const limit = o.concurrency ?? 4;
   const now = o.now ?? Date.now;
 
-  const known = (r: MarketRow): { pct: number | null } | null => {
+  const known = (r: MarketRow): { found: LockFound | null } | null => {
     const hit = done.get(poolKey(r));
-    return hit && now() - hit.at <= TTL_MS ? { pct: hit.pct } : null;
+    return hit && now() - hit.at <= TTL_MS ? { found: hit.found } : null;
   };
-  const apply = (r: MarketRow, pct: number | null): boolean => {
-    if (pct !== null && pct >= LOCK_MIN_PCT && r.lockedPct !== pct) {
-      r.lockedPct = pct;
+  const apply = (r: MarketRow, found: LockFound | null): boolean => {
+    if (found !== null && found.pct >= LOCK_MIN_PCT && r.lockedPct !== found.pct) {
+      r.lockedPct = found.pct;
+      r.lockInfo = { kind: found.kind, until: found.until, ...(found.by ? { by: found.by } : {}) };
       return true;
     }
     return false;
@@ -52,11 +64,17 @@ export function createLockQueue(o: LockQueueOptions) {
       const k = poolKey(row);
       active++;
       o.check(row)
-        .catch(() => null)
-        .then((pct) => {
-          done.set(k, { pct, at: now() });
-          announce();
-        })
+        .then(
+          (found) => {
+            done.set(k, { found, at: now() });
+            retryAt.delete(k);
+            announce();
+          },
+          () => {
+            // The node did not answer: no answer is remembered, and the pool is asked again after a pause.
+            retryAt.set(k, now() + RETRY_MS);
+          },
+        )
         .finally(() => {
           pending.delete(k);
           active--;
@@ -76,11 +94,12 @@ export function createLockQueue(o: LockQueueOptions) {
         if (!r.pool) continue;
         const k = known(r);
         if (k) {
-          apply(r, k.pct);
+          apply(r, k.found);
           continue;
         }
         const key = poolKey(r);
         if (pending.has(key)) continue;
+        if ((retryAt.get(key) ?? 0) > now()) continue;
         pending.add(key);
         waiting.push(r);
       }
@@ -93,7 +112,7 @@ export function createLockQueue(o: LockQueueOptions) {
       for (const r of rows) {
         if (r.lockedPct !== null && r.lockedPct !== undefined) continue;
         const k = r.pool ? known(r) : null;
-        if (k && apply(r, k.pct)) changed.push(r);
+        if (k && apply(r, k.found)) changed.push(r);
       }
       return changed;
     },

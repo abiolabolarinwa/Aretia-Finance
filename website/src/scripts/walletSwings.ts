@@ -1226,7 +1226,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const locks = createLockQueue({
       check: async (row) => {
         const lock = await checkLock(row.chain, row.pool, { ...(CHAINS[row.chain].kind === 'evm' ? { evm: publicRead(row.chain) } : { sol: rpcCall }) }, Date.now());
-        return lock && lock.pct >= LOCK_MIN_PCT ? lock.pct : null;
+        if (!lock || lock.pct < LOCK_MIN_PCT) return null;
+        return lock.kind === 'time-locked' ? { pct: lock.pct, kind: 'time-locked' as const, until: lock.until, by: lock.by } : { pct: lock.pct, kind: 'burned' as const, until: null };
       },
       onChange: () => {
         const current = rows ?? [];

@@ -6,12 +6,16 @@
  *  - Raydium AMM v4 on Solana: the share of the liquidity token that was burned, from the pool's own record of what it ever
  *    minted against what exists now.
  *
- * Not covered, and so never marked: liquidity held by a time-lock contract (the lock can end), concentrated-liquidity
- * positions (V3, V4, CLMM), and other Solana pool kinds. No mark means "not shown to be burned", not "unlocked".
+ *  - Uniswap V3 pools on a chain with a known position locker (Robinhood Chain: UNCX's Liquidity Locker V3.1): the share of the
+ *    pool's active liquidity that sits in position NFTs the locker holds, with the date they can come out. This is a TIME lock,
+ *    not a burn: it ends, and it is reported as its own kind with its date.
+ *
+ * Not covered, and so never marked: position NFTs sent to a dead address, other lockers, V4 and other concentrated-liquidity
+ * pools, and other Solana pool kinds. No mark means "not shown to be locked", not "unlocked".
  */
 import type { ChainId, TokenLock } from '../core/types.js';
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
-import { encodeCall, address } from '../engine/abi.js';
+import { encodeCall, address, uint, words } from '../engine/abi.js';
 import { AMM_V4_PROGRAM } from '../solana/raydiumAmmV4.js';
 
 export type LockRead = (method: string, params: unknown[]) => Promise<unknown>;
@@ -89,8 +93,162 @@ export async function solanaLock(rpc: SolRead, pool: string, now: number): Promi
   }
 }
 
-/** Looks at a pool on any network. Never throws. */
-export async function checkLock(chain: ChainId, pool: string, reads: { evm?: LockRead; sol?: SolRead }, now: number): Promise<TokenLock | null> {
+// ------------------------------------------------------------------ Uniswap V3 positions held by a locker
+
+export interface V3LockerConfig {
+  locker: string;
+  positionManager: string;
+  /** Who runs the locker, for the tooltip. */
+  label: string;
+}
+
+/**
+ * Lockers Aretia reads, per chain. Robinhood Chain: UNCX Liquidity Locker V3.1, from UNCX's published contracts table (it has
+ * code on Robinhood mainnet); positionManager is Uniswap's NonfungiblePositionManager there.
+ */
+export const V3_LOCKERS: Readonly<Partial<Record<ChainId, V3LockerConfig>>> = {
+  robinhood: { locker: '0xf28704c691290547924e2129d407da36bda8ce0f', positionManager: '0x73991a25c818bf1f1128deaab1492d45638de0d3', label: 'UNCX' },
+};
+
+/** A time lock on a V3 pool's liquidity. `until` is when the earliest locked position can come out; null when none has a real date. */
+export interface TimeLock {
+  pct: number;
+  kind: 'time-locked';
+  until: number | null;
+  by: string;
+  at: number;
+}
+
+/** An unlock date this far ahead is, in practice, no date at all. */
+const FAR_FUTURE_S = 50 * 365 * 24 * 3600;
+
+export interface LockerEntry {
+  pool: string;
+  nftId: bigint;
+  /** Unix seconds. */
+  unlockDate: bigint;
+  positionManager: string;
+}
+
+/** Pure. One `Lock` struct from the locker's `getLock`: 11 words; the pool is word 2, the NFT word 3, the unlock date word 8. Null for an empty slot. */
+export function parseLockerEntry(hex: string): LockerEntry | null {
+  const w = words(hex);
+  if (w.length < 11) return null;
+  const pool = '0x' + w[2]!.slice(24).toLowerCase();
+  if (/^0x0{40}$/.test(pool)) return null;
+  return { pool, nftId: BigInt('0x' + w[3]!), unlockDate: BigInt('0x' + w[8]!), positionManager: '0x' + w[1]!.slice(24).toLowerCase() };
+}
+
+/** Pure. The part of a position's liquidity that counts, and the sums a result is built from. */
+export function lockedShare(lockedInRange: bigint, poolLiquidity: bigint): number {
+  if (poolLiquidity <= 0n || lockedInRange <= 0n) return 0;
+  const raw = Number((lockedInRange * 10_000n) / poolLiquidity) / 100;
+  return Math.min(100, raw);
+}
+
+const signed24 = (w: string): number => Number(BigInt.asIntN(24, BigInt('0x' + w)));
+
+/** The chain could not be read just now (a slow or busy node). Different from "no lock found": the caller should try again later. */
+export class LockReadError extends Error {
+  constructor(message = 'The chain could not be read') {
+    super(message);
+    this.name = 'LockReadError';
+  }
+}
+
+/** One Multicall3 round trip. A call that fails or returns nothing comes back as null; a node that does not answer throws LockReadError. */
+async function multicall(read: LockRead, calls: [string, string][]): Promise<(string | null)[]> {
+  const data = encodeFunction('aggregate3((address,bool,bytes)[])', [calls.map(([to, d]) => [to, true, d])]);
+  let out: unknown;
+  try {
+    out = await read('eth_call', [{ to: MULTICALL3, data }, 'latest']);
+  } catch {
+    throw new LockReadError();
+  }
+  if (typeof out !== 'string') throw new LockReadError();
+  const [res] = decodeParams(['(bool,bytes)[]'], out) as [[boolean, string][]];
+  return res.map(([good, ret]) => (good && ret.length >= 66 ? ret : null));
+}
+
+const LOCKS_TTL_MS = 5 * 60_000;
+const lockIndexes = new Map<string, { at: number; entries: LockerEntry[] }>();
+/** Locks above this many are not read in one go; the newest are skipped rather than the page stalling. */
+const MAX_LOCKS = 1500;
+const CHUNK = 80;
+
+/** Every lock in the locker, read once and kept for a few minutes: one lookup serves every pool on screen. */
+async function lockerEntries(read: LockRead, cfg: V3LockerConfig, now: number): Promise<LockerEntry[]> {
+  const hit = lockIndexes.get(cfg.locker);
+  if (hit && now - hit.at < LOCKS_TTL_MS) return hit.entries;
+  const [len] = await multicall(read, [[cfg.locker, encodeCall('getLocksLength()', [])]]);
+  if (!len) throw new LockReadError('The locker could not be read');
+  const count = Math.min(Number(BigInt(len)), MAX_LOCKS);
+  const entries: LockerEntry[] = [];
+  for (let from = 0; from < count; from += CHUNK) {
+    const ids = Array.from({ length: Math.min(CHUNK, count - from) }, (_, i) => from + i);
+    const got = await multicall(read, ids.map((id): [string, string] => [cfg.locker, encodeCall('getLock(uint256)', [uint(BigInt(id))])]));
+    for (const g of got) {
+      const e = g ? parseLockerEntry(g) : null;
+      if (e && e.positionManager === cfg.positionManager) entries.push(e);
+    }
+  }
+  lockIndexes.set(cfg.locker, { at: now, entries });
+  return entries;
+}
+
+/** Forgets the remembered lock lists (for tests). */
+export const clearLockIndexes = (): void => lockIndexes.clear();
+
+/**
+ * A Uniswap V3 pool whose active liquidity is partly or wholly in position NFTs held by the chain's locker. Counts a position
+ * only while the locker still holds it, its lock has not ended, and it is in range right now (the only part of the pool's
+ * liquidity that trades). Null for a pool that is not V3, has no locker, or has nothing locked. Throws LockReadError, and only
+ * that, when the node did not answer, so a busy node is retried rather than remembered as "not locked".
+ */
+export async function v3Lock(read: LockRead, chain: ChainId, pool: string, now: number): Promise<TimeLock | null> {
+  const cfg = V3_LOCKERS[chain];
+  if (!cfg || !/^0x[0-9a-fA-F]{40}$/.test(pool)) return null;
+  try {
+    const [liq, slot0] = await multicall(read, [[pool, encodeCall('liquidity()', [])], [pool, encodeCall('slot0()', [])]]);
+    // A V3 pool answers both; anything else is some other kind of pool or token.
+    if (!liq || !slot0) return null;
+    const poolLiquidity = BigInt(liq);
+    const tick = signed24(words(slot0)[1]!);
+    if (poolLiquidity <= 0n) return null;
+    const mine = (await lockerEntries(read, cfg, now)).filter((e) => e.pool === pool.toLowerCase());
+    if (mine.length === 0) return null;
+    const calls = mine.flatMap((e): [string, string][] => [[cfg.positionManager, encodeCall('ownerOf(uint256)', [uint(e.nftId)])], [cfg.positionManager, encodeCall('positions(uint256)', [uint(e.nftId)])]]);
+    const got = await multicall(read, calls);
+    const nowS = BigInt(Math.floor(now / 1000));
+    let locked = 0n;
+    let earliest: bigint | null = null;
+    mine.forEach((e, i) => {
+      const owner = got[i * 2];
+      const pos = got[i * 2 + 1];
+      if (!owner || !pos) return;
+      // The NFT must still be in the locker, and its lock must not have ended.
+      if ('0x' + words(owner)[0]!.slice(24).toLowerCase() !== cfg.locker) return;
+      if (e.unlockDate <= nowS) return;
+      const w = words(pos);
+      const lower = signed24(w[5]!);
+      const upper = signed24(w[6]!);
+      const liquidity = BigInt('0x' + w[7]!);
+      if (liquidity <= 0n || tick < lower || tick >= upper) return;
+      locked += liquidity;
+      if (e.unlockDate - nowS < BigInt(FAR_FUTURE_S) && (earliest === null || e.unlockDate < earliest)) earliest = e.unlockDate;
+    });
+    if (locked <= 0n) return null;
+    return { pct: lockedShare(locked, poolLiquidity), kind: 'time-locked', until: earliest === null ? null : Number(earliest) * 1000, by: cfg.label, at: now };
+  } catch (e) {
+    if (e instanceof LockReadError) throw e;
+    return null;
+  }
+}
+
+/** Looks at a pool on any network. Throws LockReadError only when a V3 locker could not be read (try again later); otherwise returns what it found, or null. */
+export async function checkLock(chain: ChainId, pool: string, reads: { evm?: LockRead; sol?: SolRead }, now: number): Promise<TokenLock | TimeLock | null> {
   if (chain === 'solana') return reads.sol ? solanaLock(reads.sol, pool, now) : null;
-  return reads.evm ? evmLock(reads.evm, pool, now) : null;
+  if (!reads.evm) return null;
+  // A V2-style pair first (a burned liquidity token is permanent), then a V3 pool in a locker.
+  return (await evmLock(reads.evm, pool, now)) ?? (await v3Lock(reads.evm, chain, pool, now));
 }

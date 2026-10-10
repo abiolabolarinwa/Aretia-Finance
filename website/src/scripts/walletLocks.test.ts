@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MarketRow } from '../swings/market/types.js';
-import { createLockQueue } from './walletLocks.js';
+import { createLockQueue, type LockFound } from './walletLocks.js';
+
+const found = (pct: number | null): LockFound | null => (pct === null ? null : { pct, kind: 'burned', until: null });
 
 const row = (pool: string, over: Partial<MarketRow> = {}): MarketRow => ({
   chain: 'bnb', address: `0xtoken${pool}`, symbol: 'T', quoteSymbol: 'WBNB', name: 'T', icon: null, decimals: 18, pool,
@@ -15,7 +17,7 @@ describe('finding locked liquidity in the page', () => {
   it('marks a pool whose liquidity is mostly burned, and only that one', async () => {
     const answers: Record<string, number | null> = { '0xa': 100, '0xb': 12, '0xc': null };
     const changed = vi.fn();
-    const q = createLockQueue({ check: async (r) => answers[r.pool] ?? null, onChange: changed });
+    const q = createLockQueue({ check: async (r) => found(answers[r.pool] ?? null), onChange: changed });
     const rows = [row('0xa'), row('0xb'), row('0xc')];
     q.rate(rows);
     await vi.advanceTimersByTimeAsync(400);
@@ -28,7 +30,7 @@ describe('finding locked liquidity in the page', () => {
   });
 
   it('keeps a padlock Aretia already had and does not ask again', async () => {
-    const check = vi.fn(async () => 100);
+    const check = vi.fn(async () => found(100));
     const q = createLockQueue({ check, onChange: () => undefined });
     q.rate([row('0xa', { lockedPct: 97.5 })]);
     await vi.advanceTimersByTimeAsync(400);
@@ -36,7 +38,7 @@ describe('finding locked liquidity in the page', () => {
   });
 
   it('remembers every answer, including "not shown", so a refresh does not ask the chain again', async () => {
-    const check = vi.fn(async (r: MarketRow) => (r.pool === '0xa' ? 100 : null));
+    const check = vi.fn(async (r: MarketRow) => found(r.pool === '0xa' ? 100 : null));
     const q = createLockQueue({ check, onChange: () => undefined });
     q.rate([row('0xa'), row('0xb')]);
     await vi.advanceTimersByTimeAsync(400);
@@ -46,6 +48,36 @@ describe('finding locked liquidity in the page', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(check).toHaveBeenCalledTimes(2);
     expect(again[0]!.lockedPct).toBe(100);
+  });
+
+  it('keeps how a pool is locked: a time lock carries its date and who holds it', async () => {
+    const until = Date.UTC(2027, 0, 31);
+    const q = createLockQueue({ check: async () => ({ pct: 100, kind: 'time-locked', until, by: 'UNCX' }), onChange: () => undefined });
+    const rows = [row('0xa')];
+    q.rate(rows);
+    await vi.advanceTimersByTimeAsync(400);
+    q.sync(rows);
+    expect(rows[0]!.lockInfo).toEqual({ kind: 'time-locked', until, by: 'UNCX' });
+  });
+
+  it('does not remember a failed read as "not locked": it asks again after a pause', async () => {
+    let calls = 0;
+    const q = createLockQueue({ check: async () => { calls++; if (calls === 1) throw new Error('node busy'); return found(100); }, onChange: () => undefined });
+    const rows = [row('0xa')];
+    q.rate(rows);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(q.sync(rows)).toEqual([]);
+    // Straight away it is not asked again (the node is busy), but after the pause it is.
+    q.rate([row('0xa')]);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(31_000);
+    const later = [row('0xa')];
+    q.rate(later);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(calls).toBe(2);
+    q.sync(later);
+    expect(later[0]!.lockedPct).toBe(100);
   });
 
   it('treats a failing check as "not shown" and carries on', async () => {

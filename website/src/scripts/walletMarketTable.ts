@@ -74,10 +74,11 @@ function changeCell(n: number | null): HTMLElement {
 function liquidityCell(r: MarketRow): HTMLElement {
   const td = el('td', 'wapp-mt__num wapp-mt__liq', compactUsd(r.liquidityUsd));
   if (r.lockedPct === null || r.lockedPct === undefined) return td;
-  const lock = el('span', 'wapp-mt__lock');
-  lock.title = lockTitle(r.lockedPct);
+  const timed = r.lockInfo?.kind === 'time-locked';
+  const lock = el('span', `wapp-mt__lock${timed ? ' is-timed' : ''}`);
+  lock.title = lockTitle(r.lockedPct, r.lockInfo);
   lock.setAttribute('role', 'img');
-  lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent burned`);
+  lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent ${timed ? 'in a locker' : 'burned'}`);
   lock.innerHTML = LOCK_ICON;
   td.prepend(lock);
   return td;

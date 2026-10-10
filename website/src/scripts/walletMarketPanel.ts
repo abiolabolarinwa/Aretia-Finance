@@ -188,11 +188,12 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const liq = cell('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), 4);
     // A padlock beside the figure when the pool's liquidity is shown to be locked.
     if (r.lockedPct !== null && r.lockedPct !== undefined) {
-      const lock = el('span', 'wapp-mp__lock');
+      const timed = r.lockInfo?.kind === 'time-locked';
+      const lock = el('span', `wapp-mp__lock${timed ? ' is-timed' : ''}`);
       lock.innerHTML = LOCK_ICON;
-      lock.title = lockTitle(r.lockedPct);
+      lock.title = lockTitle(r.lockedPct, r.lockInfo);
       lock.setAttribute('role', 'img');
-      lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent burned`);
+      lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent ${timed ? 'in a locker' : 'burned'}`);
       liq.querySelector('.wapp-mp__v')?.prepend(lock);
     }
     g.append(liq, cell('FDV', compactUsd(d?.fdvUsd ?? null), 4), cell('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), 4));

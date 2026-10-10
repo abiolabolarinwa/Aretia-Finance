@@ -1,37 +1,28 @@
 ---
 import '../styles/global.css';
 import ProductLogo from '../components/brand/ProductLogo.astro';
-import { NAV, LINKS, type Status } from '../data/site';
+import { NAV, LINKS } from '../data/site';
 import type { ProductKey } from '../lib/logos';
 
-/* Aretia Finance Console: the whole product map on one screen, no scrolling.
-   Status labels follow src/data/site.ts; hrefs point at the live page for each
-   service. Radar has no page yet, so it points at the ecosystem map. */
+/* Aretia Finance home: the whole product map on one screen, no scrolling.
+   Each card links to the live page for its service. Radar has no page yet, so
+   it points at the ecosystem map. Per-product status lives in src/data/site.ts. */
 interface Service {
   key: ProductKey;
   name: string;
   line: string;
   href: string;
-  status: Status;
 }
 
 const services: Service[] = [
-  { key: 'swings', name: 'Aretia Swings', line: 'Trade across chains in one flow, with the route and fee shown first.', href: '/wallet', status: 'built' },
-  { key: 'pay', name: 'Aretia Pay', line: 'Send to maria.sol or alex.eth instead of a long address.', href: '/features#pay', status: 'built' },
-  { key: 'swap', name: 'Aretia Swap', line: 'Swap the tokens you hold at the price the market offers.', href: '/wallet', status: 'built' },
-  { key: 'carbon', name: 'Aretia Carbon Credit', line: 'Registry-backed carbon credits, retired only when the registry confirms.', href: '/carboncredit', status: 'in-development' },
-  { key: 'shield', name: 'Aretia Shield', line: 'Every recipient and approval checked before you sign.', href: '/features#shield', status: 'built' },
-  { key: 'safesend', name: 'Aretia SafeSend', line: 'Lock a transfer and cancel it before it lands if something looks wrong.', href: '/features#safesend', status: 'testnet' },
-  { key: 'radar', name: 'Aretia Radar', line: 'Market and wallet signals, surfaced before they matter.', href: '/ecosystem', status: 'roadmap' },
+  { key: 'swings', name: 'Aretia Swings', line: 'Trade across chains in one flow, with the route and fee shown first.', href: '/wallet' },
+  { key: 'pay', name: 'Aretia Pay', line: 'Send to maria.sol or alex.eth instead of a long address.', href: '/features#pay' },
+  { key: 'swap', name: 'Aretia Swap', line: 'Swap the tokens you hold at the price the market offers.', href: '/wallet' },
+  { key: 'carbon', name: 'Aretia Carbon Credit', line: 'Registry-backed carbon credits, retired only when the registry confirms.', href: '/carboncredit' },
+  { key: 'shield', name: 'Aretia Shield', line: 'Every recipient and approval checked before you sign.', href: '/features#shield' },
+  { key: 'safesend', name: 'Aretia SafeSend', line: 'Lock a transfer and cancel it before it lands if something looks wrong.', href: '/features#safesend' },
+  { key: 'radar', name: 'Aretia Radar', line: 'Market and wallet signals, surfaced before they matter.', href: '/ecosystem' },
 ];
-
-const STATUS_TEXT: Record<Status, string> = {
-  live: 'Live',
-  built: 'Built',
-  testnet: 'Testnet',
-  'in-development': 'In development',
-  roadmap: 'Roadmap',
-};
 
 /** The chains in Aretia Wallet. Marks: public/assets/chains/CREDITS.md. */
 const chains = [
@@ -43,15 +34,13 @@ const chains = [
   { name: 'Robinhood Chain', logo: '/assets/chains/robinhood.png' },
 ];
 
-/* Carbon registries. These are typeset wordmarks, not the registries' own
-   logos: drop the official files into public/assets/registries/ and set `logo`
-   to use them. */
-const registries: { name: string; logo?: string }[] = [
-  { name: 'Gold Standard' },
-  { name: 'Verra' },
-  { name: 'American Carbon Registry' },
-  { name: 'Climate Action Reserve' },
-  { name: 'Plan Vivo' },
+/* Carbon registries, with their own logos (trimmed copies in public/assets/registries/).
+   `h` is the display height in px, set per logo so each reads at a similar visual weight. */
+const registries = [
+  { name: 'Gold Standard', logo: '/assets/registries/gold-standard.png', w: 712, h: 352, show: 60 },
+  { name: 'Verra', logo: '/assets/registries/verra.png', w: 601, h: 222, show: 44 },
+  { name: 'American Carbon Registry', logo: '/assets/registries/american-carbon-registry.png', w: 541, h: 243, show: 52 },
+  { name: 'Climate Action Reserve', logo: '/assets/registries/climate-action-reserve.png', w: 324, h: 132, show: 44 },
 ];
 ---
 
@@ -60,19 +49,20 @@ const registries: { name: string; logo?: string }[] = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Aretia Finance Console</title>
+    <title>Aretia Finance</title>
     <meta name="description" content="Every Aretia service on one screen: Swings, Pay, Swap, Carbon Credit, Shield, SafeSend and Radar, across six chains and the major carbon registries." />
     <link rel="canonical" href="https://aretiafinance.org/" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
-    <meta name="theme-color" content="#fbfaf6" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="preload" href="/fonts/ibm-plex-sans/ibm-plex-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body class="console">
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="bar">
-      <a class="bar__brand" href="/" aria-label="Aretia Finance Console">
+      <a class="bar__brand" href="/" aria-label="Aretia Finance home">
         <img src="/assets/logo-mark.png" alt="" width="28" height="28" />
-        <span>Aretia Finance <em>Console</em></span>
+        <span>Aretia<br />Finance</span>
       </a>
       <nav class="bar__nav" aria-label="Primary">
         <ul>
@@ -115,7 +105,6 @@ const registries: { name: string; logo?: string }[] = [
                 <a class="card" href={s.href}>
                   <span class="card__tile">
                     <ProductLogo product={s.key} size={56} />
-                    <span class="card__status" data-status={s.status}>{STATUS_TEXT[s.status]}</span>
                   </span>
                   <span class="card__name">{s.name}<i aria-hidden="true">→</i></span>
                   <span class="card__line">{s.line}</span>
@@ -128,38 +117,30 @@ const registries: { name: string; logo?: string }[] = [
 
       <section class="flows" aria-label="Where Aretia connects">
         <div class="flow">
-          <span class="flow__label">Chains in Aretia Wallet</span>
-          <div class="flow__track">
-            <img class="flow__brand" src="/assets/logo-mark.png" alt="Aretia Finance" width="40" height="40" />
-            <svg class="flow__arrow" viewBox="0 0 64 12" aria-hidden="true"><path d="M1 6h60M54 1l7 5-7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            <ul class="flow__items">
-              {
-                chains.map((c) => (
-                  <li class="chip">
-                    <img src={c.logo} alt="" width="24" height="24" />
-                    <span>{c.name}</span>
-                  </li>
-                ))
-              }
-            </ul>
-          </div>
+          <h2 class="flow__label">Chains in Aretia Wallet</h2>
+          <ul class="flow__items">
+            {
+              chains.map((c) => (
+                <li class="chain">
+                  <img src={c.logo} alt="" width="28" height="28" />
+                  <span>{c.name}</span>
+                </li>
+              ))
+            }
+          </ul>
         </div>
 
         <div class="flow">
-          <span class="flow__label">Carbon registries</span>
-          <div class="flow__track">
-            <img class="flow__brand" src="/assets/logo-mark.png" alt="Aretia Finance" width="40" height="40" />
-            <svg class="flow__arrow" viewBox="0 0 64 12" aria-hidden="true"><path d="M1 6h60M54 1l7 5-7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            <ul class="flow__items">
-              {
-                registries.map((r) => (
-                  <li class="chip chip--word">
-                    {r.logo ? <img src={r.logo} alt={r.name} height="24" /> : <span>{r.name}</span>}
-                  </li>
-                ))
-              }
-            </ul>
-          </div>
+          <h2 class="flow__label">Tokenisation of Carbon Credit is coming to:</h2>
+          <ul class="flow__items flow__items--logos">
+            {
+              registries.map((r) => (
+                <li>
+                  <img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${r.show}px`} />
+                </li>
+              ))
+            }
+          </ul>
         </div>
       </section>
     </main>
@@ -167,33 +148,40 @@ const registries: { name: string; logo?: string }[] = [
 </html>
 
 <style is:global>
-  :root {
-    --c-bg: #fbfaf6;
-    --c-card: #f4f3ec;
-    --c-line: rgba(14, 11, 43, 0.1);
+  /* IBM Plex Sans: a clear, open grotesque with a banking heritage; self-hosted, scoped to this page. */
+  @font-face {
+    font-family: 'IBM Plex Sans';
+    src: url('/fonts/ibm-plex-sans/ibm-plex-sans-latin-wght-normal.woff2') format('woff2');
+    font-weight: 100 700;
+    font-style: normal;
+    font-display: swap;
   }
 
-  /* One screen on desktop: the page is exactly the viewport tall and never scrolls.
-     Below 900px wide, or when the window is too short to fit it, it scrolls normally. */
   body.console {
-    background: var(--c-bg);
+    --font-display: 'IBM Plex Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --font-body: 'IBM Plex Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --c-card: #faf8f2;
+    --c-line: rgba(14, 11, 43, 0.09);
+    background: #fff;
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
   }
+
+  /* One screen on desktop: the page is exactly the viewport tall and never scrolls.
+     Below 900px wide, or when the window is too short to fit it, it scrolls normally. */
   @media (min-width: 900px) and (min-height: 720px) {
     html, body.console { height: 100dvh; overflow: hidden; }
   }
 
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 0 clamp(1rem, 4vw, 3rem); height: 64px; flex: none; position: relative; z-index: 5; }
-  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-strong); }
-  .bar__brand img { width: 28px; height: 28px; border-radius: 8px; }
-  .bar__brand em { font-style: normal; font-weight: 400; color: var(--color-muted); }
+  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-size: 1rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
+  .bar__brand img { width: 30px; height: 30px; border-radius: 8px; }
   .bar__nav { display: flex; align-items: center; gap: 0.25rem; }
   .bar__nav ul { list-style: none; margin: 0; padding: 0; }
   .bar__nav > ul { display: flex; gap: 0.1rem; }
   .menu { position: relative; }
-  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
+  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.9rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
   .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 6px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
   /* Bridges the 6px gap so the pointer can travel from button to panel. */
   .menu__panel::before { content: ''; position: absolute; inset: -8px 0 auto; height: 8px; }
@@ -201,7 +189,7 @@ const registries: { name: string; logo?: string }[] = [
   .menu__panel a { display: flex; flex-direction: column; gap: 1px; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
   .menu__panel b { font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
   .menu__panel span { font-size: 0.78rem; color: var(--color-faint); }
-  .bar__cta { margin-left: 0.5rem; padding: 0.5rem 1.05rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; color: var(--color-strong); border: 1px solid var(--c-line); background: #fff; transition: border-color var(--duration-fast); }
+  .bar__cta { margin-left: 0.5rem; padding: 0.5rem 1.05rem; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; color: var(--color-strong); border: 1px solid var(--c-line); background: var(--c-card); transition: border-color var(--duration-fast); }
   @media (hover: hover) {
     .menu__btn:hover { background: rgba(14, 11, 43, 0.05); }
     .bar__cta:hover { border-color: var(--color-border-strong); }
@@ -210,19 +198,17 @@ const registries: { name: string; logo?: string }[] = [
   .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 1.25rem; width: 100%; max-width: 1360px; margin-inline: auto; padding: 0 clamp(1rem, 4vw, 3rem) clamp(1rem, 2.5vh, 1.75rem); }
 
   .intro { text-align: center; }
-  .intro h1 { font-size: clamp(2.25rem, min(5.2vw, 8.5vh), 4.25rem); font-weight: 500; line-height: 1.04; letter-spacing: -0.035em; }
+  .intro h1 { font-size: clamp(2.25rem, min(5vw, 8.5vh), 4.25rem); font-weight: 500; line-height: 1.06; letter-spacing: -0.03em; }
   .intro h1 span { display: block; color: var(--color-brand); }
   .intro p { margin: 0.9rem auto 0; max-width: 46ch; font-size: clamp(0.95rem, 1.7vh, 1.1rem); color: var(--color-muted); }
 
   .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.9rem; }
   .card { display: flex; flex-direction: column; gap: 0.35rem; height: 100%; color: inherit; }
-  .card__tile { position: relative; display: grid; place-items: center; aspect-ratio: 1.45; border-radius: var(--radius-md); background: var(--c-card); border: 1px solid var(--c-line); transition: transform var(--duration-base) var(--ease-out), border-color var(--duration-base), box-shadow var(--duration-base); }
-  .card__status { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.01em; color: var(--color-muted); background: rgba(255, 255, 255, 0.8); }
-  .card__status[data-status='built'], .card__status[data-status='live'] { color: var(--color-ok); }
-  .card__status[data-status='testnet'], .card__status[data-status='in-development'] { color: var(--color-warn); }
-  .card__name { display: flex; align-items: center; justify-content: space-between; margin-top: 0.4rem; font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; color: var(--color-strong); }
+  /* The logo sits at the tile's left edge, in line with the name and text below it. */
+  .card__tile { display: flex; align-items: center; justify-content: flex-start; padding-left: 1.1rem; aspect-ratio: 1.45; border-radius: var(--radius-md); background: var(--c-card); border: 1px solid var(--c-line); transition: transform var(--duration-base) var(--ease-out), border-color var(--duration-base), box-shadow var(--duration-base); }
+  .card__name { display: flex; align-items: center; justify-content: space-between; margin-top: 0.4rem; font-size: 0.95rem; font-weight: 600; letter-spacing: -0.005em; color: var(--color-strong); }
   .card__name i { font-style: normal; opacity: 0; transform: translateX(-4px); transition: opacity var(--duration-fast), transform var(--duration-base) var(--ease-out); }
-  .card__line { font-size: 0.8rem; line-height: 1.4; color: var(--color-muted); }
+  .card__line { font-size: 0.8rem; line-height: 1.45; color: var(--color-muted); }
   .card:focus-visible .card__tile { border-color: var(--color-brand-bright); }
   .card:focus-visible .card__name i { opacity: 1; transform: none; }
   @media (hover: hover) {
@@ -230,30 +216,25 @@ const registries: { name: string; logo?: string }[] = [
     .card:hover .card__name i { opacity: 1; transform: none; }
   }
 
-  .flows { display: grid; gap: 0.9rem; }
-  .flow { display: grid; grid-template-columns: 11rem minmax(0, 1fr); align-items: center; gap: 1rem; }
-  .flow__label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-  .flow__track { display: flex; align-items: center; gap: 0.9rem; min-width: 0; padding: 0.55rem 0.9rem; border-radius: var(--radius-lg); background: var(--c-card); border: 1px solid var(--c-line); }
-  .flow__brand { flex: none; width: 40px; height: 40px; border-radius: 10px; }
-  .flow__arrow { flex: none; width: 56px; height: 12px; color: var(--color-brand); }
-  .flow__items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
-  .chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem 0.35rem 0.4rem; border-radius: var(--radius-pill); background: #fff; border: 1px solid var(--c-line); font-size: 0.82rem; font-weight: 500; color: var(--color-strong); white-space: nowrap; }
-  .chip img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-  .chip--word { padding: 0.45rem 0.9rem; font-weight: 600; letter-spacing: -0.01em; }
+  .flows { display: grid; gap: 1rem; }
+  .flow { display: grid; grid-template-columns: 17rem minmax(0, 1fr); align-items: center; gap: 1.5rem; }
+  .flow__label { font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; color: var(--color-strong); text-wrap: balance; }
+  .flow__items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 2rem; min-width: 0; }
+  .chain { display: inline-flex; align-items: center; gap: 0.55rem; font-size: 0.9rem; font-weight: 500; color: var(--color-strong); white-space: nowrap; }
+  .chain img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+  .flow__items--logos { gap: 0.5rem 2.75rem; }
+  .flow__items--logos img { width: auto; max-width: none; }
 
-  /* Narrower desktops: four cards a row, then three. */
-  @media (max-width: 1180px) {
-    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  }
+  /* Narrower desktops keep all seven in a row and drop the one-line descriptions. */
   @media (max-width: 1180px) and (min-width: 900px) {
     .card__line { display: none; }
+    .flow { grid-template-columns: 13rem minmax(0, 1fr); }
   }
   @media (max-width: 899px) {
     .bar__nav > ul { display: none; }
     .stage { gap: 2rem; padding-top: 1rem; }
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .flow { grid-template-columns: 1fr; gap: 0.4rem; }
-    .flow__track { flex-wrap: wrap; }
+    .flow { grid-template-columns: 1fr; gap: 0.6rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     .card__tile, .card__name i, .menu__panel { transition: none; }

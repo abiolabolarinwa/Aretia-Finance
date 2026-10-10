@@ -6,6 +6,9 @@ const SOL = 'So11111111111111111111111111111111111111112';
 const ACT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const OLD_TOKEN = 'OldTokenMint11111111111111111111111111111111';
 
+/** The host of a URL, so a request is matched on who it goes to and not on a substring anywhere in it. */
+const hostOf = (url: string): string => new URL(url, 'https://aretiafinance.org').hostname;
+
 interface Stub {
   jupiterBalances?: Record<string, unknown> | 'fail';
   spl?: unknown[] | 'fail';
@@ -27,17 +30,17 @@ function stubNetwork(stub: Stub) {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push(url);
-      if (url.includes('ultra/v1/balances')) return stub.jupiterBalances === 'fail' ? json({}, 500) : json(stub.jupiterBalances ?? {});
-      if (url.includes('tokens/v2/search')) {
+      if (hostOf(url) === 'lite-api.jup.ag' && url.includes('/ultra/v1/balances')) return stub.jupiterBalances === 'fail' ? json({}, 500) : json(stub.jupiterBalances ?? {});
+      if (hostOf(url) === 'lite-api.jup.ag' && url.includes('/tokens/v2/search')) {
         const wanted = new URL(url).searchParams.get('query')!.split(',');
         return json(wanted.filter((m) => stub.prices?.[m] !== undefined).map((id) => ({ id, symbol: id.slice(0, 4), name: id, usdPrice: stub.prices![id], decimals: 6 })));
       }
-      if (url.includes('api.dexscreener.com')) {
+      if (hostOf(url) === 'api.dexscreener.com') {
         const wanted = url.split('/').pop()!.split(',');
         return json(wanted.filter((m) => stub.dexscreener?.[m] !== undefined).map((m) => ({ baseToken: { address: m }, priceUsd: String(stub.dexscreener![m]), liquidity: { usd: 50_000 } })));
       }
-      if (url.includes('geckoterminal')) return json({ data: { attributes: { token_prices: {} } } });
-      if (url.endsWith('/api/rpc')) {
+      if (hostOf(url) === 'api.geckoterminal.com') return json({ data: { attributes: { token_prices: {} } } });
+      if (hostOf(url) === 'aretiafinance.org' && new URL(url, 'https://aretiafinance.org').pathname === '/api/rpc') {
         const { method, params } = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
         const answer = (v: unknown) => (v === 'fail' ? json({ jsonrpc: '2.0', id: 1, error: { message: 'refused' } }) : json({ jsonrpc: '2.0', id: 1, result: v }));
         if (method === 'getBalance') return answer(stub.lamports === undefined ? { value: 0 } : stub.lamports === 'fail' ? 'fail' : { value: stub.lamports });
@@ -116,7 +119,7 @@ describe('loadHoldings', () => {
       dexscreener: { [mints[64]!]: 3 }, // priced only by DexScreener, and only in the third batch
     });
     const holdings = await loadHoldings(OWNER);
-    expect(calls.filter((u) => u.includes('api.dexscreener.com'))).toHaveLength(3);
+    expect(calls.filter((u) => hostOf(u) === 'api.dexscreener.com')).toHaveLength(3);
     expect(holdings.find((h) => h.mint === mints[64])).toMatchObject({ price: 3, priceSource: 'DexScreener' });
   });
 

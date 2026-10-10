@@ -9,6 +9,9 @@ import { SwingsError } from '../core/types.js';
 /** EIP-1193: the one method every injected provider has. */
 export interface Eip1193Provider {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  /** EIP-1193 events (`accountsChanged`, `chainChanged`). Optional: not every provider emits them. */
+  on?(event: string, listener: (...args: unknown[]) => void): unknown;
+  removeListener?(event: string, listener: (...args: unknown[]) => void): unknown;
 }
 
 export interface Eip6963Info {

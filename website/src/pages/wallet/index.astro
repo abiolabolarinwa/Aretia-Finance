@@ -668,55 +668,67 @@ const buyTips = [
   .wapp-mt__row.is-selected td { background: var(--color-brand-soft); }
   @media (min-width: 1680px) {
     [data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr) 360px; }
-    [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: grid; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 8px; align-content: start; padding: calc(var(--nav-height) + 12px) 14px 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
+    /* The list (and the chart above it) run right up to the docked panel, with no empty strip between them. */
+    [data-wapp].wapp[data-view='swings'] .wapp__main { padding-right: 0; }
+    [data-wapp].wapp[data-view='swings'] :is(.wapp-mt__card, .wapp-mt__chart) { border-right: 0; border-radius: var(--radius-xl) 0 0 var(--radius-xl); box-shadow: none; }
+    [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: grid; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 18px; align-content: start; padding: calc(var(--nav-height) + 16px) 18px 24px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
   }
   .wapp-mt__main { min-width: 0; display: grid; gap: 10px; }
+  /* The chart opened from the docked panel: in the centre, above the list. */
+  .wapp-mt__chart { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-soft); }
+  .wapp-mt__chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .wapp-mt__chart-title { font-size: 16px; color: var(--color-strong); }
+  .wapp-mt__chart-close { padding: 8px 16px; font-size: 13px; }
+  .wapp-mt__chart-frame { display: block; width: 100%; height: max(520px, 62vh); border: 0; border-radius: 10px; background: #fff; }
   .wapp-mp__head { display: flex; align-items: center; gap: 10px; }
-  .wapp-mp__logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+  .wapp-mp__logo { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
   .wapp-mp__names { display: grid; min-width: 0; flex: 1; }
-  .wapp-mp__pair { font-size: 15px; color: var(--color-strong); }
-  .wapp-mp__price { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
-  .wapp-mp__k, .wapp-mp__tabk { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
-  .wapp-mp__v { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--color-strong); overflow-wrap: anywhere; }
-  .wapp-mp__trio, .wapp-mp__flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .wapp-mp__duo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .wapp-mp__stat { display: grid; gap: 1px; padding: 6px 4px; text-align: center; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 10px; min-width: 0; }
+  .wapp-mp__pair { font-size: 17px; color: var(--color-strong); }
+  .wapp-mp__sub { font-size: 13px; color: var(--color-muted); }
+  .wapp-mp__price { font-size: 20px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-mp__k, .wapp-mp__tabk { font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-mp__v { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--color-strong); overflow-wrap: anywhere; }
+  .wapp-mp__trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .wapp-mp__duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wapp-mp__cap { font-size: 11.5px; line-height: 1.3; color: var(--color-muted); }
+  .wapp-mp__h { margin: 0; font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-mp__group { display: grid; gap: 10px; }
+  .wapp-mp__note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-muted); }
+  .wapp-mp__stat { display: grid; gap: 3px; align-content: start; padding: 12px 8px; text-align: center; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 10px; min-width: 0; }
   .wapp-mp__stat.is-up .wapp-mp__v { color: #1b8a4b; }
   .wapp-mp__stat.is-down .wapp-mp__v { color: #b3261e; }
-  .wapp-mp__win { display: grid; gap: 6px; }
-  .wapp-mp__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--color-border); border-radius: 10px; }
-  .wapp-mp__tab { display: grid; gap: 0; padding: 5px 4px; text-align: center; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; background: var(--color-bg); border: 0; border-right: 1px solid var(--color-border); cursor: pointer; }
+    .wapp-mp__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--color-border); border-radius: 10px; }
+  .wapp-mp__tab { display: grid; gap: 2px; padding: 9px 4px; text-align: center; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; background: var(--color-bg); border: 0; border-right: 1px solid var(--color-border); cursor: pointer; }
   .wapp-mp__tab:last-child { border-right: 0; }
   .wapp-mp__tab[aria-pressed='true'] { background: var(--color-bg-alt); box-shadow: inset 0 -2px 0 var(--color-brand); }
   .wapp-mp__tab.is-up strong { color: #1b8a4b; }
   .wapp-mp__tab.is-down strong { color: #b3261e; }
-  .wapp-mp__meter { height: 6px; overflow: hidden; background: #d9534f; border-radius: 3px; }
+  .wapp-mp__meter { height: 8px; overflow: hidden; background: #d9534f; border-radius: 3px; }
   .wapp-mp__meter-buy { display: block; height: 100%; background: #1b8a4b; }
-  .wapp-mp__check { display: grid; gap: 6px; padding: 8px 10px; background: var(--color-brand-soft); border-radius: 10px; }
+  .wapp-mp__check { display: grid; gap: 10px; padding: 14px 16px; background: var(--color-brand-soft); border-radius: 10px; }
   .wapp-mp__checkhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .wapp-mp__headline { margin: 0; font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--color-strong); }
+  .wapp-mp__headline { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 600; color: var(--color-strong); }
   .wapp-mp__headline--bad { color: #8a1c14; }
   .wapp-mp__headline--warn { color: #6b4300; }
-  .wapp-mp__concerns { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.45; color: var(--color-strong); }
-  .wapp-mp__actions { display: grid; gap: 6px; }
-  .wapp-mp__actions .wapp__btn { padding-block: 9px; }
-  .wapp-mp__more { font-size: 12.5px; color: var(--color-muted); }
+  .wapp-mp__concerns { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; color: var(--color-strong); }
+  .wapp-mp__actions { display: grid; gap: 8px; }
+  .wapp-mp__actions .wapp__btn { padding-block: 13px; }
+  .wapp-mp__more { font-size: 13.5px; color: var(--color-muted); }
   .wapp-mp__more summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
-  .wapp-mp__more > * + * { margin-top: 6px; }
+  .wapp-mp__more > * + * { margin-top: 8px; }
   .wapp-mp__tiny { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
   .wapp-ad--compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top cta' 'text text'; align-items: center; gap: 2px 8px; padding: 8px 12px; }
   .wapp-ad--compact .wapp-ad__top { grid-area: top; }
   .wapp-ad--compact .wapp-ad__cta { grid-area: cta; justify-self: end; }
   .wapp-ad--compact .wapp-ad__text { grid-area: text; }
   .wapp-ad--compact .wapp-ad__text strong { font-size: 12.5px; }
-  .wapp-mp__flow .wapp-mp__stat, .wapp-mp__win .wapp-mp__duo .wapp-mp__stat { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 6px 8px; text-align: left; }
-  .wapp-mp__actions .wapp-mp__duo .wapp__btn { padding-block: 6px; font-size: 13px; }
+  
   .wapp-mp__info { display: grid; }
-  .wapp-mp__line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; border-top: 1px solid var(--color-border); }
+  .wapp-mp__line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; font-size: 14px; font-size: 13px; border-top: 1px solid var(--color-border); }
   .wapp-mp__lk { color: var(--color-muted); }
   .wapp-mp__lv { display: inline-flex; align-items: center; gap: 8px; color: var(--color-strong); font-variant-numeric: tabular-nums; }
-  .wapp-mp__addr { padding: 2px 6px; font-size: 12px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
-  .wapp-mp__copy, .wapp-mp__exp { padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
+  .wapp-mp__addr { padding: 3px 8px; font-size: 13px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
+  .wapp-mp__copy, .wapp-mp__exp { padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
   .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 6px; }
 
   /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */

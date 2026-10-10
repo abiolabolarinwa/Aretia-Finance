@@ -17,6 +17,7 @@ import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
 import { markSelected, marketTable, tableRowKey, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createMarketPanel } from './walletMarketPanel.js';
+import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1189,11 +1190,41 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       },
     });
 
+    // "Full chart" opens the chart in the centre, above the list, on a wide screen. It lives in its own element that a redraw of
+    // the list leaves alone, because taking an embedded chart out of the page and putting it back reloads it.
+    const chartHost = el('section', { class: 'wapp-mt__chart', attrs: { 'aria-label': 'Price chart' } });
+    chartHost.hidden = true;
+    let chartKey = '';
+    let chartRow: MarketRow | null = null;
+    function showChart(r: MarketRow): void {
+      chartRow = r;
+      chartHost.hidden = false;
+      const key = `${r.chain}:${r.pool}`;
+      if (chartKey !== key) {
+        chartKey = key;
+        const title = el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''} · ${CHAINS[r.chain].name}` });
+        const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
+        close.addEventListener('click', hideChart);
+        const frame = el('iframe', { class: 'wapp-mt__chart-frame', attrs: { title: `${r.symbol} price chart`, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-popups' } });
+        frame.src = dexScreenerEmbedUrl(r.chain, r.pool, '15', { toolbar: true });
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), frame, el('p', { class: 'wapp__fine', text: 'Past prices say nothing certain about future ones.' }));
+      }
+      if (chartHost.parentElement !== target) target.prepend(chartHost);
+      chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    function hideChart(): void {
+      chartRow = null;
+      chartKey = '';
+      chartHost.hidden = true;
+      chartHost.replaceChildren();
+    }
+
     const panel = createMarketPanel({
       assess: assessRow,
       isFavourite: (r) => favourites.has(r.chain, r.address),
       toggleFavourite: (r) => toggleFavourite(r),
-      openChart: (r) => openRow(r),
+      // Beside the docked panel the chart opens in place; on a narrow screen it still opens the full token page.
+      openChart: (r) => (panelShown() ? showChart(r) : openRow(r)),
       swapFor: (r) => swapHandler(r),
     });
     // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.
@@ -1203,6 +1234,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (!panelShown()) return openRow(r);
       panel.show(r);
       if (tableEl) markSelected(tableEl, tableRowKey(r));
+      // With the chart open, it follows the token that was picked.
+      if (chartRow) showChart(r);
     }
 
     async function load(silent = false): Promise<void> {
@@ -1351,7 +1384,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
         return;
       }
-      target.replaceChildren();
+      for (const child of [...target.children]) if (child !== chartHost) child.remove();
+      if (chartRow && chartHost.parentElement !== target) target.prepend(chartHost);
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
       const bar = el('div', { class: 'wapp-mt__bar' });
@@ -1423,7 +1457,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const byChain = new Map<ChainId, string[]>();
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-        main.append(el('p', { class: 'wapp__fine', text: 'Numbers come from each token\'s main pool; a dash means the source did not report it. The rating and the padlock are Aretia’s own. A faint rating is a first reading from the pool’s liquidity, trading and age; it firms up once Aretia has read the token’s contract on-chain, and it never says a token is safe. Click a token for its numbers and safety notes.' }));
         main.append(sponsorBlock('market-footer', { seed: `${m.kind}:${m.chain}` }));
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());

@@ -65,11 +65,17 @@ function amount(n: number | null): string {
   return n >= 1000 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-function stat(label: string, value: string, tone = ''): HTMLElement {
+function stat(label: string, value: string, tone = '', caption = ''): HTMLElement {
   const d = el('div', `wapp-mp__stat${tone ? ` ${tone}` : ''}`);
   d.append(el('span', 'wapp-mp__k', label), el('strong', 'wapp-mp__v', value));
+  if (caption) d.append(el('span', 'wapp-mp__cap', caption));
   return d;
 }
+
+/** A small heading that says what the group below it is. */
+const heading = (text: string): HTMLElement => el('h4', 'wapp-mp__h', text);
+
+const WIN_WORDS: Record<Win, string> = { m5: 'last 5 minutes', h1: 'last hour', h6: 'last 6 hours', h24: 'last 24 hours' };
 
 function picture(r: MarketRow): HTMLElement {
   const letters = el('span', 'wapp-avatar wapp-mp__logo', (r.symbol || '?').slice(0, 2).toUpperCase());
@@ -147,24 +153,22 @@ export function createMarketPanel(o: MarketPanelOptions) {
     box.append(el('p', `wapp-mp__headline wapp-mp__headline--${v.tone}`, v.headline));
     if (v.concerns.length > 0) {
       const list = el('ul', 'wapp-mp__concerns');
-      for (const c of v.concerns.slice(0, 2)) list.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
+      for (const c of v.concerns) list.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
       box.append(list);
     }
-    // The rest of what was found and what was not checked, one click away so the panel stays short.
     const more = el('details', 'wapp-mp__more');
-    more.append(el('summary', '', `What was checked (${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''})`));
-    if (v.concerns.length > 2) {
-      const rest = el('ul', 'wapp-mp__concerns');
-      for (const c of v.concerns.slice(2)) rest.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
-      more.append(rest);
-    }
-    more.append(el('p', 'wapp__fine', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}Passing is not a guarantee of safety. Anyone can create a token, Aretia does not endorse the tokens listed, and liquidity can be withdrawn by whoever put it there.`));
+    more.open = true;
+    more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
+    more.append(el('p', 'wapp-mp__note', v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}.` : 'Every check Aretia runs was made.'));
+    more.append(el('p', 'wapp-mp__note', 'Passing is not a guarantee of safety. Anyone can create a token, Aretia does not endorse the tokens listed, and liquidity can be withdrawn by whoever put it there.'));
     box.append(more);
     return box;
   }
 
+  /** Price change for the four windows, then what traded in the window that is picked. */
   function windowStats(d: PairDetail): HTMLElement {
-    const wrap = el('div', 'wapp-mp__win');
+    const wrap = el('div', 'wapp-mp__group');
+    wrap.append(heading('Price change'));
     const tabs = el('div', 'wapp-mp__tabs');
     tabs.setAttribute('role', 'group');
     tabs.setAttribute('aria-label', 'Time window');
@@ -180,21 +184,26 @@ export function createMarketPanel(o: MarketPanelOptions) {
       });
       tabs.append(b);
     }
+    wrap.append(tabs, el('p', 'wapp-mp__note', `Tap a time to change the figures below. Showing the ${WIN_WORDS[win]}.`));
+
     const buys = d.buys[win];
     const sells = d.sells[win];
     const txns = buys === null || sells === null ? null : buys + sells;
-    const grid = el('div', 'wapp-mp__flow');
-    grid.append(stat('Txns', compactCount(txns)), stat('Buys', compactCount(buys), 'is-up'), stat('Sells', compactCount(sells), 'is-down'));
-    const meter = el('div', 'wapp-mp__meter');
+    wrap.append(heading(`Trading in the ${WIN_WORDS[win]}`));
+    const grid = el('div', 'wapp-mp__trio');
+    grid.append(stat('Trades', compactCount(txns), '', 'buys + sells'), stat('Buys', compactCount(buys), 'is-up', 'tokens bought'), stat('Sells', compactCount(sells), 'is-down', 'tokens sold'));
+    wrap.append(grid);
     if (buys !== null && sells !== null && buys + sells > 0) {
+      const share = Math.round((buys / (buys + sells)) * 100);
+      const meter = el('div', 'wapp-mp__meter');
       const bar = el('span', 'wapp-mp__meter-buy');
-      bar.style.width = `${Math.round((buys / (buys + sells)) * 100)}%`;
+      bar.style.width = `${share}%`;
       meter.append(bar);
-      meter.title = 'Share of the trades in this window that were buys (green) and sells (red)';
-    } else meter.hidden = true;
+      wrap.append(meter, el('p', 'wapp-mp__note', `${share}% of trades were buys and ${100 - share}% were sells.`));
+    }
     const money = el('div', 'wapp-mp__duo');
-    money.append(stat(`Volume ${LABEL[win]}`, compactUsd(d.volumeUsd[win])), stat('Traders 24H', compactCount(row?.traders24h ?? null)));
-    wrap.append(tabs, grid, meter, money);
+    money.append(stat('Volume', compactUsd(d.volumeUsd[win]), '', 'money traded'), stat('Traders', compactCount(row?.traders24h ?? null), '', 'people, last 24 hours'));
+    wrap.append(money);
     return wrap;
   }
 
@@ -209,15 +218,18 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const net = CHAINS[r.chain].name;
     const head = el('div', 'wapp-mp__head');
     const names = el('div', 'wapp-mp__names');
-    names.append(el('strong', 'wapp-mp__pair', d ? `${d.baseSymbol} / ${d.quoteSymbol}` : `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''}`), el('span', 'wapp__fine', `${net}${d?.dex ? ` · ${d.dex}` : ''}`));
+    names.append(el('strong', 'wapp-mp__pair', d ? `${d.baseSymbol} / ${d.quoteSymbol}` : `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''}`), el('span', 'wapp-mp__sub', `${net}${d?.dex ? ` · ${d.dex}` : ''}`));
     head.append(picture(r), names, el('strong', 'wapp-mp__price', formatPrice(d?.priceUsd ?? r.priceUsd)));
     root.append(head, checkBlock(r));
 
+    const size = el('div', 'wapp-mp__group');
+    size.append(heading('Size'));
     const liq = el('div', 'wapp-mp__trio');
-    const liqStat = stat('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd));
+    const liqStat = stat('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), '', 'money in the pool');
     if (r.lockedPct !== null && r.lockedPct !== undefined) liqStat.title = `Locked: ${r.lockedPct.toFixed(1)}% of this pool's liquidity tokens are burned.`;
-    liq.append(liqStat, stat('FDV', compactUsd(d?.fdvUsd ?? null)), stat('Mkt cap', compactUsd(d?.marketCapUsd ?? r.capUsd)));
-    root.append(liq);
+    liq.append(liqStat, stat('FDV', compactUsd(d?.fdvUsd ?? null), '', 'value if every token existed'), stat('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), '', 'value of tokens in circulation'));
+    size.append(liq);
+    root.append(size);
 
     if (problem) root.append(el('p', 'wapp__fine', problem));
     else if (!d) root.append(el('p', 'wapp__fine', 'Loading the numbers…'));
@@ -225,16 +237,17 @@ export function createMarketPanel(o: MarketPanelOptions) {
 
     const act = el('div', 'wapp-mp__actions');
     const swap = o.swapFor(r);
-    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : 'Swaps are off on this network');
+    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : `Swapping isn’t available on ${net} yet`);
     buy.type = 'button';
     buy.disabled = !swap;
     if (swap) buy.addEventListener('click', swap);
     const row2 = el('div', 'wapp-mp__duo');
-    const fav = el('button', 'wapp__btn wapp__btn--ghost', o.isFavourite(r) ? '★ Watching' : '☆ Watchlist');
+    const favLabel = (): string => (o.isFavourite(r) ? '★ In favourites' : '☆ Add to favourites');
+    const fav = el('button', 'wapp__btn wapp__btn--ghost', favLabel());
     fav.type = 'button';
     fav.addEventListener('click', () => {
       o.toggleFavourite(r);
-      fav.textContent = o.isFavourite(r) ? '★ Watching' : '☆ Watchlist';
+      fav.textContent = favLabel();
     });
     const chart = el('button', 'wapp__btn wapp__btn--ghost', 'Full chart');
     chart.type = 'button';
@@ -243,19 +256,21 @@ export function createMarketPanel(o: MarketPanelOptions) {
     act.append(buy, row2);
     root.append(act);
 
-    const info = el('div', 'wapp-mp__info');
+    const info = el('div', 'wapp-mp__group');
+    info.append(heading('Pool details'));
     const line = (k: string, v: string): HTMLElement => {
       const l = el('div', 'wapp-mp__line');
       l.append(el('span', 'wapp-mp__lk', k), el('strong', 'wapp-mp__lv', v));
       return l;
     };
-    info.append(line('Pair created', agoLong(d?.ageMs ?? r.ageMs)));
-    if (d) {
-      if (d.pooledBase !== null && d.pooledQuote !== null) info.append(line('Pooled', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
-    }
-    info.append(addressRow('Pair', d?.pair ?? r.pool, r.chain), addressRow('Token', r.address, r.chain));
+    info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
+    if (d && d.pooledBase !== null) info.append(line(`${d.baseSymbol} in the pool`, amount(d.pooledBase)));
+    if (d && d.pooledQuote !== null) info.append(line(`${d.quoteSymbol} in the pool`, amount(d.pooledQuote)));
+    info.append(addressRow('Pool address', d?.pair ?? r.pool, r.chain), addressRow('Token address', r.address, r.chain));
     root.append(info);
     if (d && d.links.length > 0) {
+      const g = el('div', 'wapp-mp__group');
+      g.append(heading('Links from the project'));
       const links = el('div', 'wapp-mp__links');
       for (const l of d.links) {
         const a = el('a', 'wapp__chip', l.label);
@@ -264,10 +279,11 @@ export function createMarketPanel(o: MarketPanelOptions) {
         a.rel = 'noopener noreferrer nofollow';
         links.append(a);
       }
-      root.append(links);
+      g.append(links);
+      root.append(g);
     }
     // Paid or not, the card is labelled, sits after everything that helps a decision, and never changes the rating above.
-    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r), compact: true }));
+    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r) }));
   }
 
   /** Shows a row. The same row again only refreshes what is drawn; a new one starts its numbers and its check. */

@@ -148,6 +148,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     knownToken: (mint) => picked.get(mint) ?? null,
   });
   const evm = new EvmSession();
+  // A lock, an account switch or a network change inside the wallet shows here at once, and a quote made for another
+  // account (or for a wallet that has locked) is dropped; unlocking prices the swap again.
+  evm.onChange = ({ accountChanged }) => {
+    if (accountChanged) resetQuote();
+    render();
+  };
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
   const swapChart = createChartPanel();
   // These nodes live for the whole page. A browser reloads an iframe whenever it, or anything above it, is taken out of the
@@ -830,6 +836,26 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const box = el('div', { class: 'wapp__stack' });
     if (evm.account) {
       box.append(el('span', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}` }));
+      return box;
+    }
+    if (evm.locked && evm.adapter) {
+      // The wallet is still connected to this page, but it locked itself, so it shares no account until it is unlocked.
+      const name = evm.walletName ?? 'Your wallet';
+      const unlock = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Unlock ${name}`, attrs: { type: 'button' } });
+      unlock.addEventListener('click', () => {
+        void evm
+          .unlock()
+          .then(() => {
+            if (evm.adapter) registerEvmWallet(router, evm.adapter);
+            s.error = null;
+            render();
+          })
+          .catch((e: unknown) => {
+            s.error = e instanceof SwingsError ? e.message : `${name} could not be unlocked.`;
+            render();
+          });
+      });
+      box.append(banner('warn', `${name} is locked. This is the wallet's own lock, not Aretia's: unlock it to keep going. Aretia never sees your password.`), unlock);
       return box;
     }
     box.append(banner('info', 'Connect your wallet to swap on this network. Use a wallet for Ethereum-style networks, such as MetaMask, Coinbase Wallet or Rabby. Aretia never holds your keys.'));

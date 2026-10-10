@@ -45,6 +45,9 @@ export const HUB_TOKENS: Readonly<Partial<Record<ChainId, readonly HubToken[]>>>
     { address: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', symbol: 'USDC', decimals: 6 },
     { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', symbol: 'USDT', decimals: 6 },
   ],
+  // Robinhood Chain: wrapped ether only, which Uniswap's own V3 router and V4 position manager name as their WETH. Its stablecoins are
+  // not listed until each address has been read from the chain.
+  robinhood: [{ address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 }],
   avalanche: [
     { address: WRAPPED_NATIVE.avalanche, symbol: 'WAVAX', decimals: 18 },
     { address: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', symbol: 'USDC', decimals: 6 },

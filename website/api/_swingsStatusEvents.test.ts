@@ -18,8 +18,8 @@ describe('status endpoint', () => {
   it('lists operator-enabled chains with or without the 0x key, and is closed to other origins', () => {
     expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: { SWINGS_EVM_CHAINS: 'base' } }).body).evm).toEqual({ configured: false, chains: ['base'] });
     // Unset means every EVM network is on; a set value is an allow-list; "none" switches them all off.
-    expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: {} }).body).evm).toEqual({ configured: false, chains: ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'] });
-    expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: { SWINGS_EVM_CHAINS: '  ' } }).body).evm.chains).toHaveLength(7);
+    expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: {} }).body).evm).toEqual({ configured: false, chains: ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche', 'robinhood'] });
+    expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: { SWINGS_EVM_CHAINS: '  ' } }).body).evm.chains).toHaveLength(8);
     expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: { SWINGS_EVM_CHAINS: 'none' } }).body).evm.chains).toEqual([]);
     expect(JSON.parse(handleStatus({ method: 'GET', origin: ORIGIN, env: { SWINGS_EVM_CHAINS: 'base, ARBITRUM, solana' } }).body).evm.chains).toEqual(['base', 'arbitrum']);
     expect(handleStatus({ method: 'GET', origin: 'https://evil.example', env: {} }).status).toBe(403);

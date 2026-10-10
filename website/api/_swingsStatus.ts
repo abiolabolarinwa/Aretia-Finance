@@ -28,7 +28,7 @@ export interface StatusEnv extends ProxyEnv {
   SWINGS_PROTECTED_SUBMIT?: string;
 }
 
-const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'];
+const EVM_CHAINS = ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche', 'robinhood'];
 
 /**
  * The EVM networks that are on. Unset means all of them. Set means exactly the ones listed ("none" or any list that

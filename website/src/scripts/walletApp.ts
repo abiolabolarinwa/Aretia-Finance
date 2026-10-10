@@ -446,29 +446,63 @@ export function initWalletApp(): void {
     if (account !== evmAccount) void loadEvm(account);
   });
 
-  /** The overview card on the dashboard: wallet name, token count and the top few holdings. */
+  /** The side card and the count on the dashboard: wallet name, token count and the Ethereum-style account when one is connected. */
   function renderTopAssets(): void {
     const name = $('[data-wallet-name]');
     const count = $('[data-token-count]');
-    const list = $('[data-top-assets]');
+    const evmLine = $('[data-evm-line]');
     if (name) name.textContent = address ? (walletName ?? 'Wallet') : '—';
-    if (count) count.textContent = dashboardHoldings() ? String(dashboardHoldings()!.length) : '—';
+    const all = dashboardHoldings();
+    if (count) count.textContent = all ? `${all.length} token${all.length === 1 ? '' : 's'}` : '';
+    if (evmLine) {
+      evmLine.hidden = !(address && evmAccount);
+      evmLine.textContent = evmAccount ? `Also reading ${shorten(evmAccount)} on the Ethereum-style networks.` : '';
+    }
+  }
+
+  /** The split of the portfolio by value: one segment per top token, the rest together, with a legend beneath. */
+  function renderAllocation(all: Holding[] | null, sum: number): void {
+    const box = $('[data-alloc]');
+    const bar = $('[data-alloc-bar]');
+    const legend = $('[data-alloc-legend]');
+    if (!box || !bar || !legend) return;
+    bar.textContent = '';
+    legend.textContent = '';
+    const priced = (all ?? []).filter((h) => (h.value ?? 0) > 0);
+    box.hidden = priced.length === 0 || sum <= 0;
+    if (box.hidden) return;
+    const shades = ['#ffffff', '#cfc7ff', '#a595ff', '#7a66f5'];
+    const top = priced.slice(0, shades.length);
+    const rest = priced.slice(shades.length).reduce((t, h) => t + (h.value ?? 0), 0);
+    const parts = top.map((h, i) => ({ label: h.symbol, value: h.value ?? 0, color: shades[i]! }));
+    if (rest > 0) parts.push({ label: 'Other', value: rest, color: 'rgba(255, 255, 255, 0.4)' });
+    const labels: string[] = [];
+    for (const p of parts) {
+      const pct = (p.value / sum) * 100;
+      const seg = el('span');
+      seg.style.width = `${pct}%`;
+      seg.style.background = p.color;
+      bar.append(seg);
+      const dot = el('i');
+      dot.style.background = p.color;
+      legend.append(el('li', {}, [dot, el('span', { text: p.label }), el('b', { text: `${pct < 1 ? '<1' : Math.round(pct)}%` })]));
+      labels.push(`${p.label} ${pct < 1 ? 'under 1' : Math.round(pct)}%`);
+    }
+    bar.setAttribute('aria-label', `Portfolio split: ${labels.join(', ')}`);
+  }
+
+  /** The latest few transactions, for the side card on the dashboard. */
+  function renderRecent(error?: string): void {
+    const list = $('[data-recent]');
     if (!list) return;
     list.textContent = '';
     if (!address) return;
-    if (holdingsFailed) return void list.append(el('li', { class: 'wapp-sub', text: "Couldn't load balances." }));
-    const all = dashboardHoldings();
-    if (all === null) return void list.append(el('li', { class: 'wapp-sub', text: 'Loading balances…' }));
-    if (all.length === 0) return void list.append(el('li', { class: 'wapp-sub', text: 'This wallet holds no tokens yet.' }));
-    const mask = (text: string) => (amountsHidden ? '••••' : text);
-    for (const h of all.slice(0, 4)) {
-      list.append(
-        el('li', {}, [
-          avatar(h),
-          el('div', { class: 'wapp__hero-asset-name' }, [el('strong', { text: h.symbol }), el('span', { text: h.name })]),
-          el('div', { class: 'wapp__hero-asset-amt' }, [el('strong', { text: mask(formatAmount(h.amount)) }), el('span', { text: h.value === null ? '' : mask(formatUsd(h.value)) })]),
-        ]),
-      );
+    if (error) return void list.append(el('li', { class: 'wapp-sub', text: "Couldn't load activity." }));
+    if (activity === null) return void list.append(el('li', { class: 'wapp-sub', text: 'Loading activity…' }));
+    if (activity.length === 0) return void list.append(el('li', { class: 'wapp-sub', text: 'No transactions yet.' }));
+    for (const a of activity.slice(0, 4)) {
+      const link = el('a', { class: 'wapp-mono', text: shorten(a.signature, 6), attrs: { href: `https://solscan.io/tx/${a.signature}`, target: '_blank', rel: 'noopener noreferrer' } });
+      list.append(el('li', {}, [el('span', { class: `wapp-dash__dot${a.ok ? '' : ' is-fail'}`, attrs: { title: a.ok ? 'Success' : 'Failed' } }), link, el('time', { text: a.time ? relativeTime(a.time) : '—' })]));
     }
   }
 
@@ -479,6 +513,7 @@ export function initWalletApp(): void {
     const body = $('[data-holdings]');
     if (!total || !sub || !body) return;
     body.textContent = '';
+    renderAllocation(null, 0);
     if (!address) return;
     if (error) {
       total.textContent = '—';
@@ -498,6 +533,7 @@ export function initWalletApp(): void {
     // How many tokens the toggle governs: those with no price, other than the native coin.
     const unpricedCount = priced.length > 0 ? all.filter((h) => h.value === null && !isNativeMint(h.mint)).length : 0;
     total.textContent = priced.length > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
+    renderAllocation(all, sum);
     sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced`;
     if (all.length === 0) return;
 
@@ -549,6 +585,7 @@ export function initWalletApp(): void {
   }
 
   function renderActivity(error?: string): void {
+    renderRecent(error);
     const body = $('[data-activity]');
     if (!body) return;
     body.textContent = '';
@@ -1155,19 +1192,16 @@ export function initWalletApp(): void {
     }
   });
   const scrollBehavior = (): ScrollBehavior => (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
-  function selectTab(name: string): void {
-    document.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-    document.querySelectorAll<HTMLElement>('[data-tabpanel]').forEach((p) => (p.hidden = p.dataset.tabpanel !== name));
-  }
-  document.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab ?? 'assets')));
+  // Receive: bring the person to their address, ready to copy.
   $('[data-receive]')?.addEventListener('click', () => {
-    selectTab('address');
-    $('[data-tabpanel="address"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+    const card = $('[data-wallet-card]');
+    if (!card) return;
+    card.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    card.classList.remove('is-nudged');
+    void card.offsetWidth; // restart the highlight if it is already running
+    card.classList.add('is-nudged');
+    $<HTMLElement>('[data-copy]')?.focus({ preventScroll: true });
   });
-  document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((b) => b.addEventListener('click', () => document.getElementById(b.dataset.scroll ?? '')?.scrollIntoView({ behavior: scrollBehavior() })));
-  const track = $<HTMLElement>('[data-tools-track]');
-  $('[data-tools-prev]')?.addEventListener('click', () => track?.scrollBy({ left: -340, behavior: scrollBehavior() }));
-  $('[data-tools-next]')?.addEventListener('click', () => track?.scrollBy({ left: 340, behavior: scrollBehavior() }));
 
   // The sidebar's lock button: an optional, per-wallet lock for this page on a desktop or laptop (set up in its own window).
   // On a phone or tablet it keeps its old job of disconnecting, which is all it can honestly do there.

@@ -168,8 +168,23 @@ export class EvmChainAdapter implements ChainAdapter {
     }
   }
 
+  /**
+   * Whether a sent transaction has been mined. A node that cannot answer is never read as "failed": the public node is asked
+   * first, then the wallet's own node, and if neither answers the transaction is simply not confirmed yet. (A public node can
+   * refuse the receipt of a transaction it has not seen yet; treating that as a failure told people a swap had failed when
+   * it had not.)
+   */
   async getStatus(txId: string): Promise<TransactionStatus> {
-    const receipt = this.options.read ? await this.options.read('eth_getTransactionReceipt', [txId]) : await this.wallet.request('eth_getTransactionReceipt', [txId]);
+    let receipt: unknown;
+    try {
+      receipt = this.options.read ? await this.options.read('eth_getTransactionReceipt', [txId]) : await this.wallet.request('eth_getTransactionReceipt', [txId]);
+    } catch {
+      try {
+        receipt = await this.wallet.request('eth_getTransactionReceipt', [txId]);
+      } catch {
+        return 'submitted';
+      }
+    }
     if (receipt === null || receipt === undefined) return 'submitted';
     const status = (receipt as { status?: string }).status;
     return status === '0x1' ? 'confirmed' : 'failed';

@@ -16,10 +16,22 @@ import type { MarketRow } from './types.js';
 export type RowRisk = NonNullable<MarketRow['risk']>;
 export type CheckState = 'pending' | 'done' | 'failed';
 export type Tone = 'on' | 'warn' | 'bad' | 'off';
+/** The colour a rating is drawn in. Grey means "not checked yet"; it never means "fine". */
+export type Band = 'green' | 'yellow' | 'orange' | 'red' | 'grey';
+
+/** The colour guide, worst last, in the words shown to people. Green still is not a safety claim. */
+export const RATING_BANDS: readonly { band: Band; name: string; meaning: string }[] = [
+  { band: 'green', name: 'Green', meaning: 'Established or verified: long-lived with deep trading and no major concerns found.' },
+  { band: 'yellow', name: 'Yellow', meaning: 'Unverified: nothing alarming found, but Aretia has not vouched for it.' },
+  { band: 'orange', name: 'Orange', meaning: 'New or elevated risk: very little history, or concerns were found. Read them first.' },
+  { band: 'red', name: 'Red', meaning: 'High risk or restricted: serious concerns, or the token can stop or tax your trades.' },
+  { band: 'grey', name: 'Grey', meaning: 'Not checked yet, or Aretia could not read it. Treat it as unchecked.' },
+];
 
 export interface RatingView {
   label: string;
   tone: Tone;
+  band: Band;
   /** A partial reading (market data only): drawn lighter, with its limits in the tooltip. */
   soft: boolean;
   /** The on-chain check is still running. */
@@ -52,32 +64,37 @@ export function withMarketReading(r: MarketRow, now = Date.now()): MarketRow {
   return reading.score === null ? { ...r, risk: null } : { ...r, risk: toRowRisk(reading, 'market') };
 }
 
+const bandOf = (status: string): Band => (status === 'high' || status === 'restricted' ? 'red' : status === 'elevated' || status === 'new' ? 'orange' : status === 'established' || status === 'verified' ? 'green' : status === 'unverified' ? 'yellow' : 'grey');
+
 const toneOf = (status: string): Tone => (status === 'high' || status === 'restricted' ? 'bad' : status === 'elevated' ? 'warn' : status === 'established' || status === 'verified' ? 'on' : 'off');
 
 /** How a row's rating is drawn and explained. */
 export function ratingView(r: MarketRow, state: CheckState | undefined): RatingView {
   const risk = r.risk;
   if (meaningful(risk)) {
-    const label = `${risk.label} · ${risk.score}`;
+    const label = risk.label;
+    const band = bandOf(risk.status);
     if (risk.basis === 'market') {
       return {
         label,
         tone: toneOf(risk.status),
+        band,
         soft: true,
         checking: state !== 'failed',
-        title: `${state === 'failed' ? 'Market reading only. The on-chain check could not be made.' : 'Market reading, from liquidity, trading and age. The contract is being checked.'} Concern score ${risk.score}/100 (higher means more concerns). It cannot see what the contract is able to do, so it is not a safety check.`,
+        title: `${state === 'failed' ? 'Market reading only. The on-chain check could not be made.' : 'Market reading, from liquidity, trading and age. The contract is being checked.'} Behind the colour: concern score ${risk.score}/100 (higher means more concerns). It cannot see what the contract is able to do, so it is not a safety check.`,
       };
     }
     return {
       label,
       tone: toneOf(risk.status),
+      band,
       soft: false,
       checking: false,
-      title: `${risk.basis === 'registry' ? 'From Aretia\'s token registry.' : 'Checked on-chain by Aretia.'} Concern score ${risk.score}/100 (higher means more concerns). A rating is not advice and not a guarantee.`,
+      title: `${risk.basis === 'registry' ? 'From Aretia\'s token registry.' : 'Checked on-chain by Aretia.'} Behind the colour: concern score ${risk.score}/100 (higher means more concerns). A rating is not advice and not a guarantee.`,
     };
   }
-  if (state === 'failed') return { label: 'Couldn\'t check', tone: 'off', soft: true, checking: false, title: 'Aretia could not read this token just now (it may not be a standard token, or the network did not answer). Open it to try again. Until then, treat it as unchecked.' };
-  return { label: 'Checking', tone: 'off', soft: true, checking: true, title: 'Aretia is reading this token on-chain.' };
+  if (state === 'failed') return { label: 'Couldn\'t check', tone: 'off', band: 'grey', soft: true, checking: false, title: 'Aretia could not read this token just now (it may not be a standard token, or the network did not answer). Open it to try again. Until then, treat it as unchecked.' };
+  return { label: 'Checking', tone: 'off', band: 'grey', soft: true, checking: true, title: 'Aretia is reading this token on-chain.' };
 }
 
 // ------------------------------------------------------------------ a shared memory of finished checks

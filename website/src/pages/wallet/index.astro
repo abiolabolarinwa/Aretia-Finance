@@ -138,7 +138,12 @@ const buyTips = [
         </button>
       </nav>
       <div class="wapp__side-foot">
-        <button type="button" class="wapp__lock" data-lock title="Disconnect this page from your wallet. Your funds and keys are not affected.">
+        <button type="button" class="wapp__lock wapp__bell" data-bell title="Notifications">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4" /></svg>
+          <span class="wapp__label">Notifications</span>
+          <span class="wapp__bell-count" data-bell-count hidden>0</span>
+        </button>
+        <button type="button" class="wapp__lock" data-lock title="Optional: protect this wallet on this computer with a password, PIN or your computer's own unlock">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
           <span class="wapp__label">Lock wallet</span>
         </button>
@@ -537,9 +542,8 @@ const buyTips = [
   </div>
 
   <div class="wapp-swapdlg" data-swap-dialog hidden>
-    <div class="wapp-swapdlg__box" role="dialog" aria-modal="true" aria-labelledby="swapdlg-title">
+    <div class="wapp-swapdlg__box" role="dialog" aria-modal="true" aria-label="Swap">
       <div class="wapp-swapdlg__bar">
-        <h2 id="swapdlg-title">Swap</h2>
         <button type="button" class="wapp-swapdlg__close" data-swap-dialog-close aria-label="Close the swap window"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
       </div>
       <div data-swap-dialog-slot></div>
@@ -711,6 +715,24 @@ const buyTips = [
   .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
   .wapp__state--off { color: var(--color-muted); background: var(--color-bg-alt); }
   .wapp__state--bad { color: #8a1c14; background: rgba(179, 38, 30, 0.12); }
+  /* Aretia's rating as a colour. The words stay on the chip, so the colour is never the only signal. */
+  .wapp__state--green { color: #0b5f33; background: rgba(27, 138, 75, 0.16); }
+  .wapp__state--yellow { color: #5f4a00; background: rgba(240, 190, 0, 0.26); }
+  .wapp__state--orange { color: #7a3300; background: rgba(238, 112, 14, 0.2); }
+  .wapp__state--red { color: #8a1c14; background: rgba(198, 42, 31, 0.16); }
+  .wapp__state--grey { color: var(--color-muted); background: var(--color-bg-alt); }
+  .wapp-key { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-left: auto; font-size: 12.5px; color: var(--color-muted); cursor: help; }
+  .wapp-key__lead { font-weight: 600; color: var(--color-strong); }
+  .wapp-key__item { display: inline-flex; align-items: center; gap: 5px; }
+  .wapp-key__dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; }
+  .wapp-key__dot--green { background: #1b8a4b; }
+  .wapp-key__dot--yellow { background: #f0be00; }
+  .wapp-key__dot--orange { background: #ee700e; }
+  .wapp-key__dot--red { background: #c62a1f; }
+  .wapp-key__dot--grey { background: #9a97b8; }
+  .wapp-guide { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--color-strong); }
+  .wapp-guide li { display: flex; gap: 8px; align-items: flex-start; }
+  .wapp-guide .wapp-key__dot { margin-top: 5px; }
   /* A first reading from market data alone: outlined and lighter until the on-chain check firms it up. */
   .wapp__state--soft { background: transparent; box-shadow: inset 0 0 0 1px currentColor; font-weight: 500; }
   .wapp__state.is-checking::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: currentColor; animation: wapp-check 1s ease-in-out infinite; }
@@ -718,6 +740,9 @@ const buyTips = [
 
   /* ---- Markets: the selected token's panel is a bar docked to the right edge, as the left sidebar is docked to the left ---- */
   .wapp-mp { display: none; }
+  /* One light indigo through the whole panel in place of grey: headers, lines, chips and the sponsor card. */
+  .wapp { --wapp-indigo: #e9e6fc; --wapp-indigo-line: #cdc6f3; }
+  .wapp-mp { --color-bg-alt: var(--wapp-indigo); --color-border: var(--wapp-indigo-line); --color-border-strong: #b9b0ec; --color-muted: #55508a; --color-brand-soft: var(--wapp-indigo); }
   /* The panel scrolls with the mouse wheel while the pointer is over it, without showing a scrollbar, and does not hand the scroll on to the page at its ends. */
   .wapp-mp { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
   .wapp-mp::-webkit-scrollbar { display: none; }
@@ -757,7 +782,7 @@ const buyTips = [
   /* A burn is permanent (green). A time lock ends, so it is amber. */
   .wapp-mp__lock.is-timed, .wapp-mt__lock.is-timed { color: #b45309; }
   .wapp-mp__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--color-brand); background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
-  .wapp-mp__icon:hover { background: var(--color-brand-soft); }
+  .wapp-mp__icon:hover { background: var(--wapp-indigo-line); }
   .wapp-mp__icon:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   .wapp-mp__head { display: flex; align-items: center; gap: 10px; }
   .wapp-mp__logo { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
@@ -796,8 +821,10 @@ const buyTips = [
   .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 6px; }
 
   /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */
-  .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 12px; }
-  .wapp-ad--house { background: transparent; border-style: dashed; }
+  .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--wapp-indigo); border: 1px solid var(--wapp-indigo-line); border-radius: 12px; }
+  .wapp-ad--house { border-style: dashed; border-color: #b9b0ec; }
+  .wapp-ad .wapp-ad__tag { color: #3f3a8a; background: #fff; border-color: var(--wapp-indigo-line); }
+  .wapp-ad .wapp-ad__text p, .wapp-ad .wapp-ad__by { color: #4a4580; }
   .wapp-ad__top { display: flex; align-items: center; gap: 8px; }
   .wapp-ad__tag { padding: 1px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); border-radius: 5px; }
   .wapp-ad__tag--plain { border-color: transparent; padding-left: 0; background: none; }
@@ -809,6 +836,77 @@ const buyTips = [
   .wapp-ad__text p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-muted); }
   .wapp-ad__cta { justify-self: start; font-size: 12.5px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
   .wapp-mt__card > .wapp-ad { max-width: 560px; }
+
+  /* ---- Notification bell (sidebar) and its list ---- */
+  .wapp__lock { position: relative; }
+  .wapp__bell-count { position: absolute; top: 4px; left: 28px; min-width: 17px; padding: 1px 5px; box-sizing: border-box; font-size: 10.5px; font-weight: 700; line-height: 15px; text-align: center; color: #fff; background: #e5484d; border-radius: 999px; box-shadow: 0 0 0 2px #2a1a9a; }
+  .wapp__bell-count[hidden] { display: none; }
+  .wapp__lock[data-lock-on='true']::after { content: ''; position: absolute; top: 9px; left: 26px; width: 8px; height: 8px; background: #3ddc84; border-radius: 50%; box-shadow: 0 0 0 2px #2a1a9a; }
+  .wapp-bell-pop { position: fixed; left: 258px; bottom: 16px; z-index: 90; display: flex; flex-direction: column; box-sizing: border-box; width: min(380px, calc(100vw - 280px)); max-height: min(600px, calc(100vh - 32px)); overflow: hidden; background: var(--color-bg); border: 1px solid var(--wapp-indigo-line, var(--color-border)); border-radius: 16px; box-shadow: 0 24px 60px -12px rgba(10, 6, 50, 0.45); }
+  .wapp-bell-pop[hidden] { display: none; }
+  .wapp-bell__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; }
+  .wapp-bell__title { margin: 0; font-size: 1.05rem; color: var(--color-strong); }
+  .wapp-bell__actions { display: flex; gap: 12px; }
+  .wapp-bell__link { padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-bell__link:disabled { color: var(--color-muted); cursor: default; text-decoration: none; opacity: 0.6; }
+  .wapp-bell__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 4px; }
+  .wapp-bell__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+  .wapp-bell__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .wapp-bell__item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 10px; border-radius: 12px; border-left: 3px solid transparent; }
+  .wapp-bell__item.is-unread { background: var(--wapp-indigo, var(--color-brand-soft)); }
+  .wapp-bell__item--up { border-left-color: #1b8a4b; }
+  .wapp-bell__item--down { border-left-color: #c62a1f; }
+  .wapp-bell__img { flex: none; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--color-bg-alt); }
+  .wapp-bell__text { display: grid; gap: 2px; min-width: 0; }
+  .wapp-bell__text strong { font-size: 14px; color: var(--color-strong); }
+  .wapp-bell__text span { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+  .wapp-bell__when { font-size: 12px; color: var(--color-muted); }
+  .wapp-bell__empty { margin: 0; padding: 22px 12px 26px; font-size: 14px; line-height: 1.5; color: var(--color-muted); }
+  .wapp-bell__foot { display: grid; gap: 8px; padding: 12px 16px 14px; background: var(--wapp-indigo, var(--color-bg-alt)); border-top: 1px solid var(--wapp-indigo-line, var(--color-border)); }
+  .wapp-bell__sound { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--color-strong); }
+  .wapp-bell__foot .wapp-bell__link { justify-self: start; }
+  .wapp-bell__note { margin: 0; font-size: 12px; line-height: 1.4; color: var(--color-muted); }
+  @media (max-width: 960px) { .wapp-bell-pop { left: 16px; right: 16px; width: auto; bottom: 16px; } }
+
+  /* ---- The optional lock: its settings window and the lock screen ---- */
+  .wapp-lockdlg { box-sizing: border-box; width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; color: var(--color-strong); background: var(--color-bg); border: 0; border-radius: var(--radius-xl); box-shadow: 0 24px 80px rgba(10, 6, 50, 0.4); }
+  .wapp-lockdlg::backdrop { background: rgba(15, 12, 40, 0.55); }
+  .wapp-lockdlg__body { display: grid; gap: 14px; padding: 22px; }
+  .wapp-lockdlg__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .wapp-lockdlg__head h2 { margin: 0; font-size: 1.2rem; }
+  .wapp-lockdlg__who { margin: 2px 0 0; font-size: 13px; font-family: var(--font-mono); color: var(--color-muted); }
+  .wapp-lockdlg__close { flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: var(--color-strong); background: var(--color-bg-alt); border: 0; border-radius: 50%; cursor: pointer; }
+  .wapp-lockdlg__close:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-lockdlg__line { margin: 0; font-size: 14px; line-height: 1.55; color: var(--color-muted); }
+  .wapp-lockdlg__fine { margin: 0; padding-top: 12px; font-size: 12.5px; line-height: 1.5; color: var(--color-muted); border-top: 1px solid var(--color-border); }
+  .wapp-lockdlg__ok { margin: 0; padding: 10px 12px; font-size: 14px; font-weight: 600; color: #0b5f33; background: rgba(27, 138, 75, 0.12); border-radius: 10px; }
+  .wapp-lockdlg__err, .wapp-lockscreen__say { margin: 0; min-height: 1.2em; font-size: 13.5px; color: #b3261e; }
+  .wapp-lockdlg__form, .wapp-lockdlg__fields { display: grid; gap: 12px; }
+  .wapp-lockdlg__methods { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+  .wapp-lockdlg__methods legend { margin-bottom: 6px; padding: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-lockdlg__method { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; cursor: pointer; border: 1.5px solid var(--color-border-strong); border-radius: 14px; }
+  .wapp-lockdlg__method:has(input:checked) { background: var(--wapp-indigo, var(--color-brand-soft)); border-color: var(--color-brand); }
+  .wapp-lockdlg__method:focus-within { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-lockdlg__method span { display: grid; gap: 2px; }
+  .wapp-lockdlg__method small { font-size: 12.5px; color: var(--color-muted); }
+  .wapp-lockdlg__field { display: grid; gap: 6px; font-size: 13.5px; color: var(--color-muted); }
+  .wapp-lockdlg__row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .wapp-lockscreen { box-sizing: border-box; position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 24px; border: 0; background: linear-gradient(180deg, #2c1a9c 0%, #1d1170 100%); }
+  .wapp-lockscreen[open] { display: grid; place-items: center; }
+  .wapp-lockscreen::backdrop { background: #1d1170; }
+  .wapp-lockscreen__box { display: grid; justify-items: center; gap: 14px; box-sizing: border-box; width: min(400px, 100%); padding: 32px 28px; text-align: center; color: var(--color-strong); background: var(--color-bg); border-radius: 22px; box-shadow: 0 30px 90px rgba(5, 2, 40, 0.5); }
+  .wapp-lockscreen__mark { width: 40px; height: 40px; }
+  .wapp-lockscreen__box h2 { margin: 0; font-size: 1.4rem; }
+  .wapp-lockscreen__who { margin: 0; font-size: 13.5px; font-family: var(--font-mono); color: var(--color-muted); }
+  .wapp-lockscreen__form { display: grid; gap: 10px; width: 100%; }
+  .wapp-lockscreen__box > .wapp__btn { width: 100%; }
+  .wapp-lockscreen__say { text-align: center; }
+  .wapp-lockscreen__link { padding: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-lockscreen__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; border-radius: 4px; }
+  .wapp-lockscreen__reset { display: grid; gap: 10px; justify-items: center; padding: 14px; width: 100%; box-sizing: border-box; font-size: 13.5px; line-height: 1.5; color: var(--color-muted); background: var(--wapp-indigo, var(--color-bg-alt)); border-radius: 12px; }
+  .wapp-lockscreen__reset[hidden] { display: none; }
+  .wapp-lockscreen__reset p { margin: 0; }
+  .wapp-lockscreen__fine { margin: 0; font-size: 12px; line-height: 1.5; color: var(--color-muted); }
 
   /* ---- Price-alert pop-up (two seconds, then gone) and the Favourites page's alert list ---- */
   .wapp-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 300; display: grid; justify-items: end; pointer-events: none; }
@@ -923,6 +1021,10 @@ const buyTips = [
   .wapp__swap-amount:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 8px; }
   .wapp__swap-amount::placeholder { color: var(--color-faint); }
   .wapp__swap-out { overflow-wrap: anywhere; }
+  .wapp__swap-quick { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+  .wapp__swap-shares { display: flex; gap: 6px; }
+  .wapp__swap-shares .wapp__chip { padding: 4px 12px; font-size: 12px; }
+  .wapp__swap-shares .wapp__chip:disabled { cursor: not-allowed; opacity: 0.5; }
   .wapp__swap-flip { justify-self: center; display: grid; place-items: center; width: 36px; height: 36px; margin: -18px 0; z-index: 1; color: var(--color-brand); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
   .wapp__swap-flip svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .wapp__swap-flip:hover { border-color: var(--color-brand); }
@@ -1041,10 +1143,12 @@ const buyTips = [
   /* ---- Swap opened over the page it was started from ---- */
   .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }
   .wapp-swapdlg[hidden] { display: none; }
-  .wapp-swapdlg__box { position: relative; box-sizing: border-box; width: min(560px, 100%); padding: 18px; background: var(--color-bg-alt); border-radius: var(--radius-xl); box-shadow: 0 24px 80px rgba(10, 6, 50, 0.35); }
-  .wapp-swapdlg .wapp__grid--trade { grid-template-columns: minmax(0, 1fr); }
-  .wapp-swapdlg__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  .wapp-swapdlg__bar h2 { margin: 0; font-size: 1.15rem; color: var(--color-strong); }
+  /* Just the swap card, centred over the dimmed page: no second panel behind it and no title. */
+  .wapp-swapdlg__box { position: relative; box-sizing: border-box; width: min(440px, 100%); margin-inline: auto; }
+  .wapp-swapdlg [data-swap-dialog-slot] .wapp__grid.wapp__grid--trade { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+  .wapp-swapdlg .wapp__trade-side { display: none; }
+  .wapp-swapdlg .wapp__swap { width: 100%; box-shadow: 0 24px 80px rgba(10, 6, 50, 0.35); }
+  .wapp-swapdlg__bar { position: absolute; top: 12px; right: 12px; z-index: 3; }
   .wapp-swapdlg__close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font: inherit; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
   .wapp-swapdlg__close:hover { background: var(--color-brand-soft); }
   .wapp-swapdlg__close:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }

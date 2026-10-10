@@ -1,5 +1,7 @@
 import { ACT as ACT_INFO } from '../data/site';
 import { initSwings } from './walletSwings';
+import { initWalletLock } from './walletLock';
+import { initNotifications } from './walletNotifications';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
@@ -281,9 +283,11 @@ function initSidebar(): void {
   let hover = false;
   let focus = false;
   const sync = (): void => {
-    if (hover || focus) root.dataset.wappPeek = '';
+    if (hover || focus || 'wappHold' in root.dataset) root.dataset.wappPeek = '';
     else delete root.dataset.wappPeek;
   };
+  // The notification list keeps the sidebar open beside it while it is showing.
+  window.addEventListener('aretia:sidebar-hold', sync);
   side.addEventListener('mouseenter', () => { hover = true; sync(); });
   side.addEventListener('mouseleave', () => { hover = false; sync(); });
   side.addEventListener('focusin', (e) => { focus = (e.target as HTMLElement).matches(':focus-visible'); sync(); });
@@ -1048,8 +1052,24 @@ export function initWalletApp(): void {
   $('[data-tools-prev]')?.addEventListener('click', () => track?.scrollBy({ left: -340, behavior: scrollBehavior() }));
   $('[data-tools-next]')?.addEventListener('click', () => track?.scrollBy({ left: 340, behavior: scrollBehavior() }));
 
-  // "Lock wallet": the page forgets the wallet. Keys never lived here, so this only disconnects.
-  $('[data-lock]')?.addEventListener('click', () => void window.AretiaWallet?.disconnect());
+  // The sidebar's lock button: an optional, per-wallet lock for this page on a desktop or laptop (set up in its own window).
+  // On a phone or tablet it keeps its old job of disconnecting, which is all it can honestly do there.
+  const lock = initWalletLock({
+    getAddress: () => address,
+    getWalletName: () => walletName,
+    disconnect: () => void window.AretiaWallet?.disconnect(),
+    async proveOwnership(message) {
+      const ctx = window.AretiaWallet?.getWalletContextState() as { signMessage?: (m: Uint8Array) => Promise<Uint8Array> } | undefined;
+      if (!ctx?.signMessage) return 'unsupported';
+      try {
+        await ctx.signMessage(new TextEncoder().encode(message));
+        return 'approved';
+      } catch {
+        return 'declined';
+      }
+    },
+  });
+  initNotifications();
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]', '[data-market-embed]']) $(sel)?.replaceChildren();
@@ -1068,6 +1088,8 @@ export function initWalletApp(): void {
     walletIcon = typeof state.walletIcon === 'string' && /^data:image\/(svg\+xml|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(state.walletIcon) ? state.walletIcon : null;
     if (next === address) return void renderChrome();
     address = next;
+    // A wallet that has set up a lock is locked before anything of it is drawn; one that has not is left alone.
+    lock.onWallet(next);
     clearSessionOutputs();
     swings.onWalletChange();
     renderChrome();

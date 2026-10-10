@@ -305,6 +305,21 @@ describe('proxied EVM tokens are analysed through their implementation', () => {
     expect(minimalProxyTarget('0x363d3d373d3d3d363d73' + 'ab'.repeat(20) + '5af43d82803e903d91602b57fd5bf3')).toBe('0x' + 'ab'.repeat(20));
     expect(minimalProxyTarget('0x6080')).toBeNull();
   });
+  it('asks a second node when the first refuses the request, as publicnode does for a receipt it has not seen yet', async () => {
+    const urls: string[] = [];
+    const refuses = (async (url: string) => {
+      urls.push(url);
+      return url.includes('publicnode') ? new Response('{"error":{"message":"Archive requests require a personal token"}}', { status: 403 }) : new Response(JSON.stringify({ result: null }));
+    }) as unknown as typeof fetch;
+    expect(await publicRead('bnb', refuses)('eth_getTransactionReceipt', ['0x01'])).toBeNull();
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toContain('publicnode');
+    expect(urls[1]).not.toContain('publicnode');
+  });
+  it('says the node refused only when every node did', async () => {
+    const all403 = (async () => new Response('', { status: 403 })) as unknown as typeof fetch;
+    await expect(publicRead('bnb', all403)('eth_chainId', [])).rejects.toThrow(/403/);
+  });
   it('a public read retries once after a network drop but not after a node error', async () => {
     let calls = 0;
     const flaky = (async () => {

@@ -51,7 +51,21 @@ describe('what a row shows', () => {
 
   it('draws an on-chain result as solid and finished', () => {
     const v = ratingView(row({ risk: { status: 'elevated', label: 'Elevated risk', score: 45, basis: 'onchain' } }), 'done');
-    expect(v).toMatchObject({ label: 'Elevated risk · 45', tone: 'warn', soft: false, checking: false });
+    expect(v).toMatchObject({ label: 'Elevated risk', band: 'orange', tone: 'warn', soft: false, checking: false });
+  });
+
+  it('colours a rating by its status, with no number in the label', () => {
+    const at = (status: string, score = 10) => ratingView(row({ risk: { status: status as never, label: status, score, basis: 'onchain' } }), 'done');
+    expect(at('established').band).toBe('green');
+    expect(at('verified').band).toBe('green');
+    expect(at('unverified', 8).band).toBe('yellow');
+    expect(at('new', 0).band).toBe('orange');
+    expect(at('elevated', 45).band).toBe('orange');
+    expect(at('high', 70).band).toBe('red');
+    expect(at('restricted', 90).band).toBe('red');
+    expect(at('unverified', 8).label).not.toMatch(/\d/);
+    expect(ratingView(row(), 'pending').band).toBe('grey');
+    expect(ratingView(row(), 'failed').band).toBe('grey');
   });
 
   it('says so plainly when a token could not be read, and never "not rated"', () => {

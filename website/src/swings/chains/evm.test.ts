@@ -288,6 +288,15 @@ describe('EvmChainAdapter', () => {
     expect(await new EvmChainAdapter('ethereum', wallet({ request: async () => ({ status: '0x0' }) })).getStatus(HASH)).toBe('failed');
   });
 
+  it('never reads a node that cannot answer as a failed transaction', async () => {
+    const refused = async () => { throw new Error('The BNB Chain network node answered 403.'); };
+    // The public node refuses (as publicnode does for a receipt it has not seen yet): the wallet's own node is asked next.
+    expect(await new EvmChainAdapter('ethereum', wallet({ request: async () => ({ status: '0x1' }) }), { read: refused }).getStatus(HASH)).toBe('confirmed');
+    expect(await new EvmChainAdapter('ethereum', wallet({ request: async () => null }), { read: refused }).getStatus(HASH)).toBe('submitted');
+    // Neither answers: not confirmed yet, never "failed", and no error to blow up the swap.
+    expect(await new EvmChainAdapter('ethereum', wallet({ request: refused }), { read: refused }).getStatus(HASH)).toBe('submitted');
+  });
+
   it('rejects non-EVM chains', () => {
     expect(() => new EvmChainAdapter('solana', wallet())).toThrow();
   });

@@ -6,7 +6,7 @@
 import { CHAINS } from '../swings/core/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
-import { ratingView, type CheckState } from '../swings/market/rowRisk.js';
+import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
 
 export interface TableState {
@@ -96,7 +96,7 @@ export function updateLiquidityCells(table: ParentNode, rows: readonly MarketRow
 function ratingCell(r: MarketRow, state: CheckState | undefined): HTMLElement {
   const v = ratingView(r, state);
   const td = el('td', 'wapp-mt__rating');
-  const chip = el('span', `wapp__state wapp__state--${v.tone}${v.soft ? ' wapp__state--soft' : ''}${v.checking ? ' is-checking' : ''}`, v.label);
+  const chip = el('span', `wapp__state wapp__state--${v.band}${v.soft ? ' wapp__state--soft' : ''}${v.checking ? ' is-checking' : ''}`, v.label);
   chip.title = v.title;
   td.append(chip);
   return td;
@@ -141,7 +141,7 @@ export function marketTable(o: TableOptions): HTMLElement {
   };
   if (o.favourites) hr.append(th('', 'wapp-mt__starhead', undefined, 'Favourites'));
   hr.append(th('#', 'wapp-mt__rank'), th('Token', 'wapp-mt__tokenhead'));
-  if (o.showRisk) hr.append(th('Aretia rating', '', undefined, 'Aretia\'s own rating of the token. It is not advice and is not a promise.'));
+  if (o.showRisk) hr.append(th('Aretia rating', '', undefined, `Aretia's own rating of the token, shown as a colour. ${RATING_BANDS.map((b) => `${b.name}: ${b.meaning}`).join(' ')} It is not advice and is not a promise.`));
   for (const c of COLUMNS) hr.append(th(c.label, 'wapp-mt__numhead', c.key, c.title));
   head.append(hr);
 

@@ -9,6 +9,7 @@ import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/c
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
+import { ratingGuide } from './walletRatingGuide.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
@@ -158,7 +159,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const v0 = ratingView(r, check.state === 'loading' ? 'pending' : check.risk ? 'done' : 'failed');
     const head = el('div', 'wapp-mp__checkhead');
     head.append(el('span', 'wapp-mp__k', 'Aretia check'));
-    const chip = el('span', `wapp__state wapp__state--${v0.tone}${v0.soft ? ' wapp__state--soft' : ''}${v0.checking ? ' is-checking' : ''}`, v0.label);
+    const chip = el('span', `wapp__state wapp__state--${v0.band}${v0.soft ? ' wapp__state--soft' : ''}${v0.checking ? ' is-checking' : ''}`, v0.label);
     chip.title = v0.title;
     head.append(chip);
     box.append(head);
@@ -181,7 +182,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     more.open = true;
     more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
     more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
-    box.append(more);
+    box.append(more, ratingGuide());
     return box;
   }
 

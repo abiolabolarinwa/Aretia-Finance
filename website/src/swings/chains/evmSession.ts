@@ -4,7 +4,7 @@
  * symbol and decimals) use the public RPC, so they never depend on, or prompt, the wallet's current network.
  *
  * Data leaving the page for reads: the contract and account addresses go to the chain's public RPC
- * endpoint (publicnode), the same kind of disclosure the Solana path makes.
+ * endpoint (publicnode, or the chain's own public node if publicnode will not answer), the same kind of disclosure the Solana path makes.
  */
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
 import { discoverWallets, Eip1193WalletAdapter, type DiscoveredWallet, type Eip1193Provider, type EvmWalletAdapter } from './evmWallet.js';
@@ -22,7 +22,29 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
   robinhood: 'https://robinhood-rpc.publicnode.com',
 };
 
+/**
+ * Tried, in order, when the main node refuses or cannot be reached. publicnode answers HTTP 403 ("archive requests require a
+ * personal token") for the receipt of a transaction it has not seen yet, on BNB Chain, Base, Arbitrum and Optimism, which is
+ * exactly what a page asks a second after sending a swap. A second node returns the honest "not yet" (null) instead. Each was
+ * checked to answer from a browser (CORS) and to return null for an unknown receipt.
+ */
+export const BACKUP_EVM_RPC: Readonly<Partial<Record<Exclude<ChainId, 'solana'>, readonly string[]>>> = {
+  ethereum: ['https://cloudflare-eth.com'],
+  bnb: ['https://bsc-dataseed.binance.org', 'https://bsc-dataseed1.defibit.io', 'https://bsc.meowrpc.com'],
+  base: ['https://mainnet.base.org'],
+  optimism: ['https://mainnet.optimism.io'],
+  avalanche: ['https://api.avax.network/ext/bc/C/rpc'],
+  robinhood: ['https://rpc.mainnet.chain.robinhood.com'],
+};
+
 export type EvmRead = (method: string, params: unknown[]) => Promise<unknown>;
+
+/** A node that would not take the request at all (HTTP error). Another node may; this is not an answer about the request. */
+class NodeRefused extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
+  }
+}
 
 /**
  * Public nodes turn away a burst: a handful of requests at once is fine, a dozen are refused (the browser reports that as a
@@ -51,14 +73,14 @@ async function withSlot<T>(url: string, run: () => Promise<T>): Promise<T> {
 
 export function publicRead(chain: ChainId, fetchImpl: typeof fetch = fetch): EvmRead {
   if (chain === 'solana') throw new SwingsError('invalid', 'Solana has no EVM RPC.');
-  const url = PUBLIC_EVM_RPC[chain];
+  const urls = [PUBLIC_EVM_RPC[chain], ...(BACKUP_EVM_RPC[chain] ?? [])];
   let id = 0;
-  const once = async (method: string, params: unknown[]): Promise<unknown> => {
+  const once = async (url: string, method: string, params: unknown[]): Promise<unknown> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8_000);
     try {
       const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: controller.signal });
-      if (!res.ok) throw new SwingsError('provider-failed', `The ${CHAINS[chain].name} network node answered ${res.status}.`);
+      if (!res.ok) throw new NodeRefused(res.status);
       const body = (await res.json()) as { result?: unknown; error?: { message?: string } };
       if (body.error) throw new SwingsError('provider-failed', (body.error.message ?? 'The network node rejected the request.').slice(0, 200));
       return body.result;
@@ -66,17 +88,26 @@ export function publicRead(chain: ChainId, fetchImpl: typeof fetch = fetch): Evm
       clearTimeout(timer);
     }
   };
-  // Reads are idempotent, so one retry after a timeout or network drop is safe. A node that answered with
-  // an error is not retried. Writes never use this function: the wallet sends them.
-  return (method, params) =>
-    withSlot(url, async () => {
+  // Reads are idempotent, so trying another node, or the same one again after a drop, is safe. A node that answered the
+  // request with an error of its own (a revert, a bad parameter) is not asked again: another node would say the same.
+  // Writes never use this function: the wallet sends them.
+  return async (method, params) => {
+    let refused: NodeRefused | null = null;
+    let dropped = false;
+    for (const url of urls) {
       try {
-        return await once(method, params);
+        return await withSlot(url, () => once(url, method, params));
       } catch (e) {
         if (e instanceof SwingsError) throw e;
-        return once(method, params);
+        if (e instanceof NodeRefused) refused = e;
+        else dropped = true;
       }
-    });
+    }
+    // Every node was out of reach by network error alone: one more go at the main one, as a single dropped request deserves.
+    if (dropped && !refused) return withSlot(urls[0]!, () => once(urls[0]!, method, params));
+    if (refused) throw new SwingsError('provider-failed', `The ${CHAINS[chain].name} network node answered ${refused.status}.`);
+    throw new SwingsError('provider-failed', `The ${CHAINS[chain].name} network node could not be reached.`);
+  };
 }
 
 /** Decodes an ABI-encoded string, or a bytes32 used as a string (older tokens such as MKR). Returns null if malformed. */

@@ -10,6 +10,7 @@ class Node_ {
   attrs: Record<string, string> = {};
   constructor(readonly tag: string) {}
   get isConnected(): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- walking up the parent chain from this node
     let n: Node_ | null = this;
     while (n?.parent) n = n.parent;
     return n?.tag === 'body';

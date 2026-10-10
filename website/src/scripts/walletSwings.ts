@@ -20,9 +20,11 @@ import { createLockQueue } from './walletLocks.js';
 import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
+import { ratingKey } from './walletRatingGuide.js';
+import { notify } from './walletNotifications.js';
 import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
-import { marketFactsOf, riskMemory } from '../swings/market/rowRisk.js';
+import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRows.js';
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
@@ -51,6 +53,7 @@ import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history
 import { AretiaRouter } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
+import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
 
 export interface SwingsHolding {
   mint: string;
@@ -179,10 +182,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const res = evaluateMoves(items, alerts.baselines(), alerts.pct(), Date.now());
     alerts.record(res.baselines, res.alerts);
     // A burst is capped so the pop-ups do not run on for minutes; every alert is still listed on the Favourites page.
-    for (const a of res.alerts.slice(0, 5)) {
+    res.alerts.forEach((a, i) => {
       const up = a.movePct > 0;
-      toaster.show({ title: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon });
-    }
+      const note = { title: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon } as const;
+      if (i < 5) toaster.show(note);
+      // Every alert goes to the bell; a burst rings once, for the biggest move.
+      notify(note, { quiet: i > 0 });
+    });
     if (res.alerts.length > 0) alertsChanged();
   }
   setTimeout(() => void checkFavouritePrices(), 8_000);
@@ -301,6 +307,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** When the price on screen was read, and when its transaction was last built and checked (ms). */
     quotedAt: 0,
     preparedAt: 0,
+    /** The balance of the token being paid on an EVM network, read once per wallet and token (Solana's comes from the dashboard). */
+    balance: { key: '', raw: null as bigint | null },
   };
 
   const accountFor = (chain: ChainId): string | null => (isEvm(chain) ? evm.account : host.getAddress());
@@ -458,10 +466,58 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   let autoTimer: ReturnType<typeof setTimeout> | undefined;
   let detailsOpen = false;
 
+  /** What is held of the token being paid, in its smallest unit, or null while it is not known yet. */
+  function currentBalance(): bigint | null {
+    if (!s.from) return null;
+    if (!isEvm(s.chain)) {
+      const held = (host.getHoldings() ?? []).find((h) => h.mint === s.from!.mint);
+      return held?.raw ? BigInt(held.raw.split('.')[0]!) : null;
+    }
+    const address = accountFor(s.chain);
+    return address && s.balance.key === `${s.chain}:${address}:${s.from.mint}` ? s.balance.raw : null;
+  }
+
+  /** Reads an EVM balance once for the wallet and token on screen, then redraws so the 10% / 50% / Max buttons can use it. */
+  function loadBalance(): void {
+    const address = accountFor(s.chain);
+    if (!isEvm(s.chain) || !address || !s.from) return;
+    const key = `${s.chain}:${address}:${s.from.mint}`;
+    if (s.balance.key === key) return;
+    s.balance = { key, raw: null };
+    const chain = s.chain;
+    void readBalance(publicRead(chain), address, s.from.mint)
+      .then((raw) => {
+        if (s.balance.key !== key) return;
+        s.balance.raw = raw;
+        render();
+      })
+      // Not read: leave it unknown (the buttons stay off) and ask again the next time the screen is drawn.
+      .catch(() => {
+        if (s.balance.key === key) s.balance = { key: '', raw: null };
+      });
+  }
+
+  /** 10%, 50% or Max of what is held goes into the amount box, and the price follows by itself. */
+  function useShare(share: Share): void {
+    const bal = currentBalance();
+    const from = s.from;
+    if (!from || bal === null) return;
+    const native = from.mint === EVM_NATIVE_ADDRESS || from.mint === SOL_MINT;
+    const exact = shareOfBalance(bal, share, native ? { cushion: cushionUnits(FEE_CUSHION[s.chain], from.decimals) } : null);
+    // Rounded down to 8 places so the box shows a number a person can read, never a figure above what was meant.
+    const step = 10n ** BigInt(Math.max(0, from.decimals - 8));
+    const raw = (exact / step) * step;
+    s.amount = raw > 0n ? fromSmallestUnit(raw, from.decimals) : '';
+    resetQuote();
+    render();
+    scheduleAuto();
+  }
+
   /** Starts reading the price shortly after the person stops changing something, so nobody has to ask for one. */
   function scheduleAuto(): void {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
+      autoTimer = undefined;
       if (s.from && s.to && s.from.mint !== s.to.mint && rawAmount() !== null && accountFor(s.chain) && s.phase === 'idle' && !s.error) void getQuote();
     }, 450);
   }
@@ -646,6 +702,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       s.execution = execution;
       record(execution, quote);
       s.phase = 'done';
+      // What is held has changed: read it again for the percentage buttons.
+      s.balance = { key: '', raw: null };
       render();
       void host.refresh();
     } catch (e) {
@@ -668,6 +726,27 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       clearTimeout(logoTimer);
       logoTimer = setTimeout(() => (s.picker ? renderPicker() : render()), 150);
     });
+  }
+
+  /** Under "You pay": what is held, and 10% / 50% / Max buttons for filling the amount in one tap. */
+  function shareRow(): HTMLElement {
+    const row = el('div', { class: 'wapp__swap-quick' });
+    if (!s.from) return row;
+    loadBalance();
+    const bal = currentBalance();
+    row.append(el('span', { class: 'wapp__sub', text: bal === null ? 'Reading your balance…' : `Balance ${shortAmount(fromSmallestUnit(bal, s.from.decimals))} ${s.from.symbol}` }));
+    const chips = el('div', { class: 'wapp__swap-shares', attrs: { role: 'group', 'aria-label': 'Fill in part of your balance' } });
+    for (const share of SHARES) {
+      const label = share === 100 ? 'Max' : `${share}%`;
+      const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-label': share === 100 ? 'Pay with the most you can' : `Pay with ${share} percent of your balance` } });
+      b.disabled = bal === null || bal <= 0n;
+      if (b.disabled) b.title = bal === null ? 'Waiting for your balance' : 'There is nothing to spend';
+      else if (share === 100 && (s.from.mint === EVM_NATIVE_ADDRESS || s.from.mint === SOL_MINT)) b.title = 'The most you can spend, keeping a little back for the network fee';
+      b.addEventListener('click', () => useShare(share));
+      chips.append(b);
+    }
+    row.append(chips);
+    return row;
   }
 
   const tokenButton = (side: 'from' | 'to'): HTMLElement => {
@@ -750,17 +829,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function evmConnect(): HTMLElement {
     const box = el('div', { class: 'wapp__stack' });
     if (evm.account) {
-      const row = el('div', { class: 'wapp__row-actions' });
-      row.append(el('span', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}` }));
-      const off = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Disconnect', attrs: { type: 'button' } });
-      off.addEventListener('click', () => {
-        void evm.disconnect().then(() => {
-          resetQuote();
-          render();
-        });
-      });
-      row.append(off);
-      box.append(row);
+      box.append(el('span', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}` }));
       return box;
     }
     box.append(banner('info', 'Connect your wallet to swap on this network. Use a wallet for Ethereum-style networks, such as MetaMask, Coinbase Wallet or Rabby. Aretia never holds your keys.'));
@@ -945,6 +1014,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       el('div', { class: 'wapp__swap-box' }, [
         el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You pay' }), tokenNote('from')]),
         el('div', { class: 'wapp__swap-main' }, [tokenButton('from'), amount]),
+        shareRow(),
       ]),
     );
     const flip = el('button', { class: 'wapp__swap-flip', attrs: { type: 'button', 'aria-label': 'Switch the two tokens' } }, [icon('M7 7h12l-3-3M17 17H5l3 3')]);
@@ -1116,6 +1186,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (caret !== null) again.setSelectionRange(caret, caret);
       }
     }
+    // Whenever everything needed for a price is in place and none has been asked for, ask: the amount to receive fills in by
+    // itself after any change (a token, a percentage, the wallet connecting), with nothing to press.
+    if (s.phase === 'idle' && !s.error && s.from && s.to && s.from.mint !== s.to.mint && rawAmount() !== null && accountFor(s.chain) && autoTimer === undefined) scheduleAuto();
     clearInterval(ticker);
     // While a checked price is on screen it is read again every few seconds, so it is always current when Swap is pressed.
     if (s.quote && s.phase === 'review') {
@@ -1372,7 +1445,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const riskNote = r.risk
         ? r.risk.score === null
           ? 'Aretia: not enough data to rate this token. That is not a good sign or a bad one.'
-          : `Aretia rating: ${r.risk.label} (concern score ${r.risk.score}/100, higher means more concerns).`
+          : `Aretia rating: ${r.risk.label} (${ratingView(r, 'done').band}). Behind the colour is a concern score of ${r.risk.score}/100; higher means more concerns.`
         : 'Aretia has not rated this token yet. That is not a good sign or a bad one.';
       page = true;
       draw();
@@ -1459,6 +1532,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         refilter();
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
+      bar.append(ratingKey());
       card.append(bar);
       const shownRows = visible();
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */

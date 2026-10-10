@@ -3,7 +3,7 @@ import { AMM_V4_PROGRAM } from '../solana/raydiumAmmV4.js';
 import { burnedShare, checkLock, clearLockIndexes, evmLock, LockReadError, lockedShare, parseLockerEntry, parseV4LockerEntry, solanaLock, v3Lock, v4Lock, V3_LOCKERS, V4_LOCKERS, type LockRead, type SolRead } from './lock.js';
 import { keccak256 } from '../core/keccak.js';
 import { decodeParams, encodeParams } from '../engine/abiGeneric.js';
-import { encodeCall, selector, uint } from '../engine/abi.js';
+import { selector } from '../engine/abi.js';
 import { marketFromAttributes } from './snapshot.js';
 import { rowNumbers } from './snapshot.js';
 

@@ -39,7 +39,8 @@ describe('reading a public node', () => {
     let n = 0;
     const flaky = (async () => {
       n++;
-      if (n <= 4) return new Response('{}', { status: 500 });
+      // Four reads, each tried on the main node and then its backup: eight refusals.
+      if (n <= 8) return new Response('{}', { status: 500 });
       return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x2' }), { status: 200 });
     }) as unknown as typeof fetch;
     const read = publicRead('robinhood', flaky);

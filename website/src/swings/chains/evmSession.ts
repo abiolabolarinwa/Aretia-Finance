@@ -135,6 +135,15 @@ export class EvmSession {
   account: string | null = null;
   /** The provider of the connected wallet, kept so a wallet that has its own session (WalletConnect) can be closed. */
   provider: Eip1193Provider | null = null;
+  /**
+   * True while the connected wallet shares no account: it has locked itself (MetaMask does after a period of
+   * inactivity) or the site's access was removed. The page keeps the wallet and offers to unlock it, instead of
+   * still showing the old account as connected.
+   */
+  locked = false;
+  /** Called when the wallet reports a lock, an account switch or a network change. `accountChanged` is true when the account differs from before. */
+  onChange: ((change: { account: string | null; accountChanged: boolean }) => void) | null = null;
+  private unwatch: (() => void) | null = null;
 
   constructor(private readonly host?: EventHost) {}
 
@@ -154,6 +163,39 @@ export class EvmSession {
     this.provider = w.provider;
     this.walletName = w.info.name;
     this.account = first;
+    this.locked = false;
+    this.watch(w.provider);
+    return first;
+  }
+
+  /** Follows the wallet's own events, so a lock or an account switch inside the wallet shows on the page at once. */
+  private watch(provider: Eip1193Provider): void {
+    this.unwatch?.();
+    if (typeof provider.on !== 'function') return;
+    const onAccounts = (...args: unknown[]): void => {
+      const list = Array.isArray(args[0]) ? args[0].filter((a): a is string => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a)) : [];
+      const before = this.account;
+      this.account = list[0] ?? null;
+      this.locked = this.account === null;
+      this.onChange?.({ account: this.account, accountChanged: this.account?.toLowerCase() !== before?.toLowerCase() });
+    };
+    const onChain = (): void => this.onChange?.({ account: this.account, accountChanged: false });
+    provider.on('accountsChanged', onAccounts);
+    provider.on('chainChanged', onChain);
+    this.unwatch = () => {
+      provider.removeListener?.('accountsChanged', onAccounts);
+      provider.removeListener?.('chainChanged', onChain);
+      this.unwatch = null;
+    };
+  }
+
+  /** Asks a locked wallet to unlock and share its account again (the wallet opens its own password prompt). */
+  async unlock(): Promise<string> {
+    if (!this.adapter) throw new SwingsError('invalid', 'There is no wallet to unlock. Connect one first.');
+    const first = (await this.adapter.connect())[0];
+    if (!first) throw new SwingsError('invalid', 'The wallet shared no account.');
+    this.account = first;
+    this.locked = false;
     return first;
   }
 
@@ -178,6 +220,8 @@ export class EvmSession {
         this.provider = w.provider;
         this.walletName = w.info.name;
         this.account = first;
+        this.locked = false;
+        this.watch(w.provider);
         return first;
       } catch {
         // a wallet that cannot answer stays a manual choice
@@ -194,16 +238,19 @@ export class EvmSession {
     } catch {
       // The page forgets the wallet either way.
     }
+    this.unwatch?.();
     this.provider = null;
     this.adapter = null;
     this.walletName = null;
     this.account = null;
+    this.locked = false;
   }
 
   /** Re-reads the account the wallet has selected, so a switch inside the wallet is noticed before signing. */
   async refreshAccount(): Promise<string | null> {
     if (!this.adapter) return null;
     this.account = (await this.adapter.getAccounts())[0] ?? null;
+    this.locked = this.account === null;
     return this.account;
   }
 }

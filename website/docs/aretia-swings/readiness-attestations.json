@@ -3,7 +3,9 @@
     "done": false
   },
   "real-swap-evm": {
-    "done": false
+    "done": true,
+    "date": "2026-10-10",
+    "note": "BNB Chain, not Base: 0.0248417 BNB to ARK through PancakeSwap, one batched transaction, status success, block 126877670, tx 0xfca75f506bd227fbcbb6ca5d7701abf9caa4034332ebeacfb5a5ecdf9b48fcf7. Read back from a BNB Chain node. Other EVM networks are still unproven"
   },
   "real-cctp-move": {
     "done": false
@@ -33,7 +35,9 @@
     "done": false
   },
   "aretia-fee-evm": {
-    "done": false
+    "done": true,
+    "date": "2026-10-10",
+    "note": "in the same transaction (0xfca75f506bd227fbcbb6ca5d7701abf9caa4034332ebeacfb5a5ecdf9b48fcf7) 0.00007204093 BNB went to 0xeB8725E16e504036c2166aa47804D88Ecc4D0945, exactly 0.29% of the 0.0248417 BNB entered, and that is the address the live site is built with. Seen on BscScan; only BNB Chain so far, fee paid in the native coin"
   },
   "aretia-fee-solana": {
     "done": false

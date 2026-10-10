@@ -1,5 +1,15 @@
 # Production readiness
 
+## Update, 10 October 2026: the first real swap
+
+**Verdict unchanged: not production ready.** One real swap now exists, and it is the only one.
+
+- **What happened:** 0.0248417 BNB swapped to ARK on BNB Chain through PancakeSwap (BNB to BSC-USD to ARK), signed from a MetaMask account that batched everything into one transaction (type 4). Status success, block 126877670, hash `0xfca75f506bd227fbcbb6ca5d7701abf9caa4034332ebeacfb5a5ecdf9b48fcf7`. The status and block were read back from a BNB Chain node, not only from the explorer page.
+- **The fee:** 0.00007204093 BNB went to `0xeB8725E16e504036c2166aa47804D88Ecc4D0945` in that transaction. That is exactly 0.29% of the 0.0248417 BNB entered, and it is the address the live site's bundle carries as the EVM fee address (`PUBLIC_ARETIA_EVM_FEE_ADDRESS`).
+- **Gates recorded:** `real-swap-evm` and `aretia-fee-evm` in `readiness-attestations.json`, with the date, the hash and these limits. The `real-swap-evm` gate no longer says "(Base)": the first proof was BNB Chain.
+- **Still not proven:** any Solana swap and the Solana fee wallet (`2tcBrd1J…`), Base and every other EVM network, selling a token (a token sale needs an approval and takes the fee in that token), a wallet that cannot batch (fee and swap as separate transactions), CCTP, ramps, the database, the external review.
+- **Also found that day:** publicnode answered HTTP 403 for the receipt of a transaction it had not seen yet (BNB Chain, Base, Arbitrum, Optimism), which the page read as a failed swap. Fixed: receipts fall back to the wallet's own node, and public reads try a backup node. Test with a wallet that cannot batch before relying on it.
+
 ## Update, 8 October 2026 (Milestone 52)
 
 **Verdict: still not production ready. Ready, in code, for a named first group once the first-use tests below are done.**
@@ -12,13 +22,13 @@ What changed since the milestone-25 checklist further down: wallet abstraction a
 
 | Area | State |
 |---|---|
-| Real money moved through any Swings flow | **Never.** No swap, no CCTP move and no ramp order has been signed or paid on mainnet |
-| Same-chain swaps | Built on Solana and seven EVM networks; simulated against real programs; not signed |
+| Real money moved through any Swings flow | **One swap, on BNB Chain (10 October 2026).** No other swap, no CCTP move and no ramp order has been signed or paid on mainnet |
+| Same-chain swaps | Built on Solana and eight EVM networks; simulated against real programs; signed once, on BNB Chain; nowhere else |
 | USDC settlement (CCTP) | Quotes, limits and support checks proven against Circle and the real chains read-only; EVM to EVM and Solana to and from EVM; BNB Chain not offered. The Solana burn is proven by simulation on the real program and the Solana claim by identity with real past claims, but neither has been executed |
 | Cross-chain orchestration | Tested with fakes at the edges only; never run with a real wallet |
 | Ramps | MoonPay link building and signing tested; never run with real or sandbox keys; sell is off by default and unverified |
 | Live site | EVM networks are all on by default (set `SWINGS_EVM_CHAINS=base` to narrow); only the two wallets on the staged-rollout list can sign |
-| Aretia fee | 0.29% on every network, paid in the asset sold; the ACT buyback was removed; EVM needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS`; never exercised with a real swap |
+| Aretia fee | 0.29% on every network, paid in the asset sold; the ACT buyback was removed; EVM needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS` (set in production); collected once on a real BNB Chain swap, exactly 0.29%; never collected on Solana or any other EVM network |
 | Database | Migrations validated on a local Postgres engine; not applied to Aretia's project |
 | External review | None |
 

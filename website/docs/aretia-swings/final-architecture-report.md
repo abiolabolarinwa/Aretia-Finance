@@ -67,7 +67,7 @@ Operator controls (Vercel environment variables): `SWINGS_EVM_CHAINS`, `SWINGS_C
 
 ## 9. Not done, stated plainly
 
-- No real swap, CCTP move or ramp order has been executed; no sandbox ramp run; sell flow unverified.
+- One real swap has been executed (BNB Chain, 10 October 2026, with its 0.29% fee). No other real swap, no CCTP move and no ramp order has been executed; no sandbox ramp run; sell flow unverified.
 - WalletConnect is built but off until a WalletConnect project id is set, and has never been used with a real phone. Solana balance watching for ramps is not wired. The Plan tab covers buying and moving between EVM networks only.
 - Server-side recovery copies exist (opt-in; migration 0005 not yet applied to Aretia's database). Aretia-owned candles served from stored swaps; EVM swap-log indexing.
 - Raydium AMM v4 and CLMM, Manifest, Uniswap V4 routing.

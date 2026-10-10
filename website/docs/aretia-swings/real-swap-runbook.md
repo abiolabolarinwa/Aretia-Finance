@@ -1,6 +1,6 @@
 # Real-swap runbook (staged rollout)
 
-Aretia Swings has never signed a real swap. Everything so far is proven by simulation against the real contracts and programs. This is the order to change that, with the smallest possible exposure at each step. It needs **your wallet and your funds**: nothing in this list can be done for you.
+**Status, 10 October 2026:** one real swap has been signed and confirmed, on BNB Chain (0.0248417 BNB to ARK through PancakeSwap, with the 0.29% fee arriving at the EVM fee address in the same batched transaction). Nothing else has: not Solana, not Base or any other EVM network, not a sell, not a token-to-token swap with an approval. Everything else is proven by simulation against the real contracts and programs. This is the order to change that, with the smallest possible exposure at each step. It needs **your wallet and your funds**: nothing in this list can be done for you.
 
 ## Rules for every step
 - Use **your own wallet**, a **fresh small balance** you can afford to lose entirely, and amounts of a few dollars.

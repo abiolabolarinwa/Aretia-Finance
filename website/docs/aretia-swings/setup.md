@@ -31,7 +31,7 @@ Local development: put values in `website/.env.local` (git-ignored).
 5. Check: `GET /api/swings-tokens` from the site origin should return `{"tokens":[...]}`.
 
 ## Turning on an EVM chain (do not skip steps)
-All seven EVM networks are on by default. Narrowing or switching them off is an operator action with no code change. **No real swap has yet been signed on any of them**, so until the runbook is done, consider narrowing with `SWINGS_EVM_CHAINS` and `SWINGS_CANARY_WALLETS`.
+All seven EVM networks are on by default. Narrowing or switching them off is an operator action with no code change. **Only BNB Chain has had a real swap signed so far (10 October 2026); the others have not**, so until the runbook is done, consider narrowing with `SWINGS_EVM_CHAINS` and `SWINGS_CANARY_WALLETS`.
 1. Nothing to set for Aretia's own router. (`ZEROX_API_KEY` only adds the optional, non-core 0x benchmark provider.)
 2. The venue contracts (`dex/entries.ts`) are proven by `npm run test:live`; run it before enabling a chain and confirm the addresses on the chain's block explorer.
 3. The 0.29% Aretia fee is on for every network (see below); set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` before enabling any EVM network.

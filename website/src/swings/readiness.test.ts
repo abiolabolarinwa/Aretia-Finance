@@ -8,8 +8,10 @@ const file = JSON.parse(readFileSync(join(process.cwd(), 'docs/aretia-swings/rea
 const allDone: Attestations = Object.fromEntries(Object.keys(file).map((k) => [k, { done: true, date: '2026-10-08' }]));
 
 describe('readiness', () => {
-  it('is NOT ready by default: the shipped attestation file has nothing marked done', () => {
-    expect(Object.values(file).every((a) => a?.done === false)).toBe(true);
+  it('is NOT ready by default: the shipped attestation file marks only what has real evidence, and every entry that is done has a date and a note', () => {
+    // Done so far (10 October 2026): one real EVM swap and its 0.29% fee, both on BNB Chain. Nothing else has been run for real.
+    expect(Object.entries(file).filter(([, a]) => a?.done).map(([id]) => id).sort()).toEqual(['aretia-fee-evm', 'real-swap-evm']);
+    for (const a of Object.values(file)) if (a?.done) expect(a.date && a.note).toBeTruthy();
     const r = evaluate(good, file);
     expect(r.canary.ready).toBe(false);
     expect(r.public.ready).toBe(false);

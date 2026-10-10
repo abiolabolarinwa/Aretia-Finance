@@ -2,6 +2,7 @@ import { ACT as ACT_INFO } from '../data/site';
 import { initSwings } from './walletSwings';
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
+import { sidebarItemFor } from './walletNav';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
@@ -327,7 +328,7 @@ export function initWalletApp(): void {
     if (title) title.textContent = TITLES[view];
     // Only the sidebar entries show a current page; other [data-nav] buttons are plain shortcuts.
     document.querySelectorAll<HTMLElement>('.wapp__nav [data-nav]').forEach((b) => {
-      if (b.dataset.nav === view) b.setAttribute('aria-current', 'page');
+      if (b.dataset.nav === sidebarItemFor(view)) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
     // The Swap page shows the same panel the Markets page is built on.

@@ -8,7 +8,7 @@
  *  - one quote executes at most once, and a broadcast is never retried here;
  *  - nothing is sent without an explicit confirmation naming the quote.
  */
-import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
+import { DEFAULT_FEE_CONFIG, FEE_PERCENT, planAretiaFee } from '../core/fee.js';
 import { sameToken } from '../core/token.js';
 import { summarizeQuote, type ExecutionSummary } from '../core/summary.js';
 import {
@@ -178,7 +178,7 @@ export class AretiaRouter {
         return;
       }
       const problems = this.executabilityProblems(result.value, request);
-      if (!active[i]!.carriesAretiaFee && planAretiaFee(request.amountIn, request.chain, this.feeConfig).state === 'ready') problems.push('An outside route was found, but it cannot collect the 0.29% Aretia fee, so Aretia does not offer it.');
+      if (!active[i]!.carriesAretiaFee && planAretiaFee(request.amountIn, request.chain, this.feeConfig, request.from.address).state === 'ready') problems.push(`An outside route was found, but it cannot collect the ${FEE_PERCENT} Aretia fee, so Aretia does not offer it.`);
       if (problems.length > 0) {
         rejected.push({ providerId, reasons: problems });
         this.emit({ type: 'quote-rejected', providerId, reasons: problems });

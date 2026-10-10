@@ -1,6 +1,6 @@
 /**
  * Read-only live proof: a PumpSwap pool that is NOT the canonical pump.fun pool of its pair (Quantum Inu, QI/SOL) is
- * found, quoted by the program, built with the 0.29% fee and accepted by the real program in simulation.
+ * found, quoted by the program, built with the 0.58% fee and accepted by the real program in simulation.
  * Nothing is signed or sent.
  */
 import * as web3 from '@solana/web3.js';
@@ -46,7 +46,7 @@ describe('live: a PumpSwap pool that is not the canonical one', () => {
     expect(pools.map((p) => p.ref.address)).toContain(QI_POOL);
   }, 120_000);
 
-  it('quotes, builds with the 0.29% fee and the real program accepts SOL -> QI', async () => {
+  it('quotes, builds with the 0.58% fee and the real program accepts SOL -> QI', async () => {
     const provider = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee: liveFeeConfig('') });
     for (const [from, amountIn] of [[SOL, 20_000_000n]] as const) {
       await new Promise((r) => setTimeout(r, 3000));

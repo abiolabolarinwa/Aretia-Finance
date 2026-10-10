@@ -1,6 +1,6 @@
 /**
  * Read-only live proof of Slipstream (Aerodrome on Base): the addresses are the venue's own, the
- * quote comes from its quoter, and the transaction Aretia builds, with the 0.29% fee, is accepted by the real router in
+ * quote comes from its quoter, and the transaction Aretia builds, with the 0.58% fee, is accepted by the real router in
  * simulation. Nothing is signed or sent.
  */
 import { describe, expect, it } from 'vitest';
@@ -45,7 +45,7 @@ describe('live: Slipstream, simulation only', () => {
       const prepared = await provider.buildTransaction(q);
       console.log(entry.id, 'out', q.expectedOut, 'fee', q.costs.aretiaFee.amount, 'ok', prepared.simulation.ok, prepared.simulation.blockers, q.route.legs.map((l) => l.venue));
       expect(q.expectedOut).toBeGreaterThan(0n);
-      expect(q.costs.aretiaFee.amount).toBe((10n ** 16n * 29n) / 10_000n);
+      expect(q.costs.aretiaFee.amount).toBe((10n ** 16n * 58n) / 10_000n);
       expect(prepared.simulation.blockers).toEqual([]);
     }
   }, 240_000);

@@ -1,6 +1,6 @@
 /**
  * Read-only live proof of the two-step route on Base: ETH for a Virtuals agent token, through VIRTUAL. The first step (ETH to
- * VIRTUAL, with the 0.29% Aretia fee) is quoted, built and simulated against the real contracts. The second step (VIRTUAL to the
+ * VIRTUAL, with the 0.58% Aretia fee) is quoted, built and simulated against the real contracts. The second step (VIRTUAL to the
  * agent token) is quoted when the route is quoted, and built from what "arrived": the test plays the part of the first step
  * having been confirmed by giving the sender that VIRTUAL inside each simulation. Nothing is signed or sent.
  */
@@ -73,7 +73,7 @@ describe('live: two steps on Base (ETH, then VIRTUAL, then a Virtuals agent toke
     const quote = await chained.getQuote({ chain: 'base', from, to, amountIn: 10n ** 16n, slippageBps: 300, account: { chain: 'base', address: SENDER } });
     console.log('chained quote', quote.expectedOut, quote.minOut, quote.route.legs.map((l) => l.venue), 'fee', quote.costs.aretiaFee.amount);
     expect(quote.providerId).toBe('aretia-chain');
-    expect(quote.costs.aretiaFee.amount).toBe((10n ** 16n * 29n) / 10_000n);
+    expect(quote.costs.aretiaFee.amount).toBe((10n ** 16n * 58n) / 10_000n);
     expect(quote.route.legs.length).toBeGreaterThanOrEqual(2);
     expect(quote.minOut).toBeGreaterThan(0n);
 

@@ -3,7 +3,7 @@
  * nowhere else; this module only decides WHICH step of a plan carries the fee and how the costs are disclosed.
  *
  * Rules (tests enforce them):
- *  - there is exactly one Aretia charge, the 0.29% fee, paid in the asset the user is paying with. It is never added on top of
+ *  - there is exactly one Aretia charge, the 0.58% fee, paid in the asset the user is paying with (a coin or a stablecoin). It is never added on top of
  *    itself: a plan carries it on at most ONE step, so a multi-step plan does not pay it twice on the same money;
  *  - ramps and settlements carry no Aretia charge; their providers' fees are shown as the providers' own;
  *  - every cost is disclosed on its own line: the amount, the network fee, the venue fee, the settlement fee, the ramp
@@ -36,7 +36,7 @@ export function selectFee(legs: readonly ExecutionLeg[], chains: readonly (Chain
     const leg = legs[i]!;
     const chain = chains[i] ?? null;
     if (leg.kind !== 'swap' || !chain || leg.input.amount === null) continue;
-    const plan = planAretiaFee(leg.input.amount, chain, config);
+    const plan = planAretiaFee(leg.input.amount, chain, config, leg.input.assetKey);
     if (plan.state === 'blocked') return { legIndex: null, chain, amount: 0n, reason: `The Aretia fee is blocked: ${plan.reasons.join(' ')}` };
     if (plan.state === 'ready') return { legIndex: i, chain, amount: plan.fee, reason: null };
   }

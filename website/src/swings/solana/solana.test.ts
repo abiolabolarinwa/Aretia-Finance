@@ -344,36 +344,36 @@ describe('DirectSolanaProvider', () => {
       expect(q.inAmount).toBe(10_000_000n);
     });
 
-    it('takes 0.29% of the SOL entered, in SOL, out of that amount, in the same transaction, and swaps the rest', async () => {
+    it('takes 0.58% of the SOL entered, in SOL, out of that amount, in the same transaction, and swaps the rest', async () => {
       const { rpc } = rpcWith();
       const p = withFee(rpc, fee());
       const q = await p.getQuote(req);
       const raw = q.raw as { fee: { amount: bigint; treasury: string; native: boolean }; legs: { amountIn: bigint }[] };
-      expect(raw.fee).toMatchObject({ amount: 29_000n, treasury: TREASURY, native: true });
-      expect(q.inAmount).toBe(9_971_000n); // what was entered, less the fee
-      expect(raw.legs[0]!.amountIn).toBe(9_971_000n);
-      expect(q.costs.aretiaFee).toMatchObject({ amount: 29_000n, asset: { address: WSOL_MINT } });
+      expect(raw.fee).toMatchObject({ amount: 58_000n, treasury: TREASURY, native: true });
+      expect(q.inAmount).toBe(9_942_000n); // what was entered, less the fee
+      expect(raw.legs[0]!.amountIn).toBe(9_942_000n);
+      expect(q.costs.aretiaFee).toMatchObject({ amount: 58_000n, asset: { address: WSOL_MINT } });
       expect(q.request.amountIn).toBe(10_000_000n);
       const prepared = await p.buildTransaction(q);
       expect(prepared.simulation.blockers).toEqual([]);
       const payload = prepared.payload as { steps: string[] };
-      expect(payload.steps.some((x) => /Aretia fee: send 29000 lamports/.test(x))).toBe(true);
-      expect(prepared.simulation.warnings.join(' ')).toMatch(/Aretia fee of 29000/);
+      expect(payload.steps.some((x) => /Aretia fee: send 58000 lamports/.test(x))).toBe(true);
+      expect(prepared.simulation.warnings.join(' ')).toMatch(/Aretia fee of 58000/);
     });
 
-    it('takes it in the token being sold when the swap starts in a token, so a USDC seller pays in USDC', async () => {
+    it('takes it in USDC when the swap is paid with USDC', async () => {
       const p = withFee(withMint(rpcWith().rpc), fee());
       const q = await p.getQuote({ ...req, from: { chain: 'solana', address: USDC }, to: { chain: 'solana', address: WSOL_MINT }, amountIn: 1_000_000n });
       const raw = q.raw as { fee: { amount: bigint; mint: string; native: boolean } };
-      expect(raw.fee).toMatchObject({ amount: 2_900n, mint: USDC, native: false });
-      expect(q.inAmount).toBe(997_100n);
-      expect(q.costs.aretiaFee).toMatchObject({ amount: 2_900n, asset: { address: USDC } });
+      expect(raw.fee).toMatchObject({ amount: 5_800n, mint: USDC, native: false });
+      expect(q.inAmount).toBe(994_200n);
+      expect(q.costs.aretiaFee).toMatchObject({ amount: 5_800n, asset: { address: USDC } });
     });
 
     it('charges nothing, and swaps everything, when the amount is too small for a whole unit of fee', async () => {
-      const q = await withFee(rpcWith().rpc, fee()).getQuote({ ...req, amountIn: 300n });
+      const q = await withFee(rpcWith().rpc, fee()).getQuote({ ...req, amountIn: 100n });
       expect((q.raw as { fee?: unknown }).fee).toBeUndefined();
-      expect(q.inAmount).toBe(300n);
+      expect(q.inAmount).toBe(100n);
     });
 
     it('fails closed when it is on without a fee address', async () => {

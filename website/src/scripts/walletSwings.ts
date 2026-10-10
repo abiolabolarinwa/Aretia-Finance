@@ -23,6 +23,7 @@ import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { ratingKey } from './walletRatingGuide.js';
 import { notify } from './walletNotifications.js';
+import { FEE_PERCENT } from '../swings/core/fee.js';
 import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
@@ -126,7 +127,7 @@ const providerLabel = (id: string): string => (id === 'aretia' || id === 'aretia
 type Phase = 'idle' | 'quoting' | 'quoted' | 'preparing' | 'review' | 'signing' | 'tracking' | 'done';
 
 const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
-/** Where the 0.29% Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
+/** Where the Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
 const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
 export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void } {
@@ -706,7 +707,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         s.execution = null;
         s.phase = 'review';
         s.error = null;
-        s.notice = `${execution.error ?? 'Your wallet did not send this.'} You can try again, or send it one step at a time: your wallet then asks you to confirm each step on its own (the approval, then the 0.29% Aretia fee, then the swap), and the fee is paid before the swap.`;
+        s.notice = `${execution.error ?? 'Your wallet did not send this.'} You can try again, or send it one step at a time: your wallet then asks you to confirm each step on its own (the approval, then the Aretia fee, then the swap), and the fee is paid before the swap.`;
         s.stepByStep = isEvm(quote.request.chain) && !!evm.adapter;
         return render();
       }
@@ -974,7 +975,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}; shown by your wallet before you sign`],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (0.29%), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
+      ['Aretia fee', sum.aretiaFee.state === 'off' ? (sum.aretiaFee.offBecause === 'token' ? 'None: you are selling a token, and Aretia charges only when you pay with a coin or stablecoin' : 'None') : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT}), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });

@@ -9,8 +9,8 @@ const allDone: Attestations = Object.fromEntries(Object.keys(file).map((k) => [k
 
 describe('readiness', () => {
   it('is NOT ready by default: the shipped attestation file marks only what has real evidence, and every entry that is done has a date and a note', () => {
-    // Done so far (10 October 2026): one real EVM swap and its 0.29% fee, both on BNB Chain. Nothing else has been run for real.
-    expect(Object.entries(file).filter(([, a]) => a?.done).map(([id]) => id).sort()).toEqual(['aretia-fee-evm', 'real-swap-evm']);
+    // Done so far (10 October 2026): one real EVM swap, on BNB Chain. Its fee was seen at the old 0.29% rate, so the fee gate stays open until the 0.58% rate is seen on chain.
+    expect(Object.entries(file).filter(([, a]) => a?.done).map(([id]) => id).sort()).toEqual(['real-swap-evm']);
     for (const a of Object.values(file)) if (a?.done) expect(a.date && a.note).toBeTruthy();
     const r = evaluate(good, file);
     expect(r.canary.ready).toBe(false);

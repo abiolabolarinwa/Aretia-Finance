@@ -1,6 +1,6 @@
 # Real-swap runbook (staged rollout)
 
-**Status, 10 October 2026:** one real swap has been signed and confirmed, on BNB Chain (0.0248417 BNB to ARK through PancakeSwap, with the 0.29% fee arriving at the EVM fee address in the same batched transaction). Nothing else has: not Solana, not Base or any other EVM network, not a sell, not a token-to-token swap with an approval. Everything else is proven by simulation against the real contracts and programs. This is the order to change that, with the smallest possible exposure at each step. It needs **your wallet and your funds**: nothing in this list can be done for you.
+**Status, 10 October 2026:** one real swap has been signed and confirmed, on BNB Chain (0.0248417 BNB to ARK through PancakeSwap, with the then 0.29% fee arriving at the EVM fee address in the same batched transaction). Nothing else has: not Solana, not Base or any other EVM network, not a sell, not a token-to-token swap with an approval. Everything else is proven by simulation against the real contracts and programs. This is the order to change that, with the smallest possible exposure at each step. It needs **your wallet and your funds**: nothing in this list can be done for you.
 
 ## Rules for every step
 - Use **your own wallet**, a **fresh small balance** you can afford to lose entirely, and amounts of a few dollars.
@@ -11,7 +11,7 @@
 ## 0. Before any real swap
 1. Apply the database and run discovery (`docs/aretia-swings/setup.md`), so shadow comparisons are stored.
 2. Set `SWINGS_CANARY_WALLETS` to your own wallet address (comma-separate more later). Redeploy. Anyone else can still get quotes, but nobody else can review or sign. The page only ever receives hashes of the list.
-3. Test the 0.29% Aretia fee separately, last (step 7).
+3. Test the 0.58% Aretia fee separately, last (step 7).
 4. Leave `SWINGS_PROTECTED_SUBMIT` and `SWINGS_PUBLIC_API` **off** until step 8.
 5. Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and `npm run test:live` on the commit you are deploying. Record the commit.
 
@@ -38,9 +38,9 @@ Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sens
 ## 6. Splits
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.
 
-## 7. The Aretia fee (0.29%)
+## 7. The Aretia fee (0.58%, when paying with a coin or stablecoin)
 - Set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` in Vercel (the address that receives EVM fees) and redeploy.
-- With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.29% of the SOL entered arrives at the fee wallet, in the same transaction; sell a little USDC and confirm the fee arrives in USDC; on one EVM network confirm the fee transaction is sent and confirmed before the swap, and arrives at the EVM fee address.
+- With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.58% of the SOL entered arrives at the fee wallet, in the same transaction; swap a little USDC for SOL and confirm the fee arrives in USDC; sell a token and confirm NO fee is taken (the whole amount is swapped); on one EVM network confirm the fee transaction is sent and confirmed before the swap (or in the same batch), and arrives at the EVM fee address.
 
 ## 8. Optional features
 - Protected sending (`SWINGS_PROTECTED_SUBMIT=on`): test one small swap; confirm the tip is shown on the review screen and charged only on success.

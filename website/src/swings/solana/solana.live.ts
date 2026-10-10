@@ -468,7 +468,7 @@ describe('live: Meteora DLMM, simulation only', () => {
 
 import { LIVE_FEE_CONFIG } from '../core/fee.js';
 
-describe('live: the product configuration, with the 0.29% Aretia fee on (nothing signed or sent)', () => {
+describe('live: the product configuration, with the 0.58% Aretia fee on (nothing signed or sent)', () => {
   it('SOL -> USDC and USDC -> SOL carry the fee, in the asset being sold, to the fee wallet, and the real programs accept them', async () => {
     const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee: LIVE_FEE_CONFIG });
     for (const [label, from, to, amount] of [['1 SOL -> USDC', SOL, USDC, 1_000_000_000n], ['100 USDC -> SOL', USDC, SOL, 100_000_000n]] as const) {
@@ -477,7 +477,7 @@ describe('live: the product configuration, with the 0.29% Aretia fee on (nothing
       const raw = q.raw as { fee?: { amount: bigint; treasury: string; native: boolean } };
       const prepared = await p.buildTransaction(q);
       console.log('LIVE CONFIG', label, 'fee', raw.fee?.amount, 'to', raw.fee?.treasury.slice(0, 6), 'ok', prepared.simulation.ok, prepared.simulation.blockers);
-      expect(raw.fee?.amount).toBe((amount * 29n) / 10_000n);
+      expect(raw.fee?.amount).toBe((amount * 58n) / 10_000n);
       expect(raw.fee?.treasury).toBe(LIVE_FEE_CONFIG.chains.solana.treasuryAddress);
       expect(raw.fee?.native).toBe(from === SOL);
       expect(q.inAmount).toBe(amount - raw.fee!.amount);

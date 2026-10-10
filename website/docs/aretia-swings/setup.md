@@ -34,7 +34,7 @@ Local development: put values in `website/.env.local` (git-ignored).
 All seven EVM networks are on by default. Narrowing or switching them off is an operator action with no code change. **Only BNB Chain has had a real swap signed so far (10 October 2026); the others have not**, so until the runbook is done, consider narrowing with `SWINGS_EVM_CHAINS` and `SWINGS_CANARY_WALLETS`.
 1. Nothing to set for Aretia's own router. (`ZEROX_API_KEY` only adds the optional, non-core 0x benchmark provider.)
 2. The venue contracts (`dex/entries.ts`) are proven by `npm run test:live`; run it before enabling a chain and confirm the addresses on the chain's block explorer.
-3. The 0.29% Aretia fee is on for every network (see below); set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` before enabling any EVM network.
+3. The 0.58% Aretia fee is on for every network, for swaps paid with a coin or stablecoin (see below); set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` before enabling any EVM network.
 4. Test with your own wallet and a small amount on that chain: quote, review, sign, confirm, check balances. Use a browser with your wallet and a staging deployment first.
 5. To test one chain on its own, set `SWINGS_EVM_CHAINS=base` (for example) in production so only that chain is on.
 6. To switch every EVM network off, set it to `none`. To go back to all on, delete the variable. No deploy is needed beyond the environment change.
@@ -44,8 +44,8 @@ Optional database tables: run `0002_swings_events.sql` too if you enable analyti
 ## Read-only live checks
 `npm run test:live` calls real public services (Jupiter quote, GeckoTerminal on five chains, public Solana and EVM nodes). It signs nothing and spends nothing. It can fail because a third party is down or rate-limiting (GeckoTerminal allows about 30 requests a minute).
 
-## The Aretia fee (0.29%)
-Rate: 29 bps, `ARETIA_FEE_BPS` in `src/swings/core/fee.ts`, charged on every listed network. The ACT buyback has been removed. The fee is taken out of the amount the user enters (what they spend is exactly what they typed; the rest is swapped), in the asset they are paying with: SOL for a Solana swap that starts in SOL, USDC or USDT when they sell those, and the token being sold otherwise.
+## The Aretia fee (0.58%, on swaps paid with a coin or stablecoin)
+Rate: 58 bps, `ARETIA_FEE_BPS` in `src/swings/core/fee.ts`, charged on every listed network. The ACT buyback has been removed. The fee is taken out of the amount the user enters (what they spend is exactly what they typed; the rest is swapped), in the asset they are paying with, and only when that asset is a network's own coin (SOL, ETH, BNB, POL, AVAX), that coin wrapped, or a main stablecoin (USDC, USDT and the others in `core/feeAssets.ts`, which reuses the router's hop-token list). Paying with any other token, which is selling it, carries no fee. So the fee wallet only ever receives liquid assets, and swapping USDC to SOL pays it too. Fees from before 10 October 2026 were 0.29% on sales as well, in the token sold, so the fee wallet may hold some of those tokens.
 
 - **Solana:** one transfer inside the same transaction as the swap, to the owner's existing fee wallet (`SWAP_FEE_WALLET`). A token fee also opens the fee wallet's account for that token the first time (the user pays its rent once).
 - **EVM networks:** a separate transaction sent just before the swap (after any approval), confirmed first, and never sent twice for one quote. It goes to one address you set at build time: **`PUBLIC_ARETIA_EVM_FEE_ADDRESS`** (a public value, like the WalletConnect id). Until it is set, EVM swaps are paused with a plain message instead of letting them through without the fee.

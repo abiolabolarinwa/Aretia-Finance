@@ -35,9 +35,8 @@
     "done": false
   },
   "aretia-fee-evm": {
-    "done": true,
-    "date": "2026-10-10",
-    "note": "in the same transaction (0xfca75f506bd227fbcbb6ca5d7701abf9caa4034332ebeacfb5a5ecdf9b48fcf7) 0.00007204093 BNB went to 0xeB8725E16e504036c2166aa47804D88Ecc4D0945, exactly 0.29% of the 0.0248417 BNB entered, and that is the address the live site is built with. Seen on BscScan; only BNB Chain so far, fee paid in the native coin"
+    "done": false,
+    "note": "NOT DONE AT THE CURRENT RATE. The fee is now 0.58% and paid only when the swap is paid with a coin or stablecoin. Proven earlier at the old 0.29% rate (10 October 2026): in the same transaction (0xfca75f506bd227fbcbb6ca5d7701abf9caa4034332ebeacfb5a5ecdf9b48fcf7) 0.00007204093 BNB went to 0xeB8725E16e504036c2166aa47804D88Ecc4D0945, exactly 0.29% of the 0.0248417 BNB entered, to the address the live site is built with, and a later ARK sale put 0.008525269084 ARK (0.29% of what was sold) there. Repeat with one small swap paid in a coin or stablecoin and confirm 0.58% arrives, then mark this done with the new hash"
   },
   "aretia-fee-solana": {
     "done": false

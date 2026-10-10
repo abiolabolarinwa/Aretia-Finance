@@ -212,7 +212,7 @@ export interface ChainAdapter {
 
 export interface AretiaFeePolicy {
   enabled: boolean;
-  /** Basis points of the amount the user swaps (29 = 0.29%). */
+  /** Basis points of the amount the user swaps (58 = 0.58%). */
   rateBps: number;
 }
 

@@ -6,7 +6,7 @@
  */
 import type { EvmSwapPayload } from '../chains/evm.js';
 import { evmFeeTransfer } from '../chains/evmFee.js';
-import { DEFAULT_FEE_CONFIG, planAretiaFee } from '../core/fee.js';
+import { DEFAULT_FEE_CONFIG, FEE_PERCENT, planAretiaFee } from '../core/fee.js';
 import { encodeApprove } from '../chains/evm.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { normalizeTokenRef } from '../core/token.js';
@@ -130,7 +130,7 @@ export class DirectEvmProvider implements DexProvider {
     if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens on this network.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
     // The Aretia fee comes out of the amount entered; the rest is what is routed and swapped.
-    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, from.address);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     const amountIn = feePlan.net;
     if (amountIn <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
@@ -455,7 +455,7 @@ export class DirectEvmProvider implements DexProvider {
     const read = this.deps.read(chain);
     const taker = request.account.address.toLowerCase();
     // The Aretia fee, from the amount the user entered: its own transaction just before the swap.
-    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, request.from.address);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     const feeAmount = feePlan.fee;
     const blockers: string[] = [];
@@ -603,7 +603,7 @@ export class DirectEvmProvider implements DexProvider {
     }
 
     const fee = feePlan.state === 'ready' ? evmFeeTransfer(taker, raw.nativeIn ? EVM_NATIVE_ADDRESS : raw.path[0]!, feePlan.fee, feePlan.treasury) : null;
-    if (fee) warnings.push('The Aretia fee of 0.29% travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step.');
+    if (fee) warnings.push(`The Aretia fee of ${FEE_PERCENT} travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step.`);
     const payload: EvmSwapPayload = { chainId: info.evmChainId, taker, approval, ...(permit2 ? { permit2 } : {}), ...(fee ? { fee } : {}), swap: { from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16) } };
     return { quoteId: quote.id, chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }

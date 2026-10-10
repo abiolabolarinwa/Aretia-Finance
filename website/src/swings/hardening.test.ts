@@ -7,6 +7,7 @@ import { MockDexProvider } from './providers/mock.js';
 import { parseZeroXQuote } from './providers/evm0x.js';
 import { parseNewPools } from './tokens/sources/geckoTerminal.js';
 import { DEFAULT_FEE_CONFIG, planAretiaFee } from './core/fee.js';
+import { EVM_NATIVE_ADDRESS } from './core/types.js';
 import { decimalsMismatch, normalizeTokenRef, parseTokenKey, tokenKey } from './core/token.js';
 import { CrossChainRouter, classifySwap } from './crosschain/types.js';
 import { redact, routerEventSink, summarize, Telemetry } from './observability/telemetry.js';
@@ -158,8 +159,8 @@ describe('property and fuzz tests', () => {
   it('fee: never more than the rate, never more than the amount, never negative, monotonic, and it plus the rest is exactly what was entered', () => {
     fc.assert(
       fc.property(fc.bigInt({ min: 1n, max: 10n ** 30n }), fc.bigInt({ min: 0n, max: 10n ** 20n }), fc.integer({ min: 0, max: 100 }), (amount, extra, rate) => {
-        const a = planAretiaFee(amount, 'base', cfg(rate));
-        const b = planAretiaFee(amount + extra, 'base', cfg(rate));
+        const a = planAretiaFee(amount, 'base', cfg(rate), EVM_NATIVE_ADDRESS);
+        const b = planAretiaFee(amount + extra, 'base', cfg(rate), EVM_NATIVE_ADDRESS);
         if (a.state !== 'ready' || b.state !== 'ready') return false;
         return a.fee >= 0n && a.fee <= amount && a.fee * 10_000n <= amount * BigInt(rate) && b.fee >= a.fee && a.fee + a.net === amount;
       }),
@@ -168,7 +169,7 @@ describe('property and fuzz tests', () => {
 
   it('fee: is zero whenever the policy is disabled, for any amount and chain, and then everything is swapped', () => {
     fc.assert(fc.property(fc.bigInt({ min: 0n, max: 10n ** 30n }), fc.constantFrom<ChainId>('solana', 'ethereum', 'bnb', 'polygon', 'base'), (amount, chain) => {
-      const p = planAretiaFee(amount, chain);
+      const p = planAretiaFee(amount, chain, DEFAULT_FEE_CONFIG, chain === 'solana' ? 'So11111111111111111111111111111111111111112' : EVM_NATIVE_ADDRESS);
       return p.fee === 0n && p.net === amount;
     }));
   });

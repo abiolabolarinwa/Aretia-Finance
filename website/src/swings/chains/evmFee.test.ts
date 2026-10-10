@@ -146,10 +146,10 @@ describe('the Aretia fee in the Aretia EVM router', () => {
     expect((await p.buildTransaction(q)).payload).not.toHaveProperty('fee');
   });
 
-  it('takes 0.29% out of a native-coin swap, swaps the rest, and sends the fee as its own value transfer', async () => {
+  it('takes 0.58% out of a native-coin swap, swaps the rest, and sends the fee as its own value transfer', async () => {
     const p = provider();
     const q = await p.getQuote(req());
-    const fee = (10n ** 17n * 29n) / 10_000n;
+    const fee = (10n ** 17n * 58n) / 10_000n;
     expect(q.inAmount).toBe(10n ** 17n - fee);
     expect(q.request.amountIn).toBe(10n ** 17n);
     expect(q.expectedOut).toBe(getAmountOut(10n ** 17n - fee, R_WETH, R_USDC, 3000));
@@ -159,15 +159,15 @@ describe('the Aretia fee in the Aretia EVM router', () => {
     const payload = prepared.payload as { fee: { tx: { to: string; value: string }; amount: bigint }; swap: { value: string } };
     expect(payload.fee).toMatchObject({ amount: fee, tx: { to: FEE_ADDRESS, value: '0x' + fee.toString(16) } });
     expect(payload.swap.value).toBe('0x' + (10n ** 17n - fee).toString(16));
-    expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.29%/);
+    expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.58%/);
   });
 
-  it('takes it in the token being sold, so a USDC seller pays in USDC', async () => {
+  it('takes it in USDC when the swap is paid with USDC', async () => {
     const p = provider();
     const q = await p.getQuote(req({ from: { chain: 'base', address: USDC }, to: { chain: 'base', address: EVM_NATIVE_ADDRESS }, amountIn: 5_000_000n }));
-    expect(q.inAmount).toBe(5_000_000n - 14_500n);
+    expect(q.inAmount).toBe(5_000_000n - 29_000n);
     const payload = (await p.buildTransaction(q)).payload as { fee: { token: string; amount: bigint; tx: { to: string; data: string } } };
-    expect(payload.fee).toMatchObject({ token: USDC, amount: 14_500n, tx: { to: USDC } });
+    expect(payload.fee).toMatchObject({ token: USDC, amount: 29_000n, tx: { to: USDC } });
     expect(payload.fee.tx.data.startsWith('0xa9059cbb')).toBe(true);
   });
 
@@ -217,18 +217,30 @@ describe('the Aretia fee in the 0x route', () => {
     const { p, asked } = provider();
     expect(p.carriesAretiaFee).toBe(true);
     const q = await p.getQuote(req);
-    expect(asked[0]!.sellAmount).toBe('997100');
-    expect(q.inAmount).toBe(997_100n);
+    expect(asked[0]!.sellAmount).toBe('994200');
+    expect(q.inAmount).toBe(994_200n);
     expect(q.request.amountIn).toBe(1_000_000n);
-    expect(q.costs.aretiaFee).toMatchObject({ amount: 2_900n, asset: { address: USDC } });
+    expect(q.costs.aretiaFee).toMatchObject({ amount: 5_800n, asset: { address: USDC } });
   });
 
   it('adds the fee as its own transaction before the swap', async () => {
     const { p } = provider();
     const prepared = await p.buildTransaction(await p.getQuote(req));
     const payload = prepared.payload as { fee: { amount: bigint; token: string; recipient: string } };
-    expect(payload.fee).toMatchObject({ amount: 2_900n, token: USDC, recipient: FEE_ADDRESS });
-    expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.29%/);
+    expect(payload.fee).toMatchObject({ amount: 5_800n, token: USDC, recipient: FEE_ADDRESS });
+    expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.58%/);
+  });
+
+  it('takes no fee when a token is being sold: 0x is asked to swap everything entered, and no fee transaction is added', async () => {
+    const { p, asked } = provider();
+    const sell = { ...req, from: { chain: 'base' as const, address: '0x' + '7'.repeat(40) } };
+    const q = await p.getQuote(sell);
+    expect(asked[0]!.sellAmount).toBe('1000000');
+    expect(q.inAmount).toBe(1_000_000n);
+    expect(q.costs.aretiaFee.amount).toBe(0n);
+    const prepared = await p.buildTransaction(q);
+    expect((prepared.payload as { fee?: unknown }).fee).toBeUndefined();
+    expect(prepared.simulation.warnings.join(' ')).not.toMatch(/Aretia fee of/);
   });
 
   it('pauses the swap when the fee address is not set', async () => {

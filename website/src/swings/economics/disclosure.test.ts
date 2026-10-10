@@ -7,6 +7,7 @@ import { DEFAULT_FEE_CONFIG, liveFeeConfig, LIVE_FEE_CONFIG } from '../core/fee.
 
 const NOW = 1_000_000;
 const SOL = 'So11111111111111111111111111111111111111112';
+const BASE_USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 const leg = (kind: ExecutionLeg['kind'], from: string, to: string, inAmt: bigint | null, outAmt: bigint | null, fees: ExecutionLeg['fees'] = [], chain: 'solana' | 'base' = 'solana'): ExecutionLeg => ({
   id: kind + from, kind, title: kind,
   input: { chain, assetKey: from, symbol: from.toUpperCase(), decimals: 6, amount: inAmt },
@@ -15,9 +16,9 @@ const leg = (kind: ExecutionLeg['kind'], from: string, to: string, inAmt: bigint
 });
 
 describe('Aretia fee economics', () => {
-  it('reads the rate from the one place it is set, and it is the 0.29% the owner chose, not a copy of another number', () => {
+  it('reads the rate from the one place it is set, and it is the 0.58% the owner chose, not a copy of another number', () => {
     expect(configuredRateBps()).toBe(LIVE_FEE_CONFIG.policy.rateBps);
-    expect(configuredRateBps()).toBe(29);
+    expect(configuredRateBps()).toBe(58);
     const files: string[] = [];
     const walk = (d: string): void => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.ts$/.test(f) && !/\.test\.ts$|fee\.ts$/.test(f)) files.push(p); } };
     walk(join(process.cwd(), 'src/swings/economics'));
@@ -26,10 +27,10 @@ describe('Aretia fee economics', () => {
   });
 
   it('puts the fee on at most one swap in a multi-step plan, so the same money is not charged twice', () => {
-    const legs = [leg('swap', 'sol', 'usdc', 1_000_000n, 900_000n), leg('settlement', 'usdc', 'usdc', 900_000n, 899_000n), leg('swap', 'usdc', 'act', 899_000n, 5n)];
+    const legs = [leg('swap', SOL, 'usdc', 1_000_000n, 900_000n), leg('settlement', 'usdc', 'usdc', 900_000n, 899_000n), leg('swap', 'usdc', 'act', 899_000n, 5n)];
     const a = selectFee(legs, ['solana', 'solana', 'solana']);
     expect(a.legIndex).toBe(0);
-    expect(a.amount).toBe((1_000_000n * 29n) / 10_000n);
+    expect(a.amount).toBe((1_000_000n * 58n) / 10_000n);
   });
 
   it('charges nothing on a ramp or a settlement alone, and says why', () => {
@@ -38,13 +39,19 @@ describe('Aretia fee economics', () => {
     expect(a.reason).toMatch(/No step in this plan is a swap/);
   });
 
+  it('carries no fee on a plan that only sells a token, and says why', () => {
+    const a = selectFee([leg('swap', '0x' + '7'.repeat(40), BASE_USDC, 1_000_000n, 1n, [], 'base')], ['base'], liveFeeConfig('0x1111111111111111111111111111111111111111'));
+    expect(a).toMatchObject({ legIndex: null, amount: 0n });
+    expect(a.reason).toMatch(/No step in this plan is a swap/);
+  });
+
   it('is off when the policy is off, and on every network once the EVM fee address is set', () => {
     expect(selectFee([leg('swap', 'sol', 'act', 1_000_000n, 1n)], ['solana'], DEFAULT_FEE_CONFIG)).toMatchObject({ legIndex: null, reason: 'The Aretia fee is switched off.' });
-    expect(selectFee([leg('swap', 'usdc', 'act', 1_000_000n, 1n, [], 'base')], ['base'], liveFeeConfig('0x1111111111111111111111111111111111111111'))).toMatchObject({ legIndex: 0, amount: 2_900n });
+    expect(selectFee([leg('swap', BASE_USDC, 'act', 1_000_000n, 1n, [], 'base')], ['base'], liveFeeConfig('0x1111111111111111111111111111111111111111'))).toMatchObject({ legIndex: 0, amount: 5_800n });
   });
 
   it('reports a blocked fee instead of quietly charging nothing', () => {
-    const a = selectFee([leg('swap', 'usdc', 'act', 1_000_000n, 1n, [], 'base')], ['base']);
+    const a = selectFee([leg('swap', BASE_USDC, 'act', 1_000_000n, 1n, [], 'base')], ['base']);
     expect(a.legIndex).toBeNull();
     expect(a.reason).toMatch(/blocked.*fee address/);
   });

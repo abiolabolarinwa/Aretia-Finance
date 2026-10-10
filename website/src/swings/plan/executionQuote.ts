@@ -9,6 +9,7 @@
  *  - an unknown amount stays unknown: if any leg has no price, the final amount is null and says why, never a guess;
  *  - the expiry is the earliest of the legs, the risk is the worst of the legs.
  */
+import { FEE_PERCENT } from '../core/fee.js';
 import { CHAINS, SwingsError, type ChainId, type Quote } from '../core/types.js';
 import type { RampQuote } from '../ramp/types.js';
 import type { SettlementQuote } from '../settlement/types.js';
@@ -144,7 +145,7 @@ export function legFromSwap(q: Quote, from: TokenMeta, to: TokenMeta): Execution
   };
   cost('Network fee', 'network', q.costs.network);
   cost('Venue fee', 'dex', q.costs.provider);
-  if (q.costs.aretiaFee.amount > 0n) cost('Aretia fee (0.29%)', 'aretia-fee', q.costs.aretiaFee);
+  if (q.costs.aretiaFee.amount > 0n) cost(`Aretia fee (${FEE_PERCENT})`, 'aretia-fee', q.costs.aretiaFee);
   return {
     id: q.id,
     kind: 'swap',

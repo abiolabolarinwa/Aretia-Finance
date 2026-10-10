@@ -60,6 +60,7 @@ const buyTips = [
   footer={false}
 >
   <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />
+  <script slot="head" is:inline>document.documentElement.dataset.wappSidebar = 'collapsed';</script>
 
   <div class="wapp" data-wapp data-connected="false" data-view="dashboard">
     <aside class="wapp__side" aria-label="Wallet">
@@ -68,9 +69,6 @@ const buyTips = [
           <img src="/assets/logo-mark.png" width="28" height="28" alt="" />
           <span>Aretia</span>
         </a>
-        <button type="button" class="wapp__collapse" data-collapse aria-expanded="true" aria-controls="wapp-nav" aria-label="Collapse sidebar" title="Collapse sidebar">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
-        </button>
       </div>
       <div class="wapp__account" data-account aria-live="polite"></div>
       <nav class="wapp__nav" id="wapp-nav" aria-label="Wallet sections">
@@ -1016,19 +1014,23 @@ const buyTips = [
   .wapp-status.is-fail { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
   .wapp-error { margin: 0; padding: 12px 14px; font-size: 13px; color: #b3261e; background: rgba(179, 38, 30, 0.08); border-radius: var(--radius-md); }
 
+  /* Desktop: the sidebar rests as a narrow icon rail and opens, over the page, only while the
+     pointer is on it (or keyboard focus is in it). The page never reflows. */
   @media (min-width: 961px) {
-    html[data-wapp-sidebar='collapsed'] .wapp__side { padding-left: 12px; padding-right: 12px; overflow-x: hidden; }
-    html[data-wapp-sidebar='collapsed'] .wapp__side-head { flex-direction: column; gap: 12px; }
-    html[data-wapp-sidebar='collapsed'] .wapp__brand { padding: 0; }
-    html[data-wapp-sidebar='collapsed'] .wapp__brand span,
-    html[data-wapp-sidebar='collapsed'] .wapp__label,
-    html[data-wapp-sidebar='collapsed'] .wapp__side-foot a,
-    html[data-wapp-sidebar='collapsed'] .wapp__account > div { display: none; }
-    html[data-wapp-sidebar='collapsed'] .wapp__collapse svg { transform: rotate(180deg); }
-    html[data-wapp-sidebar='collapsed'] .wapp__account { justify-content: center; padding: 8px; }
-    html[data-wapp-sidebar='collapsed'] .wapp[data-connected='false'] .wapp__account { display: none; }
-    html[data-wapp-sidebar='collapsed'] .wapp__nav button,
-    html[data-wapp-sidebar='collapsed'] .wapp__lock { justify-content: center; gap: 0; padding: 11px 0; }
+    .wapp__side { justify-self: start; width: 248px; overflow-x: hidden; transition: width 200ms ease, box-shadow 200ms ease; }
+    .wapp__side .wapp__label, .wapp__side .wapp__brand span, .wapp__side-foot a { white-space: nowrap; }
+    html[data-wapp-sidebar='collapsed'][data-wapp-peek] .wapp__side { box-shadow: 12px 0 40px rgba(10, 6, 50, 0.35); }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__side { width: 76px; padding-left: 12px; padding-right: 12px; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__side-head { flex-direction: column; gap: 12px; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__brand { padding: 0; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__brand span,
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__label,
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__side-foot a,
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__account > div { display: none; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__account { justify-content: center; padding: 8px; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp[data-connected='false'] .wapp__account { display: none; }
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__nav button,
+    html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__lock { justify-content: center; gap: 0; padding: 11px 0; }
     .wapp__nav button:focus-visible, .wapp__lock:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
   }
 

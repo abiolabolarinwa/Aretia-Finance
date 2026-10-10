@@ -270,40 +270,24 @@ const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap
  * CSS variable on the page, so the top bar and the content move with it.
  */
 function initSidebar(): void {
-  const KEY = 'aretia.wallet.sidebar';
   const root = document.documentElement;
   const wapp = document.querySelector<HTMLElement>('[data-wapp]');
-  const toggle = document.querySelector<HTMLButtonElement>('[data-collapse]');
-  if (!wapp || !toggle) return;
+  const side = document.querySelector<HTMLElement>('.wapp__side');
+  if (!wapp || !side) return;
 
-  let collapsed = false;
-  try {
-    collapsed = window.localStorage.getItem(KEY) === 'collapsed';
-  } catch {
-    // storage blocked: the sidebar simply starts open each time
-  }
-  const apply = (): void => {
-    if (collapsed) root.dataset.wappSidebar = 'collapsed';
-    else delete root.dataset.wappSidebar;
-    const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-    toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.setAttribute('aria-label', label);
-    toggle.title = label;
+  // The sidebar always rests as an icon rail; it opens over the page while the pointer is on it
+  // or keyboard focus is inside it, and closes when both leave.
+  root.dataset.wappSidebar = 'collapsed';
+  let hover = false;
+  let focus = false;
+  const sync = (): void => {
+    if (hover || focus) root.dataset.wappPeek = '';
+    else delete root.dataset.wappPeek;
   };
-  // With the labels hidden, a hover tooltip says what each icon is.
-  document.querySelectorAll<HTMLElement>('.wapp__nav button, [data-lock]').forEach((b) => {
-    if (!b.title) b.title = b.textContent?.trim() ?? '';
-  });
-  apply();
-  toggle.addEventListener('click', () => {
-    collapsed = !collapsed;
-    apply();
-    try {
-      window.localStorage.setItem(KEY, collapsed ? 'collapsed' : 'expanded');
-    } catch {
-      // not remembered, still works for this visit
-    }
-  });
+  side.addEventListener('mouseenter', () => { hover = true; sync(); });
+  side.addEventListener('mouseleave', () => { hover = false; sync(); });
+  side.addEventListener('focusin', (e) => { focus = (e.target as HTMLElement).matches(':focus-visible'); sync(); });
+  side.addEventListener('focusout', () => { focus = false; sync(); });
   // Turn the width animation on only after the first paint, so a remembered state does not slide in on load.
   requestAnimationFrame(() => requestAnimationFrame(() => wapp.classList.add('wapp--ready')));
 }

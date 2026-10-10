@@ -734,7 +734,11 @@ const buyTips = [
     /* The list (and the chart above it) run right up to the docked panel, with no empty strip between them. */
     [data-wapp].wapp[data-view='swings'] .wapp__main { padding-right: 0; }
     [data-wapp].wapp[data-view='swings'] :is(.wapp-mt__card, .wapp-mt__chart) { border-right: 0; border-radius: var(--radius-xl) 0 0 var(--radius-xl); box-shadow: none; }
-    [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: flex; flex-direction: column; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 10px; padding: calc(var(--nav-height) + 12px) 16px 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
+    [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: flex; flex-direction: column; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 10px; padding: 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
+  }
+  @media (min-width: 1680px) {
+    /* With the panel docked, the top bar (ACT price and wallet) ends where the list ends, opposite the search box, instead of sitting over the panel. */
+    body:has([data-wapp][data-view='swings'] > .wapp-mp:not([hidden])) .nav--wallet { right: 360px; }
   }
   .wapp-mt__main { min-width: 0; display: grid; gap: 10px; }
   /* The chart opened from the docked panel: in the centre, above the list. */
@@ -745,7 +749,6 @@ const buyTips = [
   .wapp-mt__chart-frame { display: block; width: 100%; height: max(520px, 62vh); border: 0; border-radius: 10px; background: #fff; }
   /* The numbers as one grid table: hairlines between cells, header rows, 12 columns so rows of 3, 4 and 2 line up. */
   .wapp-mp__grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; overflow: clip; flex: none; min-height: min-content; background: var(--color-border-strong); border: 1px solid var(--color-border-strong); border-radius: 12px; }
-  .wapp-mp__gh { grid-column: 1 / -1; padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); }
   .wapp-mp__cell { display: grid; gap: 1px; align-content: center; justify-items: center; min-width: 0; padding: 8px 6px; text-align: center; background: var(--color-bg); }
   .wapp-mp__span-3 { grid-column: span 3; } .wapp-mp__span-4 { grid-column: span 4; } .wapp-mp__span-6 { grid-column: span 6; } .wapp-mp__span-12 { grid-column: 1 / -1; }
   .wapp-mp__cell.is-up .wapp-mp__v { color: #1b8a4b; }
@@ -765,6 +768,7 @@ const buyTips = [
   .wapp-mp__lock.is-timed, .wapp-mt__lock.is-timed { color: #b45309; }
   .wapp-mp__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--color-brand); background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
   .wapp-mp__icon:hover { background: var(--wapp-indigo-line); }
+  .wapp-mp__icon--link { width: 36px; height: 36px; border-radius: 10px; text-decoration: none; }
   .wapp-mp__icon:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   .wapp-mp__head { display: flex; align-items: center; gap: 10px; }
   .wapp-mp__logo { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
@@ -800,7 +804,7 @@ const buyTips = [
   .wapp-mp__lk { color: var(--color-muted); }
   .wapp-mp__lv { display: inline-flex; align-items: center; gap: 8px; color: var(--color-strong); font-variant-numeric: tabular-nums; }
   .wapp-mp__addr { padding: 3px 8px; font-size: 13px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
-  .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 8px; }
 
   /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */
   .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--wapp-indigo); border: 1px solid var(--wapp-indigo-line); border-radius: 12px; }

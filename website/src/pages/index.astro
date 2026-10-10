@@ -99,7 +99,8 @@ const registries = [
         <p>Swap, pay, protect and offset, from one self-custody wallet on every chain you use.</p>
       </section>
 
-      <section class="services" aria-label="Aretia services">
+      <section class="services" aria-labelledby="services-title">
+        <h2 id="services-title" class="services__title">Everything Aretia does.</h2>
         <ul class="grid">
           {
             services.map((s) => (
@@ -204,6 +205,7 @@ const registries = [
   .intro h1 span { display: block; color: var(--color-brand); }
   .intro p { margin: 0.9rem auto 0; max-width: 46ch; font-size: clamp(0.95rem, 1.7vh, 1.1rem); color: var(--color-muted); }
 
+  .services__title { margin: 0 0 0.9rem; font-size: clamp(1.4rem, min(2.2vw, 3.6vh), 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; text-align: left; color: var(--color-strong); }
   .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; }
   /* One soft grey card per service: icon at the top left, then the name and a short line. */
   .grid li { display: flex; }

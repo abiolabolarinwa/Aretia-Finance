@@ -57,6 +57,9 @@ import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, ty
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
 import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
 
+/** Fired on the window when the Ethereum-style account connected in the swap changes; `detail` is the address or null. */
+export const EVM_ACCOUNT_EVENT = 'aretia:evm-account';
+
 export interface SwingsHolding {
   mint: string;
   symbol: string;
@@ -152,8 +155,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const evm = new EvmSession();
   // A lock, an account switch or a network change inside the wallet shows here at once, and a quote made for another
   // account (or for a wallet that has locked) is dropped; unlocking prices the swap again.
+  /** Tells the dashboard which Ethereum-style account is connected (or null), so it can show that account's holdings. */
+  const announceEvm = (): void => {
+    window.dispatchEvent(new CustomEvent(EVM_ACCOUNT_EVENT, { detail: evm.account }));
+  };
   evm.onChange = ({ accountChanged }) => {
-    if (accountChanged) resetQuote();
+    if (accountChanged) {
+      resetQuote();
+      announceEvm();
+    }
     render();
   };
   // One chart for the swap screen, moved between redraws so it is not rebuilt every time the screen changes.
@@ -862,6 +872,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           .unlock()
           .then(() => {
             if (evm.adapter) registerEvmWallet(router, evm.adapter);
+            announceEvm();
             s.error = null;
             render();
           })
@@ -891,6 +902,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           void connectWalletConnect(evm, WC_PROJECT_ID)
             .then(() => {
               if (evm.adapter) registerEvmWallet(router, evm.adapter);
+            announceEvm();
               s.error = null;
               render();
             })
@@ -908,6 +920,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
             .connect(w.uuid)
             .then(() => {
               if (evm.adapter) registerEvmWallet(router, evm.adapter);
+            announceEvm();
               s.error = null;
               render();
             })
@@ -1025,8 +1038,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (isEvm(s.chain) && !evm.account && host.getAddress() && !evmResume.tried) {
       evmResume.tried = true;
       void evm.resume(host.getWalletName()).then(async (account) => {
-        if (account && evm.adapter) registerEvmWallet(router, evm.adapter);
-        else if (s.walletChoices === null) s.walletChoices = (await evm.discover()).map((w) => ({ uuid: w.info.uuid, name: w.info.name }));
+        if (account && evm.adapter) {
+          registerEvmWallet(router, evm.adapter);
+          announceEvm();
+        } else if (s.walletChoices === null) s.walletChoices = (await evm.discover()).map((w) => ({ uuid: w.info.uuid, name: w.info.name }));
         render();
       });
     }

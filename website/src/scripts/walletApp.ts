@@ -1,5 +1,8 @@
 import { ACT as ACT_INFO } from '../data/site';
-import { initSwings } from './walletSwings';
+import { EVM_ACCOUNT_EVENT, initSwings } from './walletSwings';
+import { isEvmNativeMint, loadEvmHoldings, type EvmHolding } from './walletEvmHoldings';
+import { EvmSession } from '../swings/chains/evmSession.js';
+import { CHAIN_IDS, CHAINS } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { sidebarItemFor } from './walletNav';
@@ -346,6 +349,11 @@ export function initWalletApp(): void {
   let walletIcon: string | null = null;
   let holdings: Holding[] | null = null;
   let holdingsFailed = false;
+  // The Ethereum-style account (MetaMask's other account) and what it holds. Solana's `holdings` stays Solana-only: Send and the swap read it.
+  let evmAccount: string | null = null;
+  let evmHoldings: EvmHolding[] = [];
+  let evmToken = 0;
+  const evmSession = new EvmSession();
   let activity: ActivityItem[] | null = null;
   let amountsHidden = false;
   // Tokens with no price (mostly airdropped spam) are hidden from the table unless this is on. Remembered on this device.
@@ -406,21 +414,54 @@ export function initWalletApp(): void {
     if (scan && address) scan.href = `https://solscan.io/account/${address}`;
   }
 
+  /** Solana holdings plus the Ethereum-style account's, best value first, for the dashboard only. */
+  function dashboardHoldings(): Holding[] | null {
+    if (holdings === null) return null;
+    const evmRows = evmHoldings.map((e): Holding => ({ mint: e.mint, symbol: e.symbol, name: e.name, icon: null, amount: e.amount, raw: null, decimals: e.decimals, price: e.price, priceSource: e.price === null ? null : 'DexScreener', value: e.value, thin: false }));
+    if (evmRows.length === 0) return holdings;
+    return [...holdings, ...evmRows].sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
+  }
+  const isNativeMint = (mint: string): boolean => mint === SOL_MINT || isEvmNativeMint(mint);
+
+  /** Reads the Ethereum-style account's holdings. The account comes from the swap's connection, or from a wallet already allowed on this page. */
+  async function loadEvm(account: string | null): Promise<void> {
+    const mine = ++evmToken;
+    evmAccount = account;
+    if (!account) {
+      evmHoldings = [];
+      return renderDashboard();
+    }
+    try {
+      const rows = await loadEvmHoldings(account, CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm'));
+      if (mine !== evmToken) return;
+      evmHoldings = rows;
+    } catch {
+      if (mine !== evmToken) return;
+      evmHoldings = [];
+    }
+    renderDashboard();
+  }
+  window.addEventListener(EVM_ACCOUNT_EVENT, (e) => {
+    const account = (e as CustomEvent<string | null>).detail;
+    if (account !== evmAccount) void loadEvm(account);
+  });
+
   /** The overview card on the dashboard: wallet name, token count and the top few holdings. */
   function renderTopAssets(): void {
     const name = $('[data-wallet-name]');
     const count = $('[data-token-count]');
     const list = $('[data-top-assets]');
     if (name) name.textContent = address ? (walletName ?? 'Wallet') : '—';
-    if (count) count.textContent = holdings ? String(holdings.length) : '—';
+    if (count) count.textContent = dashboardHoldings() ? String(dashboardHoldings()!.length) : '—';
     if (!list) return;
     list.textContent = '';
     if (!address) return;
     if (holdingsFailed) return void list.append(el('li', { class: 'wapp-sub', text: "Couldn't load balances." }));
-    if (holdings === null) return void list.append(el('li', { class: 'wapp-sub', text: 'Loading balances…' }));
-    if (holdings.length === 0) return void list.append(el('li', { class: 'wapp-sub', text: 'This wallet holds no tokens yet.' }));
+    const all = dashboardHoldings();
+    if (all === null) return void list.append(el('li', { class: 'wapp-sub', text: 'Loading balances…' }));
+    if (all.length === 0) return void list.append(el('li', { class: 'wapp-sub', text: 'This wallet holds no tokens yet.' }));
     const mask = (text: string) => (amountsHidden ? '••••' : text);
-    for (const h of holdings.slice(0, 4)) {
+    for (const h of all.slice(0, 4)) {
       list.append(
         el('li', {}, [
           avatar(h),
@@ -445,19 +486,20 @@ export function initWalletApp(): void {
       body.append(el('p', { class: 'wapp-error', text: `Couldn't load balances: ${error}` }));
       return;
     }
-    if (holdings === null) {
+    const all = dashboardHoldings();
+    if (all === null) {
       total.textContent = '…';
       sub.textContent = 'Loading balances';
       return;
     }
-    const priced = holdings.filter((h) => h.value !== null);
+    const priced = all.filter((h) => h.value !== null);
     const sum = priced.reduce((s, h) => s + (h.value ?? 0), 0);
-    const { shown, hiddenUnpriced } = splitByPrice(holdings, SOL_MINT, showUnpriced);
+    const { shown, hiddenUnpriced } = splitByPrice(all, isNativeMint, showUnpriced);
     // How many tokens the toggle governs: those with no price, other than the native coin.
-    const unpricedCount = priced.length > 0 ? holdings.filter((h) => h.value === null && h.mint !== SOL_MINT).length : 0;
+    const unpricedCount = priced.length > 0 ? all.filter((h) => h.value === null && !isNativeMint(h.mint)).length : 0;
     total.textContent = priced.length > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
-    sub.textContent = holdings.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${holdings.length} token${holdings.length === 1 ? '' : 's'} priced`;
-    if (holdings.length === 0) return;
+    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced`;
+    if (all.length === 0) return;
 
     const mask = (t: string) => (amountsHidden ? '••••' : t);
     const table = el('table', { class: 'wapp-table' });
@@ -536,6 +578,7 @@ export function initWalletApp(): void {
     renderSendAssets();
     if (!address) return;
     const a = address;
+    void (evmAccount ? loadEvm(evmAccount) : evmSession.resume(walletName).then(loadEvm).catch(() => undefined));
     const [h, act] = await Promise.allSettled([loadHoldings(a), loadActivity(a)]);
     if (mine !== loadToken) return; // the wallet changed while this was loading
     if (h.status === 'fulfilled') {

@@ -77,12 +77,12 @@ export function mergeBalances(jupiter: readonly RawBalance[], onChain: readonly 
  */
 export function splitByPrice<T extends { mint: string; value: number | null }>(
   holdings: readonly T[],
-  nativeMint: string,
+  nativeMint: string | ((mint: string) => boolean),
   showUnpriced: boolean,
 ): { shown: T[]; hiddenUnpriced: T[] } {
   if (showUnpriced || !holdings.some((h) => h.value !== null)) return { shown: [...holdings], hiddenUnpriced: [] };
   const shown: T[] = [];
   const hiddenUnpriced: T[] = [];
-  for (const h of holdings) (h.value !== null || h.mint === nativeMint ? shown : hiddenUnpriced).push(h);
+  for (const h of holdings) (h.value !== null || (typeof nativeMint === 'string' ? h.mint === nativeMint : nativeMint(h.mint)) ? shown : hiddenUnpriced).push(h);
   return { shown, hiddenUnpriced };
 }

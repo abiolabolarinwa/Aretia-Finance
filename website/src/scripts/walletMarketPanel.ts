@@ -4,6 +4,7 @@
  * to copy. Above all of it sits Aretia's own check of the token, so the rating is in front of the person before they
  * choose to trade. Only numbers the sources actually report are shown; a figure a source does not give is a dash.
  */
+import { LINK_ICONS, linkKind } from './walletLinkIcons.js';
 import { CHAINS, type ChainId, type TokenRisk } from '../swings/core/types.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
@@ -77,12 +78,10 @@ function cell(label: string, value: string, span: Span, tone = ''): HTMLElement 
 }
 
 /** A full-width header row of the grid. */
-const gridHead = (text: string): HTMLElement => el('div', 'wapp-mp__gh', text);
 
 /** A small heading that says what the group below it is. */
 const heading = (text: string): HTMLElement => el('h4', 'wapp-mp__h', text);
 
-const WIN_WORDS: Record<Win, string> = { m5: 'last 5 minutes', h1: 'last hour', h6: 'last 6 hours', h24: 'last 24 hours' };
 
 function picture(r: MarketRow): HTMLElement {
   const letters = el('span', 'wapp-avatar wapp-mp__logo', (r.symbol || '?').slice(0, 2).toUpperCase());
@@ -179,7 +178,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
       box.append(list);
     }
     const more = el('details', 'wapp-mp__more');
-    more.open = true;
     more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
     more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
     box.append(more, ratingGuide());
@@ -189,7 +187,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
   /** The numbers as one grid table: size, price change by time window, and what traded in the window that is picked. */
   function dataGrid(r: MarketRow, d: PairDetail | null): HTMLElement {
     const g = el('div', 'wapp-mp__grid');
-    g.append(gridHead('Size'));
     const liq = cell('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), 4);
     // A padlock beside the figure when the pool's liquidity is shown to be locked.
     if (r.lockedPct !== null && r.lockedPct !== undefined) {
@@ -207,7 +204,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
       return g;
     }
 
-    g.append(gridHead('Price change'));
     for (const w of WINDOWS) {
       const n = d.change[w];
       const b = el('button', `wapp-mp__cell wapp-mp__span-3 wapp-mp__tab ${n === null ? '' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`);
@@ -224,7 +220,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const buys = d.buys[win];
     const sells = d.sells[win];
     const txns = buys === null || sells === null ? null : buys + sells;
-    g.append(gridHead(`Trading in the ${WIN_WORDS[win]}`), cell('Trades', compactCount(txns), 4), cell('Buys', compactCount(buys), 4, 'is-up'), cell('Sells', compactCount(sells), 4, 'is-down'));
+    g.append(cell('Trades', compactCount(txns), 4), cell('Buys', compactCount(buys), 4, 'is-up'), cell('Sells', compactCount(sells), 4, 'is-down'));
     if (buys !== null && sells !== null && buys + sells > 0) {
       const share = Math.round((buys / (buys + sells)) * 100);
       const meter = el('div', 'wapp-mp__meter');
@@ -255,14 +251,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
     head.append(picture(r), names, el('strong', 'wapp-mp__price', formatPrice(d?.priceUsd ?? r.priceUsd)));
     root.append(head, checkBlock(r));
 
-    root.append(dataGrid(r, d));
-
-    const act = el('div', 'wapp-mp__actions');
-    const swap = o.swapFor(r);
-    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : 'Swapping not available yet');
-    buy.type = 'button';
-    buy.disabled = !swap;
-    if (swap) buy.addEventListener('click', swap);
     const row2 = el('div', 'wapp-mp__duo');
     const favLabel = (): string => (o.isFavourite(r) ? '★ Favourited' : '☆ Favourite');
     const fav = el('button', 'wapp__btn wapp__btn--ghost', favLabel());
@@ -275,7 +263,15 @@ export function createMarketPanel(o: MarketPanelOptions) {
     chart.type = 'button';
     chart.addEventListener('click', () => o.openChart(r));
     row2.append(fav, chart);
-    act.append(buy, row2);
+    root.append(row2, dataGrid(r, d));
+
+    const act = el('div', 'wapp-mp__actions');
+    const swap = o.swapFor(r);
+    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : 'Swapping not available yet');
+    buy.type = 'button';
+    buy.disabled = !swap;
+    if (swap) buy.addEventListener('click', swap);
+    act.append(buy);
     root.append(act);
 
     const info = el('div', 'wapp-mp__group');
@@ -294,7 +290,10 @@ export function createMarketPanel(o: MarketPanelOptions) {
       g.append(heading('Links from the project'));
       const links = el('div', 'wapp-mp__links');
       for (const l of d.links) {
-        const a = el('a', 'wapp__chip', l.label);
+        const a = el('a', 'wapp-mp__icon wapp-mp__icon--link');
+        a.innerHTML = LINK_ICONS[linkKind(l.url, l.label)];
+        a.title = l.label;
+        a.setAttribute('aria-label', l.label);
         a.href = l.url;
         a.target = '_blank';
         a.rel = 'noopener noreferrer nofollow';

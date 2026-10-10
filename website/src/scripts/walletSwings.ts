@@ -1436,7 +1436,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
-      card.append(accountBar());
       const shownRows = visible();
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;

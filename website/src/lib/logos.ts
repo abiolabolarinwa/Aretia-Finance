@@ -36,14 +36,21 @@ export const GLYPHS: Record<ProductKey, string> = {
   safesend: s('M32 11l17 6v14c0 11-7.5 18-17 22-9.5-4-17-11-17-22V17Z') + s('M24 32.5l6 6 10-12', ACCENT),
   // Three sticks rising: a market.
   market: s('M18 48V37') + s('M32 48V25', ACCENT) + s('M46 48V14'),
-  // A leaf with its vein: carbon credits.
-  carbon: s('M47 15C28 15 16 25 16 39c0 3 .8 6 2 8 14 0 29-8 29-32Z') + s('M20 44l14-14', ACCENT),
+  // Two leaves, the larger with a vein, the smaller tucked in front of it: carbon credits.
+  carbon:
+    `<path d="M26 10C38 21 42 36 28 51C19 50 12 42 13 32C14 24 20 17 26 10Z" fill="${WHITE}"/>` +
+    `<path d="M26 19L28 40" fill="none" stroke="${TILE}" stroke-width="2.2" stroke-linecap="round"/>` +
+    `<path d="M53 28C53 42 44 51 30 50C29 41 37 30 53 28Z" fill="${ACCENT}" stroke="${TILE}" stroke-width="2.4" stroke-linejoin="round"/>` +
+    `<path d="M50 31L36 46" fill="none" stroke="${TILE}" stroke-width="1.8" stroke-linecap="round"/>`,
   // Candlesticks across a baseline: a marketplace. Alternating highs and lows, as in the supplied mark.
   marketplace:
     `<path d="M8 32h48" fill="none" stroke="${ACCENT}" stroke-width="1.8" stroke-linecap="round"/>` +
     [[15, 25], [23.5, 19], [32, 25], [40.5, 19], [49, 25]].map(([c, y]) => `<rect x="${c! - 3.2}" y="${y}" width="6.4" height="19" rx="1.6" fill="${WHITE}"/>`).join(''),
-  // A shield with a bar across it: checked before you sign.
-  shield: s('M32 11l17 6v14c0 11-7.5 18-17 22-9.5-4-17-11-17-22V17Z') + s('M32 23v14', ACCENT),
+  // A solid shield with a keyhole and a few cracks: held against attack.
+  shield:
+    `<path d="M32 9L50 15V30C50 41 42.5 49 32 54C21.5 49 14 41 14 30V15Z" fill="${WHITE}"/>` +
+    `<circle cx="32" cy="28.5" r="5" fill="${TILE}"/><path d="M29.5 31.5H34.5L36.5 42H27.5Z" fill="${TILE}"/>` +
+    `<path d="M15.5 18L21 24.5L18.5 28.5M43.5 13.5L41.5 20M50 33.5L44 36.5M21 47L26 45" fill="none" stroke="${TILE}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
   // A web (spider) chart: two rings, six spokes and a filled reading across them.
   radar:
     `<path d="M32 11L50.2 21.5V42.5L32 53L13.8 42.5V21.5Z M32 21.5L41.1 26.8V37.3L32 42.5L22.9 37.3V26.8Z M32 32L32 11M32 32L50.2 21.5M32 32L50.2 42.5M32 32L32 53M32 32L13.8 42.5M32 32L13.8 21.5" fill="none" stroke="${WHITE}" stroke-opacity=".7" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` +

@@ -718,6 +718,9 @@ const buyTips = [
 
   /* ---- Markets: the selected token's panel is a bar docked to the right edge, as the left sidebar is docked to the left ---- */
   .wapp-mp { display: none; }
+  /* The panel scrolls with the mouse wheel while the pointer is over it, without showing a scrollbar, and does not hand the scroll on to the page at its ends. */
+  .wapp-mp { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
+  .wapp-mp::-webkit-scrollbar { display: none; }
   .wapp-mt__row.is-selected td { background: var(--color-brand-soft); }
   @media (min-width: 1680px) {
     [data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr) 360px; }

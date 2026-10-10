@@ -94,6 +94,8 @@ function picture(r: MarketRow): HTMLElement {
 export function createMarketPanel(o: MarketPanelOptions) {
   const root = el('aside', 'wapp-mp');
   root.setAttribute('aria-label', 'Selected token');
+  // The page's smooth-scroll library takes every mouse-wheel turn for the page; this tells it to leave the wheel to the panel while the pointer is over it.
+  root.setAttribute('data-lenis-prevent', '');
   const cache = new Map<string, { at: number; detail: PairDetail }>();
   let row: MarketRow | null = null;
   let win: Win = 'h24';

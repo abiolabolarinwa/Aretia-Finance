@@ -1,0 +1,410 @@
+---
+import Base from '../layouts/Base.astro';
+import StatusBadge from '../components/ui/StatusBadge.astro';
+import ProductLogo from '../components/brand/ProductLogo.astro';
+import { LINKS, ACT, type Status } from '../data/site';
+import type { ProductKey } from '../lib/logos';
+import type { PaperTheme } from '../lib/paper';
+
+/** The chains Aretia reaches. Official marks; see public/assets/chains/CREDITS.md. */
+const chains = [
+  { name: 'Solana', logo: '/assets/chains/solana.png' },
+  { name: 'Ethereum', logo: '/assets/chains/ethereum.png' },
+  { name: 'Base', logo: '/assets/chains/base.png' },
+  { name: 'BNB Chain', logo: '/assets/chains/bnb.png' },
+  { name: 'Polygon', logo: '/assets/chains/polygon.png' },
+  { name: 'Robinhood Chain', logo: '/assets/chains/robinhood.png' },
+];
+
+interface Card {
+  key: ProductKey;
+  title: string;
+  body: string;
+  cta: string;
+  href: string;
+  status: Status;
+  paper: PaperTheme;
+}
+
+/* Status labels follow src/data/site.ts and the pages themselves: Swap and
+   Pay are in the wallet build, SafeSend is on testnet, the marketplace is a
+   preview, and Carbon Credit is a sandbox with a simulated registry. */
+const cards: Card[] = [
+  { key: 'wallet', paper: 'brand', status: 'in-development', title: 'Aretia Wallet', body: 'One self-custody wallet for Solana and EVM networks. One recovery phrase, six chains, and keys that stay encrypted on your device.', cta: 'See the wallet', href: '/wallet/about' },
+  { key: 'swap', paper: 'mint', status: 'built', title: 'Aretia Swap', body: 'Swap the tokens you hold at the route the market offers, with the price and the fee in front of you before you sign.', cta: 'Open the wallet', href: '/wallet' },
+  { key: 'pay', paper: 'ink', status: 'built', title: 'Aretia Pay', body: 'Send to maria.sol or alex.eth, not a 44-character address. The real address is resolved and shown before anything is signed.', cta: 'See how it works', href: '/features#pay' },
+  { key: 'safesend', paper: 'bright', status: 'testnet', title: 'Aretia SafeSend', body: 'Lock a transfer for a short protection window and cancel it if something looks wrong, before it ever reaches the recipient.', cta: 'See SafeSend', href: '/features#safesend' },
+  { key: 'market', paper: 'gold', status: 'in-development', title: 'Aretia Market', body: 'Browse climate projects seeking capital in one place, each profiled with the depth an investor needs. A preview is open now.', cta: 'Explore the market', href: '/marketplace' },
+  { key: 'carbon', paper: 'mint', status: 'in-development', title: 'Aretia Carbon Credit', body: 'Registry-backed carbon credits on a chain, with a second approver and a retirement that only counts when the registry confirms it.', cta: 'See the sandbox', href: '/carboncredit' },
+];
+
+const steps: { title: string; body: string; paper: PaperTheme }[] = [
+  { paper: 'brand', title: 'Bring the wallet you have', body: 'Connect the Solana wallet you already use. See balances and activity in one place. Aretia never holds your keys.' },
+  { paper: 'mint', title: 'Send, swap and pay by name', body: 'Pay maria.sol instead of an address. Every recipient and approval is checked before you sign, and you can cancel a SafeSend before it lands.' },
+  { paper: 'ink', title: 'The climate funds itself', body: 'A share of every ACT transfer flows to a 2-of-3 Climate Treasury, which pays real projects in stages, only after independent verification.' },
+];
+
+const facts = [
+  { big: '6', label: 'networks in one wallet', note: 'Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain.' },
+  { big: '2-of-3', label: 'signers hold the treasury', note: 'No single person can move the Climate Treasury.' },
+  { big: 'Revoked', label: 'mint authority', note: 'Nobody can ever create more ACT.' },
+];
+---
+
+<Base
+  title="Aretia Finance"
+  description="Aretia Finance is a multichain wallet and token in one: hold, send, swap and protect crypto across Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain, while every ACT transfer funds real climate projects."
+  ctaBands={false}
+>
+  <!-- Hero: a full-bleed photograph in an inset frame, copy on the left. -->
+  <section class="lp-hero">
+    <div class="lp-hero__frame">
+      <img class="lp-hero__img" src="/images/people/man-phone-night.webp" alt="A man checking a payment carefully on his phone at night" width="2400" height="1350" fetchpriority="high" />
+      <div class="lp-hero__content">
+        <p class="hero-pill">Live on Solana mainnet <i>·</i> ACT</p>
+        <h1 class="lp-hero__title">Your passport<br />to <span class="lp-hl">every chain.</span></h1>
+        <p class="lp-hero__lead">Hold, send, swap and protect your crypto across Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain, from one place. And every ACT transfer quietly funds real climate projects.</p>
+        <div class="lp-hero__ctas">
+          <a class="lbtn lbtn--white" href="/wallet">Open wallet</a>
+          <a class="lbtn lbtn--ghost" href={LINKS.buyAct}>Get ACT</a>
+        </div>
+        <p class="lp-hero__trust"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>Self-custody. Aretia never holds your keys.</p>
+      </div>
+      <div class="lp-float lp-float--a" aria-hidden="true"><span class="lp-float__ico"><svg viewBox="0 0 16 16" width="14" height="14"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></span><span><b>Recipient checked</b><small>Example: Shield, before you sign</small></span></div>
+      <div class="lp-float lp-float--b" aria-hidden="true"><span class="lp-float__ico lp-float__ico--gold"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></span><span><b>Transfer → Climate Treasury</b><small>Example: every ACT transfer</small></span></div>
+      <a class="lp-hero__chip" href={LINKS.walletWaitlist}>
+        <ProductLogo product="wallet" size={40} />
+        <span><b>Aretia Wallet extension</b><small>In development · Join the waitlist</small></span>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- What we do, then the chains we reach. -->
+  <section class="lp-intro" aria-labelledby="lp-intro-title">
+    <div class="container lp-intro__inner">
+      <h2 id="lp-intro-title" class="lp-h2" data-reveal>Money that moves freely,<br />and does some good.</h2>
+      <p class="lp-intro__lead" data-reveal>Aretia is a multichain wallet and a token with a purpose. Hold and send across the networks you already use, pay people by name, get checked before you sign. Then by the token's own code, a share of every ACT transfer goes to a Climate Treasury that pays real projects against verified milestones.</p>
+    </div>
+
+    <div class="lp-marquee" aria-label="Networks Aretia reaches: Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain" data-reveal>
+      <ul class="lp-marquee__track" aria-hidden="true">
+        {[0, 1].map(() => chains.map((c) => (
+          <li><img src={c.logo} alt="" width="40" height="40" loading="lazy" /><span>{c.name}</span></li>
+        )))}
+      </ul>
+    </div>
+    <p class="container lp-note">Solana is live today for ACT. The wallet reaches the other five as it ships.</p>
+  </section>
+
+  <!-- The products: art panel with a small interface, then title, copy, CTA. -->
+  <section class="lp-products" aria-label="The Aretia products">
+    <div class="container">
+      <ul class="lp-cards">
+        {cards.map((c) => (
+          <li class="pcard" data-reveal>
+            <div class={`pcard__art paper paper--${c.paper}`} aria-hidden="true">
+              <span class="pcard__demo">Demo</span>
+              {c.key === 'wallet' && (
+                <div class="mock">
+                  <p class="mock__k">Total balance</p>
+                  <p class="mock__big tnum">$12,480.00</p>
+                  <ul class="mock__chains">{chains.map((x) => <li><img src={x.logo} alt="" width="28" height="28" loading="lazy" /></li>)}</ul>
+                </div>
+              )}
+              {c.key === 'swap' && (
+                <div class="mock">
+                  <p class="mock__k">You pay</p>
+                  <p class="mock__big tnum">100 <em>USDC</em></p>
+                  <p class="mock__swap"><span><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3v10M4.5 9.5 8 13l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>You get about 0.74 SOL</p>
+                  <p class="mock__tag">Price and fee shown first</p>
+                </div>
+              )}
+              {c.key === 'pay' && (
+                <div class="mock">
+                  <p class="mock__k">Send to</p>
+                  <p class="mock__big">maria.sol</p>
+                  <p class="mock__addr mono">7xKX…9fPq</p>
+                  <p class="mock__tag mock__tag--ok">Name resolved · shown before you sign</p>
+                </div>
+              )}
+              {c.key === 'safesend' && (
+                <div class="mock">
+                  <p class="mock__k">Protected send</p>
+                  <p class="mock__big tnum">0.5 <em>ETH</em></p>
+                  <p class="mock__tag">Releases in 23:59:12</p>
+                  <p class="mock__btn">Cancel this send</p>
+                </div>
+              )}
+              {c.key === 'market' && (
+                <div class="mock">
+                  <p class="mock__k">Projects seeking capital</p>
+                  <ul class="mock__rows">
+                    <li>Solar microgrid<b class="tnum">$1.0M</b></li>
+                    <li>Reforestation co-op<b class="tnum">$0.6M</b></li>
+                    <li>Flood shield<b class="tnum">$0.9M</b></li>
+                  </ul>
+                </div>
+              )}
+              {c.key === 'carbon' && (
+                <div class="mock">
+                  <p class="mock__k">Retire 10 credits</p>
+                  <ul class="mock__steps">
+                    <li class="is-done">Registry authorised</li>
+                    <li class="is-done">Second person approved</li>
+                    <li>Retired when the registry confirms</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div class="pcard__body">
+              <div class="pcard__head">
+                <ProductLogo product={c.key} size={44} />
+                <StatusBadge status={c.status} />
+              </div>
+              <h3 class="pcard__title">{c.title}</h3>
+              <p class="pcard__text">{c.body}</p>
+              <a class="lbtn lbtn--dark" href={c.href}>{c.cta}</a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <!-- How it works. -->
+  <section class="lp-steps" aria-labelledby="lp-steps-title">
+    <div class="container">
+      <header class="lp-steps__head" data-reveal>
+        <h2 id="lp-steps-title" class="lp-h2">Three steps. One wallet.<br />Real impact.</h2>
+        <p>From your first connection to a funded climate project, nothing is hidden and nothing is custodial.</p>
+      </header>
+      <ol class="lp-steps__grid">
+        {steps.map((st, i) => (
+          <li class={`step paper paper--${st.paper}`} data-n={String(i + 1).padStart(2, '0')} data-reveal>
+            <h3 class="step__title">{st.title}</h3>
+            <p class="step__text">{st.body}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <!-- Two promotions. -->
+  <section class="lp-promos" aria-label="Get started">
+    <div class="container lp-promos__grid">
+      <article class="promo promo--act paper paper--gold" data-reveal>
+        <p class="promo__kicker">ACT · Live on Solana</p>
+        <h3 class="promo__title">Get ACT.<br />Fund the planet while it moves.</h3>
+        <p class="promo__text">Fixed supply, mint authority revoked, and a share of every transfer sent to the Climate Treasury by the token's own code.</p>
+        <a class="lbtn lbtn--gold" href={LINKS.buyAct}>Get ACT</a>
+      </article>
+      <article class="promo promo--wait paper paper--mint" data-reveal>
+        <p class="promo__kicker">Aretia Wallet</p>
+        <h3 class="promo__title">Be first in line<br />for the extension.</h3>
+        <p class="promo__text">One email the day it's ready, nothing else. Meanwhile the web wallet already works with the Solana wallet you have.</p>
+        <a class="lbtn lbtn--dark lbtn--lg" href={LINKS.walletWaitlist}>Join the waitlist</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- Proof: facts that can be checked, in place of customer counts. -->
+  <section class="lp-proof" aria-labelledby="lp-proof-title">
+    <div class="container lp-proof__inner">
+      <div class="lp-proof__lead">
+        <p class="lp-proof__big tnum" data-count={ACT.totalSupply}>{ACT.totalSupply.toLocaleString('en-US')}</p>
+        <p class="lp-proof__big-label" data-reveal>ACT, fixed for good</p>
+      </div>
+      <div class="lp-proof__copy">
+        <h2 id="lp-proof-title" class="lp-h2 lp-h2--light" data-reveal>Don't take our word for it.</h2>
+        <p data-reveal>Every claim above can be read straight off Solana's public ledger. The supply, the fee, the treasury and every payment out of it are on-chain, and the site checks them live while you watch.</p>
+        <div class="lp-proof__ctas" data-reveal>
+          <a class="lbtn lbtn--white" href="/verify">Verify on-chain</a>
+          <a class="lbtn lbtn--ghost" href="/whitepaper">Read the whitepaper</a>
+        </div>
+      </div>
+      <ul class="lp-facts">
+        {facts.map((f) => (
+          <li data-reveal>
+            <p class="lp-facts__big tnum">{f.big}</p>
+            <p class="lp-facts__label">{f.label}</p>
+            <p class="lp-facts__note">{f.note}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <!-- Close. -->
+  <section class="lp-close" aria-labelledby="lp-close-title">
+    <div class="container lp-close__inner">
+      <h2 id="lp-close-title" class="lp-close__title" data-reveal>The future of money<br />should fund the future.</h2>
+      <p class="lp-close__lead" data-reveal>The web wallet works today with the Solana wallet you already use. The browser extension is still in development.</p>
+      <div class="lp-close__ctas" data-reveal>
+        <a class="lbtn lbtn--white" href={LINKS.walletWaitlist}>Join the wallet waitlist</a>
+        <a class="lbtn lbtn--ghost" href="/wallet">Open the web wallet</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* Pill buttons local to this page, in the MoonPay register: white on dark
+     grounds, near-black on light ones. */
+  .lbtn { display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 28px; border-radius: var(--radius-pill); font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-press) var(--ease-out); }
+  .lbtn:active { transform: scale(0.97); }
+  .lbtn--white { background: #fff; color: var(--color-strong); }
+  .lbtn--ghost { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6); }
+  .lbtn--gold { background: #e0bd6a; color: var(--color-strong); }
+  .lbtn--lg { height: 52px; padding: 0 28px; font-size: 1rem; }
+  .lbtn--dark { height: 44px; padding: 0 22px; font-size: 0.9375rem; background: var(--color-strong); color: #fff; }
+  .lp-hero :focus-visible, .lp-proof :focus-visible, .lp-close :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  @media (hover: hover) and (pointer: fine) {
+    .lbtn--white:hover { background: var(--color-mint); }
+    .lbtn--ghost:hover { background: rgba(255, 255, 255, 0.12); }
+    .lbtn--gold:hover { background: #f0d28a; }
+    .lbtn--dark:hover { background: var(--color-brand-bright); }
+  }
+
+  /* Hero ------------------------------------------------------------- */
+  .lp-hero { padding: calc(var(--nav-height) + 8px) clamp(8px, 1.2vw, 16px) 0; }
+  .lp-hero__frame { position: relative; isolation: isolate; overflow: hidden; min-height: max(600px, min(calc(100svh - var(--nav-height) - 24px), 840px)); display: flex; align-items: center; border-radius: clamp(20px, 2.4vw, 36px); background: var(--color-strong); }
+  .lp-hero__img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 68% 28%; }
+  .lp-hero__frame::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(14, 11, 43, 0.9) 0%, rgba(14, 11, 43, 0.62) 38%, rgba(14, 11, 43, 0) 68%), linear-gradient(0deg, rgba(14, 11, 43, 0.5), transparent 35%); }
+  .lp-hero__content { display: grid; justify-items: start; gap: 22px; width: min(100%, 780px); padding: clamp(24px, 6vw, 96px); color: #fff; }
+  .lp-hero__title { font-family: var(--font-topical); font-size: clamp(2.25rem, 5vw, 4.5rem); font-weight: 700; line-height: 1.04; color: #fff; text-wrap: balance; }
+  .lp-hero__lead { max-width: 33rem; font-size: clamp(1.0625rem, 1.4vw, 1.3125rem); line-height: 1.5; color: rgba(255, 255, 255, 0.88); }
+  .lp-hl { color: var(--color-mint); }
+  .lp-hero__trust { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; color: rgba(255, 255, 255, 0.82); }
+  .lp-hero__trust svg { color: var(--color-mint); }
+  .lp-hero__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .lp-hero__chip { position: absolute; right: clamp(16px, 2.4vw, 32px); bottom: clamp(16px, 2.4vw, 32px); display: flex; align-items: center; gap: 14px; padding: 12px 18px 12px 12px; border-radius: 22px; background: rgba(14, 11, 43, 0.72); backdrop-filter: blur(14px); color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16); transition: background-color var(--duration-fast) var(--ease-out); }
+  .lp-hero__chip span { display: grid; gap: 2px; }
+  .lp-hero__chip b { font-size: 0.9375rem; font-weight: 600; }
+  .lp-hero__chip small { font-size: 0.8125rem; color: rgba(255, 255, 255, 0.72); }
+  @media (hover: hover) and (pointer: fine) { .lp-hero__chip:hover { background: rgba(14, 11, 43, 0.9); } }
+
+  /* Intro + marquee ---------------------------------------------------- */
+  .lp-intro { padding-block: clamp(4rem, 9vw, 7.5rem) clamp(3rem, 6vw, 5rem); text-align: center; }
+  .lp-intro__inner { display: grid; justify-items: center; gap: var(--space-md); }
+  .lp-h2 { font-size: clamp(2rem, 4.6vw, 3.75rem); font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; color: var(--color-strong); }
+  .lp-h2--light { color: #fff; }
+  .lp-intro__lead { max-width: 46rem; font-size: var(--text-lead); line-height: 1.6; color: var(--color-muted); }
+  .lp-marquee { margin-top: clamp(2.5rem, 5vw, 4rem); overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+  .lp-marquee__track { list-style: none; margin: 0; padding: 0; display: flex; width: max-content; gap: clamp(2.5rem, 5vw, 4.5rem); animation: lp-scroll 32s linear infinite; }
+  .lp-marquee__track li { display: flex; align-items: center; gap: 12px; font-size: 1.375rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-strong); }
+  .lp-marquee__track img { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
+  @keyframes lp-scroll { to { transform: translateX(calc(-50% - clamp(1.25rem, 2.5vw, 2.25rem))); } }
+  .lp-marquee:hover .lp-marquee__track { animation-play-state: paused; }
+  .lp-note { margin-top: var(--space-md); font-size: var(--text-small); color: var(--color-faint); text-align: center; }
+
+  /* Product cards ------------------------------------------------------- */
+  .lp-products { padding-bottom: clamp(4rem, 9vw, 7.5rem); }
+  .lp-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .pcard { display: flex; flex-direction: column; border-radius: 28px; background: var(--color-bg-alt); overflow: hidden; transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out); }
+  .pcard__art { display: grid; place-items: center; min-height: 250px; padding: 28px 24px; --mark-size: 0; }
+  .pcard__demo { position: absolute; top: 14px; left: 18px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-muted); }
+  .mock { width: min(100%, 280px); display: grid; gap: 6px; padding: 20px 20px 18px; border-radius: 20px; background: #fff; color: var(--color-strong); box-shadow: 0 18px 40px -18px rgba(14, 11, 43, 0.5); }
+  .mock__k { font-size: 0.75rem; color: var(--color-muted); }
+  .mock__big { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.04em; line-height: 1.1; }
+  .mock__big em { font-style: normal; font-size: 0.9375rem; font-weight: 500; letter-spacing: 0; color: var(--color-muted); }
+  .mock__chains { list-style: none; margin: 6px 0 0; padding: 0; display: flex; gap: 8px; }
+  .mock__chains img { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
+  .mock__swap { display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 10px 12px; border-radius: 12px; background: var(--color-bg-alt); font-size: 0.875rem; font-weight: 600; }
+  .mock__swap span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--color-brand); color: #fff; }
+  .mock__tag { justify-self: start; margin-top: 4px; padding: 4px 10px; border-radius: var(--radius-pill); font-size: 0.75rem; font-weight: 500; background: var(--color-bg-alt); color: var(--color-muted); }
+  .mock__tag--ok { background: var(--color-mint-soft); color: var(--color-brand-bright); }
+  .mock__addr { padding: 8px 12px; border-radius: 10px; background: var(--color-bg-alt); font-size: 0.8125rem; }
+  .mock__btn { display: grid; place-items: center; height: 38px; margin-top: 6px; border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 600; background: var(--color-strong); color: #fff; }
+  .mock__rows { list-style: none; margin: 4px 0 0; padding: 0; }
+  .mock__rows li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--color-border); font-size: 0.875rem; }
+  .mock__rows li:last-child { border-bottom: 0; }
+  .mock__steps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+  .mock__steps li { display: flex; align-items: center; gap: 10px; font-size: 0.8125rem; color: var(--color-muted); }
+  .mock__steps li::before { content: ''; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--color-border-strong); }
+  .mock__steps li.is-done { color: var(--color-strong); }
+  .mock__steps li.is-done::before { border-color: var(--color-ok); background: var(--color-ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 8.5 2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 11px no-repeat; }
+  .pcard__body { display: grid; align-content: start; justify-items: start; gap: 12px; flex: 1; padding: 26px 28px 30px; }
+  .pcard__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+  .pcard__title { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.03em; }
+  .pcard__text { font-size: 1rem; line-height: 1.55; color: var(--color-muted); margin-bottom: 10px; }
+  .pcard__body .lbtn { margin-top: auto; }
+  @media (hover: hover) and (pointer: fine) { .pcard:hover { transform: translateY(-4px); box-shadow: 0 24px 50px -28px rgba(14, 11, 43, 0.45); } }
+
+  /* Proof band ---------------------------------------------------------- */
+  .lp-proof { background: var(--color-strong); color: #fff; padding-block: clamp(4rem, 9vw, 7rem); }
+  .lp-proof__inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2rem, 5vw, 5rem); align-items: start; }
+  .lp-proof__lead { display: grid; gap: 8px; }
+  .lp-proof__big { font-size: clamp(2rem, 4.6vw, 4rem); font-weight: 600; letter-spacing: -0.05em; line-height: 1; color: var(--color-mint); }
+  .lp-proof__big-label { font-size: 1.125rem; color: rgba(255, 255, 255, 0.72); }
+  .lp-proof__copy { display: grid; gap: var(--space-md); justify-items: start; }
+  .lp-proof__copy p { max-width: 34rem; font-size: var(--text-lead); line-height: 1.6; color: rgba(255, 255, 255, 0.78); }
+  .lp-proof__ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .lp-facts { grid-column: 1 / -1; list-style: none; margin: var(--space-lg) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(255, 255, 255, 0.18); }
+  .lp-facts li { display: grid; gap: 6px; align-content: start; padding: 28px 28px 0 0; }
+  .lp-facts li + li { padding-left: 28px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+  .lp-facts__big { font-size: clamp(1.75rem, 3.4vw, 3rem); font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: #fff; }
+  .lp-facts__label { font-size: 0.9375rem; font-weight: 600; color: var(--color-mint); }
+  .lp-facts__note { font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.68); }
+
+  /* Floating example chips over the photograph ------------------------------- */
+  .lp-float { position: absolute; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.94); color: var(--color-strong); box-shadow: 0 20px 44px -18px rgba(14, 11, 43, 0.6); animation: lp-bob 6s var(--ease-in-out) infinite; }
+  .lp-float span { display: grid; gap: 2px; }
+  .lp-float b { font-size: 0.875rem; font-weight: 600; }
+  .lp-float small { font-size: 0.75rem; color: var(--color-muted); }
+  .lp-float__ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--color-ok); color: #fff; }
+  .lp-float__ico--gold { background: #e0bd6a; color: var(--color-strong); }
+  .lp-float--a { right: clamp(24px, 14vw, 240px); top: 22%; }
+  .lp-float--b { right: clamp(60px, 22vw, 420px); top: 46%; animation-delay: -3s; }
+  @keyframes lp-bob { 50% { transform: translateY(-10px); } }
+
+  /* How it works ---------------------------------------------------------- */
+  .lp-steps { padding-bottom: clamp(4rem, 9vw, 7.5rem); }
+  .lp-steps__head { display: grid; justify-items: center; gap: var(--space-sm); text-align: center; margin-bottom: var(--space-xl); }
+  .lp-steps__head p { max-width: 36rem; font-size: var(--text-lead); color: var(--color-muted); }
+  .lp-steps__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .step { --mark-size: clamp(9rem, 14vw, 12rem); display: grid; align-content: start; gap: 12px; min-height: 340px; padding: clamp(1.75rem, 3vw, 2.5rem); border-radius: 28px; }
+  .step__title { font-size: clamp(1.5rem, 2.4vw, 2rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: var(--c-fg); }
+  .step__text { max-width: 24rem; font-size: 1rem; line-height: 1.6; color: var(--c-muted); }
+
+  /* Promotions -------------------------------------------------------------- */
+  .lp-promos { padding-bottom: clamp(4rem, 9vw, 7.5rem); }
+  .lp-promos__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .promo { display: grid; align-content: start; justify-items: start; gap: 14px; min-height: 380px; padding: clamp(2rem, 4vw, 3.5rem); border-radius: 32px; }
+  .promo__kicker { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-accent); }
+  .promo__title { font-family: var(--font-topical); font-size: clamp(1.75rem, 3.2vw, 2.75rem); font-weight: 700; line-height: 1.08; color: var(--c-fg); text-wrap: balance; }
+  .promo__text { max-width: 28rem; font-size: 1.0625rem; line-height: 1.55; color: var(--c-muted); }
+  .promo .lbtn { margin-top: auto; }
+
+  /* Close ---------------------------------------------------------------- */
+  .lp-close { background: var(--color-brand); color: #fff; padding-block: clamp(4.5rem, 10vw, 8.5rem); text-align: center; }
+  .lp-close__inner { display: grid; justify-items: center; gap: var(--space-md); }
+  .lp-close__title { font-family: var(--font-topical); font-size: clamp(2rem, 5vw, 4rem); font-weight: 700; line-height: 1.08; color: #fff; text-wrap: balance; }
+  .lp-close__lead { max-width: 34rem; font-size: var(--text-lead); line-height: 1.55; color: rgba(255, 255, 255, 0.8); }
+  .lp-close__ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+
+  @media (max-width: 1100px) {
+    .lp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1100px) {
+    .lp-steps__grid { grid-template-columns: minmax(0, 1fr); }
+    .step { min-height: 0; }
+    .lp-promos__grid { grid-template-columns: minmax(0, 1fr); }
+    .promo { min-height: 0; }
+    .lp-float { display: none; }
+  }
+  @media (max-width: 860px) {
+    .lp-proof__inner { grid-template-columns: minmax(0, 1fr); }
+    .lp-facts { grid-template-columns: minmax(0, 1fr); }
+    .lp-facts li, .lp-facts li + li { padding: 22px 0 0; border-left: 0; }
+  }
+  @media (max-width: 760px) {
+    .lp-hero__frame { align-items: flex-end; }
+    .lp-hero__frame::before { background: linear-gradient(0deg, rgba(14, 11, 43, 0.92) 0%, rgba(14, 11, 43, 0.62) 50%, rgba(14, 11, 43, 0.1) 80%); }
+    .lp-hero__content { padding: 24px 22px 150px; gap: 16px; }
+    .lp-hero__ctas { width: 100%; }
+    .lp-hero__ctas .lbtn { flex: 1 1 100%; }
+    .lp-hero__chip { left: 16px; right: 16px; bottom: 16px; }
+    .lp-cards { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

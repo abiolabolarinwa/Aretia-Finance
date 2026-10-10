@@ -1,4 +1,4 @@
-export type ProductKey = 'wallet' | 'swap' | 'pay' | 'safesend' | 'market' | 'carbon';
+export type ProductKey = 'wallet' | 'swap' | 'pay' | 'safesend' | 'market' | 'carbon' | 'swings' | 'shield' | 'radar';
 
 export const PRODUCT_NAMES: Record<ProductKey, string> = {
   wallet: 'Aretia Wallet',
@@ -7,6 +7,9 @@ export const PRODUCT_NAMES: Record<ProductKey, string> = {
   safesend: 'Aretia SafeSend',
   market: 'Aretia Market',
   carbon: 'Aretia Carbon Credit',
+  swings: 'Aretia Swings',
+  shield: 'Aretia Shield',
+  radar: 'Aretia Radar',
 };
 
 /**
@@ -35,6 +38,12 @@ export const GLYPHS: Record<ProductKey, string> = {
   market: s('M18 48V37') + s('M32 48V25', ACCENT) + s('M46 48V14'),
   // A leaf with its vein: carbon credits.
   carbon: s('M47 15C28 15 16 25 16 39c0 3 .8 6 2 8 14 0 29-8 29-32Z') + s('M20 44l14-14', ACCENT),
+  // A swing's arc between two posts: value carried across chains.
+  swings: s('M14 16h36') + s('M22 16l6 25M42 16l-6 25') + s('M22 46h20', ACCENT),
+  // A shield with a bar across it: checked before you sign.
+  shield: s('M32 11l17 6v14c0 11-7.5 18-17 22-9.5-4-17-11-17-22V17Z') + s('M32 23v14', ACCENT),
+  // A radar sweep: concentric arcs and a blip.
+  radar: s('M13 42a22 22 0 0 1 38 0') + s('M22 42a12 12 0 0 1 20 0', ACCENT) + `<circle cx="32" cy="46" r="3.4" fill="${WHITE}"/>`,
 };
 
 export const markSvg = (k: ProductKey, size = 64): string =>

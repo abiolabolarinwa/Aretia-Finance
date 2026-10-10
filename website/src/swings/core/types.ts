@@ -262,6 +262,15 @@ export interface TokenLock {
   at: number;
 }
 
+/** A time lock on a V3/V4 pool's liquidity. `until` is when the earliest locked position can come out; null when none has a real date. */
+export interface TimeLock {
+  pct: number;
+  kind: 'time-locked';
+  until: number | null;
+  by: string;
+  at: number;
+}
+
 /** A dated copy of a token's main-pool market numbers, kept in Aretia's registry. */
 export interface TokenMarket {
   /** When the numbers were read, in ms. */
@@ -273,8 +282,8 @@ export interface TokenMarket {
   volume24hUsd: number | null;
   change: { m5: number | null; h1: number | null; h6: number | null; h24: number | null };
   liquidityUsd: number | null;
-  /** Set when the pool's liquidity was checked and found (partly) burned. */
-  lock?: TokenLock | null;
+  /** Set when the pool's liquidity was checked and found (partly) burned or time-locked. */
+  lock?: TokenLock | TimeLock | null;
 }
 
 export interface TokenRecord {

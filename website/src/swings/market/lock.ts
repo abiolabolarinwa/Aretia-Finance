@@ -16,7 +16,9 @@
  * Not covered, and so never marked: position NFTs sent to a dead address, other lockers, other concentrated-liquidity pools
  * (CLMM), and other Solana pool kinds. No mark means "not shown to be locked", not "unlocked".
  */
-import type { ChainId, TokenLock } from '../core/types.js';
+import type { ChainId, TimeLock, TokenLock } from '../core/types.js';
+
+export type { TimeLock };
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
 import { encodeCall, address, selector, uint, words } from '../engine/abi.js';
 import { keccak256 } from '../core/keccak.js';
@@ -113,15 +115,6 @@ export interface V3LockerConfig {
 export const V3_LOCKERS: Readonly<Partial<Record<ChainId, V3LockerConfig>>> = {
   robinhood: { locker: '0xf28704c691290547924e2129d407da36bda8ce0f', positionManager: '0x73991a25c818bf1f1128deaab1492d45638de0d3', label: 'UNCX' },
 };
-
-/** A time lock on a V3 pool's liquidity. `until` is when the earliest locked position can come out; null when none has a real date. */
-export interface TimeLock {
-  pct: number;
-  kind: 'time-locked';
-  until: number | null;
-  by: string;
-  at: number;
-}
 
 /** An unlock date this far ahead is, in practice, no date at all. */
 const FAR_FUTURE_S = 50 * 365 * 24 * 3600;

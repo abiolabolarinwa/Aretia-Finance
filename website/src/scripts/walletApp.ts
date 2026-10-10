@@ -4,6 +4,7 @@ import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { sidebarItemFor } from './walletNav';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
+import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
 
@@ -19,6 +20,8 @@ import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, pa
  *
  * Data (the connected address goes to these, and nowhere else):
  *   - Jupiter  ultra/balances   token balances for the address
+ *   - Solana RPC getTokenAccountsByOwner  every token account the address owns, read from the chain, so a token
+ *                               Jupiter's list leaves out (or a Jupiter outage) does not hide a holding
  *   - Jupiter  tokens/v2/search names, icons and prices for those mints
  *   - DexScreener tokens/v1     price for mints Jupiter has no price for (e.g. ACT)
  *   - Solana RPC (via /api/rpc, public fallback)  recent signatures for the Activity tab, the
@@ -138,8 +141,10 @@ interface DexPair {
   liquidity?: { usd?: number };
 }
 
-/** Everything the connected address holds, with names, icons and a price where one exists. */
-export async function loadHoldings(address: string): Promise<Holding[]> {
+const inBatches = <T>(items: readonly T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
+
+/** Jupiter's list of what the address holds, one entry per mint. */
+async function fetchJupiterBalances(address: string): Promise<RawBalance[]> {
   const balancesUrl = `https://lite-api.jup.ag/ultra/v1/balances/${address}`;
   let balances: Record<string, JupBalance>;
   try {
@@ -148,13 +153,51 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
     // Jupiter's free API is occasionally slow or throttled; one more try before giving up.
     balances = await getJson<Record<string, JupBalance>>(balancesUrl);
   }
-  const entries = Object.entries(balances)
-    .map(([key, b]) => [key === 'SOL' ? SOL_MINT : key, Number(b.uiAmount ?? 0), typeof b.amount === 'string' && /^\d+$/.test(b.amount) ? b.amount : null] as const)
-    .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
-    .slice(0, MAX_MINTS);
+  return Object.entries(balances)
+    .map(([key, b]): RawBalance => ({
+      mint: key === 'SOL' ? SOL_MINT : key,
+      amount: Number(b.uiAmount ?? 0),
+      raw: typeof b.amount === 'string' && /^\d+$/.test(b.amount) ? b.amount : null,
+      decimals: null,
+    }))
+    .filter((b) => Number.isFinite(b.amount) && b.amount > 0);
+}
+
+/**
+ * Every token account the address owns, read from the chain under both token programs (the original SPL Token
+ * program and Token-2022). This does not depend on any list, so it finds tokens Jupiter does not index. If one
+ * program's read fails the other's results are still used; only if both fail is it an error.
+ */
+async function discoverTokensOnChain(address: string): Promise<RawBalance[]> {
+  const read = (programId: string) => rpcCall<unknown>('getTokenAccountsByOwner', [address, { programId }, { encoding: 'jsonParsed' }]);
+  const [spl, token2022] = await Promise.allSettled([read(TOKEN_PROGRAM_ID), read(TOKEN_2022_PROGRAM_ID)]);
+  if (spl.status === 'rejected' && token2022.status === 'rejected') throw spl.reason;
+  return [
+    ...(spl.status === 'fulfilled' ? parseTokenAccountsResult(spl.value) : []),
+    ...(token2022.status === 'fulfilled' ? parseTokenAccountsResult(token2022.value) : []),
+  ];
+}
+
+/** Everything the connected address holds, with names, icons and a price where one exists. */
+export async function loadHoldings(address: string): Promise<Holding[]> {
+  const [jupiter, onChain, lamports] = await Promise.allSettled([
+    fetchJupiterBalances(address),
+    discoverTokensOnChain(address),
+    rpcCall<{ value: number }>('getBalance', [address]),
+  ]);
+  if (jupiter.status === 'rejected' && onChain.status === 'rejected') throw jupiter.reason;
+  const native = lamports.status === 'fulfilled' ? lamportsToBalance(SOL_MINT, lamports.value.value) : null;
+  const merged = mergeBalances(jupiter.status === 'fulfilled' ? jupiter.value : [], [
+    ...(onChain.status === 'fulfilled' ? onChain.value : []),
+    ...(native ? [native] : []),
+  ]);
+  // The native coin first, so a wallet with a great many token accounts can never push SOL out of the lookup limit.
+  const ordered = [...merged.filter((b) => b.mint === SOL_MINT), ...merged.filter((b) => b.mint !== SOL_MINT)].slice(0, MAX_MINTS);
+  const entries = ordered.map((b) => [b.mint, b.amount, b.raw] as const);
   if (entries.length === 0) return [];
   const mints = entries.map(([mint]) => mint);
   const rawByMint = new Map(entries.map(([mint, , raw]) => [mint, raw] as const));
+  const decimalsByMint = new Map(ordered.map((b) => [b.mint, b.decimals] as const));
 
   const meta = new Map<string, JupToken>();
   try {
@@ -167,10 +210,12 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   for (const [mint, token] of meta) {
     if (typeof token.usdPrice === 'number' && token.usdPrice > 0) prices.set(mint, { price: token.usdPrice, source: 'Jupiter', thin: false });
   }
+  // Both fallbacks take at most 30 mints per request. A wallet can hold more unpriced mints than that (and unpriced
+  // tokens are hidden by default), so every batch is asked, not just the first.
   const unpriced = mints.filter((m) => !prices.has(m));
-  if (unpriced.length > 0) {
-    try {
-      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${unpriced.slice(0, 30).join(',')}`);
+  await Promise.allSettled(
+    inBatches(unpriced, 30).map(async (batch) => {
+      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(',')}`);
       const best = new Map<string, DexPair>();
       for (const p of pairs) {
         const mint = p.baseToken?.address;
@@ -181,24 +226,20 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
         const price = Number(p.priceUsd);
         if (Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'DexScreener', thin: (p.liquidity?.usd ?? 0) < 10_000 });
       }
-    } catch {
-      // Handled below: GeckoTerminal is tried next.
-    }
-  }
+    }),
+  );
   // A token neither Jupiter nor DexScreener prices (DexScreener can lag on a new pool) may still be priced by
-  // GeckoTerminal, which reads the pool from the chain.
+  // GeckoTerminal, which reads the pool from the chain. A failed batch leaves those rows at "—" rather than a guess.
   const stillUnpriced = mints.filter((m) => !prices.has(m));
-  if (stillUnpriced.length > 0) {
-    try {
-      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${stillUnpriced.slice(0, 30).join(',')}`);
+  await Promise.allSettled(
+    inBatches(stillUnpriced, 30).map(async (batch) => {
+      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${batch.join(',')}`);
       for (const [mint, value] of Object.entries(r.data?.attributes?.token_prices ?? {})) {
         const price = Number(value);
-        if (stillUnpriced.includes(mint) && Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'GeckoTerminal', thin: false });
+        if (batch.includes(mint) && Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'GeckoTerminal', thin: false });
       }
-    } catch {
-      // No fallback price: those rows show "—" rather than a guess.
-    }
-  }
+    }),
+  );
 
   return entries
     .map(([mint, amount]): Holding => {
@@ -212,7 +253,7 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
         icon: safeIcon(t?.icon),
         amount,
         raw: rawByMint.get(mint) ?? null,
-        decimals: native ? 9 : typeof t?.decimals === 'number' ? t.decimals : null,
+        decimals: native ? 9 : (decimalsByMint.get(mint) ?? (typeof t?.decimals === 'number' ? t.decimals : null)),
         price: p?.price ?? null,
         priceSource: p?.source ?? null,
         value: p ? amount * p.price : null,
@@ -307,6 +348,16 @@ export function initWalletApp(): void {
   let holdingsFailed = false;
   let activity: ActivityItem[] | null = null;
   let amountsHidden = false;
+  // Tokens with no price (mostly airdropped spam) are hidden from the table unless this is on. Remembered on this device.
+  const UNPRICED_PREF_KEY = 'aretia.wallet.showUnpriced';
+  const readShowUnpriced = (): boolean => {
+    try {
+      return localStorage.getItem(UNPRICED_PREF_KEY) === '1';
+    } catch {
+      return false; // storage can be blocked; the default is "hidden"
+    }
+  };
+  let showUnpriced = readShowUnpriced();
   let loadToken = 0;
   const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
 
@@ -401,6 +452,9 @@ export function initWalletApp(): void {
     }
     const priced = holdings.filter((h) => h.value !== null);
     const sum = priced.reduce((s, h) => s + (h.value ?? 0), 0);
+    const { shown, hiddenUnpriced } = splitByPrice(holdings, SOL_MINT, showUnpriced);
+    // How many tokens the toggle governs: those with no price, other than the native coin.
+    const unpricedCount = priced.length > 0 ? holdings.filter((h) => h.value === null && h.mint !== SOL_MINT).length : 0;
     total.textContent = priced.length > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
     sub.textContent = holdings.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${holdings.length} token${holdings.length === 1 ? '' : 's'} priced`;
     if (holdings.length === 0) return;
@@ -411,7 +465,7 @@ export function initWalletApp(): void {
       el('thead', {}, [el('tr', {}, ['Asset', 'Balance', 'Price', 'Value', 'Weight'].map((t, i) => el('th', { text: t, class: i > 0 && i < 4 ? 'num' : '' })))]),
     );
     const tbody = el('tbody');
-    for (const h of holdings) {
+    for (const h of shown) {
       const weight = h.value !== null && sum > 0 ? (h.value / sum) * 100 : null;
       const bar = el('span', { class: 'wapp-bar' }, [el('span')]);
       (bar.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, weight ?? 0))}%`;
@@ -431,6 +485,25 @@ export function initWalletApp(): void {
     }
     table.append(tbody);
     body.append(table);
+
+    if (unpricedCount > 0) {
+      const noun = `unpriced token${unpricedCount === 1 ? '' : 's'}`;
+      const toggle = el('button', {
+        class: 'wapp__btn wapp__btn--ghost wapp-unpriced-toggle',
+        text: showUnpriced ? `Hide ${unpricedCount} ${noun}` : `Show ${hiddenUnpriced.length} ${noun}`,
+        attrs: { type: 'button', 'aria-pressed': String(showUnpriced), 'data-unpriced-toggle': '' },
+      });
+      toggle.addEventListener('click', () => {
+        showUnpriced = !showUnpriced;
+        try {
+          localStorage.setItem(UNPRICED_PREF_KEY, showUnpriced ? '1' : '0');
+        } catch {
+          // Not remembered; the choice still applies until the page is closed.
+        }
+        renderDashboard();
+      });
+      body.append(toggle, el('p', { class: 'wapp-sub', text: 'Tokens with no market price are often airdropped spam, so they are hidden by default. They are still in your wallet.' }));
+    }
   }
 
   function renderActivity(error?: string): void {

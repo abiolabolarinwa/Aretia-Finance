@@ -24,7 +24,9 @@ import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRo
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
-import { sortRows, type MarketRow } from '../swings/market/types.js';
+import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
+import { AlertStore, evaluateMoves, PCT_CHOICES } from '../swings/account/priceAlerts.js';
+import { createToaster } from './walletToast.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -118,7 +120,7 @@ const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? 
 /** Where the 0.29% Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
 const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
-export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void } {
+export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
   if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {} };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
@@ -150,6 +152,36 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
   const history = new SwapHistory(browserStorage());
   const account = new AccountClient(browserStorage());
   const favourites = new FavouriteStore(browserStorage());
+  const alerts = new AlertStore(browserStorage());
+  const toaster = createToaster();
+  let alertsChanged: () => void = () => undefined;
+
+  /**
+   * Checks the favourites' prices and pops an alert for any that has moved by the chosen percentage since it was starred
+   * (or last alerted). Runs only while the page is open and visible: nothing watches prices for a closed page.
+   */
+  async function checkFavouritePrices(): Promise<void> {
+    if (document.hidden) return;
+    const favs = favourites.list();
+    if (favs.length === 0) return;
+    let rows: MarketRow[];
+    try {
+      rows = await rowsFromFavourites(favs);
+    } catch {
+      return;
+    }
+    const items = rows.map((r) => ({ chain: r.chain, address: r.address, symbol: r.symbol, icon: r.icon, priceUsd: r.priceUsd }));
+    const res = evaluateMoves(items, alerts.baselines(), alerts.pct(), Date.now());
+    alerts.record(res.baselines, res.alerts);
+    // A burst is capped so the pop-ups do not run on for minutes; every alert is still listed on the Favourites page.
+    for (const a of res.alerts.slice(0, 5)) {
+      const up = a.movePct > 0;
+      toaster.show({ title: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon });
+    }
+    if (res.alerts.length > 0) alertsChanged();
+  }
+  setTimeout(() => void checkFavouritePrices(), 8_000);
+  setInterval(() => void checkFavouritePrices(), 30_000);
   let accountMessage: string | null = null;
   let accountBusy = false;
 
@@ -1128,6 +1160,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
     let tableEl: HTMLElement | null = null;
+    /** True while the sidebar's Favourites page is showing this list. */
+    let favPage = false;
+    alertsChanged = () => {
+      if (m.kind === 'favourites' && !page) draw();
+    };
 
     /** Aretia's on-chain check of one row's token, shared with the list, the side panel and the swap screen through one memory. */
     async function assessRow(row: MarketRow): Promise<TokenRisk | null> {
@@ -1252,6 +1289,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
     function toggleFavourite(r: MarketRow): void {
       const fav = { chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon };
       const on = favourites.toggle(fav);
+      if (on) {
+        alerts.startWatching(r.chain, r.address, r.priceUsd);
+        toaster.show({ title: `${r.symbol} added to Favourites`, detail: `${formatPrice(r.priceUsd)} · 24H ${formatChange(r.change.h24)} · alerts at ±${alerts.pct()}%`, tone: 'info', icon: r.icon });
+      } else alerts.stopWatching(r.chain, r.address);
       const session = sessionNow();
       if (session) void account.setFavourite(session, fav, on).catch(() => undefined);
       // Un-starring inside the Favourites list takes the row away.
@@ -1343,6 +1384,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
         select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Couldn\'t check']], (v) => { f.risk = v; refilter(); }),
       );
+      if (m.kind === 'favourites') {
+        bar.append(select('Price alerts', String(alerts.pct()), PCT_CHOICES.map((p): [string, string] => [String(p), `Alert at ±${p}%`]), (v) => {
+          alerts.setPct(Number(v));
+          draw();
+        }));
+      }
       const hide = el('input', { attrs: { type: 'checkbox', id: 'hide-risky-mk' } });
       hide.checked = f.hideRisky;
       hide.addEventListener('change', () => {
@@ -1370,6 +1417,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
         card.append(el('p', { class: 'wapp__fine', text: 'Numbers come from each token\'s main pool; a dash means the source did not report it. The rating and the padlock are Aretia’s own. A faint rating is a first reading from the pool’s liquidity, trading and age; it firms up once Aretia has read the token’s contract on-chain, and it never says a token is safe. Click a token for its numbers and safety notes.' }));
       }
+      if (m.kind === 'favourites') card.append(favouriteAlerts());
       target.append(card);
       // On a wide screen the panel opens on the selected row, or the first one when nothing is selected yet.
       if (tableEl && panelShown() && !page) {
@@ -1381,6 +1429,23 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
           markSelected(tableEl, tableRowKey(cur));
         }
       }
+    }
+
+    /** What the alerts do, and the recent ones, so a pop-up that has gone is never lost. */
+    function favouriteAlerts(): HTMLElement {
+      const box = el('div', { class: 'wapp-alerts' });
+      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved ±${alerts.pct()}% from where it was when you starred it or last alerted. Nothing watches prices once the page is closed.` }));
+      const log = alerts.log();
+      if (log.length > 0) {
+        box.append(el('span', { class: 'wapp__eyebrow', text: 'Recent alerts' }));
+        const list = el('ul', { class: 'wapp-alerts__list' });
+        for (const a of log.slice(0, 8)) {
+          const up = a.movePct > 0;
+          list.append(el('li', { class: up ? 'is-up' : 'is-down', text: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}% to ${formatPrice(a.price)} · ${formatAge(Date.now() - a.at)} ago` }));
+        }
+        box.append(list);
+      }
+      return box;
     }
 
     /** Previous and next arrows with a page number box. */
@@ -1418,6 +1483,28 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       draw,
       ensureLoaded(): void {
         if (rows === null && !loading) void load();
+      },
+      /** The sidebar's Favourites page shows this list as its favourites; leaving it puts the list back to what is trending. */
+      setFavouritesPage(on: boolean): void {
+        if (on) {
+          favPage = true;
+          if (m.kind !== 'favourites') {
+            m.kind = 'favourites';
+            tsort = startSort();
+            pageNo = 1;
+            rows = null;
+            void load();
+          } else void load(true);
+        } else if (favPage) {
+          favPage = false;
+          if (m.kind === 'favourites') {
+            m.kind = 'trending';
+            tsort = startSort();
+            pageNo = 1;
+            rows = null;
+            void load();
+          }
+        }
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
       setChain(id: ChainId): void {
@@ -1634,7 +1721,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       closeSwapDialog();
       showTab(view === 'swap' ? 'swap' : 'markets');
       render();
-        markets.draw();
+      if (view !== 'swap') markets.setFavouritesPage(view === 'favourites');
+      markets.draw();
       renderActivity();
     },
     onPayShow() {

@@ -261,9 +261,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'swings' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'swings', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', swings: 'Markets', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'swings' | 'favourites' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'swings', 'favourites', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', swings: 'Markets', favourites: 'Favourites', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -316,7 +316,9 @@ export function initWalletApp(): void {
   function renderChrome(): void {
     const view = currentView();
     root!.dataset.connected = address ? 'true' : 'false';
-    root!.dataset.view = view;
+    // Favourites is the Markets list filtered to the person's favourites, so it takes the Markets layout.
+    root!.dataset.view = view === 'favourites' ? 'swings' : view;
+    root!.dataset.page = view;
     const title = $('[data-title]');
     if (title) title.textContent = TITLES[view];
     // Only the sidebar entries show a current page; other [data-nav] buttons are plain shortcuts.
@@ -325,7 +327,7 @@ export function initWalletApp(): void {
       else b.removeAttribute('aria-current');
     });
     // The Swap page shows the same panel the Markets page is built on.
-    const pane = view === 'swap' ? 'swings' : view;
+    const pane = view === 'swap' || view === 'favourites' ? 'swings' : view;
     document.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== pane));
     const chip = $('[data-account]');
     if (chip) {
@@ -998,7 +1000,7 @@ export function initWalletApp(): void {
   function onRoute(): void {
     renderChrome();
     const view = currentView();
-    if (view === 'swings' || view === 'swap') swings.onShow(view);
+    if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'activity') swings.onActivityShow();
     if (view === 'send') {
       void loadWeb3();

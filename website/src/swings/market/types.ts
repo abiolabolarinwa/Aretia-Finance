@@ -37,7 +37,7 @@ export interface MarketRow {
   /** Share of the pool's liquidity proven burned, when Aretia checked and found some; otherwise null. */
   lockedPct?: number | null;
   /** Aretia's own rating, only for tokens in its registry. */
-  risk: { status: string; label: string; score: number | null } | null;
+  risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market' } | null;
   /** In Aretia's registry of newly detected tokens. */
   fresh: boolean;
 }

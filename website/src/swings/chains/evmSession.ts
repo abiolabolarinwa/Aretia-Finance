@@ -17,6 +17,8 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   optimism: 'https://optimism-rpc.publicnode.com',
   avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
+  // Robinhood's own public endpoint; its docs say it is rate-limited, so heavy use needs a provider.
+  robinhood: 'https://rpc.mainnet.chain.robinhood.com',
 };
 
 export type EvmRead = (method: string, params: unknown[]) => Promise<unknown>;

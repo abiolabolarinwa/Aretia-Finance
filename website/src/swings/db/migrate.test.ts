@@ -36,7 +36,7 @@ async function fresh(): Promise<{ db: PGlite; sql: SqlClient }> {
 describe('migration files', () => {
   it('are numbered without gaps and have checksums', () => {
     const m = loadMigrations(files);
-    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql']);
+    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql']);
     expect(m[0]!.checksum).toBe(checksumOf(files[0]!.sql));
   });
 
@@ -57,8 +57,8 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { onStep: (s) => steps.push(s) });
-    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql']);
-    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql']);
+    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql']);
+    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql', 'Applied 0009_robinhood_chain.sql']);
     const rows = await sql.query('select name from public.aretia_schema_migrations order by name');
     expect(rows.map((r) => r.name)).toEqual(done);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('token_registry','discovery_cursors','swings_events')"))[0]!.n).toBe(3);
@@ -76,7 +76,7 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { dryRun: true, onStep: (s) => steps.push(s) });
-    expect(done).toHaveLength(8);
+    expect(done).toHaveLength(9);
     expect(steps[0]).toMatch(/Would apply/);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name = 'token_registry'"))[0]!.n).toBe(0);
   });

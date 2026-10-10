@@ -13,6 +13,7 @@ const chains = [
   { name: 'Base', logo: '/assets/chains/base.png' },
   { name: 'BNB Chain', logo: '/assets/chains/bnb.png' },
   { name: 'Polygon', logo: '/assets/chains/polygon.png' },
+  { name: 'Robinhood Chain', logo: '/assets/chains/robinhood.png' },
 ];
 
 interface Card {
@@ -29,7 +30,7 @@ interface Card {
    Pay are in the wallet build, SafeSend is on testnet, the marketplace is a
    preview, and Carbon Credit is a sandbox with a simulated registry. */
 const cards: Card[] = [
-  { key: 'wallet', paper: 'brand', status: 'in-development', title: 'Aretia Wallet', body: 'One self-custody wallet for Solana and EVM networks. One recovery phrase, five chains, and keys that stay encrypted on your device.', cta: 'See the wallet', href: '/wallet/about' },
+  { key: 'wallet', paper: 'brand', status: 'in-development', title: 'Aretia Wallet', body: 'One self-custody wallet for Solana and EVM networks. One recovery phrase, six chains, and keys that stay encrypted on your device.', cta: 'See the wallet', href: '/wallet/about' },
   { key: 'swap', paper: 'mint', status: 'built', title: 'Aretia Swap', body: 'Swap the tokens you hold at the route the market offers, with the price and the fee in front of you before you sign.', cta: 'Open the wallet', href: '/wallet' },
   { key: 'pay', paper: 'ink', status: 'built', title: 'Aretia Pay', body: 'Send to maria.sol or alex.eth, not a 44-character address. The real address is resolved and shown before anything is signed.', cta: 'See how it works', href: '/features#pay' },
   { key: 'safesend', paper: 'bright', status: 'testnet', title: 'Aretia SafeSend', body: 'Lock a transfer for a short protection window and cancel it if something looks wrong, before it ever reaches the recipient.', cta: 'See SafeSend', href: '/features#safesend' },
@@ -44,7 +45,7 @@ const steps: { title: string; body: string; paper: PaperTheme }[] = [
 ];
 
 const facts = [
-  { big: '5', label: 'networks in one wallet', note: 'Solana, Ethereum, Base, BNB Chain and Polygon.' },
+  { big: '6', label: 'networks in one wallet', note: 'Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain.' },
   { big: '2-of-3', label: 'signers hold the treasury', note: 'No single person can move the Climate Treasury.' },
   { big: 'Revoked', label: 'mint authority', note: 'Nobody can ever create more ACT.' },
 ];
@@ -52,7 +53,7 @@ const facts = [
 
 <Base
   title="Aretia Finance"
-  description="Aretia Finance is a multichain wallet and token in one: hold, send, swap and protect crypto across Solana, Ethereum, Base, BNB Chain and Polygon, while every ACT transfer funds real climate projects."
+  description="Aretia Finance is a multichain wallet and token in one: hold, send, swap and protect crypto across Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain, while every ACT transfer funds real climate projects."
   ctaBands={false}
 >
   <!-- Hero: a full-bleed photograph in an inset frame, copy on the left. -->
@@ -62,7 +63,7 @@ const facts = [
       <div class="lp-hero__content">
         <p class="hero-pill">Live on Solana mainnet <i>·</i> ACT</p>
         <h1 class="lp-hero__title">Your passport<br />to <span class="lp-hl">every chain.</span></h1>
-        <p class="lp-hero__lead">Hold, send, swap and protect your crypto across Solana, Ethereum, Base, BNB Chain and Polygon, from one place. And every ACT transfer quietly funds real climate projects.</p>
+        <p class="lp-hero__lead">Hold, send, swap and protect your crypto across Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain, from one place. And every ACT transfer quietly funds real climate projects.</p>
         <div class="lp-hero__ctas">
           <a class="lbtn lbtn--white" href="/wallet">Open wallet</a>
           <a class="lbtn lbtn--ghost" href={LINKS.buyAct}>Get ACT</a>
@@ -86,14 +87,14 @@ const facts = [
       <p class="lp-intro__lead" data-reveal>Aretia is a multichain wallet and a token with a purpose. Hold and send across the networks you already use, pay people by name, get checked before you sign. Then by the token's own code, a share of every ACT transfer goes to a Climate Treasury that pays real projects against verified milestones.</p>
     </div>
 
-    <div class="lp-marquee" aria-label="Networks Aretia reaches: Solana, Ethereum, Base, BNB Chain and Polygon" data-reveal>
+    <div class="lp-marquee" aria-label="Networks Aretia reaches: Solana, Ethereum, Base, BNB Chain, Polygon and Robinhood Chain" data-reveal>
       <ul class="lp-marquee__track" aria-hidden="true">
         {[0, 1].map(() => chains.map((c) => (
           <li><img src={c.logo} alt="" width="40" height="40" loading="lazy" /><span>{c.name}</span></li>
         )))}
       </ul>
     </div>
-    <p class="container lp-note">Solana is live today for ACT. The wallet reaches the other four as it ships.</p>
+    <p class="container lp-note">Solana is live today for ACT. The wallet reaches the other five as it ships.</p>
   </section>
 
   <!-- The products: art panel with a small interface, then title, copy, CTA. -->

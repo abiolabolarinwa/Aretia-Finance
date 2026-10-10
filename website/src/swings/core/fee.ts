@@ -34,6 +34,7 @@ export const DEFAULT_FEE_CONFIG: AretiaFeeConfig = {
     arbitrum: { chainId: 'arbitrum', enabled: false },
     optimism: { chainId: 'optimism', enabled: false },
     avalanche: { chainId: 'avalanche', enabled: false },
+    robinhood: { chainId: 'robinhood', enabled: false },
   },
 };
 

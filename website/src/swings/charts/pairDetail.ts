@@ -18,6 +18,9 @@ export interface PairDetail {
   priceUsd: number | null;
   priceNative: number | null;
   liquidityUsd: number | null;
+  /** How much of each token sits in the pool, in whole tokens. */
+  pooledBase: number | null;
+  pooledQuote: number | null;
   fdvUsd: number | null;
   marketCapUsd: number | null;
   change: Record<Win, number | null>;
@@ -53,7 +56,7 @@ interface RawPair {
   quoteToken?: { symbol?: string };
   priceUsd?: string | number;
   priceNative?: string | number;
-  liquidity?: { usd?: number | string };
+  liquidity?: { usd?: number | string; base?: number | string; quote?: number | string };
   fdv?: number | string;
   marketCap?: number | string;
   priceChange?: Partial<Record<Win, number | string>>;
@@ -89,6 +92,8 @@ export function parsePairDetail(body: unknown, now: number): PairDetail | null {
     priceUsd: price !== null && price > 0 ? price : null,
     priceNative: num(p.priceNative),
     liquidityUsd: num(p.liquidity?.usd),
+    pooledBase: num(p.liquidity?.base),
+    pooledQuote: num(p.liquidity?.quote),
     fdvUsd: num(p.fdv),
     marketCapUsd: num(p.marketCap),
     change: byWindow((w) => num(p.priceChange?.[w])),

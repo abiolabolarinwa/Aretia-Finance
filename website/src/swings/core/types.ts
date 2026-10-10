@@ -5,7 +5,7 @@
  * Token identity is always `chain + address`; a symbol is display text and never a key.
  */
 
-export type ChainId = 'solana' | 'ethereum' | 'bnb' | 'polygon' | 'base' | 'arbitrum' | 'optimism' | 'avalanche';
+export type ChainId = 'solana' | 'ethereum' | 'bnb' | 'polygon' | 'base' | 'arbitrum' | 'optimism' | 'avalanche' | 'robinhood';
 
 export interface ChainInfo {
   id: ChainId;
@@ -32,6 +32,7 @@ export const CHAINS: Readonly<Record<ChainId, ChainInfo>> = {
   arbitrum: { id: 'arbitrum', name: 'Arbitrum', kind: 'evm', evmChainId: 42161, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
   optimism: { id: 'optimism', name: 'Optimism', kind: 'evm', evmChainId: 10, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
   avalanche: { id: 'avalanche', name: 'Avalanche', kind: 'evm', evmChainId: 43114, nativeSymbol: 'AVAX', nativeDecimals: 18, executionEnabled: false },
+  robinhood: { id: 'robinhood', name: 'Robinhood Chain', kind: 'evm', evmChainId: 4663, nativeSymbol: 'ETH', nativeDecimals: 18, executionEnabled: false },
 };
 
 export const CHAIN_IDS = Object.keys(CHAINS) as ChainId[];

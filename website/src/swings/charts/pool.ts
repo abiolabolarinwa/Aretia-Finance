@@ -14,7 +14,7 @@ import { SwingsError, type ChainId } from '../core/types.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
 
 /** GeckoTerminal's network ids. */
-export const GECKO_NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avax' };
+export const GECKO_NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avax', robinhood: 'robinhood' };
 
 export interface PoolInfo {
   network: string;
@@ -92,7 +92,7 @@ export function pickPool(chain: ChainId, address: string, pools: GeckoPool[]): P
 }
 
 /** DexScreener's names for the networks. */
-export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avalanche' };
+export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avalanche', robinhood: 'robinhood' };
 
 /**
  * The chart the wallet shows for now: DexScreener's embedded chart and trades for a pool, in the same light style the

@@ -29,7 +29,7 @@ const HEADLINE: Readonly<Record<RiskStatus, { text: string; tone: SafetyTone }>>
   elevated: { text: 'Elevated risk: concerns were found. Read them before you buy.', tone: 'warn' },
   high: { text: 'High risk: serious concerns were found. You may not be able to sell this token.', tone: 'bad' },
   restricted: { text: 'Restricted: this token has controls that can stop or tax your trades.', tone: 'bad' },
-  unknown: { text: 'Not enough data to assess this token. That is not a good sign or a bad one.', tone: 'info' },
+  unknown: { text: 'Aretia could not read enough about this token to rate it. Treat it as unchecked, and only trade what you can afford to lose.', tone: 'info' },
 };
 
 /** Builds the view. A null assessment means none was available, and says so. */

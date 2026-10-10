@@ -121,7 +121,7 @@ describe('the Marketplace loader', () => {
     const urls: string[] = [];
     const m = new GeckoMarket(reply(urls), () => NOW);
     const top = await m.load({ kind: 'top', chain: '', window: 'h24' });
-    expect(urls.filter((u) => u.includes('sort=h24_volume_usd_desc'))).toHaveLength(8);
+    expect(urls.filter((u) => u.includes('sort=h24_volume_usd_desc'))).toHaveLength(9);
     expect(top.length).toBeGreaterThan(0);
     const thin = new GeckoMarket(reply([], pool({ reserve_in_usd: '500', volume_usd: { h24: '300' } })), () => NOW);
     expect(await thin.load({ kind: 'gainers', chain: 'solana', window: 'h24' })).toEqual([]);

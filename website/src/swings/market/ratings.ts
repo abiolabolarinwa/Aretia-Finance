@@ -25,7 +25,7 @@ export function applyRatings(rows: readonly MarketRow[], ratings: readonly Ratin
     if (!r) return row;
     return {
       ...row,
-      risk: r.status ? { status: r.status, label: RISK_LABELS[r.status] ?? r.status, score: r.score } : row.risk,
+      risk: r.status ? { status: r.status, label: RISK_LABELS[r.status] ?? r.status, score: r.score, basis: 'registry' as const } : row.risk,
       lockedPct: row.lockedPct ?? r.lockedPct,
     };
   });

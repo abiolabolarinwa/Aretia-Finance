@@ -24,6 +24,7 @@ export const NATIVE_COIN_LOGO: Readonly<Record<ChainId, string>> = {
   arbitrum: '/assets/chains/ethereum.png',
   optimism: '/assets/chains/ethereum.png',
   avalanche: '/assets/chains/avalanche.png',
+  robinhood: '/assets/chains/ethereum.png',
 };
 
 export const logoKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;

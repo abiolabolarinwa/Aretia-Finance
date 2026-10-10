@@ -171,6 +171,27 @@ export function assessEvmToken(f: EvmRiskFacts, options: RiskOptions = {}): Toke
   return b.result(options, f.ageHours, isEstablished(f));
 }
 
+/** Facts any trading screen already has about a pool, without reading the token's contract. */
+export interface MarketRiskFacts {
+  liquidityUsd?: number | null;
+  volume24hUsd?: number | null;
+  poolCount?: number | null;
+  ageHours?: number | null;
+}
+
+/**
+ * The first reading of a token from market data alone: its pool, liquidity, trading and age. It cannot see what the
+ * contract is able to do (mint, freeze, blacklist, taxes), so the full on-chain assessment replaces it as soon as that
+ * is available. Same signals, same weights and same wording as the full assessment; it just has fewer of them.
+ */
+export function assessMarketData(f: MarketRiskFacts, options: RiskOptions = {}): TokenRisk {
+  const b = new Builder();
+  b.liquidity(f.liquidityUsd, f.poolCount);
+  b.activity(f.volume24hUsd);
+  b.age(f.ageHours);
+  return b.result(options, f.ageHours, isEstablished(f));
+}
+
 /** Plain-language label for the UI. Deliberately has no 'safe' wording. */
 export const RISK_LABELS: Readonly<Record<RiskStatus, string>> = {
   established: 'Established',

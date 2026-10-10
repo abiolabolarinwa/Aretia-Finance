@@ -6,6 +6,7 @@
 import { CHAINS } from '../swings/core/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
+import { ratingView, type CheckState } from '../swings/market/rowRisk.js';
 
 export interface TableState {
   key: SortKey | null;
@@ -19,6 +20,10 @@ export interface TableOptions {
   showRisk: boolean;
   onSort(key: SortKey): void;
   onOpen(row: MarketRow): void;
+  /** Where each row's on-chain check stands, so its rating can say "Checking" or "Couldn't check". */
+  ratingState?(row: MarketRow): CheckState | undefined;
+  /** The row to show as selected (the one the side panel is describing). */
+  selectedKey?: string | null;
   /** A star on each row, to keep a token in the person's favourites. */
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
 }
@@ -77,6 +82,32 @@ function liquidityCell(r: MarketRow): HTMLElement {
   return td;
 }
 
+/** Aretia's rating cell for a row: a label, drawn lighter while it is only a market reading, with its basis in the tooltip. */
+function ratingCell(r: MarketRow, state: CheckState | undefined): HTMLElement {
+  const v = ratingView(r, state);
+  const td = el('td', 'wapp-mt__rating');
+  const chip = el('span', `wapp__state wapp__state--${v.tone}${v.soft ? ' wapp__state--soft' : ''}${v.checking ? ' is-checking' : ''}`, v.label);
+  chip.title = v.title;
+  td.append(chip);
+  return td;
+}
+
+/** Redraws the rating cells of the given rows in place, without redrawing the table. */
+export function updateRatingCells(table: ParentNode, rows: readonly MarketRow[], stateOf: (r: MarketRow) => CheckState | undefined): void {
+  for (const r of rows) {
+    const tr = table.querySelector<HTMLElement>(`.wapp-mt__row[data-k="${CSS.escape(tableRowKey(r))}"]`);
+    tr?.querySelector('.wapp-mt__rating')?.replaceWith(ratingCell(r, stateOf(r)));
+  }
+}
+
+/** The key a row carries, so a selection can be found again after the table is redrawn. */
+export const tableRowKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`;
+
+/** Moves the "selected" look to one row without redrawing the table. */
+export function markSelected(table: ParentNode, key: string | null): void {
+  table.querySelectorAll<HTMLElement>('.wapp-mt__row').forEach((tr) => tr.classList.toggle('is-selected', key !== null && tr.dataset.k === key));
+}
+
 export function marketTable(o: TableOptions): HTMLElement {
   const wrap = el('div', 'wapp-mt');
   const table = el('table', 'wapp-mt__table');
@@ -109,6 +140,8 @@ export function marketTable(o: TableOptions): HTMLElement {
   rows.forEach((r, i) => {
     const tr = el('tr', 'wapp-mt__row');
     tr.tabIndex = 0;
+    tr.dataset.k = tableRowKey(r);
+    if (o.selectedKey === tr.dataset.k) tr.classList.add('is-selected');
     tr.setAttribute('role', 'link');
     tr.setAttribute('aria-label', `${r.symbol} on ${CHAINS[r.chain].name}: open`);
     const open = (): void => o.onOpen(r);
@@ -159,10 +192,7 @@ export function marketTable(o: TableOptions): HTMLElement {
     tok.append(cell);
     tr.append(tok);
     if (o.showRisk) {
-      const td = el('td');
-      const tone = !r.risk ? 'off' : r.risk.status === 'high' || r.risk.status === 'restricted' ? 'bad' : r.risk.status === 'elevated' ? 'warn' : r.risk.status === 'established' || r.risk.status === 'verified' ? 'on' : 'off';
-      td.append(el('span', `wapp__state wapp__state--${tone}`, r.risk ? `${r.risk.label}${r.risk.score !== null ? ` · ${r.risk.score}` : ''}` : 'Not rated'));
-      tr.append(td);
+      tr.append(ratingCell(r, o.ratingState?.(r)));
     }
     tr.append(
       el('td', 'wapp-mt__num', compactUsd(r.capUsd)),

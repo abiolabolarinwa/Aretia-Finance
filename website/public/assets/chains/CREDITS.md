@@ -16,3 +16,5 @@ https://github.com/trustwallet/assets
 | base.png | Base | blockchains/base/info/logo.png |
 | bnb.png | BNB Smart Chain | blockchains/smartchain/info/logo.png |
 | polygon.png | Polygon | blockchains/polygon/info/logo.png |
+
+**robinhood.png** is a neutral placeholder drawn by Aretia (a green disc with a leaf), not Robinhood's own mark. Replace it with the official Robinhood Chain logo when available.

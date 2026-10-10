@@ -136,16 +136,23 @@ export function registerEvmWallet(router: AretiaRouter, wallet: EvmWalletAdapter
  * Tokens tab uses). Returns null when the token cannot be read or the checks fail: the screen then says no
  * assessment could be made, never that the token is safe.
  */
-export async function assessTokenSafety(chain: ChainId, address: string): Promise<TokenRisk | null> {
+export async function assessTokenSafety(chain: ChainId, address: string, market: { liquidityUsd: number | null; volume24hUsd: number | null; ageMs: number | null; hasPool: boolean } | null = null): Promise<TokenRisk | null> {
   try {
     const ref = normalizeTokenRef(chain, address);
     if (!ref) return null;
+    // When the caller already knows the pool's numbers, they join the on-chain facts, so liquidity, activity and age are
+    // scored too and the verdict matches what the market list shows.
+    const candidate = {
+      ref,
+      source: 'swap-screen',
+      ...(market ? { liquidityUsd: market.liquidityUsd, volume24hUsd: market.volume24hUsd, firstPoolAt: market.ageMs === null ? null : Date.now() - market.ageMs, pool: market.hasPool ? { venue: 'market', address: 'known' } : null } : {}),
+    };
     if (chain === 'solana') {
-      const out = await new SolanaTokenEnricher(rpcCall).enrich({ ref, source: 'swap-screen' });
+      const out = await new SolanaTokenEnricher(rpcCall).enrich(candidate);
       return out?.risk ?? null;
     }
     const read = publicRead(chain);
-    const out = await new EvmTokenEnricher(<T,>(method: string, params: unknown[]) => read(method, params) as Promise<T>).enrich({ ref, source: 'swap-screen' });
+    const out = await new EvmTokenEnricher(<T,>(method: string, params: unknown[]) => read(method, params) as Promise<T>).enrich(candidate);
     return out?.risk ?? null;
   } catch {
     return null;

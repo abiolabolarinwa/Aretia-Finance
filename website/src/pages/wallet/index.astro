@@ -82,10 +82,6 @@ const buyTips = [
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
           <span class="wapp__label">Markets</span>
         </button>
-        <button type="button" data-nav="activity">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
-          <span class="wapp__label">Activity</span>
-        </button>
         <button type="button" data-nav="send">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
           <span class="wapp__label">Pay</span>
@@ -109,6 +105,10 @@ const buyTips = [
         <button type="button" data-nav="universal">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg>
           <span class="wapp__label">Universal</span>
+        </button>
+        <button type="button" data-nav="activity">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+          <span class="wapp__label">Activity</span>
         </button>
       </nav>
       <div class="wapp__side-foot">
@@ -892,16 +892,17 @@ const buyTips = [
   .wapp-mt__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }
   .wapp-mt__pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
   .wapp-mt__pager .wapp-mt__pageno { width: 64px; min-width: 0; text-align: center; }
+  .wapp__card.wapp-mt__card { padding: 14px 18px 16px; gap: 10px; }
   .wapp-mt__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .wapp-mt__bar .wapp__input { width: auto; min-width: 150px; }
   .wapp-mt__check { display: inline-flex; align-items: center; gap: 8px; }
   .wapp-mt { overflow-x: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
-  .wapp-mt__table { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
-  .wapp-mt__table th { position: sticky; top: 0; z-index: 1; padding: 11px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-align: right; text-transform: uppercase; white-space: nowrap; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
+  .wapp-mt__table { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-mt__table th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-align: right; text-transform: uppercase; white-space: nowrap; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
   .wapp-mt__table th.wapp-mt__rank, .wapp-mt__table th.wapp-mt__tokenhead { text-align: left; }
   .wapp-mt__sort { padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; cursor: pointer; }
   .wapp-mt__sort:hover, .wapp-mt__sort:focus-visible { color: var(--color-brand); outline: none; }
-  .wapp-mt__row td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--color-border); }
+  .wapp-mt__row td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--color-border); }
   .wapp-mt__row { cursor: pointer; }
   .wapp-mt__row:hover td { background: var(--color-brand-soft); }
   .wapp-tp { display: grid; gap: 14px; }
@@ -938,13 +939,13 @@ const buyTips = [
   .wapp-mt__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
   .wapp-mt__row:last-child td { border-bottom: 0; }
   .wapp-mt__table td.wapp-mt__rank { width: 40px; color: var(--color-muted); text-align: left; }
-  .wapp-mt__token { min-width: 250px; text-align: left; }
-  .wapp-mt__cell { display: flex; align-items: center; gap: 10px; }
-  .wapp-mt__logo { width: 32px; height: 32px; font-size: 11px; }
+  .wapp-mt__token { min-width: 220px; text-align: left; }
+  .wapp-mt__cell { display: flex; align-items: center; gap: 8px; }
+  .wapp-mt__logo { width: 24px; height: 24px; font-size: 9px; }
   .wapp-mt__names { display: grid; min-width: 0; }
   .wapp-mt__line { display: flex; align-items: baseline; gap: 6px; }
-  .wapp-mt__line strong { font-size: 14px; }
-  .wapp-mt__line small, .wapp-mt__fullname { font-size: 12px; color: var(--color-muted); }
+  .wapp-mt__line strong { font-size: 12.5px; }
+  .wapp-mt__line small, .wapp-mt__fullname { font-size: 10.5px; line-height: 1.25; color: var(--color-muted); }
   .wapp-mt__fullname { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
   .wapp-mt__chain { flex: none; width: 14px; height: 14px; margin-left: auto; border-radius: 50%; }
   .wapp-mt__num.is-up { color: #1b8a4b; }

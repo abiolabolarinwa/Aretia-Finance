@@ -1256,8 +1256,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap'):
       }
       target.replaceChildren();
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
-      card.append(el('h2', { class: 'wapp__h2', text: 'Marketplace' }));
-      card.append(el('p', { class: 'wapp__fine', text: 'What is trading across the networks, with Aretia\'s safety rating where Aretia has checked the token. Busy does not mean safe, a rating is not advice, and liquidity can be withdrawn by whoever put it there.' }));
+      card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
       const bar = el('div', { class: 'wapp-mt__bar' });
       const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });

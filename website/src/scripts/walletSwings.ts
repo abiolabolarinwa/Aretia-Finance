@@ -17,6 +17,7 @@ import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
+import { tokenOpenMode } from './walletNav';
 import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
@@ -1535,6 +1536,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
       const bar = el('div', { class: 'wapp-mt__bar' });
+      // A swap can be started from here without picking a token first; the Swap page itself has no sidebar entry.
+      const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
+      swapButton.addEventListener('click', openSwapDialog);
+      bar.append(swapButton);
       const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
@@ -1855,15 +1860,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   window.addEventListener(OPEN_TOKEN_EVENT, (e) => {
     const t = (e as CustomEvent<SearchHit>).detail;
     void (async () => {
-      const onSwapPage = location.hash === '#/swap';
-      const onMarkets = location.hash === '#/swings';
-      if (!onSwapPage && !onMarkets) {
+      const mode = tokenOpenMode(location.hash);
+      if (mode === 'go-to-swap') {
         location.hash = '#/swap';
         await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
       }
       selectChain(t.chain);
-      // From Markets the swap opens over the list; on the Swap page it is already in place.
-      if (onMarkets) openSwapDialog();
+      // From Markets or Favourites the swap opens over the list; on the Swap page it is already in place.
+      if (mode === 'markets-dialog') openSwapDialog();
       else showTab('swap');
       if (t.decimals !== null) await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, icon: t.icon, verified: null }, t.chain);
     })();

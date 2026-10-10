@@ -17,11 +17,37 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   optimism: 'https://optimism-rpc.publicnode.com',
   avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-  // Robinhood's own public endpoint; its docs say it is rate-limited, so heavy use needs a provider.
-  robinhood: 'https://rpc.mainnet.chain.robinhood.com',
+  // publicnode, like the other networks. Robinhood's own public endpoint (rpc.mainnet.chain.robinhood.com) is documented as rate-limited
+  // and dropped requests intermittently when tested from a browser.
+  robinhood: 'https://robinhood-rpc.publicnode.com',
 };
 
 export type EvmRead = (method: string, params: unknown[]) => Promise<unknown>;
+
+/**
+ * Public nodes turn away a burst: a handful of requests at once is fine, a dozen are refused (the browser reports that as a
+ * network error). Every read through one node shares this small limit, so the risk checks, the lock checks and the token panel
+ * cannot swamp it together; a request over the limit simply waits its turn.
+ */
+export const MAX_CONCURRENT_PER_NODE = 3;
+const slots = new Map<string, { active: number; waiting: (() => void)[] }>();
+
+async function withSlot<T>(url: string, run: () => Promise<T>): Promise<T> {
+  let q = slots.get(url);
+  if (!q) {
+    q = { active: 0, waiting: [] };
+    slots.set(url, q);
+  }
+  const queue = q;
+  if (queue.active >= MAX_CONCURRENT_PER_NODE) await new Promise<void>((resolve) => queue.waiting.push(resolve));
+  queue.active++;
+  try {
+    return await run();
+  } finally {
+    queue.active--;
+    queue.waiting.shift()?.();
+  }
+}
 
 export function publicRead(chain: ChainId, fetchImpl: typeof fetch = fetch): EvmRead {
   if (chain === 'solana') throw new SwingsError('invalid', 'Solana has no EVM RPC.');
@@ -42,14 +68,15 @@ export function publicRead(chain: ChainId, fetchImpl: typeof fetch = fetch): Evm
   };
   // Reads are idempotent, so one retry after a timeout or network drop is safe. A node that answered with
   // an error is not retried. Writes never use this function: the wallet sends them.
-  return async (method, params) => {
-    try {
-      return await once(method, params);
-    } catch (e) {
-      if (e instanceof SwingsError) throw e;
-      return once(method, params);
-    }
-  };
+  return (method, params) =>
+    withSlot(url, async () => {
+      try {
+        return await once(method, params);
+      } catch (e) {
+        if (e instanceof SwingsError) throw e;
+        return once(method, params);
+      }
+    });
 }
 
 /** Decodes an ABI-encoded string, or a bytes32 used as a string (older tokens such as MKR). Returns null if malformed. */

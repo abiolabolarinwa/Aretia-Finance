@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AMM_V4_PROGRAM } from '../solana/raydiumAmmV4.js';
-import { burnedShare, checkLock, clearLockIndexes, evmLock, LockReadError, lockedShare, parseLockerEntry, solanaLock, v3Lock, V3_LOCKERS, type LockRead, type SolRead } from './lock.js';
+import { burnedShare, checkLock, clearLockIndexes, evmLock, LockReadError, lockedShare, parseLockerEntry, parseV4LockerEntry, solanaLock, v3Lock, v4Lock, V3_LOCKERS, V4_LOCKERS, type LockRead, type SolRead } from './lock.js';
+import { keccak256 } from '../core/keccak.js';
 import { decodeParams, encodeParams } from '../engine/abiGeneric.js';
 import { encodeCall, selector, uint } from '../engine/abi.js';
 import { marketFromAttributes } from './snapshot.js';
@@ -153,5 +154,96 @@ describe('Uniswap V3 pools in a locker', () => {
     const read = fakeChain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, unlock: NOW_S + day }] });
     // The fake answers only the V3 calls, so the V2 questions come back empty and the V3 path is the one that answers.
     expect((await checkLock('robinhood', POOL, { evm: read }, NOW))?.kind).toBe('time-locked');
+  });
+});
+
+// ------------------------------------------------------------------ Uniswap V4 positions in a locker
+
+const V4 = V4_LOCKERS.robinhood!;
+const KEY_WORDS = [addrWord('0x' + '00'.repeat(20)), addrWord('0x' + '77'.repeat(20)), word(3000), word(60), addrWord('0x' + '00'.repeat(20))];
+const hexOfBytes = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+const POOL_ID = hexOfBytes(keccak256(Uint8Array.from((KEY_WORDS.join('').match(/.{2}/g) ?? []).map((x) => parseInt(x, 16)))));
+
+interface V4Position { id: number; nft: number; unlock: number; owner?: string; lower?: number; upper?: number; liquidity?: bigint; key?: string[] }
+
+/** A tiny chain for V4: Multicall3 answering for the StateView, the V4 position manager and the locker's `locks(id)`. */
+function fakeV4Chain(o: { poolLiquidity: bigint | null; tick: number; positions: V4Position[] }): LockRead {
+  const handlers = new Map<string, string | null>();
+  const sel = (sig: string): string => selector(sig).replace(/^0x/, '');
+  const k = (to: string, sig: string, arg: string): string => `${to.toLowerCase()}:${sel(sig)}${arg}`;
+  const id = POOL_ID.replace(/^0x/, '');
+  handlers.set(k(V4.stateView, 'getLiquidity(bytes32)', id), o.poolLiquidity === null ? null : '0x' + word(o.poolLiquidity));
+  handlers.set(k(V4.stateView, 'getSlot0(bytes32)', id), o.poolLiquidity === null ? null : '0x' + [word(1n << 96n), word(o.tick), word(0), word(0)].join(''));
+  o.positions.forEach((p) => {
+    const key = p.key ?? KEY_WORDS;
+    handlers.set(k(V4.locker, 'locks(uint256)', word(p.id)), '0x' + [word(p.id), addrWord('0x' + '11'.repeat(20)), word(p.nft), ...key, word(p.liquidity ?? 100n), word(p.unlock), addrWord('0x' + '11'.repeat(20)), word(1), word(400)].join(''));
+    handlers.set(k(V4.positionManager, 'ownerOf(uint256)', word(p.nft)), '0x' + addrWord(p.owner ?? V4.locker));
+    const packed = (BigInt.asUintN(24, BigInt(p.upper ?? 1000)) << 32n) | (BigInt.asUintN(24, BigInt(p.lower ?? -1000)) << 8n);
+    handlers.set(k(V4.positionManager, 'getPoolAndPositionInfo(uint256)', word(p.nft)), '0x' + [...key, word(packed)].join(''));
+    handlers.set(k(V4.positionManager, 'getPositionLiquidity(uint256)', word(p.nft)), '0x' + word(p.liquidity ?? 100n));
+  });
+  return (async (_method: string, params: unknown[]) => {
+    const tx = params[0] as { data: string };
+    const [calls] = decodeParams(['(address,bool,bytes)[]'], '0x' + tx.data.slice(10)) as [[string, boolean, string][]];
+    const results = calls.map(([to, , data]) => {
+      const hit = handlers.get(`${to.toLowerCase()}:${data.replace(/^0x/, '')}`);
+      return [hit !== undefined && hit !== null, hit ?? '0x'] as [boolean, string];
+    });
+    return '0x' + encodeParams(['(bool,bytes)[]'], [results]).replace(/^0x/, '');
+  }) as LockRead;
+}
+
+describe('Uniswap V4 pools in a locker', () => {
+  const day = 86_400;
+  const lockWords = (nft: number, unlock: number, key = KEY_WORDS): string => '0x' + [word(1), addrWord('0x' + '11'.repeat(20)), word(nft), ...key, word(100n), word(unlock), addrWord('0x' + '11'.repeat(20)), word(1), word(400)].join('');
+
+  it('reads a lock and works out its pool id from the stored pool key', () => {
+    const e = parseV4LockerEntry(lockWords(407767, NOW_S + day));
+    expect(e).toEqual({ nftId: 407767n, poolId: POOL_ID, unlockDate: BigInt(NOW_S + day) });
+    expect(parseV4LockerEntry(lockWords(0, 0))).toBeNull();
+    expect(parseV4LockerEntry('0x')).toBeNull();
+  });
+
+  it('marks a pool whose active liquidity is all in the locker, with the date and who holds it', async () => {
+    clearLockIndexes();
+    const read = fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + 60 * day }] });
+    expect(await v4Lock(read, 'robinhood', POOL_ID, NOW)).toEqual({ pct: 100, kind: 'time-locked', until: (NOW_S + 60 * day) * 1000, by: 'UNCX', at: NOW });
+  });
+
+  it('counts the locked part only, and the soonest unlock', async () => {
+    clearLockIndexes();
+    const read = fakeV4Chain({ poolLiquidity: 400n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + 90 * day, liquidity: 100n }, { id: 2, nft: 5002, unlock: NOW_S + 30 * day, liquidity: 200n }] });
+    const lock = await v4Lock(read, 'robinhood', POOL_ID, NOW);
+    expect(lock?.pct).toBe(75);
+    expect(lock?.until).toBe((NOW_S + 30 * day) * 1000);
+  });
+
+  it('does not count an ended lock, an NFT that left the locker, or a position out of range', async () => {
+    clearLockIndexes();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S - day }] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+    clearLockIndexes();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day, owner: '0x' + '33'.repeat(20) }] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+    clearLockIndexes();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 5000, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day }] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+  });
+
+  it('ignores locks that belong to other pools, and pools that are empty or unknown', async () => {
+    clearLockIndexes();
+    const other = [addrWord('0x' + '00'.repeat(20)), addrWord('0x' + '88'.repeat(20)), word(3000), word(60), addrWord('0x' + '00'.repeat(20))];
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day, key: other }] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+    clearLockIndexes();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 0n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day }] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: null, tick: 0, positions: [] }), 'robinhood', POOL_ID, NOW)).toBeNull();
+    // Not a 32-byte id, or a chain without a V4 locker: no question is asked.
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [] }), 'robinhood', '0x' + 'ab'.repeat(20), NOW)).toBeNull();
+    expect(await v4Lock(fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [] }), 'bnb', POOL_ID, NOW)).toBeNull();
+  });
+
+  it('says so when the node does not answer, and checkLock reaches V4 for a 32-byte pool id', async () => {
+    clearLockIndexes();
+    await expect(v4Lock((async () => { throw new Error('down'); }) as LockRead, 'robinhood', POOL_ID, NOW)).rejects.toBeInstanceOf(LockReadError);
+    clearLockIndexes();
+    const read = fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day }] });
+    expect((await checkLock('robinhood', POOL_ID, { evm: read }, NOW))?.kind).toBe('time-locked');
   });
 });

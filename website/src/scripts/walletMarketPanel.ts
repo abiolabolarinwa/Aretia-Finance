@@ -136,14 +136,18 @@ export function createMarketPanel(o: MarketPanelOptions) {
     r.append(el('span', 'wapp-mp__lk', label));
     const right = el('span', 'wapp-mp__lv');
     const what = label.toLowerCase();
-    const a = el('a', 'wapp-mp__icon');
-    a.innerHTML = OPEN_ICON;
-    a.href = ADDRESS_URL[chain] + encodeURIComponent(address);
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.title = `View the ${what} on the block explorer`;
-    a.setAttribute('aria-label', `View the ${what} on the block explorer`);
-    right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, what), a);
+    right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, what));
+    // A Uniswap V4 pool is named by a 32-byte id, which is not an address: a block explorer has no page for it.
+    if (chain === 'solana' || address.length <= 42) {
+      const a = el('a', 'wapp-mp__icon');
+      a.innerHTML = OPEN_ICON;
+      a.href = ADDRESS_URL[chain] + encodeURIComponent(address);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = `View the ${what} on the block explorer`;
+      a.setAttribute('aria-label', `View the ${what} on the block explorer`);
+      right.append(a);
+    }
     r.append(right);
     return r;
   }
@@ -282,7 +286,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     };
     info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
     if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
-    info.append(addressRow('Pool address', d?.pair ?? r.pool, r.chain), addressRow('Token address', r.address, r.chain));
+    info.append(addressRow((d?.pair ?? r.pool).length > 42 && r.chain !== 'solana' ? 'Pool ID' : 'Pool address', d?.pair ?? r.pool, r.chain), addressRow('Token address', r.address, r.chain));
     root.append(info);
     if (d && d.links.length > 0) {
       const g = el('div', 'wapp-mp__group');

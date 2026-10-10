@@ -10,12 +10,16 @@
  *    pool's active liquidity that sits in position NFTs the locker holds, with the date they can come out. This is a TIME lock,
  *    not a burn: it ends, and it is reported as its own kind with its date.
  *
- * Not covered, and so never marked: position NFTs sent to a dead address, other lockers, V4 and other concentrated-liquidity
- * pools, and other Solana pool kinds. No mark means "not shown to be locked", not "unlocked".
+ *  - Uniswap V4 pools on a chain with a known V4 locker (Robinhood Chain: UNCX's V4 locker): the same idea for V4 positions, with the
+ *    pool found by its 32-byte pool id. Also a time lock.
+ *
+ * Not covered, and so never marked: position NFTs sent to a dead address, other lockers, other concentrated-liquidity pools
+ * (CLMM), and other Solana pool kinds. No mark means "not shown to be locked", not "unlocked".
  */
 import type { ChainId, TokenLock } from '../core/types.js';
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
-import { encodeCall, address, uint, words } from '../engine/abi.js';
+import { encodeCall, address, selector, uint, words } from '../engine/abi.js';
+import { keccak256 } from '../core/keccak.js';
 import { AMM_V4_PROGRAM } from '../solana/raydiumAmmV4.js';
 
 export type LockRead = (method: string, params: unknown[]) => Promise<unknown>;
@@ -174,7 +178,9 @@ const LOCKS_TTL_MS = 5 * 60_000;
 const lockIndexes = new Map<string, { at: number; entries: LockerEntry[] }>();
 /** Locks above this many are not read in one go; the newest are skipped rather than the page stalling. */
 const MAX_LOCKS = 1500;
-const CHUNK = 80;
+/** Locks are read in smaller batches, several at once: one huge request to a busy public node is the one that times out. */
+const CHUNK = 40;
+const PARALLEL = 4;
 
 /** Every lock in the locker, read once and kept for a few minutes: one lookup serves every pool on screen. */
 async function lockerEntries(read: LockRead, cfg: V3LockerConfig, now: number): Promise<LockerEntry[]> {
@@ -184,12 +190,19 @@ async function lockerEntries(read: LockRead, cfg: V3LockerConfig, now: number): 
   if (!len) throw new LockReadError('The locker could not be read');
   const count = Math.min(Number(BigInt(len)), MAX_LOCKS);
   const entries: LockerEntry[] = [];
-  for (let from = 0; from < count; from += CHUNK) {
-    const ids = Array.from({ length: Math.min(CHUNK, count - from) }, (_, i) => from + i);
-    const got = await multicall(read, ids.map((id): [string, string] => [cfg.locker, encodeCall('getLock(uint256)', [uint(BigInt(id))])]));
-    for (const g of got) {
-      const e = g ? parseLockerEntry(g) : null;
-      if (e && e.positionManager === cfg.positionManager) entries.push(e);
+  const starts = Array.from({ length: Math.ceil(count / CHUNK) }, (_, i) => i * CHUNK);
+  for (let b = 0; b < starts.length; b += PARALLEL) {
+    const batch = await Promise.all(
+      starts.slice(b, b + PARALLEL).map(async (from) => {
+        const ids = Array.from({ length: Math.min(CHUNK, count - from) }, (_, i) => from + i);
+        return multicall(read, ids.map((id): [string, string] => [cfg.locker, encodeCall('getLock(uint256)', [uint(BigInt(id))])]));
+      }),
+    );
+    for (const got of batch) {
+      for (const g of got) {
+        const e = g ? parseLockerEntry(g) : null;
+        if (e && e.positionManager === cfg.positionManager) entries.push(e);
+      }
     }
   }
   lockIndexes.set(cfg.locker, { at: now, entries });
@@ -197,7 +210,10 @@ async function lockerEntries(read: LockRead, cfg: V3LockerConfig, now: number): 
 }
 
 /** Forgets the remembered lock lists (for tests). */
-export const clearLockIndexes = (): void => lockIndexes.clear();
+export const clearLockIndexes = (): void => {
+  lockIndexes.clear();
+  v4Indexes.clear();
+};
 
 /**
  * A Uniswap V3 pool whose active liquidity is partly or wholly in position NFTs held by the chain's locker. Counts a position
@@ -245,10 +261,136 @@ export async function v3Lock(read: LockRead, chain: ChainId, pool: string, now: 
   }
 }
 
-/** Looks at a pool on any network. Throws LockReadError only when a V3 locker could not be read (try again later); otherwise returns what it found, or null. */
+// ------------------------------------------------------------------ Uniswap V4 positions held by a locker
+
+export interface V4LockerConfig {
+  locker: string;
+  /** Uniswap's V4 PositionManager: the NFTs are its positions. */
+  positionManager: string;
+  /** Uniswap's V4 StateView: reads a pool's liquidity and price by pool id. */
+  stateView: string;
+  label: string;
+}
+
+/**
+ * Robinhood Chain: UNCX's V4 locker, from UNCX's published contracts table. Its `locks(id)` getter returns 13 words (lock id, owner,
+ * NFT id, the five fields of the pool key, liquidity, unlock date, collect address, two flags). That layout was checked against the
+ * chain: the position manager reports the locker as owner of each NFT, its pool key equals the lock's fields, and its liquidity
+ * equals the lock's recorded liquidity.
+ */
+export const V4_LOCKERS: Readonly<Partial<Record<ChainId, V4LockerConfig>>> = {
+  robinhood: {
+    locker: '0x128a800cbc615cc110bff16e475865c67631603a',
+    positionManager: '0x58daec3116aae6d93017baaea7749052e8a04fa7',
+    stateView: '0xf3334192d15450cdd385c8b70e03f9a6bd9e673b',
+    label: 'UNCX',
+  },
+};
+
+export interface V4LockerEntry {
+  nftId: bigint;
+  /** The pool's 32-byte id, worked out from the pool key stored in the lock. Lower-case, 0x-prefixed. */
+  poolId: string;
+  /** Unix seconds. */
+  unlockDate: bigint;
+}
+
+const bytesOf = (h: string): Uint8Array => Uint8Array.from((h.replace(/^0x/, '').match(/.{2}/g) ?? []).map((x) => parseInt(x, 16)));
+const hexOf = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+
+/** Pure. One `locks(id)` answer. The pool id is the keccak-256 of the pool key (words 3 to 7). Null for an empty slot (a withdrawn or unused id). */
+export function parseV4LockerEntry(hex: string): V4LockerEntry | null {
+  const w = words(hex);
+  if (w.length < 13) return null;
+  const nftId = BigInt('0x' + w[2]!);
+  if (nftId === 0n) return null;
+  return { nftId, poolId: hexOf(keccak256(bytesOf(w.slice(3, 8).join('')))), unlockDate: BigInt('0x' + w[9]!) };
+}
+
+const v4Indexes = new Map<string, { at: number; entries: V4LockerEntry[] }>();
+
+/** Every live lock in the V4 locker, read once and kept a few minutes. Ids run from 1; it stops at the first block of ids with nothing in it. */
+async function v4LockerEntries(read: LockRead, cfg: V4LockerConfig, now: number): Promise<V4LockerEntry[]> {
+  const hit = v4Indexes.get(cfg.locker);
+  if (hit && now - hit.at < LOCKS_TTL_MS) return hit.entries;
+  const entries: V4LockerEntry[] = [];
+  // The count is not published, so read a few batches at once and stop when the last of them has nothing in it.
+  for (let from = 0; from < MAX_LOCKS; from += CHUNK * PARALLEL) {
+    const starts = Array.from({ length: PARALLEL }, (_, i) => from + i * CHUNK).filter((s) => s < MAX_LOCKS);
+    const batch = await Promise.all(
+      starts.map(async (start) => {
+        const ids = Array.from({ length: CHUNK }, (_, i) => start + i);
+        const got = await multicall(read, ids.map((id): [string, string] => [cfg.locker, encodeCall('locks(uint256)', [uint(BigInt(id))])]));
+        return got.map((g) => (g ? parseV4LockerEntry(g) : null)).filter((e): e is V4LockerEntry => e !== null);
+      }),
+    );
+    for (const found of batch) entries.push(...found);
+    if (batch[batch.length - 1]!.length === 0) break;
+  }
+  v4Indexes.set(cfg.locker, { at: now, entries });
+  return entries;
+}
+
+/** Forgets the remembered V4 lock lists (for tests). */
+export const clearV4LockIndexes = (): void => v4Indexes.clear();
+
+const byId = (sig: string, id: string): string => '0x' + selector(sig) + id.replace(/^0x/, '');
+
+/**
+ * A Uniswap V4 pool (by its 32-byte pool id) whose active liquidity is partly or wholly in position NFTs held by the chain's V4
+ * locker. Same rules as v3Lock: the locker must still hold the NFT, its lock must not have ended, and only liquidity in range now
+ * counts. Throws LockReadError, and only that, when the node did not answer.
+ */
+export async function v4Lock(read: LockRead, chain: ChainId, poolId: string, now: number): Promise<TimeLock | null> {
+  const cfg = V4_LOCKERS[chain];
+  if (!cfg || !/^0x[0-9a-fA-F]{64}$/.test(poolId)) return null;
+  const id = poolId.toLowerCase();
+  try {
+    const [liq, slot0] = await multicall(read, [[cfg.stateView, byId('getLiquidity(bytes32)', id)], [cfg.stateView, byId('getSlot0(bytes32)', id)]]);
+    if (!liq || !slot0) return null;
+    const poolLiquidity = BigInt(liq);
+    const tick = signed24(words(slot0)[1]!);
+    if (poolLiquidity <= 0n) return null;
+    const mine = (await v4LockerEntries(read, cfg, now)).filter((e) => e.poolId === id);
+    if (mine.length === 0) return null;
+    const calls = mine.flatMap((e): [string, string][] => {
+      const arg = [uint(e.nftId)];
+      return [[cfg.positionManager, encodeCall('ownerOf(uint256)', arg)], [cfg.positionManager, encodeCall('getPoolAndPositionInfo(uint256)', arg)], [cfg.positionManager, encodeCall('getPositionLiquidity(uint256)', arg)]];
+    });
+    const got = await multicall(read, calls);
+    const nowS = BigInt(Math.floor(now / 1000));
+    let locked = 0n;
+    let earliest: bigint | null = null;
+    mine.forEach((e, i) => {
+      const owner = got[i * 3];
+      const info = got[i * 3 + 1];
+      const liquidityHex = got[i * 3 + 2];
+      if (!owner || !info || !liquidityHex) return;
+      if ('0x' + words(owner)[0]!.slice(24).toLowerCase() !== cfg.locker) return;
+      if (e.unlockDate <= nowS) return;
+      const w = words(info);
+      if (w.length < 6) return;
+      // The packed position info: bits 8 to 31 are the lower tick and bits 32 to 55 the upper tick.
+      const packed = BigInt('0x' + w[5]!);
+      const lower = Number(BigInt.asIntN(24, packed >> 8n));
+      const upper = Number(BigInt.asIntN(24, packed >> 32n));
+      const liquidity = BigInt(liquidityHex);
+      if (liquidity <= 0n || tick < lower || tick >= upper) return;
+      locked += liquidity;
+      if (e.unlockDate - nowS < BigInt(FAR_FUTURE_S) && (earliest === null || e.unlockDate < earliest)) earliest = e.unlockDate;
+    });
+    if (locked <= 0n) return null;
+    return { pct: lockedShare(locked, poolLiquidity), kind: 'time-locked', until: earliest === null ? null : Number(earliest) * 1000, by: cfg.label, at: now };
+  } catch (e) {
+    if (e instanceof LockReadError) throw e;
+    return null;
+  }
+}
+
+/** Looks at a pool on any network. Throws LockReadError only when a V3 or V4 locker could not be read (try again later); otherwise returns what it found, or null. */
 export async function checkLock(chain: ChainId, pool: string, reads: { evm?: LockRead; sol?: SolRead }, now: number): Promise<TokenLock | TimeLock | null> {
   if (chain === 'solana') return reads.sol ? solanaLock(reads.sol, pool, now) : null;
   if (!reads.evm) return null;
-  // A V2-style pair first (a burned liquidity token is permanent), then a V3 pool in a locker.
-  return (await evmLock(reads.evm, pool, now)) ?? (await v3Lock(reads.evm, chain, pool, now));
+  // A V2-style pair first (a burned liquidity token is permanent), then a V3 pool, then a V4 pool (named by its 32-byte id), in a locker.
+  return (await evmLock(reads.evm, pool, now)) ?? (await v3Lock(reads.evm, chain, pool, now)) ?? (await v4Lock(reads.evm, chain, pool, now));
 }

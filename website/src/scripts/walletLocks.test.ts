@@ -67,17 +67,27 @@ describe('finding locked liquidity in the page', () => {
     q.rate(rows);
     await vi.advanceTimersByTimeAsync(400);
     expect(q.sync(rows)).toEqual([]);
-    // Straight away it is not asked again (the node is busy), but after the pause it is.
+    // Straight away it is not asked again (the node is busy), but after the pause it asks again by itself.
     q.rate([row('0xa')]);
     await vi.advanceTimersByTimeAsync(400);
     expect(calls).toBe(1);
     await vi.advanceTimersByTimeAsync(31_000);
-    const later = [row('0xa')];
-    q.rate(later);
-    await vi.advanceTimersByTimeAsync(400);
     expect(calls).toBe(2);
+    const later = [row('0xa')];
     q.sync(later);
     expect(later[0]!.lockedPct).toBe(100);
+  });
+
+  it('gives up retrying on its own after a few failures, and leaves it to the next refresh', async () => {
+    let calls = 0;
+    const q = createLockQueue({ check: async () => { calls++; throw new Error('node busy'); }, onChange: () => undefined });
+    q.rate([row('0xa')]);
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(calls).toBe(3);
+    // A later refresh of the list asks again.
+    q.rate([row('0xa')]);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(calls).toBe(4);
   });
 
   it('treats a failing check as "not shown" and carries on', async () => {

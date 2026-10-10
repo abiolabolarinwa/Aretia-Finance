@@ -10,6 +10,8 @@ import type { MarketRow } from '../swings/market/types.js';
 const TTL_MS = 30 * 60_000;
 /** A read that failed (a busy node) is tried again after this long; it is never remembered as "not locked". */
 const RETRY_MS = 30_000;
+/** How many times a failed read is tried again on its own before it waits for the next refresh of the list. */
+const MAX_TRIES = 3;
 const poolKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`;
 
 /** What a check found: how much of the pool's liquidity is locked, and how. */
@@ -33,6 +35,7 @@ export function createLockQueue(o: LockQueueOptions) {
   const done = new Map<string, { found: LockFound | null; at: number }>();
   const pending = new Set<string>();
   const retryAt = new Map<string, number>();
+  const tries = new Map<string, number>();
   let waiting: MarketRow[] = [];
   let active = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -71,8 +74,19 @@ export function createLockQueue(o: LockQueueOptions) {
             announce();
           },
           () => {
-            // The node did not answer: no answer is remembered, and the pool is asked again after a pause.
+            // The node did not answer: no answer is remembered, and the pool is asked again after a pause (a few times on its
+            // own, then whenever the list next refreshes).
             retryAt.set(k, now() + RETRY_MS);
+            const n = (tries.get(k) ?? 0) + 1;
+            tries.set(k, n);
+            if (n < MAX_TRIES) {
+              setTimeout(() => {
+                if (done.has(k) || pending.has(k)) return;
+                pending.add(k);
+                waiting.push(row);
+                pump();
+              }, RETRY_MS);
+            }
           },
         )
         .finally(() => {

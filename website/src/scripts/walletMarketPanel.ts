@@ -10,6 +10,7 @@ import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } f
 import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
 import { sponsorBlock } from './walletSponsor.js';
+import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 
 export interface MarketPanelOptions {
@@ -65,12 +66,17 @@ function amount(n: number | null): string {
   return n >= 1000 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-function stat(label: string, value: string, tone = '', caption = ''): HTMLElement {
-  const d = el('div', `wapp-mp__stat${tone ? ` ${tone}` : ''}`);
+type Span = 3 | 4 | 6 | 12;
+
+/** One cell of the numbers grid: a small label over its figure. */
+function cell(label: string, value: string, span: Span, tone = ''): HTMLElement {
+  const d = el('div', `wapp-mp__cell wapp-mp__span-${span}${tone ? ` ${tone}` : ''}`);
   d.append(el('span', 'wapp-mp__k', label), el('strong', 'wapp-mp__v', value));
-  if (caption) d.append(el('span', 'wapp-mp__cap', caption));
   return d;
 }
+
+/** A full-width header row of the grid. */
+const gridHead = (text: string): HTMLElement => el('div', 'wapp-mp__gh', text);
 
 /** A small heading that says what the group below it is. */
 const heading = (text: string): HTMLElement => el('h4', 'wapp-mp__h', text);
@@ -106,13 +112,19 @@ export function createMarketPanel(o: MarketPanelOptions) {
   let ctl: AbortController | null = null;
 
   function copyButton(text: string, what: string): HTMLButtonElement {
-    const b = el('button', 'wapp-mp__copy', 'Copy');
+    const b = el('button', 'wapp-mp__icon');
     b.type = 'button';
-    b.setAttribute('aria-label', `Copy the ${what} address`);
+    b.innerHTML = COPY_ICON;
+    b.title = `Copy the ${what}`;
+    b.setAttribute('aria-label', `Copy the ${what}`);
     b.addEventListener('click', () => {
       const done = (): void => {
-        b.textContent = 'Copied';
-        setTimeout(() => (b.textContent = 'Copy'), 1500);
+        b.innerHTML = CHECK_ICON;
+        b.title = 'Copied';
+        setTimeout(() => {
+          b.innerHTML = COPY_ICON;
+          b.title = `Copy the ${what}`;
+        }, 1500);
       };
       if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(text).then(done, () => undefined);
     });
@@ -123,12 +135,15 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const r = el('div', 'wapp-mp__line');
     r.append(el('span', 'wapp-mp__lk', label));
     const right = el('span', 'wapp-mp__lv');
-    right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, label.toLowerCase()));
-    const a = el('a', 'wapp-mp__exp', 'View');
+    const what = label.toLowerCase();
+    const a = el('a', 'wapp-mp__icon');
+    a.innerHTML = OPEN_ICON;
     a.href = ADDRESS_URL[chain] + encodeURIComponent(address);
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
-    right.append(a);
+    a.title = `View the ${what} on the block explorer`;
+    a.setAttribute('aria-label', `View the ${what} on the block explorer`);
+    right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, what), a);
     r.append(right);
     return r;
   }
@@ -166,34 +181,44 @@ export function createMarketPanel(o: MarketPanelOptions) {
     return box;
   }
 
-  /** Price change for the four windows, then what traded in the window that is picked. */
-  function windowStats(d: PairDetail): HTMLElement {
-    const wrap = el('div', 'wapp-mp__group');
-    wrap.append(heading('Price change'));
-    const tabs = el('div', 'wapp-mp__tabs');
-    tabs.setAttribute('role', 'group');
-    tabs.setAttribute('aria-label', 'Time window');
+  /** The numbers as one grid table: size, price change by time window, and what traded in the window that is picked. */
+  function dataGrid(r: MarketRow, d: PairDetail | null): HTMLElement {
+    const g = el('div', 'wapp-mp__grid');
+    g.append(gridHead('Size'));
+    const liq = cell('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), 4);
+    // A padlock beside the figure when the pool's liquidity is shown to be locked.
+    if (r.lockedPct !== null && r.lockedPct !== undefined) {
+      const lock = el('span', 'wapp-mp__lock');
+      lock.innerHTML = LOCK_ICON;
+      lock.title = lockTitle(r.lockedPct);
+      lock.setAttribute('role', 'img');
+      lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent burned`);
+      liq.querySelector('.wapp-mp__v')?.prepend(lock);
+    }
+    g.append(liq, cell('FDV', compactUsd(d?.fdvUsd ?? null), 4), cell('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), 4));
+    if (problem || !d) {
+      g.append(el('div', 'wapp-mp__cell wapp-mp__span-12 wapp-mp__wait', problem ?? 'Loading the numbers…'));
+      return g;
+    }
+
+    g.append(gridHead('Price change'));
     for (const w of WINDOWS) {
       const n = d.change[w];
-      const b = el('button', `wapp-mp__tab ${n === null ? '' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`);
+      const b = el('button', `wapp-mp__cell wapp-mp__span-3 wapp-mp__tab ${n === null ? '' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(w === win));
-      b.append(el('span', 'wapp-mp__tabk', LABEL[w]), el('strong', '', formatChange(n)));
+      b.append(el('span', 'wapp-mp__k', LABEL[w]), el('strong', 'wapp-mp__v', formatChange(n)));
       b.addEventListener('click', () => {
         win = w;
         render();
       });
-      tabs.append(b);
+      g.append(b);
     }
-    wrap.append(tabs);
 
     const buys = d.buys[win];
     const sells = d.sells[win];
     const txns = buys === null || sells === null ? null : buys + sells;
-    wrap.append(heading(`Trading in the ${WIN_WORDS[win]}`));
-    const grid = el('div', 'wapp-mp__trio');
-    grid.append(stat('Trades', compactCount(txns)), stat('Buys', compactCount(buys), 'is-up'), stat('Sells', compactCount(sells), 'is-down'));
-    wrap.append(grid);
+    g.append(gridHead(`Trading in the ${WIN_WORDS[win]}`), cell('Trades', compactCount(txns), 4), cell('Buys', compactCount(buys), 4, 'is-up'), cell('Sells', compactCount(sells), 4, 'is-down'));
     if (buys !== null && sells !== null && buys + sells > 0) {
       const share = Math.round((buys / (buys + sells)) * 100);
       const meter = el('div', 'wapp-mp__meter');
@@ -201,12 +226,12 @@ export function createMarketPanel(o: MarketPanelOptions) {
       bar.style.width = `${share}%`;
       meter.append(bar);
       meter.title = `${share}% of trades were buys and ${100 - share}% were sells`;
-      wrap.append(meter);
+      const holder = el('div', 'wapp-mp__cell wapp-mp__span-12 wapp-mp__meterrow');
+      holder.append(meter);
+      g.append(holder);
     }
-    const money = el('div', 'wapp-mp__duo');
-    money.append(stat('Volume', compactUsd(d.volumeUsd[win])), stat('Traders (24H)', compactCount(row?.traders24h ?? null)));
-    wrap.append(money);
-    return wrap;
+    g.append(cell('Volume', compactUsd(d.volumeUsd[win]), 6), cell('Traders (24H)', compactCount(row?.traders24h ?? null), 6));
+    return g;
   }
 
   function render(): void {
@@ -224,18 +249,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     head.append(picture(r), names, el('strong', 'wapp-mp__price', formatPrice(d?.priceUsd ?? r.priceUsd)));
     root.append(head, checkBlock(r));
 
-    const size = el('div', 'wapp-mp__group');
-    size.append(heading('Size'));
-    const liq = el('div', 'wapp-mp__trio');
-    const liqStat = stat('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd));
-    if (r.lockedPct !== null && r.lockedPct !== undefined) liqStat.title = `Locked: ${r.lockedPct.toFixed(1)}% of this pool's liquidity tokens are burned.`;
-    liq.append(liqStat, stat('FDV', compactUsd(d?.fdvUsd ?? null)), stat('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd)));
-    size.append(liq);
-    root.append(size);
-
-    if (problem) root.append(el('p', 'wapp__fine', problem));
-    else if (!d) root.append(el('p', 'wapp__fine', 'Loading the numbers…'));
-    else root.append(windowStats(d));
+    root.append(dataGrid(r, d));
 
     const act = el('div', 'wapp-mp__actions');
     const swap = o.swapFor(r);

@@ -7,6 +7,7 @@ import { CHAINS } from '../swings/core/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { ratingView, type CheckState } from '../swings/market/rowRisk.js';
+import { LOCK_ICON, lockTitle } from './walletIcons.js';
 
 export interface TableState {
   key: SortKey | null;
@@ -69,17 +70,25 @@ function changeCell(n: number | null): HTMLElement {
   return td;
 }
 
-/** The liquidity figure, with a padlock when Aretia proved most of the pool's liquidity tokens are burned. */
+/** The liquidity figure, with a padlock when the pool's liquidity is shown to be locked (burned). */
 function liquidityCell(r: MarketRow): HTMLElement {
-  const td = el('td', 'wapp-mt__num', compactUsd(r.liquidityUsd));
+  const td = el('td', 'wapp-mt__num wapp-mt__liq', compactUsd(r.liquidityUsd));
   if (r.lockedPct === null || r.lockedPct === undefined) return td;
   const lock = el('span', 'wapp-mt__lock');
-  lock.title = `Locked: ${r.lockedPct.toFixed(r.lockedPct >= 99.95 ? 0 : 1)}% of this pool's liquidity tokens are burned, so that money cannot be withdrawn. Other liquidity in the pool, and tokens held by lock contracts, are not counted.`;
+  lock.title = lockTitle(r.lockedPct);
   lock.setAttribute('role', 'img');
   lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent burned`);
-  lock.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  lock.innerHTML = LOCK_ICON;
   td.prepend(lock);
   return td;
+}
+
+/** Redraws the liquidity cells (and their padlocks) of the given rows in place. */
+export function updateLiquidityCells(table: ParentNode, rows: readonly MarketRow[]): void {
+  for (const r of rows) {
+    const tr = table.querySelector<HTMLElement>(`.wapp-mt__row[data-k="${CSS.escape(tableRowKey(r))}"]`);
+    tr?.querySelector('.wapp-mt__liq')?.replaceWith(liquidityCell(r));
+  }
 }
 
 /** Aretia's rating cell for a row: a label, drawn lighter while it is only a market reading, with its basis in the tooltip. */

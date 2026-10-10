@@ -15,7 +15,10 @@ import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
-import { markSelected, marketTable, tableRowKey, updateRatingCells, type TableState } from './walletMarketTable.js';
+import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
+import { createLockQueue } from './walletLocks.js';
+import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
+import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
@@ -1219,6 +1222,26 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       chartHost.replaceChildren();
     }
 
+    // Which pools have their liquidity locked (burned), worked out in the page for the rows on screen. A padlock appears as each is proven.
+    const locks = createLockQueue({
+      check: async (row) => {
+        const lock = await checkLock(row.chain, row.pool, { ...(CHAINS[row.chain].kind === 'evm' ? { evm: publicRead(row.chain) } : { sol: rpcCall }) }, Date.now());
+        return lock && lock.pct >= LOCK_MIN_PCT ? lock.pct : null;
+      },
+      onChange: () => {
+        const current = rows ?? [];
+        const marked = locks.sync(current);
+        if (marked.length === 0 || page) return;
+        if (tableEl) updateLiquidityCells(tableEl, marked);
+        // The panel shows the same padlock for the token it is describing.
+        const sel = panel.selectedKey();
+        const selected = sel === null ? null : current.find((r) => tableRowKey(r) === sel);
+        if (selected && marked.includes(selected)) panel.show(selected);
+      },
+    });
+    /** Every list goes through both: a rating for each row, and a padlock where the liquidity is shown to be locked. */
+    const rateRows = (list: readonly MarketRow[]): MarketRow[] => locks.rate(ratings.rate(list));
+
     const panel = createMarketPanel({
       assess: assessRow,
       isFavourite: (r) => favourites.has(r.chain, r.address),
@@ -1267,20 +1290,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           if (mine !== seq) return;
           records.clear();
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
-          rows = ratings.rate(filled);
+          rows = rateRows(filled);
         } else if (m.kind === 'favourites') {
           const favs = favourites.list().filter((f) => !m.chain || f.chain === m.chain);
           const got = await rowsFromFavourites(favs);
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
-          rows = ratings.rate(rated);
+          rows = rateRows(rated);
         } else {
           const got = await loadList({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
-          rows = ratings.rate(rated);
+          rows = rateRows(rated);
         }
         error = null;
       } catch (e) {

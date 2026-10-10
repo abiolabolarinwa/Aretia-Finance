@@ -17,7 +17,6 @@ interface Service {
 const services: Service[] = [
   { key: 'marketplace', name: 'Marketplace', line: 'Browse and trade markets across chains', href: '/wallet' },
   { key: 'pay', name: 'Pay', line: 'Send to a name, not an address', href: '/features#pay' },
-  { key: 'swap', name: 'Swap', line: 'Swap with the price shown first', href: '/wallet' },
   { key: 'carbon', name: 'Carbon Credit', line: 'Registry-backed, then retired', href: '/carboncredit' },
   { key: 'shield', name: 'Shield', line: 'Every send checked before you sign', href: '/features#shield' },
   { key: 'safesend', name: 'SafeSend', line: 'Cancel a send before it lands', href: '/features#safesend' },
@@ -53,7 +52,7 @@ const registries = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Aretia Finance</title>
-    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Swap, Carbon Credit, Shield, SafeSend and Radar, across six chains and the major carbon registries." />
+    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Carbon Credit, Shield, SafeSend and Radar, across nine chains and the major carbon registries." />
     <link rel="canonical" href="https://aretiafinance.org/" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <meta name="theme-color" content="#ffffff" />
@@ -121,9 +120,11 @@ const registries = [
           <h2 class="flow__label">Chains in Aretia Wallet</h2>
           <ul class="flow__items">
             {
-              chains.map((c) => (
-                <li class="chain">
-                  <img src={c.logo} alt="" width="28" height="28" />
+              chains.map((c, i) => (
+                <li class="chain" style={`--i:${i}`}>
+                  <span class="chain__logo">
+                    <img src={c.logo} alt="" width="28" height="28" />
+                  </span>
                   <span>{c.name}</span>
                 </li>
               ))
@@ -203,7 +204,7 @@ const registries = [
   .intro h1 span { display: block; color: var(--color-brand); }
   .intro p { margin: 0.9rem auto 0; max-width: 46ch; font-size: clamp(0.95rem, 1.7vh, 1.1rem); color: var(--color-muted); }
 
-  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.75rem; }
+  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; }
   /* One soft grey card per service: icon at the top left, then the name and a short line. */
   .grid li { display: flex; }
   .card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; width: 100%; padding: 1.1rem 1.1rem 1.25rem; border-radius: var(--radius-lg); background: var(--c-card); color: inherit; transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base); }
@@ -215,12 +216,22 @@ const registries = [
     .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
   }
 
-  .flows { display: grid; gap: 1.1rem; }
+  .flows { display: grid; gap: clamp(1.5rem, 4.5vh, 3rem); }
   .flow { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; text-align: center; }
   .flow__label { font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; color: var(--color-strong); }
   .flow__items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1.75rem; min-width: 0; }
   .chain { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 500; color: var(--color-strong); white-space: nowrap; }
-  .chain img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+  .chain__logo { position: relative; display: block; width: 26px; height: 26px; }
+  .chain__logo img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+  /* A signal passes along the chain: each logo lifts and sends out a ring in turn, left to right, then it starts over. */
+  @media (prefers-reduced-motion: no-preference) {
+    .chain { animation: chain-float 3.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -0.4s); }
+    .chain__logo::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--color-brand-bright); opacity: 0; pointer-events: none; animation: chain-ring 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
+    .chain__logo img { animation: chain-pop 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
+  }
+  @keyframes chain-float { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+  @keyframes chain-ring { 0% { opacity: 0.55; transform: scale(0.9); } 12% { opacity: 0; transform: scale(2.1); } 100% { opacity: 0; transform: scale(2.1); } }
+  @keyframes chain-pop { 0% { transform: scale(1); } 5% { transform: scale(1.18); } 14%, 100% { transform: scale(1); } }
   .flow__items--logos { gap: 0.5rem 2.5rem; }
   .flow__items--logos img { width: auto; max-width: none; }
 

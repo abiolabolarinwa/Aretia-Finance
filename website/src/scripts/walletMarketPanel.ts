@@ -253,13 +253,13 @@ export function createMarketPanel(o: MarketPanelOptions) {
 
     const row2 = el('div', 'wapp-mp__duo');
     const favLabel = (): string => (o.isFavourite(r) ? '★ Favourited' : '☆ Favourite');
-    const fav = el('button', 'wapp__btn wapp__btn--ghost', favLabel());
+    const fav = el('button', 'wapp__btn wapp__btn--primary', favLabel());
     fav.type = 'button';
     fav.addEventListener('click', () => {
       o.toggleFavourite(r);
       fav.textContent = favLabel();
     });
-    const chart = el('button', 'wapp__btn wapp__btn--ghost', 'Full chart');
+    const chart = el('button', 'wapp__btn wapp__btn--primary', 'Full chart');
     chart.type = 'button';
     chart.addEventListener('click', () => o.openChart(r));
     row2.append(fav, chart);

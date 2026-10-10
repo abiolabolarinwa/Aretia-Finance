@@ -23,8 +23,11 @@ describe('swaps on Robinhood Chain', () => {
     expect([...p!.rpcUrls, ...p!.blockExplorerUrls].every((u) => u.startsWith('https://'))).toBe(true);
   });
 
-  it('can route through wrapped ether and has a V3 and a V4 venue that name it', () => {
-    expect(HUB_TOKENS.robinhood).toEqual([{ address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 }]);
+  it('can route through wrapped ether and USDG, and has a V3 and a V4 venue that name wrapped ether', () => {
+    expect(HUB_TOKENS.robinhood).toEqual([
+      { address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 },
+      { address: '0x5fc5360d0400a0fd4f2af552add042d716f1d168', symbol: 'USDG', decimals: 6, skipV4: true },
+    ]);
     const venues = EVM_DEXES.filter((e) => e.chain === 'robinhood');
     expect(venues.map((v) => v.protocol).sort()).toEqual(['uniswap-v3', 'uniswap-v4']);
     expect(venues.every((v) => v.wrappedNative === WRAPPED_NATIVE.robinhood)).toBe(true);

@@ -8,7 +8,9 @@
  * Not proved here: selling a token back (it needs the sender to hold the token and approve the router) and the fee transfer.
  */
 import { describe, expect, it } from 'vitest';
-import { publicRead, type EvmRead } from '../chains/evmSession.js';
+import { decodeAbiString, publicRead, type EvmRead } from '../chains/evmSession.js';
+import { encodeCall } from '../engine/abi.js';
+import { HUB_TOKENS } from './hubs.js';
 import { EVM_NATIVE_ADDRESS, type TokenRef } from '../core/types.js';
 import { AretiaDexRegistry, type DexEntry } from '../engine/registry.js';
 import { EVM_DEXES } from './entries.js';
@@ -36,14 +38,14 @@ interface Pair {
 }
 
 /** Liquid tokens that trade against ETH on Robinhood, by Uniswap version, found now. */
-async function liquidTokens(label: 'v3' | 'v4', count: number): Promise<{ address: string; symbol: string; liquidity: number }[]> {
+async function liquidTokens(label: 'v3' | 'v4' | 'any', count: number, quotes: string[] = ['WETH', 'ETH']): Promise<{ address: string; symbol: string; liquidity: number }[]> {
   const found = new Map<string, { address: string; symbol: string; liquidity: number }>();
-  for (const q of ['robinhood weth', 'robinhood eth', 'robinhood']) {
+  for (const q of ['robinhood weth', 'robinhood eth', 'robinhood usdg', 'robinhood']) {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) continue;
     const body = (await res.json()) as { pairs?: Pair[] };
     for (const p of body.pairs ?? []) {
-      if (p.chainId !== 'robinhood' || !p.labels?.includes(label) || !['WETH', 'ETH'].includes(p.quoteToken.symbol)) continue;
+      if (p.chainId !== 'robinhood' || (label !== 'any' && !p.labels?.includes(label)) || !quotes.includes(p.quoteToken.symbol)) continue;
       const liquidity = p.liquidity?.usd ?? 0;
       if (liquidity < 20_000) continue;
       const address = p.baseToken.address.toLowerCase();
@@ -64,6 +66,52 @@ describe('live: Robinhood Chain routes, simulation only', () => {
     }
   }, 120_000);
 
+  it('every hub token is what it says it is: the chain reports the same symbol and decimals', async () => {
+    const hubs = HUB_TOKENS.robinhood ?? [];
+    expect(hubs.map((h) => h.symbol)).toEqual(['WETH', 'USDG']);
+    for (const h of hubs) {
+      const symbol = decodeAbiString(await read('eth_call', [{ to: h.address, data: encodeCall('symbol()', []) }, 'latest']));
+      const decimals = Number(BigInt((await read('eth_call', [{ to: h.address, data: encodeCall('decimals()', []) }, 'latest'])) as string));
+      expect({ symbol, decimals }, h.address).toEqual({ symbol: h.symbol, decimals: h.decimals });
+    }
+  }, 120_000);
+
+  it("USDG, the chain's stablecoin, can be bought with ETH: quoted, built, and accepted by the real router", async () => {
+    const usdg = HUB_TOKENS.robinhood!.find((h) => h.symbol === 'USDG')!;
+    const provider = new DirectEvmProvider({ registry: new AretiaDexRegistry(entries), read: () => withBalance(read) });
+    const amountIn = 5n * 10n ** 15n;
+    const quote = await provider.getQuote({ chain: 'robinhood', from: tok(EVM_NATIVE_ADDRESS), to: tok(usdg.address), amountIn, slippageBps: 300, account: { chain: 'robinhood', address: taker } });
+    const prepared = await provider.buildTransaction(quote);
+    console.log('robinhood USDG quote', quote.expectedOut, 'via', quote.route.legs.map((l) => l.venue).join('>'), 'impact bps', quote.priceImpactBps, 'sim', prepared.simulation.ok, prepared.simulation.blockers.join(';'));
+    expect(prepared.simulation.blockers).toEqual([]);
+    expect(prepared.simulation.ok).toBe(true);
+    // 0.005 ETH of USDG is a plausible number of dollars (6 decimals), not dust and not absurd.
+    expect(quote.expectedOut > 1_000_000n && quote.expectedOut < 100_000_000n).toBe(true);
+  }, 180_000);
+
+  it('every liquid token that pairs with USDG is either quoted and accepted by the real router, or has no route: never quoted and then refused', async () => {
+    const tokens = await liquidTokens('any', 8, ['USDG']);
+    console.log('robinhood USDG-paired tokens', tokens.map((t) => t.symbol).join(', '));
+    expect(tokens.length).toBeGreaterThan(0);
+    const provider = new DirectEvmProvider({ registry: new AretiaDexRegistry(entries), read: () => withBalance(read) });
+    let accepted = 0;
+    const refused: string[] = [];
+    for (const t of tokens) {
+      let quote;
+      try {
+        quote = await provider.getQuote({ chain: 'robinhood', from: tok(EVM_NATIVE_ADDRESS), to: tok(t.address), amountIn: 5n * 10n ** 15n, slippageBps: 300, account: { chain: 'robinhood', address: taker } });
+      } catch {
+        continue; // no route: the wallet says so, which is honest
+      }
+      const prepared = await provider.buildTransaction(quote);
+      console.log('robinhood', t.symbol, 'via', quote.route.legs.map((l) => l.venue).join('>'), 'sim', prepared.simulation.ok, prepared.simulation.blockers.join(';').slice(0, 80));
+      if (prepared.simulation.ok) accepted++;
+      else refused.push(t.symbol);
+    }
+    expect(refused, `quoted, then refused by the router: ${refused.join(', ')}`).toEqual([]);
+    expect(accepted).toBeGreaterThan(0);
+  }, 280_000);
+
   for (const label of ['v3', 'v4'] as const) {
     it(`${label}: a buy with ETH is quoted, built, and accepted by the real router at the quoted price; an impossible minimum is refused`, async () => {
       const tokens = await liquidTokens(label, 3);
@@ -78,6 +126,7 @@ describe('live: Robinhood Chain routes, simulation only', () => {
           const quote = await provider.getQuote({ chain: 'robinhood', from: tok(EVM_NATIVE_ADDRESS), to: tok(t.address), amountIn, slippageBps: 300, account: { chain: 'robinhood', address: taker } });
           const prepared = await provider.buildTransaction(quote);
           console.log('robinhood', label, t.symbol, 'quote', quote.expectedOut, 'via', quote.route.legs.map((l) => l.venue).join('>'), 'impact bps', quote.priceImpactBps, 'sim', prepared.simulation.ok, prepared.simulation.blockers.join(';'));
+          if (prepared.simulation.blockers.length > 0) console.log('robinhood', label, t.symbol, 'BLOCKERS:', JSON.stringify(prepared.simulation.blockers), 'route', JSON.stringify(quote.route.legs.map((l) => ({ venue: l.venue, path: (l as { path?: unknown }).path }))), 'raw', JSON.stringify((quote.raw as { reasons?: string[] }).reasons ?? []).slice(0, 300));
           expect(prepared.simulation.blockers, `${t.symbol} blockers`).toEqual([]);
           expect(prepared.simulation.ok).toBe(true);
           accepted++;

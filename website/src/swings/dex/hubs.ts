@@ -11,6 +11,11 @@ export interface HubToken {
   address: string;
   symbol: string;
   decimals: number;
+  /**
+   * Leave this token out of Uniswap V4 two-pool routes. Set only where the real routers were seen to refuse them (see the
+   * Robinhood entry); V2 and V3 routes still use it.
+   */
+  skipV4?: boolean;
 }
 
 export const HUB_TOKENS: Readonly<Partial<Record<ChainId, readonly HubToken[]>>> = {
@@ -45,9 +50,17 @@ export const HUB_TOKENS: Readonly<Partial<Record<ChainId, readonly HubToken[]>>>
     { address: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', symbol: 'USDC', decimals: 6 },
     { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', symbol: 'USDT', decimals: 6 },
   ],
-  // Robinhood Chain: wrapped ether only, which Uniswap's own V3 router and V4 position manager name as their WETH. Its stablecoins are
-  // not listed until each address has been read from the chain.
-  robinhood: [{ address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 }],
+  // Robinhood Chain. Both addresses are in Robinhood's own token contracts list, and USDG's is in Paxos's documentation too; symbol,
+  // name and decimals were read from the chain. USDG (Global Dollar, issued by Paxos) is the only stablecoin Robinhood lists: it
+  // lists no USDC or USDT, so none is added.
+  // skipV4 on USDG: a V4 route of two pools through USDG (native ETH, then USDG, then a stock token) was priced by the V4 quoter but
+  // reverted, with no reason, on the real Universal Router, for 3 of 3 tokens tried (SPY, NVDA, BB) and on both Universal Routers
+  // Robinhood lists, while single-pool V4 routes and two-hop V3 routes through USDG are accepted. Until the cause is known, V4 does
+  // not route through USDG. Remove the flag, and run robinhood.live.ts, to try again.
+  robinhood: [
+    { address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 },
+    { address: '0x5fc5360d0400a0fd4f2af552add042d716f1d168', symbol: 'USDG', decimals: 6, skipV4: true },
+  ],
   avalanche: [
     { address: WRAPPED_NATIVE.avalanche, symbol: 'WAVAX', decimals: 18 },
     { address: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', symbol: 'USDC', decimals: 6 },

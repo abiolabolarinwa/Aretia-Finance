@@ -248,7 +248,7 @@ export class EvmV4Adapter {
       const quoted = await Promise.all(pools.map(async (k) => ({ hop: hopOf(k, from), out: await this.quote(k, k.currency0 === from.toLowerCase(), amount, block) })));
       return quoted.filter((q): q is { hop: V4Hop; out: bigint } => q.out !== null).sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0))[0] ?? null;
     };
-    const hubsFor = (x: string, y: string): string[] => [ZERO_ADDRESS, ...(HUB_TOKENS[this.entry.chain] ?? []).map((h) => h.address)].filter((h) => h !== x && h !== y).slice(0, MAX_HUBS + 3);
+    const hubsFor = (x: string, y: string): string[] => [ZERO_ADDRESS, ...(HUB_TOKENS[this.entry.chain] ?? []).filter((h) => !h.skipV4).map((h) => h.address)].filter((h) => h !== x && h !== y).slice(0, MAX_HUBS + 3);
     /** The best route from one currency to another, direct or through one hub. */
     const between = async (x: string, y: string): Promise<V4Route | null> => {
       const routes: V4Route[] = [];

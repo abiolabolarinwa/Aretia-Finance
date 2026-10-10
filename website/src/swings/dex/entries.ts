@@ -16,6 +16,8 @@ export const WRAPPED_NATIVE = {
   arbitrum: '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
   optimism: '0x4200000000000000000000000000000000000006',
   avalanche: '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
+  // Robinhood Chain: the WETH that Uniswap's own V3 router and V4 position manager name as their wrapped ether (checked on-chain).
+  robinhood: '0x0bd7d308f8e1639fab988df18a8011f41eacad73',
 } as const;
 
 export const EVM_V2_DEXES: readonly DexEntry[] = [
@@ -286,6 +288,21 @@ export const EVM_V3_DEXES: readonly DexEntry[] = [
     factory: '0xdb1d10011ad0ff90774d0c6bb92e5c5c8b4461f7',
     quoter: '0x78d78e420da98ad378d7799be8f4af69033eb077',
     wrappedNative: WRAPPED_NATIVE.bnb,
+    status: 'ACTIVE',
+  },
+  // Robinhood Chain (4663), from Uniswap's V3 deployments page for the chain. On-chain, the router and the quoter both name this
+  // factory, and both name the WETH above as their wrapped ether.
+  {
+    id: 'uniswap-v3-robinhood',
+    name: 'Uniswap V3',
+    chain: 'robinhood',
+    protocol: 'uniswap-v3',
+    model: 'concentrated',
+    mechanism: 'evm-v3-router',
+    router: '0xcaf681a66d020601342297493863e78c959e5cb2',
+    factory: '0x1f7d7550b1b028f7571e69a784071f0205fd2efa',
+    quoter: '0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7',
+    wrappedNative: WRAPPED_NATIVE.robinhood,
     status: 'ACTIVE',
   },
 ];
@@ -595,7 +612,7 @@ export const EVM_LAUNCHPADS: readonly DexEntry[] = [
   },
 ];
 
-const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | 'bnb' | 'avalanche', router: string, quoter: string, stateView: string, poolManager: string, positionManager: string): DexEntry => ({
+const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | 'bnb' | 'avalanche' | 'robinhood', router: string, quoter: string, stateView: string, poolManager: string, positionManager: string): DexEntry => ({
   id: `uniswap-v4-${chain}`,
   name: 'Uniswap V4',
   chain,
@@ -624,6 +641,10 @@ export const EVM_V4: readonly DexEntry[] = [
   v4('polygon', '0x1095692a6237d83c6a72f3f5efedb9a670c49223', '0xb3d5c3dfc3a7aebff71895a7191796bffc2c81b9', '0x5ea1bd7974c8a611cbab0bdcafcb1d9cc9b3ba5a', '0x67366782805870060151383f4bbff9dab53e5cd6', '0x1ec2ebf4f37e7363fdfe3551602425af0b3ceef9'),
   v4('bnb', '0x1906c1d672b88cd1b9ac7593301ca990f94eae07', '0x9f75dd27d6664c475b90e105573e550ff69437b0', '0xd13dd3d6e93f276fafc9db9e6bb47c1180aee0c4', '0x28e2ea090877bf75740558f6bfb36a5ffee9e9df', '0x7a4a5c919ae2541aed11041a1aeee68f1287f95b'),
   v4('avalanche', '0x94b75331ae8d42c1b61065089b7d48fe14aa73b7', '0xbe40675bb704506a3c2ccfb762dcfd1e979845c2', '0xc3c9e198c735a4b97e3e683f391ccbdd60b69286', '0x06380c0e0912312b5150364b9dc4542ba0dbbc85', '0xb74b1f14d2754acfcbbe1a221023a5cf50ab8acd'),
+  // Robinhood Chain (4663), from Uniswap's V4 deployments page. The page also lists a newer Universal Router 2.1.2
+  // (0x204faca1764b154221e35c0d20abb3c525710498); this entry uses the one both the V3 and V4 pages name "Universal Router".
+  // On-chain, the quoter, StateView, position manager and both routers all name this PoolManager.
+  v4('robinhood', '0x8876789976decbfcbbbe364623c63652db8c0904', '0x8dc178efb8111bb0973dd9d722ebeff267c98f94', '0xf3334192d15450cdd385c8b70e03f9a6bd9e673b', '0x8366a39cc670b4001a1121b8f6a443a643e40951', '0x58daec3116aae6d93017baaea7749052e8a04fa7'),
 ];
 
 export const EVM_DEXES: readonly DexEntry[] = [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_AERODROME, ...EVM_SLIPSTREAM, ...EVM_BALANCER, ...EVM_CURVE, ...EVM_LAUNCHPADS, ...EVM_V4];

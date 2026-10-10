@@ -1334,7 +1334,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         close.addEventListener('click', hideChart);
         const frame = el('iframe', { class: 'wapp-mt__chart-frame', attrs: { title: `${r.symbol} price chart`, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-popups' } });
         frame.src = dexScreenerEmbedUrl(r.chain, r.pool, '15', { toolbar: true });
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), frame, el('p', { class: 'wapp__fine', text: 'Past prices say nothing certain about future ones.' }));
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), frame);
       }
       if (chartHost.parentElement !== target) target.prepend(chartHost);
       chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

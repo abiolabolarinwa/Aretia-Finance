@@ -663,26 +663,14 @@ const buyTips = [
   .wapp__state.is-checking::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: currentColor; animation: wapp-check 1s ease-in-out infinite; }
   @keyframes wapp-check { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 
-  /* ---- Markets: the list with a panel for the selected token on its right ---- */
-  .wapp-mt__split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+  /* ---- Markets: the selected token's panel is a bar docked to the right edge, as the left sidebar is docked to the left ---- */
   .wapp-mp { display: none; }
   .wapp-mt__row.is-selected td { background: var(--color-brand-soft); }
-  @media (min-width: 1600px) {
-    .wapp-mt__split { grid-template-columns: minmax(0, 1fr) 340px; }
-    .wapp-mp { display: grid; position: sticky; top: calc(var(--nav-height) + 12px); max-height: calc(100vh - var(--nav-height) - 24px); overflow-y: auto; gap: 8px; align-content: start; padding: 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
+  @media (min-width: 1680px) {
+    [data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 76px minmax(0, 1fr) 360px; }
+    [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: grid; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 8px; align-content: start; padding: calc(var(--nav-height) + 12px) 14px 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
   }
-  /* Wide screens: the Markets card fills the screen. Only the token list scrolls (its header row stays put); the side panel stays where it is. */
-  @media (min-width: 1600px) {
-    /* The card's height is set from its position on the page (see fitCard), so it ends at the bottom of the screen. */
-    .wapp__card.wapp-mt__card { display: flex; flex-direction: column; box-sizing: border-box; }
-    .wapp-mt__card > * { flex: none; }
-    .wapp-mt__card > .wapp-mt__split { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-    .wapp-mt__main { min-width: 0; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 10px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg); }
-    .wapp-mt__main > .wapp-mt { overflow: visible; border: 0; border-radius: 0; }
-    .wapp-mt__main > :not(.wapp-mt) { margin-inline: 12px; }
-    .wapp-mt__main > :last-child { margin-bottom: 12px; }
-    .wapp-mp { position: static; max-height: none; height: 100%; }
-  }
+  .wapp-mt__main { min-width: 0; display: grid; gap: 10px; }
   .wapp-mp__head { display: flex; align-items: center; gap: 10px; }
   .wapp-mp__logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
   .wapp-mp__names { display: grid; min-width: 0; flex: 1; }

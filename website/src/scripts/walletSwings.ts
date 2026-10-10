@@ -1196,7 +1196,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       openChart: (r) => openRow(r),
       swapFor: (r) => swapHandler(r),
     });
-    /** The panel sits beside the list on a wide screen and is hidden on a narrow one, where a row opens the full token page instead. */
+    // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.
+    (document.querySelector<HTMLElement>('[data-wapp]') ?? target).append(panel.element);
     const panelShown = (): boolean => panel.element.isConnected && panel.element.offsetParent !== null;
     function pick(r: MarketRow): void {
       if (!panelShown()) return openRow(r);
@@ -1343,6 +1344,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     };
 
     function draw(): void {
+      // The docked panel steps aside while a full token page is open.
+      panel.element.hidden = page;
       if (page) {
         // Taking a chart frame out of the page and putting it back reloads it, so an open token page is left exactly as it is.
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
@@ -1413,7 +1416,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         tableEl = marketTable({ rows: shown, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
         const main = el('div', { class: 'wapp-mt__main' }, [tableEl]);
         inMain = main;
-        card.append(el('div', { class: 'wapp-mt__split' }, [main, panel.element]));
+        card.append(main);
         const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : m.kind === 'favourites' ? 1 : GECKO_PAGES;
         main.append(pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
@@ -1425,7 +1428,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);
-      fitCard(card);
       // On a wide screen the panel opens on the selected row, or the first one when nothing is selected yet.
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();
@@ -1437,27 +1439,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
       }
     }
-
-    /**
-     * On a wide screen the Markets card ends at the bottom of the screen, so the page itself does not scroll: the list
-     * scrolls inside it and the side panel stays where it is. On a narrower screen it simply grows with its content.
-     */
-    function fitCard(card: HTMLElement): void {
-      if (!window.matchMedia('(min-width: 1600px)').matches) {
-        card.style.height = '';
-        return;
-      }
-      const top = card.getBoundingClientRect().top + window.scrollY;
-      // The page keeps 56px of padding below its content.
-      card.style.height = `${Math.max(480, Math.floor(window.innerHeight - top - 64))}px`;
-      // Anything the page keeps below the card (a note, say) takes its share too, so the page itself never scrolls.
-      const spill = document.documentElement.scrollHeight - window.innerHeight;
-      if (spill > 0) card.style.height = `${Math.max(480, card.getBoundingClientRect().height - spill)}px`;
-    }
-    window.addEventListener('resize', () => {
-      const card = target.querySelector<HTMLElement>('.wapp-mt__card');
-      if (card) fitCard(card);
-    });
 
     /** What the alerts do, and the recent ones, so a pop-up that has gone is never lost. */
     function favouriteAlerts(): HTMLElement {

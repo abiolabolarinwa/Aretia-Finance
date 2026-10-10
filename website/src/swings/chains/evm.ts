@@ -134,7 +134,8 @@ export class EvmChainAdapter implements ChainAdapter {
       } catch (e) {
         // Declined, or failed after it was sent: no fallback (it would ask again, or repeat a failed swap).
         if (!(e instanceof SwingsError && e.code === 'not-enabled')) {
-          if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
+          // Declined, or the wallet never sent it: nothing is out there, so the same swap may be tried again.
+          if (e instanceof SwingsError && (e.code === 'rejected' || e.code === 'not-sent')) this.sent.delete(quoteId);
           throw e;
         }
         // The wallet turned out not to batch: nothing was sent, so go one at a time.

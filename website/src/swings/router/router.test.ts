@@ -177,6 +177,21 @@ describe('execution', () => {
     await expect(r.executeRoute(p, q, { quoteId: q.id, confirmed: true })).rejects.toMatchObject({ code: 'invalid' });
   });
 
+  it('marks a wallet that never sent as not sent, and lets the same quote be tried again', async () => {
+    let n = 0;
+    const adapter = fakeAdapter({
+      signAndSubmit: async () => {
+        if (n++ === 0) throw new SwingsError('not-sent', 'Your wallet did not send this.');
+        return '0xabc';
+      },
+    });
+    const r = router([fakeProvider('a', async () => quoteFrom('a', 100n))], adapter);
+    const { q, p } = await prepare(r);
+    const first = await r.executeRoute(p, q, { quoteId: q.id, confirmed: true });
+    expect(first).toMatchObject({ status: 'failed', notSent: true });
+    expect((await r.executeRoute(p, q, { quoteId: q.id, confirmed: true })).status).toBe('submitted');
+  });
+
   it('tracks a transaction to confirmation', async () => {
     const statuses = ['submitted', 'submitted', 'confirmed'] as const;
     let i = 0;

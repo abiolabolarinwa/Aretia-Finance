@@ -150,6 +150,8 @@ export interface SwapExecution {
   /** Signature (Solana) or hash (EVM), once submitted. */
   txId?: string;
   error?: string;
+  /** The wallet reported that it never sent anything (nothing reached the network, nothing was spent), so the same swap may be tried again. */
+  notSent?: boolean;
   startedAt: number;
   updatedAt: number;
 }
@@ -175,7 +177,7 @@ export interface PreparedSwap {
 
 export class SwingsError extends Error {
   constructor(
-    readonly code: 'no-route' | 'provider-failed' | 'expired' | 'invalid' | 'config-missing' | 'not-enabled' | 'rejected' | 'simulation-failed' | 'failed',
+    readonly code: 'no-route' | 'provider-failed' | 'expired' | 'invalid' | 'config-missing' | 'not-enabled' | 'rejected' | 'simulation-failed' | 'failed' | 'not-sent',
     message: string,
   ) {
     super(message);

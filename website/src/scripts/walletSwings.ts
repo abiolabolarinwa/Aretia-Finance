@@ -313,6 +313,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** When the price on screen was read, and when its transaction was last built and checked (ms). */
     quotedAt: 0,
     preparedAt: 0,
+    /** The wallet said it never sent the batch: offer to send the same swap one step at a time. */
+    stepByStep: false,
     /** The balance of the token being paid on an EVM network, read once per wallet and token (Solana's comes from the dashboard). */
     balance: { key: '', raw: null as bigint | null },
   };
@@ -378,6 +380,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   function resetQuote(): void {
     s.seq++;
+    s.stepByStep = false;
+    if (evm.adapter) evm.adapter.allowBatch = true;
     s.phase = 'idle';
     s.quote = null;
     s.alternatives = [];
@@ -694,6 +698,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (execution.status === 'rejected') {
         s.phase = 'review';
         s.notice = 'You declined in your wallet. Nothing was sent.';
+        return render();
+      }
+      if (execution.notSent) {
+        // The wallet gave up before anything reached the network: nothing was spent, nothing is recorded, and the same swap can be tried again.
+        s.execution = null;
+        s.phase = 'review';
+        s.error = null;
+        s.notice = `${execution.error ?? 'Your wallet did not send this.'} You can try again, or send it one step at a time: your wallet then asks you to confirm each step on its own (the approval, then the 0.29% Aretia fee, then the swap), and the fee is paid before the swap.`;
+        s.stepByStep = isEvm(quote.request.chain) && !!evm.adapter;
         return render();
       }
       record(execution, quote);
@@ -1197,6 +1210,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // A price is on screen and its transaction has been checked: one button.
     const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck();
     actions.append(btn(safetyNeedsAck() ? 'Tick the box above to continue' : 'Swap', () => void swapNow(), !ok));
+    if (s.stepByStep && ok) {
+      const steps = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Send it one step at a time', attrs: { type: 'button' } });
+      steps.addEventListener('click', () => {
+        if (evm.adapter) evm.adapter.allowBatch = false;
+        s.stepByStep = false;
+        s.notice = null;
+        void swapNow();
+      });
+      actions.append(steps);
+    }
   }
 
   /** Keeps the cursor in the amount box when the screen is redrawn around it (a quiet price refresh, a result arriving). */

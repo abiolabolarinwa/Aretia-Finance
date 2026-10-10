@@ -60,6 +60,8 @@ export interface EvmWalletAdapter {
    * and SwingsError('not-enabled') if the wallet cannot batch after all (the caller then goes one at a time).
    */
   sendBatch?(chainId: number, account: string, calls: EvmTxRequest[]): Promise<string>;
+  /** Set to false to use the wallet one transaction at a time even though it can batch (for when its batch would not send). */
+  allowBatch?: boolean;
 }
 
 // ------------------------------------------------------------------ discovery
@@ -193,7 +195,11 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
     }
   }
 
+  /** Turned off by the page when the wallet's batch would not send and the person chose to go one step at a time. */
+  allowBatch = true;
+
   async supportsBatch(chainId: number, account: string): Promise<boolean> {
+    if (!this.allowBatch) return false;
     try {
       const caps = (await this.request('wallet_getCapabilities', [account, [hex(chainId)]])) as Record<string, { atomic?: { status?: string } }> | null;
       const status = caps?.[hex(chainId)]?.atomic?.status;
@@ -237,7 +243,11 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
         if (typeof last === 'string' && /^0x[0-9a-fA-F]{64}$/.test(last)) return last;
         throw new SwingsError('invalid', 'The wallet confirmed the batch but did not report its transaction.');
       }
-      if (code >= 400) throw new SwingsError('failed', 'The transaction failed. Nothing was swapped.');
+      // EIP-5792 status codes. 4xx: the wallet gave up before anything reached the network (nothing spent, safe to try again).
+      // 5xx: it reached the network and was reverted (only the network fee is spent). 6xx: part of it went through.
+      if (code >= 400 && code < 500) throw new SwingsError('not-sent', `Your wallet did not send this: it stopped before anything reached the network, so nothing was spent and nothing was swapped. (Wallet status ${code}.)`);
+      if (code === 500) throw new SwingsError('failed', 'The transaction reached the network and was reverted. Nothing was swapped; only the network fee was spent.');
+      if (code >= 500) throw new SwingsError('failed', `Part of this went through (wallet status ${code}). Check your wallet activity before trying again.`);
       await new Promise((r) => setTimeout(r, 1_500));
     }
     throw new SwingsError('failed', 'The transaction is still pending. Check your wallet before trying again.');

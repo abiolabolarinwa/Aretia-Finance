@@ -102,6 +102,29 @@ describe('one confirmation for approval, fee and swap', () => {
   });
 });
 
+describe('a batch the wallet never sent', () => {
+  it('can be tried again, and then sent one step at a time when the person chooses', async () => {
+    let n = 0;
+    const w = wallet({
+      supportsBatch: async () => true,
+      sendBatch: async () => {
+        n++;
+        throw new SwingsError('not-sent', 'Your wallet did not send this.');
+      },
+    }) as ReturnType<typeof wallet> & { allowBatch?: boolean };
+    const a = new EvmChainAdapter('ethereum', w, { pollMs: 1 });
+    await expect(a.signAndSubmit(prepared())).rejects.toMatchObject({ code: 'not-sent' });
+    // Nothing was sent, so the same swap is not refused as "already sent", and nothing went out one at a time behind the person's back.
+    expect(w.singles).toHaveLength(0);
+    await expect(a.signAndSubmit(prepared())).rejects.toMatchObject({ code: 'not-sent' });
+    expect(n).toBe(2);
+    // The wallet is asked one step at a time only once the page turns batching off.
+    const stepwise = new Eip1193WalletAdapter({ request: async () => null });
+    stepwise.allowBatch = false;
+    expect(await stepwise.supportsBatch(1, USER)).toBe(false);
+  });
+});
+
 describe('EIP-5792 over a plain provider', () => {
   const provider = (answers: Record<string, unknown>) => ({
     calls: [] as { method: string; params?: unknown[] }[],
@@ -135,6 +158,15 @@ describe('EIP-5792 over a plain provider', () => {
     const declined = Object.assign(new Error('no'), { code: 4001 });
     await expect(new Eip1193WalletAdapter(provider({ wallet_sendCalls: declined })).sendBatch(1, USER, [])).rejects.toMatchObject({ code: 'rejected' });
     await expect(new Eip1193WalletAdapter(provider({ wallet_sendCalls: new Error('nope') })).sendBatch(1, USER, [])).rejects.toMatchObject({ code: 'not-enabled' });
-    await expect(new Eip1193WalletAdapter(provider({ wallet_sendCalls: 'id1', wallet_getCallsStatus: { status: 500 } })).sendBatch(1, USER, [])).rejects.toMatchObject({ code: 'failed' });
+    await expect(new Eip1193WalletAdapter(provider({ wallet_sendCalls: 'id1', wallet_getCallsStatus: { status: 500 } })).sendBatch(1, USER, [])).rejects.toMatchObject({ code: 'failed', message: expect.stringContaining('reverted') });
+  });
+
+  it('says a 4xx status means nothing reached the network, and not that the swap failed on-chain', async () => {
+    const err = await new Eip1193WalletAdapter(provider({ wallet_sendCalls: 'id1', wallet_getCallsStatus: { status: 400 } })).sendBatch(1, USER, []).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SwingsError);
+    expect(err).toMatchObject({ code: 'not-sent' });
+    expect((err as Error).message).toMatch(/nothing was spent/i);
+    expect((err as Error).message).toContain('400');
+    await expect(new Eip1193WalletAdapter(provider({ wallet_sendCalls: 'id1', wallet_getCallsStatus: { status: 600 } })).sendBatch(1, USER, [])).rejects.toMatchObject({ code: 'failed', message: expect.stringContaining('Part of this') });
   });
 });

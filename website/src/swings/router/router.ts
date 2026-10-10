@@ -283,10 +283,13 @@ export class AretiaRouter {
       execution.status = 'submitted';
     } catch (e) {
       const message = e instanceof Error ? e.message : 'The swap could not be sent.';
-      execution.status = /reject|denied|declin|cancel/i.test(message) ? 'rejected' : 'failed';
+      const notSent = e instanceof SwingsError && e.code === 'not-sent';
+      execution.status = notSent ? 'failed' : /reject|denied|declin|cancel/i.test(message) ? 'rejected' : 'failed';
       execution.error = message;
-      // A rejected signature sent nothing, so the same quote may be tried again; anything else might have been broadcast.
-      if (execution.status === 'rejected') this.executed.delete(quote.id);
+      if (notSent) execution.notSent = true;
+      // A rejected signature, or a wallet that reports it never sent anything, sent nothing, so the same quote may be tried again;
+      // anything else might have been broadcast.
+      if (execution.status === 'rejected' || notSent) this.executed.delete(quote.id);
     }
     execution.updatedAt = this.now();
     this.emit({ type: 'execution', execution: { ...execution } });

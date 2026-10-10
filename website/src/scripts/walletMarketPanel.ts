@@ -159,8 +159,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const more = el('details', 'wapp-mp__more');
     more.open = true;
     more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
-    more.append(el('p', 'wapp-mp__note', v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}.` : 'Every check Aretia runs was made.'));
-    more.append(el('p', 'wapp-mp__note', 'Passing is not a guarantee of safety. Anyone can create a token, Aretia does not endorse the tokens listed, and liquidity can be withdrawn by whoever put it there.'));
+    more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
     box.append(more);
     return box;
   }
@@ -184,14 +183,14 @@ export function createMarketPanel(o: MarketPanelOptions) {
       });
       tabs.append(b);
     }
-    wrap.append(tabs, el('p', 'wapp-mp__note', `Tap a time to change the figures below. Showing the ${WIN_WORDS[win]}.`));
+    wrap.append(tabs);
 
     const buys = d.buys[win];
     const sells = d.sells[win];
     const txns = buys === null || sells === null ? null : buys + sells;
     wrap.append(heading(`Trading in the ${WIN_WORDS[win]}`));
     const grid = el('div', 'wapp-mp__trio');
-    grid.append(stat('Trades', compactCount(txns), '', 'buys + sells'), stat('Buys', compactCount(buys), 'is-up', 'tokens bought'), stat('Sells', compactCount(sells), 'is-down', 'tokens sold'));
+    grid.append(stat('Trades', compactCount(txns)), stat('Buys', compactCount(buys), 'is-up'), stat('Sells', compactCount(sells), 'is-down'));
     wrap.append(grid);
     if (buys !== null && sells !== null && buys + sells > 0) {
       const share = Math.round((buys / (buys + sells)) * 100);
@@ -199,10 +198,11 @@ export function createMarketPanel(o: MarketPanelOptions) {
       const bar = el('span', 'wapp-mp__meter-buy');
       bar.style.width = `${share}%`;
       meter.append(bar);
-      wrap.append(meter, el('p', 'wapp-mp__note', `${share}% of trades were buys and ${100 - share}% were sells.`));
+      meter.title = `${share}% of trades were buys and ${100 - share}% were sells`;
+      wrap.append(meter);
     }
     const money = el('div', 'wapp-mp__duo');
-    money.append(stat('Volume', compactUsd(d.volumeUsd[win]), '', 'money traded'), stat('Traders', compactCount(row?.traders24h ?? null), '', 'people, last 24 hours'));
+    money.append(stat('Volume', compactUsd(d.volumeUsd[win])), stat('Traders (24H)', compactCount(row?.traders24h ?? null)));
     wrap.append(money);
     return wrap;
   }
@@ -225,9 +225,9 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const size = el('div', 'wapp-mp__group');
     size.append(heading('Size'));
     const liq = el('div', 'wapp-mp__trio');
-    const liqStat = stat('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), '', 'money in the pool');
+    const liqStat = stat('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd));
     if (r.lockedPct !== null && r.lockedPct !== undefined) liqStat.title = `Locked: ${r.lockedPct.toFixed(1)}% of this pool's liquidity tokens are burned.`;
-    liq.append(liqStat, stat('FDV', compactUsd(d?.fdvUsd ?? null), '', 'value if every token existed'), stat('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), '', 'value of tokens in circulation'));
+    liq.append(liqStat, stat('FDV', compactUsd(d?.fdvUsd ?? null)), stat('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd)));
     size.append(liq);
     root.append(size);
 
@@ -237,12 +237,12 @@ export function createMarketPanel(o: MarketPanelOptions) {
 
     const act = el('div', 'wapp-mp__actions');
     const swap = o.swapFor(r);
-    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : `Swapping isn’t available on ${net} yet`);
+    const buy = el('button', 'wapp__btn wapp__btn--primary', swap ? `Swap into ${r.symbol}` : 'Swapping not available yet');
     buy.type = 'button';
     buy.disabled = !swap;
     if (swap) buy.addEventListener('click', swap);
     const row2 = el('div', 'wapp-mp__duo');
-    const favLabel = (): string => (o.isFavourite(r) ? '★ In favourites' : '☆ Add to favourites');
+    const favLabel = (): string => (o.isFavourite(r) ? '★ Favourited' : '☆ Favourite');
     const fav = el('button', 'wapp__btn wapp__btn--ghost', favLabel());
     fav.type = 'button';
     fav.addEventListener('click', () => {
@@ -264,8 +264,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
       return l;
     };
     info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
-    if (d && d.pooledBase !== null) info.append(line(`${d.baseSymbol} in the pool`, amount(d.pooledBase)));
-    if (d && d.pooledQuote !== null) info.append(line(`${d.quoteSymbol} in the pool`, amount(d.pooledQuote)));
+    if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
     info.append(addressRow('Pool address', d?.pair ?? r.pool, r.chain), addressRow('Token address', r.address, r.chain));
     root.append(info);
     if (d && d.links.length > 0) {
@@ -283,7 +282,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
       root.append(g);
     }
     // Paid or not, the card is labelled, sits after everything that helps a decision, and never changes the rating above.
-    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r) }));
+    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r), compact: true }));
+    root.append(el('p', 'wapp-mp__tiny', 'Anyone can create a token. Aretia does not endorse the tokens listed.'));
   }
 
   /** Shows a row. The same row again only refreshes what is drawn; a new one starts its numbers and its check. */

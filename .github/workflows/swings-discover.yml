@@ -34,4 +34,6 @@ jobs:
           echo "HTTP ${status}"
           head -c 600 response.json || true
           echo
+          # A source that failed is reported in the answer (HTTP stays 200 so the other sources still run): show it as a warning.
+          if grep -Eq '"error":"' response.json; then echo "::warning::${CHAIN}: at least one source reported an error. See the answer printed above."; fi
           test "$status" = "200"

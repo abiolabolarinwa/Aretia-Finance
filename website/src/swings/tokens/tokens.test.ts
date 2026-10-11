@@ -165,6 +165,16 @@ describe('discovery worker', () => {
     expect(await repo.get({ chain: 'solana', address: MINT_A })).not.toBeNull();
   });
 
+  it('reports a refusing database on the run instead of throwing, and keeps the cursor', async () => {
+    const repo = new InMemoryTokenRepository();
+    await repo.setCursor('s', 'old');
+    const refusing = { ...new TokenRegistryService(repo, () => T0), ingest: async () => Promise.reject(new Error('Supabase answered 400')) } as unknown as TokenRegistryService;
+    const source: DiscoverySource = { id: 's', chain: 'solana', poll: async () => ({ candidates: [candidate(MINT_A)], nextCursor: 'c' }) };
+    const run = await new TokenDiscoveryWorker(source, refusing, repo, null, () => T0).runOnce();
+    expect(run.error).toBe('Supabase answered 400');
+    expect(await repo.getCursor('s')).toBe('old');
+  });
+
   it('does not advance the cursor when the batch was truncated', async () => {
     const repo = new InMemoryTokenRepository();
     const source: DiscoverySource = { id: 's', chain: 'solana', poll: async () => ({ candidates: [candidate(MINT_A), candidate(MINT_B)], nextCursor: 'c' }) };

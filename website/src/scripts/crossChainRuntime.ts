@@ -8,6 +8,7 @@ import { EvmSession, publicRead, readBalance } from '../swings/chains/evmSession
 import { SolanaContextWallet, aretiaWalletHost } from '../swings/wallet/solanaContextWallet.js';
 import { CCTP_USDC } from '../swings/settlement/cctp.js';
 import { rpcCall, loadWeb3 } from './walletSend';
+import { ataAddress, TOKEN_PROGRAM_ID } from './walletTools';
 import { EvmBridgeWallet, type EvmEventSource } from '../swings/wallet/evmBridgeWallet.js';
 import { WalletSessionManager } from '../swings/wallet/sessionManager.js';
 import { cctpProviders } from '../swings/settlement/cctp.js';
@@ -80,8 +81,12 @@ export function createCrossChainRuntime(evm: EvmSession, isEnabled: (chain: Chai
   async function usdcBalance(chain: ChainId, owner: string): Promise<bigint | null> {
     try {
       if (CHAINS[chain].kind === 'solana') {
-        const r = await rpcCall<{ value: { account: { data: { parsed: { info: { tokenAmount: { amount: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { mint: CCTP_USDC.solana }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
-        return r.value.reduce((sum, a) => sum + BigInt(a.account.data.parsed.info.tokenAmount.amount), 0n);
+        // The burn takes the USDC in the owner's standard USDC account, so that is the balance that can be moved. USDC held in
+        // any other token account of the same wallet is not counted: it would make "you have X" larger than what the burn can use.
+        const web3 = await loadWeb3();
+        const standard = ataAddress(web3, owner, CCTP_USDC.solana!, TOKEN_PROGRAM_ID);
+        const r = await rpcCall<{ value: { pubkey: string; account: { data: { parsed: { info: { tokenAmount: { amount: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { mint: CCTP_USDC.solana }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+        return r.value.filter((a) => a.pubkey === standard).reduce((sum, a) => sum + BigInt(a.account.data.parsed.info.tokenAmount.amount), 0n);
       }
       return await readBalance(reader(chain), owner, CCTP_USDC[chain]!);
     } catch {

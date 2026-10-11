@@ -64,3 +64,19 @@ describe('settlement safety fails closed', () => {
     expect(assessSettlement(q, ctx({ existing: [done] })).verdict).toBe('allow');
   });
 });
+
+describe('the coin that pays for sending', () => {
+  it('is skipped when the caller does not read it, blocks when it cannot be read or is zero, and only warns when low on Solana', async () => {
+    const q = await quote();
+    expect(assessSettlement(q, ctx()).verdict).toBe('allow'); // not supplied: no check
+    expect(assessSettlement(q, ctx({ sourceNativeBalance: null })).blockers.join(' ')).toMatch(/ETH balance on Ethereum could not be read/);
+    expect(assessSettlement(q, ctx({ sourceNativeBalance: 0n })).blockers.join(' ')).toMatch(/no ETH on Ethereum to pay the network fee/);
+    expect(assessSettlement(q, ctx({ sourceNativeBalance: 1n })).verdict).toBe('allow'); // no low-water mark for Ethereum
+    const sol = await provider.getQuote(intent({ sourceChain: 'solana', sourceAsset: { chain: 'solana', address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' }, sender: '8s2TcBz5e8jvFZDVx9gJqW175JK3kpVGX1a6D4WnDRHz' }));
+    const low = assessSettlement(sol, ctx({ enabledChains: ['solana', 'base'], sourceNativeBalance: 1_000_000n, recipientIsDifferentOnPurpose: true }));
+    expect(low.confirmations.join(' ')).toMatch(/very little SOL on Solana.*message record/);
+    expect(low.blockers.join(' ')).not.toMatch(/SOL/);
+    const ok = assessSettlement(sol, ctx({ enabledChains: ['solana', 'base'], sourceNativeBalance: 10_000_000n, recipientIsDifferentOnPurpose: true }));
+    expect(ok.confirmations.join(' ')).not.toMatch(/very little SOL/);
+  });
+});

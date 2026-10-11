@@ -20,6 +20,11 @@ export interface SafetyContext {
   enabledChains: readonly ChainId[];
   /** The sender's balance of the source asset, raw units. Null means it could not be read, which blocks. */
   sourceBalance: bigint | null;
+  /**
+   * The sender's balance of the source chain's own coin, which pays the network fee for the burn (and, on Solana, the deposit that
+   * stores the message record). Optional: a caller that does not read it skips this check. Null means it could not be read.
+   */
+  sourceNativeBalance?: bigint | null;
   /** The recipient's balance of the destination chain's native coin, which pays for the claim. Null = could not be read. */
   destinationNativeBalance: bigint | null;
   /** Executions already saved, to stop the same move being started twice. */
@@ -44,6 +49,13 @@ export interface SafetyVerdict {
 
 const addressOk = (chain: ChainId, a: string): boolean => (CHAINS[chain].kind === 'evm' ? /^0x[0-9a-fA-F]{40}$/.test(a) : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a));
 const RISK = { low: 0, medium: 1, high: 2 } as const;
+
+/**
+ * Below this much of the source chain's coin a burn is likely to fail or leave nothing for later. Solana's burn pays a fee and a
+ * small deposit for the message record (a few thousandths of a SOL); 0.006 SOL is chosen to cover both with room. It is a
+ * warning, not a block, and is to be checked against the first real Solana burn.
+ */
+export const LOW_SOURCE_NATIVE: Readonly<Partial<Record<ChainId, bigint>>> = { solana: 6_000_000n };
 
 export function assessSettlement(q: SettlementQuote, c: SafetyContext): SafetyVerdict {
   const blockers: string[] = [];
@@ -80,6 +92,13 @@ export function assessSettlement(q: SettlementQuote, c: SafetyContext): SafetyVe
   if (c.sourceBalance === null) blockers.push('Your balance on the sending network could not be read, so enough funds cannot be confirmed.');
   else if (c.sourceBalance < q.sourceAmount) blockers.push('Your balance on the sending network is less than the amount.');
 
+  if (c.sourceNativeBalance !== undefined) {
+    const sym = CHAINS[intent.sourceChain].nativeSymbol;
+    const srcName = CHAINS[intent.sourceChain].name;
+    if (c.sourceNativeBalance === null) blockers.push(`Your ${sym} balance on ${srcName} could not be read, so the network fee for sending cannot be confirmed.`);
+    else if (c.sourceNativeBalance === 0n) blockers.push(`You have no ${sym} on ${srcName} to pay the network fee, so the transfer cannot be sent.`);
+    else if (LOW_SOURCE_NATIVE[intent.sourceChain] !== undefined && c.sourceNativeBalance < LOW_SOURCE_NATIVE[intent.sourceChain]!) confirmations.push(`You have very little ${sym} on ${srcName}. The transfer needs ${sym} for the network fee${intent.sourceChain === 'solana' ? ' and a small deposit for the message record' : ''}, and it may fail if there is not enough.`);
+  }
   if (c.destinationNativeBalance === null) blockers.push(`Your ${CHAINS[intent.destinationChain].nativeSymbol} balance on ${CHAINS[intent.destinationChain].name} could not be read, so the claim fee cannot be confirmed.`);
   else if (c.destinationNativeBalance === 0n) confirmations.push(`You have no ${CHAINS[intent.destinationChain].nativeSymbol} on ${CHAINS[intent.destinationChain].name}. Without it you cannot claim the funds there, and they stay unclaimed until you add some.`);
 

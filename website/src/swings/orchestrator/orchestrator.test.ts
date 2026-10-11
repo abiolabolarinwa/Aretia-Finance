@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { CrossChainOrchestrator, type ExecutionGateway } from './orchestrator.js';
+import { confirmLimitMs, CrossChainOrchestrator, notConfirmedText, SOLANA_LANDING_LIMIT_MS, type ExecutionGateway } from './orchestrator.js';
 import { InMemoryExecutionStore, StorageExecutionStore } from './store.js';
 import { applyTransition, canTransition, EXECUTION_STATES, FINAL_STATES, parseRecord, serializeRecord, type ExecutionRecord } from './states.js';
 import { MockSettlementProvider } from '../settlement/testing.js';
@@ -284,5 +284,23 @@ describe('the stores', () => {
     expect((await store.list()).map((x) => x.id)).toEqual([r.id]);
     const full = new StorageExecutionStore({ ...storage, setItem: () => { throw new Error('quota'); } });
     await expect(full.create({ ...r, id: 'other' })).rejects.toThrow(/would not save/);
+  });
+});
+
+describe('a transaction that is not seen as confirmed', () => {
+  it('says what is true for the chain: an EVM transaction may yet confirm, a Solana one that has not landed has expired', () => {
+    expect(notConfirmedText('base', 'burn', '0xabc')).toMatch(/may yet confirm.*before sending anything again/);
+    expect(notConfirmedText('base', 'mint', '0xabc')).toMatch(/The claim transaction.*before claiming again/);
+    const sol = notConfirmedText('solana', 'burn', 'sig1');
+    expect(sol).toMatch(/expired and will never land/);
+    expect(sol).toMatch(/"The burn was not sent"/);
+    expect(sol).toMatch(/"The burn was sent"/);
+    expect(notConfirmedText('solana', 'mint', 'sig2')).toMatch(/"The claim was not sent"/);
+  });
+
+  it('waits no longer than a Solana transaction can still land, and the general time on other chains', () => {
+    expect(confirmLimitMs('solana', 10 * 60_000)).toBe(SOLANA_LANDING_LIMIT_MS);
+    expect(confirmLimitMs('solana', 1_000)).toBe(1_000);
+    expect(confirmLimitMs('base', 10 * 60_000)).toBe(10 * 60_000);
   });
 });

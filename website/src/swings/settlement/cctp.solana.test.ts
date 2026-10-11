@@ -80,6 +80,7 @@ describe('Solana to EVM', () => {
     const q = await x.provider().getQuote(intentSolToBase());
     expect(q.route.steps.map((s) => s.id)).toEqual(['burn', 'attest', 'mint']);
     expect(q.requirements.join(' ')).not.toMatch(/approval/);
+    expect(q.requirements.join(' ')).toMatch(/burn from Solana also pays a small deposit/);
     const without = await x.provider('standard', false).supports(intentSolToBase());
     expect(without).toEqual({ supported: false, reason: expect.stringMatching(/Solana side.*not available in this context/) });
   });

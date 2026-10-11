@@ -39,6 +39,20 @@ pub fn finalize_check(caller_is_authority: bool, now: i64, end_ts: i64, hard_cap
     FinalizeCheck::StillOpen
 }
 
+// ---- F-20: sales must be backed by the funded ACT reserve ----------------------------------------------------------
+/// Raw-unit cushion kept on top of the grossed-up amount owed. Same value `sweep_unsold_act` has always used: the gross-up
+/// estimate can be a few raw units short against Token-2022's fee rounding, so never plan to the last unit.
+pub const GROSS_UP_SAFETY_MARGIN: u64 = 100_000;
+
+/// True when the funded reserve can pay out `gross_needed` (the grossed-up amount the vault must send so buyers net their
+/// whole allocation) plus `margin`. An overflowing sum is never enough.
+pub fn reserve_covers(gross_needed: u64, reserve_net: u64, margin: u64) -> bool {
+    match gross_needed.checked_add(margin) {
+        Some(required) => required <= reserve_net,
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,5 +107,29 @@ mod tests {
         assert_eq!(finalize_check(true, END - 1, END, false), FinalizeCheck::StillOpen);
         assert_eq!(finalize_check(true, END - 1, END, true), FinalizeCheck::Allowed);
         assert_eq!(finalize_check(true, END, END, false), FinalizeCheck::Allowed);
+    }
+
+    // F-20 ---------------------------------------------------------------------------------------------------------
+    #[test]
+    fn a_reserve_that_covers_the_gross_need_plus_margin_is_enough() {
+        assert!(reserve_covers(1_000, 1_000 + GROSS_UP_SAFETY_MARGIN, GROSS_UP_SAFETY_MARGIN));
+        assert!(reserve_covers(0, 0, 0));
+        assert!(reserve_covers(1_000, 5_000_000, GROSS_UP_SAFETY_MARGIN));
+    }
+    #[test]
+    fn one_raw_unit_short_is_not_enough() {
+        assert!(!reserve_covers(1_000, 1_000 + GROSS_UP_SAFETY_MARGIN - 1, GROSS_UP_SAFETY_MARGIN));
+        assert!(!reserve_covers(1, 0, 0));
+    }
+    #[test]
+    fn an_empty_reserve_backs_nothing() {
+        assert!(!reserve_covers(1, 0, GROSS_UP_SAFETY_MARGIN));
+        assert!(!reserve_covers(GROSS_UP_SAFETY_MARGIN, 0, GROSS_UP_SAFETY_MARGIN));
+    }
+    #[test]
+    fn the_margin_addition_cannot_overflow_into_a_pass() {
+        assert!(!reserve_covers(u64::MAX, u64::MAX, 1));
+        assert!(!reserve_covers(u64::MAX - 5, u64::MAX, 10));
+        assert!(reserve_covers(u64::MAX - 10, u64::MAX, 10));
     }
 }

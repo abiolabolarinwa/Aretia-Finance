@@ -353,6 +353,16 @@ pub mod act_presale {
             .try_into()
             .map_err(|_| PresaleError::MathOverflow)?;
         require!(act_net > 0, PresaleError::ZeroAmount);
+        // F-20: refuse a sale the funded reserve could not pay out.
+        let new_total_sold = config
+            .total_act_sold_net
+            .checked_add(act_net)
+            .ok_or(PresaleError::MathOverflow)?;
+        require_reserve_covers_sales(
+            &ctx.accounts.act_mint.to_account_info(),
+            new_total_sold,
+            config.act_reserve_net,
+        )?;
 
         let buyer_account = &mut ctx.accounts.buyer_account;
         buyer_account.owner = ctx.accounts.buyer.key();
@@ -465,6 +475,16 @@ pub mod act_presale {
             .try_into()
             .map_err(|_| PresaleError::MathOverflow)?;
         require!(act_net > 0, PresaleError::ZeroAmount);
+        // F-20: refuse a sale the funded reserve could not pay out.
+        let new_total_sold = config
+            .total_act_sold_net
+            .checked_add(act_net)
+            .ok_or(PresaleError::MathOverflow)?;
+        require_reserve_covers_sales(
+            &ctx.accounts.act_mint.to_account_info(),
+            new_total_sold,
+            config.act_reserve_net,
+        )?;
 
         let buyer_account = &mut ctx.accounts.buyer_account;
         buyer_account.owner = ctx.accounts.buyer.key();
@@ -791,12 +811,11 @@ pub mod act_presale {
         // magnitude larger than the observed residual (single-digit raw
         // units) while still being economically negligible against any
         // real reserve size.
-        const GROSS_UP_SAFETY_MARGIN: u64 = 100_000;
         let needed_gross = if remaining_owed_net == 0 {
             0
         } else {
             grossed_up_amount(&ctx.accounts.act_mint.to_account_info(), remaining_owed_net)?
-                .checked_add(GROSS_UP_SAFETY_MARGIN)
+                .checked_add(policy::GROSS_UP_SAFETY_MARGIN)
                 .ok_or(PresaleError::MathOverflow)?
         };
 
@@ -945,6 +964,25 @@ fn grossed_up_amount(mint_account_info: &AccountInfo, net_amount: u64) -> Result
         .calculate_pre_fee_amount(net_amount)
         .ok_or(PresaleError::MathOverflow)?;
     Ok(gross)
+}
+
+/// F-20: a sale must never allocate more ACT than the funded reserve can pay out. The vault pays each claim as a
+/// grossed-up transfer (so the buyer nets their whole allocation), hence the requirement is on
+/// `gross_up(total_act_sold_net)`, read from the mint's live TransferFeeConfig, not on the net allocation itself.
+/// `act_reserve_net` is the vault's net inflow from `fund_act_reserve`; purchases only happen before any claim, so
+/// nothing has been paid out yet when this runs. A later fee increase can still reduce coverage; `claim` guards the
+/// remaining shortfall with its balance-delta top-up and `sweep_unsold_act` keeps the same margin.
+fn require_reserve_covers_sales(
+    act_mint: &AccountInfo,
+    total_act_sold_net_after: u64,
+    act_reserve_net: u64,
+) -> Result<()> {
+    let gross_needed = grossed_up_amount(act_mint, total_act_sold_net_after)?;
+    require!(
+        policy::reserve_covers(gross_needed, act_reserve_net, policy::GROSS_UP_SAFETY_MARGIN),
+        PresaleError::InsufficientActReserve
+    );
+    Ok(())
 }
 
 /// Converts a lamport amount to the same USD-equivalent 6-decimal unit
@@ -1205,6 +1243,11 @@ pub struct Buy<'info> {
 
     pub payment_token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
+
+    /// The ACT mint, read only for its live TransferFeeConfig (F-20 reserve check). Appended last so existing
+    /// account positions are unchanged.
+    #[account(address = config.act_mint @ PresaleError::InvalidMint)]
+    pub act_mint: Box<InterfaceAccount<'info, Mint>>,
 }
 
 #[derive(Accounts)]
@@ -1242,6 +1285,11 @@ pub struct BuyWithSol<'info> {
     pub price_update: Account<'info, PriceUpdateV2>,
 
     pub system_program: Program<'info, System>,
+
+    /// The ACT mint, read only for its live TransferFeeConfig (F-20 reserve check). Appended last so existing
+    /// account positions are unchanged.
+    #[account(address = config.act_mint @ PresaleError::InvalidMint)]
+    pub act_mint: Box<InterfaceAccount<'info, Mint>>,
 }
 
 #[derive(Accounts)]
@@ -1619,4 +1667,6 @@ pub enum PresaleError {
     FinalizeNotPermitted,
     #[msg("Only the nominated authority can accept this handoff.")]
     NotThePendingAuthority,
+    #[msg("This purchase would sell more ACT than the funded reserve can pay out.")]
+    InsufficientActReserve,
 }

@@ -26,6 +26,21 @@ const STATUS_REFUNDING: u8 = 2;
 const HARD_CAP: u64 = 100_000_000; // 100 USDC (6 dp)
 const SOFT_CAP: u64 = 50_000_000;
 const SOL_PRICE: i64 = 10_000_000_000; // $100.00000000 (expo -8) => 1 SOL = 100 USDC
+const ACT_FEE_BPS: u16 = 350; // ACT's real 3.5% transfer fee
+/// Mirrors `GROSS_UP_SAFETY_MARGIN` in the program (policy.rs).
+const MARGIN: u64 = 100_000;
+const OFF_ACT_SOLD: usize = OFF_TOTAL_ACT_SOLD;
+/// 0.1 SOL = 10 USDC buys 1,000 ACT (price 0.01 USDC/ACT, 9 decimals) = 1e12 raw units, net.
+const ACT_PER_TENTH_SOL: u64 = 1_000_000_000_000;
+
+/// Token-2022 `calculate_pre_fee_amount` with no max-fee cap: the gross a sender must send so the receiver nets `post`.
+fn gross_up(post: u64) -> u64 {
+    ((post as u128 * 10_000 + (10_000 - ACT_FEE_BPS as u128 - 1)) / (10_000 - ACT_FEE_BPS as u128)) as u64
+}
+/// Fee withheld on a transfer of `amount` (ceiling, as Token-2022 does).
+fn fee_on(amount: u64) -> u64 {
+    ((amount as u128 * ACT_FEE_BPS as u128 + 9_999) / 10_000) as u64
+}
 
 struct Presale {
     chain: Chain,
@@ -33,6 +48,7 @@ struct Presale {
     authority: Keypair,
     config: Address,
     vault_authority: Address,
+    act: Address,
     usdc: Address,
     usdt: Address,
     treasury_sol: Address,
@@ -50,10 +66,11 @@ impl Presale {
         chain.load(&program, &so("act-presale", "act_presale.so"));
         let authority = chain.funded();
         let treasury_owner = Keypair::new();
-        let (act, usdc, usdt) = (chain.create_mint(9), chain.create_mint(6), chain.create_mint(6));
+        let (act, usdc, usdt) = (chain.create_fee_mint(9, ACT_FEE_BPS), chain.create_mint(6), chain.create_mint(6));
+        let t22 = a(TOKEN_2022);
         let pda = |seed: &[u8]| Address::find_program_address(&[seed], &program).0;
         let (config, vault_authority) = (pda(b"presale_config"), pda(b"vault_authority"));
-        let treasury_act = chain.create_ata(&treasury_owner.pubkey(), &act);
+        let treasury_act = chain.create_ata_with(&treasury_owner.pubkey(), &act, &t22);
         let treasury_usdc = chain.create_ata(&treasury_owner.pubkey(), &usdc);
         let treasury_usdt = chain.create_ata(&treasury_owner.pubkey(), &usdt);
         let treasury_sol = Keypair::new().pubkey();
@@ -78,10 +95,10 @@ impl Presale {
                 w(config),
                 r(vault_authority),
                 r(act),
-                w(ata(&vault_authority, &act)),
+                w(ata_with(&vault_authority, &act, &t22)),
                 r(treasury_act),
                 r(treasury_sol),
-                r(a(TOKEN)),
+                r(t22),
                 r(a(ATA)),
                 r(a(SYSTEM)),
             ],
@@ -112,6 +129,7 @@ impl Presale {
             authority,
             config,
             vault_authority,
+            act,
             usdc,
             usdt,
             treasury_sol,
@@ -151,13 +169,57 @@ impl Presale {
         self.set_price_full(SOL_USD_FEED_ID, price, conf, now);
     }
 
+    /// Mints `amount` ACT to the authority and funds the reserve with it (the 3.5% fee is withheld on arrival).
+    fn fund_reserve(&mut self, amount: u64) {
+        let t22 = a(TOKEN_2022);
+        let auth = self.authority.insecure_clone();
+        let src = ata_with(&auth.pubkey(), &self.act, &t22);
+        if !self.chain.exists(&src) {
+            self.chain.create_ata_with(&auth.pubkey(), &self.act, &t22);
+        }
+        self.chain.mint_to(&self.act, &src, &t22, amount);
+        let vault = ata_with(&self.vault_authority, &self.act, &t22);
+        let ix = ix(
+            &self.program,
+            "fund_act_reserve",
+            &amount.to_le_bytes(),
+            vec![ws(auth.pubkey()), w(self.config), r(self.act), w(vault), w(src), r(t22)],
+        );
+        self.chain.send(&[ix], &[&auth]).expect("fund_act_reserve");
+    }
+    /// `Presale::new()` with the reserve funded generously, for tests about other behaviour.
+    fn funded() -> Self {
+        let mut p = Presale::new();
+        p.fund_reserve(1_000_000_000_000_000); // 1,000,000 ACT: far above what the 100-USDC hard cap needs
+        p
+    }
+    fn buy_with_usdc(&mut self, buyer: &Keypair, payment_amount: u64) -> Result<(), String> {
+        let buyer_account = Address::find_program_address(&[b"presale_buyer", buyer.pubkey().as_ref()], &self.program).0;
+        let ix = ix(
+            &self.program,
+            "buy",
+            &payment_amount.to_le_bytes(),
+            vec![
+                ws(buyer.pubkey()),
+                w(self.config),
+                w(buyer_account),
+                r(self.usdc),
+                w(ata(&self.vault_authority, &self.usdc)),
+                w(ata(&buyer.pubkey(), &self.usdc)),
+                r(a(TOKEN)),
+                r(a(SYSTEM)),
+                r(self.act),
+            ],
+        );
+        self.chain.send(&[ix], &[buyer])
+    }
     fn buy_with_sol(&mut self, buyer: &Keypair, lamports: u64) -> Result<(), String> {
         let buyer_account = Address::find_program_address(&[b"presale_buyer", buyer.pubkey().as_ref()], &self.program).0;
         let ix = ix(
             &self.program,
             "buy_with_sol",
             &lamports.to_le_bytes(),
-            vec![ws(buyer.pubkey()), w(self.config), w(buyer_account), w(self.vault_authority), r(self.price_update), r(a(SYSTEM))],
+            vec![ws(buyer.pubkey()), w(self.config), w(buyer_account), w(self.vault_authority), r(self.price_update), r(a(SYSTEM)), r(self.act)],
         );
         self.chain.send(&[ix], &[buyer])
     }
@@ -222,7 +284,7 @@ fn nobody_can_finalize_while_the_window_is_open_and_the_cap_is_not_reached() {
 #[test]
 fn a_stranger_can_finalize_after_the_end_and_buyers_can_then_refund() {
     // The point of F-15: buyers must be able to get out without depending on the authority key.
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let (buyer, stranger) = (p.chain.funded(), p.chain.funded());
     let spend = SOL / 10; // 0.1 SOL = 10 USDC, below the 50 USDC soft cap
     let before = p.chain.lamports(&buyer.pubkey());
@@ -254,7 +316,7 @@ fn finalize_cannot_be_repeated() {
 
 #[test]
 fn a_stranger_finalizing_after_a_successful_sale_sweeps_funds_only_to_the_configured_treasury() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let (buyer, stranger) = (p.chain.funded(), p.chain.funded());
     p.buy_with_sol(&buyer, SOL / 2).unwrap(); // 0.5 SOL = 50 USDC = soft cap
     assert_eq!(p.u64_at(OFF_TOTAL_RAISED), SOFT_CAP);
@@ -273,7 +335,7 @@ fn a_stranger_finalizing_after_a_successful_sale_sweeps_funds_only_to_the_config
 
 #[test]
 fn a_stranger_cannot_redirect_the_sweep_to_an_account_of_their_choosing() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let (buyer, stranger) = (p.chain.funded(), p.chain.funded());
     p.buy_with_sol(&buyer, SOL / 2).unwrap();
     p.go_past_the_end();
@@ -305,7 +367,7 @@ fn a_stranger_cannot_redirect_the_sweep_to_an_account_of_their_choosing() {
 
 #[test]
 fn at_the_hard_cap_only_the_authority_may_finalize_early() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let (buyer, stranger) = (p.chain.funded(), p.chain.funded());
     let authority = p.authority.insecure_clone();
     p.buy_with_sol(&buyer, SOL).unwrap(); // 1 SOL = 100 USDC = hard cap
@@ -323,7 +385,7 @@ fn at_the_hard_cap_only_the_authority_may_finalize_early() {
 
 #[test]
 fn a_tight_confidence_interval_is_accepted() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let buyer = p.chain.funded();
     p.set_price(SOL_PRICE, SOL_PRICE as u64 / 2_000); // 0.05%
     p.buy_with_sol(&buyer, SOL / 10).expect("tight interval");
@@ -332,7 +394,7 @@ fn a_tight_confidence_interval_is_accepted() {
 
 #[test]
 fn a_confidence_interval_of_exactly_one_percent_is_accepted_and_just_above_is_rejected() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let buyer = p.chain.funded();
     p.set_price(SOL_PRICE, SOL_PRICE as u64 / 100); // exactly 1%
     p.buy_with_sol(&buyer, SOL / 10).expect("boundary is inclusive");
@@ -343,7 +405,7 @@ fn a_confidence_interval_of_exactly_one_percent_is_accepted_and_just_above_is_re
 
 #[test]
 fn a_wide_confidence_interval_is_rejected_and_no_funds_move() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let buyer = p.chain.funded();
     p.set_price(SOL_PRICE, SOL_PRICE as u64 / 10); // 10%
     let (sol_before, vault_before) = (p.chain.lamports(&buyer.pubkey()), p.chain.lamports(&p.vault_authority));
@@ -355,7 +417,7 @@ fn a_wide_confidence_interval_is_rejected_and_no_funds_move() {
 
 #[test]
 fn the_existing_oracle_checks_still_hold() {
-    let mut p = Presale::new();
+    let mut p = Presale::funded();
     let buyer = p.chain.funded();
     let now = p.chain.now();
     // stale (older than 60 s)
@@ -375,20 +437,157 @@ fn the_existing_oracle_checks_still_hold() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Characterization of CURRENT behaviour found while writing these tests (finding F-20; NOT a fix)
+// F-20: sales must be backed by the funded ACT reserve
+//   Rule: after a purchase, gross_up(total_act_sold_net) + margin <= act_reserve_net  (the vault pays out grossed-up amounts).
 // ---------------------------------------------------------------------------------------------------------------------
 
 #[test]
-fn characterization_f20_sales_are_not_limited_by_the_funded_act_reserve() {
-    // `act_reserve_net` is only ever increased by `fund_act_reserve`; neither `buy` nor `buy_with_sol` compares it with
-    // `total_act_sold_net`. With nothing funded, a purchase still succeeds and allocates ACT that the vault does not hold.
-    // If this test starts failing because a guard was added, that is the fix landing: update/replace it then.
+fn funding_the_reserve_records_exactly_what_arrives_after_the_transfer_fee() {
+    let mut p = Presale::new();
+    let amount = 2_000_000_000_000u64;
+    p.fund_reserve(amount);
+    let vault = ata_with(&p.vault_authority, &p.act, &a(TOKEN_2022));
+    assert_eq!(p.chain.token_amount(&vault), amount - fee_on(amount), "the vault holds the net amount");
+    assert_eq!(p.u64_at(OFF_RESERVE), amount - fee_on(amount), "act_reserve_net equals the vault inflow");
+}
+
+#[test]
+fn a_purchase_is_rejected_when_no_reserve_has_been_funded() {
     let mut p = Presale::new();
     let buyer = p.chain.funded();
-    assert_eq!(p.u64_at(OFF_RESERVE), 0);
-    p.buy_with_sol(&buyer, SOL / 10).expect("purchase succeeds with an empty ACT reserve");
-    assert_eq!(p.u64_at(OFF_RESERVE), 0);
-    assert!(p.u64_at(OFF_TOTAL_ACT_SOLD) > 0, "ACT was allocated without any reserve backing it");
+    let (sol_before, vault_before) = (p.chain.lamports(&buyer.pubkey()), p.chain.lamports(&p.vault_authority));
+    assert_fails_with(p.buy_with_sol(&buyer, SOL / 10), "InsufficientActReserve");
+    assert_eq!(p.chain.lamports(&buyer.pubkey()), sol_before, "no funds move");
+    assert_eq!(p.chain.lamports(&p.vault_authority), vault_before);
+    assert_eq!(p.u64_at(OFF_TOTAL_RAISED), 0);
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), 0, "no ACT is allocated");
+}
+
+#[test]
+fn the_reserve_must_cover_the_grossed_up_payout_not_just_the_net_allocation() {
+    // Reserve that covers the buyer's NET allocation (+margin) but not the grossed-up amount the vault must send.
+    let mut p = Presale::new();
+    let buyer = p.chain.funded();
+    let funded = 1_046_600_000_000u64; // vault inflow ~1.0100e12 after the 3.5% fee
+    p.fund_reserve(funded);
+    let reserve = p.u64_at(OFF_RESERVE);
+    assert!(reserve >= ACT_PER_TENTH_SOL + MARGIN, "precondition: covers the net allocation ({reserve})");
+    assert!(reserve < gross_up(ACT_PER_TENTH_SOL) + MARGIN, "precondition: does NOT cover the gross payout ({reserve})");
+    assert_fails_with(p.buy_with_sol(&buyer, SOL / 10), "InsufficientActReserve");
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), 0);
+}
+
+#[test]
+fn a_purchase_backed_by_the_reserve_is_accepted_and_sales_accumulate_against_it() {
+    let mut p = Presale::new();
+    let (b1, b2, b3) = (p.chain.funded(), p.chain.funded(), p.chain.funded());
+    // enough for two 0.1-SOL purchases (gross ~1.0363e12 each) but not three
+    p.fund_reserve(2_300_000_000_000);
+    let reserve = p.u64_at(OFF_RESERVE);
+    assert!(reserve >= gross_up(2 * ACT_PER_TENTH_SOL) + MARGIN && reserve < gross_up(3 * ACT_PER_TENTH_SOL) + MARGIN);
+
+    p.buy_with_sol(&b1, SOL / 10).expect("first purchase fits");
+    p.buy_with_sol(&b2, SOL / 10).expect("second purchase fits");
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), 2 * ACT_PER_TENTH_SOL);
+    assert_fails_with(p.buy_with_sol(&b3, SOL / 10), "InsufficientActReserve");
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), 2 * ACT_PER_TENTH_SOL, "the rejected purchase added nothing");
+    assert_eq!(p.u64_at(OFF_TOTAL_RAISED), 20_000_000);
+}
+
+#[test]
+fn a_smaller_purchase_can_still_fit_after_a_larger_one_was_rejected() {
+    let mut p = Presale::new();
+    let buyer = p.chain.funded();
+    p.fund_reserve(1_200_000_000_000); // covers ~1.1 tenth-SOL purchases
+    assert_fails_with(p.buy_with_sol(&buyer, SOL / 5), "InsufficientActReserve"); // 0.2 SOL needs ~2.07e12
+    p.buy_with_sol(&buyer, SOL / 10).expect("0.1 SOL fits the same reserve");
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), ACT_PER_TENTH_SOL);
+}
+
+#[test]
+fn topping_up_the_reserve_unblocks_purchases() {
+    let mut p = Presale::new();
+    let buyer = p.chain.funded();
+    assert_fails_with(p.buy_with_sol(&buyer, SOL / 10), "InsufficientActReserve");
+    p.fund_reserve(1_200_000_000_000);
+    p.buy_with_sol(&buyer, SOL / 10).expect("funded");
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), ACT_PER_TENTH_SOL);
+}
+
+#[test]
+fn a_fully_funded_hard_cap_sale_is_not_obstructed() {
+    // 100 USDC hard cap => 10,000 ACT net allocation => ~10,362.7 ACT gross. Fund comfortably more and sell the whole cap.
+    let mut p = Presale::new();
+    let buyer = p.chain.funded();
+    let need = gross_up(10 * ACT_PER_TENTH_SOL) + MARGIN; // net reserve needed for the whole 1-SOL (100-USDC) cap
+    p.fund_reserve(gross_up(need) + 10_000_000); // to NET `need` after the 3.5% fee on funding, send its gross-up
+    p.buy_with_sol(&buyer, SOL).expect("the whole cap fits a fully funded reserve");
+    assert_eq!(p.u64_at(OFF_TOTAL_RAISED), HARD_CAP);
+}
+
+/// Smallest amount to fund so that the vault's net inflow (`amount - fee`) reaches `net_needed`.
+fn min_funding_for_net(net_needed: u64) -> u64 {
+    let (mut lo, mut hi) = (net_needed, net_needed * 2);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if mid - fee_on(mid) >= net_needed {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo
+}
+
+#[test]
+fn the_boundary_is_exact_to_the_raw_unit() {
+    // The program must accept at the minimum sufficient reserve and reject one raw unit below it. This also proves the
+    // program's gross-up arithmetic equals Token-2022's own fee arithmetic exactly (no off-by-one in either direction).
+    let required = gross_up(ACT_PER_TENTH_SOL) + MARGIN;
+    let f_min = min_funding_for_net(required);
+    assert!(f_min - fee_on(f_min) >= required && (f_min - 1) - fee_on(f_min - 1) < required, "test precondition");
+
+    let mut ok = Presale::new();
+    let buyer = ok.chain.funded();
+    ok.fund_reserve(f_min);
+    assert!(ok.u64_at(OFF_RESERVE) >= required);
+    ok.buy_with_sol(&buyer, SOL / 10).expect("exactly enough reserve is accepted");
+
+    let mut short = Presale::new();
+    let buyer = short.chain.funded();
+    short.fund_reserve(f_min - 1);
+    assert!(short.u64_at(OFF_RESERVE) < required);
+    assert_fails_with(short.buy_with_sol(&buyer, SOL / 10), "InsufficientActReserve");
+}
+
+#[test]
+fn the_usdc_path_is_subject_to_the_same_limit() {
+    let mut p = Presale::new();
+    let buyer = p.chain.funded();
+    let buyer_usdc = p.chain.create_ata(&buyer.pubkey(), &p.usdc);
+    p.chain.mint_to(&p.usdc, &buyer_usdc, &a(TOKEN), 50_000_000);
+
+    assert_fails_with(p.buy_with_usdc(&buyer, 10_000_000), "InsufficientActReserve");
+    assert_eq!(p.chain.token_amount(&buyer_usdc), 50_000_000, "no USDC moved");
+
+    p.fund_reserve(1_200_000_000_000);
+    p.buy_with_usdc(&buyer, 10_000_000).expect("10 USDC fits the funded reserve");
+    assert_eq!(p.chain.token_amount(&buyer_usdc), 40_000_000);
+    assert_eq!(p.chain.token_amount(&ata(&p.vault_authority, &p.usdc)), 10_000_000);
+    assert_eq!(p.u64_at(OFF_ACT_SOLD), ACT_PER_TENTH_SOL);
+    // a second 10-USDC purchase would exceed the same reserve
+    assert_fails_with(p.buy_with_usdc(&buyer, 10_000_000), "InsufficientActReserve");
+}
+
+#[test]
+fn sol_and_usdc_purchases_draw_on_one_shared_reserve() {
+    let mut p = Presale::new();
+    let (sol_buyer, usdc_buyer) = (p.chain.funded(), p.chain.funded());
+    let usdc_ata = p.chain.create_ata(&usdc_buyer.pubkey(), &p.usdc);
+    p.chain.mint_to(&p.usdc, &usdc_ata, &a(TOKEN), 50_000_000);
+    p.fund_reserve(1_200_000_000_000); // room for exactly one 10-USDC-equivalent purchase
+    p.buy_with_sol(&sol_buyer, SOL / 10).expect("SOL purchase uses the reserve");
+    assert_fails_with(p.buy_with_usdc(&usdc_buyer, 10_000_000), "InsufficientActReserve");
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

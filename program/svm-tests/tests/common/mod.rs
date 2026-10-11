@@ -13,6 +13,7 @@ pub use solana_keypair::Keypair;
 pub use solana_signer::Signer;
 use solana_transaction::Transaction;
 
+pub const TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 pub const TOKEN: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 pub const ATA: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 pub const SYSTEM: &str = "11111111111111111111111111111111";
@@ -41,6 +42,10 @@ pub fn rs(k: Address) -> AccountMeta {
 }
 pub fn ata(owner: &Address, mint: &Address) -> Address {
     Address::find_program_address(&[owner.as_ref(), a(TOKEN).as_ref(), mint.as_ref()], &a(ATA)).0
+}
+/// Associated token account address for any token program (classic Token or Token-2022).
+pub fn ata_with(owner: &Address, mint: &Address, token_program: &Address) -> Address {
+    Address::find_program_address(&[owner.as_ref(), token_program.as_ref(), mint.as_ref()], &a(ATA)).0
 }
 pub fn ix(program: &Address, name: &str, args: &[u8], metas: Vec<AccountMeta>) -> Instruction {
     let mut data = disc(name).to_vec();
@@ -138,6 +143,58 @@ impl Chain {
         );
         self.send(&[ix], &[]).unwrap();
         addr
+    }
+
+    /// Token-2022 mint with a TransferFeeConfig (`fee_bps`, no max-fee cap), config/withdraw authority = `fee_payer`.
+    /// Mirrors how ACT is configured (3.5% fee), so fee-on-transfer paths run for real.
+    pub fn create_fee_mint(&mut self, decimals: u8, fee_bps: u16) -> Address {
+        let mint = Keypair::new();
+        let auth = self.fee_payer.pubkey();
+        let tp = a(TOKEN_2022);
+        let space: u64 = 278; // 165 base + 1 account type + TLV(2+2+108) for TransferFeeConfig
+        let mut create = vec![0u8, 0, 0, 0];
+        create.extend_from_slice(&self.rent(space as usize).to_le_bytes());
+        create.extend_from_slice(&space.to_le_bytes());
+        create.extend_from_slice(tp.as_ref());
+        // InitializeTransferFeeConfig: [26, 0, Some(auth), Some(auth), bps, max_fee]
+        let mut fee = vec![26u8, 0, 1];
+        fee.extend_from_slice(auth.as_ref());
+        fee.push(1);
+        fee.extend_from_slice(auth.as_ref());
+        fee.extend_from_slice(&fee_bps.to_le_bytes());
+        fee.extend_from_slice(&u64::MAX.to_le_bytes());
+        let mut init = vec![20u8, decimals];
+        init.extend_from_slice(auth.as_ref());
+        init.push(0);
+        let ixs = [
+            Instruction::new_with_bytes(a(SYSTEM), &create, vec![ws(auth), ws(mint.pubkey())]),
+            Instruction::new_with_bytes(tp, &fee, vec![w(mint.pubkey())]),
+            Instruction::new_with_bytes(tp, &init, vec![w(mint.pubkey())]),
+        ];
+        self.send(&ixs, &[&mint]).unwrap();
+        mint.pubkey()
+    }
+    pub fn create_ata_with(&mut self, owner: &Address, mint: &Address, token_program: &Address) -> Address {
+        let addr = ata_with(owner, mint, token_program);
+        let payer = self.fee_payer.pubkey();
+        let ix = Instruction::new_with_bytes(
+            a(ATA),
+            &[1],
+            vec![ws(payer), w(addr), r(*owner), r(*mint), r(a(SYSTEM)), r(*token_program)],
+        );
+        self.send(&[ix], &[]).unwrap();
+        addr
+    }
+    /// MintTo (authority = `fee_payer`). Works for both token programs.
+    pub fn mint_to(&mut self, mint: &Address, dest: &Address, token_program: &Address, amount: u64) {
+        let mut d = vec![7u8];
+        d.extend_from_slice(&amount.to_le_bytes());
+        let ix = Instruction::new_with_bytes(*token_program, &d, vec![w(*mint), w(*dest), rs(self.fee_payer.pubkey())]);
+        self.send(&[ix], &[]).unwrap();
+    }
+    /// Token balance of a (classic or Token-2022) token account.
+    pub fn token_amount(&self, k: &Address) -> u64 {
+        u64::from_le_bytes(self.data(k)[64..72].try_into().unwrap())
     }
 }
 

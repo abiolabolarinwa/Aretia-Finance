@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { ACT, PRODUCTS } from '../../data/site';
+import { CHAINS } from '../../swings/core/types';
 
 // Universal and SafeSend are not usable on this page (mainnet + Solana only), so their tabs report
 // status. Copy comes from PRODUCTS, the single source the features page uses; the network rows
@@ -51,6 +52,9 @@ const universalNeeds = [
   'An Ethereum wallet connection. This page connects Solana wallets only, and a bridge needs both sides.',
 ];
 
+// Sending from an Ethereum-style account stays out of the page until the site is built with PUBLIC_PAY_EVM_SEND=1.
+const evmSendOn = import.meta.env.PUBLIC_PAY_EVM_SEND === '1';
+const evmSendNetworks = (Object.values(CHAINS) as { id: string; name: string; kind: string }[]).filter((c) => c.kind === 'evm');
 const sendTips = [
   'Transfers on Solana cannot be reversed. Check the full address on the review screen.',
   'Aretia never holds your keys. Your wallet shows the transaction and signs it; this page then submits it.',
@@ -254,6 +258,15 @@ const sendTips = [
                 Send SOL or a token you hold to a Solana address, or pay a <b>.sns</b> name. You review the full transaction here, then approve it in your own wallet.
               </p>
               <form class="wapp__form" data-send-form>
+                {evmSendOn && (
+                  <>
+                    <label for="send-network" class="wapp__eyebrow">Network</label>
+                    <select id="send-network" class="wapp__input" data-send-network>
+                      <option value="solana">Solana</option>
+                      {evmSendNetworks.map((c) => <option value={c.id}>{c.name}</option>)}
+                    </select>
+                  </>
+                )}
                 <label for="send-asset" class="wapp__eyebrow">Asset</label>
                 <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
                 <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>

@@ -18,17 +18,25 @@ export interface AppNotification {
   detail: string;
   tone: NotificationTone;
   icon: string | null;
+  /** The token it is about, when it is about one: clicking the notification opens that token's chart and details. */
+  token?: { chain: string; address: string; symbol: string; name: string };
   read: boolean;
 }
 
-export type NewNotification = Pick<AppNotification, 'title'> & Partial<Pick<AppNotification, 'detail' | 'tone' | 'icon' | 'at'>>;
+export type NewNotification = Pick<AppNotification, 'title'> & Partial<Pick<AppNotification, 'detail' | 'tone' | 'icon' | 'at' | 'token'>>;
 
 const TONES: readonly string[] = ['up', 'down', 'info'];
+
+function validToken(t: unknown): boolean {
+  if (!t || typeof t !== 'object') return false;
+  const v = t as Record<string, unknown>;
+  return typeof v.chain === 'string' && typeof v.address === 'string' && typeof v.symbol === 'string' && typeof v.name === 'string';
+}
 
 function valid(n: unknown): n is AppNotification {
   if (!n || typeof n !== 'object') return false;
   const v = n as Record<string, unknown>;
-  return typeof v.id === 'string' && typeof v.at === 'number' && Number.isFinite(v.at) && typeof v.title === 'string' && typeof v.detail === 'string' && typeof v.tone === 'string' && TONES.includes(v.tone) && typeof v.read === 'boolean' && (v.icon === null || typeof v.icon === 'string');
+  return typeof v.id === 'string' && typeof v.at === 'number' && Number.isFinite(v.at) && typeof v.title === 'string' && typeof v.detail === 'string' && typeof v.tone === 'string' && TONES.includes(v.tone) && typeof v.read === 'boolean' && (v.icon === null || typeof v.icon === 'string') && (v.token === undefined || validToken(v.token));
 }
 
 export class NotificationStore {
@@ -73,6 +81,7 @@ export class NotificationStore {
       tone: n.tone ?? 'info',
       icon: n.icon && /^https:\/\//.test(n.icon) ? n.icon : null,
       read: false,
+      ...(n.token ? { token: n.token } : {}),
     };
     this.write([item, ...this.read()]);
     return item;

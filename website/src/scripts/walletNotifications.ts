@@ -7,6 +7,9 @@ import { browserStorage } from '../swings/history.js';
 import { NotificationStore, type NewNotification } from '../swings/account/notifications.js';
 import { createRinger } from './walletSound.js';
 
+/** Fired when a notification about a token is clicked; the Markets page listens and opens that token's chart and details. */
+export const SHOW_MARKET_EVENT = 'aretia:show-market';
+
 let store: NotificationStore | null = null;
 let ringer: ReturnType<typeof createRinger> | null = null;
 let refresh: () => void = () => undefined;
@@ -99,6 +102,24 @@ export function initNotifications(): void {
     when.title = new Date(n.at).toLocaleString();
     text.append(when);
     li.append(text);
+    const token = n.token;
+    if (token) {
+      li.classList.add('is-link');
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.setAttribute('aria-label', `Open ${token.symbol}`);
+      const go = (): void => {
+        setOpen(false);
+        window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { ...token, icon: n.icon } }));
+      };
+      li.addEventListener('click', go);
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    }
     return li;
   }
 

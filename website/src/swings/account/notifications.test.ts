@@ -67,4 +67,11 @@ describe('NotificationStore', () => {
     s.setSound(true);
     expect(new NotificationStore(m).soundOn()).toBe(true);
   });
+
+  it('keeps the token a notification is about, so it can be opened again later', () => {
+    const m = memory();
+    const token = { chain: 'solana', address: 'So111', symbol: 'SOL', name: 'Solana' };
+    new NotificationStore(m).add({ title: 'SOL ▲ +4%', token });
+    expect(new NotificationStore(m).list()[0]?.token).toEqual(token);
+  });
 });

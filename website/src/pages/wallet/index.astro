@@ -930,6 +930,8 @@ const sendTips = [
   .wapp-bell__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
   .wapp-bell__item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 10px; border-radius: 12px; border-left: 3px solid transparent; }
   .wapp-bell__item.is-unread { background: var(--wapp-indigo, var(--color-brand-soft)); }
+  .wapp-bell__item.is-link { cursor: pointer; }
+  .wapp-bell__item.is-link:hover, .wapp-bell__item.is-link:focus-visible { background: var(--wapp-indigo, var(--color-brand-soft)); outline: none; }
   .wapp-bell__item--up { border-left-color: #1b8a4b; }
   .wapp-bell__item--down { border-left-color: #c62a1f; }
   .wapp-bell__img { flex: none; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--color-bg-alt); }

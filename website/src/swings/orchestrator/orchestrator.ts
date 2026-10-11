@@ -37,6 +37,21 @@ export interface OrchestratorOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
+/** A Solana transaction that has not landed within about two minutes never will: its blockhash has expired. */
+export const SOLANA_LANDING_LIMIT_MS = 150_000;
+
+/** How long to wait for a confirmation on a chain: Solana's own limit, if shorter than the general one. */
+export const confirmLimitMs = (chain: string, general: number): number => (chain === 'solana' ? Math.min(general, SOLANA_LANDING_LIMIT_MS) : general);
+
+/** What to tell the person when a transaction is not seen as confirmed in time, in words that are true for the chain. */
+export function notConfirmedText(chain: string, stepId: string, hash: string): string {
+  const label = stepId === 'mint' ? 'claim' : stepId;
+  if (chain === 'solana') {
+    return `The ${label} transaction (${hash}) has not shown as confirmed on Solana. A Solana transaction that has not landed after about two minutes has expired and will never land. Look the signature up on Solscan: if it is not found there, nothing was sent, so choose "The ${label} was not sent". If it is there, choose "The ${label} was sent".`;
+  }
+  return `The ${label} transaction (${hash}) is still not confirmed. It may yet confirm; check its status before ${stepId === 'mint' ? 'claiming' : 'sending anything'} again.`;
+}
+
 export class CrossChainOrchestrator {
   private readonly o: Required<Omit<OrchestratorOptions, 'store' | 'providers' | 'gateway'>> & Pick<OrchestratorOptions, 'store' | 'providers' | 'gateway'>;
   private readonly busy = new Set<string>();
@@ -143,7 +158,7 @@ export class CrossChainOrchestrator {
     const step = r.steps[stepId]!;
     if (step.status === 'confirmed') return last && r.state === 'SOURCE_SUBMITTED' ? this.confirmSource(r) : r;
     const outcome = await this.waitConfirmed(step.chain, step.hash!);
-    if (outcome === 'pending') return this.attention(r, `The ${stepId} transaction (${step.hash}) is still not confirmed. It may yet confirm; check its status before sending anything again.`);
+    if (outcome === 'pending') return this.attention(r, notConfirmedText(step.chain, stepId, step.hash!));
     if (outcome === 'failed') {
       r = await this.saveStep(r, { ...step, status: 'failed', updatedAt: this.o.now() });
       return this.fail(r, `The ${stepId} transaction failed on the network (${step.hash}).`, false);
@@ -210,7 +225,7 @@ export class CrossChainOrchestrator {
         // The claim can simply be built and sent again, because nothing was minted.
         return this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'failed', hash, updatedAt: this.o.now() });
       }
-      if (outcome === 'pending') return this.attention(r, `The claim transaction (${hash}) is still not confirmed. It may yet confirm; check its status before claiming again.`);
+      if (outcome === 'pending') return this.attention(r, notConfirmedText(tx.chain, tx.stepId, hash));
       return this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'confirmed', hash, updatedAt: this.o.now() });
     });
   }
@@ -285,7 +300,7 @@ export class CrossChainOrchestrator {
   }
 
   private async waitConfirmed(chain: ChainId, hash: string): Promise<'confirmed' | 'failed' | 'pending'> {
-    const deadline = this.o.now() + this.o.confirmTimeoutMs;
+    const deadline = this.o.now() + confirmLimitMs(chain, this.o.confirmTimeoutMs);
     for (;;) {
       let state: 'confirmed' | 'failed' | 'pending';
       try {

@@ -260,6 +260,7 @@ export class CctpSettlementProvider implements SettlementProvider {
         ...(needsApproval ? ['One approval for exactly this amount on the source chain.'] : []),
         `A little ${CHAINS[intent.destinationChain].nativeSymbol} on ${dstName} to pay the network fee when you claim.`,
         ...(isSolana(intent.destinationChain) ? ['If you have never held USDC on Solana with this wallet, the claim also pays a small one-time rent (about 0.002 SOL) to open your USDC account.'] : []),
+        ...(isSolana(intent.sourceChain) ? ['A burn from Solana also pays a small deposit (a few thousandths of a SOL) to store the message record. Aretia does not take that deposit back.'] : []),
         'Keep this page or your activity record: the claim step needs the burn transaction.',
       ],
       raw,

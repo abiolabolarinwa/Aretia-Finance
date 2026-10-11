@@ -197,9 +197,10 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     }
     if (v.next === 'check-wallet') {
       for (const step of Object.values(r.steps).filter((x) => x.status === 'sending' || (x.status === 'submitted' && r.needsAttention))) {
-        const no = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `The ${step.stepId} was not sent`, attrs: { type: 'button' } });
+        const label = step.stepId === 'mint' ? 'claim' : step.stepId;
+        const no = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `The ${label} was not sent`, attrs: { type: 'button' } });
         no.addEventListener('click', () => void run(() => orchestrator.resolveAttention(r.id, { stepId: step.stepId, sent: false })));
-        const yes = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `The ${step.stepId} was sent…`, attrs: { type: 'button' } });
+        const yes = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `The ${label} was sent…`, attrs: { type: 'button' } });
         yes.addEventListener('click', () => {
           const hash = window.prompt('Paste the transaction hash from your wallet');
           if (hash) void run(() => orchestrator.resolveAttention(r.id, { stepId: step.stepId, sent: true, hash: hash.trim() }));
@@ -287,8 +288,8 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
           void run(async () => {
             const q = s.chosen!;
             if (!(await isCanaryAllowed(q.intent.sender))) throw new SwingsError('not-enabled', 'Moving USDC is limited to a first group of wallets while it is being proven. This wallet is not in that group yet.');
-            const [native, existing] = await Promise.all([nativeBalance(q.intent.destinationChain, q.intent.recipient), store.list()]);
-            const verdict = assessSettlement(q, { now: Date.now(), provider: providers.find((p) => p.id === q.providerId) ?? null, enabledChains: CHAIN_CHOICES.filter(isEnabled), sourceBalance: s.balance, destinationNativeBalance: native, existing, maxAmount: MOVE_CAP_RAW });
+            const [native, sourceNative, existing] = await Promise.all([nativeBalance(q.intent.destinationChain, q.intent.recipient), nativeBalance(q.intent.sourceChain, q.intent.sender), store.list()]);
+            const verdict = assessSettlement(q, { now: Date.now(), provider: providers.find((p) => p.id === q.providerId) ?? null, enabledChains: CHAIN_CHOICES.filter(isEnabled), sourceBalance: s.balance, destinationNativeBalance: native, sourceNativeBalance: sourceNative, existing, maxAmount: MOVE_CAP_RAW });
             if (verdict.verdict === 'block') throw new SwingsError('invalid', verdict.blockers.join(' '));
             for (const c of verdict.confirmations) if (!window.confirm(`${c}
 

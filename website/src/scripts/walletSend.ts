@@ -250,7 +250,12 @@ export interface Simulation {
 /** Runs the transaction on the RPC without a signature. No funds move. */
 export async function simulatePlan(plan: SendPlan): Promise<Simulation> {
   if (!plan.transaction) return { ok: false, error: 'Nothing to simulate.' };
-  const bytes = plan.transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
+  return simulateTransaction(plan.transaction);
+}
+
+/** The same for any transaction built on this page. */
+export async function simulateTransaction(transaction: Web3.Transaction): Promise<Simulation> {
+  const bytes = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
   const r = await rpcCall<{ value: { err: unknown; logs: string[] | null } }>('simulateTransaction', [toBase64(bytes), { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }]);
   if (r.value.err === null) return { ok: true, error: null };
   const lastLog = (r.value.logs ?? []).filter((l) => /failed|error|insufficient/i.test(l)).pop();
@@ -273,10 +278,15 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
  */
 export async function signAndSubmit(plan: SendPlan): Promise<string> {
   if (!plan.transaction) throw new Error('Nothing to sign.');
+  return signAndSubmitTransaction(plan.transaction);
+}
+
+/** The same for any transaction built on this page (Shield's revoke and reclaim use it). */
+export async function signAndSubmitTransaction(transaction: Web3.Transaction): Promise<string> {
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
   if (!ctx?.signTransaction) throw new Error('The connected wallet cannot sign from this page.');
-  const signed = await ctx.signTransaction(plan.transaction);
-  if (!bytesEqual(signed.serializeMessage(), plan.transaction.serializeMessage())) {
+  const signed = await ctx.signTransaction(transaction);
+  if (!bytesEqual(signed.serializeMessage(), transaction.serializeMessage())) {
     throw new Error('The wallet returned a different transaction from the one shown. Nothing was sent.');
   }
   const wire = signed.serialize();

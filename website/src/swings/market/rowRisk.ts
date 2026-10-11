@@ -64,7 +64,7 @@ export function withMarketReading(r: MarketRow, now = Date.now()): MarketRow {
   return reading.score === null ? { ...r, risk: null } : { ...r, risk: toRowRisk(reading, 'market') };
 }
 
-const bandOf = (status: string): Band => (status === 'high' || status === 'restricted' ? 'red' : status === 'elevated' || status === 'new' ? 'orange' : status === 'established' || status === 'verified' ? 'green' : status === 'unverified' ? 'yellow' : 'grey');
+export const bandOf = (status: string): Band => (status === 'high' || status === 'restricted' ? 'red' : status === 'elevated' || status === 'new' ? 'orange' : status === 'established' || status === 'verified' ? 'green' : status === 'unverified' ? 'yellow' : 'grey');
 
 const toneOf = (status: string): Tone => (status === 'high' || status === 'restricted' ? 'bad' : status === 'elevated' ? 'warn' : status === 'established' || status === 'verified' ? 'on' : 'off');
 

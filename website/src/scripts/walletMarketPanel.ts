@@ -11,6 +11,7 @@ import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } f
 import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
 import { ratingGuide } from './walletRatingGuide.js';
+import { checkHash } from '../swings/shield/classify.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
@@ -180,7 +181,10 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const more = el('details', 'wapp-mp__more');
     more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
     more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
-    box.append(more, ratingGuide());
+    const full = el('a', 'wapp-mp__shieldlink', 'Full Shield report');
+    full.href = checkHash(r.address);
+    full.title = 'Open this token in Shield: the colour, every finding, what could not be checked, and a link to share';
+    box.append(more, ratingGuide(), full);
     return box;
   }
 

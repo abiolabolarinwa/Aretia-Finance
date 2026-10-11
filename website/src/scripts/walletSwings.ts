@@ -23,6 +23,8 @@ import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { ratingKey } from './walletRatingGuide.js';
 import { notify } from './walletNotifications.js';
+import { revokeCall } from '../swings/shield/approvals.js';
+import { checkHash } from '../swings/shield/classify.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
 import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
@@ -133,9 +135,9 @@ const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? 
 /** Where the Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
 const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
-export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void } {
+export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void; evmAccount(): string | null; revokeEvm(chain: ChainId, token: string, spender: string): Promise<string> } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
-  if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {} };
+  if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {}, evmAccount: () => null, revokeEvm: () => Promise.reject(new Error('Not available here.')) };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
   const swapPanel = panel('swap');
   // Swaps and moves are listed in the sidebar's Activity page, not in a tab here.
@@ -964,7 +966,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       box.append(acknowledgement(' I have read the risks for this token and want to continue.'));
       return box;
     }
-    box.append(el('span', { class: 'wapp__eyebrow', text: `Know before you sign: ${s.to.symbol}` }));
+    const report = el('a', { class: 'wapp__linkbtn', text: 'Full Shield report', attrs: { href: checkHash(s.to.mint) } });
+    report.addEventListener('click', () => closeSwapDialog());
+    box.append(el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: `Know before you sign: ${s.to.symbol}` }), report]));
     if (s.safety.loading) {
       box.append(el('p', { class: 'wapp__fine', text: 'Checking this token on-chain…' }));
       return box;
@@ -1959,6 +1963,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     },
     onActivityShow() {
       renderActivity();
+    },
+    /** The connected Ethereum-style account, for Shield. */
+    evmAccount: () => evm.account,
+    /** Shield's "take it back": approve(spender, 0) on the token, signed by the connected Ethereum-style wallet. */
+    async revokeEvm(chain, token, spender) {
+      const adapter = evm.adapter;
+      const info = CHAINS[chain];
+      if (!adapter || !evm.account || info.evmChainId === null) throw new SwingsError('invalid', 'Connect your Ethereum-style wallet first (on the Swap page).');
+      await adapter.switchChain(info.evmChainId);
+      return adapter.sendTransaction({ from: evm.account, to: token, data: revokeCall(spender), value: '0x0' });
     },
   };
 }

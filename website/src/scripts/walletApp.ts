@@ -6,12 +6,15 @@ import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvm
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
+import { initShield } from './walletShield';
+import { checkHash } from '../swings/shield/classify';
+import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
-import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type Finding, type ParsedIntent } from './walletTools';
+import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type ParsedIntent } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -370,9 +373,17 @@ export function initWalletApp(): void {
   let showUnpriced = readShowUnpriced();
   let loadToken = 0;
   const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
+  const shield = initShield({
+    getAddress: () => address,
+    getHoldings: () => (holdings ?? []).map((x) => ({ mint: x.mint, symbol: x.symbol, value: x.value, amount: x.amount })),
+    evmAccount: () => swings.evmAccount(),
+    revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
+    refreshWallet: () => void refresh(),
+  });
 
   const currentView = (): View => {
-    const raw = location.hash.replace(/^#\/?/, '');
+    // "#/shield/<what to check>" is a shareable check: the first part names the page.
+    const raw = location.hash.replace(/^#\/?/, '').split('/')[0] ?? '';
     // Trade was folded into Swap, which covers more networks; old links still land somewhere useful.
     const h = (raw === 'trade' ? 'swap' : raw) as View;
     return VIEWS.includes(h) ? h : 'dashboard';
@@ -827,6 +838,9 @@ export function initWalletApp(): void {
       card.append(banner('info', 'This token may withhold a transfer fee of its own, so the recipient may receive slightly less.'));
     }
     if (plan.blockers.length === 0) for (const f of shieldFindings(plan.recipient, address, plan.to)) card.append(banner(f.severity === 'warning' ? 'warn' : 'info', f.message));
+    // Shield's guard: is it an address you know, a copy-cat of one, or a first time.
+    const guard = plan.blockers.length === 0 ? guardRecipient(plan.to, shield.book().list(), address) : null;
+    if (guard) for (const f of guard.findings) card.append(banner(f.severity === 'bad' ? 'warn' : f.severity === 'ok' ? 'ok' : 'info', f.severity === 'ok' || f.severity === 'info' ? f.title : `${f.title} ${f.detail}`));
     for (const b of plan.blockers) card.append(banner('warn', b));
     const simBanner = sim ? (sim.ok ? banner('ok', 'Simulation passed: the network would accept this transaction. No funds have moved.') : banner('warn', `Simulation failed, so this was not sent to your wallet: ${sim.error}`)) : null;
     if (simBanner) card.append(simBanner);
@@ -835,13 +849,17 @@ export function initWalletApp(): void {
     const ack = el('input', { attrs: { type: 'checkbox', id: 'send-ack' } });
     if (canGo && plan.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-ack' } }, [ack, el('span', { text: 'This address is owned by another program, not a normal wallet. I understand and want to continue.' })]));
 
+    const guardAck = el('input', { attrs: { type: 'checkbox', id: 'send-guard-ack' } });
+    if (canGo && guard?.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-guard-ack' } }, [guardAck, el('span', { text: 'I compared every character of this address with the one I meant to use, and it is the same.' })]));
+
     const status = el('div', { attrs: { 'aria-live': 'polite' } });
     const actions = el('div', { class: 'wapp__row-actions' });
     const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
     const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
-    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked));
+    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked) || (!!guard?.needsAck && !guardAck.checked));
     sync();
     ack.addEventListener('change', sync);
+    guardAck.addEventListener('change', sync);
     cancel.addEventListener('click', () => (out.textContent = ''));
     confirm.addEventListener('click', async () => {
       if (sendBusy) return;
@@ -859,6 +877,8 @@ export function initWalletApp(): void {
           if (active.blockers.length > 0 || !again?.ok) return void renderSendReview(active, again, name, req, Date.now());
         }
         const signature = await signAndSubmit(active);
+        // Remembered from now on, so a copy-cat of it can be caught next time.
+        shield.book().rememberSent(active.to);
         status.textContent = '';
         if (simBanner) simBanner.hidden = true; // "no funds have moved" is no longer true once it is sent
         const link = el('a', { text: 'View on Solscan', attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } });
@@ -937,34 +957,6 @@ export function initWalletApp(): void {
   });
 
   // ---- shield tab
-  function renderFindings(findings: Finding[]): Node[] {
-    if (findings.length === 0) {
-      return [el('p', { class: 'wapp__banner wapp__banner--ok', text: 'No risks found. That means nothing unusual was seen, not that the address is safe. Confirm it with the recipient another way before you send.' })];
-    }
-    return findings.map((f) => el('p', { class: `wapp__banner wapp__banner--${f.severity === 'warning' ? 'warn' : 'info'}`, text: f.message }));
-  }
-
-  async function runShield(input: string): Promise<void> {
-    const out = $('[data-shield-result]');
-    if (!out) return;
-    out.textContent = '';
-    const value = input.trim();
-    if (!value) return;
-    if (!isSolanaAddress(value)) {
-      out.append(el('p', { class: 'wapp-error', text: "That isn't a valid Solana address. Names such as bob.sns aren't looked up on this page yet, so paste the address itself." }));
-      return;
-    }
-    out.append(el('p', { class: 'wapp-sub', text: 'Checking…' }));
-    try {
-      const snapshot = await loadAccountSnapshot(value);
-      out.textContent = '';
-      out.append(el('div', { class: 'wapp__result' }, [el('code', { class: 'wapp-mono', text: value }), ...renderFindings(shieldFindings(snapshot, address, value))]));
-    } catch (e) {
-      out.textContent = '';
-      out.append(el('p', { class: 'wapp-error', text: `Couldn't check that address: ${e instanceof Error ? e.message : 'unknown error'}` }));
-    }
-  }
-
   // ---- intent tab
   function candidateLabel(c: Candidate): string {
     return `${c.symbol} · ${shorten(c.mint)} · ${c.held && c.amount !== null ? `you hold ${formatAmount(c.amount)}` : 'not in your wallet'}`;
@@ -1028,10 +1020,7 @@ export function initWalletApp(): void {
         if (isSolanaAddress(intent.recipient)) {
           const check = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check this address with Shield', attrs: { type: 'button' } });
           check.addEventListener('click', () => {
-            const field = $<HTMLInputElement>('#shield-input');
-            if (field) field.value = intent.recipient;
-            location.hash = '#/shield';
-            void runShield(intent.recipient);
+            location.hash = checkHash(intent.recipient);
           });
           actions.append(check);
         }
@@ -1091,10 +1080,6 @@ export function initWalletApp(): void {
     render();
   }
 
-  $('[data-shield-form]')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    void runShield($<HTMLInputElement>('#shield-input')?.value ?? '');
-  });
   $('[data-intent-form]')?.addEventListener('submit', (e) => {
     e.preventDefault();
     renderIntent($<HTMLInputElement>('#intent-input')?.value ?? '');
@@ -1127,6 +1112,7 @@ export function initWalletApp(): void {
     const view = currentView();
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'activity') swings.onActivityShow();
+    if (view === 'shield') shield.onShow(location.hash);
     if (view === 'send') {
       void loadWeb3();
       swings.onPayShow();
@@ -1190,8 +1176,8 @@ export function initWalletApp(): void {
   initNotifications();
 
   function clearSessionOutputs(): void {
-    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]']) $(sel)?.replaceChildren();
-    for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input', '#shield-input']) {
+    for (const sel of ['[data-send-review]', '[data-intent-result]']) $(sel)?.replaceChildren();
+    for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input']) {
       const field = $<HTMLInputElement>(sel);
       if (field) field.value = '';
     }
@@ -1208,6 +1194,7 @@ export function initWalletApp(): void {
     lock.onWallet(next);
     clearSessionOutputs();
     swings.onWalletChange();
+    shield.onWalletChange();
     renderChrome();
     void refresh();
   }

@@ -319,28 +319,7 @@ const sendTips = [
       </div>
 
       <div data-pane="shield" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card">
-            <h2 class="wapp__h2">Check an address before you send</h2>
-            <p class="wapp__fine">
-              Paste a Solana address. Shield looks the account up on-chain and flags an address that has never been used, or one that is a program or token account rather than a person's wallet. It needs no wallet connection.
-            </p>
-            <form class="wapp__form" data-shield-form>
-              <label for="shield-input" class="wapp__eyebrow">Solana address</label>
-              <input id="shield-input" class="wapp__input wapp-mono" autocomplete="off" spellcheck="false" placeholder="Paste an address" />
-              <button type="submit" class="wapp__btn wapp__btn--primary">Check</button>
-            </form>
-            <div data-shield-result aria-live="polite"></div>
-          </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">What Shield can and cannot tell you</span>
-            <ul class="wapp__list">
-              <li>It reads the account straight from a public Solana RPC. The address you check is sent to that RPC, and nowhere else.</li>
-              <li>"No risks found" means nothing unusual was seen. It does not mean the address is safe. Confirm it with the recipient another way.</li>
-              <li>Names such as bob.sns are not looked up on this page yet. Paste the address.</li>
-            </ul>
-          </div>
-        </div>
+        <div class="wapp-sh" data-shield-root></div>
       </div>
 
       <div data-pane="intent" class="wapp__pane" hidden>
@@ -723,6 +702,7 @@ const sendTips = [
   .wapp-mp__concerns { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 14px; line-height: 1.5; color: var(--color-strong); }
   .wapp-mp__actions { display: grid; gap: 6px; }
   .wapp-mp__actions .wapp__btn { padding-block: 10px; }
+  .wapp-mp__shieldlink { justify-self: start; font-size: 13px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
   .wapp-mp__more { font-size: 13.5px; color: var(--color-muted); }
   .wapp-mp__more summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
   .wapp-mp__more > * + * { margin-top: 4px; }
@@ -756,6 +736,132 @@ const sendTips = [
   .wapp-ad__text p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-muted); }
   .wapp-ad__cta { justify-self: start; font-size: 12.5px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
   .wapp-mt__card > .wapp-ad { max-width: 560px; }
+
+  /* ---- Shield: know before you sign ---- */
+  .wapp[data-view='shield'] .wapp__top h1 { display: none; }
+  .wapp[data-view='shield'] [data-refresh] { display: none; }
+  .wapp[data-view='shield'] .wapp__gate { display: none; }
+  .wapp-sh { display: grid; gap: 16px; width: min(1040px, 100%); margin-inline: auto; }
+  .wapp-sh [hidden] { display: none !important; }
+  .wapp-sh__hero { display: grid; gap: 18px; padding: 30px 32px 26px; color: #fff; background: linear-gradient(135deg, #4a2ee0 0%, #3a22c8 55%, #26168a 100%); border-radius: var(--radius-xl); box-shadow: 0 14px 30px rgba(38, 22, 138, 0.28); }
+  .wapp-sh__kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.78); }
+  .wapp-sh__title { margin: 4px 0 0; font-family: var(--font-display); font-size: clamp(1.9rem, 3.4vw, 2.6rem); font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+  .wapp-sh__lede { max-width: 56ch; margin: 8px 0 0; font-size: 15px; line-height: 1.55; color: rgba(255, 255, 255, 0.86); }
+  .wapp-sh__form { display: flex; gap: 8px; align-items: stretch; }
+  .wapp-sh__form--small { margin-top: 4px; }
+  .wapp-sh__input { flex: 1; min-width: 0; padding: 15px 18px; font-size: 15px; font-family: var(--font-mono); color: var(--color-strong); background: #fff; border: 2px solid transparent; border-radius: 14px; }
+  .wapp-sh__input:focus { outline: none; border-color: #b9b0ec; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25); }
+  .wapp-sh__go { flex: none; padding: 0 26px; font-size: 15px; color: #190880; background: #fff; border-radius: 14px; }
+  .wapp-sh__go:hover { background: #e9e6fc; }
+  .wapp-sh__go:disabled { opacity: 0.6; cursor: progress; }
+  .wapp-sh__card .wapp-sh__go { padding-block: 12px; color: #fff; background: var(--color-brand); }
+  .wapp-sh__card .wapp-sh__go:hover { background: var(--color-brand-bright); }
+  .wapp-sh__card .wapp-sh__input { border-color: var(--color-border-strong); font-size: 14px; padding: 12px 14px; }
+  .wapp-sh__ghost { flex: none; padding: 0 16px; font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: rgba(255, 255, 255, 0.14); border: 0; border-radius: 14px; cursor: pointer; }
+  .wapp-sh__ghost:hover { background: rgba(255, 255, 255, 0.24); }
+  .wapp-sh__chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 30px; }
+  .wapp-sh__chiphint { font-size: 13px; color: rgba(255, 255, 255, 0.78); }
+  .wapp-sh__chip { padding: 6px 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: #fff; background: rgba(255, 255, 255, 0.14); border: 0; border-radius: 999px; cursor: pointer; }
+  .wapp-sh__chip:hover { background: rgba(255, 255, 255, 0.26); }
+  .wapp-sh :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-sh__hero :focus-visible { outline-color: #fff; }
+
+  .wapp-sh__tabs { display: flex; gap: 6px; padding: 5px; width: fit-content; max-width: 100%; background: var(--wapp-indigo, #e9e6fc); border-radius: 14px; }
+  .wapp-sh__tab { padding: 9px 18px; font: inherit; font-size: 14px; font-weight: 600; color: #3f3a8a; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+  .wapp-sh__tab[aria-selected='true'] { color: #fff; background: var(--color-brand); }
+  .wapp-sh__panel { display: grid; gap: 16px; align-content: start; }
+
+  .wapp-sh__intro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .wapp-sh__introcard { display: grid; gap: 6px; padding: 18px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
+  .wapp-sh__introcard strong { color: var(--color-strong); }
+  .wapp-sh__introcard span { font-size: 13.5px; line-height: 1.5; color: var(--color-muted); }
+
+  .wapp-sh__card { display: grid; gap: 14px; padding: 22px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); }
+  .wapp-sh__h { margin: 0; font-size: 1.05rem; color: var(--color-strong); }
+  .wapp-sh__clear { margin: 0; padding: 12px 14px; font-size: 14px; color: var(--color-muted); background: var(--wapp-indigo, #e9e6fc); border-radius: 12px; }
+  .wapp-sh__pad { padding: 0 4px; }
+  .wapp-sh__verdict { padding: 0; overflow: hidden; gap: 0; }
+  .wapp-sh__verdict > :not(.wapp-sh__bar) { margin: 0; padding-inline: 22px; }
+  .wapp-sh__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 20px 22px; }
+  .wapp-sh__bar--green { color: #fff; background: #1b8a4b; }
+  .wapp-sh__bar--yellow { color: #2b2200; background: #f0be00; }
+  .wapp-sh__bar--orange { color: #fff; background: #d9610a; }
+  .wapp-sh__bar--red { color: #fff; background: #c62a1f; }
+  .wapp-sh__bar--grey { color: #fff; background: #8d8aa8; min-height: 56px; }
+  .wapp-sh__bandword { font-family: var(--font-display); font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wapp-sh__headline { flex: 1 1 320px; margin: 0; font-size: 1.05rem; font-weight: 600; line-height: 1.4; }
+  .wapp-sh__loading { overflow: hidden; padding: 0; gap: 0; }
+  .wapp-sh__loading .wapp__fine { margin: 0; padding: 18px 22px; }
+  .wapp-sh__loading .wapp-sh__bar { animation: wapp-sh-pulse 1.2s ease-in-out infinite; }
+  @keyframes wapp-sh-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .wapp-sh__who { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding-block: 18px 6px !important; }
+  .wapp-sh__avatar { flex: none; display: grid; place-items: center; width: 52px; height: 52px; overflow: hidden; font-size: 15px; font-weight: 700; color: var(--color-brand); background: var(--wapp-indigo, #e9e6fc); border-radius: 50%; }
+  .wapp-sh__avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .wapp-sh__names { display: grid; gap: 3px; min-width: 0; flex: 1 1 260px; }
+  .wapp-sh__names strong { font-size: 1.15rem; color: var(--color-strong); overflow-wrap: anywhere; }
+  .wapp-sh__sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--color-muted); }
+  .wapp-sh__value { font-size: 12.5px; color: var(--color-muted); overflow-wrap: anywhere; }
+  .wapp-sh__link { font-size: 13px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-sh__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; margin-block: 14px !important; margin-inline: 22px !important; padding: 0 !important; overflow: hidden; background: var(--wapp-indigo-line, #cdc6f3); border: 1px solid var(--wapp-indigo-line, #cdc6f3); border-radius: 12px; }
+  .wapp-sh__facts > div { display: grid; gap: 2px; padding: 10px 14px; background: var(--color-bg); }
+  .wapp-sh__facts dt { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-sh__facts dd { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--color-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .wapp-sh__findings { list-style: none; display: grid; gap: 4px; padding: 0 12px !important; margin-block: 4px 10px !important; }
+  .wapp-sh__finding { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px; border-radius: 12px; }
+  .wapp-sh__finding--bad { background: rgba(198, 42, 31, 0.08); }
+  .wapp-sh__finding--warn { background: rgba(238, 112, 14, 0.09); }
+  .wapp-sh__finding--note { background: rgba(240, 190, 0, 0.12); }
+  .wapp-sh__glyph { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; }
+  .wapp-sh__glyph svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp-sh__finding--bad .wapp-sh__glyph { color: #c62a1f; }
+  .wapp-sh__finding--warn .wapp-sh__glyph { color: #d9610a; }
+  .wapp-sh__finding--note .wapp-sh__glyph { color: #9a7600; }
+  .wapp-sh__finding--ok .wapp-sh__glyph { color: #1b8a4b; }
+  .wapp-sh__finding--info .wapp-sh__glyph { color: var(--color-muted); }
+  .wapp-sh__ftext { display: grid; gap: 3px; min-width: 0; }
+  .wapp-sh__ftext strong { font-size: 14.5px; line-height: 1.4; color: var(--color-strong); }
+  .wapp-sh__fdetail { font-size: 13.5px; line-height: 1.5; color: var(--color-muted); overflow-wrap: anywhere; }
+  .wapp-sh__ftag { align-self: start; padding: 2px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; white-space: nowrap; }
+  .wapp-sh__finding--bad .wapp-sh__ftag { color: #8a1c14; border-color: rgba(198, 42, 31, 0.3); }
+  .wapp-sh__finding--warn .wapp-sh__ftag { color: #7a3300; border-color: rgba(238, 112, 14, 0.35); }
+  .wapp-sh__cannot { margin-block: 4px 12px !important; font-size: 13.5px; color: var(--color-muted); }
+  .wapp-sh__cannot summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
+  .wapp-sh__cannot ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; line-height: 1.5; }
+  .wapp-sh__actions, .wapp-sh__rowactions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .wapp-sh__actions { padding-block: 6px 14px !important; }
+  .wapp-sh__rowactions { margin-top: 6px; }
+  .wapp-sh__action { padding: 9px 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--color-brand); background: var(--wapp-indigo, #e9e6fc); border: 0; border-radius: 999px; cursor: pointer; }
+  .wapp-sh__action:hover { background: var(--wapp-indigo-line, #cdc6f3); }
+  .wapp-sh__action:disabled { opacity: 0.6; cursor: progress; }
+  .wapp-sh__action--primary { color: #fff; background: var(--color-brand); }
+  .wapp-sh__action--primary:hover { background: var(--color-brand-bright); }
+  .wapp-sh__action[aria-pressed='true'] { color: #fff; background: #3a22c8; }
+  .wapp-sh__name { width: 200px; padding: 8px 12px !important; border-radius: 999px !important; }
+  .wapp-sh__stamp { padding-block: 0 18px !important; font-size: 12px; color: var(--color-muted); }
+  .wapp-sh__watchlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .wapp-sh__watch { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--wapp-indigo, #e9e6fc); border-radius: 12px; }
+  .wapp-sh__watch .wapp-sh__rowactions { margin: 0; justify-content: flex-end; }
+  .wapp-sh__watch .wapp-sh__action { background: var(--color-bg); }
+  .wapp-sh__dot { width: 14px; height: 14px; border-radius: 50%; }
+  .wapp-sh__dot--green { background: #1b8a4b; }
+  .wapp-sh__dot--yellow { background: #f0be00; }
+  .wapp-sh__dot--orange { background: #ee700e; }
+  .wapp-sh__dot--red { background: #c62a1f; }
+  .wapp-sh__dot--grey { background: #9a97b8; }
+  .wapp-sh__foot { margin: 0; padding: 0 4px; font-size: 12.5px; line-height: 1.5; color: var(--color-muted); }
+  .wapp-sh .wapp__state--green { color: #0b5f33; background: rgba(27, 138, 75, 0.16); }
+  @media (max-width: 760px) {
+    .wapp-sh__hero { padding: 22px 18px; }
+    .wapp-sh__form { flex-wrap: wrap; }
+    .wapp-sh__input { flex-basis: 100%; }
+    .wapp-sh__go { flex: 1; padding: 13px 20px; }
+    .wapp-sh__intro { grid-template-columns: 1fr; }
+    .wapp-sh__finding { grid-template-columns: auto minmax(0, 1fr); }
+    .wapp-sh__ftag { display: none; }
+    .wapp-sh__watch { grid-template-columns: auto minmax(0, 1fr); }
+    .wapp-sh__watch .wapp-sh__rowactions { grid-column: 1 / -1; justify-content: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) { .wapp-sh__loading .wapp-sh__bar { animation: none; } }
 
   /* ---- Notification bell (sidebar) and its list ---- */
   .wapp__lock { position: relative; }

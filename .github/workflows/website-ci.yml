@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: website/package-lock.json
       - run: npm ci
@@ -29,11 +29,11 @@ jobs:
       - run: npm run typecheck:api
       - run: npm run lint
       - run: npm run build
-      # Reports known advisories in production dependencies. Advisories whose only fix is a breaking
-      # upgrade of existing wallet dependencies are tracked in docs/aretia-swings/production-readiness.md,
-      # so this step reports rather than fails the build. Review its output on every run.
-      - name: Dependency advisories (report)
-        run: npm audit --omit=dev || true
+      # Fails on high or critical advisories in production dependencies. Moderate ones are reported only; they are
+      # tracked in docs/audit/THIRD_PARTY_DEPENDENCIES.md. If a high advisory has no fix, record it there with a
+      # reachability assessment and an expiry date, then pin the exception here -- do not re-add `|| true`.
+      - name: Dependency advisories (blocking at high)
+        run: npm audit --omit=dev --audit-level=high
 
   secrets:
     runs-on: ubuntu-latest

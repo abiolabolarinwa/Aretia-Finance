@@ -43,7 +43,7 @@ Absent [inspected]: `CODEOWNERS`, `SECURITY.md`, `CONTRIBUTING.md`, PR/issue tem
 
 | Check | Command | Result | Class |
 |---|---|---|---|
-| Install (as CI does) | `npm ci` in `website/` | **FAIL (exit 1):** lockfile out of sync with `package.json` — `Missing: typescript@5.9.3 from lock file` | Pre-existing; **would fail `website-ci.yml`** unless CI's newer npm resolves it (not tested; CI uses Node 24/npm 11) |
+| Install | `npm ci` in `website/` | npm 10.9.4: **FAIL** (`Missing: typescript@5.9.3 from lock file`). **npm 11.21.0 (what CI's Node 24 ships): exit 0, 754 packages.** Corrected 2026-10-11 after re-testing | Info — npm-version difference, not a CI failure |
 | Install (scratch) | `npm install --ignore-scripts` | exit 0, 757 packages | n/a |
 | Unit tests | `npm test` (Vitest 5) | **117 files / 1,286 tests passed, 0 failed**, 27 s | Pass |
 | Typecheck | `npm run typecheck` (`astro check`) | 0 errors, 0 warnings, 9 hints (394 files) | Pass |
@@ -60,7 +60,7 @@ Absent [inspected]: `CODEOWNERS`, `SECURITY.md`, `CONTRIBUTING.md`, PR/issue tem
 
 | ID | Severity | Class | Finding |
 |---|---|---|---|
-| F-01 | Medium | Pre-existing | `website/package-lock.json` is out of sync (`npm ci` fails locally). Reproducible-install guarantee is broken until verified on CI's npm. The lockfile contains only `typescript@6.0.3`; npm 10.9.4 expects a nested `typescript@5.9.3` entry for some dependency (not identified). A fresh `npm install` in the scratch copy resolved cleanly with everything deduped to 6.0.3, so the fix is probably only a lockfile regeneration — but that must be done with CI's npm version and re-verified, not assumed. |
+| F-01 | Info (corrected) | Pre-existing | `npm ci` fails on npm 10.9.4 but passes on npm 11.21.0 (CI uses Node 24); see FINDINGS_REGISTER.md. Original severity "Medium" was overstated. |
 | F-02 | High | Pre-existing | **No automated verification of the on-chain programs.** Zero Rust tests; TS tests require a validator/devnet; no CI job. Presale and staking handle user funds. |
 | F-03 | High | Pre-existing | `program/*/Cargo.lock` is **git-ignored** (`.gitignore`), so program builds are not reproducible and a deployed binary cannot be tied to a dependency set. Also no `rust-toolchain.toml`. |
 | F-04 | High | Requires human review | Operator tooling that reads/produces keys (`scripts/management-fee-proposal/convert-phantom-key.mjs`, `mainnet/gen-deployer.sh`, `mainnet/stage-*.sh`) is in the repo with no CI, tests or documented change control. I did **not** run any of it and did not read secrets. Whether the mainnet scripts have a confirmation guard before sending was not verified. |
@@ -84,8 +84,8 @@ Nothing above was fixed in Stage A.
 
 ## 7. Recommended order (details in `PROPOSAL.md`)
 
-1. Resolve F-01 (regenerate lockfile with CI's npm; verify `npm ci`).
-2. Track `Cargo.lock`; pin toolchain; add program CI (build + a first set of Rust/LiteSVM tests for invariants) — **no program source changes**.
+1. ~~Resolve F-01~~ — re-tested: lockfile installs on npm 11 (CI). Pin Node 24 via `.nvmrc` and document.
+2. Track `Cargo.lock` (owner to supply the lock that built the deployed binaries — a fresh lock fails to compile `act-presale`); pin toolchain; add program CI (build + a first set of Rust/LiteSVM tests for invariants) — **no program source changes**.
 3. Document and review operator-key tooling (F-04) before any mainnet step.
 4. Pin `SWAP_FEE_WALLET`/fee behaviour with tests, then relocate constants into `swings/core/config` with a compatibility re-export.
 5. Governance files, SHA-pinned actions, blocking audit threshold with allow-list, extend CI to `sdk/` and `scripts/`.

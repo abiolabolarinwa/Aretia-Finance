@@ -1,0 +1,17 @@
+# Security-sensitive paths require review from a code owner. Replace/extend with additional reviewers as the team grows;
+# a single owner means "self-review" -- enable "Require review from Code Owners" and a second reviewer in branch protection.
+*                                   @abiolabolarinwa
+/program/                           @abiolabolarinwa
+/sdk/                               @abiolabolarinwa
+/mainnet/                           @abiolabolarinwa
+/devnet/                            @abiolabolarinwa
+/scripts/                           @abiolabolarinwa
+/.github/                           @abiolabolarinwa
+/website/api/                       @abiolabolarinwa
+/website/supabase/                  @abiolabolarinwa
+/website/src/swings/core/           @abiolabolarinwa
+/website/src/swings/router/         @abiolabolarinwa
+/website/src/swings/engine/         @abiolabolarinwa
+/website/src/swings/wallet/         @abiolabolarinwa
+/website/src/swings/shield/         @abiolabolarinwa
+/docs/audit/                        @abiolabolarinwa

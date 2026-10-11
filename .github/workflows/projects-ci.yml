@@ -1,0 +1,45 @@
+name: projects-ci
+
+# Install integrity + build for the SDKs and operator-script projects, which previously had no CI at all.
+# Nothing here runs an operator script, signs, or sends a transaction. Nothing deploys.
+on:
+  push:
+    paths: ['sdk/**', 'scripts/**', 'program/*/package*.json', '.nvmrc', '.github/workflows/projects-ci.yml']
+  pull_request:
+    paths: ['sdk/**', 'scripts/**', 'program/*/package*.json', '.nvmrc', '.github/workflows/projects-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - sdk/act-presale
+          - sdk/act-staking
+          - scripts/launch-pool
+          - scripts/management-fee-proposal
+          - scripts/rebuild-mint
+          - scripts/treasury-v2-setup
+          - program/act-presale
+          - program/act-staking
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24 ships npm 11. The lockfiles here were written by npm 11; npm 10 reports some of them as out of sync.
+          node-version-file: .nvmrc
+      # --ignore-scripts: dependency lifecycle scripts never run in CI.
+      - run: npm ci --ignore-scripts
+      - name: Build (only where the project defines a build script)
+        run: npm run --if-present build
+      # REPORT ONLY. These projects currently carry high advisories (counts in docs/audit/THIRD_PARTY_DEPENDENCIES.md),
+      # so a blocking gate would be red by design. Tighten per project once each has a triage record.
+      - name: Dependency advisories (report only)
+        run: npm audit --omit=dev || true

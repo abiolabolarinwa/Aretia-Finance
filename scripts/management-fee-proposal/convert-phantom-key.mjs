@@ -104,7 +104,9 @@ async function main() {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  fs.writeFileSync(outPath, JSON.stringify(Array.from(secretKeyBytes)));
+  // 0600: readable by the owner only. (mode applies on creation; chmod below also covers a pre-existing file.)
+  fs.writeFileSync(outPath, JSON.stringify(Array.from(secretKeyBytes)), { mode: 0o600 });
+  fs.chmodSync(outPath, 0o600);
   console.log(`\nWrote keypair file to: ${outPath}`);
   console.log("Verify it worked without printing the key itself:");
   console.log(`  node -e "import('@solana/web3.js').then(w=>{const fs=require('fs');const k=w.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('${outPath.replace(/\\/g, "\\\\")}'))));console.log('Public key:', k.publicKey.toBase58());})"`);

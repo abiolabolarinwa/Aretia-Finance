@@ -672,7 +672,9 @@ const sendTips = [
   .wapp-mt__chart-title { font-size: 16px; color: var(--color-strong); }
   .wapp-mt__chart-close { padding: 8px 16px; font-size: 13px; color: #fff; background: #c62828; border-color: #c62828; }
   .wapp-mt__chart-close:hover { background: #a31f1f; border-color: #a31f1f; }
-  .wapp-mt__chart-frame { display: block; width: 100%; height: max(520px, 62vh); border: 0; border-radius: 10px; background: #fff; }
+  /* Each DexScreener embed ends with a footer strip. These frames clip it off (the swap chart does the same in .wapp__chart); the height grows by the same amount so the chart itself keeps its size. Tune the crop here. */
+  .wapp-mt__chart, .wapp-tp__chart { --dex-footer-crop: 46px; }
+  .wapp-mt__chart-frame { display: block; width: 100%; height: calc(max(520px, 62vh) + var(--dex-footer-crop)); margin-bottom: calc(var(--dex-footer-crop) * -1); clip-path: inset(0 0 var(--dex-footer-crop) 0 round 10px); border: 0; border-radius: 10px; background: #fff; }
   /* The numbers as one grid table: hairlines between cells, header rows, 12 columns so rows of 3, 4 and 2 line up. */
   .wapp-mp__grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; overflow: clip; flex: none; min-height: min-content; background: var(--color-border-strong); border: 1px solid var(--color-border-strong); border-radius: 12px; }
   .wapp-mp__cell { display: grid; gap: 1px; align-content: center; justify-items: center; min-width: 0; padding: 8px 6px; text-align: center; background: var(--wapp-indigo); }
@@ -1108,7 +1110,7 @@ const sendTips = [
   .wapp-tp__net { font-size: 13px; color: var(--color-muted); }
   .wapp-tp__grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
   .wapp-tp__chart, .wapp-tp__side { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; padding: 12px; }
-  .wapp-tp__frame { display: block; width: 100%; height: max(640px, calc(100vh - 190px)); border: 0; border-radius: 10px; background: #fff; }
+  .wapp-tp__frame { display: block; width: 100%; height: calc(max(640px, calc(100vh - 190px)) + var(--dex-footer-crop)); margin-bottom: calc(var(--dex-footer-crop) * -1); clip-path: inset(0 0 var(--dex-footer-crop) 0 round 10px); border: 0; border-radius: 10px; background: #fff; }
   .wapp-tp__side { display: grid; gap: 12px; }
   .wapp-tp__pair { margin: 0; font-size: 18px; color: var(--color-strong); }
   .wapp-tp__duo, .wapp-tp__trio, .wapp-tp__quad { display: grid; gap: 8px; }
@@ -1128,7 +1130,7 @@ const sendTips = [
   .wapp-tp__actions { display: grid; gap: 8px; }
   @media (max-width: 1000px) {
     .wapp-tp__grid { grid-template-columns: 1fr; }
-    .wapp-tp__frame { height: 560px; }
+    .wapp-tp__frame { height: calc(560px + var(--dex-footer-crop)); }
   }
   .wapp-mt__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
   .wapp-mt__row:last-child td { border-bottom: 0; }

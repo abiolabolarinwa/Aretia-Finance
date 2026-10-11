@@ -18,12 +18,11 @@ programs. `target/deploy/*-keypair.json` files that `build-sbf` generates are gi
 
 | File | Covers |
 |---|---|
-| `tests/presale.rs` | F-15 who may finalize (incl. end-to-end refund after a stranger finalizes, sweep destination binding, hard-cap case); F-16 Pyth confidence boundary + the pre-existing oracle checks; F-17 handoff; **F-20 characterization** |
+| `tests/presale.rs` | F-15 who may finalize (incl. end-to-end refund after a stranger finalizes, sweep destination binding, hard-cap case); F-16 Pyth confidence boundary + the pre-existing oracle checks; F-17 handoff; F-20 reserve enforcement (exact boundary, gross-vs-net, both payment paths); `fund_act_reserve` with a real Token-2022 fee mint |
 | `tests/staking.rs` | F-17 handoff |
 | `tests/common/handoff.rs` | the F-17 scenarios, shared so both programs are held to identical behaviour |
 
-Not covered: `buy`/`claim`/`refund` with the Token-2022 fee-bearing ACT mint, `fund_act_reserve`, vesting math, staking
-`stake`/`unstake`. Those need a Token-2022 TransferFee mint fixture (the SafeSend tests contain one to reuse).
+Not covered: `claim` / vesting math, `sweep_unsold_act`, `refund` (token legs), staking `stake`/`unstake`. The Token-2022
+fee-mint fixture now exists (`Chain::create_fee_mint`), so these can be added.
 
-`characterization_f20_*` pins **current** behaviour that is probably a defect (sales are not capped by the funded ACT
-reserve). When that is fixed the test must be replaced by one asserting the guard.
+Mutation-check discipline: restore program source from a **backup copy**, never `git checkout` (it reverts uncommitted work).

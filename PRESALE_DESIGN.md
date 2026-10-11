@@ -87,6 +87,7 @@ Anchor 0.30.1, mirrors `act-staking`'s conventions (same `anchor_spl::token_inte
 - `sweep_unsold_act` — authority-gated, after `Finalized`, reclaims vault ACT beyond what's still owed.
 - `set_paused` — admin control. Authority handoff is two-step: `propose_config_authority` / `accept_config_authority` / `cancel_config_authority` (replaces the former single-step `set_config_authority`, finding F-17).
 - `finalize` — callable by **anyone** once the sale window has ended (F-15: buyers must be able to reach `Refunding` without depending on one key); before the end it is authority-only and only at the hard cap.
+- **Sales are capped by the funded reserve (F-20).** `buy` / `buy_with_sol` reject a purchase unless `gross_up(total_act_sold_net) + 100_000 raw units <= act_reserve_net`, where `gross_up` is Token-2022's pre-fee amount at the live fee rate (vault payouts are grossed-up transfers). Fund the reserve **before** the window opens: to sell the whole hard cap you must fund `gross_up(ACT for the hard cap)` net, i.e. about `ACT / 0.965²` sent. Both instructions take the ACT mint as an extra trailing account.
 - `buy_with_sol` rejects a Pyth price whose confidence interval exceeds `MAX_PRICE_CONF_BPS` (100 bps = 1%) of the price (F-16). Policy parameter; confirm before deployment.
 
 **Authority:** the same Squads multisig already used for treasury and fee-config, not a new single key — consistent with the rest of the protocol's admin model.

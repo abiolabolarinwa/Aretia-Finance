@@ -9,7 +9,7 @@ Legend: ✅ done on branch + evidence · 🟡 partial · ⬜ not started · 👤
 | F-14 | Keypair file mode 0600 | 🟡 | `node --check` only |
 | F-07 | CI audit blocking; projects CI | 🟡 | SHA-pin actions 👤 (needs SHA lookup outside tool scope) |
 | F-01 | Document npm 11 / `.nvmrc` | ✅ | `.nvmrc`, CONTRIBUTING |
-| F-20 | Reserve not enforced against sales | 👤 decision | see FINDINGS_REGISTER; characterization test in place |
+| F-20 | Reserve enforced against sales | ✅ on-chain (LiteSVM), mutation-checked | 👤 fund the reserve before opening the window (formula in PRESALE_DESIGN.md); update the 5 devnet scripts when reused; `claim` still untested on-chain |
 | F-03 | Reproducible program builds | 🟡 | lockfiles committed (verified-compiling, not the deployed lock); toolchain pin for SBF/Anchor CLI still 👤 |
 | F-15 | Permissionless finalize after end | ✅ on-chain (LiteSVM) | 👤 owner review, devnet run, redeploy plan |
 | F-16 | Pyth confidence check | ✅ on-chain (LiteSVM) | 👤 confirm `MAX_PRICE_CONF_BPS` (100 = 1%) |

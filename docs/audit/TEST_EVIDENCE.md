@@ -40,8 +40,20 @@ Method: for each fix the tests were written first against stubs reproducing the 
 Toolchain: `cargo install cargo-build-sbf --locked --version 4.4.0` (platform-tools downloaded on first use; reachable from this sandbox), `cargo build-sbf` per program, then `cargo +1.97.1 test` in `program/svm-tests`.
 | Suite | Result |
 |---|---|
-| `program/svm-tests/tests/presale.rs` | **22 passed** (F-15 ×5, F-16 ×4, F-17 ×11 shared scenarios, F-20 characterization ×1; plus oracle-regression test) |
+| `program/svm-tests/tests/presale.rs` | **31 passed** (F-15 ×5, F-16 ×4, F-17 ×11, F-20 ×10; oracle-regression ×1). ACT is now a real Token-2022 mint with the 3.5% fee; the reserve is funded through `fund_act_reserve` |
 | `program/svm-tests/tests/staking.rs` | **11 passed** (F-17 shared scenarios) |
 | Mutation checks (re-break the program, rebuild, run) | M1 authority-only finalize → 3 tests fail; M2 remove confidence check → 2 fail; M3 drop `has_one = new_authority` (staking) → 2 fail; M4 drop `address = config.authority` on `rent_receiver` → 1 fails. Source restored afterwards and binaries rebuilt clean; final run all green |
 | Wallet `programs/aretia-safesend` (previously unrun) | `cargo build-sbf` OK; `cargo +1.97.1 test --locked` → **16 passed** |
 Still **not** run: devnet/validator suites (`program/act-staking/tests/full-suite.mjs`), anything with a live Pyth update or a Token-2022 fee-bearing ACT mint in the Finance programs.
+
+### F-20 mutation checks (each re-breaks the rule, rebuilds the SBF binary, runs the presale suite)
+| Mutation | Caught by |
+|---|---|
+| M5 reserve check always passes | 8 tests |
+| M6 compare net allocation instead of grossed-up payout | `the_reserve_must_cover_the_grossed_up_payout_not_just_the_net_allocation`, `the_boundary_is_exact_to_the_raw_unit` |
+| M7 safety margin 0 | `the_boundary_is_exact_to_the_raw_unit` (only this one) |
+| M8 `buy` (USDC) unchecked | `the_usdc_path_is_subject_to_the_same_limit`, `sol_and_usdc_purchases_draw_on_one_shared_reserve` |
+| M9 `buy_with_sol` unchecked | 6 tests |
+Final clean rebuild: presale 31/31, staking 11/11 on-chain; presale host unit tests 23/23.
+
+**Process note (accuracy of this record):** my first F-20 mutation run was INVALID. The helper script restored source with `git checkout`, which reverts to the last *commit*; the F-20 program edits were still uncommitted, so the first mutation's "restore" silently erased them (visible as `pattern count 0` errors and identical failure lists). The program edits were re-applied from the same edit script, the restored tree re-verified (all suites green), committed, and the helper changed to restore from a byte-for-byte backup and to skip visibly when a pattern is absent. The results above are from the corrected re-run. The four unit tests and the red-first on-chain run (7 failures against the old program) were observed before the accident; they were not repeated after the restore, only the green state was re-verified.

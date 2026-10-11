@@ -3,6 +3,9 @@
 Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant changes.
 
 ## Unreleased
+### Removed (dead code, verified unreferenced)
+- `website/src/components/hero/HomeHero.astro` (333 lines): imported nowhere, not loaded by any glob. Build output, tests and typecheck unchanged.
+- `program/act-staking/scripts/set-config-authority-devnet.mjs`: one-off devnet migration for the removed `set_config_authority` instruction; already guarded to exit and superseded by the two-step handoff.
 ### Added
 - `program/svm-tests`: 33 on-chain LiteSVM tests for act-presale and act-staking; `programs-ci` `onchain` job.
 ### Changed (program source — NOT deployed; requires SBF build, on-chain tests and owner review first)

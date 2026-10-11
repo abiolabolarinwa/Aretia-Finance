@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as web3 from '@solana/web3.js';
 import { createHash } from 'node:crypto';
-import { CPMM_CREATE_FEE_RECEIVER, decodeBase58, decodePoolCreation, poolsCreatedIn, SolanaPoolDiscoverySource } from './solanaIndexer.js';
+import { CPMM_CREATE_FEE_RECEIVER, ORCA_FEE_TIER_ACCOUNTS, decodeBase58, decodePoolCreation, poolsCreatedIn, SolanaPoolDiscoverySource } from './solanaIndexer.js';
 import { ORCA_CONFIG, ORCA_WHIRLPOOL_PROGRAM } from '../solana/orcaWhirlpool.js';
 import { RAYDIUM_CPMM_PROGRAM, type SolRpc } from '../solana/raydiumCpmm.js';
 
@@ -172,5 +172,18 @@ describe('SolanaPoolDiscoverySource', () => {
     const src = source(rpc);
     await src.poll(JSON.stringify({ [CPMM_CREATE_FEE_RECEIVER]: sig() }));
     expect(src.lastRun!.truncated).toBe(true);
+  });
+});
+
+describe('Orca fee-tier accounts', () => {
+  it('match the program-derived addresses', async () => {
+    const { ORCA_CONFIG, ORCA_TICK_SPACINGS, ORCA_WHIRLPOOL_PROGRAM } = await import('../solana/orcaWhirlpool.js');
+    const w3 = await import('@solana/web3.js');
+    for (const spacing of ORCA_TICK_SPACINGS) {
+      const le = new Uint8Array(2);
+      new DataView(le.buffer).setUint16(0, spacing, true);
+      const derived = w3.PublicKey.findProgramAddressSync([new TextEncoder().encode('fee_tier'), new w3.PublicKey(ORCA_CONFIG).toBytes(), le], new w3.PublicKey(ORCA_WHIRLPOOL_PROGRAM))[0].toBase58();
+      expect(ORCA_FEE_TIER_ACCOUNTS[spacing]).toBe(derived);
+    }
   });
 });

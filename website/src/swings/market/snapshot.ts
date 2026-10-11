@@ -4,6 +4,7 @@
  * Tokens reads Aretia's database instead of every visitor's browser asking DexScreener for 500 tokens.
  * A snapshot is dated. The page shows a fresh one as is and asks the outside source only for tokens whose snapshot is old.
  */
+import { fetchRetrying429 } from './retry429.js';
 import { GECKO_NETWORK } from '../charts/pool.js';
 import type { ChainId, TokenMarket, TokenRecord } from '../core/types.js';
 import { LOCK_MIN_PCT } from './lock.js';
@@ -55,7 +56,7 @@ export async function fetchPoolMarkets(chain: ChainId, pools: readonly string[],
   const list = [...new Set(pools.map((p) => p.toLowerCase()))].slice(0, 30);
   if (list.length === 0) return { markets, error: null };
   try {
-    const res = await fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/multi/${list.join(',')}?include=base_token`, { headers: { accept: 'application/json' } });
+    const res = await fetchRetrying429(fetchImpl, `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/multi/${list.join(',')}?include=base_token`, { headers: { accept: 'application/json' } });
     if (!res.ok) return { markets, error: `GeckoTerminal answered ${res.status} for ${chain}.` };
     const body = (await res.json()) as { data?: { attributes?: { address?: string } }[] };
     for (const p of body.data ?? []) {

@@ -4,6 +4,7 @@
  * everything it says about a token is treated as untrusted and re-checked on-chain by the enricher.
  * It reports the pool's base token only; a new token that appears only as the quote side is not seen.
  */
+import { fetchRetrying429 } from '../../market/retry429.js';
 import { normalizeTokenRef } from '../../core/token.js';
 import type { ChainId } from '../../core/types.js';
 import type { TokenCandidate } from '../registry.js';
@@ -89,7 +90,7 @@ export class GeckoTerminalNewPoolsSource implements DiscoverySource {
 
   async poll(cursor: string | null, signal?: AbortSignal): Promise<DiscoveryBatch> {
     const path = this.feed === 'trending' ? 'trending_pools' : 'new_pools';
-    const res = await this.fetchImpl(`${BASE_URL}/networks/${NETWORK[this.chain]}/${path}?include=base_token&page=${this.page}`, { headers: { accept: 'application/json' }, signal });
+    const res = await fetchRetrying429(this.fetchImpl, `${BASE_URL}/networks/${NETWORK[this.chain]}/${path}?include=base_token&page=${this.page}`, { headers: { accept: 'application/json' }, signal });
     if (!res.ok) throw new Error(`GeckoTerminal answered ${res.status} for ${this.chain}.`);
     const parsed = parseNewPools(this.chain, await res.json());
     // Trending is not time-ordered: everything on it is offered every run, and ingest ignores what it already knows.

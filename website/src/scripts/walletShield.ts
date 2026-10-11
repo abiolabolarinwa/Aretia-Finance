@@ -17,8 +17,9 @@ import { publicRead } from '../swings/chains/evmSession.js';
 import { assessTokenSafety } from '../swings/live.js';
 import { bandOf } from '../swings/market/rowRisk.js';
 import { RISK_LABELS } from '../swings/tokens/risk.js';
-import { runCheck } from '../swings/shield/check.js';
-import { checkHash, valueFromHash } from '../swings/shield/classify.js';
+import { checkToken, runCheck } from '../swings/shield/check.js';
+import { checkHash, classifyInput, valueFromHash } from '../swings/shield/classify.js';
+import { searchTokens } from '../swings/tokens/globalSearch.js';
 import { analyseWallet, readTokenAccounts, type HealthItem, type HealthReport, type HeldTokenCheck, type TokenAccount } from '../swings/shield/health.js';
 import { describeApprovals, readApprovals, type Approval, type ApprovalFinding } from '../swings/shield/approvals.js';
 import { liveDeps, solRead } from '../swings/shield/liveDeps.js';
@@ -128,10 +129,10 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
 
   const hero = h('section', 'wapp-sh__hero');
   const heroText = h('div', 'wapp-sh__herotext');
-  heroText.append(h('span', 'wapp-sh__kicker', 'Aretia Shield'), h('h2', 'wapp-sh__title', 'Know before you sign.'), h('p', 'wapp-sh__lede', 'Paste an address, a token, a contract or a link. Shield reads the public record and tells you what it found, as a colour you can act on.'));
+  heroText.append(h('span', 'wapp-sh__kicker', 'Aretia Shield'), h('h2', 'wapp-sh__title', 'Know before you sign.'), h('p', 'wapp-sh__lede', 'Type a token\u2019s name, or paste an address, a contract or a link. Shield reads the public record and tells you what it found, as a colour you can act on.'));
   const form = h('form', 'wapp-sh__form');
   input.type = 'text';
-  input.placeholder = 'Paste an address, token, contract or link';
+  input.placeholder = 'Search a token by name, or paste an address, contract or link';
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.setAttribute('aria-label', 'Address, token, contract or link to check');
@@ -150,7 +151,18 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
       input.focus();
     }
   });
-  form.append(input, paste, go);
+  // The box is also a search: type a token's name and pick it from the list.
+  const field = h('div', 'wapp-sh__field');
+  const suggest = h('ul', 'wapp-sh__suggest');
+  suggest.id = 'wapp-sh-suggest';
+  suggest.setAttribute('role', 'listbox');
+  suggest.hidden = true;
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', suggest.id);
+  input.setAttribute('aria-expanded', 'false');
+  field.append(input, suggest);
+  form.append(field, paste, go);
   const chips = h('div', 'wapp-sh__chips');
   hero.append(heroText, form, chips);
 
@@ -222,12 +234,126 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
   }
 
   // ---- the Check tab
-  form.addEventListener('submit', (e) => {
+  // ---- type-ahead: a name that is not an address, a link or a name service entry is searched for as a token
+  let hits: SearchHit[] = [];
+  let active = -1;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchSeq = 0;
+  const wantsSearch = (text: string): boolean => {
+    const t = text.trim();
+    return t.length >= 2 && classifyInput(t).kind === 'unknown' && !/^0x[0-9a-f]*$/i.test(t) && !/\s{2,}/.test(t);
+  };
+  const closeSuggest = (): void => {
+    suggest.hidden = true;
+    suggest.replaceChildren();
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    hits = [];
+    active = -1;
+  };
+  const usd = (n: number | null): string => (n === null ? '' : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`);
+  function suggestNote(text: string): void {
+    suggest.replaceChildren(h('li', 'wapp-sh__note', text));
+    suggest.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  function drawSuggest(): void {
+    suggest.replaceChildren();
+    hits.forEach((hit, i) => {
+      const li = h('li', 'wapp-sh__sug');
+      li.id = `wapp-sh-sug-${i}`;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(i === active));
+      const pic = h('span', 'wapp-sh__sugpic', hit.symbol.slice(0, 2).toUpperCase());
+      if (hit.icon && /^https:\/\//.test(hit.icon)) {
+        const img = h('img');
+        img.alt = '';
+        img.loading = 'lazy';
+        img.referrerPolicy = 'no-referrer';
+        img.src = hit.icon;
+        img.addEventListener('error', () => img.remove(), { once: true });
+        pic.textContent = '';
+        pic.append(img);
+      }
+      const text = h('span', 'wapp-sh__sugtext');
+      text.append(h('strong', '', hit.symbol), h('small', '', hit.name));
+      const meta = h('span', 'wapp-sh__sugmeta');
+      meta.append(h('span', 'wapp-sh__sugchain', CHAINS[hit.chain].name));
+      if (hit.liquidityUsd !== null) meta.append(h('small', '', `${usd(hit.liquidityUsd)} liquidity`));
+      li.append(pic, text, meta);
+      // mousedown, not click: the box must not lose focus (and close the list) before the choice is read.
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        void pickHit(hit);
+      });
+      suggest.append(li);
+    });
+    suggest.hidden = hits.length === 0;
+    input.setAttribute('aria-expanded', String(hits.length > 0));
+    if (active >= 0) input.setAttribute('aria-activedescendant', `wapp-sh-sug-${active}`);
+  }
+  async function search(text: string): Promise<void> {
+    const mine = ++searchSeq;
+    suggestNote('Searching…');
+    let found: SearchHit[];
+    try {
+      found = await searchTokens(text);
+    } catch {
+      found = [];
+    }
+    if (mine !== searchSeq || input.value.trim() !== text.trim()) return;
+    hits = found.slice(0, 8);
+    active = -1;
+    if (hits.length === 0) suggestNote('No token found by that name. Names are not unique, so paste the address if you have it.');
+    else drawSuggest();
+  }
+  async function pickHit(hit: SearchHit): Promise<void> {
+    closeSuggest();
+    input.value = hit.symbol;
+    await check(hit.address, () => checkToken(hit.chain, hit.address, deps()));
+  }
+  input.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    if (!wantsSearch(input.value)) {
+      searchSeq++;
+      closeSuggest();
+      return;
+    }
+    suggestNote('Searching…');
+    searchTimer = setTimeout(() => void search(input.value.trim()), 280);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (suggest.hidden || hits.length === 0) {
+      if (e.key === 'Escape') closeSuggest();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % hits.length;
+      drawSuggest();
+    } else if (e.key === 'Escape') closeSuggest();
+    else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault();
+      void pickHit(hits[active]!);
+    }
+  });
+  input.addEventListener('blur', () => setTimeout(closeSuggest, 120));
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    void check(input.value);
+    clearTimeout(searchTimer);
+    const text = input.value.trim();
+    // A name, not an address: take the best match, searching now if the list has not come back yet.
+    if (wantsSearch(text)) {
+      if (hits.length === 0) await search(text);
+      if (hits.length > 0) return void pickHit(hits[Math.max(active, 0)]!);
+      return;
+    }
+    closeSuggest();
+    void check(text);
   });
 
-  async function check(text: string): Promise<void> {
+  async function check(text: string, run?: () => Promise<Verdict>): Promise<void> {
     const t = text.trim();
     if (!t || checking) return;
     checking = true;
@@ -237,7 +363,7 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
     show('check');
     panels.check.replaceChildren(skeleton());
     try {
-      const verdict = await runCheck(t, deps());
+      const verdict = await (run ? run() : runCheck(t, deps()));
       current = { input: t, verdict };
       remember(t);
       history.replaceState(null, '', checkHash(t));

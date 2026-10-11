@@ -28,9 +28,11 @@ const LEAD: Record<Band, string> = {
 };
 
 /** The sentence at the top of a result: what to do, then the worst thing found. */
-export function headlineFor(band: Band, findings: readonly Finding[]): string {
+export function headlineFor(band: Band, findings: readonly Finding[], ratingLabel?: string): string {
   const worst = sortFindings(findings).find((f) => f.severity === 'bad' || f.severity === 'warn' || f.severity === 'note');
   if ((band === 'red' || band === 'orange' || band === 'yellow') && worst) return `${LEAD[band]} ${worst.title}`;
+  // A colour that comes from the rating alone (an unverified token with nothing else wrong) still says why.
+  if ((band === 'red' || band === 'orange' || band === 'yellow') && ratingLabel) return `${LEAD[band]} Aretia rates it "${ratingLabel}": read what was checked below.`;
   if (band === 'green') return `${LEAD.green} That is not a promise of safety: see what it could not check.`;
   return LEAD[band];
 }
@@ -53,7 +55,7 @@ export function buildVerdict(i: VerdictInput): Verdict {
   return {
     subject: i.subject,
     band,
-    headline: headlineFor(band, findings),
+    headline: headlineFor(band, findings, i.ratingLabel),
     findings,
     couldNot: i.couldNot,
     facts: i.facts ?? [],

@@ -77,4 +77,14 @@ describe('discovery endpoint', () => {
     await withTimeout(inner, 50)('https://x.test');
     expect(signal).toBeInstanceOf(AbortSignal);
   });
+  it('runs only the stages asked for, and refuses an unknown one', async () => {
+    const fetchImpl = vi.fn(async () => new Response('nope', { status: 500 })) as unknown as typeof fetch;
+    const own = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl, query: { chain: 'base', stage: 'own' } }));
+    const { runs } = JSON.parse(own.body) as { runs: { source: string }[]; skipped: string[] };
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.every((r) => !r.source.startsWith('geckoterminal'))).toBe(true);
+    const none = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl, query: { chain: 'base', stage: 'refresh' } }));
+    expect((JSON.parse(none.body) as { runs: unknown[] }).runs).toEqual([]);
+    expect((await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl, query: { stage: 'nope' } }))).status).toBe(400);
+  });
 });

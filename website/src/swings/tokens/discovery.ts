@@ -60,6 +60,17 @@ export class TokenDiscoveryWorker {
       run.error = e instanceof Error ? e.message : 'The discovery source failed.';
       return run;
     }
+    // A database that refuses what it is given (for example a chain its checks do not allow yet) is reported on this run, never thrown:
+    // one source failing must not stop the others in the same request.
+    try {
+      await this.handle(batch, run);
+    } catch (e) {
+      run.error = e instanceof Error ? e.message : 'The registry failed.';
+    }
+    return run;
+  }
+
+  private async handle(batch: DiscoveryBatch, run: WorkerRun): Promise<void> {
     const candidates = batch.candidates.slice(0, this.maxPerRun);
     run.polled = candidates.length;
     for (const c of candidates) {
@@ -90,6 +101,5 @@ export class TokenDiscoveryWorker {
     }
     // Only a fully handled batch advances the cursor. A truncated batch is re-polled next time.
     if (batch.nextCursor !== null && candidates.length === batch.candidates.length) await this.repo.setCursor(this.source.id, batch.nextCursor);
-    return run;
   }
 }

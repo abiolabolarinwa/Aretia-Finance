@@ -1,5 +1,7 @@
 # Buy USDT and USDC inside Aretia Pay (`/api/ramp`)
 
+> Where it lives: the **Cash out or top up** tab of the Pay page (`src/scripts/walletRamp.ts`). It offers USDC and, where the provider lists it (Solana today), USDT, on every network in the catalog. The older Buy card that sat beside Send, and its `PUBLIC_PAY_BUY` switch, were removed: that card was Solana only and duplicated this tab. The sections below that describe the card, the in-page checkout frame and `PUBLIC_PAY_BUY` are history; the checkout now opens in a new tab. To try it end to end, follow [pay-sandbox-checklist.md](pay-sandbox-checklist.md).
+
 Aretia Pay lets people send crypto, and with this feature also **buy USDT and USDC with local
 currency** through third-party fiat ramp providers, without leaving the page. **Aretia never holds
 fiat or crypto.** The provider verifies the customer, takes the payment and sends the stablecoin
@@ -20,7 +22,7 @@ It is built but **hidden and switched off** until you turn it on.
 
 | Switch | Where | What it does |
 |---|---|---|
-| `PUBLIC_PAY_BUY=1` | Vercel build environment | Adds the **Buy or sell USDT / USDC** tab to the Pay page in `/wallet`. Without it the tab does not exist in the page at all. |
+| `PUBLIC_PAY_BUY=1` | (removed) | No longer read. The Cash out or top up tab is always in the page and shows "not switched on" until `RAMP_ENABLED` is set. |
 | `RAMP_ENABLED=1` | Vercel runtime environment | Lets `/api/ramp` answer. Without it the function replies `{"enabled":false}` to everything. |
 
 Turn on both, plus at least one provider's keys, to open it. Changing `PUBLIC_PAY_BUY` needs a redeploy.

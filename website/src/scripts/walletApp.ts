@@ -6,6 +6,7 @@ import { CHAIN_IDS, CHAINS } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { sidebarItemFor } from './walletNav';
+import { checkSendInput, sendAssetLabel } from './walletSendInput';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
@@ -405,7 +406,6 @@ export function initWalletApp(): void {
         chip.append(el('div', {}, [el('strong', { text: walletName ?? 'Wallet' }), el('span', { class: 'wapp-mono', text: shorten(address) })]));
       } else chip.append(el('div', {}, [el('strong', { text: 'Not connected' }), el('span', { text: 'Connect a wallet to begin' })]));
     }
-    if (view === 'send') void loadMarketplace(); // the Buy card sits beside Send; it loads once
     const refresh = $<HTMLElement>('[data-refresh]');
     if (refresh) refresh.hidden = !(address && (view === 'dashboard' || view === 'activity'));
     const addr = $('[data-address]');
@@ -655,7 +655,9 @@ export function initWalletApp(): void {
     if (holdings === null) return void asset.append(new Option(holdingsFailed ? "Couldn't load your tokens. Use Refresh on the Dashboard." : 'Loading your tokens…', ''));
     if (holdings.length === 0) return void asset.append(new Option('This wallet holds no tokens', ''));
     asset.disabled = false;
-    for (const h of holdings) asset.append(new Option(`${h.symbol} · ${formatAmount(h.amount)}${h.mint === SOL_MINT ? '' : ` · ${shorten(h.mint)}`}`, h.mint));
+    // Priced tokens first, so airdropped spam sits at the bottom of the list.
+    const ordered = [...holdings.filter((h) => h.value !== null || h.mint === SOL_MINT), ...holdings.filter((h) => h.value === null && h.mint !== SOL_MINT)];
+    for (const h of ordered) asset.append(new Option(sendAssetLabel(h, holdings, formatAmount(h.amount), SOL_MINT, shorten), h.mint));
     if (holdings.some((h) => h.mint === previous)) asset.value = previous;
   }
 
@@ -767,7 +769,8 @@ export function initWalletApp(): void {
     const target = to.value.trim();
     const amountText = amount.value.trim();
     if (!address || !h) return void out.append(el('p', { class: 'wapp-error', text: 'Connect a wallet and choose an asset first.' }));
-    if (!target || !amountText) return void out.append(el('p', { class: 'wapp-error', text: 'Enter a recipient and an amount.' }));
+    const problem = checkSendInput({ from: address, target, amountText, decimals: h.decimals, balanceRaw: h.raw, symbol: h.symbol });
+    if (problem) return void out.append(el('p', { class: 'wapp-error', text: problem }));
     out.append(el('p', { class: 'wapp-sub', text: 'Checking the transfer…' }));
     try {
       let recipient = target;
@@ -798,176 +801,6 @@ export function initWalletApp(): void {
     if (h.mint === SOL_MINT) raw = raw > BASE_FEE_LAMPORTS ? raw - BASE_FEE_LAMPORTS : 0n; // leave the network fee
     amount.value = fromSmallestUnit(raw, h.decimals);
   });
-
-  // ---- Aretia Pay: buy USDT/USDC with local currency (only wired up on builds that include the Buy tab)
-  interface RampStatus {
-    enabled: boolean;
-    providers?: { id: string; name: string; sides: string[] }[];
-  }
-  interface RampCatalog {
-    countries: { code: string; name: string }[];
-    fiats: string[];
-  }
-  const market = { side: 'buy' as 'buy' | 'sell', asset: 'USDC' as 'USDC' | 'USDT', embedded: false, loadState: 'idle' as 'idle' | 'loading' | 'ready' | 'failed', status: null as RampStatus | null, catalog: null as RampCatalog | null, message: null as { kind: 'ok' | 'warn' | 'info'; text: string } | null };
-
-  async function rampApi<T>(body: Record<string, unknown>): Promise<T> {
-    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-    if (!res.ok || !data) throw new Error(data?.error ?? `The marketplace service answered ${res.status}`);
-    return data;
-  }
-
-  async function loadMarketplace(): Promise<void> {
-    if (!$('[data-market]') || market.loadState === 'loading' || market.loadState === 'ready') return;
-    market.loadState = 'loading';
-    renderMarketplace();
-    try {
-      market.status = await rampApi<RampStatus>({ action: 'status' });
-      if (market.status.enabled && (market.status.providers?.length ?? 0) > 0) market.catalog = await rampApi<RampCatalog>({ action: 'catalog' });
-      market.loadState = 'ready';
-    } catch {
-      market.loadState = 'failed';
-    }
-    renderMarketplace();
-  }
-
-  function fillSelect(sel: HTMLSelectElement | null, options: { value: string; label: string }[], preferred: string | null): void {
-    if (!sel) return;
-    const keep = sel.value && options.some((o) => o.value === sel.value) ? sel.value : preferred && options.some((o) => o.value === preferred) ? preferred : '';
-    sel.textContent = '';
-    if (keep === '') sel.append(new Option('Choose…', ''));
-    for (const o of options) sel.append(new Option(o.label, o.value));
-    sel.value = keep;
-    sel.disabled = options.length === 0;
-  }
-
-  function renderMarketplace(): void {
-    const root = $('[data-market]');
-    if (!root) return;
-    document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.side === market.side)));
-    document.querySelectorAll<HTMLElement>('[data-market-asset]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.marketAsset === market.asset)));
-    const notes = $('[data-market-notes]');
-    const list = $('[data-market-providers]');
-    const form = $<HTMLElement>('[data-market-form]');
-    const embed = $<HTMLElement>('[data-market-embed]');
-    if (!notes || !list || !form || !embed) return;
-    embed.hidden = !market.embedded;
-    if (market.embedded) {
-      form.hidden = true;
-      list.textContent = '';
-      notes.textContent = '';
-      return;
-    }
-    notes.textContent = '';
-    list.textContent = '';
-    const note = (kind: 'ok' | 'warn' | 'info', text: string) => notes.append(banner(kind, text));
-
-    if (market.loadState === 'loading' || market.loadState === 'idle') return void note('info', 'Loading…');
-    if (market.loadState === 'failed' || market.status === null) {
-      form.hidden = true;
-      return void note('info', "Buying with local currency isn't available here right now.");
-    }
-    if (!market.status.enabled) {
-      form.hidden = true;
-      return void note('info', "Buying with local currency isn't open yet.");
-    }
-    const providers = (market.status.providers ?? []).filter((p) => p.sides.includes(market.side));
-    if (market.side === 'sell') {
-      form.hidden = true;
-      return void note('info', 'Selling USDT or USDC for local currency is not available yet. Buying is.');
-    }
-    form.hidden = false;
-    if (market.catalog) {
-      const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
-      fillSelect($<HTMLSelectElement>('[data-market-country]'), market.catalog.countries.map((c) => ({ value: c.code, label: c.name })), region);
-      fillSelect($<HTMLSelectElement>('[data-market-fiat]'), market.catalog.fiats.map((f) => ({ value: f, label: f.toUpperCase() })), 'usd');
-    }
-    if (providers.length === 0) note('info', 'No provider is available yet.');
-    for (const p of providers) {
-      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Continue with ${p.name}`, attrs: { type: 'button' } });
-      go.addEventListener('click', () => void openProvider(p.id, p.name));
-      list.append(el('div', { class: 'wapp__provider' }, [el('div', {}, [el('strong', { text: p.name }), el('span', { text: `Buy ${market.asset} with local currency` })]), go]));
-    }
-    if (market.message) note(market.message.kind, market.message.text);
-    note('info', `${market.asset} is delivered to ${address ?? 'your wallet'} on Solana. The provider handles identity checks and payment; fees and limits are theirs.`);
-  }
-
-  async function openProvider(id: string, name: string): Promise<void> {
-    if (!address) return;
-    const amountText = $<HTMLInputElement>('[data-market-amount]')?.value.trim() ?? '';
-    if (amountText !== '' && !/^\d{1,7}$/.test(amountText)) {
-      market.message = { kind: 'warn', text: 'The amount must be a whole number.' };
-      return void renderMarketplace();
-    }
-    const fiat = $<HTMLSelectElement>('[data-market-fiat]')?.value ?? '';
-    try {
-      const body: Record<string, unknown> = { action: 'session', provider: id, side: market.side, asset: market.asset, wallet: address };
-      if (fiat) body.fiat = fiat;
-      if (amountText !== '') body.amount = Number(amountText);
-      const { url } = await rampApi<{ url: string }>(body);
-      if (!embedProvider(url, name)) throw new Error('The provider address was not what was expected, so it was not opened.');
-      return void renderMarketplace();
-    } catch (e) {
-      market.message = { kind: 'warn', text: e instanceof Error ? e.message : 'Could not open the provider.' };
-    }
-    renderMarketplace();
-  }
-
-  /** Opens the provider's checkout inside this page. Only an https MoonPay address is ever framed. */
-  function embedProvider(url: string, name: string): boolean {
-    const host = $<HTMLElement>('[data-market-embed]');
-    if (!host) return false;
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return false;
-    }
-    if (parsed.protocol !== 'https:' || !/(^|\.)moonpay\.com$/.test(parsed.hostname)) return false;
-    host.textContent = '';
-    const frame = el('iframe', {
-      class: 'wapp__embed-frame',
-      attrs: {
-        title: `${name} checkout`,
-        // "payment" for card and wallet payments, "camera" for the provider's ID check.
-        allow: 'payment; camera',
-        referrerpolicy: 'strict-origin-when-cross-origin',
-        // No top-navigation: the provider can show pages and pop-ups but cannot send this page elsewhere.
-        sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals',
-      },
-    });
-    frame.src = url;
-    const close = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Close checkout', attrs: { type: 'button' } });
-    close.addEventListener('click', () => {
-      market.embedded = false;
-      market.message = null;
-      host.textContent = '';
-      renderMarketplace();
-    });
-    const out = el('a', { text: 'Open in a new tab instead', attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' } });
-    host.append(
-      el('div', { class: 'wapp__embed-bar' }, [el('span', { class: 'wapp__fine', text: `Your ${market.asset} will arrive in this wallet when ${name} finishes.` }), close]),
-      frame,
-      el('p', { class: 'wapp__fine' }, [out, document.createTextNode(' if the checkout does not load here.')]),
-    );
-    market.embedded = true;
-    return true;
-  }
-
-  document.querySelectorAll<HTMLElement>('[data-side]').forEach((b) =>
-    b.addEventListener('click', () => {
-      market.side = b.dataset.side === 'sell' ? 'sell' : 'buy';
-      market.message = null;
-      renderMarketplace();
-    }),
-  );
-  document.querySelectorAll<HTMLElement>('[data-market-asset]').forEach((b) =>
-    b.addEventListener('click', () => {
-      market.asset = b.dataset.marketAsset === 'USDT' ? 'USDT' : 'USDC';
-      market.message = null;
-      renderMarketplace();
-    }),
-  );
 
   // ---- shield tab
   function renderFindings(findings: Finding[]): Node[] {
@@ -1223,9 +1056,7 @@ export function initWalletApp(): void {
   initNotifications();
 
   function clearSessionOutputs(): void {
-    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]', '[data-market-embed]']) $(sel)?.replaceChildren();
-    market.embedded = false;
-    market.message = null;
+    for (const sel of ['[data-send-review]', '[data-intent-result]', '[data-shield-result]']) $(sel)?.replaceChildren();
     for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input', '#shield-input']) {
       const field = $<HTMLInputElement>(sel);
       if (field) field.value = '';

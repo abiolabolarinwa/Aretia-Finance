@@ -85,7 +85,9 @@ Anchor 0.30.1, mirrors `act-staking`'s conventions (same `anchor_spl::token_inte
 - `refund` — buyer-callable under `Refunding`, once per currency the wallet used, returns exactly what that wallet put in for that currency.
 - `claim` — buyer-callable under `Finalized`, past TGE. Pays out newly-vested net ACT, grossed up per the section above.
 - `sweep_unsold_act` — authority-gated, after `Finalized`, reclaims vault ACT beyond what's still owed.
-- `set_paused` / `set_config_authority` — admin controls.
+- `set_paused` — admin control. Authority handoff is two-step: `propose_config_authority` / `accept_config_authority` / `cancel_config_authority` (replaces the former single-step `set_config_authority`, finding F-17).
+- `finalize` — callable by **anyone** once the sale window has ended (F-15: buyers must be able to reach `Refunding` without depending on one key); before the end it is authority-only and only at the hard cap.
+- `buy_with_sol` rejects a Pyth price whose confidence interval exceeds `MAX_PRICE_CONF_BPS` (100 bps = 1%) of the price (F-16). Policy parameter; confirm before deployment.
 
 **Authority:** the same Squads multisig already used for treasury and fee-config, not a new single key — consistent with the rest of the protocol's admin model.
 

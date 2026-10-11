@@ -7,7 +7,7 @@ No release has been verified by this work. This file is the template/record to c
 |---|---|
 | Git commit/tag built | _unknown_ |
 | Rust toolchain, Anchor/Solana CLI versions | _unknown — no pin in repo_ |
-| `Cargo.lock` committed? | **No** (ignore rule removed on this branch; owner to commit lock that built the binary) |
+| `Cargo.lock` committed? | **Yes, but** the committed locks are a *verified-compiling resolution from 2026-10-11* (single anchor-lang 0.30.1), **not** the lock that produced any deployed binary. If the original exists, record it here |
 | Build command (verifiable build, e.g. `anchor build --verifiable` / solana-verify) | _unknown_ |
 | Local binary SHA-256 | _unknown_ |
 | Deployed program ID / cluster | `Anchor.toml`: presale `5hmgnujNib14NDkEgRsLpY3H8SBDCsLryiymNKY6fWku`, staking `DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH` (same under devnet and mainnet keys — live state unverified) |

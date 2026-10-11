@@ -73,7 +73,7 @@ Anchor program, workspace at `program/act-staking/`. Uses `anchor_spl::token_int
 - **`initialize_config`** — one-time, sets up `StakeConfig` and the vault ATA. Authority-gated.
 - **`update_tier_config`** — authority-gated; replaces the tier thresholds and/or duration multipliers. This is how the illustrative numbers above get recalibrated later without a redeploy.
 - **`set_paused(bool)`** — authority-gated circuit breaker.
-- **`set_config_authority(new_authority)`** — authority-gated; hands `StakeConfig.authority` to a new key, signed by the current authority.
+- **`propose_config_authority(new_authority)` / `accept_config_authority()` / `cancel_config_authority()`** — two-step handoff (replaces the former single-step `set_config_authority`, finding F-17). The current authority nominates a key; control does not move until the nominated key signs `accept_config_authority`. The nomination lives in a separate `["pending_authority"]` PDA, so the `StakeConfig` account layout is unchanged. *Source change only — not yet built with the Anchor CLI or upgraded on devnet.*
 - **`stake(amount: u64, lock_days: u16)`**
   1. Reject if `paused`.
   2. `lock_days` must be one of the four configured options.

@@ -1,0 +1,30 @@
+name: programs-ci
+
+# Host-side checks for the Anchor programs: compile and unit-test the pure decision logic (policy.rs, authority_handoff.rs).
+# Verified locally with rustc 1.97.0 and the committed Cargo.lock files. NOT covered: the SBF build, the TypeScript
+# devnet/validator suites, and instruction-level account-constraint behaviour (see docs/audit/TEST_EVIDENCE.md).
+# Nothing here deploys or touches a cluster.
+on:
+  push:
+    paths: ['program/**', '.github/workflows/programs-ci.yml']
+  pull_request:
+    paths: ['program/**', '.github/workflows/programs-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        program: [act-presale, act-staking]
+    defaults:
+      run:
+        working-directory: program/${{ matrix.program }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.0 --profile minimal
+      - run: cargo +1.97.0 check --locked
+      - run: cargo +1.97.0 test --lib --locked

@@ -5,6 +5,7 @@
  * It talks to /api/swings-radar (api/_radarProxy.ts), never to the Radar server directly. Everything the server says is
  * shown as it is: an unknown figure reads "Unknown", never as a zero, a pass or a good sign.
  */
+import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { OPEN_TOKEN_EVENT } from './walletSearch.js';
 
 const ENDPOINT = '/api/swings-radar';
@@ -29,6 +30,42 @@ export function assetIdFromInput(input: string, evmChain: EvmChain): string | nu
   const text = input.trim();
   if (EVM_ADDRESS.test(text)) return `${evmChain}:${text.toLowerCase()}`;
   return SOLANA_MINT.test(text) ? `solana:${text}` : null;
+}
+
+export type InputKind = { kind: 'address'; assetId: string } | { kind: 'name'; query: string } | { kind: 'invalid'; message: string };
+
+/** What was typed: a token address, a name or symbol to search for, or something that can be neither. */
+export function classifyInput(input: string, evmChain: EvmChain): InputKind {
+  const text = input.trim();
+  const assetId = assetIdFromInput(text, evmChain);
+  if (assetId) return { kind: 'address', assetId };
+  if (text.length < 2) return { kind: 'invalid', message: 'Type at least two letters of a name or symbol, or paste a token address.' };
+  if (/^0x[0-9a-fA-F]*$/.test(text)) return { kind: 'invalid', message: 'That looks like an EVM address, but it is not 0x followed by 40 letters and numbers. Check that you copied all of it.' };
+  if (text.length > 80) return { kind: 'invalid', message: 'That is too long to be a name or an address.' };
+  return { kind: 'name', query: text };
+}
+
+/** The networks Radar can analyze. A token on any other network can be found by search but not analyzed. */
+export const RADAR_CHAINS: ReadonlySet<string> = new Set(['solana', 'ethereum', 'base', 'bnb', 'polygon']);
+
+/** The Radar asset id of a search result. EVM addresses are lower-cased, as everywhere else in Radar. */
+export const assetIdOf = (chain: string, address: string): string => (chain === 'solana' ? `solana:${address}` : `${chain}:${address.toLowerCase()}`);
+
+const resultKey = (h: Pick<SearchHit, 'chain' | 'address'>): string => assetIdOf(h.chain, h.address);
+
+/** Symbols that more than one result in the list carries, with how many distinct tokens share each. Names are not unique. */
+export function sharedSymbols(hits: Pick<SearchHit, 'chain' | 'address' | 'symbol'>[]): Map<string, number> {
+  const bySymbol = new Map<string, Set<string>>();
+  for (const h of hits) {
+    const s = h.symbol.trim().toUpperCase();
+    bySymbol.set(s, (bySymbol.get(s) ?? new Set()).add(resultKey(h)));
+  }
+  return new Map([...bySymbol].filter(([, ids]) => ids.size > 1).map(([s, ids]) => [s, ids.size]));
+}
+
+/** A name or symbol search, limited to networks Radar covers, through the same search the wallet's top bar uses. */
+export function searchForRadar(query: string, fetchImpl?: typeof fetch, signal?: AbortSignal): Promise<SearchHit[]> {
+  return searchTokens(query, fetchImpl, signal, { accept: (h) => RADAR_CHAINS.has(h.chain), limit: 10 });
 }
 
 const CLASSIFICATION: Record<string, string> = {
@@ -196,7 +233,7 @@ export function renderAsset(answer: AssetAnswer, assetId: string): HTMLElement {
   const card = el('div', { class: 'wapp__result wapp-rd__asset' });
 
   const title = el('div', { class: 'wapp-rd__head' }, [
-    el('div', {}, [el('h3', { class: 'wapp-rd__title', text: o.symbol ?? 'Token' }), el('span', { class: 'wapp__fine', text: `${o.name ?? 'Unnamed token'} · ${chainLabel(chain)}` })]),
+    el('div', {}, [el('h3', { class: 'wapp-rd__title', text: o.symbol ?? 'Token' }), el('span', { class: 'wapp__fine', text: `${o.name ?? 'Unnamed token'} · ${chainLabel(chain)}` }), el('code', { class: 'wapp-mono wapp-rd__addr', text: assetId.slice(assetId.indexOf(':') + 1) })]),
     pill(classificationLabel(o.classification), o.classification === 'AVOID' ? 'bad' : o.classification === 'INSUFFICIENT_EVIDENCE' ? 'warn' : 'plain'),
   ]);
   card.append(title);
@@ -282,6 +319,40 @@ function homeRow(a: RadarAsset, open: (assetId: string) => void): HTMLElement {
   return btn;
 }
 
+const shortAddress = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+
+function hitLogo(h: SearchHit): HTMLElement {
+  const letters = el('span', { class: 'wapp-avatar', text: h.symbol.slice(0, 2).toUpperCase() });
+  if (!h.icon) return letters;
+  const img = el('img', { class: 'wapp-avatar', attrs: { src: h.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', width: '32', height: '32' } });
+  img.addEventListener('error', () => img.replaceWith(letters));
+  return img;
+}
+
+/** The matches for a name, to choose from. Nothing is analyzed until one is picked: a name can belong to many tokens. */
+export function renderSearchResults(hits: SearchHit[], query: string, pick: (h: SearchHit) => void): HTMLElement {
+  const box = el('div', { class: 'wapp-rd__home' });
+  if (hits.length === 0) {
+    box.append(el('p', { class: 'wapp__fine', text: `No tokens found for "${query}" on the networks Radar covers (Solana, Ethereum, Base, BNB Chain, Polygon). Names are not unique, so pasting the token address is the sure way.` }));
+    return box;
+  }
+  const shared = sharedSymbols(hits);
+  box.append(el('span', { class: 'wapp__eyebrow', text: `Tokens matching "${query}"` }));
+  box.append(el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: 'Anyone can create a token with any name, including a copy of a well-known one. The top match is not always the real token: check the address against the project\'s official source before relying on a result.' }));
+  for (const h of hits) {
+    const same = shared.get(h.symbol.trim().toUpperCase());
+    const row = el('button', { class: 'wapp-rd__row', attrs: { type: 'button' } }, [
+      hitLogo(h),
+      el('span', { class: 'wapp-rd__row-main' }, [el('strong', { text: h.symbol }), el('span', { class: 'wapp__fine', text: `${h.name || 'No name'} · ${chainLabel(h.chain)} · ${shortAddress(h.address)}` })]),
+      el('span', { class: 'wapp-rd__row-nums' }, [el('span', { text: h.liquidityUsd === null ? 'Liquidity unknown' : `Liquidity ${usdText(h.liquidityUsd)}` }), same ? el('span', { text: `${same} tokens use this symbol` }) : null]),
+      h.fresh ? pill('New') : null,
+    ]);
+    row.addEventListener('click', () => pick(h));
+    box.append(row);
+  }
+  return box;
+}
+
 const HOME_SECTIONS: { key: string; title: string }[] = [
   { key: 'emerging', title: 'Emerging' },
   { key: 'momentum', title: 'Momentum' },
@@ -321,6 +392,8 @@ export function initRadar(): void {
   let evmChain: EvmChain = 'ethereum';
   let token = 0;
   let homeLoaded = false;
+  // The last list of name matches, kept so a result can offer a way back to it.
+  let lastResults: HTMLElement | null = null;
 
   const drawChains = (): void => {
     chains.hidden = !looksLikeEvmAddress(input.value);
@@ -347,7 +420,7 @@ export function initRadar(): void {
     );
   };
 
-  const show = async (assetId: string, fresh: boolean): Promise<void> => {
+  const show = async (assetId: string, fresh: boolean, fromSearch = false): Promise<void> => {
     const mine = ++token;
     result.replaceChildren(el('p', { class: 'wapp__fine', text: fresh ? 'Analyzing this token. This can take up to a minute…' : 'Loading…', attrs: { role: 'status' } }));
     let r = fresh ? await call<AssetAnswer>('analyze', { method: 'POST', body: JSON.stringify({ assetId }) }) : await call<AssetAnswer>('asset', { query: { assetId } });
@@ -363,7 +436,14 @@ export function initRadar(): void {
     }
     remember(assetId);
     drawRecent();
-    result.replaceChildren(renderAsset(r.value, assetId));
+    const card = renderAsset(r.value, assetId);
+    const back = lastResults;
+    if (fromSearch && back) {
+      const b = el('button', { class: 'wapp-rd__chain', text: 'Back to the matches', attrs: { type: 'button' } });
+      b.addEventListener('click', () => result.replaceChildren(back));
+      card.prepend(b);
+    }
+    result.replaceChildren(card);
     homeLoaded = false; // the lists below now include this token
     void loadHome();
   };
@@ -376,15 +456,31 @@ export function initRadar(): void {
     if (!r.ok) homeLoaded = false;
   };
 
+  const search = async (query: string): Promise<void> => {
+    const mine = ++token;
+    result.replaceChildren(el('p', { class: 'wapp__fine', text: 'Searching…', attrs: { role: 'status' } }));
+    let hits: SearchHit[];
+    try {
+      hits = await searchForRadar(query);
+    } catch {
+      if (mine === token) result.replaceChildren(el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: 'The search could not be reached. Try again in a moment, or paste the token address.', attrs: { role: 'alert' } }));
+      return;
+    }
+    if (mine !== token) return; // a newer request has taken over the panel
+    const list = renderSearchResults(hits, query, (h) => void show(assetIdOf(h.chain, h.address), true, true));
+    lastResults = list;
+    result.replaceChildren(list);
+  };
+
   input.addEventListener('input', drawChains);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const id = assetIdFromInput(input.value, evmChain);
-    if (!id) {
-      result.replaceChildren(el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: 'Paste a token address: Solana (32-44 letters and numbers) or EVM (0x followed by 40 letters and numbers).', attrs: { role: 'alert' } }));
-      return;
-    }
-    void show(id, true);
+    const c = classifyInput(input.value, evmChain);
+    if (c.kind === 'address') {
+      lastResults = null;
+      void show(c.assetId, true);
+    } else if (c.kind === 'name') void search(c.query);
+    else result.replaceChildren(el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: c.message, attrs: { role: 'alert' } }));
   });
 
   const onRoute = (): void => {

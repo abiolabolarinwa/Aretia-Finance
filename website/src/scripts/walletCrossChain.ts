@@ -13,7 +13,7 @@ import type { SettlementQuote } from '../swings/settlement/types.js';
 import { isCanaryAllowed } from '../swings/runtime.js';
 import { assessSettlement } from '../swings/settlement/safety.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
-import { formatUnits, parseUnits, viewQuote, viewStatus } from '../swings/crosschain/view.js';
+import { explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from '../swings/crosschain/view.js';
 
 const CHAIN_CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
 const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', arbitrum: 'https://arbiscan.io/tx/', optimism: 'https://optimistic.etherscan.io/tx/', polygon: 'https://polygonscan.com/tx/', avalanche: 'https://snowtrace.io/tx/', solana: 'https://solscan.io/tx/' };
@@ -92,7 +92,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
       const r = await work();
       if (r) s.record = r;
     } catch (e) {
-      s.error = e instanceof SwingsError ? e.message : 'Something went wrong. Nothing was assumed: check your wallet and try again.';
+      s.error = explainMoveError(e);
     } finally {
       s.busy = false;
       if (s.record) await poll();
@@ -135,12 +135,12 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     else {
       if (isProjectId(WC_PROJECT_ID)) {
         const wc = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Connect with WalletConnect (phone or hardware wallet)', attrs: { type: 'button' } });
-        wc.addEventListener('click', () => void connectWalletConnect(evm, WC_PROJECT_ID).then(adoptWallet).then(loadBalance).then(draw).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'WalletConnect could not be connected.'; draw(); }));
+        wc.addEventListener('click', () => void connectWalletConnect(evm, WC_PROJECT_ID).then(adoptWallet).then(loadBalance).then(draw).then(resumeUnfinished).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'WalletConnect could not be connected.'; draw(); }));
         box.append(wc);
       }
       for (const w of s.walletChoices) {
         const b = el('button', { class: 'wapp__btn wapp__btn--ghost', text: `Connect ${w.name}`, attrs: { type: 'button' } });
-        b.addEventListener('click', () => void evm.connect(w.uuid).then(adoptWallet).then(loadBalance).then(draw).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'The wallet could not be connected.'; draw(); }));
+        b.addEventListener('click', () => void evm.connect(w.uuid).then(adoptWallet).then(loadBalance).then(draw).then(resumeUnfinished).catch((e: unknown) => { s.error = e instanceof SwingsError ? e.message : 'The wallet could not be connected.'; draw(); }));
         box.append(b);
       }
     }
@@ -302,22 +302,31 @@ Continue anyway?`)) return;
     }
   }
 
-  // Pick up an unfinished move after a reload.
-  void orchestrator.active().then(async (list) => {
-    const accounts = [evm.account, rt.solanaAddress()].filter((a): a is string => !!a).map((a) => a.toLowerCase());
-    const mine = list.find((r) => accounts.includes(r.quote.intent.sender.toLowerCase()));
-    if (mine) {
-      s.record = mine;
-      await adoptWallet();
-      await poll();
-      draw();
-    }
-  });
+  /**
+   * Picks up an unfinished move, for example after a reload or after the tab was closed during the wait. It runs each time the
+   * tab is shown and the accounts are known, not only once at start: at page load no wallet is connected yet, so a single early
+   * look would find nothing and the person would have no way to claim.
+   */
+  let resumeKey = '';
+  async function resumeUnfinished(): Promise<void> {
+    if (s.record) return;
+    const accounts = [evm.account, rt.solanaAddress()];
+    const key = accounts.filter(Boolean).join('|').toLowerCase();
+    if (key === '' || key === resumeKey) return;
+    resumeKey = key;
+    const mine = pickUnfinished(await orchestrator.active(), accounts);
+    if (!mine || s.record) return;
+    s.record = mine;
+    await adoptWallet();
+    await poll();
+    draw();
+  }
 
   return {
     draw() {
       void loadBalance().then(draw);
       draw();
+      void resumeUnfinished();
     },
   };
 }

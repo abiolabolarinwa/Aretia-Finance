@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { durationText, formatUnits, parseUnits, viewQuote, viewStatus } from './view.js';
+import { durationText, explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from './view.js';
+import { SwingsError } from '../core/types.js';
 import { MockSettlementProvider } from '../settlement/testing.js';
 import { EXECUTION_STATES, type ExecutionRecord } from '../orchestrator/states.js';
 
@@ -72,5 +73,41 @@ describe('status view', () => {
     expect(viewStatus(await record('SOURCE_SUBMITTED', { needsAttention: 'look' }), false).next).toBe('check-wallet');
     expect(viewStatus(await record('FAILED', { failure: { reason: 'x', fundsMayBeAtRisk: true } }), false).detail).toMatch(/may be in transit/);
     expect(viewStatus(await record('FAILED', { failure: { reason: 'x', fundsMayBeAtRisk: false } }), false).detail).toMatch(/No funds were moved/);
+  });
+});
+
+describe('the wait, recovery and errors', () => {
+  const rec = async (state: ExecutionRecord['state'], sender = '0xAbC'): Promise<ExecutionRecord> => {
+    const q = await new MockSettlementProvider({ now: () => NOW }).getQuote({ ...intent, sender });
+    return { id: 'x', version: 1, state, quote: q, createdAt: 0, updatedAt: 0, steps: {}, executionId: null, destinationTxHash: null, refundTxHash: null, failure: null, needsAttention: null, history: [] } as unknown as ExecutionRecord;
+  };
+
+  it('tells the person how long the wait usually is and that closing the page is safe, without claiming arrival', async () => {
+    for (const st of ['SOURCE_SUBMITTED', 'SETTLEMENT_PENDING'] as const) {
+      const v = viewStatus(await rec(st), false);
+      expect(v.detail, st).toMatch(/This usually takes about \d+ (seconds|minutes)/);
+      expect(v.detail, st).toMatch(/You can close this page/);
+      expect(v.detail, st).toMatch(/have not arrived yet/);
+    }
+  });
+
+  it('finds the unfinished move that belongs to a connected account, ignoring case, and none for other accounts', async () => {
+    const a = await rec('SETTLEMENT_PENDING', '0xAbC');
+    const b = await rec('SETTLEMENT_PENDING', '0xDef');
+    expect(pickUnfinished([a, b], ['0xdef'])).toBe(b);
+    expect(pickUnfinished([a, b], [null, '0xABC'])).toBe(a);
+    expect(pickUnfinished([a, b], ['0x999'])).toBeNull();
+    expect(pickUnfinished([a, b], [null, null])).toBeNull();
+    expect(pickUnfinished([], ['0xabc'])).toBeNull();
+  });
+
+  it('explains errors: its own messages as they are, a decline kindly, anything else with a short cause', () => {
+    expect(explainMoveError(new SwingsError('invalid', 'You have less USDC than that.'))).toBe('You have less USDC than that.');
+    expect(explainMoveError(new Error('User rejected the request.'))).toMatch(/You declined the request in your wallet/);
+    expect(explainMoveError({ code: 4001, message: 'x' })).toMatch(/You declined/);
+    const other = explainMoveError(new Error('network   down\nretry'));
+    expect(other).toMatch(/^Something went wrong: network down retry\. Nothing was assumed/);
+    expect(explainMoveError(undefined)).toMatch(/^Something went wrong\. Nothing was assumed/);
+    expect(explainMoveError(new Error('x'.repeat(500))).length).toBeLessThan(260);
   });
 });

@@ -3,7 +3,7 @@
  * can be tested: amounts are exact (no floating point), fees are shown one by one and never merged into a vague total,
  * and a status never says "done" before the destination has the funds.
  */
-import { CHAINS } from '../core/types.js';
+import { CHAINS, SwingsError } from '../core/types.js';
 import type { ExecutionRecord } from '../orchestrator/states.js';
 import type { SettlementQuote } from '../settlement/types.js';
 
@@ -81,6 +81,12 @@ export interface StatusView {
   next: NextAction;
 }
 
+/** How long the wait usually is, and that closing the page is safe: the move is saved and picked up again on return. */
+function keepNote(r: ExecutionRecord): string {
+  const usually = r.quote.estimatedSeconds > 0 ? `This usually takes ${durationText(r.quote.estimatedSeconds)}. ` : '';
+  return `${usually}You can close this page: the move is saved in this browser, and Pay > Move USDC picks it up again so you can finish it.`;
+}
+
 /** What to tell the user about an execution right now. The funds are described as arrived only in COMPLETED. */
 export function viewStatus(r: ExecutionRecord, claimable: boolean): StatusView {
   const dst = CHAINS[r.quote.intent.destinationChain].name;
@@ -93,12 +99,12 @@ export function viewStatus(r: ExecutionRecord, claimable: boolean): StatusView {
     case 'AWAITING_SIGNATURE':
       return { title: 'Waiting for your signature', detail: 'Approve in your wallet. Check the amount and network it shows.', tone: 'progress', next: 'sign' };
     case 'SOURCE_SUBMITTED':
-      return { title: `Sent on ${src}`, detail: 'Waiting for the network to confirm. The funds have not arrived yet.', tone: 'progress', next: 'wait' };
+      return { title: `Sent on ${src}`, detail: `Waiting for the network to confirm. The funds have not arrived yet. ${keepNote(r)}`, tone: 'progress', next: 'wait' };
     case 'SOURCE_CONFIRMED':
     case 'SETTLEMENT_PENDING':
       return claimable
         ? { title: `Ready to claim on ${dst}`, detail: `The funds are released. Claim them with your wallet on ${dst}; you need a little ${CHAINS[r.quote.intent.destinationChain].nativeSymbol} for the fee. Until you claim, they are not in your ${dst} account.`, tone: 'warn', next: 'claim' }
-        : { title: `Moving to ${dst}`, detail: r.steps['mint'] ? 'Your claim was sent. Waiting for it to confirm.' : 'Sent and confirmed on the first network. Waiting for the settlement. The funds have not arrived yet.', tone: 'progress', next: 'wait' };
+        : { title: `Moving to ${dst}`, detail: r.steps['mint'] ? 'Your claim was sent. Waiting for it to confirm.' : `Sent and confirmed on the first network. Waiting for the settlement. The funds have not arrived yet. ${keepNote(r)}`, tone: 'progress', next: 'wait' };
     case 'DESTINATION_RECEIVED':
     case 'DESTINATION_EXECUTED':
       return { title: 'Arrived', detail: `The funds reached ${dst}. Finishing up.`, tone: 'progress', next: 'wait' };
@@ -111,4 +117,23 @@ export function viewStatus(r: ExecutionRecord, claimable: boolean): StatusView {
     case 'FAILED':
       return { title: 'Did not complete', detail: r.failure ? `${r.failure.reason}${r.failure.fundsMayBeAtRisk ? ' Your funds may be in transit: keep the transaction hashes and do not retry until you have checked.' : ' No funds were moved by this step.'}` : 'It failed.', tone: 'bad', next: 'none' };
   }
+}
+
+/** The unfinished move that belongs to one of the connected accounts, if any (the first one found). */
+export function pickUnfinished(list: readonly ExecutionRecord[], accounts: readonly (string | null)[]): ExecutionRecord | null {
+  const mine = new Set(accounts.filter((a): a is string => !!a).map((a) => a.toLowerCase()));
+  return list.find((r) => mine.has(r.quote.intent.sender.toLowerCase())) ?? null;
+}
+
+/**
+ * What to tell the user when a step fails, from whatever was thrown. A message the app wrote is shown as it is; a decline in the
+ * wallet is said kindly and plainly; anything else keeps a short piece of its own text, so the cause is not hidden behind
+ * "something went wrong".
+ */
+export function explainMoveError(e: unknown): string {
+  const message = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
+  if (e instanceof SwingsError && message) return message;
+  if (/reject|declin|denied|cancel|user refused/i.test(message) || (typeof e === 'object' && e !== null && (e as { code?: unknown }).code === 4001)) return 'You declined the request in your wallet. Nothing was sent.';
+  const detail = message.replace(/\s+/g, ' ').trim().slice(0, 140);
+  return `Something went wrong${detail ? `: ${detail}` : ''}. Nothing was assumed: check your wallet's history before you try again.`;
 }

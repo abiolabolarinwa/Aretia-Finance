@@ -5,6 +5,7 @@ import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
+import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
@@ -310,9 +311,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'carbon' | 'swings' | 'favourites' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'carbon', 'swings', 'favourites', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -369,6 +370,7 @@ export function initWalletApp(): void {
   };
   let showUnpriced = readShowUnpriced();
   let loadToken = 0;
+  initRadar();
   const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
 
   const currentView = (): View => {

@@ -1,15 +1,17 @@
 /**
- * One function behind four public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind five public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-pools    Solana pools of a token      (GET)
  *   /api/swings-market   the shared Marketplace lists (GET)
  *   /api/swings-account  favourites and saved swaps   (POST)
+ *   /api/swings-radar    the Aretia Radar server       (GET, POST)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
  */
 import { handleAccount } from './_swingsAccount.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleMarket } from './_swingsMarket.js';
 import { handlePools } from './_swingsPools.js';
+import { handleRadar } from './_radarProxy.js';
 import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
@@ -42,17 +44,17 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     now: Date.now(),
   };
   let out: { status: number; body: string; headers: Record<string, string> };
-  if (route === 'account') {
-    let body: unknown = req.body;
-    if (typeof body === 'string') {
-      try {
-        body = JSON.parse(body);
-      } catch {
-        body = {};
-      }
+  let body: unknown = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
     }
-    out = await handleAccount({ ...common, body });
-  } else if (route === 'candles') out = await handleCandles({ ...common, query });
+  }
+  if (route === 'account') out = await handleAccount({ ...common, body });
+  else if (route === 'radar') out = await handleRadar({ ...common, query, body });
+  else if (route === 'candles') out = await handleCandles({ ...common, query });
   else if (route === 'pools') out = await handlePools({ ...common, query });
   else if (route === 'market') out = await handleMarket({ ...common, query });
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };

@@ -87,6 +87,10 @@ export class ActStakingClient {
     return PublicKey.findProgramAddressSync([Buffer.from("config")], this.programId);
   }
 
+  pendingAuthorityPda(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync([Buffer.from("pending_authority")], this.programId);
+  }
+
   vaultAuthorityPda(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync([Buffer.from("vault_authority")], this.programId);
   }
@@ -248,12 +252,43 @@ export class ActStakingClient {
     return new TransactionInstruction({ programId: this.programId, keys, data });
   }
 
-  ixSetConfigAuthority(authority: PublicKey, newAuthority: PublicKey): TransactionInstruction {
+/** Two-step handoff, step 1 (F-17): the current authority nominates `newAuthority`. Control does not move yet. */
+  ixProposeConfigAuthority(authority: PublicKey, newAuthority: PublicKey): TransactionInstruction {
     const [config] = this.configPda();
-    const data = Buffer.concat([discriminator("set_config_authority"), newAuthority.toBuffer()]);
+    const [pending] = this.pendingAuthorityPda();
+    const data = Buffer.concat([discriminator("propose_config_authority"), newAuthority.toBuffer()]);
     const keys = [
+      { pubkey: authority, isSigner: true, isWritable: true },
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: pending, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ];
+    return new TransactionInstruction({ programId: this.programId, keys, data });
+  }
+
+  /** Step 2: the nominated key signs to take control. `outgoingAuthority` receives the proposal account's rent and must equal the current `config.authority`. */
+  ixAcceptConfigAuthority(newAuthority: PublicKey, outgoingAuthority: PublicKey): TransactionInstruction {
+    const [config] = this.configPda();
+    const [pending] = this.pendingAuthorityPda();
+    const data = discriminator("accept_config_authority");
+    const keys = [
+      { pubkey: newAuthority, isSigner: true, isWritable: false },
       { pubkey: config, isSigner: false, isWritable: true },
-      { pubkey: authority, isSigner: true, isWritable: false },
+      { pubkey: pending, isSigner: false, isWritable: true },
+      { pubkey: outgoingAuthority, isSigner: false, isWritable: true },
+    ];
+    return new TransactionInstruction({ programId: this.programId, keys, data });
+  }
+
+  /** The current authority withdraws an outstanding proposal. */
+  ixCancelConfigAuthority(authority: PublicKey): TransactionInstruction {
+    const [config] = this.configPda();
+    const [pending] = this.pendingAuthorityPda();
+    const data = discriminator("cancel_config_authority");
+    const keys = [
+      { pubkey: authority, isSigner: true, isWritable: true },
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: pending, isSigner: false, isWritable: true },
     ];
     return new TransactionInstruction({ programId: this.programId, keys, data });
   }

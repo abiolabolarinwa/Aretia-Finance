@@ -24,6 +24,13 @@
  * Run: node scripts/set-config-authority-devnet.mjs
  */
 
+// SUPERSEDED (F-17): `set_config_authority` was replaced by the two-step propose/accept/cancel_config_authority
+// instructions. This script was a one-off devnet migration against the OLD program and would fail against a rebuilt
+// one. Kept for history only; use the two-step builders in sdk/act-staking (ixProposeConfigAuthority /
+// ixAcceptConfigAuthority) instead.
+console.error("set-config-authority-devnet.mjs is superseded by the two-step handoff; see the note at the top of this file.");
+process.exit(1);
+
 import {
   Connection,
   Keypair,

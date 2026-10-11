@@ -37,8 +37,8 @@ const ix = client.ixStake(myWallet.publicKey, actMint, myAta, 1_000_000_000n, 90
 
 ## What's covered
 
-All six instructions: `initialize_config`, `update_tier_config`, `set_paused`, `set_config_authority`, `stake`, `unstake` -- plus decoders for both account types (`StakeConfig`, `UserStake`) and every PDA derivation the program uses.
+All six instructions: `initialize_config`, `update_tier_config`, `set_paused`, `propose_config_authority`/`accept_config_authority`/`cancel_config_authority`, `stake`, `unstake` -- plus decoders for both account types (`StakeConfig`, `UserStake`) and every PDA derivation the program uses.
 
 ## What's not included
 
-Convenience `send*` wrappers exist only for `stake`/`unstake` (the two instructions a typical integration actually needs at runtime). Admin instructions (`initialize_config`, `update_tier_config`, `set_paused`, `set_config_authority`) are exposed as raw instruction builders only, since real usage runs them through the treasury multisig, not a plain keypair signature.
+Convenience `send*` wrappers exist only for `stake`/`unstake` (the two instructions a typical integration actually needs at runtime). Admin instructions (`initialize_config`, `update_tier_config`, `set_paused`, `propose_config_authority`/`accept_config_authority`/`cancel_config_authority`) are exposed as raw instruction builders only, since real usage runs them through the treasury multisig, not a plain keypair signature.

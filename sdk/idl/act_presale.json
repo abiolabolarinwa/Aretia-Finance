@@ -190,19 +190,83 @@
       "args": [{ "name": "paused", "type": "bool" }]
     },
     {
-      "name": "set_config_authority",
-      "docs": ["Hands config.authority to a new key, signed by the current authority."],
-      "discriminator": [16, 200, 212, 18, 95, 43, 107, 89],
+      "name": "propose_config_authority",
+      "docs": [
+        "Step 1 of 2. The current authority nominates `new_authority`; control does NOT move, so a mistyped or unsignable key cannot strand the config. A later proposal replaces an earlier one."
+      ],
+      "discriminator": [31, 229, 9, 231, 45, 153, 123, 235],
       "accounts": [
-        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }] } },
-        { "name": "authority", "signer": true }
+        { "name": "authority", "writable": true, "signer": true },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "pending",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 101, 110, 100, 105, 110, 103, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
+          }
+        },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
       ],
       "args": [{ "name": "new_authority", "type": "pubkey" }]
+    },
+    {
+      "name": "accept_config_authority",
+      "docs": [
+        "Step 2 of 2. The nominated key signs to take control. Closes the proposal; the rent goes to the outgoing authority."
+      ],
+      "discriminator": [138, 34, 130, 16, 252, 207, 24, 90],
+      "accounts": [
+        { "name": "new_authority", "signer": true },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "pending",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 101, 110, 100, 105, 110, 103, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
+          }
+        },
+        { "name": "rent_receiver", "writable": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_config_authority",
+      "docs": ["The current authority withdraws an outstanding proposal."],
+      "discriminator": [13, 66, 89, 171, 84, 217, 93, 155],
+      "accounts": [
+        { "name": "authority", "writable": true, "signer": true },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 114, 101, 115, 97, 108, 101, 95, 99, 111, 110, 102, 105, 103] }]
+          }
+        },
+        {
+          "name": "pending",
+          "writable": true,
+          "pda": {
+            "seeds": [{ "kind": "const", "value": [112, 101, 110, 100, 105, 110, 103, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
+          }
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
     { "name": "PresaleConfig", "discriminator": [115, 71, 85, 233, 246, 108, 30, 3] },
-    { "name": "BuyerAccount", "discriminator": [132, 99, 140, 101, 194, 67, 194, 66] }
+    { "name": "BuyerAccount", "discriminator": [132, 99, 140, 101, 194, 67, 194, 66] },
+    { "name": "PendingAuthority", "discriminator": [108, 91, 208, 174, 216, 189, 207, 93] }
   ],
   "errors": [
     { "code": 6000, "name": "InvalidWindow", "msg": "start_ts must be before end_ts." },
@@ -237,7 +301,10 @@
     { "code": 6029, "name": "MismatchedPaymentVault", "msg": "This vault does not match the configured vault for this payment mint." },
     { "code": 6030, "name": "InvalidOraclePrice", "msg": "The SOL/USD oracle price is invalid, stale, or for the wrong feed." },
     { "code": 6031, "name": "MathOverflow", "msg": "Arithmetic overflow." },
-    { "code": 6032, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." }
+    { "code": 6032, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." },
+    { "code": 6033, "name": "OracleConfidenceTooWide", "msg": "The SOL/USD oracle's confidence interval is too wide to price a purchase." },
+    { "code": 6034, "name": "FinalizeNotPermitted", "msg": "Only the authority may finalize before the sale window has ended." },
+    { "code": 6035, "name": "NotThePendingAuthority", "msg": "Only the nominated authority can accept this handoff." }
   ],
   "types": [
     {
@@ -287,6 +354,17 @@
           { "name": "sol_lamports_contributed", "type": "u64" },
           { "name": "sol_usd_value_contributed", "type": "u64" },
           { "name": "sol_refunded", "type": "bool" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "PendingAuthority",
+      "docs": ["Outstanding authority nomination. One PDA, [\"pending_authority\"]; absent = nothing pending."],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "new_authority", "type": "pubkey" },
           { "name": "bump", "type": "u8" }
         ]
       }

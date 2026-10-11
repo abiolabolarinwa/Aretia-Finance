@@ -256,13 +256,34 @@ describe("act-staking (devnet, throwaway fast-clock deployment)", function () {
     ];
     return new TransactionInstruction({ programId: PROGRAM_ID, keys, data });
   }
-  function ixSetConfigAuthority(authority, newAuthority) {
-    const data = Buffer.concat([discriminator("set_config_authority"), newAuthority.toBuffer()]);
+  const [pendingAuthorityPda] = PublicKey.findProgramAddressSync([Buffer.from("pending_authority")], PROGRAM_ID);
+  // Two-step handoff (replaces the former single-step set_config_authority).
+  function ixProposeConfigAuthority(authority, newAuthority) {
+    const data = Buffer.concat([discriminator("propose_config_authority"), newAuthority.toBuffer()]);
     const keys = [
-      { pubkey: configPda, isSigner: false, isWritable: true },
-      { pubkey: authority.publicKey, isSigner: true, isWritable: false },
+      { pubkey: authority.publicKey, isSigner: true, isWritable: true },
+      { pubkey: configPda, isSigner: false, isWritable: false },
+      { pubkey: pendingAuthorityPda, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ];
     return new TransactionInstruction({ programId: PROGRAM_ID, keys, data });
+  }
+  function ixAcceptConfigAuthority(newAuthority, outgoingAuthority) {
+    const keys = [
+      { pubkey: newAuthority.publicKey, isSigner: true, isWritable: false },
+      { pubkey: configPda, isSigner: false, isWritable: true },
+      { pubkey: pendingAuthorityPda, isSigner: false, isWritable: true },
+      { pubkey: outgoingAuthority, isSigner: false, isWritable: true },
+    ];
+    return new TransactionInstruction({ programId: PROGRAM_ID, keys, data: discriminator("accept_config_authority") });
+  }
+  function ixCancelConfigAuthority(authority) {
+    const keys = [
+      { pubkey: authority.publicKey, isSigner: true, isWritable: true },
+      { pubkey: configPda, isSigner: false, isWritable: false },
+      { pubkey: pendingAuthorityPda, isSigner: false, isWritable: true },
+    ];
+    return new TransactionInstruction({ programId: PROGRAM_ID, keys, data: discriminator("cancel_config_authority") });
   }
   function ixStake(owner, ownerAta, amount, lockDays) {
     const [userStakePda] = PublicKey.findProgramAddressSync(
@@ -648,48 +669,79 @@ describe("act-staking (devnet, throwaway fast-clock deployment)", function () {
     });
   });
 
-  describe("set_config_authority", () => {
+  describe("two-step authority handoff (propose / accept / cancel)", () => {
     let newAuthority;
 
-    it("transfers authority, after which only the new authority can administer config", async function () {
+    it("propose does not move control; only the nominated key can accept; then only it can administer config", async function () {
       newAuthority = Keypair.generate();
-      await send(
-        SystemProgram.transfer({ fromPubkey: deployer.publicKey, toPubkey: newAuthority.publicKey, lamports: 10_000_000 }),
-        [deployer],
-        "fund new authority"
+      const stranger = Keypair.generate();
+      for (const k of [newAuthority, stranger]) {
+        await send(
+          SystemProgram.transfer({ fromPubkey: deployer.publicKey, toPubkey: k.publicKey, lamports: 10_000_000 }),
+          [deployer],
+          "fund " + k.publicKey.toBase58().slice(0, 4)
+        );
+      }
+
+      await send(ixProposeConfigAuthority(deployer, newAuthority.publicKey), [deployer], "propose_config_authority");
+      let cfg = decodeStakeConfig((await connection.getAccountInfo(configPda)).data);
+      expect(cfg.authority.equals(deployer.publicKey)).to.be.true; // control has NOT moved
+      await send(ixSetPaused(deployer, false), [deployer], "deployer still administers while pending");
+
+      // a stranger (or the old authority) cannot accept
+      await expectRpcError(
+        send(ixAcceptConfigAuthority(stranger, deployer.publicKey), [stranger], "accept as stranger"),
+        "NotThePendingAuthority",
+        "0x177a",
+        "6010"
       );
+      cfg = decodeStakeConfig((await connection.getAccountInfo(configPda)).data);
+      expect(cfg.authority.equals(deployer.publicKey)).to.be.true;
 
-      await send(ixSetConfigAuthority(deployer, newAuthority.publicKey), [deployer], "set_config_authority");
-      const info = await connection.getAccountInfo(configPda);
-      const cfg = decodeStakeConfig(info.data);
+      // the nominated key accepts; the proposal account is closed
+      await send(ixAcceptConfigAuthority(newAuthority, deployer.publicKey), [newAuthority], "accept_config_authority");
+      cfg = decodeStakeConfig((await connection.getAccountInfo(configPda)).data);
       expect(cfg.authority.equals(newAuthority.publicKey)).to.be.true;
+      expect(await connection.getAccountInfo(pendingAuthorityPda)).to.equal(null);
 
-      // old authority (deployer) can no longer administer config
+      // old authority can no longer administer config; the new one can
       await expectRpcError(
         send(ixSetPaused(deployer, true), [deployer], "set_paused as old authority"),
         "ConstraintHasOne",
         "2001"
       );
-
-      // new authority can
       await send(ixSetPaused(newAuthority, true), [newAuthority], "set_paused as new authority");
       await send(ixSetPaused(newAuthority, false), [newAuthority], "unpause as new authority");
     });
 
-    it("rejects handing authority to the default (all-zero) pubkey", async function () {
+    it("rejects proposing the default (all-zero) pubkey", async function () {
       await expectRpcError(
-        send(
-          ixSetConfigAuthority(newAuthority, PublicKey.default),
-          [newAuthority],
-          "set_config_authority to default pubkey"
-        ),
+        send(ixProposeConfigAuthority(newAuthority, PublicKey.default), [newAuthority], "propose default pubkey"),
         "InvalidNewAuthority",
         "0x1779",
         "6009"
       );
-      const info = await connection.getAccountInfo(configPda);
-      const cfg = decodeStakeConfig(info.data);
-      expect(cfg.authority.equals(newAuthority.publicKey)).to.be.true; // unchanged
+    });
+
+    it("the authority can cancel a proposal, after which the nominee cannot accept", async function () {
+      const nominee = Keypair.generate();
+      await send(
+        SystemProgram.transfer({ fromPubkey: deployer.publicKey, toPubkey: nominee.publicKey, lamports: 10_000_000 }),
+        [deployer],
+        "fund nominee"
+      );
+      await send(ixProposeConfigAuthority(newAuthority, nominee.publicKey), [newAuthority], "propose nominee");
+      await send(ixCancelConfigAuthority(newAuthority), [newAuthority], "cancel_config_authority");
+      expect(await connection.getAccountInfo(pendingAuthorityPda)).to.equal(null);
+      let failed = false;
+      try {
+        await send(ixAcceptConfigAuthority(nominee, newAuthority.publicKey), [nominee], "accept after cancel");
+      } catch {
+        failed = true;
+      }
+      expect(failed, "accept after cancel must fail").to.be.true;
+      const cfg = decodeStakeConfig((await connection.getAccountInfo(configPda)).data);
+      expect(cfg.authority.equals(newAuthority.publicKey)).to.be.true;
     });
   });
 });

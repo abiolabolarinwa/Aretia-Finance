@@ -43,7 +43,7 @@ const ix = client.ixBuy(
 
 ## What's covered
 
-Buyer-facing instructions as convenience builders: `buy`, `buy_with_sol`, `refund`, `refund_sol`, `claim`, plus `set_paused`/`set_config_authority`. Account decoders for `PresaleConfig` and `BuyerAccount`, and every PDA derivation the program uses.
+Buyer-facing instructions as convenience builders: `buy`, `buy_with_sol`, `refund`, `refund_sol`, `claim`, plus `set_paused`/`propose_config_authority`/`accept_config_authority`/`cancel_config_authority`. Account decoders for `PresaleConfig` and `BuyerAccount`, and every PDA derivation the program uses.
 
 ## What's deliberately not included
 

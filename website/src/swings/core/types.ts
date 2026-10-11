@@ -192,6 +192,8 @@ export interface DexProvider {
   supports(chain: ChainId): boolean;
   /** True when this provider collects the Aretia fee with the swap it builds. A route that cannot is not offered while the fee is on. */
   readonly carriesAretiaFee?: boolean;
+  /** How long the router waits for this provider's quote, when it needs longer than the router's usual limit. */
+  readonly quoteTimeoutMs?: number;
   getQuote(request: SwapRequest, signal?: AbortSignal): Promise<Quote>;
   /** Builds and checks the transaction for a quote. Throws SwingsError if the quote cannot be executed safely. */
   buildTransaction(quote: Quote): Promise<PreparedSwap>;

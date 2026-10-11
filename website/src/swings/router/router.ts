@@ -76,6 +76,21 @@ export interface RouteSearch {
 }
 
 /**
+ * What to tell the person when no route came back, in words that match what really happened: the provider's own reason if it
+ * answered; "too slow" if it timed out (that is not a missing route, and "try a different token" would be wrong advice); or
+ * that it could not be reached.
+ */
+export function explainNoRoute(failures: readonly ProviderFailure[], labelOf: (providerId: string) => string = (id) => id): string {
+  const answered = failures.find((f) => f.answered);
+  const silent = failures.filter((f) => !f.answered && !f.message.startsWith('Temporarily skipped'));
+  if (answered) return `No route was found for this swap. ${answered.message}${silent.length > 0 ? ` ${silent.map((f) => labelOf(f.providerId)).join(' and ')} did not answer.` : ''}`;
+  const slow = silent.filter((f) => /in time/i.test(f.message));
+  if (slow.length > 0) return `${slow.map((f) => labelOf(f.providerId)).join(' and ')} took too long to answer, so this is not a missing route: the network is slow right now. Try again in a moment.`;
+  if (silent.length > 0) return `${silent.map((f) => labelOf(f.providerId)).join(' and ')} could not be reached. Try again in a moment.`;
+  return 'No route was found for this swap. Try a different amount or token.';
+}
+
+/**
  * Whether a provider's rejection means the provider itself is unwell (it timed out, the network failed, or it said so) as
  * opposed to a plain answer about this one request. Only the first kind may ever count towards the circuit breaker: if
  * "no route for this token" counted, three attempts at tokens it cannot trade would switch the provider off for every token.
@@ -189,7 +204,7 @@ export class AretiaRouter {
         if (!active.includes(p)) failures.push({ providerId: p.id, message: 'Temporarily skipped after repeated failures.' });
       }
     }
-    const settled = await Promise.allSettled(active.map((p) => withTimeout((signal) => p.getQuote(request, signal), this.timeoutMs)));
+    const settled = await Promise.allSettled(active.map((p) => withTimeout((signal) => p.getQuote(request, signal), p.quoteTimeoutMs ?? this.timeoutMs)));
     const routes: Quote[] = [];
     const rejected: RejectedQuote[] = [];
     settled.forEach((result, i) => {

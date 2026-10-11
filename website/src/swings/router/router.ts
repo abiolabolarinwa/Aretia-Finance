@@ -57,11 +57,31 @@ export interface RejectedQuote {
   reasons: string[];
 }
 
+export interface ProviderFailure {
+  providerId: string;
+  message: string;
+  /**
+   * Set when the provider ANSWERED and said it has no route for this request (no pool, an amount too small, not enough SOL
+   * for the account fees). That is a normal answer, not a fault: it never counts towards skipping the provider, and the
+   * screen shows its own words instead of "did not answer".
+   */
+  answered?: true;
+}
+
 export interface RouteSearch {
   /** Executable quotes, best first. */
   routes: Quote[];
   rejected: RejectedQuote[];
-  failures: { providerId: string; message: string }[];
+  failures: ProviderFailure[];
+}
+
+/**
+ * Whether a provider's rejection means the provider itself is unwell (it timed out, the network failed, or it said so) as
+ * opposed to a plain answer about this one request. Only the first kind may ever count towards the circuit breaker: if
+ * "no route for this token" counted, three attempts at tokens it cannot trade would switch the provider off for every token.
+ */
+export function isProviderFault(reason: unknown): boolean {
+  return !(reason instanceof SwingsError) || reason.code === 'provider-failed';
 }
 
 export interface UserConfirmation {
@@ -159,21 +179,26 @@ export class AretiaRouter {
     if (candidates.length === 0) throw new SwingsError('no-route', `No provider is available for ${CHAINS[request.chain].name}.`);
 
     const failures: RouteSearch['failures'] = [];
-    const active = candidates.filter((p) => {
-      if (!this.skipped(p.id)) return true;
-      // Reported, never silent: the user is told a provider was left out and why.
-      failures.push({ providerId: p.id, message: 'Temporarily skipped after repeated failures.' });
-      return false;
-    });
+    let active = candidates.filter((p) => !this.skipped(p.id));
+    if (active.length === 0) {
+      // Skipping every provider would turn a hiccup into an outage with nothing left to try. Ask them all anyway.
+      active = candidates;
+    } else {
+      for (const p of candidates) {
+        // Reported, never silent: the user is told a provider was left out and why.
+        if (!active.includes(p)) failures.push({ providerId: p.id, message: 'Temporarily skipped after repeated failures.' });
+      }
+    }
     const settled = await Promise.allSettled(active.map((p) => withTimeout((signal) => p.getQuote(request, signal), this.timeoutMs)));
     const routes: Quote[] = [];
     const rejected: RejectedQuote[] = [];
     settled.forEach((result, i) => {
       const providerId = active[i]!.id;
-      this.noteResult(providerId, result.status === 'fulfilled');
+      const fault = result.status === 'rejected' && isProviderFault(result.reason);
+      this.noteResult(providerId, !fault);
       if (result.status === 'rejected') {
         const message = result.reason instanceof Error ? result.reason.message : 'The provider failed.';
-        failures.push({ providerId, message });
+        failures.push({ providerId, message, ...(fault ? {} : { answered: true as const }) });
         this.emit({ type: 'quote-failed', providerId, message });
         return;
       }

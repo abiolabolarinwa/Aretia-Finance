@@ -107,6 +107,11 @@ export class DirectSolanaProvider implements DexProvider {
   readonly name = 'Aretia Router';
   /** This provider puts the Aretia fee inside the transaction it builds, so it may be used while the fee is on. */
   readonly carriesAretiaFee = true;
+  /**
+   * A quote here reads pools from every venue and then simulates the swap on the real programs, one or two simulations per route. Through a
+   * public node that takes well over the router's usual 8 seconds for a two-hop swap into a new token, and the answer is worth the wait.
+   */
+  readonly quoteTimeoutMs = 25_000;
   private readonly now: () => number;
   private readonly fee: AretiaFeeConfig;
   /** Why pools that were found could not be used in the quote being worked out (a simulation refusal, an unanswered check). */
@@ -257,40 +262,45 @@ export class DirectSolanaProvider implements DexProvider {
     directPlans.sort((a, b) => (a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0));
     if (directPlans[0]) directPlans[0].impactBps = await this.impactOf(web3, req, directPlans[0].legs[0]!, directPlans[0].amountOut, blockhash);
 
-    // 2. Two hops through each hub: the deepest pool for each leg, checked by simulating the whole transaction.
-    for (let k = 0; k < hubs.length; k++) {
-      const hub = hubs[k]!;
-      const first = viaHubs[k * 2]!;
-      const second = viaHubs[k * 2 + 1]!;
-      if (first.length === 0 || second.length === 0) continue;
-      const deepest = (xs: typeof first): (typeof first)[number] => xs.reduce((a, b) => (depthOf(b.pool, hub.address) > depthOf(a.pool, hub.address) ? b : a));
-      const p1 = deepest(first);
-      const p2 = deepest(second);
-      try {
-        const leg1: Leg = { venue: p1.venue, pool: p1.pool, tokenIn: from, tokenOut: hub, amountIn: request.amountIn, minOut: 1n };
-        const leg2: Leg = { venue: p2.venue, pool: p2.pool, tokenIn: hub, tokenOut: to, amountIn: 1n, minOut: 1n };
-        // Pass 1: learn what the first hop delivers, from the intermediate account's balance change.
-        const learned = await this.probe(web3, req, [leg1, leg2], blockhash, hub.address);
-        if (learned.watched === null) continue;
-        const out1 = learned.watched + leg2.amountIn;
-        // Pass 2: sell slightly less than that, then read the real final output.
-        const hop2In = after(out1, HOP_BUFFER_BPS);
-        if (hop2In <= 0n) continue;
-        const legs: Leg[] = [{ ...leg1, minOut: hop2In }, { ...leg2, amountIn: hop2In }];
-        const final = await this.probe(web3, req, legs, blockhash);
-        if (final.received === null || final.received <= 0n) continue;
-        plans.push({
-          shape: 'two-hop',
-          legs,
-          legOuts: [hop2In, final.received],
-          amountOut: final.received,
-          impactBps: null,
-          reasons: [`Two hops through ${hub.address === WSOL_MINT ? 'SOL' : short(hub.address)}: ${p1.venue.name} then ${p2.venue.name}. The whole transaction was simulated on the real programs.`],
-        });
-      } catch {
-        // This hub cannot carry the trade from this account; the others still can.
-      }
-    }
+    // 2. Two hops through each hub: the deepest pool for each leg, checked by simulating the whole transaction. Each hub needs two
+    // simulations one after the other, so the hubs are worked on together, not one after another: the quote has a time limit, and
+    // doing them in turn made a two-hop swap into a new token take twice as long as it needs to.
+    const twoHops = await Promise.all(
+      hubs.map(async (hub, k): Promise<Plan | null> => {
+        const first = viaHubs[k * 2]!;
+        const second = viaHubs[k * 2 + 1]!;
+        if (first.length === 0 || second.length === 0) return null;
+        const deepest = (xs: typeof first): (typeof first)[number] => xs.reduce((x, y) => (depthOf(y.pool, hub.address) > depthOf(x.pool, hub.address) ? y : x));
+        const p1 = deepest(first);
+        const p2 = deepest(second);
+        try {
+          const leg1: Leg = { venue: p1.venue, pool: p1.pool, tokenIn: from, tokenOut: hub, amountIn: request.amountIn, minOut: 1n };
+          const leg2: Leg = { venue: p2.venue, pool: p2.pool, tokenIn: hub, tokenOut: to, amountIn: 1n, minOut: 1n };
+          // Pass 1: learn what the first hop delivers, from the intermediate account's balance change.
+          const learned = await this.probe(web3, req, [leg1, leg2], blockhash, hub.address);
+          if (learned.watched === null) return null;
+          const out1 = learned.watched + leg2.amountIn;
+          // Pass 2: sell slightly less than that, then read the real final output.
+          const hop2In = after(out1, HOP_BUFFER_BPS);
+          if (hop2In <= 0n) return null;
+          const legs: Leg[] = [{ ...leg1, minOut: hop2In }, { ...leg2, amountIn: hop2In }];
+          const final = await this.probe(web3, req, legs, blockhash);
+          if (final.received === null || final.received <= 0n) return null;
+          return {
+            shape: 'two-hop',
+            legs,
+            legOuts: [hop2In, final.received],
+            amountOut: final.received,
+            impactBps: null,
+            reasons: [`Two hops through ${hub.address === WSOL_MINT ? 'SOL' : short(hub.address)}: ${p1.venue.name} then ${p2.venue.name}. The whole transaction was simulated on the real programs.`],
+          };
+        } catch {
+          // This hub cannot carry the trade from this account; the others still can.
+          return null;
+        }
+      }),
+    );
+    for (const plan of twoHops) if (plan) plans.push(plan);
 
     // 3. Split a large trade between the two best direct pools when that pays measurably more.
     const best = directPlans[0];

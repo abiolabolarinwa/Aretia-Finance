@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AretiaRouter } from './router.js';
+import { AretiaRouter, explainNoRoute } from './router.js';
 import { SolanaJupiterProvider, type JupiterBackend, type JupiterQuote } from '../providers/solanaJupiter.js';
 import { SolanaChainAdapter } from '../chains/solana.js';
 import { SwingsError, type ChainAdapter, type DexProvider, type PreparedSwap, type Quote, type SwapRequest } from '../core/types.js';
@@ -247,5 +247,38 @@ describe('Jupiter provider and Solana adapter', () => {
     await a.signAndSubmit(prepared);
     await expect(a.signAndSubmit(prepared)).rejects.toMatchObject({ code: 'invalid' });
     expect(submit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('slow providers and what the person is told', () => {
+  it('gives a provider that asks for a longer window that window, and still times out an ordinary one at the router limit', async () => {
+    vi.useFakeTimers();
+    try {
+      const slowButWorthIt = { ...fakeProvider('long', () => new Promise<Quote>((res) => setTimeout(() => res(quoteFrom('long', 100n)), 12_000))), quoteTimeoutMs: 25_000 };
+      const ordinary = fakeProvider('short', () => new Promise<Quote>((res) => setTimeout(() => res(quoteFrom('short', 100n)), 12_000)));
+      const r = new AretiaRouter({ providers: [slowButWorthIt, ordinary], adapters: [], isChainEnabled: () => true, now, providerTimeoutMs: 8_000 });
+      const pending = r.findRoutes(request);
+      await vi.advanceTimersByTimeAsync(13_000);
+      const res = await pending;
+      expect(res.routes.map((q) => q.providerId)).toEqual(['long']);
+      expect(res.failures).toEqual([{ providerId: 'short', message: 'The provider did not answer in time.' }]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says what really happened when there is no route', () => {
+    const label = (id: string) => (id === 'aretia-sol' ? 'The Aretia Router' : id);
+    expect(explainNoRoute([], label)).toBe('No route was found for this swap. Try a different amount or token.');
+    expect(explainNoRoute([{ providerId: 'aretia-sol', message: 'No pool Aretia reads directly can fill this trade.', answered: true }], label)).toBe('No route was found for this swap. No pool Aretia reads directly can fill this trade.');
+    // A timeout is not a missing route, and "try a different token" would be wrong advice for it.
+    const slow = explainNoRoute([{ providerId: 'aretia-sol', message: 'The provider did not answer in time.' }], label);
+    expect(slow).toMatch(/The Aretia Router took too long to answer, so this is not a missing route/);
+    expect(slow).not.toMatch(/different amount or token/);
+    expect(explainNoRoute([{ providerId: 'aretia-sol', message: '503' }], label)).toBe('The Aretia Router could not be reached. Try again in a moment.');
+    // One provider answered and another did not: both facts are told.
+    expect(explainNoRoute([{ providerId: 'aretia-sol', message: 'No pool.', answered: true }, { providerId: 'jupiter', message: 'x' }], label)).toBe('No route was found for this swap. No pool. jupiter did not answer.');
+    // A provider that was only skipped is not described as not answering.
+    expect(explainNoRoute([{ providerId: 'aretia-sol', message: 'Temporarily skipped after repeated failures.' }], label)).toBe('No route was found for this swap. Try a different amount or token.');
   });
 });

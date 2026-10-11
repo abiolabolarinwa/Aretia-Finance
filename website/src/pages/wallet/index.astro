@@ -475,7 +475,7 @@ const sendTips = [
       <div data-pane="activity" class="wapp__pane" hidden>
         <div class="wapp__card" data-swings-activity></div>
         <div class="wapp__card">
-          <h2 class="wapp__h2">Recent transactions</h2>
+          <h2 class="wapp__h2">Buys, sells and transfers</h2>
           <div data-activity></div>
         </div>
       </div>
@@ -1259,6 +1259,8 @@ const sendTips = [
   /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
   .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: start; }
   .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) { width: 100%; max-width: 1120px; justify-self: start; }
+  /* Radar is one lookup, so it sits in the middle of the page rather than against the sidebar. */
+  .wapp__pane[data-pane='radar'] { justify-self: center; }
   @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
 
   /* ---- Swap opened over the page it was started from ---- */
@@ -1408,6 +1410,17 @@ const sendTips = [
   .wapp-status { padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
   .wapp-status.is-ok { color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
   .wapp-status.is-fail { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
+  .wapp-trades-wrap { overflow-x: auto; }
+  .wapp-trades td, .wapp-trades th { white-space: nowrap; }
+  .wapp-trades__what { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--color-strong); }
+  .wapp-trades__when { display: grid; line-height: 1.3; }
+  .wapp-trades__when small { font-size: 12px; color: var(--color-muted); }
+  .wapp-trades__note { margin: 14px 0 0; max-width: 72ch; white-space: normal; }
+  .wapp-trade { padding: 3px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-pill); }
+  .wapp-trade--buy { color: var(--color-ok); background: rgba(27, 138, 75, 0.12); }
+  .wapp-trade--sell { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
+  .wapp-trade--fail { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
+  .wapp-trade--move, .wapp-trade--in, .wapp-trade--out { color: var(--color-brand); background: var(--color-brand-soft); }
   .wapp-error { margin: 0; padding: 12px 14px; font-size: 13px; color: #b3261e; background: rgba(179, 38, 30, 0.08); border-radius: var(--radius-md); }
 
   /* Desktop: the sidebar rests as a narrow icon rail and opens, over the page, only while the
@@ -1457,5 +1470,6 @@ const sendTips = [
     .wapp-dash__hero { padding: 22px; }
     .wapp__total { font-size: 2.25rem; }
     .wapp-table th:nth-child(3), .wapp-table td:nth-child(3), .wapp-table th:nth-child(5), .wapp-table td:nth-child(5) { display: none; }
+    .wapp-trades th, .wapp-trades td { display: table-cell !important; }
   }
 </style>

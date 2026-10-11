@@ -26,6 +26,7 @@ import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '..
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
+import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
 import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
 import { createRatingQueue } from './walletRatings.js';
@@ -1876,7 +1877,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (items.length === 0) card.append(el('p', { class: 'wapp__fine', text: host.getAddress() || evm.account ? 'No swaps yet.' : 'Connect a wallet to see its swaps.' }));
     for (const i of items) {
       const row = el('div', { class: 'wapp__provider' });
-      row.append(el('div', {}, [el('strong', { text: `${i.amountIn} ${i.fromSymbol} → ${i.toSymbol}` }), el('span', { text: `${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()} · expected ${i.expectedOut} ${i.toSymbol}` })]));
+      // Said as a buy or a sell with the price it was quoted at; a swap between two like assets keeps the plain wording.
+      const s = summariseSwap(i.fromSymbol, i.toSymbol, Number(i.amountIn), Number(i.expectedOut));
+      const sig3 = (n: number): string => n.toLocaleString('en-US', { maximumSignificantDigits: 3, maximumFractionDigits: 12 });
+      if (s && s.kind !== 'swapped') {
+        const price = s.priceUsd !== null ? `$${sig3(s.priceUsd)}` : `${sig3(s.priceInQuote ?? 0)} ${s.quote.symbol}`;
+        const verb = s.kind === 'bought' ? 'Bought' : 'Sold';
+        const money = s.kind === 'bought' ? `paid ${i.amountIn} ${i.fromSymbol}` : `expected ${i.expectedOut} ${i.toSymbol}`;
+        row.append(el('div', {}, [el('strong', { text: `${verb} ${s.token.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${s.token.symbol}` }), el('span', { text: `${price} each · ${money} · ${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()}` })]));
+      } else row.append(el('div', {}, [el('strong', { text: `${i.amountIn} ${i.fromSymbol} → ${i.toSymbol}` }), el('span', { text: `${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()} · expected ${i.expectedOut} ${i.toSymbol}` })]));
       const right = el('div', { class: 'wapp__row-actions' });
       right.append(el('span', { class: `wapp__state wapp__state--${i.status === 'confirmed' ? 'on' : i.status === 'failed' ? 'warn' : 'off'}`, text: i.status }));
       if (i.txId) right.append(el('a', { text: 'View', attrs: { href: EXPLORER_TX[i.chain] + encodeURIComponent(i.txId), target: '_blank', rel: 'noopener noreferrer' } }));

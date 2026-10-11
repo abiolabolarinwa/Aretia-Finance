@@ -8,6 +8,7 @@ import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initShield } from './walletShield';
+import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
@@ -361,6 +362,8 @@ export function initWalletApp(): void {
   let evmToken = 0;
   const evmSession = new EvmSession();
   let activity: ActivityItem[] | null = null;
+  /** What the wallet bought and sold in those transactions, read from the chain; null while it is being read. */
+  let trades: TradeRow[] | null = null;
   let amountsHidden = false;
   // Tokens with no price (mostly airdropped spam) are hidden from the table unless this is on. Remembered on this device.
   const UNPRICED_PREF_KEY = 'aretia.wallet.showUnpriced';
@@ -609,6 +612,8 @@ export function initWalletApp(): void {
     if (error) return void body.append(el('p', { class: 'wapp-error', text: `Couldn't load activity: ${error}` }));
     if (activity === null) return void body.append(el('p', { class: 'wapp-sub', text: 'Loading activity…' }));
     if (activity.length === 0) return void body.append(el('p', { class: 'wapp-sub', text: 'No transactions found for this address.' }));
+    if (trades) return void renderTrades(body, trades);
+    body.append(el('p', { class: 'wapp-sub', text: 'Reading what was bought and sold in these transactions…' }));
     const table = el('table', { class: 'wapp-table' });
     table.append(el('thead', {}, [el('tr', {}, ['When', 'Transaction', 'Status'].map((t) => el('th', { text: t })))]));
     const tbody = el('tbody');
@@ -620,12 +625,66 @@ export function initWalletApp(): void {
     body.append(table);
   }
 
+  /** A price with three significant figures and no exponent, however small the token's price is. */
+  const sig3 = (n: number): string => n.toLocaleString('en-US', { maximumSignificantDigits: 3, maximumFractionDigits: 12 });
+  const dateTime = (t: number | null): string => (t ? new Date(t * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+
+  /** Buys and sells: what was traded, at what price, and when. Everything else the wallet did is listed as what it was. */
+  function renderTrades(body: HTMLElement, rows: TradeRow[]): void {
+    const wrap = el('div', { class: 'wapp-trades-wrap' });
+    const table = el('table', { class: 'wapp-table wapp-trades' });
+    table.append(el('thead', {}, [el('tr', {}, ['When', 'Activity', 'Price per token', 'Value', 'Transaction'].map((t) => el('th', { text: t })))]));
+    const tbody = el('tbody');
+    for (const t of rows) {
+      const pill = (text: string, tone: string) => el('span', { class: `wapp-trade wapp-trade--${tone}`, text });
+      const leg = (l: { amount: number; symbol: string }) => `${formatAmount(l.amount)} ${l.symbol}`;
+      const what = el('div', { class: 'wapp-trades__what' });
+      let price = '—';
+      let value = '—';
+      if (!t.ok) what.append(pill('Failed', 'fail'), el('span', { text: 'The transaction did not go through' }));
+      else if (!t.read) what.append(el('span', { class: 'wapp-sub', text: 'Details not available from the node' }));
+      else if ((t.kind === 'bought' || t.kind === 'sold') && t.token && t.quote) {
+        what.append(pill(t.kind === 'bought' ? 'Bought' : 'Sold', t.kind === 'bought' ? 'buy' : 'sell'), el('span', { text: leg(t.token) }));
+        price = t.price.usd !== null ? `$${sig3(t.price.usd)}` : t.price.inQuote !== null ? `${sig3(t.price.inQuote)} ${t.quote.symbol}` : '—';
+        value = t.price.valueUsd !== null ? formatUsd(t.price.valueUsd) : leg(t.quote);
+        what.title = `${t.kind === 'bought' ? 'Paid' : 'Received'} ${leg(t.quote)}`;
+      } else if (t.kind === 'swapped' && t.token && t.quote) what.append(pill('Swapped', 'move'), el('span', { text: `${leg(t.token)} → ${leg(t.quote)}` }));
+      else if (t.kind === 'received' && t.token) what.append(pill('Received', 'in'), el('span', { text: leg(t.token) }));
+      else if (t.kind === 'sent' && t.token) what.append(pill('Sent', 'out'), el('span', { text: leg(t.token) }));
+      else {
+        const parts = [...t.spent.map((l) => `−${leg(l)}`), ...t.gained.map((l) => `+${leg(l)}`)];
+        what.append(pill('Other', 'move'), el('span', { text: parts.length > 0 ? parts.join(', ') : 'No change to your balances' }));
+      }
+      const link = el('a', { class: 'wapp-mono', text: shorten(t.signature, 6), attrs: { href: `https://solscan.io/tx/${t.signature}`, target: '_blank', rel: 'noopener noreferrer' } });
+      tbody.append(
+        el('tr', {}, [
+          el('td', {}, [el('div', { class: 'wapp-trades__when' }, [el('span', { text: dateTime(t.time) }), el('small', { text: t.time ? relativeTime(t.time) : '' })])]),
+          el('td', {}, [what]),
+          el('td', { class: 'num', text: price }),
+          el('td', { class: 'num', text: value }),
+          el('td', {}, [link]),
+        ]),
+      );
+    }
+    table.append(tbody);
+    wrap.append(table);
+    body.append(wrap);
+    const unread = rows.some((t) => t.ok && !t.read);
+    body.append(
+      el('p', {
+        class: 'wapp-sub wapp-trades__note',
+        text: `Read from this wallet's own transactions on Solana (the latest ${rows.length}). The price is what this wallet got for each token in that trade. A dollar value is the stablecoin amount, or for SOL its price that hour from GeckoTerminal; between two other tokens only the amounts are shown. SOL amounts leave out the network fee and the small deposit for opening a token account.${unread ? ' Some transactions could not be read from the node just now; Refresh tries again.' : ''}`,
+      }),
+    );
+  }
+
   // ---- loading
   async function refresh(): Promise<void> {
     const mine = ++loadToken;
     holdings = null;
     holdingsFailed = false;
     activity = null;
+    trades = null;
     renderDashboard();
     renderActivity();
     renderSendAssets();
@@ -645,6 +704,15 @@ export function initWalletApp(): void {
     if (act.status === 'fulfilled') {
       activity = act.value;
       renderActivity();
+      // The trades are read after the list is on screen: it can take a few seconds, and the list is useful meanwhile.
+      void loadTrades(a, act.value).then(
+        (rows) => {
+          if (mine !== loadToken) return;
+          trades = rows;
+          renderActivity();
+        },
+        () => undefined,
+      );
     } else renderActivity(act.reason instanceof Error ? act.reason.message : 'unknown error');
   }
 

@@ -8,7 +8,7 @@ import { findTip, JITO_TIP_ACCOUNTS } from './jito.js';
 import { getAmountOut, getAmountOutCpmm } from '../engine/amm.js';
 import { AretiaDexRegistry } from '../engine/registry.js';
 import { SOLANA_DEXES } from '../dex/entries.js';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import type { AretiaFeeConfig, SwapRequest } from '../core/types.js';
 import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
 import { AretiaRouter } from '../router/router.js';

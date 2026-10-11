@@ -9,7 +9,7 @@
 import { liveFeeConfig } from './core/fee.js';
 import { fetchAccount, loadWeb3, rpcCall } from '../scripts/walletSend';
 import { fetchQuote, planSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
-import { parseMint } from '../scripts/walletTools';
+import { parseMint } from './core/solanaTools.js';
 import { SolanaChainAdapter } from './chains/solana.js';
 import { Evm0xProvider } from './providers/evm0x.js';
 import { DirectEvmProvider } from './dex/directEvm.js';

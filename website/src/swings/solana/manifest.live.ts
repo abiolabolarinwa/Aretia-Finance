@@ -12,7 +12,7 @@ import { buildRouteTransaction } from './builder.js';
 import { ManifestAdapter, manifestSwapInstruction } from './manifest.js';
 import type { SolRpc } from './raydiumCpmm.js';
 import { simulateSolanaSwap } from './simulate.js';
-import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 
 const RPC = 'https://api.mainnet-beta.solana.com';
 const SOL = 'So11111111111111111111111111111111111111112';

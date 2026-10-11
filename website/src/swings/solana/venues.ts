@@ -23,7 +23,7 @@ import { ManifestAdapter, manifestSwapInstruction } from './manifest.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
-import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 
 export interface SolanaVenue {
   /** Registry id, also the `dex` of every pool this venue returns. */

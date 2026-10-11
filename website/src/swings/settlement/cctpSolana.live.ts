@@ -5,7 +5,7 @@
  */
 import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, evmAddressBytes32, MESSAGE_TRANSMITTER_V2, readBurnLimit, readFeeRecipient, readLocalTokenMint, remoteTokenMessengerAddress, SOLANA_USDC, tokenPairAddress, TOKEN_MESSENGER_MINTER_V2 } from './cctpSolana.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
 

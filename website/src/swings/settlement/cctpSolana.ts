@@ -14,7 +14,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { SwingsError } from '../core/types.js';
-import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 
 export const TOKEN_MESSENGER_MINTER_V2 = 'CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe';
 export const MESSAGE_TRANSMITTER_V2 = 'CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC';

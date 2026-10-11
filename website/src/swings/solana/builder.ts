@@ -7,7 +7,7 @@
  * already holds a balance is left alone (never closed), so the swap cannot change what the user already has.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import { tipInstruction } from './jito.js';
 import type { LiquidityPool } from '../engine/types.js';

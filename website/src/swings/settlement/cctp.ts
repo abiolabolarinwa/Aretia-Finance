@@ -20,7 +20,7 @@
 import type * as Web3 from '@solana/web3.js';
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
 import { formatUnits } from '../crosschain/view.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
 import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, usedNonceAddress } from './cctpSolana.js';
 import type { EvmRead } from '../chains/evmSession.js';

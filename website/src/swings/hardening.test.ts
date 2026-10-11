@@ -13,8 +13,8 @@ import { CrossChainRouter, classifySwap } from './crosschain/types.js';
 import { redact, routerEventSink, summarize, Telemetry } from './observability/telemetry.js';
 import { cleanText } from './tokens/registry.js';
 import { SwingsError, type AretiaFeeConfig, type ChainId, type Quote, type SwapRequest } from './core/types.js';
-import { judgeSwapSimulation, type SwapSimulation } from '../scripts/walletTools.js';
-import { fromSmallestUnit, toSmallestUnit } from '../scripts/walletTools.js';
+import { judgeSwapSimulation, type SwapSimulation } from './core/solanaTools.js';
+import { fromSmallestUnit, toSmallestUnit } from './core/solanaTools.js';
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const WSOL = 'So11111111111111111111111111111111111111112';

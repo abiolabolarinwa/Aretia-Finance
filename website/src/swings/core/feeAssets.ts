@@ -7,7 +7,7 @@
  * time: it is the same wrapped-native and stablecoin list the router already hops through (`dex/hubs.ts`), whose addresses the live
  * tests read back from each chain.
  */
-import { KNOWN_TOKENS } from '../../scripts/walletTools.js';
+import { KNOWN_TOKENS } from './solanaTools.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
 import { EVM_NATIVE_ADDRESS, type ChainId } from './types.js';
 

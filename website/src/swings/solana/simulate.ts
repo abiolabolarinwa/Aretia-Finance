@@ -4,7 +4,7 @@
  * uses), not by anything the builder says it will do.
  */
 import type * as Web3 from '@solana/web3.js';
-import { judgeSwapSimulation, parseTokenAccount, SWAP_SOL_OVERHEAD_LAMPORTS, type SwapSimulation, type SwapVerdict } from '../../scripts/walletTools.js';
+import { judgeSwapSimulation, parseTokenAccount, SWAP_SOL_OVERHEAD_LAMPORTS, type SwapSimulation, type SwapVerdict } from '../core/solanaTools.js';
 import type { SolRpc } from './raydiumCpmm.js';
 
 interface SimAccount {

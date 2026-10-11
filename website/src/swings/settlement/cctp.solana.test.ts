@@ -2,7 +2,7 @@ import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { CCTP_CONTRACTS, CCTP_USDC, CctpSettlementProvider } from './cctp.js';
 import { cctpSolanaAddresses, evmAddressBytes32, MESSAGE_TRANSMITTER_V2, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { encodeFunction } from '../engine/abiGeneric.js';
 import type { SettlementIntent } from './types.js';
 

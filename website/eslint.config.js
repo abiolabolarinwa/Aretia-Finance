@@ -11,4 +11,22 @@ export default [
   ...tseslint.configs.recommended,
   ...astro.configs.recommended,
   { languageOptions: { globals: { ...globals.browser } } },
+  // Architecture boundary (docs/architecture/PROPOSAL.md): the Swings library must not depend on the UI-script or
+  // page layers. Report-only ('warn') while the known violations in docs/architecture/BOUNDARY_EXCEPTIONS.md are
+  // being removed; promote to 'error' once that list is empty.
+  {
+    files: ['src/swings/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.live.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            { group: ['**/scripts/*', '**/scripts/**'], message: 'src/swings must not import from src/scripts (UI layer).' },
+            { group: ['**/pages/**'], message: 'src/swings must not import from src/pages.' },
+          ],
+        },
+      ],
+    },
+  },
 ];

@@ -54,7 +54,7 @@ describe('live: Raydium CPMM direct', () => {
 
 import { buildCpmmSwapTransaction, type CpmmSwapStep } from './builder.js';
 import { simulateSolanaSwap } from './simulate.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 
 /**
  * A real, well-known funded wallet (a large exchange hot wallet holding SOL and USDC in its associated account), used
@@ -365,7 +365,7 @@ describe('live: protected sending (nothing signed or sent)', () => {
 
 import { PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
 import { buildRouteTransaction } from './builder.js';
-import { TOKEN_PROGRAM_ID as SPL_TOKEN } from '../../scripts/walletTools.js';
+import { TOKEN_PROGRAM_ID as SPL_TOKEN } from '../core/solanaTools.js';
 
 describe('live: PumpSwap (pump.fun AMM), simulation only', () => {
   /** Real PumpSwap pools against SOL, by liquidity, from GeckoTerminal; the pool itself is then found by derivation, not trusted from the list. */

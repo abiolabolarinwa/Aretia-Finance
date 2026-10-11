@@ -14,7 +14,7 @@
  * it is supplied, EVM swaps are blocked with a plain message instead of quietly skipping the fee. Missing configuration
  * blocks execution; nothing falls back to another address.
  */
-import { SWAP_FEE_WALLET } from '../../scripts/walletTools.js';
+import { SWAP_FEE_WALLET } from './solanaTools.js';
 import { isFeeAsset } from './feeAssets.js';
 import { CHAIN_IDS, type AretiaChainFeeConfig, type AretiaFeeConfig, type AretiaFeePolicy, type ChainId } from './types.js';
 

@@ -1,7 +1,7 @@
 /**
  * What was pasted into the Shield box. Pure: it looks at the text only, never at the network.
  */
-import { isSolanaAddress } from '../../scripts/walletTools.js';
+import { isSolanaAddress } from '../core/solanaTools.js';
 import { hasValidChecksum } from '../core/keccak.js';
 
 export type Classified =

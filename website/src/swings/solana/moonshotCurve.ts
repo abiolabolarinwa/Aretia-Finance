@@ -14,7 +14,7 @@
  * is served by the pool it migrated to.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';

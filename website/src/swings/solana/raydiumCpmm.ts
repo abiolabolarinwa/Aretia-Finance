@@ -12,7 +12,7 @@ import type * as Web3 from '@solana/web3.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
-import { TOKEN_2022_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { TOKEN_2022_PROGRAM_ID } from '../core/solanaTools.js';
 
 export const RAYDIUM_CPMM_PROGRAM = 'CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C';
 export const DEFAULT_CONFIG_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7] as const;

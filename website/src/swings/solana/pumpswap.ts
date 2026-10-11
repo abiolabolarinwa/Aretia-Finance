@@ -15,7 +15,7 @@
  * only after its account is read from the chain: owned by the PumpSwap program, holding exactly this pair.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress } from '../../scripts/walletTools.js';
+import { ataAddress } from '../core/solanaTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';

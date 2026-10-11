@@ -15,7 +15,7 @@
  * is a different venue. Quote tokens other than wrapped SOL and USDC are not looked for.
  */
 import type * as Web3 from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';

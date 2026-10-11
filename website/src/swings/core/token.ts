@@ -1,4 +1,4 @@
-import { isSolanaAddress } from '../../scripts/walletTools.js';
+import { isSolanaAddress } from './solanaTools.js';
 import { hasValidChecksum } from './keccak.js';
 import { CHAINS, isChainId, type ChainId, type TokenRef } from './types.js';
 

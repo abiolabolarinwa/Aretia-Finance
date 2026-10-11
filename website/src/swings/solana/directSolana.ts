@@ -12,7 +12,7 @@
  * carries that account, so the simulation runs from the account that would really sign.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../core/solanaTools.js';
 import { DEFAULT_FEE_CONFIG, FEE_PERCENT, planAretiaFee } from '../core/fee.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';

@@ -14,7 +14,7 @@
  * Scope, stated plainly: curves in their trading state only. A graduated token trades on Raydium, which is another venue.
  */
 import type * as Web3 from '@solana/web3.js';
-import { createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';

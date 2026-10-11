@@ -346,7 +346,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     phase: 'idle' as Phase,
     quote: null as Quote | null,
     alternatives: [] as Quote[],
-    failures: [] as string[],
+    /** What each provider said when it gave no route. `answered` means it replied that it has none; otherwise it did not reply. */
+    failures: [] as { text: string; answered: boolean }[],
     prepared: null as PreparedSwap | null,
     extraBlockers: [] as string[],
     sizeImpact: null as number | null,
@@ -624,12 +625,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const best = routes[0];
       if (!best) {
         if (silent && s.quote) return;
-        s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
+        s.failures = search.failures.map((f) => ({ text: `${providerLabel(f.providerId)}: ${f.message}`, answered: f.answered === true }));
         s.phase = 'idle';
-        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : 'No route was found for this swap. Try a different amount or token.';
+        // The provider's own reason comes first: "try a different token" is wrong advice when the real problem is, say, too little SOL.
+        const reason = search.failures.find((f) => f.answered)?.message;
+        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : reason ? `No route was found for this swap. ${reason}` : 'No route was found for this swap. Try a different amount or token.';
         return render();
       }
-      s.failures = search.failures.map((f) => `${f.providerId}: ${f.message}`);
+      s.failures = search.failures.map((f) => ({ text: `${providerLabel(f.providerId)}: ${f.message}`, answered: f.answered === true }));
       // A quiet refresh keeps the old price and its checked transaction on screen, and swaps both for the new pair at once,
       // so a click can never meet a price whose transaction is not ready.
       if (!silent || !s.quote) {
@@ -1223,7 +1226,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       label.append(box, el('span', { text: ' Protected sending (Jito): sent privately, with a tip of about 0.00001 SOL, to lower the chance of being sandwiched. Not a guarantee.' }));
       more.append(label);
     }
-    for (const f of s.failures) more.append(el('p', { class: 'wapp__fine', text: `A provider did not answer (${f}).${s.quote ? ' Other routes were used.' : ''}` }));
+    for (const f of s.failures) more.append(el('p', { class: 'wapp__fine', text: f.answered ? `${f.text}${s.quote ? ' Other routes were used.' : ''}` : `A provider did not answer (${f.text}).${s.quote ? ' Other routes were used.' : ''}` }));
     if (ready && s.quote) {
       const q = s.quote;
       more.append(el('span', { class: 'wapp__eyebrow', text: 'The route' }));

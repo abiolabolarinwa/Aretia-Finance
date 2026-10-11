@@ -81,6 +81,49 @@ describe('failure handling: providers and failover', () => {
     expect(back.routes.map((x) => x.providerId).sort()).toEqual(['flaky', 'ok']);
   });
 
+  it('never switches a provider off for saying "no route": only real faults count, however many tokens it cannot trade', async () => {
+    const now = 1_000;
+    const own = new MockDexProvider({ id: 'own', now: () => now });
+    const real = own.getQuote.bind(own);
+    let tradable = false;
+    own.getQuote = async (q) => (tradable ? real(q) : Promise.reject(new SwingsError('no-route', 'No pool Aretia reads directly can fill this trade.')));
+    const r = new AretiaRouter({ providers: [own], adapters: [], isChainEnabled: () => true, now: () => now, breakerThreshold: 3, breakerCooldownMs: 60_000 });
+    for (let i = 0; i < 10; i++) {
+      const res = await r.findRoutes(request);
+      expect(res.routes).toEqual([]);
+      // It answered, in its own words, and is never reported as skipped or as not answering.
+      expect(res.failures).toEqual([{ providerId: 'own', message: 'No pool Aretia reads directly can fill this trade.', answered: true }]);
+    }
+    tradable = true; // a token it can trade is quoted at once, with no cooldown to wait out
+    expect((await r.findRoutes(request)).routes.map((x) => x.providerId)).toEqual(['own']);
+  });
+
+  it('counts timeouts, network errors and provider-failed as faults, and a clean answer in between resets the count', async () => {
+    const now = 1_000;
+    const p = new MockDexProvider({ id: 'p', now: () => now });
+    const errors: unknown[] = [new Error('503'), new SwingsError('provider-failed', 'bad gateway'), new SwingsError('no-route', 'none'), new Error('503'), new Error('503')];
+    p.getQuote = async () => Promise.reject(errors.shift());
+    const other = new MockDexProvider({ id: 'other', now: () => now });
+    const r = new AretiaRouter({ providers: [p, other], adapters: [], isChainEnabled: () => true, now: () => now, breakerThreshold: 3, breakerCooldownMs: 60_000 });
+    for (let i = 0; i < 5; i++) await r.findRoutes(request);
+    // fault, fault, answer (resets), fault, fault: never three in a row, so it is still asked
+    expect((await r.findRoutes(request).catch(() => null))?.failures.some((f) => f.message.startsWith('Temporarily skipped'))).toBe(false);
+  });
+
+  it('still asks every provider when all of them would be skipped, so a hiccup cannot become an outage', async () => {
+    const now = 1_000;
+    let healthy = false;
+    const a = new MockDexProvider({ id: 'a', now: () => now });
+    const real = a.getQuote.bind(a);
+    a.getQuote = async (q) => (healthy ? real(q) : Promise.reject(new Error('503')));
+    const r = new AretiaRouter({ providers: [a], adapters: [], isChainEnabled: () => true, now: () => now, breakerThreshold: 3, breakerCooldownMs: 60_000 });
+    for (let i = 0; i < 3; i++) await r.findRoutes(request); // three real faults: it would now be skipped
+    healthy = true; // it has recovered, but the cooldown has not run out
+    const res = await r.findRoutes(request);
+    expect(res.routes.map((x) => x.providerId)).toEqual(['a']);
+    expect(res.failures).toEqual([]);
+  });
+
   it('measures how much worse a fallback route is, so the user can accept it explicitly', () => {
     expect(AretiaRouter.degradationBps(quote(1_000n), quote(900n))).toBe(1_000);
     expect(AretiaRouter.degradationBps(quote(1_000n), quote(1_100n))).toBe(0);

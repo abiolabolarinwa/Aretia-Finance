@@ -22,7 +22,7 @@ import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { ratingKey } from './walletRatingGuide.js';
-import { notify } from './walletNotifications.js';
+import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
@@ -205,9 +205,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     res.alerts.forEach((a, i) => {
       const up = a.movePct > 0;
       const note = { title: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon } as const;
+      const token = { chain: a.chain, address: a.address, symbol: a.symbol, name: favourites.list().find((f) => f.chain === a.chain && f.address === a.address)?.name ?? a.symbol };
       if (i < 5) toaster.show(note);
       // Every alert goes to the bell; a burst rings once, for the biggest move.
-      notify(note, { quiet: i > 0 });
+      notify({ ...note, token }, { quiet: i > 0 });
     });
     if (res.alerts.length > 0) alertsChanged();
   }
@@ -1448,7 +1449,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = rateRows(filled);
         } else if (m.kind === 'favourites') {
-          const favs = favourites.list().filter((f) => !m.chain || f.chain === m.chain);
+          // Favourites are one list, whichever network each token is on.
+          const favs = favourites.list();
           const got = await rowsFromFavourites(favs);
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
@@ -1595,12 +1597,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
         bar.append(win);
       }
+      // Favourites are one list across every network, so the network filter is not offered there.
+      if (m.kind !== 'favourites') {
+        bar.append(
+          select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
+            m.chain = v as typeof m.chain;
+            pageNo = 1;
+            void load();
+          }),
+        );
+      }
       bar.append(
-        select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
-          m.chain = v as typeof m.chain;
-          pageNo = 1;
-          void load();
-        }),
         select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; refilter(); }),
         select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
         select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Couldn\'t check']], (v) => { f.risk = v; refilter(); }),
@@ -1730,6 +1737,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
             void load();
           }
         }
+      },
+      /** A token from a notification: its details and chart open in the panel, or as the token page on a narrow screen. */
+      async showToken(t: { chain: ChainId; address: string; symbol: string; name: string; icon: string | null }): Promise<void> {
+        const got = await rowsFromFavourites([{ ...t, addedAt: Date.now() }]).catch(() => [] as MarketRow[]);
+        const row = got[0];
+        if (!row) return;
+        const [rated] = applyRatings([row], await fetchRatings([row]).catch(() => []));
+        pick(rateRows([rated ?? row])[0]!);
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
       setChain(id: ChainId): void {
@@ -1889,6 +1904,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   };
   window.matchMedia('(min-width: 1081px)').addEventListener('change', placeTabs);
   placeTabs();
+  window.addEventListener(SHOW_MARKET_EVENT, (e) => {
+    const t = (e as CustomEvent<{ chain: ChainId; address: string; symbol: string; name: string; icon: string | null }>).detail;
+    void (async () => {
+      // From any other page it opens on Favourites, where these alerts come from; Markets and Favourites stay where they are.
+      if (!['#/swings', '#/favourites'].includes(location.hash)) {
+        location.hash = '#/favourites';
+        await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+      await markets.showToken(t);
+    })();
+  });
   window.addEventListener(OPEN_TOKEN_EVENT, (e) => {
     const t = (e as CustomEvent<SearchHit>).detail;
     void (async () => {

@@ -24,7 +24,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     origin: requestOrigin(req.headers),
     authorization: one(req.headers.authorization),
     ip: 'cron',
-    query: { chain: one(req.query?.chain) ?? undefined },
+    query: { chain: one(req.query?.chain) ?? undefined, stage: one(req.query?.stage) ?? undefined },
     env: process.env,
     fetchImpl: fetch,
     now: Date.now(),

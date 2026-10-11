@@ -106,12 +106,19 @@ export function mergeHits(registry: SearchHit[], gecko: SearchHit[], limit = 10)
   return [...seen.values()].sort((a, b) => (b.liquidityUsd ?? -1) - (a.liquidityUsd ?? -1)).slice(0, limit);
 }
 
-export async function searchTokens(query: string, fetchImpl: typeof fetch = (...a) => fetch(...a), signal?: AbortSignal): Promise<SearchHit[]> {
+export interface SearchOptions {
+  /** Keep only results this accepts. Applied before the limit, so unwanted results never take a place. */
+  accept?: (hit: SearchHit) => boolean;
+  limit?: number;
+}
+
+export async function searchTokens(query: string, fetchImpl: typeof fetch = (...a) => fetch(...a), signal?: AbortSignal, options: SearchOptions = {}): Promise<SearchHit[]> {
   const q = query.trim().slice(0, 80);
   if (q.length < 2 || isOffensive(q)) return [];
   const [registry, gecko] = await Promise.allSettled([
     fetchImpl(`/api/swings-tokens?q=${encodeURIComponent(q)}`, { signal }).then((r) => (r.ok ? r.json() : null)).then(parseRegistrySearch),
     fetchImpl(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(q)}&include=base_token&page=1`, { headers: { accept: 'application/json' }, signal }).then((r) => (r.ok ? r.json() : null)).then(parseGeckoSearch),
   ]);
-  return mergeHits(registry.status === 'fulfilled' ? registry.value : [], gecko.status === 'fulfilled' ? gecko.value : []);
+  const keep = options.accept ?? (() => true);
+  return mergeHits((registry.status === 'fulfilled' ? registry.value : []).filter(keep), (gecko.status === 'fulfilled' ? gecko.value : []).filter(keep), options.limit);
 }

@@ -97,6 +97,16 @@ describe('watching', () => {
     store.remove('X');
     expect(store.has('X')).toBe(false);
   });
+  it('treats an Ethereum-style address as one item in any letter case, so the Markets panel and a pasted address agree', () => {
+    const store = new WatchStore(memory(), () => 1);
+    const checksummed = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    expect(store.add(checksummed.toLowerCase(), 'USDC', null)).toBe(true);
+    expect(store.has(checksummed)).toBe(true);
+    store.add(checksummed, null, null);
+    expect(store.list()).toHaveLength(1);
+    store.remove(checksummed);
+    expect(store.has(checksummed.toLowerCase())).toBe(false);
+  });
   it('ignores damaged storage', () => {
     const m = memory();
     m.data.set('aretia-shield-watch-v1', '{oops');

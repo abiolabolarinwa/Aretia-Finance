@@ -12,6 +12,8 @@ import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
 import { ratingGuide } from './walletRatingGuide.js';
 import { checkHash } from '../swings/shield/classify.js';
+import { WatchStore } from '../swings/shield/watch.js';
+import { browserStorage } from '../swings/history.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
@@ -164,11 +166,12 @@ export function createMarketPanel(o: MarketPanelOptions) {
     head.append(chip);
     box.append(head);
     if (check.state === 'loading') {
-      box.append(el('p', 'wapp__fine', 'Checking this token on-chain…'));
+      box.append(el('p', 'wapp__fine', 'Checking this token on-chain…'), shieldRow(r, shieldLink(r)));
       return box;
     }
     if (!check.risk) {
       box.append(el('p', 'wapp__fine', r.risk && r.risk.basis !== 'market' ? 'The live on-chain check could not be made just now. The rating above is Aretia’s earlier one.' : 'Aretia could not read this token on-chain (it may not be a standard token, or the network did not answer). Until it can, treat it as unchecked and look into it yourself before buying.'));
+      box.append(shieldRow(r, shieldLink(r)));
       return box;
     }
     const v = describeSafety(check.risk);
@@ -181,11 +184,43 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const more = el('details', 'wapp-mp__more');
     more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
     more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
+    box.append(more, ratingGuide(), shieldRow(r, shieldLink(r)));
+    return box;
+  }
+
+  function shieldLink(r: MarketRow): HTMLElement {
     const full = el('a', 'wapp-mp__shieldlink', 'Full Shield report');
     full.href = checkHash(r.address);
     full.title = 'Open this token in Shield: the colour, every finding, what could not be checked, and a link to share';
-    box.append(more, ratingGuide(), full);
-    return box;
+    return full;
+  }
+
+  /**
+   * "Watch" under the check: Shield re-checks the token while the wallet page is open and rings the bell only if its rating gets worse.
+   * It is the same watchlist as Shield's own, so the token shows in Shield's Watching tab.
+   */
+  function shieldRow(r: MarketRow, report: HTMLElement): HTMLElement {
+    const row = el('div', 'wapp-mp__shieldrow');
+    const store = new WatchStore(browserStorage());
+    const watch = el('button', 'wapp-mp__watch');
+    watch.type = 'button';
+    const paint = (): void => {
+      const on = store.has(r.address);
+      watch.textContent = on ? 'Watching ✓' : 'Watch for changes';
+      watch.setAttribute('aria-pressed', String(on));
+      watch.title = on ? 'Shield will tell you in the bell if this token gets worse. Press to stop.' : 'Shield re-checks this token while the wallet page is open and rings the bell if its rating gets worse.';
+    };
+    paint();
+    watch.addEventListener('click', () => {
+      if (store.has(r.address)) store.remove(r.address);
+      else if (!store.add(r.address, r.symbol || null, null)) {
+        watch.textContent = 'Watchlist is full (30)';
+        return;
+      }
+      paint();
+    });
+    row.append(watch, report);
+    return row;
   }
 
   /** The numbers as one grid table: size, price change by time window, and what traded in the window that is picked. */

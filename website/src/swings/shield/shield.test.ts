@@ -168,6 +168,7 @@ describe('verdicts', () => {
     expect(v.headline).toBe('Do not send or sign. terrible');
     expect(headlineFor('green', [f('ok')])).toMatch(/not a promise of safety/);
     expect(headlineFor('grey', [])).toBe('Shield could not tell.');
+    expect(headlineFor('yellow', [f('ok')], 'Unverified')).toBe('Worth a second look. Aretia rates it "Unverified": read what was checked below.');
   });
   it('writes a share text with the colour, the top findings and a link that re-runs the check, and nothing private', () => {
     const v = buildVerdict({ subject: { ...subject, label: 'Mystery' }, findings: [f('bad', 'It is a trap'), f('ok', 'passed')], couldNot: [], now: NOW });

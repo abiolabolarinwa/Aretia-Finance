@@ -59,6 +59,9 @@ function valid(v: unknown): v is WatchItem {
   return typeof w.value === 'string' && w.value.length > 0 && w.value.length <= 2048 && (w.label === null || typeof w.label === 'string') && typeof w.addedAt === 'number' && (w.checkedAt === null || typeof w.checkedAt === 'number') && (w.last === null || (typeof w.last === 'object' && typeof w.last.band === 'string' && Array.isArray(w.last.issues) && typeof w.last.locked === 'boolean'));
 }
 
+/** An Ethereum-style address is the same address in any letter case, so it is kept in one form: the Markets panel and a pasted address must be the same item. */
+const norm = (value: string): string => (/^0x[0-9a-fA-F]{40}$/.test(value) ? value.toLowerCase() : value);
+
 export class WatchStore {
   constructor(private readonly storage: StorageLike | null, private readonly now: () => number = Date.now) {}
 
@@ -81,25 +84,28 @@ export class WatchStore {
   }
 
   has(value: string): boolean {
-    return this.list().some((w) => w.value === value);
+    const v = norm(value);
+    return this.list().some((w) => norm(w.value) === v);
   }
 
   /** Starts watching, from the verdict the person is looking at now. Returns false when the list is full. */
   add(value: string, label: string | null, verdict: Verdict | null): boolean {
     const items = this.list();
-    if (items.some((w) => w.value === value)) return true;
+    if (this.has(value)) return true;
     if (items.length >= WATCH_MAX) return false;
-    items.unshift({ value, label, addedAt: this.now(), checkedAt: verdict ? this.now() : null, last: verdict ? fingerprintOf(verdict) : null });
+    items.unshift({ value: norm(value), label, addedAt: this.now(), checkedAt: verdict ? this.now() : null, last: verdict ? fingerprintOf(verdict) : null });
     this.write(items);
     return true;
   }
 
   remove(value: string): void {
-    this.write(this.list().filter((w) => w.value !== value));
+    const v = norm(value);
+    this.write(this.list().filter((w) => norm(w.value) !== v));
   }
 
   /** Saves the outcome of a re-check. */
   record(value: string, verdict: Verdict): void {
-    this.write(this.list().map((w) => (w.value === value ? { ...w, checkedAt: this.now(), last: fingerprintOf(verdict), label: verdict.subject.label ?? w.label } : w)));
+    const v = norm(value);
+    this.write(this.list().map((w) => (norm(w.value) === v ? { ...w, checkedAt: this.now(), last: fingerprintOf(verdict), label: verdict.subject.label ?? w.label } : w)));
   }
 }

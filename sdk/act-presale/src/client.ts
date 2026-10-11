@@ -255,7 +255,9 @@ export class ActPresaleClient {
     paymentVault: PublicKey,
     buyerPaymentAccount: PublicKey,
     paymentTokenProgram: PublicKey,
-    paymentAmount: bigint | number
+    paymentAmount: bigint | number,
+    /** The ACT mint (`config.actMint`). Required since F-20: the program reads its live transfer-fee config to check the sale against the funded reserve. */
+    actMint: PublicKey
   ): TransactionInstruction {
     const [config] = this.configPda();
     const [buyerAccount] = this.buyerAccountPda(buyer);
@@ -269,11 +271,13 @@ export class ActPresaleClient {
       { pubkey: buyerPaymentAccount, isSigner: false, isWritable: true },
       { pubkey: paymentTokenProgram, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: actMint, isSigner: false, isWritable: false },
     ];
     return new TransactionInstruction({ programId: this.programId, keys, data });
   }
 
-  ixBuyWithSol(buyer: PublicKey, priceUpdate: PublicKey, lamports: bigint | number): TransactionInstruction {
+  /** `actMint` is `config.actMint` (required since F-20, see `ixBuy`). */
+  ixBuyWithSol(buyer: PublicKey, priceUpdate: PublicKey, lamports: bigint | number, actMint: PublicKey): TransactionInstruction {
     const [config] = this.configPda();
     const [buyerAccount] = this.buyerAccountPda(buyer);
     const [vaultAuthority] = this.vaultAuthorityPda();
@@ -285,6 +289,7 @@ export class ActPresaleClient {
       { pubkey: vaultAuthority, isSigner: false, isWritable: true },
       { pubkey: priceUpdate, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: actMint, isSigner: false, isWritable: false },
     ];
     return new TransactionInstruction({ programId: this.programId, keys, data });
   }

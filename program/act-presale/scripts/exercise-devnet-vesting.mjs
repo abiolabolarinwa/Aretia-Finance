@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// NOTE (F-20, 2026-10-11): `buy` / `buy_with_sol` now take the ACT mint as an extra trailing account (the program checks
+// sales against the funded reserve). This script predates that change: it is valid only against the OLD devnet build.
+// Before reusing it with a rebuilt program, append `{ pubkey: <config.act_mint>, isSigner: false, isWritable: false }` to buyKeys.
 /**
  * act-presale -- multi-checkpoint vesting devnet exercise
  * ---------------------------------------------------------------------

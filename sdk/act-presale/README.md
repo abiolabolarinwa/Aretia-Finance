@@ -52,3 +52,5 @@ Buyer-facing instructions as convenience builders: `buy`, `buy_with_sol`, `refun
 ## SOL payments need a live Pyth price update
 
 `buy_with_sol` requires a `PriceUpdateV2` account posted on-chain immediately before (or in the same transaction as) your call -- see the module-level doc comment in `lib.rs` and `program/act-presale/scripts/exercise-devnet-buy-with-sol.mjs` for a full working example using `@pythnetwork/pyth-solana-receiver` and `@pythnetwork/hermes-client`.
+
+> `ixBuy` and `ixBuyWithSol` take `actMint` (the config's ACT mint) as a required last argument since F-20; the program reads its transfer-fee config to check sales against the funded reserve.

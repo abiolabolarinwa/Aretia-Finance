@@ -1,8 +1,8 @@
 name: programs-ci
 
-# Host-side checks for the Anchor programs: compile and unit-test the pure decision logic (policy.rs, authority_handoff.rs).
-# Verified locally with rustc 1.97.0 and the committed Cargo.lock files. NOT covered: the SBF build, the TypeScript
-# devnet/validator suites, and instruction-level account-constraint behaviour (see docs/audit/TEST_EVIDENCE.md).
+# Checks for the Anchor programs. `host`: compile and unit-test the pure decision logic (policy.rs, authority_handoff.rs).
+# Verified locally with rustc 1.97.0 and the committed Cargo.lock files. NOT covered by `host`: the SBF build, the TypeScript
+# devnet/validator suites. `onchain` (below) covers the SBF build and the LiteSVM suites.
 # Nothing here deploys or touches a cluster.
 on:
   push:
@@ -28,3 +28,19 @@ jobs:
       - run: rustup toolchain install 1.97.0 --profile minimal
       - run: cargo +1.97.0 check --locked
       - run: cargo +1.97.0 test --lib --locked
+
+  onchain:
+    # Builds the SBF binaries and runs the LiteSVM suites in program/svm-tests. Slow on a cold cache (installs cargo-build-sbf,
+    # downloads Solana platform-tools). Verified locally with exactly these commands.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.1 --profile minimal
+      - run: cargo install cargo-build-sbf --locked --version 4.4.0
+      - run: cargo build-sbf
+        working-directory: program/act-staking
+      - run: cargo build-sbf
+        working-directory: program/act-presale
+      - run: cargo +1.97.1 test
+        working-directory: program/svm-tests

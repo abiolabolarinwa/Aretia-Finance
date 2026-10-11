@@ -1,0 +1,24 @@
+[package]
+name = "act-svm-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "On-chain (LiteSVM) tests for act-presale and act-staking. Tests only; nothing here is shipped or deployed."
+
+# Standalone on purpose: LiteSVM pulls newer Solana crates than the Anchor 0.30.1 programs use, so this crate must not
+# share a lockfile or workspace with them. Build the programs first (see README.md).
+[workspace]
+
+[dev-dependencies]
+litesvm = "0.17.0"
+solana-account = "4.3"
+solana-address = { version = "2.7", features = ["curve25519", "sha2"] }
+solana-clock = "3.2"
+solana-instruction = "3.5"
+solana-keypair = "3.1"
+solana-signer = "3.0"
+solana-transaction = "4.1"
+sha2 = "0.10"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow" }

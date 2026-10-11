@@ -12,17 +12,34 @@ permissions: {}
 
 jobs:
   discover:
-    name: discover (${{ matrix.chain }})
+    name: discover (${{ matrix.chain }}, ${{ matrix.stage }})
     runs-on: ubuntu-latest
     timeout-minutes: 3
-    # One network per job, so a slow one cannot hold up or fail the rest.
+    # One network and one part of its work per job, so a slow one cannot hold up or fail the rest. Each request is
+    # allowed 60 seconds on the site; the busiest networks have their slow parts in separate requests.
     strategy:
       fail-fast: false
       matrix:
-        chain: [solana, ethereum, bnb, polygon, base, arbitrum, optimism, avalanche, robinhood]
+        include:
+          - { chain: solana, stage: feeds }
+          - { chain: solana, stage: own }
+          - { chain: solana, stage: refresh }
+          - { chain: ethereum, stage: feeds }
+          - { chain: ethereum, stage: own }
+          - { chain: ethereum, stage: refresh }
+          - { chain: bnb, stage: feeds }
+          - { chain: bnb, stage: own }
+          - { chain: bnb, stage: refresh }
+          - { chain: polygon, stage: 'feeds,own,refresh' }
+          - { chain: base, stage: 'feeds,own,refresh' }
+          - { chain: arbitrum, stage: 'feeds,own,refresh' }
+          - { chain: optimism, stage: 'feeds,own,refresh' }
+          - { chain: avalanche, stage: 'feeds,own,refresh' }
+          - { chain: robinhood, stage: 'feeds,own,refresh' }
     env:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       CHAIN: ${{ matrix.chain }}
+      STAGE: ${{ matrix.stage }}
     steps:
       - name: Skip until the secret is set
         if: env.CRON_SECRET == ''
@@ -30,10 +47,10 @@ jobs:
       - name: Run discovery
         if: env.CRON_SECRET != ''
         run: |
-          status=$(curl -sS -m 90 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" "https://aretiafinance.org/api/swings-discover?chain=${CHAIN}")
+          status=$(curl -sS -m 90 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" "https://aretiafinance.org/api/swings-discover?chain=${CHAIN}&stage=${STAGE}")
           echo "HTTP ${status}"
           head -c 600 response.json || true
           echo
           # A source that failed is reported in the answer (HTTP stays 200 so the other sources still run): show it as a warning.
-          if grep -Eq '"error":"' response.json; then echo "::warning::${CHAIN}: at least one source reported an error. See the answer printed above."; fi
+          if grep -Eq '"error":"' response.json; then echo "::warning::${CHAIN} (${STAGE}): at least one source reported an error. See the answer printed above."; fi
           test "$status" = "200"

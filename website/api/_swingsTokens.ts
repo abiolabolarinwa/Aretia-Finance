@@ -138,6 +138,8 @@ const BUSY_CHAINS: ReadonlySet<ChainId> = new Set<ChainId>(['solana', 'ethereum'
 
 /** Longest one outgoing request may take during discovery, so one slow service cannot hold up the whole run. */
 export const DISCOVER_REQUEST_MS = 8_000;
+/** How long a discovery request keeps starting new work; the function itself may run for 60 seconds. */
+export const DISCOVER_BUDGET_MS = 45_000;
 
 /** Wraps a fetch so each request gives up after `ms` (unless the caller already passes its own signal). */
 export function withTimeout(fetchImpl: typeof fetch, ms: number): typeof fetch {
@@ -153,6 +155,17 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const only = input.query.chain ? (isChainId(input.query.chain) ? input.query.chain : null) : undefined;
   if (only === null) return json(400, { error: 'chain' }, headers);
   const chains: readonly ChainId[] = only ? [only] : CHAIN_IDS;
+  // `?stage=feeds,own,refresh` picks which parts run (default: all), so the slow parts of a busy network can be separate requests.
+  const stages = new Set((input.query.stage ?? 'feeds,own,refresh').split(',').map((x) => x.trim()).filter(Boolean));
+  if (stages.size === 0 || [...stages].some((x) => !['feeds', 'own', 'refresh'].includes(x))) return json(400, { error: 'stage' }, headers);
+  // Whatever is left when the time budget is spent is skipped and named in the answer, so a slow run still ends with a normal reply.
+  const started = Date.now();
+  const skipped: string[] = [];
+  const outOfTime = (what: string): boolean => {
+    if (Date.now() - started < DISCOVER_BUDGET_MS) return false;
+    skipped.push(what);
+    return true;
+  };
   input = { ...input, fetchImpl: withTimeout(input.fetchImpl, DISCOVER_REQUEST_MS) };
   const repo = repoFor(input.env, input.fetchImpl);
   if (!repo) return json(503, { error: 'not-configured' }, headers);
@@ -161,7 +174,8 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const solanaRpc = rpcFor(input.env.SOLANA_RPC_URL?.trim() || PUBLIC_FALLBACK_RPC, input.fetchImpl);
   const runs: WorkerRun[] = [];
   // One worker shape for every chain; only the source's chain and the enricher differ.
-  for (const chain of chains) {
+  for (const chain of stages.has('feeds') ? chains : []) {
+    if (outOfTime(`feeds:${chain}`)) continue;
     let enricher: TokenEnricher | null = null;
     if (chain === 'solana') enricher = new SolanaTokenEnricher(solanaRpc, () => input.now);
     else {
@@ -179,11 +193,12 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     // right now (which finds active tokens whose pool was created while no run was looking).
     const extra: GeckoTerminalNewPoolsSource[] = [new GeckoTerminalNewPoolsSource(chain, input.fetchImpl, { feed: 'trending' })];
     if (BUSY_CHAINS.has(chain)) extra.push(new GeckoTerminalNewPoolsSource(chain, input.fetchImpl, { page: 2 }));
-    for (const source of extra) runs.push(await new TokenDiscoveryWorker(source, registry, repo, enricher, () => input.now).runOnce());
+    for (const source of extra) if (!outOfTime(`${source.id}`)) runs.push(await new TokenDiscoveryWorker(source, registry, repo, enricher, () => input.now).runOnce());
   }
   // Aretia's own feed: the factory events of each direct venue, read from confirmed blocks. It uses the same worker,
   // registry and cursors as the third-party feed above, and the same on-chain enrichment.
-  for (const entry of EVM_V2_DEXES.filter((e) => chains.includes(e.chain as ChainId))) {
+  for (const entry of stages.has('own') ? EVM_V2_DEXES.filter((e) => chains.includes(e.chain as ChainId)) : []) {
+    if (outOfTime(`own:${entry.chain}`)) continue;
     const url = input.env[EVM_ENV[entry.chain as Exclude<ChainId, 'solana'>]]?.trim();
     const read = url ? ((method: string, params: unknown[]) => rpcFor(url, input.fetchImpl)<unknown>(method, params)) : publicRead(entry.chain, input.fetchImpl);
     const enricher = url
@@ -196,7 +211,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     runs.push(await worker.runOnce());
   }
   // Aretia's own Solana feed: pool-creation transactions of Raydium CPMM and Orca, decoded from finalized blocks.
-  if (chains.includes('solana')) {
+  if (stages.has('own') && chains.includes('solana') && !outOfTime('own:solana')) {
     const worker = new TokenDiscoveryWorker(new SolanaPoolDiscoverySource(() => import('@solana/web3.js'), solanaRpc, { now: () => input.now }), registry, repo, new SolanaTokenEnricher(solanaRpc, () => input.now), () => input.now);
     runs.push(await worker.runOnce());
   }
@@ -206,7 +221,8 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const supabaseUrl = supabaseBase(input.env.SUPABASE_URL);
   const ticks = supabaseUrl ? new SupabaseTickStore(supabaseUrl, input.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), input.fetchImpl) : null;
   const tickOf = (chain: ChainId, pool: string, m: TokenMarket): TickInput => ({ chain, pool: chain === 'solana' ? pool : pool.toLowerCase(), ts: m.at, price: m.priceUsd, liq: m.liquidityUsd, vol24: m.volume24hUsd });
-  for (const chain of chains) {
+  for (const chain of stages.has('refresh') ? chains : []) {
+    if (outOfTime(`refresh:${chain}`)) continue;
     const recorded: TickInput[] = [];
     if (repo.listForMarketRefresh) {
       try {
@@ -242,5 +258,5 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     }
   }
   if (ticks) await ticks.prune(input.now).catch(() => undefined);
-  return json(200, { runs, refresh }, headers);
+  return json(200, { runs, refresh, skipped }, headers);
 }

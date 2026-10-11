@@ -1344,7 +1344,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       },
     });
 
-    // "Full chart" opens the chart in the centre, above the list, on a wide screen. It lives in its own element that a redraw of
+    // Picking a token (or "Full chart") opens the chart in the centre, above the list, on a wide screen. It lives in its own element that a redraw of
     // the list leaves alone, because taking an embedded chart out of the page and putting it back reloads it.
     const chartHost = el('section', { class: 'wapp-mt__chart', attrs: { 'aria-label': 'Price chart' } });
     chartHost.hidden = true;
@@ -1409,8 +1409,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (!panelShown()) return openRow(r);
       panel.show(r);
       if (tableEl) markSelected(tableEl, tableRowKey(r));
-      // With the chart open, it follows the token that was picked.
-      if (chartRow) showChart(r);
+      // Picking a token opens its chart at once, in the centre above the list; a token picked after that swaps the chart to it.
+      showChart(r);
     }
 
     async function load(silent = false): Promise<void> {

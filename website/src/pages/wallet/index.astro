@@ -1252,6 +1252,10 @@ const sendTips = [
   .wapp-pay { width: 100%; max-width: 1080px; justify-self: start; }
   .wapp-pay [data-pay-panel='ramp'], .wapp-pay [data-pay-panel='transfer'] { width: 100%; max-width: 680px; justify-self: start; }
   @media (min-width: 961px) { .wapp-pay [data-pay-panel='send'] .wapp__grid--trade { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+  /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
+  .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: start; }
+  .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) { width: 100%; max-width: 1120px; justify-self: start; }
+  @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
 
   /* ---- Swap opened over the page it was started from ---- */
   .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }

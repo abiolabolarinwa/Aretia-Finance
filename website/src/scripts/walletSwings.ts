@@ -22,6 +22,7 @@ import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { ratingKey } from './walletRatingGuide.js';
+import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
@@ -35,7 +36,7 @@ import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
-import { AlertStore, evaluateMoves, PCT_CHOICES } from '../swings/account/priceAlerts.js';
+import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { sponsorBlock } from './walletSponsor.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
@@ -181,6 +182,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const account = new AccountClient(browserStorage());
   const favourites = new FavouriteStore(browserStorage());
   const alerts = new AlertStore(browserStorage());
+  const orders = new PriceOrderStore(browserStorage());
   const toaster = createToaster();
   let alertsChanged: () => void = () => undefined;
 
@@ -212,6 +214,36 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     });
     if (res.alerts.length > 0) alertsChanged();
   }
+  /** Latest price seen for each token that has a price order, so the Swap page can show it beside the target. */
+  const orderPrices: Record<string, number | null> = {};
+  let ordersChanged: () => void = () => undefined;
+  /**
+   * Reads the price of every token with a price order and tells the person about each one that has reached its target. Runs only while the
+   * page is open and visible. It never trades: the person opens the swap and confirms it themselves.
+   */
+  async function checkPriceOrders(): Promise<void> {
+    if (document.hidden) return;
+    const watching = orders.watching();
+    if (watching.length === 0) return;
+    const seen = new Map(watching.map((o) => [`${o.chain}:${o.address}`, o]));
+    let rows: MarketRow[];
+    try {
+      rows = await rowsFromFavourites([...seen.values()].map((o) => ({ chain: o.chain, address: o.address, symbol: o.symbol, name: o.name, icon: o.icon, addedAt: o.createdAt })));
+    } catch {
+      return;
+    }
+    for (const r of rows) orderPrices[watchKey(r.chain, r.address)] = r.priceUsd;
+    const hits = evaluateOrders(watching, orderPrices);
+    hits.forEach(({ order, price }, i) => {
+      orders.markHit(order.id, price);
+      const note = { title: `${order.symbol} reached ${formatPrice(order.targetUsd)}`, detail: `Your ${order.side} price. Now ${formatPrice(price)}. Open it to swap.`, tone: 'info', icon: order.icon } as const;
+      if (i < 5) toaster.show(note);
+      notify({ ...note, token: { chain: order.chain, address: order.address, symbol: order.symbol, name: order.name } }, { quiet: i > 0 });
+    });
+    ordersChanged();
+  }
+  setTimeout(() => void checkPriceOrders(), 6_000);
+  setInterval(() => void checkPriceOrders(), 30_000);
   setTimeout(() => void checkFavouritePrices(), 8_000);
   setInterval(() => void checkFavouritePrices(), 30_000);
   let accountMessage: string | null = null;
@@ -1206,8 +1238,57 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       for (const n of summarizeQuote(q).notes) if (!n.startsWith('No Aretia fee')) more.append(el('p', { class: 'wapp__fine', text: n }));
     }
     card.append(more);
+    card.append(priceOrderCard());
     renderPicker();
     updateActions();
+  }
+
+  /** "Tell me at this price": a watch on the token being bought (else sold) that rings when its price is reached. */
+  function priceOrderCard(): HTMLElement {
+    const box = el('details', { class: 'wapp__more wapp-po' });
+    const all = orders.list();
+    box.append(el('summary', { text: all.length === 0 ? 'Price orders' : `Price orders (${all.filter((o) => o.hitAt === null).length} watching)` }));
+    const picked = s.to ?? s.from;
+    let side: OrderSide = s.to ? 'buy' : 'sell';
+    if (picked) {
+      const key = watchKey(s.chain, picked.mint);
+      const now = el('p', { class: 'wapp__fine', text: `${picked.symbol} now: ${orderPrices[key] != null ? formatPrice(orderPrices[key] ?? null) : 'reading…'}` });
+      const sideSel = el('select', { class: 'wapp-po__side', attrs: { 'aria-label': 'Buy or sell' } }, [el('option', { text: 'Buy when the price falls to', attrs: { value: 'buy' } }), el('option', { text: 'Sell when the price rises to', attrs: { value: 'sell' } })]);
+      sideSel.value = side;
+      sideSel.addEventListener('change', () => { side = sideSel.value === 'sell' ? 'sell' : 'buy'; });
+      const price = el('input', { class: 'wapp-po__price', attrs: { inputmode: 'decimal', placeholder: 'Price in US dollars', autocomplete: 'off', 'aria-label': 'Target price in US dollars' } });
+      const add = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Tell me', attrs: { type: 'button' } });
+      const msg = el('p', { class: 'wapp__fine', attrs: { 'aria-live': 'polite' } });
+      add.addEventListener('click', () => {
+        const target = parseTarget(price.value);
+        if (target === null) { msg.textContent = 'Enter a price above zero, like 0.25.'; return; }
+        const made = orders.add({ chain: s.chain, address: picked.mint, symbol: picked.symbol, name: picked.name, icon: picked.icon ?? null, side, targetUsd: target });
+        if (!made) { msg.textContent = 'You have as many price orders as can be kept. Remove one first.'; return; }
+        void checkPriceOrders();
+        render();
+        swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', '');
+      });
+      box.append(now, el('div', { class: 'wapp-po__form' }, [sideSel, price, add]), msg);
+      if (orderPrices[key] === undefined) {
+        void rowsFromFavourites([{ chain: s.chain, address: picked.mint, symbol: picked.symbol, name: picked.name, icon: picked.icon ?? null, addedAt: Date.now() }]).then((r) => {
+          orderPrices[key] = r[0]?.priceUsd ?? null;
+          now.textContent = `${picked.symbol} now: ${formatPrice(orderPrices[key] ?? null)}`;
+        }).catch(() => undefined);
+      }
+    } else box.append(el('p', { class: 'wapp__fine', text: 'Choose a token above to set a price for it.' }));
+    box.append(el('p', { class: 'wapp__fine', text: 'Aretia tells you when the price is reached, while this page is open. Nothing is bought or sold for you: you open the swap and confirm it yourself.' }));
+    if (all.length > 0) {
+      const list = el('ul', { class: 'wapp-po__list' });
+      for (const o of all) {
+        const del = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Remove', attrs: { type: 'button', 'aria-label': `Remove the ${o.symbol} price order` } });
+        del.addEventListener('click', () => { orders.remove(o.id); render(); swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', ''); });
+        const state = o.hitAt === null ? 'watching' : `reached at ${formatPrice(o.hitPrice)}`;
+        list.append(el('li', {}, [el('span', { text: `${o.symbol}: ${o.side === 'buy' ? 'buy at or below' : 'sell at or above'} ${formatPrice(o.targetUsd)} · ${state}` }), del]));
+      }
+      box.append(list);
+    }
+    ordersChanged = () => { if (!box.open) return; render(); swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', ''); };
+    return box;
   }
 
   function updateActions(): void {

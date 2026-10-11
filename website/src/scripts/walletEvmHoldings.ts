@@ -16,6 +16,8 @@ export interface EvmHolding {
   symbol: string;
   name: string;
   amount: number;
+  /** The exact balance in the smallest unit (a decimal string). */
+  raw: string;
   decimals: number;
   price: number | null;
   value: number | null;
@@ -109,7 +111,7 @@ export async function loadEvmHoldings(account: string, chains: readonly ChainId[
       const key = t.native ? WRAPPED_NATIVE[t.chain as keyof typeof WRAPPED_NATIVE].toLowerCase() : t.address;
       const price = prices.get(`${t.chain}:${key}`) ?? null;
       const amount = unitsToNumber(raw, t.decimals);
-      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, decimals: t.decimals, price, value: price === null ? null : amount * price };
+      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, raw: raw.toString(), decimals: t.decimals, price, value: price === null ? null : amount * price };
     })
     .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
 }

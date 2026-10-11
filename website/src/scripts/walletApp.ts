@@ -1,8 +1,9 @@
 import { ACT as ACT_INFO } from '../data/site';
 import { EVM_ACCOUNT_EVENT, initSwings } from './walletSwings';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding } from './walletEvmHoldings';
-import { EvmSession } from '../swings/chains/evmSession.js';
-import { CHAIN_IDS, CHAINS } from '../swings/core/types.js';
+import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
+import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
+import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { sidebarItemFor } from './walletNav';
@@ -429,6 +430,7 @@ export function initWalletApp(): void {
     evmAccount = account;
     if (!account) {
       evmHoldings = [];
+      renderSendAssets();
       return renderDashboard();
     }
     try {
@@ -440,6 +442,7 @@ export function initWalletApp(): void {
       evmHoldings = [];
     }
     renderDashboard();
+    renderSendAssets();
   }
   window.addEventListener(EVM_ACCOUNT_EVENT, (e) => {
     const account = (e as CustomEvent<string | null>).detail;
@@ -645,12 +648,130 @@ export function initWalletApp(): void {
     return asset && holdings ? holdings.find((h) => h.mint === asset.value) : undefined;
   };
 
+  // Sending from an Ethereum-style account. The network box exists only on builds with PUBLIC_PAY_EVM_SEND=1.
+  const sendChain = (): ChainId => {
+    const v = $<HTMLSelectElement>('[data-send-network]')?.value;
+    return isChainId(v) ? v : 'solana';
+  };
+  const isEvmSend = (): boolean => sendChain() !== 'solana';
+  const selectedEvmHolding = (): EvmHolding | undefined => {
+    const { asset } = sendEls();
+    return evmHoldings.find((e) => e.mint === asset?.value && e.chain === sendChain());
+  };
+  $('[data-send-network]')?.addEventListener('change', () => {
+    sendEls().out?.replaceChildren();
+    renderSendAssets();
+  });
+
+  /** The wallet that signs for the Ethereum-style account: the one already allowed on this page, or the sidebar's wallet asked now. */
+  async function ensureEvmWallet(): Promise<NonNullable<EvmSession['adapter']>> {
+    if (!evmSession.adapter) {
+      await evmSession.resume(walletName);
+      if (!evmSession.adapter) {
+        const found = await evmSession.discover();
+        const want = (walletName ?? '').trim().toLowerCase();
+        const w = found.find((x) => x.info.name.toLowerCase() === want) ?? (found.length === 1 ? found[0] : undefined);
+        if (!w) throw new Error('No Ethereum-style wallet was found in this browser. Connect one in Swap first.');
+        await evmSession.connect(w.info.uuid);
+      }
+    }
+    const adapter = evmSession.adapter;
+    if (!adapter) throw new Error('Your Ethereum-style wallet is not connected.');
+    return adapter;
+  }
+
+  async function onEvmSendSubmit(): Promise<void> {
+    const { to, amount, out } = sendEls();
+    if (!out || !to || !amount) return;
+    out.textContent = '';
+    const h = selectedEvmHolding();
+    if (!evmAccount || !h) return void out.append(el('p', { class: 'wapp-error', text: 'Connect your Ethereum-style wallet in Swap, then choose an asset.' }));
+    const recipient = checkEvmRecipient(to.value, evmAccount);
+    if (recipient.problem !== null) return void out.append(el('p', { class: 'wapp-error', text: recipient.problem }));
+    if (!amount.value.trim()) return void out.append(el('p', { class: 'wapp-error', text: 'Enter an amount.' }));
+    out.append(el('p', { class: 'wapp-sub', text: 'Checking the transfer…' }));
+    try {
+      const plan = await planEvmSend({ chain: h.chain, from: evmAccount, to: recipient.address, token: h.mint.endsWith(':native') ? null : h.address, symbol: h.symbol, decimals: h.decimals, amountText: amount.value }, publicRead(h.chain));
+      renderEvmReview(plan);
+    } catch (e) {
+      out.textContent = '';
+      out.append(el('p', { class: 'wapp-error', text: friendlyError(e) }));
+    }
+  }
+
+  function renderEvmReview(plan: EvmSendPlan): void {
+    const { out } = sendEls();
+    if (!out) return;
+    out.textContent = '';
+    const req = plan.request;
+    const net = CHAINS[req.chain];
+    const card = el('div', { class: 'wapp__result' });
+    out.append(card);
+    const rows: [string, Node | string][] = [
+      ['You send', `${req.amountText.trim()} ${req.symbol}`],
+      ['To', el('code', { class: 'wapp-mono', text: req.to })],
+      ['Network', net.name],
+      ['Network fee', plan.feeWei === null ? 'could not be estimated' : `up to about ${fromSmallestUnit(plan.feeWei, 18)} ${net.nativeSymbol}`],
+    ];
+    card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
+    if (plan.recipientIsContract) card.append(banner('warn', 'This address is a smart contract, not a normal wallet. Funds sent to a contract that does not expect them can be lost. Send only if you know what it does.'));
+    for (const b of plan.blockers) card.append(banner('warn', b));
+    const canGo = plan.blockers.length === 0 && plan.tx !== null;
+    const ack = el('input', { attrs: { type: 'checkbox', id: 'send-ack' } });
+    if (canGo && plan.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-ack' } }, [ack, el('span', { text: 'I know this address is a contract and I want to send to it anyway.' })]));
+    const status = el('div', { attrs: { 'aria-live': 'polite' } });
+    const actions = el('div', { class: 'wapp__row-actions' });
+    const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
+    const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
+    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked));
+    sync();
+    ack.addEventListener('change', sync);
+    cancel.addEventListener('click', () => (out.textContent = ''));
+    confirm.addEventListener('click', async () => {
+      if (sendBusy) return;
+      sendBusy = true;
+      sync();
+      status.textContent = '';
+      status.append(banner('info', 'Waiting for your wallet to approve…'));
+      try {
+        const hash = await sendEvmTransfer(plan, await ensureEvmWallet());
+        status.textContent = '';
+        const link = el('a', { text: 'View transaction', attrs: { href: `${EVM_EXPLORER_TX[req.chain] ?? ''}${hash}`, target: '_blank', rel: 'noopener noreferrer' } });
+        status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link]));
+        actions.hidden = true;
+        const result = await waitForEvmReceipt(publicRead(req.chain), hash);
+        status.textContent = '';
+        const text = result === 'confirmed' ? `Confirmed on ${net.name}.` : result === 'failed' ? 'The transaction failed on-chain. Check the explorer for the reason.' : 'Not confirmed yet. It may still land; check the explorer.';
+        status.append(el('p', { class: `wapp__banner wapp__banner--${result === 'confirmed' ? 'ok' : result === 'failed' ? 'warn' : 'info'}` }, [document.createTextNode(`${text} `), el('a', { text: 'View transaction', attrs: { href: `${EVM_EXPLORER_TX[req.chain] ?? ''}${hash}`, target: '_blank', rel: 'noopener noreferrer' } })]));
+        if (evmAccount) void loadEvm(evmAccount);
+      } catch (e) {
+        status.textContent = '';
+        status.append(banner('warn', friendlyError(e)));
+      } finally {
+        sendBusy = false;
+        sync();
+      }
+    });
+    actions.append(confirm, cancel);
+    if (!canGo) confirm.hidden = true;
+    card.append(actions, status);
+  }
+
   function renderSendAssets(): void {
     const { asset } = sendEls();
     if (!asset) return;
     const previous = asset.value;
     asset.textContent = '';
     asset.disabled = true;
+    if (isEvmSend()) {
+      if (!evmAccount) return void asset.append(new Option('Connect your Ethereum-style wallet in Swap first', ''));
+      const rows = evmHoldings.filter((e) => e.chain === sendChain());
+      if (rows.length === 0) return void asset.append(new Option(`No ${CHAINS[sendChain()].name} coins or known tokens found`, ''));
+      asset.disabled = false;
+      for (const e of rows) asset.append(new Option(`${e.symbol} · ${formatAmount(e.amount)}`, e.mint));
+      if (rows.some((e) => e.mint === previous)) asset.value = previous;
+      return;
+    }
     if (!address) return void asset.append(new Option('Connect a wallet first', ''));
     if (holdings === null) return void asset.append(new Option(holdingsFailed ? "Couldn't load your tokens. Use Refresh on the Dashboard." : 'Loading your tokens…', ''));
     if (holdings.length === 0) return void asset.append(new Option('This wallet holds no tokens', ''));
@@ -762,6 +883,7 @@ export function initWalletApp(): void {
   }
 
   async function onSendSubmit(): Promise<void> {
+    if (isEvmSend()) return onEvmSendSubmit();
     const { to, amount, out } = sendEls();
     if (!out || !to || !amount) return;
     out.textContent = '';
@@ -794,6 +916,18 @@ export function initWalletApp(): void {
     void onSendSubmit();
   });
   $('[data-send-max]')?.addEventListener('click', () => {
+    if (isEvmSend()) {
+      const e = selectedEvmHolding();
+      const { amount: field } = sendEls();
+      if (!e || !field) return;
+      if (!e.mint.endsWith(':native')) return void (field.value = fromSmallestUnit(BigInt(e.raw), e.decimals));
+      // The native coin: leave room for the fee (a plain transfer's gas, with the same margin the review uses).
+      void publicRead(e.chain)('eth_gasPrice', []).then((p) => {
+        const price = typeof p === 'string' && /^0x[0-9a-fA-F]+$/.test(p) ? BigInt(p) : null;
+        if (price !== null) field.value = fromSmallestUnit(maxNativeSend(BigInt(e.raw), (21_000n * 12n * price) / 10n), e.decimals);
+      }).catch(() => undefined);
+      return;
+    }
     const h = selectedHolding();
     const { amount } = sendEls();
     if (!h || !amount || h.decimals === null || h.raw === null) return;

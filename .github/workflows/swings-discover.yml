@@ -19,9 +19,9 @@ jobs:
     # allowed 60 seconds on the site; the busiest networks have their slow parts in separate requests.
     strategy:
       fail-fast: false
-      # GeckoTerminal allows about 30 requests a minute to the site as a whole, so the jobs go two at a time rather than all at once
+      # GeckoTerminal allows about 30 requests a minute to the site as a whole, so the jobs go one at a time rather than together
       # (a burst of nine got 429 "too many requests" on Solana's trending and second-page feeds).
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         include:
           - { chain: solana, stage: feeds }

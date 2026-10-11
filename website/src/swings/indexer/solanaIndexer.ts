@@ -38,6 +38,23 @@ const DISC = {
   orcaInitializePoolV2: 'cf2d57f21b3fcc43',
 } as const;
 
+/**
+ * Orca's fee-tier accounts (program-derived from the seeds "fee_tier", the config and the tick spacing), written out so discovery does not
+ * have to load the whole Solana library to derive them: that library does not load inside the site's server functions. A test checks
+ * every address here against the derivation.
+ */
+export const ORCA_FEE_TIER_ACCOUNTS: Readonly<Record<number, string>> = {
+  1: '62dSkn5ktwY1PoKPNMArZA4bZsvyemuknWUnnQ2ATTuN',
+  2: 'BH9LXGqLhZV3hdvShYZhgQQEjPVKhHPyHwjnsxjETFRr',
+  4: '9zfDkPMnx9ei8mZVfCsLjkBzXob7H3PuAhabmUVAiuJF',
+  8: 'GBtp54LJqqDSWonLT878KWerkJAYqYq4jasZ1UYs8wfD',
+  16: '87u3YRwJDNR2wozMTF3umYRgny8UMZ2mHN3UBTSXm8Ho',
+  64: 'HT55NVGVTjWmWLjV7BrSMPVZ7ppU8T2xE5nCAZ6YaGad',
+  96: 'FapWifnwxWnXQggHBk5XR9bfqAo7H53Gm3ph9Rnb8UTy',
+  128: 'BGnhGXT9CCt5WYS23zg9sqsAT2MGXkq7VSwch9pML82W',
+  256: '72NKr3dFXyYWKkgF814hRrdpLjXHJ6F3DwUXxFmAYmp4',
+};
+
 const WSOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
@@ -184,14 +201,19 @@ export class SolanaPoolDiscoverySource implements DiscoverySource {
   /** The accounts only pool creation touches. The Orca fee tiers are derived from the program's own seeds. */
   private async accounts(): Promise<{ address: string; label: string }[]> {
     if (this.anchors) return this.anchors;
-    const web3 = await this.web3();
-    const program = new web3.PublicKey(ORCA_WHIRLPOOL_PROGRAM);
-    const config = new web3.PublicKey(ORCA_CONFIG);
     const out = [{ address: CPMM_CREATE_FEE_RECEIVER, label: 'raydium-cpmm' }];
+    let web3: typeof Web3 | null = null;
     for (const spacing of ORCA_TICK_SPACINGS) {
+      const known = ORCA_FEE_TIER_ACCOUNTS[spacing];
+      if (known) {
+        out.push({ address: known, label: `orca-${spacing}` });
+        continue;
+      }
+      // A tick spacing without a written-out address is derived the long way.
+      web3 ??= await this.web3();
       const le = new Uint8Array(2);
       new DataView(le.buffer).setUint16(0, spacing, true);
-      out.push({ address: web3.PublicKey.findProgramAddressSync([new TextEncoder().encode('fee_tier'), config.toBytes(), le], program)[0].toBase58(), label: `orca-${spacing}` });
+      out.push({ address: web3.PublicKey.findProgramAddressSync([new TextEncoder().encode('fee_tier'), new web3.PublicKey(ORCA_CONFIG).toBytes(), le], new web3.PublicKey(ORCA_WHIRLPOOL_PROGRAM))[0].toBase58(), label: `orca-${spacing}` });
     }
     this.anchors = out;
     return out;

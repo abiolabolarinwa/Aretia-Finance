@@ -27,6 +27,8 @@ use anchor_spl::token_interface::{
 // Generated via `solana-keygen new` on 2026-09-12 (see Anchor.toml). Not yet deployed.
 declare_id!("DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH");
 
+mod authority_handoff;
+
 // Real builds (devnet, mainnet) use real days. The `test-fast-clock` feature
 // exists ONLY to make `stake`/`unstake`'s lock-duration logic testable on a
 // local validator without waiting real days for a lock to mature -- it
@@ -122,18 +124,27 @@ pub mod act_staking {
         Ok(())
     }
 
-    /// Hands `config.authority` off to a new key, signed by the current
-    /// authority. Lets the authority move from an initial deployer key
-    /// onto the treasury multisig (or any other durable key) without a
-    /// program redeploy. Deliberately narrow: it changes nothing else
-    /// about the account.
-    pub fn set_config_authority(ctx: Context<UpdateConfig>, new_authority: Pubkey) -> Result<()> {
-        require_keys_neq!(
-            new_authority,
-            Pubkey::default(),
-            StakingError::InvalidNewAuthority
-        );
-        ctx.accounts.config.authority = new_authority;
+    /// Step 1 of 2. The current authority nominates `new_authority`; control does NOT move, so a mistyped or unsignable
+    /// key cannot strand the config. A later proposal replaces an earlier one. (Replaces the former single-step
+    /// `set_config_authority`.)
+    pub fn propose_config_authority(ctx: Context<ProposeConfigAuthority>, new_authority: Pubkey) -> Result<()> {
+        authority_handoff::check_new_authority(&new_authority.to_bytes())
+            .map_err(|_| error!(StakingError::InvalidNewAuthority))?;
+        let pending = &mut ctx.accounts.pending;
+        pending.new_authority = new_authority;
+        pending.bump = ctx.bumps.pending;
+        Ok(())
+    }
+
+    /// Step 2 of 2. The nominated key signs to take control (proving it can sign). Closes the proposal; the rent goes
+    /// back to the outgoing authority.
+    pub fn accept_config_authority(ctx: Context<AcceptConfigAuthority>) -> Result<()> {
+        ctx.accounts.config.authority = ctx.accounts.new_authority.key();
+        Ok(())
+    }
+
+    /// The current authority withdraws an outstanding proposal.
+    pub fn cancel_config_authority(_ctx: Context<CancelConfigAuthority>) -> Result<()> {
         Ok(())
     }
 
@@ -451,6 +462,85 @@ pub struct Unstake<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+/// Outstanding authority nomination (F-17). One PDA, `["pending_authority"]`; absent = nothing pending. Kept out of
+/// `StakeConfig` so the existing (devnet-deployed) config account layout is unchanged.
+#[account]
+#[derive(InitSpace)]
+pub struct PendingAuthority {
+    pub new_authority: Pubkey,
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct ProposeConfigAuthority<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority
+    )]
+    pub config: Account<'info, StakeConfig>,
+
+    #[account(
+        init_if_needed,
+        payer = authority,
+        space = 8 + PendingAuthority::INIT_SPACE,
+        seeds = [b"pending_authority"],
+        bump
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptConfigAuthority<'info> {
+    pub new_authority: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, StakeConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        has_one = new_authority @ StakingError::NotThePendingAuthority,
+        close = rent_receiver
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+
+    /// CHECK: receives the proposal account's rent; must be the outgoing authority (checked against the config).
+    #[account(mut, address = config.authority)]
+    pub rent_receiver: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CancelConfigAuthority<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority
+    )]
+    pub config: Account<'info, StakeConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        close = authority
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+}
+
 #[error_code]
 pub enum StakingError {
     #[msg("Staking is currently paused.")]
@@ -473,4 +563,7 @@ pub enum StakingError {
     MathOverflow,
     #[msg("New authority cannot be the default (all-zero) pubkey.")]
     InvalidNewAuthority,
+    // Appended (never reordered) so existing error codes stay stable.
+    #[msg("Only the nominated authority can accept this handoff.")]
+    NotThePendingAuthority,
 }

@@ -76,6 +76,9 @@ use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 // Generated via `solana-keygen new` on this machine (see Anchor.toml). Not yet deployed.
 declare_id!("5hmgnujNib14NDkEgRsLpY3H8SBDCsLryiymNKY6fWku");
 
+mod authority_handoff;
+mod policy;
+
 // Real builds (devnet, mainnet) use real seconds. The `test-fast-clock` feature
 // exists ONLY to make the sale-window and vesting-duration logic testable on a
 // local validator without waiting real days -- see act-staking's identical
@@ -394,6 +397,11 @@ pub mod act_presale {
             .get_price_no_older_than(&Clock::get()?, MAX_PRICE_STALENESS_SECONDS, &SOL_USD_FEED_ID)
             .map_err(|_| PresaleError::InvalidOraclePrice)?;
         require!(price.price > 0, PresaleError::InvalidOraclePrice);
+        // A wide confidence interval means the feed itself is uncertain: refuse to price a purchase off it.
+        require!(
+            policy::price_confidence_ok(price.price, price.conf, policy::MAX_PRICE_CONF_BPS),
+            PresaleError::OracleConfidenceTooWide
+        );
 
         let payment_amount = lamports_to_payment_units(lamports, price.price, price.exponent)?;
         require!(payment_amount > 0, PresaleError::ZeroAmount);
@@ -518,8 +526,9 @@ pub mod act_presale {
         Ok(())
     }
 
-    /// Authority-gated. Callable once the sale window has ended, or
-    /// earlier if the hard cap has already been reached. Soft cap met:
+    /// Callable by ANYONE once the sale window has ended; before that, only by the authority, and only if the hard cap
+    /// has been reached. (The `authority` account below is the signer and keeps its name for IDL compatibility, but is
+    /// no longer required to be `config.authority`.) Soft cap met:
     /// sweeps both escrowed payment-currency vaults to their respective
     /// treasury accounts and starts vesting (`tge_ts = now`). Soft cap
     /// missed: moves to `Refunding` and moves no funds -- each buyer
@@ -530,10 +539,18 @@ pub mod act_presale {
 
         let now = Clock::get()?.unix_timestamp;
         let hard_cap_reached = config.total_raised_payment >= config.hard_cap_payment;
-        require!(
-            now >= config.end_ts || hard_cap_reached,
-            PresaleError::PresaleStillOpen
-        );
+        // Anyone may finalize once the window has ended (buyers must be able to reach `Refunding` even if the authority
+        // key is unavailable); finalizing early at the hard cap stays authority-only. See `policy::finalize_check`.
+        match policy::finalize_check(
+            ctx.accounts.authority.key() == config.authority,
+            now,
+            config.end_ts,
+            hard_cap_reached,
+        ) {
+            policy::FinalizeCheck::Allowed => {}
+            policy::FinalizeCheck::StillOpen => return err!(PresaleError::PresaleStillOpen),
+            policy::FinalizeCheck::NotPermitted => return err!(PresaleError::FinalizeNotPermitted),
+        }
 
         if config.total_raised_payment >= config.soft_cap_payment {
             let bump = config.vault_authority_bump;
@@ -813,17 +830,26 @@ pub mod act_presale {
         Ok(())
     }
 
-    /// Hands `config.authority` to a new key, signed by the current
-    /// authority. Present from the start this time -- act-staking shipped
-    /// without this and had to add it after the fact (see its
-    /// `set_config_authority` doc comment).
-    pub fn set_config_authority(ctx: Context<UpdateConfig>, new_authority: Pubkey) -> Result<()> {
-        require_keys_neq!(
-            new_authority,
-            Pubkey::default(),
-            PresaleError::InvalidNewAuthority
-        );
-        ctx.accounts.config.authority = new_authority;
+    /// Step 1 of 2. The current authority nominates `new_authority`; control does NOT move. A mistyped or unsignable
+    /// key therefore cannot strand the config. A later proposal replaces an earlier one.
+    pub fn propose_config_authority(ctx: Context<ProposeConfigAuthority>, new_authority: Pubkey) -> Result<()> {
+        authority_handoff::check_new_authority(&new_authority.to_bytes())
+            .map_err(|_| error!(PresaleError::InvalidNewAuthority))?;
+        let pending = &mut ctx.accounts.pending;
+        pending.new_authority = new_authority;
+        pending.bump = ctx.bumps.pending;
+        Ok(())
+    }
+
+    /// Step 2 of 2. The nominated key signs to take control (proving it can sign). Closes the proposal; the rent goes
+    /// back to the outgoing authority.
+    pub fn accept_config_authority(ctx: Context<AcceptConfigAuthority>) -> Result<()> {
+        ctx.accounts.config.authority = ctx.accounts.new_authority.key();
+        Ok(())
+    }
+
+    /// The current authority withdraws an outstanding proposal.
+    pub fn cancel_config_authority(_ctx: Context<CancelConfigAuthority>) -> Result<()> {
         Ok(())
     }
 }
@@ -1250,13 +1276,14 @@ pub struct RefundSol<'info> {
 
 #[derive(Accounts)]
 pub struct Finalize<'info> {
+    /// Any signer. Compared against `config.authority` inside the handler (see `policy::finalize_check`); every
+    /// destination account below is bound to the config, so the caller cannot redirect funds.
     pub authority: Signer<'info>,
 
     #[account(
         mut,
         seeds = [b"presale_config"],
         bump = config.bump,
-        has_one = authority,
     )]
     pub config: Box<Account<'info, PresaleConfig>>,
 
@@ -1438,6 +1465,85 @@ pub struct UpdateConfig<'info> {
     pub authority: Signer<'info>,
 }
 
+/// Outstanding authority nomination (F-17). One PDA, `["pending_authority"]`; absent = nothing pending. Kept out of
+/// `PresaleConfig` so the existing config account layout is unchanged.
+#[account]
+#[derive(InitSpace)]
+pub struct PendingAuthority {
+    pub new_authority: Pubkey,
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct ProposeConfigAuthority<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [b"presale_config"],
+        bump = config.bump,
+        has_one = authority
+    )]
+    pub config: Box<Account<'info, PresaleConfig>>,
+
+    #[account(
+        init_if_needed,
+        payer = authority,
+        space = 8 + PendingAuthority::INIT_SPACE,
+        seeds = [b"pending_authority"],
+        bump
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptConfigAuthority<'info> {
+    pub new_authority: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"presale_config"],
+        bump = config.bump
+    )]
+    pub config: Box<Account<'info, PresaleConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        has_one = new_authority @ PresaleError::NotThePendingAuthority,
+        close = rent_receiver
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+
+    /// CHECK: receives the proposal account's rent; must be the outgoing authority (checked against the config).
+    #[account(mut, address = config.authority)]
+    pub rent_receiver: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CancelConfigAuthority<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [b"presale_config"],
+        bump = config.bump,
+        has_one = authority
+    )]
+    pub config: Box<Account<'info, PresaleConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        close = authority
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+}
+
 #[error_code]
 pub enum PresaleError {
     #[msg("start_ts must be before end_ts.")]
@@ -1506,4 +1612,11 @@ pub enum PresaleError {
     MathOverflow,
     #[msg("New authority cannot be the default (all-zero) pubkey.")]
     InvalidNewAuthority,
+    // Appended (never reordered) so existing error codes stay stable.
+    #[msg("The SOL/USD oracle's confidence interval is too wide to price a purchase.")]
+    OracleConfidenceTooWide,
+    #[msg("Only the authority may finalize before the sale window has ended.")]
+    FinalizeNotPermitted,
+    #[msg("Only the nominated authority can accept this handoff.")]
+    NotThePendingAuthority,
 }

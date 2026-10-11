@@ -1389,6 +1389,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     type Kind = MarketKind | 'new' | 'favourites';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
+    /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
+    let autoAge = false;
     let rows: MarketRow[] | null = null;
     const records = new Map<string, TokenRecord>();
     // Aretia's own new-token list opens with the busiest first; the other lists keep their ranking until a column is chosen.
@@ -1660,6 +1662,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
           m.kind = k;
+          // New opens on the last 24 hours, so tokens detected days ago do not fill it; the other lists are not limited by age.
+          if (k === 'new' && f.age === '0') {
+            f.age = '24';
+            autoAge = true;
+          } else if (k !== 'new' && autoAge) {
+            f.age = '0';
+            autoAge = false;
+          }
           tsort = startSort();
           pageNo = 1;
           rows = null;
@@ -1689,7 +1699,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         );
       }
       bar.append(
-        select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; refilter(); }),
+        select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; autoAge = false; refilter(); }),
         select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
         select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Couldn\'t check']], (v) => { f.risk = v; refilter(); }),
       );

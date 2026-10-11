@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CHAIN_IDS } from '../src/swings/core/types';
 import { EVM_V2_DEXES } from '../src/swings/dex/entries';
-import { handleDiscover, handleTokens, parseFilter, type TokensInput } from './_swingsTokens';
+import { handleDiscover, handleTokens, parseFilter, withTimeout, type TokensInput } from './_swingsTokens';
 
 const input = (over: Partial<TokensInput> = {}): TokensInput => ({
   method: 'GET',
@@ -58,5 +58,23 @@ describe('discovery endpoint', () => {
     const busy = ['solana', 'ethereum', 'bnb', 'base'];
     expect(runs.map((r) => r.chain)).toEqual([...CHAIN_IDS.flatMap((c) => (busy.includes(c) ? [c, c, c] : [c, c])), ...EVM_V2_DEXES.map((e) => e.chain), 'solana']);
     expect(runs.every((r) => r.error !== null)).toBe(true);
+  });
+  it('can run a single chain, and refuses an unknown one', async () => {
+    const fetchImpl = vi.fn(async () => new Response('nope', { status: 500 })) as unknown as typeof fetch;
+    const out = await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl, query: { chain: 'base' } }));
+    expect(out.status).toBe(200);
+    const { runs } = JSON.parse(out.body) as { runs: { chain: string }[] };
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.every((r) => r.chain === 'base')).toBe(true);
+    expect((await handleDiscover(input({ authorization: 'Bearer cron-not-real', fetchImpl, query: { chain: 'doge' } }))).status).toBe(400);
+  });
+  it('gives each outgoing request a time limit', async () => {
+    let signal: AbortSignal | null | undefined;
+    const inner = vi.fn(async (_u: unknown, init?: RequestInit) => {
+      signal = init?.signal;
+      return new Response('{}');
+    }) as unknown as typeof fetch;
+    await withTimeout(inner, 50)('https://x.test');
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });

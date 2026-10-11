@@ -12,10 +12,17 @@ permissions: {}
 
 jobs:
   discover:
+    name: discover (${{ matrix.chain }})
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
+    # One network per job, so a slow one cannot hold up or fail the rest.
+    strategy:
+      fail-fast: false
+      matrix:
+        chain: [solana, ethereum, bnb, polygon, base, arbitrum, optimism, avalanche, robinhood]
     env:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      CHAIN: ${{ matrix.chain }}
     steps:
       - name: Skip until the secret is set
         if: env.CRON_SECRET == ''
@@ -23,7 +30,7 @@ jobs:
       - name: Run discovery
         if: env.CRON_SECRET != ''
         run: |
-          status=$(curl -sS -m 120 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" https://aretiafinance.org/api/swings-discover)
+          status=$(curl -sS -m 90 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" "https://aretiafinance.org/api/swings-discover?chain=${CHAIN}")
           echo "HTTP ${status}"
           head -c 600 response.json || true
           echo

@@ -136,11 +136,24 @@ function rpcFor(url: string, fetchImpl: typeof fetch) {
 
 const BUSY_CHAINS: ReadonlySet<ChainId> = new Set<ChainId>(['solana', 'ethereum', 'bnb', 'base']);
 
+/** Longest one outgoing request may take during discovery, so one slow service cannot hold up the whole run. */
+export const DISCOVER_REQUEST_MS = 8_000;
+
+/** Wraps a fetch so each request gives up after `ms` (unless the caller already passes its own signal). */
+export function withTimeout(fetchImpl: typeof fetch, ms: number): typeof fetch {
+  return ((url: Parameters<typeof fetch>[0], init?: RequestInit) => fetchImpl(url, init?.signal ? init : { ...init, signal: AbortSignal.timeout(ms) })) as typeof fetch;
+}
+
 export async function handleDiscover(input: TokensInput): Promise<TokensOutput> {
   const headers = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
   // Constant behaviour for a missing secret: nothing runs unless one is configured and presented.
   if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  // `?chain=base` looks at one network only, so each network can be run on its own and a slow one cannot hold up the rest.
+  const only = input.query.chain ? (isChainId(input.query.chain) ? input.query.chain : null) : undefined;
+  if (only === null) return json(400, { error: 'chain' }, headers);
+  const chains: readonly ChainId[] = only ? [only] : CHAIN_IDS;
+  input = { ...input, fetchImpl: withTimeout(input.fetchImpl, DISCOVER_REQUEST_MS) };
   const repo = repoFor(input.env, input.fetchImpl);
   if (!repo) return json(503, { error: 'not-configured' }, headers);
 
@@ -148,7 +161,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const solanaRpc = rpcFor(input.env.SOLANA_RPC_URL?.trim() || PUBLIC_FALLBACK_RPC, input.fetchImpl);
   const runs: WorkerRun[] = [];
   // One worker shape for every chain; only the source's chain and the enricher differ.
-  for (const chain of CHAIN_IDS) {
+  for (const chain of chains) {
     let enricher: TokenEnricher | null = null;
     if (chain === 'solana') enricher = new SolanaTokenEnricher(solanaRpc, () => input.now);
     else {
@@ -170,7 +183,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   }
   // Aretia's own feed: the factory events of each direct venue, read from confirmed blocks. It uses the same worker,
   // registry and cursors as the third-party feed above, and the same on-chain enrichment.
-  for (const entry of EVM_V2_DEXES) {
+  for (const entry of EVM_V2_DEXES.filter((e) => chains.includes(e.chain as ChainId))) {
     const url = input.env[EVM_ENV[entry.chain as Exclude<ChainId, 'solana'>]]?.trim();
     const read = url ? ((method: string, params: unknown[]) => rpcFor(url, input.fetchImpl)<unknown>(method, params)) : publicRead(entry.chain, input.fetchImpl);
     const enricher = url
@@ -183,7 +196,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
     runs.push(await worker.runOnce());
   }
   // Aretia's own Solana feed: pool-creation transactions of Raydium CPMM and Orca, decoded from finalized blocks.
-  {
+  if (chains.includes('solana')) {
     const worker = new TokenDiscoveryWorker(new SolanaPoolDiscoverySource(() => import('@solana/web3.js'), solanaRpc, { now: () => input.now }), registry, repo, new SolanaTokenEnricher(solanaRpc, () => input.now), () => input.now);
     runs.push(await worker.runOnce());
   }
@@ -193,7 +206,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const supabaseUrl = supabaseBase(input.env.SUPABASE_URL);
   const ticks = supabaseUrl ? new SupabaseTickStore(supabaseUrl, input.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), input.fetchImpl) : null;
   const tickOf = (chain: ChainId, pool: string, m: TokenMarket): TickInput => ({ chain, pool: chain === 'solana' ? pool : pool.toLowerCase(), ts: m.at, price: m.priceUsd, liq: m.liquidityUsd, vol24: m.volume24hUsd });
-  for (const chain of CHAIN_IDS) {
+  for (const chain of chains) {
     const recorded: TickInput[] = [];
     if (repo.listForMarketRefresh) {
       try {

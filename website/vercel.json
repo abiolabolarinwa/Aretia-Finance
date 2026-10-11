@@ -3,6 +3,7 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": { "api/swings-discover.ts": { "maxDuration": 60 } },
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [

@@ -8,6 +8,7 @@ import { requestOrigin } from './_rpcProxy.js';
 interface Req {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
+  query?: Record<string, string | string[] | undefined>;
 }
 interface Res {
   status(code: number): Res;
@@ -23,7 +24,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     origin: requestOrigin(req.headers),
     authorization: one(req.headers.authorization),
     ip: 'cron',
-    query: {},
+    query: { chain: one(req.query?.chain) ?? undefined },
     env: process.env,
     fetchImpl: fetch,
     now: Date.now(),

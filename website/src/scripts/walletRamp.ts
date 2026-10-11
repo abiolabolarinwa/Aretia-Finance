@@ -1,5 +1,5 @@
 /**
- * The "Buy & Sell" tab: turn a bank or card payment into USDC in the user's own wallet, or USDC into money. The
+ * The "Cash out or top up" tab: turn a bank or card payment into USDC or USDT in the user's own wallet, or back into money. The
  * provider (MoonPay) takes the payment and checks identity on its own page; Aretia never sees a card or a document and
  * never holds funds. A purchase is finished only when the USDC shows up in the wallet.
  */
@@ -15,7 +15,12 @@ const CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism'
 const WATCH_KEY = 'aretia-swings-ramp-watch';
 const COUNTRY_KEY = 'aretia-swings-country';
 
+/** The two stablecoins offered. USDT exists only where the provider lists it (Solana today); the network list follows the choice. */
+export type RampAssetSymbol = 'USDC' | 'USDT';
+
 interface SavedWatch extends RampWatch {
+  /** Missing on a watch saved before USDT was offered, which was always USDC. */
+  symbol?: RampAssetSymbol;
   chain: ChainId;
   wallet: string;
   token: string;
@@ -68,6 +73,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
   const s = {
     side: 'buy' as RampSide,
     chain: 'base' as ChainId,
+    asset: 'USDC' as RampAssetSymbol,
     fiat: 'usd',
     country: store.get<string>(COUNTRY_KEY) ?? '',
     amount: '100',
@@ -83,8 +89,8 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
 
   const walletFor = (c: ChainId): string | null => (c === 'solana' ? solanaAddress() : evm.account);
   const tokenFor = (c: ChainId): { address: string; symbol: string; decimals: number } | null => {
-    const t = s.avail?.catalog.tokens.find((x) => x.chain === c && x.symbol === 'USDC');
-    return t ? { address: t.contract, symbol: 'USDC', decimals: 6 } : null;
+    const t = s.avail?.catalog.tokens.find((x) => x.chain === c && x.symbol === s.asset);
+    return t ? { address: t.contract, symbol: s.asset, decimals: 6 } : null;
   };
 
   async function load(): Promise<void> {
@@ -109,7 +115,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     s.busy = true;
     draw();
     try {
-      const intent: RampIntent = { side: s.side, fiat: s.fiat, fiatAmount: amount, asset: { chain: s.chain, symbol: 'USDC', address: token.address, decimals: token.decimals }, wallet, country: s.country };
+      const intent: RampIntent = { side: s.side, fiat: s.fiat, fiatAmount: amount, asset: { chain: s.chain, symbol: s.asset, address: token.address, decimals: token.decimals }, wallet, country: s.country };
       s.search = await router.quote(intent);
       s.chosen = s.search.quotes[0] ?? null;
     } catch (e) {
@@ -137,7 +143,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
       s.link = session.url;
       const baseline = await currentBalance(q.intent.asset.chain, q.intent.wallet, q.intent.asset.address);
       if (baseline !== null) {
-        s.watch = { side: q.intent.side, baseline, startedAt: Date.now(), chain: q.intent.asset.chain, wallet: q.intent.wallet, token: q.intent.asset.address, providerName: q.providerName };
+        s.watch = { side: q.intent.side, baseline, startedAt: Date.now(), symbol: q.intent.asset.symbol as RampAssetSymbol, chain: q.intent.asset.chain, wallet: q.intent.wallet, token: q.intent.asset.address, providerName: q.providerName };
         store.set(WATCH_KEY, s.watch);
       }
       window.open(session.url, '_blank', 'noopener,noreferrer');
@@ -154,7 +160,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     draw();
     const now = await currentBalance(s.watch.chain, s.watch.wallet, s.watch.token);
     const out = judgeWatch(s.watch, now);
-    s.watchMessage = out.state === 'arrived' ? `${out.message} (+${formatUnits(out.delta, 6)} USDC)` : out.state === 'sent' ? `${out.message} (${formatUnits(out.delta, 6)} USDC sent)` : out.message;
+    s.watchMessage = out.state === 'arrived' ? `${out.message} (+${formatUnits(out.delta, 6)} ${s.watch.symbol ?? 'USDC'})` : out.state === 'sent' ? `${out.message} (${formatUnits(out.delta, 6)} ${s.watch.symbol ?? 'USDC'} sent)` : out.message;
     if (out.state === 'arrived' || out.state === 'sent') {
       store.del(WATCH_KEY);
       s.watch = null;
@@ -172,7 +178,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
   function draw(): void {
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
-    card.append(el('h2', { class: 'wapp__h2', text: 'USDC to Fiat: sell USDC for cash, or buy it' }), el('ol', { class: 'wapp__steps' }, ['Choose your country and amount', 'See your options', 'Finish on the provider\'s page', 'The USDC lands in your wallet'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'A licensed provider takes your payment and checks who you are on its own page, so Aretia never sees your card or documents. Aretia never holds your money.' }));
+    card.append(el('h2', { class: 'wapp__h2', text: 'Buy or sell USDC and USDT for cash' }), el('ol', { class: 'wapp__steps' }, ['Choose your country and amount', 'See your options', 'Finish on the provider\'s page', 'The USDC lands in your wallet'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'A licensed provider takes your payment and checks who you are on its own page, so Aretia never sees your card or documents. Aretia never holds your money.' }));
     if (s.avail === undefined) {
       void load();
       card.append(el('p', { class: 'wapp__fine', text: 'Checking what is available…' }));
@@ -192,10 +198,13 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
       seg.append(b);
     }
     card.append(seg);
-    const chains = CHOICES.filter((c) => a.catalog.tokens.some((t) => t.chain === c && t.symbol === 'USDC' && (s.side === 'buy' || t.sell)));
+    const assets = (['USDC', 'USDT'] as const).filter((x) => a.catalog.tokens.some((tk) => tk.symbol === x && (s.side === 'buy' || tk.sell)));
+    if (!assets.includes(s.asset)) s.asset = assets[0] ?? 'USDC';
+    const chains = CHOICES.filter((c) => a.catalog.tokens.some((t) => t.chain === c && t.symbol === s.asset && (s.side === 'buy' || t.sell)));
     if (!chains.includes(s.chain)) s.chain = chains[0] ?? 'base';
     const countries = a.catalog.countries.filter((c) => (s.side === 'buy' ? c.buy : c.sell));
     card.append(
+      select('Stablecoin', assets.map((x) => ({ value: x, label: x })), s.asset, (v) => { s.asset = v as RampAssetSymbol; s.search = null; s.chosen = null; draw(); }),
       select('Network', chains.map((c) => ({ value: c, label: CHAINS[c].name })), s.chain, (v) => { s.chain = v as ChainId; s.search = null; s.chosen = null; draw(); }),
       select('Country', [{ value: '', label: 'Choose…' }, ...countries.map((c) => ({ value: c.code, label: c.name }))], s.country, (v) => { s.country = v; store.set(COUNTRY_KEY, v); s.search = null; s.chosen = null; draw(); }),
       select('Currency', a.catalog.fiats.map((f) => ({ value: f, label: f.toUpperCase() })), s.fiat, (v) => { s.fiat = v; s.search = null; s.chosen = null; draw(); }),
@@ -204,7 +213,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     amount.addEventListener('input', () => { s.amount = amount.value; });
     card.append(el('label', { class: 'wapp__field' }, [el('span', { class: 'wapp__eyebrow', text: `Amount in ${s.fiat.toUpperCase()}` }), amount]));
     const wallet = walletFor(s.chain);
-    card.append(el('p', { class: 'wapp__fine', text: wallet ? `${s.side === 'buy' ? 'USDC will be sent to' : 'Refunds, if the sale fails, go to'} ${wallet.slice(0, 6)}…${wallet.slice(-4)} on ${CHAINS[s.chain].name}.` : `Connect a ${s.chain === 'solana' ? 'Solana wallet in the Wallet tab' : 'EVM wallet in the Swap or Move USDC tab'} to continue.` }));
+    card.append(el('p', { class: 'wapp__fine', text: wallet ? `${s.side === 'buy' ? `${s.asset} will be sent to` : 'Refunds, if the sale fails, go to'} ${wallet.slice(0, 6)}…${wallet.slice(-4)} on ${CHAINS[s.chain].name}.` : `Connect a ${s.chain === 'solana' ? 'Solana wallet in the Wallet tab' : 'EVM wallet in the Swap or Move USDC tab'} to continue.` }));
     const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: s.busy ? 'Checking…' : 'See options', attrs: { type: 'button' } });
     go.disabled = s.busy;
     go.addEventListener('click', () => void quote().then(draw));
@@ -231,7 +240,7 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     }
     if (s.watch) {
       const w = el('div', { class: 'wapp__card' });
-      w.append(el('strong', { text: s.watch.side === 'buy' ? 'Waiting for your USDC' : 'Waiting for your USDC to be sent' }), el('p', { class: 'wapp__fine', text: 'Aretia finishes a purchase only when your balance rises. Check after you complete the payment with the provider.' }));
+      w.append(el('strong', { text: s.watch.side === 'buy' ? `Waiting for your ${s.watch.symbol ?? 'USDC'}` : `Waiting for your ${s.watch.symbol ?? 'USDC'} to be sent` }), el('p', { class: 'wapp__fine', text: 'Aretia finishes a purchase only when your balance rises. Check after you complete the payment with the provider.' }));
       const b = el('button', { class: 'wapp__btn wapp__btn--ghost', text: s.busy ? 'Checking…' : 'Check my wallet', attrs: { type: 'button' } });
       b.disabled = s.busy;
       b.addEventListener('click', () => void check().then(draw));

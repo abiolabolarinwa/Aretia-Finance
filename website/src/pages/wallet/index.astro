@@ -97,6 +97,10 @@ const sendTips = [
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8-4.3-4.1 5.9-.9z" /></svg>
           <span class="wapp__label">Favourites</span>
         </button>
+        <button type="button" data-nav="radar">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 12l5-5" /></svg>
+          <span class="wapp__label">Radar</span>
+        </button>
         <button type="button" data-nav="send">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
           <span class="wapp__label">Pay</span>
@@ -318,6 +322,35 @@ const sendTips = [
         </div>
       </div>
 
+      <div data-pane="radar" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <h2 class="wapp__h2">Look up a token with Aretia Radar</h2>
+            <p class="wapp__fine">
+              Paste a token address. Radar gathers what it can find about the token's market, contract and holders, scores it, and shows what it could not find as unknown. It needs no wallet connection and it never trades.
+            </p>
+            <form class="wapp__form" data-radar-form>
+              <label for="radar-input" class="wapp__eyebrow">Token address (Solana or EVM)</label>
+              <input id="radar-input" class="wapp__input wapp-mono" autocomplete="off" spellcheck="false" placeholder="Paste a token address" />
+              <div class="wapp-rd__chains" data-radar-chains role="group" aria-label="Which chain is this token on?" hidden></div>
+              <button type="submit" class="wapp__btn wapp__btn--primary">Analyze</button>
+            </form>
+            <div class="wapp-rd__chains" data-radar-recent aria-label="Recently looked up" hidden></div>
+            <div data-radar-result aria-live="polite"></div>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Analyzed by Radar</span>
+            <div data-radar-home aria-live="polite"><p class="wapp__fine">Loading…</p></div>
+            <span class="wapp__eyebrow">What Radar can and cannot tell you</span>
+            <ul class="wapp__list">
+              <li>Radar is analysis, not advice or a forecast. A high score does not mean a token will rise, and a clean check does not mean it is safe.</li>
+              <li>Anything it could not find shows as unknown, and unknown is never counted as a pass.</li>
+              <li>Contract checks are as reported by the data sources named in each result, and may be incomplete or late, especially for new tokens.</li>
+              <li>The token address you look up is sent to Aretia's Radar server and its data sources, and nowhere else.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
       <div data-pane="shield" class="wapp__pane" hidden>
         <div class="wapp-sh" data-shield-root></div>
       </div>
@@ -967,8 +1000,35 @@ const sendTips = [
   .wapp__tokencard-stats dd { margin: 0; overflow: hidden; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
   .wapp__tokencard-foot { overflow: hidden; font-size: 11px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
+  .wapp[data-connected='false'][data-view='radar'] .wapp__gate,
   .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
-  .wapp[data-view='shield'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }
+  .wapp[data-view='shield'] [data-refresh], .wapp[data-view='radar'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }
+  .wapp-rd__chains { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wapp-rd__chains[hidden] { display: none; }
+  .wapp-rd__chain { padding: 6px 12px; font: inherit; font-size: 13px; color: var(--color-strong); background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; }
+  .wapp-rd__chain[aria-pressed='true'] { color: #fff; background: var(--color-brand); border-color: var(--color-brand); }
+  .wapp-rd__chain:focus-visible, .wapp-rd__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-rd__asset { gap: 14px; }
+  .wapp-rd__head, .wapp-rd__sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .wapp-rd__title { margin: 0; font-size: 1.3rem; color: var(--color-strong); }
+  .wapp-rd__pill { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; white-space: nowrap; }
+  .wapp-rd__pill--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); border-color: transparent; }
+  .wapp-rd__pill--bad { color: #8a1c1c; background: rgba(190, 40, 40, 0.12); border-color: transparent; }
+  .wapp-rd__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+  .wapp-rd__tile { display: grid; gap: 2px; padding: 10px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+  .wapp-rd__tile strong { font-size: 1.4rem; color: var(--color-strong); }
+  .wapp-rd__tile-label { font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .wapp-rd__tile-note { font-size: 11px; color: var(--color-muted); }
+  .wapp-rd__kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
+  .wapp-rd__kv dt { color: var(--color-muted); }
+  .wapp-rd__kv dd { margin: 0; text-align: right; color: var(--color-strong); }
+  .wapp-rd__banner { margin: 0; padding: 10px 12px; font-size: 13px; line-height: 1.5; color: #1c3fa8; background: rgba(28, 63, 168, 0.08); border-radius: var(--radius-md); }
+  .wapp-rd__banner--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp-rd__actions { display: grid; gap: 6px; justify-items: start; }
+  .wapp-rd__home { display: grid; gap: 8px; }
+  .wapp-rd__row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; font: inherit; text-align: left; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+  .wapp-rd__row-main { display: grid; flex: 1; min-width: 0; }
+  .wapp-rd__row-nums { display: grid; font-size: 12px; color: var(--color-muted); text-align: right; }
   .wapp[data-connected='false']:is([data-view='swings'], [data-view='swap']) .wapp__gate { display: none; }
   .wapp:is([data-view='swings'], [data-view='swap']) [data-refresh] { display: none; }
   .wapp__seg [role='tab'][aria-selected='true'] { color: #fff; background: var(--color-brand); }

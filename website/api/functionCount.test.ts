@@ -13,7 +13,7 @@ describe('serverless functions', () => {
   it('every path that was folded into swings-data is rewritten to it', () => {
     const config = JSON.parse(readFileSync(join(process.cwd(), 'vercel.json'), 'utf8')) as { rewrites?: { source: string; destination: string }[] };
     const have = new Map((config.rewrites ?? []).map((r) => [r.source, r.destination]));
-    for (const route of ['candles', 'pools', 'market', 'account']) expect(have.get(`/api/swings-${route}`)).toBe(`/api/swings-data?route=${route}`);
+    for (const route of ['candles', 'pools', 'market', 'account', 'radar']) expect(have.get(`/api/swings-${route}`)).toBe(`/api/swings-data?route=${route}`);
     expect(functions).toContain('swings-data.ts');
   });
 });

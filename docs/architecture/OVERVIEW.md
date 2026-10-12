@@ -2,7 +2,7 @@
 
 Source of truth for diagrams and dependency rules: [`PROPOSAL.md`](PROPOSAL.md) §2. Baseline facts: [`BASELINE.md`](BASELINE.md).
 
-**System context.** Aretia Finance is a Solana protocol workspace (Token-2022 ACT mint; presale and staking Anchor programs; Squads-multisig treasury) plus a website that hosts the Aretia Swings swap engine and a non-custodial web wallet front end. The browser extension wallet lives in the separate `aretia-wallet` repository.
+**System context.** Aretia Finance is a Solana protocol workspace (Token-2022 ACT mint; the staking Anchor program (the presale program was removed 2026-10-12); Squads-multisig treasury) plus a website that hosts the Aretia Swings swap engine and a non-custodial web wallet front end. The browser extension wallet lives in the separate `aretia-wallet` repository.
 
 **Dependency direction (enforced by ESLint rule, report-only):** `website/src/swings/**` ← `website/src/scripts/**` ← `website/src/pages/**`. Swings must not import upward. 3 documented exceptions remain (see [`BOUNDARY_EXCEPTIONS.md`](BOUNDARY_EXCEPTIONS.md)).
 

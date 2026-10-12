@@ -5,10 +5,9 @@ Only controls observed in source/CI are listed. "Evidence" is where to look; "Ve
 | Control | Where | Evidence | Verified |
 |---|---|---|---|
 | Authority-gated admin (has_one) | both programs | `UpdateConfig`, `Finalize` etc. | read; not tested |
-| Pause that never blocks exit (staking: `unstake`; presale: `claim`/`refund`) | programs | doc comments + code paths | read; not tested |
+| Pause that never blocks exit (staking: `unstake`) | programs | doc comments + code paths | read; not tested |
 | Checked arithmetic / `overflow-checks = true` (release) | `Cargo.toml` | profile + `checked_*` | read |
-| Token-2022 fee handled by balance delta / gross-up | staking `stake`; presale `claim`, `sweep_unsold_act` | code | read; devnet scripts exist, results not reviewed |
-| Oracle staleness 60 s + feed id + price > 0 | presale `buy_with_sol` | `lib.rs:393-396` | read. **No confidence check (F-16)** |
+| Token-2022 fee handled by balance delta / gross-up | staking `stake` | code | read; devnet suite exists, results not reviewed |
 | Keypairs/.env ignored by git | `.gitignore` | patterns | grep-verified no tracked keypair/.env files (only `.env.example`) |
 | Secret scanning of full history | `website-ci.yml` `secrets` job (gitleaks) | workflow | **not executed here** |
 | SAST | `codeql.yml` (security-extended) | workflow | not executed here |

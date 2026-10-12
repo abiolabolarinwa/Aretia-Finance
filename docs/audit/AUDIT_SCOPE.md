@@ -3,9 +3,9 @@
 Status: **proposed, not frozen.** No tag has been cut. Before an external audit: merge, run the full checks, tag a commit, give auditors that tag only.
 
 ## In scope (Aretia-written)
-- `program/act-presale/programs/act-presale/src/lib.rs` (1,509 lines), `program/act-staking/programs/act-staking/src/lib.rs` (476 lines), their `Anchor.toml`/`Cargo.toml`
-- `sdk/act-presale`, `sdk/act-staking`, `sdk/idl/*` (IDL must match deployed programs — unverified)
-- Operator tooling: `mainnet/*.sh`, `devnet/*.sh`, `scripts/**` (key handling, Squads proposals, mint v2)
+- `program/act-staking/programs/act-staking/src/lib.rs` (+ `authority_handoff.rs`), its `Anchor.toml`/`Cargo.toml`. (`act-presale` was removed on 2026-10-12 — the presale is cancelled — and is out of scope.)
+- `sdk/act-staking`, `sdk/idl/act_staking.json` (IDL must match deployed programs — unverified)
+- Operator tooling: `mainnet/*.sh`, `devnet/*.sh`, `scripts/**` (incl. `scripts/devnet-amm`, the AMM/test-token tooling relocated from the presale tree) (key handling, Squads proposals, mint v2)
 - `website/api/**` and `website/src/swings/**` (existing, narrower scope: `website/docs/audit/scope.md`)
 - `website/supabase/migrations/**`, `.github/workflows/**`
 

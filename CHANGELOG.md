@@ -3,6 +3,10 @@
 Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant changes.
 
 ## Unreleased
+### Removed — presale (cancelled)
+- `program/act-presale`, `sdk/act-presale` (incl. the `@aretiafinance/act-presale-sdk` source), `sdk/idl/act_presale.json`, the presale on-chain test suite and `PRESALE_DESIGN.md`. Findings F-15/F-16/F-20 are withdrawn as not applicable. Last commit containing the presale: `1cfedff`.
+### Moved
+- AMM transfer-fee compatibility proofs (Raydium/Orca/Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).
 ### Removed (dead code, verified unreferenced)
 - `website/src/components/hero/HomeHero.astro` (333 lines): imported nowhere, not loaded by any glob. Build output, tests and typecheck unchanged.
 - `program/act-staking/scripts/set-config-authority-devnet.mjs`: one-off devnet migration for the removed `set_config_authority` instruction; already guarded to exit and superseded by the two-step handoff.

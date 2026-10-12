@@ -3,6 +3,11 @@
 Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant changes.
 
 ## Unreleased
+### Changed — staking and presale mentions removed from public content
+- `WHITEPAPER.md`: Section 7 is now "Getting involved: trading"; the presale notice, the staking paragraph and the "Is there a presale?" FAQ entry are gone.
+- `WHITEPAPER_TECHNICAL.md`: Section 30 ("Tiered Access Through ACT Staking") deleted; Sections 31-33 renumbered to 30-32 and every cross-reference updated; the staking-precedent sentence and its footnote removed; the Related Work sentence that relied on token-gated access reworded to a later, separate stage; the legal section's staking sentence removed.
+- Website legacy pages: Staking nav item and footer Staking/Presale links removed from all pages; "Staking questions" buttons removed; roadmap items for the two programs, their SDKs and "mainnet deployment of staking" removed; the HTML whitepaper mirrors the markdown changes. Help Center entry "Is there an ACT presale?" removed.
+- Deliberately kept: the Shield scam-keyword list (flags phishing lures such as "presale"), and the `/stake` and `/presale` redirects in `vercel.json`.
 ### Removed — staking (cancelled)
 - `program/act-staking`, `program/svm-tests`, `sdk/` (incl. the `@aretiafinance/act-staking-sdk` source and IDL), `STAKING_DESIGN.md`, the `/stake` page and its nav/search/token-page entries, `programs-ci`. All program findings withdrawn. `/stake` now redirects to `/token`. Last commit containing staking: `7f08c9b`. The repository now contains no on-chain programs.
 ### Removed — presale (cancelled)

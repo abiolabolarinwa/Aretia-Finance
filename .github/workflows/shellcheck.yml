@@ -1,0 +1,21 @@
+name: shellcheck
+
+# Static analysis of the operator shell scripts (mainnet/, devnet/). Several of them create or move authorities on a
+# real mint, so a quoting or unset-variable mistake matters. Nothing here executes a script: shellcheck only reads them.
+on:
+  push:
+    paths: ['mainnet/**', 'devnet/**', '.github/workflows/shellcheck.yml']
+  pull_request:
+    paths: ['mainnet/**', 'devnet/**', '.github/workflows/shellcheck.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck is preinstalled on GitHub's ubuntu runners. Blocking at every severity: all current scripts pass cleanly.
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style --format=gcc

@@ -89,6 +89,31 @@ describe('the datafeed', () => {
     expect('bars' in older && older.bars.map((b) => b.time / 1000)).toEqual([1_700_000_000]);
   });
 
+  it('stops asking for older candles once a short answer shows the pool has no more history', async () => {
+    const f = reply(body(LIST));
+    let clock = 0;
+    const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, now: () => clock });
+    const first = await getBars(feed, '15', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect('bars' in first && first.bars).toHaveLength(3);
+    // 3 candles came back for 300 asked for, so the chart's follow-up request for older ones costs nothing.
+    const older = await getBars(feed, '15', { from: 0, to: 1_700_000_000, countBack: 300, firstDataRequest: false });
+    expect(older).toEqual({ bars: [], noData: true });
+    expect(f).toHaveBeenCalledTimes(1);
+    // A fresh first request (another symbol or interval load, once the short-lived cache has expired) checks again.
+    clock += 60_000;
+    await getBars(feed, '15', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps paging while answers come back full', async () => {
+    const full = Array.from({ length: 200 }, (_, i) => [1_700_000_000 + i * 900, 1, 2, 0.5, 1.5, 1]).reverse();
+    const f = reply(body(full));
+    const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f });
+    await getBars(feed, '15', { from: 0, to: 1_700_000_000 + 200 * 900, countBack: 200, firstDataRequest: true });
+    await getBars(feed, '15', { from: 0, to: 1_700_000_000, countBack: 200, firstDataRequest: false });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
   it('reports no data when a pool has no candles (new or unknown)', async () => {
     const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: reply({}, 404) });
     expect(await getBars(feed, '15', { from: 0, to: 1_700_002_000, firstDataRequest: true })).toEqual({ bars: [], noData: true });
@@ -127,6 +152,36 @@ describe('the datafeed', () => {
     expect(await getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f404, sleep }), '15', { from: 0, to: 1, firstDataRequest: true })).toEqual({ bars: [], noData: true });
     expect(f404).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("asks Aretia's shared endpoint first, so the visitor's own allowance is not spent", async () => {
+    const f = reply(body(LIST));
+    const feed = createPoolDatafeed({ chain: 'polygon', pool: POOL, label: 'AIPF / USD', token: 'quote' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv' });
+    const r = await getBars(feed, '60', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect('bars' in r && r.bars).toHaveLength(3);
+    const all = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(all).toHaveLength(1);
+    const u = new URL(all[0]!, 'https://x.test');
+    expect(u.pathname).toBe('/api/swings-ohlcv');
+    expect(Object.fromEntries(u.searchParams)).toMatchObject({ chain: 'polygon', pool: POOL, tf: 'hour', agg: '1', limit: '300', token: 'quote' });
+  });
+
+  it('goes to GeckoTerminal directly when the shared endpoint is missing, refused or unreadable', async () => {
+    for (const broken of [{ status: 404 }, { status: 502 }, { throws: true }, { garbage: true }]) {
+      const f = vi.fn(async (url: unknown) => {
+        if (String(url).startsWith('/api/swings-ohlcv')) {
+          if ('throws' in broken) throw new Error('offline');
+          if ('garbage' in broken) return new Response('<html>', { status: 200 });
+          return new Response('{}', { status: broken.status });
+        }
+        return new Response(JSON.stringify(body(LIST)));
+      }) as unknown as typeof fetch;
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', sleep: async () => undefined });
+      const r = await getBars(feed, '15', { from: 0, to: 1_700_001_800, firstDataRequest: true });
+      expect('bars' in r && r.bars).toHaveLength(3);
+      const hosts = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]).slice(0, 12));
+      expect(hosts[hosts.length - 1]).toBe('https://api.');
+    }
   });
 
   it('refuses an interval the service cannot serve', async () => {

@@ -72,7 +72,7 @@ export function loadChartingLibrary(): Promise<TvGlobal> {
 const DISABLED = ['header_symbol_search', 'symbol_search_hot_key', 'header_compare', 'header_saveload', 'header_screenshot', 'display_market_status', 'popup_hints'];
 
 /** Draws the chart into `host`. Returns a handle to take it down again. */
-export function mountTvChart(host: HTMLElement, o: TvChartOptions, feed: TvDatafeed = createPoolDatafeed({ chain: o.chain, pool: o.pool, label: o.label, ...(o.token ? { token: o.token } : {}), ...(o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) })): TvChart {
+export function mountTvChart(host: HTMLElement, o: TvChartOptions, feed: TvDatafeed = createPoolDatafeed({ chain: o.chain, pool: o.pool, label: o.label, ...(o.token ? { token: o.token } : {}), ...(o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) }, { viaServer: '/api/swings-ohlcv' })): TvChart {
   let widget: TvWidget | null = null;
   let disposed = false;
   host.replaceChildren();

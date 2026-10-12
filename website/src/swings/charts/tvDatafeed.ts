@@ -118,7 +118,18 @@ export function parseBars(body: unknown): TvBar[] {
 const LOAD_ATTEMPTS = 3;
 const RETRY_BASE_MS = 900;
 
-export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: typeof fetch; base?: string; now?: () => number; pollMs?: number; sleep?: (ms: number) => Promise<void> } = {}): TvDatafeed {
+export function createPoolDatafeed(
+  o: PoolChartOptions,
+  deps: {
+    fetchImpl?: typeof fetch;
+    base?: string;
+    now?: () => number;
+    pollMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+    /** Aretia's own shared, cached candle endpoint (/api/swings-ohlcv). Asked first; GeckoTerminal is asked directly only if it fails. */
+    viaServer?: string;
+  } = {},
+): TvDatafeed {
   const fetchImpl = deps.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const base = deps.base ?? 'https://api.geckoterminal.com/api/v2';
   const now = deps.now ?? Date.now;
@@ -128,6 +139,23 @@ export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: type
   const side = o.token ?? 'base';
   const cache = new Map<string, { at: number; bars: TvBar[] }>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
+  /** Per interval: the time of the oldest candle the pool has, once a short answer showed there is nothing before it. */
+  const exhausted = new Map<string, number>();
+
+  /**
+   * Candles from Aretia's own endpoint, which reads GeckoTerminal once for everyone and keeps the answer, so a visitor's
+   * own allowance is not spent. Null on any failure (not deployed, refused, unreadable) so the caller can go direct.
+   */
+  async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
+    if (!deps.viaServer) return null;
+    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side });
+    try {
+      const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
+      return response.ok ? parseBars(await response.json()) : null;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * One request for candles. When the visitor's allowance is used up the service refuses without the headers a browser
@@ -139,6 +167,11 @@ export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: type
     const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     const hit = cache.get(url);
     if (hit && now() - hit.at < CACHE_MS) return hit.bars;
+    const shared = await fromServer(res, beforeSec, limit);
+    if (shared) {
+      cache.set(url, { at: now(), bars: shared });
+      return shared;
+    }
     let response: Response | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
@@ -199,10 +232,16 @@ export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: type
       const res = RESOLUTIONS[resolution];
       if (!res) return onError(`The ${resolution} interval is not available.`);
       const limit = Math.min(MAX_PER_REQUEST, Math.max(200, params.countBack ?? 300));
+      // The chart pages back for older candles on its own. Once an answer has come back shorter than asked for, the pool's
+      // history has run out, so there is nothing older to ask for (and no request spent finding that out).
+      if (params.firstDataRequest) exhausted.delete(resolution);
+      const oldest = exhausted.get(resolution);
+      if (!params.firstDataRequest && oldest !== undefined && params.to * 1000 <= oldest) return onResult([], { noData: true });
       // The first request asks for the present, and the live candle is included; later ones page back from the oldest bar the chart has.
       const before = params.firstDataRequest ? params.to + res.seconds : params.to;
       candles(res, before, limit, LOAD_ATTEMPTS)
         .then((bars) => {
+          if (bars.length < limit) exhausted.set(resolution, bars[0]?.time ?? Number.POSITIVE_INFINITY);
           const inRange = bars.filter((b) => (params.firstDataRequest ? b.time <= params.to * 1000 : b.time < params.to * 1000));
           onResult(inRange, { noData: inRange.length === 0 });
         })

@@ -1,6 +1,7 @@
 /**
- * One function behind five public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind six public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
+ *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-pools    Solana pools of a token      (GET)
  *   /api/swings-market   the shared Marketplace lists (GET)
  *   /api/swings-account  favourites and saved swaps   (POST)
@@ -10,6 +11,7 @@
 import { handleAccount } from './_swingsAccount.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleMarket } from './_swingsMarket.js';
+import { handleOhlcv } from './_swingsOhlcv.js';
 import { handlePools } from './_swingsPools.js';
 import { handleRadar } from './_radarProxy.js';
 import { requestOrigin } from './_rpcProxy.js';
@@ -57,6 +59,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'candles') out = await handleCandles({ ...common, query });
   else if (route === 'pools') out = await handlePools({ ...common, query });
   else if (route === 'market') out = await handleMarket({ ...common, query });
+  else if (route === 'ohlcv') out = await handleOhlcv({ ...common, query });
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };
   for (const [name, value] of Object.entries(out.headers)) res.setHeader(name, value);
   res.status(out.status).send(out.body);

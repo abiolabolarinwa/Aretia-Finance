@@ -1,0 +1,17 @@
+{
+  "name": "act-devnet-amm-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Devnet/mainnet-simulation scripts proving how the transfer-fee ACT mint behaves in AMM pools (Raydium CPMM, Orca Whirlpool, Meteora DAMM v2). Operator tooling; nothing here is run in CI.",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@meteora-ag/cp-amm-sdk": "^1.4.9",
+    "@orca-so/common-sdk": "^0.7.1",
+    "@orca-so/whirlpools-sdk": "^0.22.0",
+    "@raydium-io/raydium-sdk-v2": "^0.2.70-alpha",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "bn.js": "^5.2.5",
+    "decimal.js": "^10.6.0"
+  }
+}

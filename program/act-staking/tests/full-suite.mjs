@@ -14,8 +14,8 @@
 // This never touches the primary devnet deployment
 // (DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH) or mainnet, and never
 // uses real ACT -- only a throwaway Token-2022 test mint with the same
-// TransferFeeConfig shape (350 bps), reused from act-presale's devnet
-// test tokens.
+// TransferFeeConfig shape (350 bps), reused from the devnet
+// test tokens (scripts/devnet-amm/devnet-test-tokens.json).
 //
 // Run: npm test   (== mocha tests/full-suite.mjs --timeout 300000 --exit)
 
@@ -53,7 +53,7 @@ const DEPLOYER_KEYPAIR_PATH = path.resolve(
   PROGRAM_ROOT,
   "../../devnet/deployer-keypair.json"
 );
-// act-presale's throwaway test-ACT mint (Token-2022, 350 bps transfer
+// The throwaway devnet test-ACT mint (scripts/devnet-amm; Token-2022, 350 bps transfer
 // fee) -- same extension shape as real ACT, reused rather than minted
 // fresh here. This suite's deployer keypair is also this mint's mint
 // authority (confirmed via ../scripts/unstake-success-devnet-test.mjs).
@@ -558,7 +558,7 @@ describe("act-staking (devnet, throwaway fast-clock deployment)", function () {
       // staked.amount is already net of the deposit-side fee; unstake
       // does not gross up, so the wallet nets staked.amount * ~0.965
       // (withdrawal-side fee only) -- documented behavior, distinct from
-      // act-presale's claim() which does gross up.
+      // a payout that grosses up.
       const expectedApprox = (staked.amount * 965n) / 1000n;
       const delta = received > expectedApprox ? received - expectedApprox : expectedApprox - received;
       expect(Number(received)).to.be.greaterThan(0);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PRESALE_DESIGN.md open item #2 -- extend the AMM proof to Meteora.
+ * AMM compatibility proof -- extend the AMM proof to Meteora.
  * ---------------------------------------------------------------------
  * Mirrors exercise-devnet-raydium-cpmm.mjs and
  * exercise-devnet-orca-whirlpool.mjs: creates a real Meteora DAMM v2
@@ -48,7 +48,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
+  path.resolve(__dirname, "../../devnet/deployer-keypair.json");
 
 function loadKeypair(path) {
   const raw = JSON.parse(fs.readFileSync(path, "utf8"));

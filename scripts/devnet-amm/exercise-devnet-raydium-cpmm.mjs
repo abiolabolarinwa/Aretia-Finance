@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * PRESALE_DESIGN.md open item #2 -- DEX/AMM Token-2022 compatibility.
+ * AMM compatibility proof -- DEX/AMM Token-2022 compatibility.
  * ---------------------------------------------------------------------
  * Creates a real Raydium CPMM pool on devnet for test-ACT (Token-2022,
- * 3.5% TransferFeeConfig -- the same throwaway mint used by the presale
- * exercise scripts) paired against test-USDC, seeds it with initial
+ * 3.5% TransferFeeConfig -- the throwaway devnet test mint
+ * from setup-devnet-tokens.mjs) paired against test-USDC, seeds it with initial
  * liquidity, then does a real swap through it -- to prove Raydium's
  * CPMM actually handles a transfer-fee Token-2022 mint correctly on
  * devnet, not just that its docs say it should.
@@ -46,7 +46,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
+  path.resolve(__dirname, "../../devnet/deployer-keypair.json");
 
 function loadKeypair(path) {
   const raw = JSON.parse(fs.readFileSync(path, "utf8"));
@@ -95,7 +95,7 @@ async function main() {
   const mintB = { address: testUsdcMint.toBase58(), decimals: 6, programId: TOKEN_PROGRAM_ID.toBase58() };
 
   // Seed liquidity: 1000 test-ACT (gross, pre-fee) against 10 test-USDC --
-  // roughly matches the presale's $0.01/ACT price once the 3.5% transfer
+  // roughly a $0.01/ACT starting price once the 3.5% transfer
   // fee is netted out of the ACT side. Small amounts; this is a
   // mechanism test, not a real liquidity seeding rehearsal.
   const mintAAmount = new BN(1000).mul(new BN(10).pow(new BN(9)));

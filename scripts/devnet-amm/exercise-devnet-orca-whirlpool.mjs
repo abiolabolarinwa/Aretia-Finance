@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PRESALE_DESIGN.md open item #2 -- extend the AMM proof to Orca.
+ * AMM compatibility proof -- extend the AMM proof to Orca.
  * ---------------------------------------------------------------------
  * Mirrors exercise-devnet-raydium-cpmm.mjs: creates a real Orca
  * Whirlpool "splash pool" (a simplified, full-range-only pool type --
@@ -55,7 +55,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
+  path.resolve(__dirname, "../../devnet/deployer-keypair.json");
 const DEVNET_WHIRLPOOLS_CONFIG = new PublicKey("FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR");
 
 function loadKeypair(path) {

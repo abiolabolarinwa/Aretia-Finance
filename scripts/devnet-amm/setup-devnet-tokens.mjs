@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 /**
- * act-presale -- devnet test-token setup
+ * devnet test-token setup (shared by the AMM scripts and act-staking's devnet tests)
  * ---------------------------------------------------------------------
  * Creates three THROWAWAY devnet mints that stand in for the real
- * mainnet-only ACT/USDC/USDT so the presale program can be exercised
- * end to end without touching anything real:
+ * mainnet-only ACT/USDC/USDT so ACT-dependent code (AMM pools, act-staking)
+ * can be exercised end to end without touching anything real:
  *
  *   - test-ACT: Token-2022 with a TransferFeeConfig extension set to
  *     350 bps (3.5%), matching real ACT's live mainnet configuration
- *     exactly, so the gross-up math (`grossed_up_amount` in lib.rs)
- *     actually gets exercised against real fee-withholding behavior,
+ *     exactly, so fee-withholding behavior is exercised for real,
  *     not a mint that happens not to have the extension at all.
  *   - test-USDC / test-USDT: plain SPL Token (Token program, not
  *     Token-2022), 6 decimals, no fee -- matching real USDC/USDT.
@@ -17,7 +16,7 @@
  * Also creates three treasury ATAs (one per test mint) owned by the
  * REAL mainnet Squads treasury vault address
  * (GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA), per the instruction
- * to wire the presale's treasury destinations to the real multisig.
+ * to point the test treasury destinations at the real multisig address.
  * That address has no signing authority on devnet (the real Squads
  * multisig only exists as such on mainnet), so nothing can ever be
  * *spent* from these devnet treasury ATAs -- that's fine, this test
@@ -55,7 +54,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
-  path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
+  path.resolve(__dirname, "../../devnet/deployer-keypair.json");
 
 // The REAL mainnet Squads treasury vault -- fee-config-authority and
 // withdraw-withheld-authority on the real ACT mint, and the address that

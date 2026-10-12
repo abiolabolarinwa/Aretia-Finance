@@ -9,15 +9,14 @@
  * documented native-Windows solana-test-validator genesis-unpacking
  * failure (see this repo's README, "Local-validator attempt").
  *
- * This closes that gap the same way act-presale's vesting checkpoints
- * were tested: a THROWAWAY devnet deployment
+ * This closes that gap with a THROWAWAY devnet deployment
  * (Dk71i4rN8MmPFc1awfChRZigcso8DwBMLKwSGS5NW7ur -- same act-staking
  * source, built with `test-fast-clock` so a "day" is 2 real seconds,
  * never the real devnet/mainnet program) instead of a local validator.
  * A 30-day lock matures in 60 real seconds under this build, which is
  * exactly what's exercised here.
  *
- * Uses act-presale's throwaway test-ACT mint (Token-2022, 350 bps
+ * Uses the throwaway devnet test-ACT mint (created by scripts/devnet-amm/setup-devnet-tokens.mjs) (Token-2022, 350 bps
  * transfer fee) rather than a fresh fee-less mint, specifically so this
  * test also confirms the documented (not previously exercised) fact
  * that `unstake` does NOT gross up the withdrawal -- the wallet nets
@@ -55,7 +54,7 @@ const PROGRAM_ID = new PublicKey("Dk71i4rN8MmPFc1awfChRZigcso8DwBMLKwSGS5NW7ur")
 const RPC_URL = "https://api.devnet.solana.com";
 const DEPLOYER_KEYPAIR_PATH =
   path.resolve(__dirname, "../../../devnet/deployer-keypair.json");
-// test-ACT from act-presale's devnet-test-tokens.json (Token-2022, 350 bps fee).
+// test-ACT from scripts/devnet-amm/devnet-test-tokens.json (Token-2022, 350 bps fee).
 const TEST_MINT = new PublicKey("DByy9CGFgXAEGeaufeA275y8tP9aiXWZkjRanNMd4pEr");
 
 function loadKeypair(path) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PRESALE_DESIGN.md follow-up -- simulate (never send) a real-ACT pool
+ * AMM compatibility follow-up -- simulate (never send) a real-ACT pool
  * creation on MAINNET, to check the one thing devnet testing couldn't:
  * whether the real ACT mint's extra `MetadataPointer` extension (not
  * present on the devnet test-ACT mint used everywhere else in this

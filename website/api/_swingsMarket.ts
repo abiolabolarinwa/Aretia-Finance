@@ -1,5 +1,5 @@
 /**
- * GET /api/swings-market?kind=&chain=&window=&page=: the Marketplace lists (trending, top, gainers), read once by the
+ * GET /api/swings-market?kind=&chain=&window=&page=: the Marketplace lists (trending, top, gainers, and the newest pools), read once by the
  * server and shared. The browser used to ask GeckoTerminal itself, which allows about 30 requests a minute per visitor;
  * a busy visitor was refused and the list went blank. Here one fetch serves everyone: it is kept in the server's memory
  * for a minute, the CDN keeps the answer for the same minute, and if the source fails the last good list (up to fifteen
@@ -11,7 +11,7 @@ import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../sr
 import type { MarketRow } from '../src/swings/market/types.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
-const KINDS: readonly string[] = ['trending', 'top', 'gainers'];
+const KINDS: readonly string[] = ['trending', 'top', 'gainers', 'new'];
 const WINDOWS: readonly string[] = ['m5', 'h1', 'h6', 'h24'];
 const FRESH_MS = 60_000;
 const STALE_MS = 15 * 60_000;

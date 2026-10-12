@@ -24,7 +24,7 @@ import { createMarketPanel } from './walletMarketPanel.js';
 import { ratingKey } from './walletRatingGuide.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
-import { mountIsland, type IslandToken } from './walletIsland.js';
+import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
@@ -2015,15 +2015,25 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   placeTabs();
   // The island in the top bar: the newest tokens Aretia has detected, with a Buy button that opens the same swap as everywhere else.
   mountIsland({
+    // Every network's newest pools, read from the live market lists (the server reads each once a minute and shares it), so the
+    // pill is as fresh as the market is and covers every network, not only what Aretia's own registry has found so far.
     async load(): Promise<IslandToken[]> {
-      const res = await fetch('/api/swings-tokens?sort=newest&limit=12&maxAgeHours=24&hideRisky=1');
-      const body = (await res.json().catch(() => null)) as { tokens?: TokenRecord[] } | null;
-      if (!res.ok || !body || !Array.isArray(body.tokens)) throw new Error('unavailable');
-      const rows = await rowsFromRecords(body.tokens);
-      const byKey = new Map(body.tokens.map((r) => [watchKey(r.ref.chain, r.ref.address), r]));
-      return rows
-        .filter((r) => r.priceUsd !== null)
-        .map((r) => ({ key: watchKey(r.chain, r.address), chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon ?? byKey.get(watchKey(r.chain, r.address))?.logo ?? null, priceUsd: r.priceUsd, liquidityUsd: r.liquidityUsd, capUsd: r.capUsd, ageMs: r.ageMs, rating: r.risk?.label ?? null }));
+      const all: IslandToken[] = [];
+      let answered = 0;
+      for (const chain of CHAIN_IDS) {
+        try {
+          const res = await fetch(`/api/swings-market?kind=new&chain=${chain}&window=h24&page=1`);
+          const body = (await res.json().catch(() => null)) as { rows?: MarketRow[] } | null;
+          if (!res.ok || !body || !Array.isArray(body.rows)) continue;
+          answered++;
+          for (const r of body.rows) all.push({ key: watchKey(r.chain, r.address), chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon, priceUsd: r.priceUsd, liquidityUsd: r.liquidityUsd, capUsd: r.capUsd, ageMs: r.ageMs, rating: r.risk?.label ?? null });
+        } catch {
+          // one network not answering leaves the others
+        }
+        await new Promise<void>((r) => setTimeout(r, 250));
+      }
+      if (answered === 0) throw new Error('unavailable');
+      return selectNewest(all);
     },
     buy: (t) => (isChainEnabled(t.chain) ? () => window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail: { chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, icon: t.icon, decimals: null, liquidityUsd: t.liquidityUsd, priceUsd: t.priceUsd, fresh: true, risk: t.rating } satisfies SearchHit })) : null),
     view: (t) => window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, icon: t.icon, page: 'swings' } })),

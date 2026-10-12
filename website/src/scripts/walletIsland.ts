@@ -36,14 +36,35 @@ export interface IslandDeps {
 }
 
 const SEEN_KEY = 'aretia-island-seen-v1';
-const POLL_MS = 45_000;
+/** How often the pill asks again. The newest pools are read from the live market lists, so this is how fresh it is. */
+export const POLL_MS = 120_000;
 const CYCLE_MS = 4_500;
 const ANNOUNCE_MS = 7_000;
-export const ISLAND_MAX = 12;
+export const ISLAND_MAX = 18;
+/** The newest tokens kept for each network, so every network shows up and a busy one does not crowd out the rest. */
+export const PER_CHAIN = 2;
+/** Pools with less liquidity than this are dust, not a token anyone can trade. */
+export const MIN_LIQUIDITY_USD = 1_000;
 
 /** The tokens in `tokens` that are not in `seen`, in their order. Pure. */
 export function pickArrivals(tokens: readonly IslandToken[], seen: ReadonlySet<string>): IslandToken[] {
   return tokens.filter((t) => !seen.has(t.key));
+}
+
+/**
+ * From the newest pools of every network: the newest `perChain` of each (with a price and some liquidity), the youngest first.
+ * A network with nothing recent still shows its newest, with its age. Pure.
+ */
+export function selectNewest(all: readonly IslandToken[], perChain = PER_CHAIN, max = ISLAND_MAX): IslandToken[] {
+  const age = (t: IslandToken): number => t.ageMs ?? Number.POSITIVE_INFINITY;
+  const byChain = new Map<ChainId, IslandToken[]>();
+  for (const t of [...all].sort((a, b) => age(a) - age(b))) {
+    if (t.priceUsd === null || (t.liquidityUsd ?? 0) < MIN_LIQUIDITY_USD) continue;
+    const list = byChain.get(t.chain) ?? [];
+    if (list.length < perChain && !list.some((x) => x.key === t.key)) list.push(t);
+    byChain.set(t.chain, list);
+  }
+  return [...byChain.values()].flat().sort((a, b) => age(a) - age(b)).slice(0, max);
 }
 
 /** Keeps the newest `max`, each token once, newest first. Pure. */
@@ -121,6 +142,7 @@ export function mountIsland(deps: IslandDeps): void {
   let announceTimer: ReturnType<typeof setTimeout> | undefined;
   const seen = loadSeen();
   let first = true;
+  let lastPoll = 0;
 
   const current = (): IslandToken | null => tokens[index] ?? null;
 
@@ -163,7 +185,7 @@ export function mountIsland(deps: IslandDeps): void {
     sub.append(`${t.symbol} · ${CHAINS[t.chain].name}${t.ageMs !== null ? ` · ${formatAge(t.ageMs)} old` : ''}`);
     names.append(sub);
     top.append(logo(t, 'wapp-island__big'), names);
-    if (t.rating) top.append(el('span', 'wapp-island__rating', t.rating));
+    top.append(el('span', 'wapp-island__rating', t.rating ?? 'Unrated'));
     inner.append(top);
 
     const stats = el('div', 'wapp-island__stats');
@@ -261,6 +283,7 @@ export function mountIsland(deps: IslandDeps): void {
 
   async function poll(): Promise<void> {
     if (document.hidden) return;
+    lastPoll = Date.now();
     let got: IslandToken[];
     try {
       got = await deps.load();
@@ -271,7 +294,8 @@ export function mountIsland(deps: IslandDeps): void {
     for (const t of got) seen.add(t.key);
     saveSeen(seen);
     const showing = current()?.key;
-    tokens = mergeTokens(got, tokens);
+    // What was just read replaces the list (an empty answer leaves it as it was), so an old token does not linger.
+    if (got.length > 0) tokens = got.slice(0, ISLAND_MAX);
     index = Math.max(0, tokens.findIndex((t) => t.key === showing));
     // The first look only fills the pill; tokens that arrive after that open it for a few seconds.
     if (!first && arrivals.length > 0 && !pinned) {
@@ -308,4 +332,8 @@ export function mountIsland(deps: IslandDeps): void {
   draw();
   void poll();
   setInterval(() => void poll(), POLL_MS);
+  // A tab that was in the background looks again as soon as it comes back, if its list is stale.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - lastPoll > POLL_MS) void poll();
+  });
 }

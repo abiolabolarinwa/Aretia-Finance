@@ -661,7 +661,8 @@ const sendTips = [
   .wapp-mp { display: none; }
   /* One light indigo through the whole panel in place of grey: headers, lines, chips and the sponsor card. */
   .wapp { --wapp-indigo: #e9e6fc; --wapp-indigo-line: #cdc6f3; }
-  .wapp-mp { --color-bg-alt: var(--wapp-indigo); --color-border: var(--wapp-indigo-line); --color-border-strong: #b9b0ec; --color-muted: #55508a; --color-brand-soft: var(--wapp-indigo); }
+  /* The panel's light surfaces are light grey, not the wallet's light indigo; the deep indigo (picked window, buttons) is unchanged. */
+  .wapp-mp { --wapp-indigo: #f1f2f5; --wapp-indigo-line: #dcdfe6; --color-bg-alt: var(--wapp-indigo); --color-border: var(--wapp-indigo-line); --color-border-strong: #c3c7d1; --color-muted: #5a606c; --color-brand-soft: var(--wapp-indigo); }
   /* The panel scrolls with the mouse wheel while the pointer is over it, without showing a scrollbar, and does not hand the scroll on to the page at its ends. */
   .wapp-mp { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
   .wapp-mp::-webkit-scrollbar { display: none; }
@@ -759,7 +760,7 @@ const sendTips = [
 
   /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */
   .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--wapp-indigo); border: 1px solid var(--wapp-indigo-line); border-radius: 12px; }
-  .wapp-ad--house { border-style: dashed; border-color: #b9b0ec; }
+  .wapp-ad--house { border-style: dashed; border-color: #c3c7d1; }
   .wapp-ad .wapp-ad__tag { color: #3f3a8a; background: #fff; border-color: var(--wapp-indigo-line); }
   .wapp-ad .wapp-ad__text p, .wapp-ad .wapp-ad__by { color: #4a4580; }
   .wapp-ad__top { display: flex; align-items: center; gap: 8px; }

@@ -8,6 +8,7 @@
   "trailingSlash": false,
   "rewrites": [
     { "source": "/api/swings-candles", "destination": "/api/swings-data?route=candles" },
+    { "source": "/api/swings-ohlcv", "destination": "/api/swings-data?route=ohlcv" },
     { "source": "/api/swings-pools", "destination": "/api/swings-data?route=pools" },
     { "source": "/api/swings-market", "destination": "/api/swings-data?route=market" },
     { "source": "/api/swings-account", "destination": "/api/swings-data?route=account" },

@@ -40,6 +40,8 @@ export interface TokensEnv extends ProxyEnv {
   /** Optional: Etherscan v2 key for contract-source verification, and the 0x key for token-tax data. */
   ETHERSCAN_API_KEY?: string;
   ZEROX_API_KEY?: string;
+  /** Optional: a paid CoinGecko API key for the chart's candles (api/_swingsOhlcv.ts). Without one the free GeckoTerminal endpoint is used. */
+  COINGECKO_API_KEY?: string;
 }
 
 export interface TokensInput {

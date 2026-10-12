@@ -8,7 +8,7 @@ const NOW_S = NOW / 1000;
 // Newest first, as GeckoTerminal sends them.
 const LIST = [[1_799_999_100, 3, 4, 2, 3.5, 30], [1_799_998_200, 2, 3, 1, 2.5, 20]];
 const upstream = (list: unknown = LIST, status = 200): typeof fetch => vi.fn(async () => new Response(JSON.stringify({ data: { attributes: { ohlcv_list: list } } }), { status })) as unknown as typeof fetch;
-const input = (query: Record<string, string>, fetchImpl: typeof fetch, now = NOW, ip = '3.3.3.3') => ({ method: 'GET', origin: null, authorization: null, ip, query, env: {}, fetchImpl, now });
+const input = (query: Record<string, string>, fetchImpl: typeof fetch, now = NOW, ip = '3.3.3.3', env: { COINGECKO_API_KEY?: string } = {}) => ({ method: 'GET', origin: null, authorization: null, ip, query, env, fetchImpl, now });
 const q = (over: Record<string, string> = {}) => ({ chain: 'polygon', pool: POOL, tf: 'minute', agg: '15', before: String(NOW_S + 900), limit: '300', ...over });
 const calls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => new URL(String(c[0])));
 
@@ -16,6 +16,56 @@ describe('shared candles for the chart', () => {
   beforeEach(() => {
     resetRateLimit();
     resetOhlcvCache(0);
+  });
+
+  describe('with a paid CoinGecko key', () => {
+    const KEY = 'CG-test-key-123';
+    const headersOf = (f: typeof fetch, i = 0): Record<string, string> => ((f as unknown as ReturnType<typeof vi.fn>).mock.calls[i]![1] as { headers: Record<string, string> }).headers;
+
+    it('reads the paid endpoint, sends the key only as a header, and never leaks it in the answer', async () => {
+      const f = upstream();
+      const out = await handleOhlcv(input(q(), f, NOW, '3.3.3.3', { COINGECKO_API_KEY: ` ${KEY} ` }));
+      const u = calls(f)[0]!;
+      expect(u.origin + u.pathname).toBe(`https://pro-api.coingecko.com/api/v3/onchain/networks/polygon_pos/pools/${POOL}/ohlcv/minute`);
+      expect(u.searchParams.get('aggregate')).toBe('15');
+      expect(u.search).not.toContain(KEY);
+      expect(headersOf(f)['x-cg-pro-api-key']).toBe(KEY);
+      expect(out.status).toBe(200);
+      expect(out.body).not.toContain(KEY);
+      expect(JSON.stringify(out.headers)).not.toContain(KEY);
+    });
+
+    it('falls back to the free endpoint, without the key, when the key is refused, over quota or the paid host is down', async () => {
+      for (const paid of [new Response('{}', { status: 401 }), new Response('{}', { status: 403 }), new Response('{}', { status: 429 }), new Response('{}', { status: 503 })]) {
+        resetOhlcvCache(0);
+        const f = vi.fn().mockResolvedValueOnce(paid).mockResolvedValue(new Response(JSON.stringify({ data: { attributes: { ohlcv_list: LIST } } })));
+        const out = await handleOhlcv(input(q(), f as unknown as typeof fetch, NOW, '3.3.3.3', { COINGECKO_API_KEY: KEY }));
+        expect(out.status).toBe(200);
+        const second = calls(f as unknown as typeof fetch)[1]!;
+        expect(second.origin).toBe('https://api.geckoterminal.com');
+        expect(headersOf(f as unknown as typeof fetch, 1)['x-cg-pro-api-key']).toBeUndefined();
+      }
+      resetOhlcvCache(0);
+      const offline = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(new Response(JSON.stringify({ data: { attributes: { ohlcv_list: LIST } } })));
+      expect((await handleOhlcv(input(q(), offline as unknown as typeof fetch, NOW, '3.3.3.3', { COINGECKO_API_KEY: KEY }))).status).toBe(200);
+    });
+
+    it('treats an unknown pool on the paid endpoint as an empty chart, without asking the free one', async () => {
+      const f = upstream({}, 404);
+      const out = await handleOhlcv(input(q(), f, NOW, '3.3.3.3', { COINGECKO_API_KEY: KEY }));
+      expect(JSON.parse(out.body).data.attributes.ohlcv_list).toEqual([]);
+      expect(calls(f)).toHaveLength(1);
+    });
+
+    it('uses the free endpoint with no key header when no key is set, or the key is blank', async () => {
+      for (const env of [{}, { COINGECKO_API_KEY: '   ' }]) {
+        resetOhlcvCache(0);
+        const f = upstream();
+        await handleOhlcv(input(q(), f, NOW, '3.3.3.3', env));
+        expect(calls(f)[0]!.origin).toBe('https://api.geckoterminal.com');
+        expect(headersOf(f)['x-cg-pro-api-key']).toBeUndefined();
+      }
+    });
   });
 
   it('tries the source once more when it refuses for a moment, before giving up', async () => {

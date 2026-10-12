@@ -8,6 +8,9 @@
  *
  * The `before` time is rounded up to a whole candle, so visitors asking in the same few seconds share one answer instead
  * of each carrying a slightly different timestamp. Only a pool's address and the network are ever sent upstream.
+ *
+ * With COINGECKO_API_KEY set (a paid CoinGecko plan) the same data is read from CoinGecko's paid endpoint, which allows far
+ * more requests; the key stays on the server. If that key is refused or its quota is spent, the free endpoint answers.
  */
 import { overLimit } from './_rpcProxy.js';
 import { isChainId } from '../src/swings/core/types.js';
@@ -80,12 +83,26 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   if (hit && input.now - hit.at < fresh) return ok(hit.rows, false);
   if (overLimit(`ohlcv:${input.ip}`, input.now)) return hit ? ok(hit.rows, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
 
-  const url = `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency: 'usd', token })}`;
+  const path = `networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency: 'usd', token })}`;
+  const url = `https://api.geckoterminal.com/api/v2/${path}`;
+  const apiKey = input.env.COINGECKO_API_KEY?.trim();
   // Visitors asking for the same thing at once share one upstream request.
   let pending = inFlight.get(key);
   if (!pending) {
     pending = (async () => {
-      let res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });
+      // With a paid CoinGecko key the same data comes from its paid endpoint, which allows far more requests. The key goes
+      // in a header, never in a URL or an answer. If the key is refused or its quota is spent, fall back to the free
+      // endpoint rather than leave the chart empty.
+      let res: Response | null = null;
+      if (apiKey) {
+        try {
+          const paid = await input.fetchImpl(`https://pro-api.coingecko.com/api/v3/onchain/${path}`, { headers: { accept: 'application/json', 'x-cg-pro-api-key': apiKey } });
+          if (paid.ok || paid.status === 404) res = paid;
+        } catch {
+          res = null;
+        }
+      }
+      res ??= await input.fetchImpl(url, { headers: { accept: 'application/json' } });
       if (res.status === 429 || res.status >= 500) {
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });

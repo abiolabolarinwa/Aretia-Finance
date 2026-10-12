@@ -49,7 +49,8 @@ export interface Verdict {
   couldNot: string[];
   facts: Fact[];
   /** Links to read more: a block explorer, the chart. */
-  links: { label: string; url: string }[];
+  /** `inApp: 'chart'` marks the link that opens the token's own chart inside the wallet; the url is the fallback. */
+  links: { label: string; url: string; inApp?: 'chart' }[];
   checkedAt: number;
   /** For a token: the rating word ("Unverified", "High risk"), so the chip matches the Markets list. */
   ratingLabel?: string;

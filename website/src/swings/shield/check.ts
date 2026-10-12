@@ -362,7 +362,7 @@ export async function checkToken(chain: ChainId, address: string, deps: ShieldDe
 
   const links = [
     { label: chain === 'solana' ? 'Open on Solscan' : 'Open on the explorer', url: tokenUrl(chain, value) },
-    ...(pool ? [{ label: 'See the chart', url: `https://dexscreener.com/${chain === 'bnb' ? 'bsc' : chain}/${encodeURIComponent(pool.pool)}` }] : []),
+    ...(pool ? [{ label: 'See the chart', url: `https://dexscreener.com/${chain === 'bnb' ? 'bsc' : chain}/${encodeURIComponent(pool.pool)}`, inApp: 'chart' as const }] : []),
   ];
   const floor: Band | undefined = major ? undefined : risk ? bandOf(risk.status) : 'grey';
   return buildVerdict({ subject, findings, couldNot, facts, links, now, ...(floor ? { floor } : {}), ...(major ? { ratingLabel: 'Major asset' } : risk ? { ratingLabel: RISK_LABELS[risk.status] } : {}) });

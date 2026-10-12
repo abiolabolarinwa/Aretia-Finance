@@ -114,27 +114,43 @@ export function parseBars(body: unknown): TvBar[] {
   return [...bars.values()].sort((a, b) => a.time - b.time);
 }
 
-export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: typeof fetch; base?: string; now?: () => number; pollMs?: number } = {}): TvDatafeed {
+/** History loads try this many times before giving up, waiting a little longer each time. */
+const LOAD_ATTEMPTS = 3;
+const RETRY_BASE_MS = 900;
+
+export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: typeof fetch; base?: string; now?: () => number; pollMs?: number; sleep?: (ms: number) => Promise<void> } = {}): TvDatafeed {
   const fetchImpl = deps.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const base = deps.base ?? 'https://api.geckoterminal.com/api/v2';
   const now = deps.now ?? Date.now;
   const pollMs = deps.pollMs ?? LIVE_POLL_MS;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const network = GECKO_NETWORK[o.chain];
   const side = o.token ?? 'base';
   const cache = new Map<string, { at: number; bars: TvBar[] }>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
 
-  async function candles(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[]> {
+  /**
+   * One request for candles. When the visitor's allowance is used up the service refuses without the headers a browser
+   * needs, so that shows up as a failed fetch rather than a 429; both are a short wait away from working, so history
+   * loads (attempts > 1) try again before giving up.
+   */
+  async function candles(res: Resolution, beforeSec: number, limit: number, attempts = 1): Promise<TvBar[]> {
     const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(Math.floor(beforeSec)), limit: String(limit), currency: 'usd', token: side });
     const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     const hit = cache.get(url);
     if (hit && now() - hit.at < CACHE_MS) return hit.bars;
-    let response: Response;
-    try {
-      response = await fetchImpl(url, { headers: { accept: 'application/json' } });
-    } catch {
-      throw new Error('The price service could not be reached.');
+    let response: Response | null = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        response = await fetchImpl(url, { headers: { accept: 'application/json' } });
+      } catch {
+        response = null;
+      }
+      const retryable = response === null || response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === attempts) break;
+      await sleep(RETRY_BASE_MS * attempt);
     }
+    if (response === null) throw new Error('The price service could not be reached.');
     if (response.status === 429) throw new Error('The price service is busy. Try again in a minute.');
     if (response.status === 404) return [];
     if (!response.ok) throw new Error(`The price service answered ${response.status}.`);
@@ -185,7 +201,7 @@ export function createPoolDatafeed(o: PoolChartOptions, deps: { fetchImpl?: type
       const limit = Math.min(MAX_PER_REQUEST, Math.max(200, params.countBack ?? 300));
       // The first request asks for the present, and the live candle is included; later ones page back from the oldest bar the chart has.
       const before = params.firstDataRequest ? params.to + res.seconds : params.to;
-      candles(res, before, limit)
+      candles(res, before, limit, LOAD_ATTEMPTS)
         .then((bars) => {
           const inRange = bars.filter((b) => (params.firstDataRequest ? b.time <= params.to * 1000 : b.time < params.to * 1000));
           onResult(inRange, { noData: inRange.length === 0 });

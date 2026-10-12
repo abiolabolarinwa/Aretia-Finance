@@ -120,13 +120,9 @@ Right now, while the community is still small, funding decisions are made by the
 
 As the community grows, the plan is to hand more of this over to ACT holders, but carefully. Token holders would help set overall funding priorities, like which categories of project deserve more attention, not vote on approving individual payments one by one. That distinction matters: letting any large group vote directly on individual payouts is exactly the kind of setup that can be captured by a coordinated group voting to send the treasury to themselves. Keeping "what to prioritize" and "did this specific payment actually earn its release" as two separate questions, answered by two different processes, is a deliberate safeguard, not an accident.
 
-## 7. Getting involved: trading and staking
-
-**There is no presale.** A presale was planned, but it was cancelled in October 2026 before it opened, and no presale will take place.
+## 7. Getting involved: trading
 
 **Trading:** ACT is acquired by trading against USDC or SOL on Solana. Its two liquidity pools opened on 2 October 2026. The treasury seeded them with its own ACT, priced up from a floor of $0.005 — nobody else's money was needed to start them — and that liquidity is locked permanently: it can never be withdrawn by anyone, the treasury included. Always check you are trading the real mint, listed in Section 11.
-
-**Staking** lets anyone already holding ACT lock it up for a set period in exchange for more ACT back later. The longer you're willing to lock it up, the bigger the bonus.
 
 ## 8. What's built today, and what's still ahead
 
@@ -164,9 +160,6 @@ The token itself would keep working exactly as coded, since its supply and fee r
 
 **Why should I trust that the fund actually pays real projects, and doesn't just sit there?**
 You don't have to take that on faith. Every fee collected and every payment made is a public transaction on Solana, and the verification step in Section 5 means a payment only goes out once someone independent has confirmed real progress. Section 11 shows you exactly where to check this yourself.
-
-**Is there a presale?**
-No. The planned presale was cancelled before it opened, and no presale will take place. If anyone offers you ACT in a "presale", it is not from Aretia.
 
 ## 11. Don't take our word for it
 

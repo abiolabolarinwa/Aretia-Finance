@@ -36,7 +36,7 @@
   .mono { font-family: var(--mono); }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
   /* The nav bar's own wrap (class="wrap topnav-outer" in the markup below)
-     needs to be wide enough for 7 items (Home/Treasury/Staking/Roadmap/
+     needs to be wide enough for 6 items (Home/Treasury/Roadmap/
      Connect Wallet/Apply for Funding/Capital Marketplace) -- without this
      override it overflows and overlaps the brand logo. Matches
      index.html's own override for the identical nav-wrap pattern. */
@@ -90,7 +90,7 @@
   .gooey-nav-item.is-active { background: #fff; }
   .gooey-nav-label { display: flex; align-items: center; padding: 8px 18px; font-size: 12.5px; line-height: 16px; font-weight: 600; white-space: nowrap; color: #fff; transition: color 260ms var(--ease); }
   .gooey-nav-item.is-active .gooey-nav-label { color: var(--brand); }
-  /* Connect Wallet / Presale / Apply for Funding: each already renders its
+  /* Connect Wallet / Apply for Funding: each already renders its
      own fully-opaque pill (white or gold), so the segment's own
      background/color never actually shows behind them -- they still take
      part in the same margin/gap/neck mechanic (the bar "breathes" open
@@ -131,7 +131,7 @@
   .topnav-dark .aw-connect-btn { background: transparent; border-color: rgba(255,255,255,.3); color: #fff; }
   .topnav-dark .aw-connect-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.55); }
   /* Inside the gooey track, Connect Wallet should look exactly like the
-     plain text segments (Treasury/Staking/Roadmap) -- same padding, size,
+     plain text segments (Treasury/Roadmap) -- same padding, size,
      weight, no border/pill of its own -- with the SEGMENT (not this
      button) owning the background that turns solid white when active/
      hovered. Without the color override here the button kept its
@@ -299,13 +299,6 @@
             </svg>
             <a href="details" class="gooey-nav-label">Treasury</a>
           </li>
-          <li class="gooey-nav-item" data-index="2">
-            <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
-              <defs><linearGradient id="gooey-neck-2" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
-              <path class="gooey-neck-path" fill="url(#gooey-neck-2)"/>
-            </svg>
-            <a href="stake" class="gooey-nav-label">Staking</a>
-          </li>
           <li class="gooey-nav-item is-active" data-index="3">
             <svg class="gooey-neck" aria-hidden="true" viewBox="0 0 20 100" preserveAspectRatio="none">
               <defs><linearGradient id="gooey-neck-3" x1="0" x2="1"><stop class="gooey-stop-a" offset="0"/><stop class="gooey-stop-b" offset="1"/></linearGradient></defs>
@@ -420,17 +413,13 @@
         <div class="phase-badge"><span class="dot current"><img src="assets/logo-mark.png" alt=""></span><span class="line"></span></div>
         <div>
           <h3>Foundation <span class="phase-tag">In progress</span></h3>
-          <p class="summary">More is built than not: the token, the treasury, the application intake and the staking program (devnet-verified, with a published SDK) are done, and the repo is now open source. The planned presale was cancelled in October 2026; ACT will be acquired by trading. Mainnet deployment of staking, the public dashboard, on-chain governance, and a formal project registry are not yet.</p>
+          <p class="summary">More is built than not: the token, the treasury and the application intake are done, and the repo is now open source. The public dashboard, on-chain governance, and a formal project registry are not yet.</p>
           <ul class="item-list">
             <li><span class="mark done">✓</span>Token (ACT): live on Solana mainnet, fixed 1,000,000,000 supply, mint authority revoked, fee authorities on the treasury vault. See <a href="whitepaper">the whitepaper</a>.</li>
             <li><span class="mark done">✓</span>Entity formation and initial legal review</li>
             <li><span class="mark done">✓</span>Treasury multisig with real independent signers, live on mainnet, 2-of-3, tested end to end</li>
             <li><span class="mark done">✓</span>Project application intake (<span class="code">apply.html</span>), built ahead of schedule. Screening and milestone-gated funding aren't automated yet; submissions are received, not yet processed.</li>
-            <li><span class="mark done">✓</span><span class="code">act-staking</span> program: written, compiled, and tested end to end against real transactions on devnet. See <a href="stake">Staking</a>.</li>
-            <li><span class="mark done">✓</span><span class="code">act-presale</span> program: written and tested end to end on devnet, then retired when the presale was cancelled (October 2026). It was never deployed to mainnet.</li>
-            <li><span class="mark done">✓</span>Open-source TypeScript SDKs and Anchor IDLs for both programs, published to npm as <span class="code">@aretiafinance/act-staking-sdk</span> and <span class="code">@aretiafinance/act-presale-sdk</span>.</li>
             <li><span class="mark done">✓</span>GitHub repository open-sourced and made public.</li>
-            <li><span class="mark pending">○</span>Mainnet deployment of the staking program -- devnet-verified only; it has not touched mainnet or real ACT yet.</li>
             <li><span class="mark pending">○</span>Initial liquidity pool: planned as a small, self-funded seed, not yet live. Intended to deepen over time from further contributions and harvested trading fees rather than launch at full depth on day one.</li>
             <li><span class="mark pending">○</span>Transparent transaction allocation live on a public dashboard</li>
             <li><span class="mark pending">○</span>Basic governance (even if team-curated at first)</li>
@@ -467,7 +456,7 @@
         <div class="phase-badge"><span class="dot">05</span><span class="line"></span></div>
         <div>
           <h3>Climate capital marketplace <span class="phase-tag" style="background:var(--bg-alt); color:var(--ink-faint);">Planned</span></h3>
-          <p class="summary">A planned second capital stage, described in full in <a href="whitepaper#p8">Part VIII of the whitepaper</a>: projects that complete a full Catalyst Fund cycle graduate into a separately instrumented investment opportunity (an SPV, fund unit, or similar vehicle), with ACT staking gating priority visibility and access, never ownership of the project itself. This is on the committed roadmap, not a maybe -- but the investment-vehicle side of it does not begin until five conditions are all met: Aretia's operating entity is actually and verifiably registered; liquidity is seeded and ACT is trading; at least one Phase 2 grant has completed a full cycle end to end; the independent program review referenced above is complete; and a single project investment vehicle has been structured once, properly, with qualified securities counsel. The staking mechanism this phase would eventually gate access through is a separate, earlier piece of work already underway: its formula and on-chain program are compiled and live on Solana devnet, with locking and unlocking tested there against real transactions, though not yet on mainnet or independently reviewed. See <a href="stake">Staking</a> for current status. Staking working does not mean, and is not treated as, any of the five conditions above being met.</p>
+          <p class="summary">A planned second capital stage, described in full in <a href="whitepaper#p8">Part VIII of the whitepaper</a>: projects that complete a full Catalyst Fund cycle graduate into a separately instrumented investment opportunity (an SPV, fund unit, or similar vehicle), kept legally separate from ACT, so that ACT itself never becomes a claim on the project. This is on the committed roadmap, not a maybe -- but the investment-vehicle side of it does not begin until five conditions are all met: Aretia's operating entity is actually and verifiably registered; liquidity is seeded and ACT is trading; at least one Phase 2 grant has completed a full cycle end to end; the independent program review referenced above is complete; and a single project investment vehicle has been structured once, properly, with qualified securities counsel.</p>
         </div>
       </div>
 
@@ -497,7 +486,6 @@
       <a href="whitepaper">Whitepaper</a>
       <a href="/about">About</a>
       <a href="details#tokenomics">Tokenomics</a>
-      <a href="presale">Presale</a>
       <a href="roadmap">Roadmap</a>
       <a href="/faq">FAQ</a>
     </div>
@@ -569,7 +557,7 @@
   var total = items.length;
   var active = items.findIndex(function (li) { return li.classList.contains("is-active"); });
   if (active === -1) active = 0;
-  // Hovering ANY segment -- including Connect Wallet / Presale / Apply --
+  // Hovering ANY segment -- including Connect Wallet / Apply --
   // previews the goo moving there without changing which page is actually
   // "current"; it reverts to `active` on mouseleave. Only an actual link
   // click (a real page change) updates `active` itself.
@@ -586,7 +574,7 @@
     return seam === 0 || seam === total || seam - 1 === c || seam === c;
   }
 
-  // Connect Wallet / Presale / Apply already render their own fully-opaque
+  // Connect Wallet / Apply already render their own fully-opaque
   // pill, so they never need to merge invisibly into their neighbors the
   // way the plain text links do -- closing their gap fully (-1, like the
   // text links) would visually collide two bordered/colored buttons edge to
@@ -680,10 +668,10 @@
     // A real navigation (any <a> in this segment -- a nav link, or the
     // Apply for Funding CTA) updates which item is actually "current" so it
     // stays put if the mouse moves away before the page finishes loading.
-    // Presale/Connect Wallet are <button>s that open a modal rather than
-    // navigate, so they only ever get the hover preview above, never a
-    // persistent active state -- moving off them always returns the goo to
-    // the real current page.
+    // Connect Wallet is a <button> that opens a modal rather than navigates,
+    // so it only ever gets the hover preview above, never a persistent
+    // active state -- moving off it always returns the goo to the real
+    // current page.
     var link = li.querySelector("a");
     if (link) {
       link.addEventListener("click", function () {

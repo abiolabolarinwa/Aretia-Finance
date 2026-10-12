@@ -18,14 +18,13 @@ import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
 import { type SolRpc } from './raydiumCpmm.js';
-import { aretiaPoolHints } from './poolHints.js';
+import { aretiaPoolHints, type PoolHints } from './poolHints.js';
 
 export const DBC_PROGRAM = 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN';
 /** The program's fixed pool authority, from its published IDL. */
 export const DBC_POOL_AUTHORITY = 'FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM';
 const DISC_SWAP2 = Uint8Array.from([65, 75, 63, 76, 235, 91, 91, 136]);
 const DISC_VIRTUAL_POOL = Uint8Array.from([213, 224, 5, 209, 98, 69, 119, 92]);
-const MAX_CANDIDATES = 8;
 
 const fromBase64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -54,28 +53,7 @@ export function parseDbcConfigQuote(web3: typeof Web3, data: Uint8Array): string
   return data.length >= 40 ? new web3.PublicKey(data.subarray(8, 40)).toBase58() : null;
 }
 
-/** Candidate pool addresses for a token, from DexScreener. Unverified: every one is checked on-chain before use. */
-export type PoolHints = (mint: string) => Promise<string[]>;
-
-export function dexScreenerPoolHints(fetchImpl: typeof fetch = (...a) => fetch(...a)): PoolHints {
-  return async (mint) => {
-    try {
-      const res = await fetchImpl(`https://api.dexscreener.com/tokens/v1/solana/${encodeURIComponent(mint)}`, { headers: { accept: 'application/json' } });
-      if (!res.ok) return [];
-      const body = (await res.json()) as unknown;
-      if (!Array.isArray(body)) return [];
-      const out: string[] = [];
-      for (const p of body) {
-        const a = (p as { pairAddress?: unknown }).pairAddress;
-        if (typeof a === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) && !out.includes(a)) out.push(a);
-        if (out.length >= MAX_CANDIDATES) break;
-      }
-      return out;
-    } catch {
-      return [];
-    }
-  };
-}
+export { dexScreenerPoolHints, type PoolHints } from './poolHints.js';
 
 export class DbcAdapter {
   private readonly hintCache = new Map<string, { at: number; pools: string[] }>();

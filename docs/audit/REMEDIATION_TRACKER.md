@@ -10,6 +10,7 @@ Legend: ✅ done on branch + evidence · 🟡 partial · ⬜ not started · 👤
 | F-07 | CI audit blocking; projects CI | 🟡 | SHA-pin actions 👤 (needs SHA lookup outside tool scope) |
 | F-01 | Document npm 11 / `.nvmrc` | ✅ | `.nvmrc`, CONTRIBUTING |
 | F-13 | Confirmation guards on mainnet stage scripts | 👤 | owner to confirm whether superseded |
-| F-08 | Triage script-project high advisories | ⬜ | per-project reachability notes in THIRD_PARTY_DEPENDENCIES.md |
+| F-08 | Triage script-project high advisories | 🟡 triaged | per-project reachability notes in THIRD_PARTY_DEPENDENCIES.md |
 | F-06 | ADR: share code between website and extension? | 👤 | decision |
-| F-09/F-10 | low/info | ⬜ | backlog |
+| F-09 | Import cycle | ✅ | `madge --circular` clean; suite green. `any`/suppression counts still open |
+| F-10 | Status labels on design docs | ⬜ | backlog |

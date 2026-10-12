@@ -63,9 +63,11 @@ export function formatPrice(n: number | null): string {
 /** Big money, short: $4.3M, $161K, $74. */
 export function compactUsd(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return '–';
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(n >= 1e10 ? 1 : 2).replace(/\.?0+$/, '')}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 1 : 2).replace(/\.?0+$/, '')}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.?0+$/, '')}K`;
+  // Zeros are trimmed only after a decimal point: "250" stays 250, "1.50" becomes 1.5.
+  const trim = (v: string): string => (v.includes('.') ? v.replace(/0+$/, '').replace(/\.$/, '') : v);
+  if (n >= 1e9) return `$${trim((n / 1e9).toFixed(n >= 1e10 ? 1 : 2))}B`;
+  if (n >= 1e6) return `$${trim((n / 1e6).toFixed(n >= 1e7 ? 1 : 2))}M`;
+  if (n >= 1e3) return `$${trim((n / 1e3).toFixed(n >= 1e5 ? 0 : 1))}K`;
   return `$${Math.round(n)}`;
 }
 

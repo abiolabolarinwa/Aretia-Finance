@@ -24,6 +24,8 @@ describe('number formatting', () => {
     expect(compactUsd(4_300_000)).toBe('$4.3M');
     expect(compactUsd(161_000)).toBe('$161K');
     expect(compactUsd(74)).toBe('$74');
+    // Whole numbers keep their zeros: only a decimal part is trimmed.
+    for (const [n, want] of [[120_000, '$120K'], [250_000, '$250K'], [100_000, '$100K'], [10_000_000, '$10M'], [20_000_000_000, '$20B'], [1_500_000, '$1.5M'], [1_000_000, '$1M'], [5_000, '$5K'], [10_000, '$10K'], [1_200, '$1.2K']] as const) expect(compactUsd(n)).toBe(want);
     expect(compactUsd(14_100_000_000)).toBe('$14.1B');
     expect(compactUsd(null)).toBe('–');
     expect(compactCount(73_263)).toBe('73,263');

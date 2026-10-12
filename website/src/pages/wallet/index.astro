@@ -1208,6 +1208,54 @@ const sendTips = [
   .wapp__seg--sub { justify-content: center; }
   .wapp__intro { margin-inline: auto; text-align: center; }
   /* Search box in the top bar, on the same line as the network and price chips */
+  /* ---- The island: a dark pill in the top bar, in the middle by the search box, for the newest tokens ---- */
+  .wapp-island { position: relative; z-index: 80; flex: 0 1 auto; width: 250px; height: 40px; margin: 0 auto; }
+  .wapp-island__body { position: absolute; top: 0; left: 50%; display: grid; width: 250px; overflow: hidden; color: #fff; background: #0a0a14; border-radius: 20px; box-shadow: 0 6px 22px -8px rgba(10, 6, 50, 0.55); transform: translateX(-50%); transition: width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1), border-radius 0.42s cubic-bezier(0.22, 1.2, 0.36, 1), box-shadow 0.3s ease; }
+  .wapp-island.is-open .wapp-island__body { width: 392px; border-radius: 24px; box-shadow: 0 24px 60px -14px rgba(10, 6, 50, 0.6); }
+  .wapp-island.is-ping .wapp-island__body { animation: wapp-island-ping 0.9s ease-out 1; }
+  @keyframes wapp-island-ping { 0% { box-shadow: 0 0 0 0 rgba(120, 100, 255, 0.7); } 100% { box-shadow: 0 0 0 16px rgba(120, 100, 255, 0); } }
+  .wapp-island__head { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; height: 40px; padding: 0 14px 0 14px; font: inherit; font-size: 13px; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; }
+  .wapp-island__head:focus-visible { outline: 2px solid #a99dff; outline-offset: -3px; border-radius: 20px; }
+  .wapp-island__head.is-swap > :not(.wapp-island__dot) { animation: wapp-island-in 0.4s ease both; }
+  @keyframes wapp-island-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .wapp-island__dot { flex: none; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); animation: wapp-island-pulse 1.8s ease-out infinite; }
+  @keyframes wapp-island-pulse { 0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); } }
+  .wapp-island__idle { overflow: hidden; color: #c9c7e6; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-island__pic, .wapp-island__big { flex: none; display: grid; place-items: center; object-fit: cover; font-size: 9px; font-weight: 700; color: #fff; background: #3b2fc9; border-radius: 50%; }
+  .wapp-island__pic { width: 22px; height: 22px; }
+  .wapp-island__big { width: 40px; height: 40px; font-size: 13px; }
+  .wapp-island__label { display: flex; flex: 1; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .wapp-island__label strong { overflow: hidden; text-overflow: ellipsis; }
+  .wapp-island__price { color: #c9c7e6; font-variant-numeric: tabular-nums; }
+  .wapp-island__chain { flex: none; width: 14px; height: 14px; border-radius: 50%; }
+  .wapp-island__chev { flex: none; width: 7px; height: 7px; margin-left: 2px; border: solid #c9c7e6; border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-2px); transition: transform 0.3s ease; }
+  .wapp-island.is-open .wapp-island__chev { transform: rotate(-135deg) translateY(-2px); }
+  .wapp-island__more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.42s cubic-bezier(0.22, 1.2, 0.36, 1); }
+  .wapp-island.is-open .wapp-island__more { grid-template-rows: 1fr; }
+  .wapp-island__inner { display: grid; gap: 12px; min-height: 0; padding: 0 16px; overflow: hidden; opacity: 0; transition: opacity 0.25s ease, padding 0.42s ease; }
+  .wapp-island.is-open .wapp-island__inner { padding: 4px 16px 14px; opacity: 1; transition-delay: 0.08s; }
+  .wapp-island__top { display: flex; align-items: center; gap: 10px; }
+  .wapp-island__names { display: grid; flex: 1; min-width: 0; }
+  .wapp-island__names strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-island__sub { overflow: hidden; font-size: 12px; color: #b7b4dc; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-island__rating { flex: none; padding: 3px 9px; font-size: 11px; font-weight: 700; color: #1a1450; background: #ece9ff; border-radius: 999px; }
+  .wapp-island__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .wapp-island__stat { display: grid; gap: 2px; padding: 8px 10px; background: rgba(255, 255, 255, 0.08); border-radius: 12px; }
+  .wapp-island__stat span { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #b7b4dc; }
+  .wapp-island__stat strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+  .wapp-island__actions { display: flex; align-items: center; gap: 8px; }
+  .wapp-island__buy { flex: 1; height: 38px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: #5a48ff; border: 0; border-radius: 999px; cursor: pointer; transition: background 0.2s ease, transform 0.15s ease; }
+  .wapp-island__buy:hover { background: #6f5fff; }
+  .wapp-island__buy:active { transform: scale(0.98); }
+  .wapp-island__view { height: 38px; padding: 0 16px; font: inherit; font-size: 13px; font-weight: 600; color: #fff; background: rgba(255, 255, 255, 0.12); border: 0; border-radius: 999px; cursor: pointer; }
+  .wapp-island__view:hover { background: rgba(255, 255, 255, 0.2); }
+  .wapp-island__closed { flex: 1; font-size: 12.5px; color: #b7b4dc; }
+  .wapp-island__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; line-height: 1.35; color: #9693c4; }
+  .wapp-island__pager { display: inline-flex; flex: none; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .wapp-island__step { width: 22px; height: 22px; padding: 0; font: inherit; font-size: 15px; line-height: 1; color: #fff; background: rgba(255, 255, 255, 0.12); border: 0; border-radius: 50%; cursor: pointer; }
+  .wapp-island__note { margin: 0; font-size: 12.5px; line-height: 1.45; color: #c9c7e6; }
+  @media (max-width: 1080px) { .wapp__top .wapp-island { order: 2; flex-basis: 100%; width: 100%; max-width: none; margin: 8px 0 0; } .wapp__top .wapp-island__body { width: min(250px, 100%); } .wapp__top .wapp-island.is-open .wapp-island__body { width: min(392px, 100%); } }
+  @media (prefers-reduced-motion: reduce) { .wapp-island *, .wapp-island { animation: none !important; transition: none !important; } }
   .wapp-search { position: relative; flex: 1 1 auto; min-width: 200px; max-width: 560px; margin: 0 auto; }
   .wapp-search__icon { position: absolute; left: 14px; top: 50%; display: grid; color: var(--color-muted); transform: translateY(-50%); pointer-events: none; }
   .wapp-search__icon svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }

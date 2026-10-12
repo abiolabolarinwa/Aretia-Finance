@@ -2,10 +2,12 @@
 - Status: **proposed. Needs an owner decision; nothing in this ADR has been implemented.**
 - Date: 2026-10-12
 
+> **Update 2026-10-12 (later):** the owner confirmed the rate is 0.58% and the wallet was aligned (`aretia-wallet` commit `6cd03a3`, `ARETIA_FEE_BPS = 58`; its docs and tests updated). The table below shows the state **before** that change. **Still different:** the website charges nothing when a token is sold; the wallet still charges 0.58% on every swap. Whether the wallet should follow that rule is undecided. Open question 1 is therefore answered for the rate only, and the drift risk this ADR describes remains, because the two values are still maintained by hand in two repositories.
+
 ## Context
 `Aretia-Finance/website` (Astro + `src/swings`) and `aretia-wallet` (TS monorepo + MV3 extension) each implement swap routing, chain adapters, Shield/scam checks, SafeSend-adjacent flows and the Aretia swap fee. There is no shared package. They use different stacks (website: `@solana/web3.js` 1.x; wallet: `@solana/kit` plus `web3.js` 1.x, `viem`) and different release channels (Vercel deploy vs extension store).
 
-**Measured drift, not hypothetical.** The same fee is defined independently in each repo:
+**Measured drift, not hypothetical (state before the 2026-10-12 alignment).** The same fee is defined independently in each repo:
 
 | | Website | Wallet |
 |---|---|---|
@@ -33,7 +35,7 @@ Other duplication (inspected, not measured line-by-line): Shield checks (`websit
 | Reviewable by an external auditor | Yes, small | Yes | Larger scope per audit |
 
 ## Recommendation (for the owner to accept or change)
-1. **First, decide whether 0.29% (wallet) vs 0.58% / token-sale exemption (website) is intended.** If the wallet should match, that is a behaviour and user-facing-text change in `aretia-wallet` (code, `docs/solana.md`, `docs/privacy-policy.md`, tests) and needs its own review. It is not made by this ADR.
+1. **Rate: resolved** (wallet aligned to 0.58%). **Still to decide:** whether the wallet should also skip the fee when a token is sold, as the website does. That is a behaviour and user-facing-text change in `aretia-wallet` and needs its own review. It is not made by this ADR.
 2. **Adopt A now.** It is cheap, reversible and would have caught the drift above. Parity covers fee bps, the fee-charging rule, and fee wallet addresses.
 3. **Revisit B** only if a third consumer appears or Shield/token lists keep diverging after A is in place. **Do not do C** unless the team wants to own one release train for site and extension; the stacks and release channels differ, and the gain does not justify the audit-scope growth.
 
@@ -48,6 +50,6 @@ Fee destinations and rates are funds-sensitive. Whichever option is chosen, addr
 A: add one spec file and one test per repo, no runtime change. B/C: new package or repository restructuring, staged with compatibility re-exports, as in ADR-0002. Nothing here changes any deployed behaviour until the owner decides.
 
 ## Open questions for the owner
-1. Is the wallet intentionally at 0.29% on all swaps?
+1. ~~Is the wallet intentionally at 0.29% on all swaps?~~ Answered: the rate is 0.58%. Open: should the wallet exempt token sales as the website does?
 2. Is a shared release train for site and extension desirable?
 3. Should the verified fee wallet for each chain be recorded in a signed/owned location?

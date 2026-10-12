@@ -9,6 +9,9 @@ Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant
 ### Changed
 - Public wording updated to match the removals: `WHITEPAPER.md` (Section 7 now covers trading only; related FAQ entry removed); `WHITEPAPER_TECHNICAL.md` (one section deleted, later sections renumbered and every cross-reference fixed, one precedent sentence and its footnote removed, one Related Work sentence reworded, one legal sentence removed); the website's legacy pages (navigation items, footer links, buttons, roadmap items, and the HTML whitepaper's mirror of the markdown edits); the Help Center; the "1 Oct 2026 update" note in `TOKENOMICS.md`, `PROTOCOL.md` and `MINT_V2.md` (the fee cut 3.5% → 1.5%, the split, the liquidity-share removal and the execution record are unchanged); `website/PRODUCT.md`.
 - Swings: Solana primitives (`SWAP_FEE_WALLET`, `KNOWN_TOKENS`, `isSolanaAddress`, `ataAddress`, `TOKEN_PROGRAM_ID`, …) moved from `src/scripts/walletTools.ts` to `src/swings/core/solanaTools.ts`; the old path re-exports them. No value or behaviour change; pinned by `solanaTools.test.ts`.
+- CI: `shellcheck` workflow for the operator shell scripts; Dependabot (monthly, human-reviewed) for the five `scripts/*` projects.
+- Docs: implementation-status banners on `PROTOCOL.md` and `TOKENOMICS.md`; stale cross-references fixed (`PROTOCOL.md` roadmap section number, `TOKENOMICS.md` mint record link).
+
 ### Moved
 - AMM transfer-fee compatibility proofs (Raydium / Orca / Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).
 ### Security

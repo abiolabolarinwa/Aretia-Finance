@@ -1,6 +1,9 @@
 # Aretia (ACT) — Tokenomics & Architecture
 
-**Version:** 0.8 — ACT is live on mainnet (see `MINT.md`); public-language repositioned mechanism-first, reviewed and approved (4 Sept 2026); entity and ticker renamed (4 Sept 2026)
+**Version:** 0.8 — ACT is live on mainnet (see `MINT_V2.md`); public-language repositioned mechanism-first, reviewed and approved (4 Sept 2026); entity and ticker renamed (4 Sept 2026)
+
+> **Implementation status (added 2026-10-12).** The live mint parameters are in [`MINT_V2.md`](MINT_V2.md) and the live treasury in [`TREASURY_V2.md`](TREASURY_V2.md); those records and the on-chain state take precedence over this document. Mechanisms described here that are not in those records are design only.
+
 **Chain:** Solana
 **Status:** Legal review complete for entity formation and the base treasury mechanism (1 Sept 2026), under the original meme-coin-adjacent framing. Issuing entity: **Aretia Finance LLC** (Delaware) — renamed from Aretia Climate Coin LLC; Delaware Certificate of Amendment in progress, not yet confirmed effective. Ticker renamed from ACC to ACT correspondingly; no on-chain metadata existed under the old symbol. On 4 Sept 2026, self-descriptive language was revised away from "meme coin" comparisons toward mechanism-first terms (SPL Token-2022, protocol-enforced transfer fee) and the treasury was reframed explicitly as a **climate catalyst fund**; the underlying mechanism, fee split, and treasury structure are unchanged. **This wording shift has been reviewed by counsel and approved (4 Sept 2026)** — see §06. The governance/milestone-financing architecture below is a separate, unrelated addition and remains **not yet reviewed** — see `PROTOCOL.md` for the full picture and its legal-status note. Locked build parameters (supply, authorities, fee split) are unchanged and already built; nothing here is legal, tax, or investment advice.
 

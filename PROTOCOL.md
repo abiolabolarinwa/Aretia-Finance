@@ -2,6 +2,8 @@
 
 **Version 0.1 — architecture draft.** This document supersedes the "climate meme coin" framing used in earlier drafts of the tokenomics doc and whitepaper. It is the master blueprint everything else — tokenomics, whitepaper copy, website, smart contracts — should be built from.
 
+> **Implementation status (added 2026-10-12).** This is a design document, not a record of what is deployed. What is live on mainnet is recorded in [`MINT_V2.md`](MINT_V2.md) (the ACT mint) and [`TREASURY_V2.md`](TREASURY_V2.md) (the treasury multisig); where this file and those records or the on-chain state disagree, they win. Anything marked ⬜, "not yet built" or "Phase 2+" below is design only.
+
 **Legal status, stated once, not repeated on every page:** entity formation (Aretia Climate, LLC and Aretia Finance LLC, both Delaware) and the simpler "treasury funds climate projects" mechanism already went through legal review and were approved. Aretia Finance LLC was renamed from Aretia Climate Coin LLC on 4 Sept 2026 (Delaware amendment in progress); the ticker changed correspondingly from ACC to ACT. Everything new in this document — governance tiers, milestone-based project financing, incentive-token mechanics, and a formal Aretia Climate ↔ Protocol service relationship — is **not yet reviewed** and should not be represented publicly as final until it is.
 
 ---
@@ -51,7 +53,7 @@ The token is the economic engine. It is not the whole product. The protocol — 
                       SOLANA
 ```
 
-Eight modules, plus the chain they run on. Not all eight exist yet — see Section 19 (Roadmap) for what's real today versus what's built in later phases.
+Eight modules, plus the chain they run on. Not all eight exist yet — see Section 17 (Roadmap) for what's real today versus what's built in later phases.
 
 ## 5. Token economics
 

@@ -94,11 +94,39 @@ describe('the datafeed', () => {
     expect(await getBars(feed, '15', { from: 0, to: 1_700_002_000, firstDataRequest: true })).toEqual({ bars: [], noData: true });
   });
 
-  it('says so plainly when the service is busy, down or unreachable', async () => {
-    const run = (f: typeof fetch) => getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f }), '15', { from: 0, to: 1, firstDataRequest: true });
+  it('says so plainly when the service is busy, down or unreachable, after trying a few times', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const run = (f: typeof fetch) => getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, sleep }), '15', { from: 0, to: 1, firstDataRequest: true });
     expect(await run(reply({}, 429))).toEqual({ error: 'The price service is busy. Try again in a minute.' });
     expect(await run(reply({}, 503))).toEqual({ error: 'The price service answered 503.' });
-    expect(await run((async () => { throw new Error('offline'); }) as unknown as typeof fetch)).toEqual({ error: 'The price service could not be reached.' });
+    const offline = vi.fn(async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+    expect(await run(offline)).toEqual({ error: 'The price service could not be reached.' });
+    expect(offline).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers when the first try is refused for a moment (a spent allowance shows as a failed fetch)', async () => {
+    const waits: number[] = [];
+    const sleep = async (ms: number): Promise<void> => {
+      waits.push(ms);
+    };
+    const f = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(new Response('{}', { status: 429 }))
+      .mockResolvedValue(new Response(JSON.stringify(body(LIST))));
+    const feed = createPoolDatafeed({ chain: 'bnb', pool: POOL, label: 'ARK / USD' }, { fetchImpl: f as unknown as typeof fetch, sleep });
+    const r = await getBars(feed, '60', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect('bars' in r && r.bars).toHaveLength(3);
+    expect(f).toHaveBeenCalledTimes(3);
+    // It waits a little longer each time.
+    expect(waits).toEqual([900, 1800]);
+  });
+
+  it('does not retry a missing pool, and live polls do not retry at all', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const f404 = reply({}, 404);
+    expect(await getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f404, sleep }), '15', { from: 0, to: 1, firstDataRequest: true })).toEqual({ bars: [], noData: true });
+    expect(f404).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 
   it('refuses an interval the service cannot serve', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ISLAND_MAX, mergeTokens, pickArrivals, type IslandToken } from './walletIsland.js';
+import { ISLAND_MAX, mergeTokens, pickArrivals, selectNewest, type IslandToken } from './walletIsland.js';
 
 const tok = (n: number): IslandToken => ({ key: `base:0x${n}`, chain: 'base', address: `0x${n}`, symbol: `T${n}`, name: `Token ${n}`, icon: null, priceUsd: 1, liquidityUsd: 1, capUsd: 1, ageMs: 1, rating: null });
 
@@ -13,5 +13,15 @@ describe('island', () => {
     expect(mergeTokens([tok(3), tok(1)], [tok(2), tok(1)]).map((t) => t.symbol)).toEqual(['T3', 'T1', 'T2']);
     const many = Array.from({ length: 30 }, (_, i) => tok(i));
     expect(mergeTokens(many, [])).toHaveLength(ISLAND_MAX);
+  });
+  it('shows the newest of every network, youngest first, and skips dust and unpriced pools', () => {
+    const t = (n: number, chain: IslandToken['chain'], ageMs: number | null, liq = 5000, price: number | null = 1): IslandToken => ({ ...tok(n), key: `${chain}:${n}`, chain, ageMs, liquidityUsd: liq, priceUsd: price });
+    const all = [t(1, 'base', 5000), t(2, 'base', 1000), t(3, 'base', 9000), t(4, 'solana', 20_000), t(5, 'robinhood', 3 * 86_400_000), t(6, 'solana', 100, 10), t(7, 'bnb', 500, 5000, null), t(8, 'bnb', null)];
+    const got = selectNewest(all);
+    // base keeps its two newest (2 then 1), solana's dust pool is skipped, robinhood's old one is still there, the unpriced bnb pool is not
+    expect(got.map((x) => x.key)).toEqual(['base:2', 'base:1', 'solana:4', 'robinhood:5', 'bnb:8']);
+    expect(new Set(got.map((x) => x.chain))).toEqual(new Set(['base', 'solana', 'robinhood', 'bnb']));
+    expect(got.filter((x) => x.chain === 'base')).toHaveLength(2);
+    expect(selectNewest([])).toEqual([]);
   });
 });

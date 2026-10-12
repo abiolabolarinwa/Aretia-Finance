@@ -41,6 +41,10 @@ website/node_modules/
 website/dist/
 website/.astro/
 
+# TradingView's licensed charting library. It may not be redistributed and this repository is public, so it is
+# fetched at build time (website/scripts/fetch-charting-library.ts) and never committed.
+website/public/charting_library/
+
 # Local env files (API keys, provider secrets). .env.example is allowed.
 .env
 .env.*

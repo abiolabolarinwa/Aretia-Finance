@@ -9,7 +9,8 @@
  * The element is created once and moved between renders by the caller, so the frame is not reloaded every time the
  * screen redraws; it only reloads when the token changes. The header refreshes every 30 seconds while it is on screen.
  */
-import { dexScreenerEmbedUrl, type PoolInfo } from '../swings/charts/pool.js';
+import { embedUrl, GECKO_NETWORK, type PoolInfo } from '../swings/charts/pool.js';
+import { mountTvChart, type TvChart } from './walletTvChart';
 import { DexScreenerPoolFinder, type PoolFinder } from '../swings/charts/dexscreener.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { SwingsError, type ChainId } from '../swings/core/types.js';
@@ -84,6 +85,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
   let current: { chain: ChainId; address: string; symbol: string; icon: string | null } | null = null;
   let framedPool = '';
   let framedKind: 'own' | 'embed' | '' = '';
+  let tv: TvChart | null = null;
   let ownTf: OwnTimeframe = '1h';
   let seq = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -116,7 +118,13 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
       : '';
   }
 
+  function dropTv(): void {
+    tv?.dispose();
+    tv = null;
+  }
+
   function showMessage(text: string): void {
+    dropTv();
     plot.textContent = '';
     plot.append(node('span', 'wapp__sub', text));
     renderHeader(null);
@@ -124,22 +132,23 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     framedKind = '';
   }
 
-  function showEmbed(pool: string): void {
+  function showEmbed(pool: string, info: PoolInfo): void {
     if (!current) return;
+    tv?.dispose();
     plot.textContent = '';
-    const frame = node('iframe', 'wapp__chart-frame');
-    frame.title = `${current.symbol} live price chart and trades`;
-    frame.loading = 'lazy';
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
-    frame.src = dexScreenerEmbedUrl(current.chain, pool);
-    plot.append(frame);
+    const host = node('div', 'wapp__chart-frame');
+    host.setAttribute('role', 'img');
+    host.setAttribute('aria-label', `${current.symbol} live price chart`);
+    plot.append(host);
+    // Aretia's own TradingView chart. It prices the pool's second token only when that is the token being looked at.
+    tv = mountTvChart(host, { chain: current.chain, pool, label: info.targetIsBase === false ? `${info.quoteSymbol ?? current.symbol} / USD` : `${current.symbol} / USD`, token: info.targetIsBase === false ? 'quote' : 'base', priceHint: info.priceUsd, toolbar: false, fallbackUrl: embedUrl({ network: GECKO_NETWORK[current.chain], pool }), title: `${current.symbol} live price chart and trades` });
     framedPool = pool;
     framedKind = 'embed';
   }
 
   function showOwn(pool: string, candles: Parameters<typeof drawCandles>[1], since: number | null): void {
     if (!current) return;
+    dropTv();
     let canvas = plot.querySelector<HTMLCanvasElement>('canvas.wapp__own');
     if (framedKind !== 'own' || !canvas) {
       plot.textContent = '';
@@ -175,6 +184,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     const mine = ++seq;
     const { chain, address } = current;
     renderHeader(null);
+    dropTv();
     plot.textContent = '';
     plot.append(node('span', 'wapp__sub', 'Loading chart…'));
     finder
@@ -190,8 +200,8 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
             showOwn(info.pool, own.candles, own.since);
             return;
           }
-          if (framedPool === info.pool && framedKind === 'embed' && plot.querySelector('iframe')) return;
-          showEmbed(info.pool);
+          if (framedPool === info.pool && framedKind === 'embed' && tv) return;
+          showEmbed(info.pool, info);
         });
       })
       .catch((e: unknown) => {
@@ -236,6 +246,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
       current = null;
       framedPool = '';
       framedKind = '';
+      dropTv();
       plot.textContent = '';
       element.hidden = true;
     },

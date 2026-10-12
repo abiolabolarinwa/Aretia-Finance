@@ -1375,6 +1375,8 @@ const sendTips = [
   /* The embed ends with a DexScreener footer strip; the plot clips that strip off. Tune the crop here. */
   .wapp__chart { --dex-footer-crop: 46px; }
   .wapp__chart-frame { display: block; width: 100%; height: clamp(520px, 78vh, 700px); margin-bottom: calc(var(--dex-footer-crop) * -1); border: 0; background: #fff; }
+  /* Aretia's own TradingView chart has no third-party footer to crop, so the crop collapses to nothing wherever it is drawn. */
+  .wapp-tv { --dex-footer-crop: 0px; }
   .wapp__chart-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
   .wapp__chart-stats:empty { display: none; }
   .wapp__chart-stats > div { display: grid; gap: 2px; padding: 8px 10px; background: var(--color-bg-alt); border-radius: 12px; }

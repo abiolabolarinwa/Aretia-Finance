@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "dev": "node scripts/fetch-charting-library.ts && astro dev",
+    "build": "node scripts/fetch-charting-library.ts && astro build",
+    "fetch:charting-library": "node scripts/fetch-charting-library.ts",
     "preview": "astro preview",
     "typecheck": "astro check",
     "typecheck:api": "tsc -p tsconfig.api.json",

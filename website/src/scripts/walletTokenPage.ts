@@ -1,12 +1,13 @@
 /**
- * The token page opened from a row in Find Tokens or Marketplace: the DexScreener chart (light theme, with its own
- * timeframe toolbar and trades table) filling the width, and beside it the numbers that matter: price, liquidity,
+ * The token page opened from a row in Find Tokens or Marketplace: Aretia's TradingView chart (light theme, with
+ * its own timeframe and drawing toolbars) filling the width, and beside it the numbers that matter: price, liquidity,
  * value, the 5M to 24H changes, buys and sells, volume, the pool's age and the project's own links. No advertising.
  */
 import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { DexScreenerPoolFinder } from '../swings/charts/dexscreener.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
-import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
+import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
+import { mountTvChart, type TvChart } from './walletTvChart';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 
@@ -59,8 +60,11 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   const root = el('section', 'wapp-tp');
   let seq = 0;
   let active: AbortController | null = null;
+  let tv: TvChart | null = null;
 
   function skeleton(o: TokenPageOptions): { chart: HTMLElement; side: HTMLElement; title: HTMLElement } {
+    tv?.dispose();
+    tv = null;
     root.replaceChildren();
     const bar = el('div', 'wapp-tp__top');
     const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back', '← Back to the list');
@@ -80,13 +84,13 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   }
 
   function fill(o: TokenPageOptions, parts: { chart: HTMLElement; side: HTMLElement }, pool: string, d: PairDetail | null, problem: string | null): void {
-    const frame = el('iframe', 'wapp-tp__frame');
-    frame.title = `${o.symbol} price chart`;
-    frame.src = dexScreenerEmbedUrl(o.chain, pool, '15', { toolbar: true });
-    frame.referrerPolicy = 'no-referrer';
-    frame.loading = 'lazy';
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
-    parts.chart.replaceChildren(frame);
+    // Aretia's own TradingView chart, drawn in the page.
+    tv?.dispose();
+    const plot = el('div', 'wapp-tp__frame');
+    plot.setAttribute('role', 'img');
+    plot.setAttribute('aria-label', `${o.symbol} price chart`);
+    parts.chart.replaceChildren(plot);
+    tv = mountTvChart(plot, { chain: o.chain, pool, label: `${o.symbol} / USD`, priceHint: d?.priceUsd ?? null, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
 
     const side = parts.side;
     side.replaceChildren();
@@ -181,6 +185,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   function close(): void {
     seq++;
     active?.abort();
+    tv?.dispose();
+    tv = null;
     root.replaceChildren();
     root.hidden = true;
   }

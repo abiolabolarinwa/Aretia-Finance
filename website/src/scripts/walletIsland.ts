@@ -43,6 +43,8 @@ const ANNOUNCE_MS = 7_000;
 export const ISLAND_MAX = 18;
 /** The newest tokens kept for each network, so every network shows up and a busy one does not crowd out the rest. */
 export const PER_CHAIN = 2;
+/** Nothing older than this is shown: the island is for tokens that have only just launched. */
+export const MAX_AGE_MS = 6 * 3_600_000;
 /** Pools with less liquidity than this are dust, not a token anyone can trade. */
 export const MIN_LIQUIDITY_USD = 1_000;
 
@@ -52,14 +54,14 @@ export function pickArrivals(tokens: readonly IslandToken[], seen: ReadonlySet<s
 }
 
 /**
- * From the newest pools of every network: the newest `perChain` of each (with a price and some liquidity), the youngest first.
- * A network with nothing recent still shows its newest, with its age. Pure.
+ * From the newest pools of every network: the newest `perChain` of each that is under six hours old and has a price and some
+ * liquidity, the youngest first. A network with nothing that recent shows nothing. Pure.
  */
 export function selectNewest(all: readonly IslandToken[], perChain = PER_CHAIN, max = ISLAND_MAX): IslandToken[] {
   const age = (t: IslandToken): number => t.ageMs ?? Number.POSITIVE_INFINITY;
   const byChain = new Map<ChainId, IslandToken[]>();
   for (const t of [...all].sort((a, b) => age(a) - age(b))) {
-    if (t.priceUsd === null || (t.liquidityUsd ?? 0) < MIN_LIQUIDITY_USD) continue;
+    if (t.ageMs === null || t.ageMs > MAX_AGE_MS || t.priceUsd === null || (t.liquidityUsd ?? 0) < MIN_LIQUIDITY_USD) continue;
     const list = byChain.get(t.chain) ?? [];
     if (list.length < perChain && !list.some((x) => x.key === t.key)) list.push(t);
     byChain.set(t.chain, list);

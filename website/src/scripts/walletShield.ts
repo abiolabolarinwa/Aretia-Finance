@@ -30,6 +30,7 @@ import type { Band, Finding, Severity, Verdict } from '../swings/shield/types.js
 import { notify } from './walletNotifications.js';
 import { KNOWN_TOKENS } from './walletTools.js';
 import { OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { reclaim, revoke } from './walletShieldTx.js';
 import { renderShareCard } from './walletShieldCard.js';
 import type { SearchHit } from '../swings/tokens/globalSearch.js';
@@ -477,6 +478,15 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
       a.href = l.url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
+      // The chart opens in Aretia's own Markets page (chart and details), not on another site; the link stays as the fallback.
+      const subject = v.subject;
+      if (l.inApp === 'chart' && (subject.kind === 'solana-token' || subject.kind === 'evm-token') && subject.chain) {
+        const chain = subject.chain;
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain, address: subject.value, symbol: subject.label ?? short(subject.value), name: subject.name ?? subject.label ?? '', icon: subject.icon, page: 'swings' } }));
+        });
+      }
       return a;
     }));
     card.append(who);

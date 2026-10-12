@@ -2013,11 +2013,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   window.matchMedia('(min-width: 1081px)').addEventListener('change', placeTabs);
   placeTabs();
   window.addEventListener(SHOW_MARKET_EVENT, (e) => {
-    const t = (e as CustomEvent<{ chain: ChainId; address: string; symbol: string; name: string; icon: string | null }>).detail;
+    const t = (e as CustomEvent<{ chain: ChainId; address: string; symbol: string; name: string; icon: string | null; page?: 'swings' }>).detail;
     void (async () => {
-      // From any other page it opens on Favourites, where these alerts come from; Markets and Favourites stay where they are.
+      // From any other page it opens on Favourites, where price alerts come from (or Markets when asked); Markets and Favourites stay where they are.
       if (!['#/swings', '#/favourites'].includes(location.hash)) {
-        location.hash = '#/favourites';
+        location.hash = t.page === 'swings' ? '#/swings' : '#/favourites';
         await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
         await new Promise<void>((r) => setTimeout(r, 0));
       }

@@ -26,7 +26,7 @@ export interface PoolInfo {
   volume24hUsd: number | null;
   liquidityUsd: number | null;
   trades24h: number | null;
-  /** First token of the drawn pair (the chart prices this one) and the second. Set when the chart comes from DexScreener. */
+  /** First token of the drawn pair (the chart prices this one) and the second. Set when the pool is chosen from DexScreener's list. */
   baseSymbol?: string;
   quoteSymbol?: string;
   /** True when the token being looked at is the pair's first token, so the chart shows the token itself. */
@@ -95,15 +95,9 @@ export function pickPool(chain: ChainId, address: string, pools: GeckoPool[]): P
 export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avalanche', robinhood: 'robinhood' };
 
 /**
- * The chart the wallet shows for now: DexScreener's embedded chart and trades for a pool, in the same light style the
- * Trade tab uses. (Aretia's own TradingView chart will replace it when it is ready.)
+ * GeckoTerminal's embedded chart, with its trades table and no info panel. It is the fallback the wallet shows when
+ * Aretia's own TradingView chart cannot be drawn (see src/scripts/walletTvChart.ts).
  */
-export function dexScreenerEmbedUrl(chain: ChainId, pool: string, interval = '15', opts: { toolbar?: boolean } = {}): string {
-  const q = new URLSearchParams({ embed: '1', theme: 'light', chartTheme: 'light', trades: '1', info: '0', tabs: '0', chartLeftToolbar: opts.toolbar ? '1' : '0', loadChartSettings: '0', chartStyle: '1', chartType: 'usd', interval });
-  return `https://dexscreener.com/${DEXSCREENER_CHAIN[chain]}/${encodeURIComponent(pool)}?${q}`;
-}
-
-/** GeckoTerminal's own TradingView chart (kept for tests and as a fallback), with its trades table and no info panel. */
 export function embedUrl(info: Pick<PoolInfo, 'network' | 'pool'>, resolution = '15m'): string {
   return `https://www.geckoterminal.com/${info.network}/pools/${encodeURIComponent(info.pool)}?${new URLSearchParams({ embed: '1', info: '0', swaps: '1', grayscale: '0', light_chart: '1', chart_type: 'price', resolution })}`;
 }

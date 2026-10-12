@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dexScreenerEmbedUrl, embedUrl, GeckoPoolFinder, pickPool, type GeckoPool } from './pool.js';
+import { embedUrl, GeckoPoolFinder, pickPool, type GeckoPool } from './pool.js';
 
 const ACT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -92,22 +92,19 @@ describe('GeckoPoolFinder', () => {
   });
 });
 
-describe('dexScreenerEmbedUrl', () => {
-  it('points at the real DexScreener host with the networks own name, in the light embedded style', () => {
-    const u = new URL(dexScreenerEmbedUrl('bnb', '0xabc'));
-    expect(u.origin).toBe('https://dexscreener.com');
-    expect(u.pathname).toBe('/bsc/0xabc');
+describe('embedUrl (the fallback chart)', () => {
+  it('points at the real GeckoTerminal host with the network, in the light embedded style', () => {
+    const u = new URL(embedUrl({ network: 'bsc', pool: '0xabc' }));
+    expect(u.origin).toBe('https://www.geckoterminal.com');
+    expect(u.pathname).toBe('/bsc/pools/0xabc');
     expect(u.searchParams.get('embed')).toBe('1');
-    expect(u.searchParams.get('theme')).toBe('light');
-    expect(u.searchParams.get('info')).toBe('0');
-    expect(new URL(dexScreenerEmbedUrl('solana', 'P')).pathname).toBe('/solana/P');
-    expect(new URL(dexScreenerEmbedUrl('avalanche', 'P')).pathname).toBe('/avalanche/P');
+    expect(u.searchParams.get('light_chart')).toBe('1');
   });
 
   it('cannot be pointed elsewhere by a pool value', () => {
-    const u = new URL(dexScreenerEmbedUrl('base', '../../evil?x=1#y'));
-    expect(u.origin).toBe('https://dexscreener.com');
-    expect(u.pathname.startsWith('/base/')).toBe(true);
+    const u = new URL(embedUrl({ network: 'base', pool: '../../evil?x=1#y' }));
+    expect(u.origin).toBe('https://www.geckoterminal.com');
+    expect(u.pathname.startsWith('/base/pools/')).toBe(true);
     expect(u.hash).toBe('');
   });
 });

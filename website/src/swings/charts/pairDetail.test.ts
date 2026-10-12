@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fetchPairDetail, parsePairDetail } from './pairDetail.js';
-import { dexScreenerEmbedUrl } from './pool.js';
 
 const NOW = 1_800_000_000_000;
 const PAIR = 'Pair'.padEnd(40, 'x');
@@ -55,13 +54,5 @@ describe('fetching it', () => {
     await expect(fetchPairDetail('solana', PAIR, (async () => { throw new Error('x'); }) as unknown as typeof fetch)).rejects.toThrow(/could not be reached/);
     await expect(fetchPairDetail('solana', PAIR, reply({ pairs: [] }))).rejects.toThrow(/No details/);
     await expect(fetchPairDetail('solana', '../../x', reply({}))).rejects.toThrow(/not a valid pool/);
-  });
-});
-
-describe('the full chart address', () => {
-  it('can show the chart toolbar for the token page, and keeps it off for the small chart', () => {
-    expect(new URL(dexScreenerEmbedUrl('solana', PAIR)).searchParams.get('chartLeftToolbar')).toBe('0');
-    expect(new URL(dexScreenerEmbedUrl('solana', PAIR, '15', { toolbar: true })).searchParams.get('chartLeftToolbar')).toBe('1');
-    expect(new URL(dexScreenerEmbedUrl('solana', PAIR, '15', { toolbar: true })).searchParams.get('info')).toBe('0');
   });
 });

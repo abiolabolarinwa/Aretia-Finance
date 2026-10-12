@@ -28,7 +28,8 @@ import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
-import { dexScreenerEmbedUrl } from '../swings/charts/pool.js';
+import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
+import { mountTvChart, type TvChart } from './walletTvChart';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1439,6 +1440,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     chartHost.hidden = true;
     let chartKey = '';
     let chartRow: MarketRow | null = null;
+    let tvChart: TvChart | null = null;
     function showChart(r: MarketRow): void {
       chartRow = r;
       chartHost.hidden = false;
@@ -1448,14 +1450,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const title = el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''} · ${CHAINS[r.chain].name}` });
         const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
         close.addEventListener('click', hideChart);
-        const frame = el('iframe', { class: 'wapp-mt__chart-frame', attrs: { title: `${r.symbol} price chart`, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-popups' } });
-        frame.src = dexScreenerEmbedUrl(r.chain, r.pool, '15', { toolbar: true });
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), frame);
+        // Aretia's own TradingView chart, drawn in the page. Taking it down on a token change stops its live polling.
+        tvChart?.dispose();
+        const plot = el('div', { class: 'wapp-mt__chart-frame', attrs: { role: 'img', 'aria-label': `${r.symbol} price chart` } });
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), plot);
+        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, label: `${r.symbol} / USD`, priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }), title: `${r.symbol} price chart` });
       }
       if (chartHost.parentElement !== target) target.prepend(chartHost);
       chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
     function hideChart(): void {
+      tvChart?.dispose();
+      tvChart = null;
       chartRow = null;
       chartKey = '';
       chartHost.hidden = true;

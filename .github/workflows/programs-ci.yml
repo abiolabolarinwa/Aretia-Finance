@@ -1,6 +1,6 @@
 name: programs-ci
 
-# Checks for the Anchor programs. `host`: compile and unit-test the pure decision logic (policy.rs, authority_handoff.rs).
+# Checks for the Anchor programs. `host`: compile and unit-test the pure decision logic (authority_handoff.rs).
 # Verified locally with rustc 1.97.0 and the committed Cargo.lock files. NOT covered by `host`: the SBF build, the TypeScript
 # devnet/validator suites. `onchain` (below) covers the SBF build and the LiteSVM suites.
 # Nothing here deploys or touches a cluster.
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        program: [act-presale, act-staking]
+        program: [act-staking]
     defaults:
       run:
         working-directory: program/${{ matrix.program }}
@@ -40,7 +40,5 @@ jobs:
       - run: cargo install cargo-build-sbf --locked --version 4.4.0
       - run: cargo build-sbf
         working-directory: program/act-staking
-      - run: cargo build-sbf
-        working-directory: program/act-presale
       - run: cargo +1.97.1 test
         working-directory: program/svm-tests

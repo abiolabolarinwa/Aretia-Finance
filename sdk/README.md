@@ -1,11 +1,10 @@
 # Aretia Finance -- SDKs and IDLs
 
-Unofficial, community-maintained TypeScript clients and Anchor IDLs for Aretia Finance's two Solana programs.
+Unofficial, community-maintained TypeScript clients and Anchor IDLs for Aretia Finance's Solana staking program. (The presale program and its SDK were removed on 2026-10-12 when the presale was cancelled; they remain in git history.)
 
 | Program | npm package | SDK source | IDL | Status |
 |---|---|---|---|---|
 | `act-staking` | [`@aretiafinance/act-staking-sdk`](https://www.npmjs.com/package/@aretiafinance/act-staking-sdk) | [`act-staking/`](act-staking/) | [`idl/act_staking.json`](idl/act_staking.json) | Devnet-verified, full automated test suite passing, independent review confirmed. Not yet on mainnet -- see [`../STAKING_DESIGN.md`](../STAKING_DESIGN.md). |
-| `act-presale` | [`@aretiafinance/act-presale-sdk`](https://www.npmjs.com/package/@aretiafinance/act-presale-sdk) | [`act-presale/`](act-presale/) | [`idl/act_presale.json`](idl/act_presale.json) | Devnet-verified end to end. Not yet on mainnet -- see [`../PRESALE_DESIGN.md`](../PRESALE_DESIGN.md). |
 
 ## Why these exist, and an important caveat
 
@@ -21,20 +20,15 @@ Still: **treat the Rust source as the ground truth.** If anything here ever disa
 sdk/
   idl/
     act_staking.json     -- Anchor IDL for act-staking
-    act_presale.json     -- Anchor IDL for act-presale
   act-staking/
     src/client.ts         -- ActStakingClient
-    README.md
-  act-presale/
-    src/client.ts         -- ActPresaleClient
     README.md
 ```
 
 ## Building
 
-Each package builds independently:
+The package builds independently:
 
 ```bash
 cd sdk/act-staking && npm install && npm run build
-cd sdk/act-presale && npm install && npm run build
 ```

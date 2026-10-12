@@ -13,6 +13,3 @@ updates:
   - package-ecosystem: cargo
     directory: /program/act-staking
     schedule: { interval: monthly }
-  - package-ecosystem: cargo
-    directory: /program/act-presale
-    schedule: { interval: monthly }

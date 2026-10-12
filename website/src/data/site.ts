@@ -1,7 +1,7 @@
 /**
  * Single source of truth for every factual claim the site makes. Figures
  * come from the protocol docs in this repo (TOKENOMICS.md, PROTOCOL.md,
- * PRESALE_DESIGN.md, MINT_V2.md, MANAGEMENT_FEE.md) and from what the Aretia
+ * MINT_V2.md, MANAGEMENT_FEE.md) and from what the Aretia
  * Wallet codebase actually implements. Change a fact here, not in a page.
  * Anything not yet built is marked 'roadmap' and must render with that label.
  */

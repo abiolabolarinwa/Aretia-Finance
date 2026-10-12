@@ -1,5 +1,5 @@
-//! F-17: on-chain scenarios for the two-step authority handoff, shared by act-staking and act-presale (both expose the
-//! same instructions with the same account layout; only the program id and config PDA seed differ).
+//! F-17: on-chain scenarios for the two-step authority handoff, written against the shared two-step handoff interface (propose / accept / cancel) so that any program that
+//! adopts it can reuse them; today only act-staking does (act-presale, the other adopter, was removed).
 #![allow(dead_code)]
 
 use super::*;

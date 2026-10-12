@@ -3,7 +3,7 @@ name = "act-svm-tests"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "On-chain (LiteSVM) tests for act-presale and act-staking. Tests only; nothing here is shipped or deployed."
+description = "On-chain (LiteSVM) tests for act-staking. Tests only; nothing here is shipped or deployed."
 
 # Standalone on purpose: LiteSVM pulls newer Solana crates than the Anchor 0.30.1 programs use, so this crate must not
 # share a lockfile or workspace with them. Build the programs first (see README.md).

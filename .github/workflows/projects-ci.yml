@@ -18,13 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - sdk/act-presale
           - sdk/act-staking
           - scripts/launch-pool
           - scripts/management-fee-proposal
           - scripts/rebuild-mint
           - scripts/treasury-v2-setup
-          - program/act-presale
+          - scripts/devnet-amm
           - program/act-staking
     defaults:
       run:

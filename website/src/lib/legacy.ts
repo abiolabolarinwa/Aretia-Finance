@@ -1,5 +1,5 @@
 /**
- * Serves the pre-redesign functional pages (presale, stake, verify, apply…)
+ * Serves the pre-redesign functional pages (stake, verify, apply…)
  * inside the new site shell without rewriting their logic. At build time
  * each source in legacy/pages/ is split into:
  *   - its content (everything between the old top nav and the old footer),

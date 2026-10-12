@@ -5,6 +5,7 @@ Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant
 ## Unreleased
 ### Removed — presale (cancelled)
 - `program/act-presale`, `sdk/act-presale` (incl. the `@aretiafinance/act-presale-sdk` source), `sdk/idl/act_presale.json`, the presale on-chain test suite and `PRESALE_DESIGN.md`. Findings F-15/F-16/F-20 are withdrawn as not applicable. Last commit containing the presale: `1cfedff`.
+- `website/legacy/home.html`: an unreferenced old home page (the loader only reads `legacy/pages/`) containing the presale countdown/golden-badge UI. Site build and tests unchanged.
 ### Moved
 - AMM transfer-fee compatibility proofs (Raydium/Orca/Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).
 ### Removed (dead code, verified unreferenced)

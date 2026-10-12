@@ -2,7 +2,7 @@
 - Status: accepted (proposed in Stage A, approved by owner for implementation 2026-10-11)
 - Date: 2026-10-11
 ## Context
-The repo is nine independent projects (two Anchor programs, SDKs, operator scripts, an Astro site). A generic `apps/packages` monorepo template would add empty packages and force shared tooling on projects with different toolchains. Anchor paths are referenced by `Anchor.toml`, docs and scripts.
+The repo is a set of independent projects (operator scripts, an Astro site and its API; at the time of this decision also on-chain programs and SDKs, since removed). A generic `apps/packages` monorepo template would add empty packages and force shared tooling on projects with different toolchains.
 ## Decision
 Do not move directories. Add per-project CI, a lint-enforced dependency direction inside `website/src`, governance files and an audit pack.
 ## Alternatives considered
@@ -14,4 +14,4 @@ No change to on-chain code or signing paths.
 ## Migration implications
 None.
 
-> **Update 2026-10-12:** both Anchor programs and the SDKs were removed (presale and staking cancelled). What remains is operator scripts, the Astro site and its API; the decision (do not restructure, enforce boundaries) still holds.
+> **Update 2026-10-12:** the on-chain programs and SDKs mentioned above were removed. What remains is operator scripts, the Astro site and its API; the decision (do not restructure, enforce boundaries) still holds.

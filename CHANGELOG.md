@@ -3,33 +3,17 @@
 Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant changes.
 
 ## Unreleased
-### Changed — staking and presale mentions removed from public content
-- `WHITEPAPER.md`: Section 7 is now "Getting involved: trading"; the presale notice, the staking paragraph and the "Is there a presale?" FAQ entry are gone.
-- `WHITEPAPER_TECHNICAL.md`: Section 30 ("Tiered Access Through ACT Staking") deleted; Sections 31-33 renumbered to 30-32 and every cross-reference updated; the staking-precedent sentence and its footnote removed; the Related Work sentence that relied on token-gated access reworded to a later, separate stage; the legal section's staking sentence removed.
-- Website legacy pages: Staking nav item and footer Staking/Presale links removed from all pages; "Staking questions" buttons removed; roadmap items for the two programs, their SDKs and "mainnet deployment of staking" removed; the HTML whitepaper mirrors the markdown changes. Help Center entry "Is there an ACT presale?" removed.
-- `TOKENOMICS.md`, `PROTOCOL.md`, `MINT_V2.md`: the "1 Oct 2026 update" note keeps the fee cut (3.5% → 1.5%), the split, the liquidity-share removal and the execution record; the "presale cancelled" heading text and sentence (including the line that a 100,000,000 ACT allocation stays in the treasury) are removed. `website/PRODUCT.md`: "There is no presale" removed.
-- Deliberately kept: the Shield scam-keyword list (flags phishing lures such as "presale"), and the `/stake` and `/presale` redirects in `vercel.json`.
-### Removed — staking (cancelled)
-- `program/act-staking`, `program/svm-tests`, `sdk/` (incl. the `@aretiafinance/act-staking-sdk` source and IDL), `STAKING_DESIGN.md`, the `/stake` page and its nav/search/token-page entries, `programs-ci`. All program findings withdrawn. `/stake` now redirects to `/token`. Last commit containing staking: `7f08c9b`. The repository now contains no on-chain programs.
-### Removed — presale (cancelled)
-- `program/act-presale`, `sdk/act-presale` (incl. the `@aretiafinance/act-presale-sdk` source), `sdk/idl/act_presale.json`, the presale on-chain test suite and `PRESALE_DESIGN.md`. Findings F-15/F-16/F-20 are withdrawn as not applicable. Last commit containing the presale: `1cfedff`.
-- `website/legacy/home.html`: an unreferenced old home page (the loader only reads `legacy/pages/`) containing the presale countdown/golden-badge UI. Site build and tests unchanged.
-### Moved
-- AMM transfer-fee compatibility proofs (Raydium/Orca/Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).
-### Removed (dead code, verified unreferenced)
-- `website/src/components/hero/HomeHero.astro` (333 lines): imported nowhere, not loaded by any glob. Build output, tests and typecheck unchanged.
-- `program/act-staking/scripts/set-config-authority-devnet.mjs`: one-off devnet migration for the removed `set_config_authority` instruction; already guarded to exit and superseded by the two-step handoff.
-### Added
-- `program/svm-tests`: 33 on-chain LiteSVM tests for act-presale and act-staking; `programs-ci` `onchain` job.
-### Changed — F-20 (program source, NOT deployed)
-- act-presale: `buy` and `buy_with_sol` reject a purchase unless the funded ACT reserve can pay out `gross_up(total ACT sold) + margin` (new error `InsufficientActReserve`). **Breaking:** both instructions take the ACT mint as one extra trailing account; `sdk/act-presale` `ixBuy`/`ixBuyWithSol` gained a required `actMint` argument; IDL updated. The reserve must be funded before sales; five devnet exercise scripts carry a banner that they predate this.
-### Changed (program source — NOT deployed; requires SBF build, on-chain tests and owner review first)
-- act-presale: `finalize` can be called by anyone once the sale window has ended (F-15); note this also means TGE/vesting start can be triggered by anyone from `end_ts`. `buy_with_sol` rejects a Pyth price whose confidence interval exceeds 1% of the price (F-16).
-- act-presale, act-staking: `set_config_authority` removed; replaced by two-step `propose_config_authority` / `accept_config_authority` / `cancel_config_authority` (F-17). **Breaking** for SDK/IDL consumers; `sdk/*` and `sdk/idl/*` updated (IDLs hand-patched).
-- Program `Cargo.lock` files are now tracked (verified-compiling resolution with a single anchor-lang 0.30.1).
+### Removed
+- The repository's on-chain programs, their TypeScript SDKs and IDLs, devnet exercise scripts, the on-chain test crate, design documents and the CI that covered them (the products they supported were cancelled). The last commit containing them is `7f08c9b`. The repository now contains no on-chain programs.
+- Website: one page together with its navigation, search and token-page utilities entries (its old URL now redirects, non-permanently, to `/token`); an unreferenced legacy home page; the unused `HomeHero.astro` component (333 lines, imported nowhere, not loaded by any glob). Build output, tests and typecheck unchanged.
 ### Changed
+- Public wording updated to match the removals: `WHITEPAPER.md` (Section 7 now covers trading only; related FAQ entry removed); `WHITEPAPER_TECHNICAL.md` (one section deleted, later sections renumbered and every cross-reference fixed, one precedent sentence and its footnote removed, one Related Work sentence reworded, one legal sentence removed); the website's legacy pages (navigation items, footer links, buttons, roadmap items, and the HTML whitepaper's mirror of the markdown edits); the Help Center; the "1 Oct 2026 update" note in `TOKENOMICS.md`, `PROTOCOL.md` and `MINT_V2.md` (the fee cut 3.5% → 1.5%, the split, the liquidity-share removal and the execution record are unchanged); `website/PRODUCT.md`.
 - Swings: Solana primitives (`SWAP_FEE_WALLET`, `KNOWN_TOKENS`, `isSolanaAddress`, `ataAddress`, `TOKEN_PROGRAM_ID`, …) moved from `src/scripts/walletTools.ts` to `src/swings/core/solanaTools.ts`; the old path re-exports them. No value or behaviour change; pinned by `solanaTools.test.ts`.
+### Moved
+- AMM transfer-fee compatibility proofs (Raydium / Orca / Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).
 ### Security
 - `mainnet/gen-deployer.sh` now refuses to overwrite an existing deployer key and creates new keys with `umask 077`.
 - `convert-phantom-key.mjs` writes the keypair file with mode 0600.
-- CI: `npm audit` for the website is now blocking at `high`; added `projects-ci` for SDKs/scripts/program test harnesses; added CODEOWNERS, SECURITY.md, PR template, dependabot.
+- CI: `npm audit` for the website is now blocking at `high`; added `projects-ci` for the operator-script projects; added CODEOWNERS, SECURITY.md, PR template, dependabot.
+### Notes
+- Two functional leftovers remain on purpose and are not product references: the Shield scam-keyword list (it flags phishing sites that use common lure words) and the redirects for the removed pages' old URLs.

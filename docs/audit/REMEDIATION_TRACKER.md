@@ -9,13 +9,7 @@ Legend: ✅ done on branch + evidence · 🟡 partial · ⬜ not started · 👤
 | F-14 | Keypair file mode 0600 | 🟡 | `node --check` only |
 | F-07 | CI audit blocking; projects CI | 🟡 | SHA-pin actions 👤 (needs SHA lookup outside tool scope) |
 | F-01 | Document npm 11 / `.nvmrc` | ✅ | `.nvmrc`, CONTRIBUTING |
-| F-20 | ~~Reserve enforced against sales~~ | ⊘ withdrawn | presale removed 2026-10-12 |
-| F-03 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
-| F-15 | ~~Permissionless finalize~~ | ⊘ withdrawn | presale removed 2026-10-12 |
-| F-16 | ~~Pyth confidence check~~ | ⊘ withdrawn | presale removed 2026-10-12 |
-| F-17 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
-| F-02 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
 | F-13 | Confirmation guards on mainnet stage scripts | 👤 | owner to confirm whether superseded |
-| F-08 | Triage SDK/script high advisories | ⬜ | per-project reachability notes in THIRD_PARTY_DEPENDENCIES.md |
+| F-08 | Triage script-project high advisories | ⬜ | per-project reachability notes in THIRD_PARTY_DEPENDENCIES.md |
 | F-06 | ADR: share code between website and extension? | 👤 | decision |
-| F-09/F-10/F-18/F-19 | low/info | ⬜ | backlog |
+| F-09/F-10 | low/info | ⬜ | backlog |

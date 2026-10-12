@@ -1,5 +1,3 @@
-> **2026-10-12:** the on-chain programs referenced in the "kept" table below (`authority_handoff.rs`, tracked `Cargo.lock`s, `sdk/idl`) were later removed with the programs themselves.
-
 # Dead-code review — Aretia Finance (2026-10-11)
 
 Method: orphan-file script (a source file whose name is not mentioned by any other tracked file), dependency-usage check, then **manual verification of every candidate** (grep incl. docs/config, Astro/Vite globs, Vercel config).
@@ -8,7 +6,6 @@ Method: orphan-file script (a source file whose name is not mentioned by any oth
 | Item | Evidence |
 |---|---|
 | `website/src/components/hero/HomeHero.astro` (333 lines) | zero references anywhere; the only `import.meta.glob` loads `legacy/pages/*.html`, not components; `gsap`/`motion` stay (used by other components) |
-| `program/act-staking/scripts/set-config-authority-devnet.mjs` | one-off migration for the removed `set_config_authority` instruction; already guarded to exit; superseded by the two-step handoff (git history keeps it) |
 
 ## Examined and KEPT
 | Item | Why |
@@ -20,5 +17,3 @@ Method: orphan-file script (a source file whose name is not mentioned by any oth
 | `scripts/rebuild-mint/upload-metadata.mjs` | documented operator tool (own usage header, MINT_V2) |
 | `@astrojs/check`, `eslint`, `typescript`, `@types/pg`, `astro-eslint-parser` | tooling used through npm scripts / ESLint plugin, not imported |
 | `src/scripts/walletTools.ts` | compatibility re-export with 9 importers (ADR-0002) |
-| Tracked `Cargo.lock`s, `sdk/idl/*` | build/interface inputs |
-| `Handoff` state machine in `authority_handoff.rs` | compiled out of the program (`dead_code` allowed for non-test builds by design); it is the unit-tested specification and is also exercised by the on-chain suite's scenarios |

@@ -15,16 +15,6 @@ wallets/
 # Dependencies
 node_modules/
 
-# Anchor/Rust build output (regeneratable, not source; program keypairs
-# under target/deploy/ are covered by the *-keypair.json rule above too)
-program/*/target/
-program/*/.anchor/
-# program/*/Cargo.lock is deliberately NOT ignored: a program build must be reproducible.
-# (Commit the lockfile from the machine that produced the deployed binary; see docs/audit/RELEASE_VERIFICATION.md.)
-
-# SDK build output (regeneratable via `npm run build`, not source)
-sdk/*/dist/
-
 # Local Solana test validator data (large, regeneratable, not source)
 devnet/test-ledger/
 *.log

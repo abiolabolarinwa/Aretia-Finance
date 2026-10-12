@@ -17,7 +17,7 @@
 ## Known limitations
 
 ## Migration / rollback plan
-<!-- Required for anything touching program/, mainnet/, scripts/, fee/treasury config, or database migrations. -->
+<!-- Required for anything touching mainnet/, scripts/, fee/treasury config, or database migrations. -->
 
 ## Checklist
 - [ ] No secrets, keypairs or real credentials added (examples use placeholders)

@@ -5,7 +5,6 @@ This repository is a protocol workspace of independent projects (see `docs/archi
 ## Toolchain
 - Node **24** (see `.nvmrc`) with the npm that ships with it (npm 11). Lockfiles were written by npm 11; npm 10 reports some as out of sync even though CI installs them fine.
 - `website/`: `npm ci && npm test && npm run typecheck && npm run typecheck:api && npm run lint && npm run build`
-- `program/*`: Anchor 0.30.1. Do not build or deploy for mainnet from a development machine without the release procedure in `docs/audit/RELEASE_VERIFICATION.md`.
 
 ## Rules
 1. **Never commit secrets**, keypairs, seed phrases or real `.env` files. Use placeholders in `.env.example`.

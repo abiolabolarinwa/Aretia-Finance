@@ -1,12 +1,12 @@
 name: projects-ci
 
-# Install integrity + build for the SDKs and operator-script projects, which previously had no CI at all.
+# Install integrity + build for the operator-script projects, which previously had no CI at all.
 # Nothing here runs an operator script, signs, or sends a transaction. Nothing deploys.
 on:
   push:
-    paths: ['sdk/**', 'scripts/**', 'program/*/package*.json', '.nvmrc', '.github/workflows/projects-ci.yml']
+    paths: ['scripts/**', '.nvmrc', '.github/workflows/projects-ci.yml']
   pull_request:
-    paths: ['sdk/**', 'scripts/**', 'program/*/package*.json', '.nvmrc', '.github/workflows/projects-ci.yml']
+    paths: ['scripts/**', '.nvmrc', '.github/workflows/projects-ci.yml']
 
 permissions:
   contents: read
@@ -18,13 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - sdk/act-staking
           - scripts/launch-pool
           - scripts/management-fee-proposal
           - scripts/rebuild-mint
           - scripts/treasury-v2-setup
           - scripts/devnet-amm
-          - program/act-staking
     defaults:
       run:
         working-directory: ${{ matrix.dir }}

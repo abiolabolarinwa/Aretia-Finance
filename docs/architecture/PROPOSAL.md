@@ -1,6 +1,6 @@
 # Aretia Finance — Target Architecture, Migration Map & Plan (Stage A proposal)
 
-> **Note (2026-10-12):** this is the Stage A snapshot. The `act-presale` program it describes was removed when the presale was cancelled; references to it are historical. See `docs/audit/FINDINGS_REGISTER.md` for current status.
+> **Note (2026-10-12):** this is the Stage A snapshot. The `act-presale` and `act-staking` programs it describes were both removed (presale and staking cancelled); references to them are historical. See `docs/audit/FINDINGS_REGISTER.md` for current status.
 
 Date: 2026-10-11 · Companion to [`BASELINE.md`](BASELINE.md) · Status: **proposal. Nothing here is implemented. No files have been moved.**
 

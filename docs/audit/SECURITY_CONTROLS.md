@@ -4,10 +4,6 @@ Only controls observed in source/CI are listed. "Evidence" is where to look; "Ve
 
 | Control | Where | Evidence | Verified |
 |---|---|---|---|
-| Authority-gated admin (has_one) | both programs | `UpdateConfig`, `Finalize` etc. | read; not tested |
-| Pause that never blocks exit (staking: `unstake`) | programs | doc comments + code paths | read; not tested |
-| Checked arithmetic / `overflow-checks = true` (release) | `Cargo.toml` | profile + `checked_*` | read |
-| Token-2022 fee handled by balance delta / gross-up | staking `stake` | code | read; devnet suite exists, results not reviewed |
 | Keypairs/.env ignored by git | `.gitignore` | patterns | grep-verified no tracked keypair/.env files (only `.env.example`) |
 | Secret scanning of full history | `website-ci.yml` `secrets` job (gitleaks) | workflow | **not executed here** |
 | SAST | `codeql.yml` (security-extended) | workflow | not executed here |
@@ -20,4 +16,4 @@ Only controls observed in source/CI are listed. "Evidence" is where to look; "Ve
 | Architecture boundary lint | `website/eslint.config.js` | rule (warn) | executed: 3 warnings remain |
 | Code owners / PR template / dependabot | `.github/` | files | exist; branch protection must be enabled by owner |
 
-Not implemented: program tests, program CI, SHA-pinned actions, SBOM, signed releases, on-chain verification of deployed bytecode.
+Not implemented: SHA-pinned actions, SBOM, signed releases. (No on-chain programs remain in this repo, so program controls are not applicable.)

@@ -1,3 +1,5 @@
+> **2026-10-12:** the on-chain programs referenced in the "kept" table below (`authority_handoff.rs`, tracked `Cargo.lock`s, `sdk/idl`) were later removed with the programs themselves.
+
 # Dead-code review — Aretia Finance (2026-10-11)
 
 Method: orphan-file script (a source file whose name is not mentioned by any other tracked file), dependency-usage check, then **manual verification of every candidate** (grep incl. docs/config, Astro/Vite globs, Vercel config).

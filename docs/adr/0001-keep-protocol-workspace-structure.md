@@ -13,3 +13,5 @@ Low-risk, reversible; each project keeps its own lockfile (nine of them), so dep
 No change to on-chain code or signing paths.
 ## Migration implications
 None.
+
+> **Update 2026-10-12:** both Anchor programs and the SDKs were removed (presale and staking cancelled). What remains is operator scripts, the Astro site and its API; the decision (do not restructure, enforce boundaries) still holds.

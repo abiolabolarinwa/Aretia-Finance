@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * devnet test-token setup (shared by the AMM scripts and act-staking's devnet tests)
+ * devnet test-token setup (used by the AMM scripts)
  * ---------------------------------------------------------------------
  * Creates three THROWAWAY devnet mints that stand in for the real
- * mainnet-only ACT/USDC/USDT so ACT-dependent code (AMM pools, act-staking)
+ * mainnet-only ACT/USDC/USDT so ACT-dependent code (AMM pools)
  * can be exercised end to end without touching anything real:
  *
  *   - test-ACT: Token-2022 with a TransferFeeConfig extension set to

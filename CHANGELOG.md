@@ -3,6 +3,8 @@
 Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant changes.
 
 ## Unreleased
+### Removed — staking (cancelled)
+- `program/act-staking`, `program/svm-tests`, `sdk/` (incl. the `@aretiafinance/act-staking-sdk` source and IDL), `STAKING_DESIGN.md`, the `/stake` page and its nav/search/token-page entries, `programs-ci`. All program findings withdrawn. `/stake` now redirects to `/token`. Last commit containing staking: `7f08c9b`. The repository now contains no on-chain programs.
 ### Removed — presale (cancelled)
 - `program/act-presale`, `sdk/act-presale` (incl. the `@aretiafinance/act-presale-sdk` source), `sdk/idl/act_presale.json`, the presale on-chain test suite and `PRESALE_DESIGN.md`. Findings F-15/F-16/F-20 are withdrawn as not applicable. Last commit containing the presale: `1cfedff`.
 - `website/legacy/home.html`: an unreferenced old home page (the loader only reads `legacy/pages/`) containing the presale countdown/golden-badge UI. Site build and tests unchanged.

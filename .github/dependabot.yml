@@ -10,6 +10,3 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
-  - package-ecosystem: cargo
-    directory: /program/act-staking
-    schedule: { interval: monthly }

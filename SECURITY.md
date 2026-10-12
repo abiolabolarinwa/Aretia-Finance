@@ -10,7 +10,7 @@ Please include: affected component and commit, reproduction steps or proof of co
 
 ## Scope
 
-In scope: `program/` (Anchor programs), `sdk/`, `website/api/`, `website/src/swings/`, `website/supabase/`, operator tooling in `mainnet/`, `devnet/`, `scripts/`, and CI workflows.
+In scope: `website/api/`, `website/src/swings/`, `website/supabase/`, operator tooling in `mainnet/`, `devnet/`, `scripts/`, and CI workflows.
 Out of scope: third-party contracts/services (Jupiter, 0x, DEX programs, Squads, Supabase, Vercel, RPC providers), social engineering, volumetric DoS.
 
 ## Status of assurance (read before relying on this code)

@@ -10,11 +10,11 @@ Legend: ✅ done on branch + evidence · 🟡 partial · ⬜ not started · 👤
 | F-07 | CI audit blocking; projects CI | 🟡 | SHA-pin actions 👤 (needs SHA lookup outside tool scope) |
 | F-01 | Document npm 11 / `.nvmrc` | ✅ | `.nvmrc`, CONTRIBUTING |
 | F-20 | ~~Reserve enforced against sales~~ | ⊘ withdrawn | presale removed 2026-10-12 |
-| F-03 | Reproducible program builds | 🟡 | lockfiles committed (verified-compiling, not the deployed lock); toolchain pin for SBF/Anchor CLI still 👤 |
+| F-03 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
 | F-15 | ~~Permissionless finalize~~ | ⊘ withdrawn | presale removed 2026-10-12 |
 | F-16 | ~~Pyth confidence check~~ | ⊘ withdrawn | presale removed 2026-10-12 |
-| F-17 | Two-step authority handoff | ✅ on-chain (LiteSVM), act-staking (the presale half is withdrawn) | 👤 regenerate IDLs with the Anchor CLI; staking devnet upgrade (not done); `tests/full-suite.mjs` updated but unrun |
-| F-02 | Program invariant tests | ⬜ | see TEST_EVIDENCE.md for list; requires working Anchor/LiteSVM toolchain (not available in this sandbox for presale) |
+| F-17 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
+| F-02 | ~~(on-chain program item)~~ | ⊘ withdrawn | programs removed 2026-10-12 |
 | F-13 | Confirmation guards on mainnet stage scripts | 👤 | owner to confirm whether superseded |
 | F-08 | Triage SDK/script high advisories | ⬜ | per-project reachability notes in THIRD_PARTY_DEPENDENCIES.md |
 | F-06 | ADR: share code between website and extension? | 👤 | decision |

@@ -1,8 +1,6 @@
 # Security-sensitive paths require review from a code owner. Replace/extend with additional reviewers as the team grows;
 # a single owner means "self-review" -- enable "Require review from Code Owners" and a second reviewer in branch protection.
 *                                   @abiolabolarinwa
-/program/                           @abiolabolarinwa
-/sdk/                               @abiolabolarinwa
 /mainnet/                           @abiolabolarinwa
 /devnet/                            @abiolabolarinwa
 /scripts/                           @abiolabolarinwa

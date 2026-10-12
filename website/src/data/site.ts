@@ -142,7 +142,6 @@ export const ACT = {
   },
   utilities: [
     { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury and treasury operations.' },
-    { name: 'Staking', status: 'in-development' as Status, detail: 'Lock ACT to build a Capital Access Score.' },
     { name: 'Project registration', status: 'live' as Status, detail: `Project developers pay a ${(5000).toLocaleString('en-US')} ACT fee to apply for catalyst funding.` },
     { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Universal, Pay, Shield and Intent.' },
   ],
@@ -254,7 +253,6 @@ export const NAV: NavGroup[] = [
     items: [
       { label: 'Token', href: '/token', description: 'Supply, fees and utility' },
       { label: 'Buy ACT', href: '/buy', description: 'Swap into ACT via Jupiter' },
-      { label: 'Staking', href: '/stake', description: 'Capital Access Score' },
       { label: 'Verify', href: '/verify', description: 'Check the mint on-chain' },
     ],
   },

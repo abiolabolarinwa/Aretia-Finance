@@ -25,6 +25,11 @@
       "permanent": false
     },
     {
+      "source": "/stake",
+      "destination": "/token",
+      "permanent": false
+    },
+    {
       "source": "/presale",
       "destination": "/buy",
       "permanent": false

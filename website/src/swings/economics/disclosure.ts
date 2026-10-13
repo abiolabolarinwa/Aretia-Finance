@@ -3,7 +3,7 @@
  * nowhere else; this module only decides WHICH step of a plan carries the fee and how the costs are disclosed.
  *
  * Rules (tests enforce them):
- *  - there is exactly one Aretia charge, the 0.58% fee, paid in the asset the user is paying with (a coin or a stablecoin). It is never added on top of
+ *  - there is exactly one Aretia charge, the 0.58% fee, paid in the asset the user is paying with (a coin, a stablecoin or any token being sold). It is never added on top of
  *    itself: a plan carries it on at most ONE step, so a multi-step plan does not pay it twice on the same money;
  *  - ramps and settlements carry no Aretia charge; their providers' fees are shown as the providers' own;
  *  - every cost is disclosed on its own line: the amount, the network fee, the venue fee, the settlement fee, the ramp

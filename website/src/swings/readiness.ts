@@ -47,7 +47,7 @@ const MANUAL: { id: string; area: string; level: 'canary' | 'public'; title: str
   { id: 'real-cctp-move', area: 'Settlement', level: 'canary', title: 'A real USDC move between two EVM networks through CCTP, burn to claim, with a small amount' },
   { id: 'real-cctp-solana', area: 'Settlement', level: 'canary', title: 'A real USDC move from Solana to an EVM network and back through CCTP, with a small amount' },
   { id: 'moonpay-sandbox-buy', area: 'Ramps', level: 'canary', title: 'A MoonPay sandbox purchase delivered to a test wallet' },
-  { id: 'aretia-fee-evm', area: 'Fees', level: 'canary', title: 'The EVM fee address is set (PUBLIC_ARETIA_EVM_FEE_ADDRESS) and a small EVM swap paid with a coin or stablecoin showed the 0.58% fee arriving there' },
+  { id: 'aretia-fee-evm', area: 'Fees', level: 'canary', title: 'The EVM fee address is set (PUBLIC_ARETIA_EVM_FEE_ADDRESS) and a small EVM swap paid with a coin or stablecoin, and a small sale of an ordinary token (the fee is taken in that token), each showed the 0.58% fee arriving there' },
   { id: 'aretia-fee-solana', area: 'Fees', level: 'canary', title: 'A small Solana swap showed the 0.58% fee arriving at the fee wallet (in SOL, and in USDC when paying with USDC)' },
   { id: 'db-migrations', area: 'Data', level: 'canary', title: 'Database migrations applied to the production database' },
   { id: 'moonpay-sandbox-sell', area: 'Ramps', level: 'public', title: 'MoonPay sell checked in the sandbox before selling is switched on' },

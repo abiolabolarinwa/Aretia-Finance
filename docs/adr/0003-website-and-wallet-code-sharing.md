@@ -12,7 +12,7 @@
 | | Website | Wallet |
 |---|---|---|
 | Rate constant | `ARETIA_FEE_BPS = 58` (`website/src/swings/core/fee.ts`) | `ARETIA_FEE_BPS = 29` (`packages/shared/src/aretiaFee.ts`) |
-| When charged | only when paying with a network coin, wrapped coin or main stablecoin; **none when selling a token** (`core/feeAssets.ts`) | on every swap, in the asset sold |
+| When charged (before 2026-10-13) | only when paying with a network coin, wrapped coin or main stablecoin; **none when selling a token** (`core/feeAssets.ts`) | on every swap, in the asset sold |
 | Solana fee wallet | `2tcBrd1J…VoZX2` (`core/solanaTools.ts`) | same address, copied by hand ("Verify against aretiafinance.org before changing") |
 | Documented as | `website/docs/aretia-swings/production-readiness.md`: changed 10 Oct 2026 to 0.58% | wallet `docs/solana.md`, `docs/privacy-policy.md`: 0.29% |
 

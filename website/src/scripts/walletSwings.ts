@@ -570,6 +570,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const raw = (exact / step) * step;
     s.amount = raw > 0n ? fromSmallestUnit(raw, from.decimals) : '';
     resetQuote();
+    // Nothing to fill in is said, not left silent: the whole balance is within the little kept back for the network fee.
+    s.notice = raw > 0n || !native || bal <= 0n ? null : `Your ${from.symbol} balance is no more than the ${FEE_CUSHION[s.chain]} ${from.symbol} kept back for the network fee, so there is nothing to swap. Add some ${from.symbol} first.`;
     render();
     scheduleAuto();
   }

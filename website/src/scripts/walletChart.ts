@@ -50,7 +50,8 @@ export function formatPrice(p: number | null): string {
 
 export function avatar(symbol: string, icon: string | null | undefined): HTMLElement {
   const initials = (): HTMLElement => node('span', 'wapp-avatar', symbol.slice(0, 2).toUpperCase());
-  if (!icon || !/^https:\/\//.test(icon)) return initials();
+  // https pictures from outside, and Aretia's own files under /assets/ (the network coins and the ACT mark).
+  if (!icon || !/^(https:\/\/|\/assets\/)/.test(icon)) return initials();
   const img = node('img', 'wapp-avatar');
   img.alt = '';
   img.width = 32;

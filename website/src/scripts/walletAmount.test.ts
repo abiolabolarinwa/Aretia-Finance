@@ -42,3 +42,12 @@ describe('fee cushion', () => {
     for (const id of Object.keys(CHAINS)) expect(FEE_CUSHION, id).toHaveProperty(id);
   });
 });
+
+describe('a small balance on BNB Chain', () => {
+  it('still fills 10%, 50% and Max when the balance is a little over the fee cushion', () => {
+    const bal = 1_988_350_000_000_000n; // 0.00198835 BNB
+    const cushion = cushionUnits(FEE_CUSHION.bnb, 18);
+    for (const pct of [10, 50, 100] as const) expect(shareOfBalance(bal, pct, { cushion })).toBeGreaterThan(0n);
+    expect(shareOfBalance(bal, 100, { cushion })).toBe(bal - cushion);
+  });
+});

@@ -11,7 +11,7 @@ import type { ChainId } from '../swings/core/types.js';
 export const FEE_CUSHION: Readonly<Record<ChainId, string>> = {
   solana: '0.005',
   ethereum: '0.004',
-  bnb: '0.002',
+  bnb: '0.0005',
   polygon: '0.1',
   base: '0.0005',
   arbitrum: '0.0005',

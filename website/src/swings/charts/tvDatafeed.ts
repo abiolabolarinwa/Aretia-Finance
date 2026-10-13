@@ -51,6 +51,8 @@ export interface PoolChartOptions {
   token?: 'base' | 'quote';
   /** The name shown on the chart, such as "DOPE / USD". */
   label: string;
+  /** Prices in US dollars (the default), or in the other token of the pool. */
+  currency?: 'usd' | 'token';
   /** A recent price, used only to choose how many decimals the price scale shows. */
   priceHint?: number | null;
   exchange?: string | null;
@@ -137,7 +139,10 @@ export function createPoolDatafeed(
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const network = GECKO_NETWORK[o.chain];
   const side = o.token ?? 'base';
-  const cache = new Map<string, { at: number; bars: TvBar[] }>();
+  const currency = o.currency ?? 'usd';
+  /** Shown beside the symbol in the chart's legend, like "DOPE / USD · 15 · aretiafinance.org". */
+  const exchange = o.exchange ?? 'aretiafinance.org';
+  const cache = new Map<string, { at: number; bars: TvBar[]; limit: number }>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   /** Per interval: the time of the oldest candle the pool has, once a short answer showed there is nothing before it. */
   const exhausted = new Map<string, number>();
@@ -148,7 +153,7 @@ export function createPoolDatafeed(
    */
   async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
     if (!deps.viaServer) return null;
-    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side });
+    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency });
     try {
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
       return response.ok ? parseBars(await response.json()) : null;
@@ -162,16 +167,22 @@ export function createPoolDatafeed(
    * needs, so that shows up as a failed fetch rather than a 429; both are a short wait away from working, so history
    * loads (attempts > 1) try again before giving up.
    */
-  async function candles(res: Resolution, beforeSec: number, limit: number, attempts = 1): Promise<TvBar[]> {
-    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(Math.floor(beforeSec)), limit: String(limit), currency: 'usd', token: side });
+  async function candles(res: Resolution, requestedBefore: number, limit: number, attempts = 1): Promise<TvBar[]> {
+    // Round the time up to a whole candle. Asks made a moment apart then share one answer (the symbol lookup and the chart's
+    // first request, say), which matters because GeckoTerminal turns away a second request that follows the first closely.
+    const beforeSec = Math.ceil(requestedBefore / res.seconds) * res.seconds;
+    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: side });
     const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
-    const hit = cache.get(url);
-    if (hit && now() - hit.at < CACHE_MS) return hit.bars;
+    // An answer holding at least as many candles as asked for serves the newest of them, whatever limit it was fetched with.
+    const key = `${res.tf}|${res.aggregate}|${beforeSec}`;
+    const hit = cache.get(key);
+    if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return hit.bars.slice(-limit);
+    const keep = (bars: TvBar[]): TvBar[] => {
+      cache.set(key, { at: now(), bars, limit });
+      return bars;
+    };
     const shared = await fromServer(res, beforeSec, limit);
-    if (shared) {
-      cache.set(url, { at: now(), bars: shared });
-      return shared;
-    }
+    if (shared) return keep(shared);
     let response: Response | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
@@ -193,9 +204,7 @@ export function createPoolDatafeed(
     } catch {
       throw new Error('The price service returned something unreadable.');
     }
-    const bars = parseBars(body);
-    cache.set(url, { at: now(), bars });
-    return bars;
+    return keep(parseBars(body));
   }
 
   const info: TvSymbolInfo = {
@@ -205,8 +214,8 @@ export function createPoolDatafeed(
     type: 'crypto',
     session: '24x7',
     timezone: 'Etc/UTC',
-    exchange: o.exchange ?? '',
-    listed_exchange: o.exchange ?? '',
+    exchange,
+    listed_exchange: exchange,
     format: 'price',
     minmov: 1,
     pricescale: priceScaleFor(o.priceHint),
@@ -226,6 +235,19 @@ export function createPoolDatafeed(
       cb([]);
     },
     resolveSymbol(_name, onResolve) {
+      if (currency === 'token') {
+        // How many decimals the price scale needs depends on the size of the price in the other token, which is only known
+        // once candles have been read. The full first page is read now and kept, so the chart's own first request is served
+        // from it rather than made a moment later. If this fails, the default scale is used rather than failing the chart.
+        candles(RESOLUTIONS['15']!, Math.floor(now() / 1000) + 900, MAX_PER_REQUEST, LOAD_ATTEMPTS)
+          .then((bars) => {
+            const last = bars[bars.length - 1];
+            if (last) info.pricescale = priceScaleFor(last.close);
+          })
+          .catch(() => undefined)
+          .then(() => onResolve(info));
+        return;
+      }
       setTimeout(() => onResolve(info), 0);
     },
     getBars(_info, resolution, params, onResult, onError) {

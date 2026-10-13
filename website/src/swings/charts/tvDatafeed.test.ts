@@ -184,6 +184,60 @@ describe('the datafeed', () => {
     }
   });
 
+  it('names Aretia beside the symbol in the legend unless told otherwise', async () => {
+    const resolve = (o: Partial<Parameters<typeof createPoolDatafeed>[0]> = {}) => {
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD', ...o }, { fetchImpl: reply(body(LIST)) });
+      return new Promise<{ exchange: string; listed_exchange: string }>((r) => feed.resolveSymbol('x', r, () => undefined));
+    };
+    expect(await resolve()).toMatchObject({ exchange: 'aretiafinance.org', listed_exchange: 'aretiafinance.org' });
+    expect(await resolve({ exchange: 'Uniswap' })).toMatchObject({ exchange: 'Uniswap' });
+  });
+
+  it('asks for prices in US dollars by default and in the other token when told to, direct and through the shared endpoint', async () => {
+    const currencyOf = async (currency: 'usd' | 'token' | undefined, viaServer?: string) => {
+      const f = reply(body(LIST));
+      const feed = createPoolDatafeed({ chain: 'ethereum', pool: POOL, label: 'X', ...(currency ? { currency } : {}) }, { fetchImpl: f, ...(viaServer ? { viaServer } : {}) });
+      await getBars(feed, '15', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+      return new URL(String((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0]), 'https://x.test').searchParams.get('currency');
+    };
+    expect(await currencyOf(undefined)).toBe('usd');
+    expect(await currencyOf('token')).toBe('token');
+    expect(await currencyOf('token', '/api/swings-ohlcv')).toBe('token');
+    expect(await currencyOf('usd', '/api/swings-ohlcv')).toBe('usd');
+  });
+
+  it('sizes the price scale from a real candle when prices are in the other token', async () => {
+    const tiny = [[1_700_001_800, 0.00000012, 0.00000013, 0.00000011, 0.00000012, 5]];
+    const feed = createPoolDatafeed({ chain: 'ethereum', pool: POOL, label: 'X / ETH', currency: 'token', priceHint: 3000 }, { fetchImpl: reply(body(tiny)), now: () => 1_700_001_900_000, sleep: async () => undefined });
+    const info = await new Promise<{ pricescale: number }>((r) => feed.resolveSymbol('x', r, () => undefined));
+    expect(info.pricescale).toBe(1e10);
+    // If the candle cannot be read the chart still starts, on the default scale.
+    const broken = createPoolDatafeed({ chain: 'ethereum', pool: POOL, label: 'X / ETH', currency: 'token' }, { fetchImpl: reply({}, 503), sleep: async () => undefined });
+    expect((await new Promise<{ pricescale: number }>((r) => broken.resolveSymbol('x', r, () => undefined))).pricescale).toBe(1e6);
+  });
+
+  it('reads the first page once for both the symbol lookup and the first request, since a second request right behind the first is turned away', async () => {
+    const f = reply(body(LIST));
+    const feed = createPoolDatafeed({ chain: 'ethereum', pool: POOL, label: 'X / ETH', currency: 'token' }, { fetchImpl: f, now: () => 1_700_002_000_000 });
+    const info = await new Promise<Parameters<Parameters<typeof feed.resolveSymbol>[1]>[0]>((r) => feed.resolveSymbol('x', r, () => undefined));
+    // The chart asks for a different number of candles (and a time a few seconds off) than the lookup did.
+    const r = await getBars(feed, '15', { from: 0, to: 1_700_002_003, countBack: 329, firstDataRequest: true });
+    expect('bars' in r && r.bars).toHaveLength(3);
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(info.pricescale).toBe(1e3);
+  });
+
+  it('serves only the newest candles asked for from a longer answer it already holds', async () => {
+    const many = Array.from({ length: 50 }, (_, i) => [1_700_000_000 + i * 900, 1, 2, 0.5, 1.5, 1]).reverse();
+    const f = reply(body(many));
+    const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, now: () => 1_700_045_000_000 });
+    // Asks for 1000 first, so a later ask for fewer is answered from it, and one for more is not.
+    await getBars(feed, '15', { from: 0, to: 1_700_045_000, countBack: 1000, firstDataRequest: true });
+    const fewer = await getBars(feed, '15', { from: 0, to: 1_700_045_000, countBack: 200, firstDataRequest: true });
+    expect('bars' in fewer && fewer.bars).toHaveLength(50);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses an interval the service cannot serve', async () => {
     const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: reply(body(LIST)) });
     expect(await getBars(feed, '3', { from: 0, to: 1, firstDataRequest: true })).toEqual({ error: 'The 3 interval is not available.' });

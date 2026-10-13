@@ -31,6 +31,7 @@ import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
 import { mountTvChart, type TvChart } from './walletTvChart';
+import { mountTrades, type TradesTable } from './walletTxTable';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1465,6 +1466,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let chartKey = '';
     let chartRow: MarketRow | null = null;
     let tvChart: TvChart | null = null;
+    let tradesTable: TradesTable | null = null;
     function showChart(r: MarketRow): void {
       chartRow = r;
       chartHost.hidden = false;
@@ -1476,9 +1478,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         close.addEventListener('click', hideChart);
         // Aretia's own TradingView chart, drawn in the page. Taking it down on a token change stops its live polling.
         tvChart?.dispose();
+        tradesTable?.dispose();
         const plot = el('div', { class: 'wapp-mt__chart-frame', attrs: { role: 'img', 'aria-label': `${r.symbol} price chart` } });
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), plot);
+        const trades = el('div', { class: 'wapp-mt__trades' });
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), plot, trades);
         tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, label: `${r.symbol} / USD`, priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }), title: `${r.symbol} price chart` });
+        // The pool's recent trades, under the chart.
+        tradesTable = mountTrades(trades, { chain: r.chain, pool: r.pool, symbol: r.symbol, quoteSymbol: r.quoteSymbol });
       }
       if (chartHost.parentElement !== target) target.prepend(chartHost);
       chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -1486,6 +1492,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     function hideChart(): void {
       tvChart?.dispose();
       tvChart = null;
+      tradesTable?.dispose();
+      tradesTable = null;
       chartRow = null;
       chartKey = '';
       chartHost.hidden = true;

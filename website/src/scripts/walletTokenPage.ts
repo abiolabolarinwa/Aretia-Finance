@@ -8,6 +8,7 @@ import { DexScreenerPoolFinder } from '../swings/charts/dexscreener.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
 import { mountTvChart, type TvChart } from './walletTvChart';
+import { mountTrades, type TradesTable } from './walletTxTable';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 
@@ -61,10 +62,13 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   let seq = 0;
   let active: AbortController | null = null;
   let tv: TvChart | null = null;
+  let trades: TradesTable | null = null;
 
   function skeleton(o: TokenPageOptions): { chart: HTMLElement; side: HTMLElement; title: HTMLElement } {
     tv?.dispose();
     tv = null;
+    trades?.dispose();
+    trades = null;
     root.replaceChildren();
     const bar = el('div', 'wapp-tp__top');
     const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back', '← Back to the list');
@@ -86,11 +90,15 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   function fill(o: TokenPageOptions, parts: { chart: HTMLElement; side: HTMLElement }, pool: string, d: PairDetail | null, problem: string | null): void {
     // Aretia's own TradingView chart, drawn in the page.
     tv?.dispose();
+    trades?.dispose();
     const plot = el('div', 'wapp-tp__frame');
     plot.setAttribute('role', 'img');
     plot.setAttribute('aria-label', `${o.symbol} price chart`);
-    parts.chart.replaceChildren(plot);
+    const tradesHost = el('div', 'wapp-tp__trades');
+    parts.chart.replaceChildren(plot, tradesHost);
     tv = mountTvChart(plot, { chain: o.chain, pool, label: `${o.symbol} / USD`, priceHint: d?.priceUsd ?? null, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
+    // The pool's recent trades, under the chart.
+    trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });
 
     const side = parts.side;
     side.replaceChildren();
@@ -187,6 +195,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     active?.abort();
     tv?.dispose();
     tv = null;
+    trades?.dispose();
+    trades = null;
     root.replaceChildren();
     root.hidden = true;
   }

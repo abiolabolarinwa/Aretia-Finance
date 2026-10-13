@@ -841,12 +841,29 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     return el('span', { class: 'wapp__sub', text: tk ? (tk.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(tk.mint)) : '' });
   };
 
+  /** Where the token list opens: directly under the token button that was pressed, inside that side's box. */
+  const pickerSlot = (side: 'from' | 'to'): HTMLElement => el('div', { class: 'wapp__pick-slot', attrs: { 'data-sw-picker': side } });
+
+  // The list closes on Esc, or on a press anywhere outside it (the token button itself toggles it).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && s.picker) {
+      s.picker = null;
+      render();
+    }
+  });
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target as Element | null;
+    if (!s.picker || !t || t.closest('.wapp__pick-pop, .wapp__token-btn')) return;
+    s.picker = null;
+    render();
+  });
+
   function renderPicker(): void {
-    const box = swapPanel.querySelector<HTMLElement>('[data-sw-picker]');
-    if (!box) return;
-    box.replaceChildren();
+    for (const slot of swapPanel.querySelectorAll<HTMLElement>('[data-sw-picker]')) slot.replaceChildren();
     const p = s.picker;
     if (!p) return;
+    const box = swapPanel.querySelector<HTMLElement>(`[data-sw-picker="${p.side}"]`);
+    if (!box) return;
     const input = el('input', { class: 'wapp__input', attrs: { placeholder: isEvm(s.chain) ? 'Paste a contract address or search the registry' : 'Search a name, symbol or paste a mint address', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search tokens' } });
     input.value = p.query;
     input.addEventListener('input', () => onSearchInput(input.value));
@@ -862,7 +879,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
     for (const t of items.slice(0, 12)) list.append(row(t));
     wantLogos(s.chain, items.slice(0, 12));
-    box.append(input, list);
+    const pop = el('div', { class: 'wapp__pick-pop' }, [input, list]);
+    box.append(pop);
     input.focus();
   }
 
@@ -1126,6 +1144,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       el('div', { class: 'wapp__swap-box' }, [
         el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You pay' }), tokenNote('from')]),
         el('div', { class: 'wapp__swap-main' }, [tokenButton('from'), amount]),
+        pickerSlot('from'),
         shareRow(),
       ]),
     );
@@ -1149,9 +1168,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       el('div', { class: 'wapp__swap-box' }, [
         el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive' }), tokenNote('to')]),
         el('div', { class: 'wapp__swap-main' }, [tokenButton('to'), el('output', { class: 'wapp__swap-out', text: estimate })]),
+        pickerSlot('to'),
       ]),
     );
-    card.append(el('div', { attrs: { 'data-sw-picker': '' } }));
 
     // What needs a decision, or stops the swap, stays in view. Everything else is in the Details beneath.
     const ready = s.quote && s.phase !== 'idle' && s.phase !== 'quoting';

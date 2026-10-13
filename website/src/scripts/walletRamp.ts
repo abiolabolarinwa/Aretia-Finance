@@ -10,6 +10,7 @@ import { RampRouter, type RampSearch } from '../swings/ramp/router.js';
 import { judgeWatch, type RampWatch } from '../swings/ramp/watch.js';
 import type { RampIntent, RampQuote, RampSide } from '../swings/ramp/types.js';
 import { formatUnits } from '../swings/crosschain/view.js';
+import { currencyFor, defaultAmount, pickCountry } from './walletBuyDefaults';
 
 const CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
 const WATCH_KEY = 'aretia-swings-ramp-watch';
@@ -98,6 +99,13 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
   async function load(): Promise<void> {
     if (s.avail !== undefined) return;
     s.avail = await moonpay.availability();
+    if (s.avail) {
+      // Starting answers from the browser, so the person is not asked what can be worked out: their country, its currency, a sensible amount.
+      const buyable = s.avail.catalog.countries.filter((c) => c.buy);
+      s.country = pickCountry(s.country, navigator.languages?.length ? navigator.languages : [navigator.language], buyable);
+      s.fiat = currencyFor(s.country, s.avail.catalog.fiats);
+      s.amount = defaultAmount(s.fiat);
+    }
     draw();
   }
 

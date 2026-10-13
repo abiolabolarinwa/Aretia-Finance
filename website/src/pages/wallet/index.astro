@@ -1305,9 +1305,11 @@ const sendTips = [
   .wapp-pay__text strong { font-size: 15px; }
   .wapp-pay__text span { font-size: 12.5px; line-height: 1.4; color: var(--color-muted); }
   @media (max-width: 860px) { .wapp-pay__hub { grid-template-columns: minmax(0, 1fr); } }
-  /* Pay is a few forms, not a dashboard: on a wide screen it stays one readable column, left-aligned with its heading, instead of stretching edge to edge. */
-  .wapp-pay { width: 100%; max-width: 1080px; justify-self: start; }
-  .wapp-pay [data-pay-panel='ramp'], .wapp-pay [data-pay-panel='transfer'] { width: 100%; max-width: 680px; justify-self: start; }
+  /* Pay is a few forms, not a dashboard: on a wide screen it stays one readable column, centred, instead of stretching edge to edge. */
+  .wapp-pay { width: 100%; max-width: 1080px; justify-self: center; }
+  .wapp-pay [data-pay-panel='ramp'], .wapp-pay [data-pay-panel='transfer'] { width: 100%; max-width: 680px; justify-self: center; }
+  /* The page title lines up with the centred column below it. */
+  .wapp[data-view='send'] .wapp__top h1 { width: 100%; max-width: 1080px; margin-inline: auto; }
   @media (min-width: 961px) { .wapp-pay [data-pay-panel='send'] .wapp__grid--trade { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
   /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
   .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: center; }

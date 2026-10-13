@@ -11,6 +11,7 @@ Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant
 - Swings: Solana primitives (`SWAP_FEE_WALLET`, `KNOWN_TOKENS`, `isSolanaAddress`, `ataAddress`, `TOKEN_PROGRAM_ID`, …) moved from `src/scripts/walletTools.ts` to `src/swings/core/solanaTools.ts`; the old path re-exports them. No value or behaviour change; pinned by `solanaTools.test.ts`.
 - CI: `shellcheck` workflow for the operator shell scripts; Dependabot (monthly, human-reviewed) for the five `scripts/*` projects.
 - Docs: implementation-status banners on `PROTOCOL.md` and `TOKENOMICS.md`; stale cross-references fixed (`PROTOCOL.md` roadmap section number, `TOKENOMICS.md` mint record link).
+- Swings fee: the 0.58% fee now applies to token sales as well (owner decision). `planAretiaFee` no longer takes the paying asset and no longer exempts any token; the fee is taken in the asset being sold. `core/feeAssets.ts` stays only to recognise major assets (Shield). Tests updated first; not yet proven on chain for a sale. Risks recorded in `website/docs/aretia-swings/production-readiness.md`.
 
 ### Moved
 - AMM transfer-fee compatibility proofs (Raydium / Orca / Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).

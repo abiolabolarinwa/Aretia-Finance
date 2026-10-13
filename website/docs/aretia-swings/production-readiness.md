@@ -1,5 +1,16 @@
 # Production readiness
 
+## Update, 13 October 2026: the 0.58% fee now applies to token sales too
+
+**Verdict unchanged: not production ready.** The owner decided the fee applies to every swap, including selling a token. `planAretiaFee` no longer exempts any asset; the fee is taken in the asset being paid with, so a sale pays it in the token being sold. `core/feeAssets.ts` no longer decides who pays (Shield still reads it to recognise major assets). Changes that follow from it, and what is **not** proven:
+
+- **Not proven on chain at 0.58% for a sale.** At the old 0.29% a sale did pay (an ARK sale put 0.008525269084 ARK at the EVM fee address, below). At 0.58%, and on Solana, no token sale has been run. The unit tests cover the arithmetic and the transactions that are built; they do not exercise a real token.
+- **Tokens that block or tax transfers.** A fee transfer in the sold token can fail for a token with its own transfer rules (a blocked transfer, a transfer hook, or a token that keeps part of each transfer, such as a Token-2022 mint with a transfer fee). The sale then fails or the fee wallet receives less than 0.58%. This is the risk the earlier rule avoided.
+- **The fee wallet will hold arbitrary tokens**, some unsellable. Someone has to decide what is done with them.
+- **Solana:** the first sale of any token also opens the fee wallet's account for that token, and the user pays that rent once (about 0.002 SOL). Outside routes (Jupiter) cannot collect the fee, so they are no longer offered for sales.
+- **EVM:** a sale now needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS`, like every other swap, and sends a separate fee transaction in the token before the swap.
+- **Gas for the extra transaction** on EVM sales was not re-checked.
+
 ## Update, 10 October 2026 (later): the fee is now 0.58%, on swaps paid with a coin or stablecoin
 
 The Aretia fee changed from 0.29% on every swap to **0.58% when the swap is paid with a network's own coin, that coin wrapped, or a main stablecoin, and nothing when a token is sold**. The rate is one number (`ARETIA_FEE_BPS`) and the rule is one function (`planAretiaFee` with `core/feeAssets.ts`); every fee screen reads them. Effects: the fee wallet only receives liquid assets, sales have no fee transfer to fail, and outside routes (Jupiter) may now be used for sales on Solana because nothing has to be collected. **Not yet seen on chain at the new rate**: the `aretia-fee-evm` gate is reopened until one small swap shows 0.58% arriving. The earlier proof (below) was at 0.29%.
@@ -32,7 +43,7 @@ What changed since the milestone-25 checklist further down: wallet abstraction a
 | Cross-chain orchestration | Tested with fakes at the edges only; never run with a real wallet |
 | Ramps | MoonPay link building and signing tested; never run with real or sandbox keys; sell is off by default and unverified |
 | Live site | EVM networks are all on by default (set `SWINGS_EVM_CHAINS=base` to narrow); only the two wallets on the staged-rollout list can sign |
-| Aretia fee | 0.58% on every network when paying with a coin or stablecoin, none when selling a token (changed 10 October 2026; seen on chain only at the old 0.29%); the ACT buyback was removed; EVM needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS` (set in production); collected once on a real BNB Chain swap, exactly 0.29%; never collected on Solana or any other EVM network |
+| Aretia fee | 0.58% on every network, on every swap including selling a token (token sales added 13 October 2026; 0.58% not yet seen on chain; seen only at the old 0.29%); the ACT buyback was removed; EVM needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS` (set in production); collected once on a real BNB Chain swap, exactly 0.29%; never collected on Solana or any other EVM network |
 | Database | Migrations validated on a local Postgres engine; not applied to Aretia's project |
 | External review | None |
 

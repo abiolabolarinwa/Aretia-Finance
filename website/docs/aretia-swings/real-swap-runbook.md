@@ -38,9 +38,9 @@ Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sens
 ## 6. Splits
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.
 
-## 7. The Aretia fee (0.58%, when paying with a coin or stablecoin)
+## 7. The Aretia fee (0.58%, on every swap)
 - Set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` in Vercel (the address that receives EVM fees) and redeploy.
-- With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.58% of the SOL entered arrives at the fee wallet, in the same transaction; swap a little USDC for SOL and confirm the fee arrives in USDC; sell a token and confirm NO fee is taken (the whole amount is swapped); on one EVM network confirm the fee transaction is sent and confirmed before the swap (or in the same batch), and arrives at the EVM fee address.
+- With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.58% of the SOL entered arrives at the fee wallet, in the same transaction; swap a little USDC for SOL and confirm the fee arrives in USDC; sell a small amount of a plain token and confirm 0.58% of it, in that token, arrives at the fee wallet (Solana: also expect the one-time rent for the fee wallet's new token account), then try a token that taxes or restricts transfers and confirm the sale fails clearly rather than skipping the fee; on one EVM network confirm the fee transaction is sent and confirmed before the swap (or in the same batch), and arrives at the EVM fee address.
 
 ## 8. Optional features
 - Protected sending (`SWINGS_PROTECTED_SUBMIT=on`): test one small swap; confirm the tip is shown on the review screen and charged only on success.

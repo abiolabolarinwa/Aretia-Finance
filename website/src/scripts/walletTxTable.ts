@@ -1,7 +1,9 @@
 /**
  * The Transactions table under the chart: the pool's recent trades (last 24 hours, up to 300), newest first, with the
  * time, buy or sell, value, both amounts, price, the trader and a link to the transaction on the chain's explorer.
- * "All / Buys / Sells" narrows the list. It refreshes every 20 seconds while it is on screen and the tab is in front.
+ * "All / Buys / Sells" narrows the list. It checks for new trades every second while it is on screen and the tab is in
+ * front, and the times move on every second. (Most checks are served from the server's short cache, and the newest trades
+ * run about half a minute behind the chain, because that is how far behind GeckoTerminal's own feed is.)
  *
  * Where the rows come from, and how they are cleaned, is in src/swings/charts/trades.ts. Everything drawn here is set as
  * text, never as markup, and every link is built from a hash or address that passed a strict pattern.
@@ -10,7 +12,7 @@ import type { ChainId } from '../swings/core/types.js';
 import { fetchTrades, formatAmount, formatTradeUsd, timeAgo, traderLink, txLink, type Trade, type TradeSide } from '../swings/charts/trades.js';
 import { formatPrice } from '../swings/market/types.js';
 
-const REFRESH_MS = 20_000;
+const REFRESH_MS = 1_000;
 
 export interface TradesOptions {
   chain: ChainId;
@@ -45,7 +47,9 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
   let problem: string | null = null;
   let filter: Filter = 'all';
   let disposed = false;
-  let active: AbortController | null = null;
+  let loading = false;
+  /** Cancels a read still under way when the table is closed. */
+  const active = new AbortController();
 
   const root = node('section', 'wapp-tx');
   root.setAttribute('aria-label', 'Transactions');
@@ -105,6 +109,7 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
     for (const r of shown) {
       const tr = node('tr', r.kind === 'buy' ? 'is-buy' : 'is-sell');
       const date = node('td', 'wapp-tx__date', timeAgo(r.t, t));
+      date.dataset.t = String(r.t);
       date.title = new Date(r.t).toLocaleString();
       const type = node('td', 'wapp-tx__type', `${r.kind === 'buy' ? '▲' : '▼'} ${r.kind === 'buy' ? 'Buy' : 'Sell'}`);
       const trader = node('td', 'wapp-tx__trader');
@@ -117,24 +122,40 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
       tbody.append(tr);
     }
     table.append(thead, tbody);
+    // Redrawing builds a new table, so keep the reader's place in the list.
+    const top = scroll.scrollTop;
     scroll.replaceChildren(table);
+    scroll.scrollTop = top;
+  }
+
+  /** "6s ago" moves on every second without rebuilding the table. */
+  function updateTimes(): void {
+    const t = now();
+    for (const cell of scroll.querySelectorAll<HTMLElement>('td.wapp-tx__date')) cell.textContent = timeAgo(Number(cell.dataset.t), t);
   }
 
   async function load(): Promise<void> {
-    active?.abort();
-    const ctl = new AbortController();
-    active = ctl;
+    if (loading) return;
+    loading = true;
     try {
-      const next = await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, ctl.signal);
-      if (disposed || ctl.signal.aborted) return;
+      const next = await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, active.signal);
+      if (disposed) return;
+      // Most reads return what is already on screen (new trades arrive a few at a time), so only a changed list is redrawn.
+      const same = rows !== null && rows.length === next.length && rows[0]?.tx === next[0]?.tx && rows[rows.length - 1]?.tx === next[next.length - 1]?.tx;
       rows = next;
       problem = null;
+      if (same) updateTimes();
+      else draw();
     } catch (e) {
-      if (disposed || ctl.signal.aborted) return;
+      if (disposed) return;
       // Keep what is already on screen; only say so when there is nothing to show yet.
-      if (rows === null) problem = e instanceof Error ? e.message : 'The trades could not be loaded.';
+      if (rows === null) {
+        problem = e instanceof Error ? e.message : 'The trades could not be loaded.';
+        draw();
+      } else updateTimes();
+    } finally {
+      loading = false;
     }
-    draw();
   }
 
   draw();
@@ -142,14 +163,16 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
   const timer = setInterval(() => {
     // Stop when the table is gone from the page or the tab is in the background.
     if (disposed || !root.isConnected || document.hidden) return;
-    void load();
+    // A read still in flight is left to finish; meanwhile the times keep moving.
+    if (loading) updateTimes();
+    else void load();
   }, REFRESH_MS);
 
   return {
     dispose() {
       disposed = true;
       clearInterval(timer);
-      active?.abort();
+      active.abort();
       host.replaceChildren();
     },
   };

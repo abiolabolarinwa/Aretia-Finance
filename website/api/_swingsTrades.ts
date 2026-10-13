@@ -3,7 +3,7 @@
  * read from GeckoTerminal once by the server and shared. The same reasoning as the chart's candles (api/_swingsOhlcv.ts):
  * GeckoTerminal allows about 30 requests a minute per visitor, and the table refreshes while it is on screen, so asking
  * from every browser would spend each visitor's allowance. Here one fetch serves everyone: the answer is kept in the
- * server's memory for a few seconds, the CDN keeps it for the same time, simultaneous requests share one upstream
+ * server's memory for a few seconds (three), the CDN keeps it for the same time, simultaneous requests share one upstream
  * request, and if the source fails the last good answer (up to five minutes old) is returned and marked stale.
  *
  * The rows are cleaned here (src/swings/charts/trades.ts): a row with a missing or malformed field is dropped, and only
@@ -16,7 +16,12 @@ import { parseTrades, type Trade } from '../src/swings/charts/trades.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const POOL = /^[A-Za-z0-9]{20,100}$/;
-const FRESH_MS = 15_000;
+/**
+ * Kept short because the table checks every second and is meant to feel live. One upstream read per pool per this long
+ * serves everyone, which is at most 20 a minute for a pool, under GeckoTerminal's 30 a minute; past that the last good
+ * answer is served (marked stale), so a refusal never empties the table.
+ */
+const FRESH_MS = 3_000;
 const STALE_MS = 5 * 60_000;
 const MAX_ENTRIES = 400;
 

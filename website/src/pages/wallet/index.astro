@@ -1155,6 +1155,9 @@ const sendTips = [
   .wapp__swap [data-sw-actions] .wapp__btn--primary { flex: 1 1 100%; padding: 15px 20px; font-size: 15px; }
   .wapp__swap [data-sw-actions] .wapp__btn--primary:disabled { cursor: not-allowed; opacity: 0.55; }
   .wapp__swap-go:disabled { cursor: not-allowed; opacity: 0.55; }
+  /* The token list is a dropdown under the token button that was pressed, over the rest of the card, not a block further down. */
+  .wapp__pick-slot { position: relative; height: 0; }
+  .wapp__pick-pop { position: absolute; top: 6px; left: -8px; right: -8px; z-index: 30; display: grid; gap: 8px; max-height: min(380px, 60vh); padding: 10px; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 16px; box-shadow: 0 18px 44px -12px rgba(10, 6, 50, 0.4); }
   .wapp__picker { position: absolute; inset: 12px; z-index: 5; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 14px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 18px; box-shadow: var(--shadow-float, 0 18px 40px rgba(20, 10, 80, 0.2)); }
   .wapp__picker[hidden] { display: none; }
   /* The token list opens inside the swap card, so the card must be tall enough for it even when little else is shown. */

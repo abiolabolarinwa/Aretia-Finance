@@ -1844,8 +1844,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       /** A token from a notification: its details and chart open in the panel, or as the token page on a narrow screen. */
       async showToken(t: { chain: ChainId; address: string; symbol: string; name: string; icon: string | null }): Promise<void> {
         const got = await rowsFromFavourites([{ ...t, addedAt: Date.now() }]).catch(() => [] as MarketRow[]);
-        const row = got[0];
-        if (!row) return;
+        // A token the market service has no pool for still opens, with what is known and dashes for the rest.
+        const row: MarketRow = got[0] ?? { chain: t.chain, address: t.address, symbol: t.symbol, quoteSymbol: '', name: t.name, icon: t.icon, decimals: null, pool: '', priceUsd: null, capUsd: null, ageMs: null, txns24h: null, volume24hUsd: null, traders24h: null, change: { m5: null, h1: null, h6: null, h24: null }, liquidityUsd: null, risk: null, fresh: false };
         const [rated] = applyRatings([row], await fetchRatings([row]).catch(() => []));
         pick(rateRows([rated ?? row])[0]!);
       },

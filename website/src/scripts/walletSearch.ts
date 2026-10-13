@@ -2,6 +2,7 @@
  * The search box in the wallet's top bar, on the same line as the network and price chips. One box finds new and
  * established tokens on every supported network; choosing one opens it in Swap Coins with its chart.
  */
+import { SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { CHAINS } from '../swings/core/types.js';
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 
@@ -76,7 +77,8 @@ export function mountTokenSearch(): void {
     close();
     input.value = '';
     hits = [];
-    window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail: h }));
+    // A picked token opens its details and chart on Markets (the Swap button is there); the swap itself is one click further.
+    window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain: h.chain, address: h.address, symbol: h.symbol, name: h.name, icon: h.icon, page: 'swings' } }));
   };
 
   function paint(message?: string): void {

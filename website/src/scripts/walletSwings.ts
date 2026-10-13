@@ -25,6 +25,7 @@ import { ratingKey } from './walletRatingGuide.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
+import { alertsCard } from './walletAlerts.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
@@ -296,6 +297,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     try {
       const session = await account.signIn(sg);
       await syncAccount(session);
+      pushOrders();
       accountMessage = 'Saved. Your favourites and swaps now follow this wallet.';
     } catch (e) {
       accountMessage = e instanceof SwingsError || e instanceof Error ? (/reject|declin|denied/i.test(e.message) ? 'The sign-in was declined, so nothing was saved.' : e.message) : 'Signing in did not work. Try again.';
@@ -305,8 +307,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   }
   function autoSync(): void {
     const session = sessionNow();
-    if (session) void syncAccount(session).then(redrawAccount).catch(() => undefined);
+    if (session) void syncAccount(session).then(() => { redrawAccount(); pushOrders(); }).catch(() => undefined);
   }
+  /** Copies the price orders to the wallet's saved data so the server can watch them while the page is closed (only when signed in). */
+  const pushOrders = (): void => {
+    const session = sessionNow();
+    if (!session) return;
+    void account
+      .call<{ reached: { id: string; price: number }[] }>(session, { op: 'orders', orders: orders.watching() }, '/api/swings-notify')
+      .then((r) => {
+        // An order the server has already reported is marked here too, so the page does not report it a second time.
+        for (const h of r.reached ?? []) orders.markHit(h.id, h.price);
+      })
+      .catch(() => undefined);
+  };
   const pushTrades = (): void => {
     const session = sessionNow();
     if (session) void account.saveTrades(session, history.list(session.address)).catch(() => undefined);
@@ -1293,6 +1307,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const made = orders.add({ chain: s.chain, address: picked.mint, symbol: picked.symbol, name: picked.name, icon: picked.icon ?? null, side, targetUsd: target });
         if (!made) { msg.textContent = 'You have as many price orders as can be kept. Remove one first.'; return; }
         void checkPriceOrders();
+        pushOrders();
         render();
         swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', '');
       });
@@ -1309,7 +1324,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const list = el('ul', { class: 'wapp-po__list' });
       for (const o of all) {
         const del = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Remove', attrs: { type: 'button', 'aria-label': `Remove the ${o.symbol} price order` } });
-        del.addEventListener('click', () => { orders.remove(o.id); render(); swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', ''); });
+        del.addEventListener('click', () => { orders.remove(o.id); pushOrders(); render(); swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', ''); });
         const state = o.hitAt === null ? 'watching' : `reached at ${formatPrice(o.hitPrice)}`;
         list.append(el('li', {}, [el('span', { text: `${o.symbol}: ${o.side === 'buy' ? 'buy at or below' : 'sell at or above'} ${formatPrice(o.targetUsd)} · ${state}` }), del]));
       }
@@ -1823,7 +1838,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** What the alerts do, and the recent ones, so a pop-up that has gone is never lost. */
     function favouriteAlerts(): HTMLElement {
       const box = el('div', { class: 'wapp-alerts' });
-      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved ±${alerts.pct()}% from where it was when you starred it or last alerted. Nothing watches prices once the page is closed.` }));
+      box.append(alertsCard({ account, session: sessionNow, signIn: signInNow, canSign: () => signerNow() !== null }));
+      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved ±${alerts.pct()}% from where it was when you starred it or last alerted. With "Alerts on your phone" above turned on, Aretia also checks for you when the page is closed.` }));
       const log = alerts.log();
       if (log.length > 0) {
         box.append(el('span', { class: 'wapp__eyebrow', text: 'Recent alerts' }));

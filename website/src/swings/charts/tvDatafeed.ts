@@ -116,8 +116,8 @@ export function parseBars(body: unknown): TvBar[] {
   return [...bars.values()].sort((a, b) => a.time - b.time);
 }
 
-/** The last candle's price follows the pool's live price this often. DexScreener allows far more than this per visitor. */
-const LIVE_PRICE_MS = 3_000;
+/** The last candle's price follows the pool's live price this often: 60 reads a minute, against the 300 a minute DexScreener allows a visitor. */
+const LIVE_PRICE_MS = 1_000;
 /** After a live reading, the candle data's own close is not trusted over it for this long (candle data runs a little behind). */
 const LIVE_PRICE_TRUST_MS = 12_000;
 

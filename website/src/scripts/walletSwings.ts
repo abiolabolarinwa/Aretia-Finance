@@ -1461,7 +1461,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const plot = el('div', { class: 'wapp-mt__chart-frame', attrs: { role: 'img', 'aria-label': `${r.symbol} price chart` } });
         const trades = el('div', { class: 'wapp-mt__trades' });
         chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), plot, trades);
-        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, label: `${r.symbol} / USD`, priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }), title: `${r.symbol} price chart` });
+        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, symbol: r.symbol, ...(r.quoteSymbol ? { quoteSymbol: r.quoteSymbol } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }), title: `${r.symbol} price chart` });
         // The pool's recent trades, under the chart.
         tradesTable = mountTrades(trades, { chain: r.chain, pool: r.pool, symbol: r.symbol, quoteSymbol: r.quoteSymbol });
       }

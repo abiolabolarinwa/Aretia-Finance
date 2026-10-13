@@ -99,6 +99,16 @@ describe('shared candles for the chart', () => {
     expect(JSON.parse(out.body).data.attributes.ohlcv_list).toEqual([[1, 2, 3, 4, 5, 6]]);
   });
 
+  it('passes the price unit on, keeps dollar and token answers apart, and refuses an unknown unit', async () => {
+    const f = upstream();
+    await handleOhlcv(input(q(), f));
+    await handleOhlcv(input(q({ currency: 'token' }), f));
+    await handleOhlcv(input(q({ currency: 'usd' }), f));
+    // Default and explicit "usd" share an answer; "token" is its own.
+    expect(calls(f).map((u) => u.searchParams.get('currency'))).toEqual(['usd', 'token']);
+    expect((await handleOhlcv(input(q({ currency: 'eur' }), upstream()))).status).toBe(400);
+  });
+
   it('refuses requests it cannot serve, without calling the source', async () => {
     const never = upstream();
     const cases: Record<string, string>[] = [{ chain: 'mars' }, { pool: '../../x' }, { pool: 'short' }, { tf: 'week' }, { agg: '7' }, { tf: 'day', agg: '5' }, { token: 'both' }, { limit: '5000' }, { limit: '0' }, { before: '0' }, { before: 'x' }];

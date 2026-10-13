@@ -15,6 +15,8 @@ const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
 interface TvWidget {
   remove(): void;
   onChartReady(cb: () => void): void;
+  headerReady(): Promise<void>;
+  createButton(): HTMLElement;
 }
 interface TvGlobal {
   widget: new (options: Record<string, unknown>) => TvWidget;
@@ -23,10 +25,13 @@ interface TvGlobal {
 export interface TvChartOptions {
   chain: ChainId;
   pool: string;
-  /** The name on the chart, such as "DOPE / USD". */
-  label: string;
+  /** The token being charted, such as "DOPE". The chart is named "DOPE / USD", or "DOPE / SOL" when prices are shown in the other token. */
+  symbol: string;
+  /** The other side of the pool, such as "SOL". When given, a "USD / SOL" switch appears in the chart's toolbar. */
+  quoteSymbol?: string;
   /** Which token of the pool is priced: the first ("base", the default) or the second ("quote"). */
   token?: 'base' | 'quote';
+  /** A recent price in US dollars, used only to choose how many decimals the price scale shows. */
   priceHint?: number | null;
   exchange?: string | null;
   interval?: string;
@@ -71,10 +76,23 @@ export function loadChartingLibrary(): Promise<TvGlobal> {
 /** What is turned off: the datafeed carries one pool, so there is nothing to search or compare, and nothing is saved to a server. */
 const DISABLED = ['header_symbol_search', 'symbol_search_hot_key', 'header_compare', 'header_saveload', 'header_screenshot', 'display_market_status', 'popup_hints'];
 
+/** Which unit prices are shown in: US dollars, or the other token of the pool. The choice lasts for the visit, so it carries from token to token. */
+let lastCurrency: 'usd' | 'token' = 'usd';
+
 /** Draws the chart into `host`. Returns a handle to take it down again. */
-export function mountTvChart(host: HTMLElement, o: TvChartOptions, feed: TvDatafeed = createPoolDatafeed({ chain: o.chain, pool: o.pool, label: o.label, ...(o.token ? { token: o.token } : {}), ...(o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) }, { viaServer: '/api/swings-ohlcv' })): TvChart {
+export function mountTvChart(
+  host: HTMLElement,
+  o: TvChartOptions,
+  makeFeed: (currency: 'usd' | 'token', label: string) => TvDatafeed = (currency, label) =>
+    createPoolDatafeed(
+      { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) },
+      { viaServer: '/api/swings-ohlcv' },
+    ),
+): TvChart {
   let widget: TvWidget | null = null;
   let disposed = false;
+  const canSwitch = !!o.quoteSymbol;
+  let currency: 'usd' | 'token' = canSwitch ? lastCurrency : 'usd';
   host.replaceChildren();
   host.classList.add('wapp-tv');
 
@@ -90,11 +108,40 @@ export function mountTvChart(host: HTMLElement, o: TvChartOptions, feed: TvDataf
     host.replaceChildren(frame);
   };
 
-  loadChartingLibrary()
-    .then((TradingView) => {
-      if (disposed) return;
-      try {
-        widget = new TradingView.widget({
+  /** The "USD / SOL" switch in the chart's own toolbar, with the unit in use highlighted. Flipping it redraws the chart in the other unit. */
+  function addSwitch(w: TvWidget, TradingView: TvGlobal): void {
+    void w.headerReady().then(() => {
+      if (disposed || widget !== w) return;
+      const button = w.createButton();
+      const doc = button.ownerDocument;
+      const part = (text: string, active: boolean): HTMLElement => {
+        const s = doc.createElement('span');
+        s.textContent = text;
+        s.style.cssText = active ? 'color:#2962ff;font-weight:700' : 'color:#787b86';
+        return s;
+      };
+      const slash = part(' / ', false);
+      button.replaceChildren(part('USD', currency === 'usd'), slash, part(o.quoteSymbol!, currency === 'token'));
+      button.title = currency === 'usd' ? `Show prices in ${o.quoteSymbol}` : 'Show prices in US dollars';
+      button.addEventListener('click', () => {
+        if (disposed) return;
+        currency = currency === 'usd' ? 'token' : 'usd';
+        lastCurrency = currency;
+        try {
+          w.remove();
+        } catch {
+          // Already gone.
+        }
+        host.replaceChildren();
+        build(TradingView);
+      });
+    }).catch(() => undefined);
+  }
+
+  function build(TradingView: TvGlobal): void {
+    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`);
+    try {
+        const w = new TradingView.widget({
           container: host,
           library_path: LIBRARY_PATH,
           datafeed: feed,
@@ -108,9 +155,16 @@ export function mountTvChart(host: HTMLElement, o: TvChartOptions, feed: TvDataf
           disabled_features: [...DISABLED, ...(o.toolbar ? [] : ['left_toolbar'])],
           overrides: { 'paneProperties.background': '#ffffff', 'paneProperties.backgroundType': 'solid', 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });
-      } catch {
-        unavailable();
-      }
+        widget = w;
+        if (canSwitch) addSwitch(w, TradingView);
+    } catch {
+      unavailable();
+    }
+  }
+
+  loadChartingLibrary()
+    .then((TradingView) => {
+      if (!disposed) build(TradingView);
     })
     .catch(unavailable);
 

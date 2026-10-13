@@ -8,7 +8,7 @@ const body = {
   included: [{ id: `solana_${BONK}`, type: 'token', attributes: { address: BONK, name: 'Bonk', symbol: 'Bonk', decimals: 5 } }],
 };
 const NOW = 1_800_000_000_000;
-const input = (query: Record<string, string>, fetchImpl: typeof fetch, now = NOW) => ({ method: 'GET', origin: null, authorization: null, ip: '3.3.3.3', query, env: {}, fetchImpl, now });
+const input = (query: Record<string, string>, fetchImpl: typeof fetch, now = NOW) => ({ method: 'GET', origin: null, authorization: null, ip: '3.3.3.3', query, env: {}, fetchImpl, now, sleep: async () => undefined });
 
 describe('shared Marketplace lists', () => {
   beforeEach(() => {
@@ -41,6 +41,16 @@ describe('shared Marketplace lists', () => {
     // nothing kept: an honest error, not an empty list
     resetMarketCache();
     expect((await handleMarket(input({ kind: 'top', chain: 'solana' }, refused))).status).toBe(502);
+  });
+
+  it('asks again after a 429 and serves the list that follows, and lets the CDN serve an old copy while it refreshes', async () => {
+    let calls = 0;
+    const flaky = (async () => (++calls === 1 ? new Response('', { status: 429 }) : new Response(JSON.stringify(body)))) as unknown as typeof fetch;
+    const out = await handleMarket(input({ kind: 'trending', chain: 'solana' }, flaky));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body).stale).toBe(false);
+    expect(calls).toBe(2);
+    expect(out.headers['cache-control']).toContain('stale-while-revalidate=86400');
   });
 
   it('refuses nonsense and non-GET requests', async () => {

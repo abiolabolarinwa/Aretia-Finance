@@ -137,7 +137,7 @@ describe('the Marketplace loader', () => {
     expect(urls).toHaveLength(1);
     const twice = { data: [...pool().data, ...pool().data], included: pool().included };
     expect(await new GeckoMarket(reply([], twice), () => NOW).load({ kind: 'new', chain: 'solana', window: 'h24' })).toHaveLength(1);
-    await expect(new GeckoMarket(reply([], {}, 429), () => NOW).load({ kind: 'new', chain: 'solana', window: 'h24' })).rejects.toThrow(/busy/);
+    await expect(new GeckoMarket(reply([], {}, 429), () => NOW, 60_000, undefined, async () => undefined).load({ kind: 'new', chain: 'solana', window: 'h24' })).rejects.toThrow(/busy/);
     await expect(new GeckoMarket((async () => { throw new Error('x'); }) as unknown as typeof fetch, () => NOW).load({ kind: 'new', chain: 'solana', window: 'h24' })).rejects.toThrow(/could not be reached/);
   });
 });

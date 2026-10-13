@@ -5,6 +5,7 @@
  * The public service allows about 30 requests a minute per visitor, so answers are reused for a minute and the
  * all-networks views ask each network once.
  */
+import { fetchRetrying429 } from './retry429.js';
 import { GECKO_NETWORK } from '../charts/pool.js';
 import { CHAIN_IDS, SwingsError, type ChainId } from '../core/types.js';
 import { isUnsafeName } from '../tokens/safeText.js';
@@ -113,6 +114,7 @@ export class GeckoMarket {
     private readonly now: () => number = Date.now,
     private readonly ttlMs = 60_000,
     private readonly base = 'https://api.geckoterminal.com/api/v2',
+    private readonly sleep?: (ms: number) => Promise<void>,
   ) {}
 
   private async list(path: string, signal?: AbortSignal): Promise<MarketRow[]> {
@@ -120,7 +122,8 @@ export class GeckoMarket {
     if (hit && this.now() - hit.at < this.ttlMs) return hit.rows;
     let res: Response;
     try {
-      res = await this.fetchImpl(`${this.base}${path}`, { headers: { accept: 'application/json' }, signal });
+      // GeckoTerminal answers 429 when its shared limit is spent; a short wait usually clears it, so ask again a couple of times first.
+      res = await fetchRetrying429(this.fetchImpl, `${this.base}${path}`, { headers: { accept: 'application/json' }, signal }, this.sleep, { retries: 2, maxWaitMs: 1_500 });
     } catch {
       throw new SwingsError('provider-failed', 'The market service could not be reached. It may be busy; try again in a minute.');
     }

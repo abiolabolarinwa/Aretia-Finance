@@ -51,6 +51,8 @@ export interface TokensInput {
   env: TokensEnv;
   fetchImpl: typeof fetch;
   now: number;
+  /** Waits between tries when a source says to slow down; tests pass one that does not wait. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export interface TokensOutput {

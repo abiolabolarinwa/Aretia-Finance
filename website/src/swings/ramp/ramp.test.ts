@@ -131,3 +131,67 @@ describe('knowing a ramp order is done', () => {
     expect(sent.message).toMatch(/Aretia cannot see/);
   });
 });
+
+describe('why buying and selling is unavailable, said exactly', () => {
+  const ok = { enabled: true, providers: [{ id: 'moonpay', name: 'MoonPay', sides: ['buy'] }], keyCheck: { publishable: 'pk_test_ (37 characters)', secret: 'sk_test_ (37 characters)' } };
+  const diagnose = (over: Parameters<typeof api>[0] & { catalogFails?: string } = {}) => {
+    const base = api(over).fn;
+    const fn: RampApi = async (body, signal) => {
+      if (body.action === 'catalog' && over.catalogFails) throw new Error(over.catalogFails);
+      return base(body, signal);
+    };
+    return new MoonPayRampProvider({ api: fn, now: () => NOW }).diagnose();
+  };
+
+  it('says the service cannot be reached, with the cause, when the first call fails', async () => {
+    const d = await diagnose({ down: true });
+    expect(d.state).toBe('unreachable');
+    expect(d.summary).toMatch(/could not be reached \(offline\)/);
+    expect(d.steps.join(' ')).toMatch(/404.*function is missing/);
+  });
+
+  it('says it is switched off, and how to switch it on', async () => {
+    const d = await diagnose({ status: { enabled: false } });
+    expect(d).toMatchObject({ state: 'off', steps: [expect.stringMatching(/RAMP_ENABLED=1/)] });
+  });
+
+  it('says MoonPay has no keys, and shows what the server sees of them when it can', async () => {
+    const d = await diagnose({ status: { enabled: true, providers: [], keyCheck: { publishable: 'unrecognised (12 characters)', secret: 'sk_test_ (37 characters, has stray spaces)' } } });
+    expect(d.state).toBe('not-configured');
+    const text = d.steps.join(' ');
+    expect(text).toMatch(/publishable key and its secret key/);
+    expect(text).toMatch(/publishable key does not look like one \(the server sees: unrecognised \(12 characters\)\)/);
+    expect(text).toMatch(/stray spaces/);
+  });
+
+  it('flags a test key paired with a live key, and keys pasted in the wrong field', async () => {
+    const mixed = await diagnose({ status: { ...ok, keyCheck: { publishable: 'pk_test_ (37 characters)', secret: 'sk_live_ (37 characters)' } }, catalogFails: 'The service answered 502' });
+    expect(mixed.state).toBe('catalog-failed');
+    expect(mixed.steps.join(' ')).toMatch(/test key and the other a live key/);
+    const swapped = await diagnose({ status: { ...ok, keyCheck: { publishable: 'sk_test_ (37 characters)', secret: 'pk_test_ (37 characters)' } } });
+    expect(swapped.state).toBe('ready');
+    expect(swapped.steps.join(' ')).toMatch(/publishable key does not look like one/);
+    expect(swapped.steps.join(' ')).toMatch(/secret key does not look like one/);
+  });
+
+  it('says MoonPay\'s own list could not be loaded, with the cause', async () => {
+    const d = await diagnose({ status: ok, catalogFails: 'The service answered 502' });
+    expect(d).toMatchObject({ state: 'catalog-failed' });
+    expect(d.summary).toMatch(/could not be loaded \(The service answered 502\)/);
+  });
+
+  it('says it is available, and lists nothing to fix when the keys look right', async () => {
+    expect(await diagnose({ status: ok })).toEqual({ state: 'ready', summary: 'MoonPay is available (buy).', steps: [] });
+  });
+
+  it('forgets what it learned when reset, so Check again really asks again', async () => {
+    let on = false;
+    const fn: RampApi = async (body) => (body.action === 'status' ? { enabled: on, providers: [{ id: 'moonpay', name: 'MoonPay', sides: ['buy'] }] } : catalog);
+    const p = new MoonPayRampProvider({ api: fn, now: () => NOW });
+    expect(await p.availability()).toBeNull();
+    on = true;
+    expect(await p.availability()).toBeNull(); // cached
+    p.reset();
+    expect(await p.availability()).not.toBeNull();
+  });
+});

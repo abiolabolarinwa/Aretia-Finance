@@ -1,11 +1,11 @@
 /**
- * The assets that carry Aretia's fee. The fee is charged when a swap is PAID with one of these: a network's own coin (SOL, ETH,
- * BNB, POL, AVAX), that coin wrapped, or a main stablecoin. Paying with any other token (selling it) carries no fee.
+ * The major assets of each chain: a network's own coin (SOL, ETH, BNB, POL, AVAX), that coin wrapped, and the main stablecoins.
  *
- * Why this rule: the fee always arrives in an asset that is easy to sell, so the fee wallet never fills with tokens nobody can sell,
- * and a sale (approve, then swap) has no extra transfer that a token's own rules could block. The EVM list is not typed in a second
- * time: it is the same wrapped-native and stablecoin list the router already hops through (`dex/hubs.ts`), whose addresses the live
- * tests read back from each chain.
+ * This list no longer decides who pays the Aretia fee: since 2026-10-13 every swap pays it, a sale included (see `core/fee.ts`).
+ * It stays because Shield uses it to recognise major assets. The earlier rule (fee only on these assets) existed so the fee wallet
+ * never received tokens nobody can sell, and so a sale had no extra transfer that a token's own rules could block; that protection
+ * is gone. The EVM list is not typed in a second time: it is the same wrapped-native and stablecoin list the router already hops
+ * through (`dex/hubs.ts`), whose addresses the live tests read back from each chain.
  */
 import { KNOWN_TOKENS } from './solanaTools.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
@@ -29,5 +29,5 @@ function feeAssetsOf(chain: ChainId): Set<string> {
   return s;
 }
 
-/** Whether paying with this asset carries the Aretia fee. */
+/** Whether this is one of the chain's major assets (coin, wrapped coin or main stablecoin). */
 export const isFeeAsset = (chain: ChainId, address: string): boolean => feeAssetsOf(chain).has(address.toLowerCase());

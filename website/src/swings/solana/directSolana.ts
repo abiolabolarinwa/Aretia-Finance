@@ -355,7 +355,7 @@ export class DirectSolanaProvider implements DexProvider {
     if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
     // The Aretia fee comes out of the amount entered, in the asset being sold; the rest is what is routed and swapped.
-    const feePlan = planAretiaFee(request.amountIn, 'solana', this.fee, from.address);
+    const feePlan = planAretiaFee(request.amountIn, 'solana', this.fee);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     if (feePlan.net <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
     if (!this.supports('solana')) throw new SwingsError('no-route', 'No Solana venue is available right now.');
@@ -373,13 +373,13 @@ export class DirectSolanaProvider implements DexProvider {
     const legs = this.finalLegs(chosen, minOut, slip);
     if (legs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
 
-    // The Aretia fee, taken in the same transaction: SOL for a swap that starts in SOL, otherwise USDC or USDT (paying with any other token carries no fee).
+    // The Aretia fee, taken in the same transaction, in the asset being sold: SOL for a swap that starts in SOL, otherwise the token being sold (any SPL token, including a sale).
     const fee: SolanaRaw['fee'] = feePlan.state === 'ready' && feePlan.fee > 0n ? { amount: feePlan.fee, treasury: feePlan.treasury, mint: from.address, native: isWsol(from) } : undefined;
 
     const label = (p: Plan): string => (p.shape === 'direct' ? p.legs[0]!.venue.name : p.shape === 'two-hop' ? 'two hops' : 'split');
     const compared = plans.slice(0, 5).map((p) => `${label(p)} pays ${p.amountOut}`).join('; ') + (plans.length > 5 ? `; and ${plans.length - 5} more that pay less` : '');
     const fetchedAt = this.now();
-    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons, ...(fee ? [`Aretia fee: ${fee.amount} (raw, ${FEE_PERCENT} of the amount entered) is sent to ${fee.treasury.slice(0, 6)}… in the same transaction, in ${fee.native ? 'SOL' : 'the stablecoin you are paying with'}.`] : [])], ...(fee ? { fee } : {}) };
+    const raw: SolanaRaw = { shape: chosen.shape, legs, nativeIn: isWsol(from), nativeOut: isWsol(to), reasons: [`Compared: ${compared}.`, ...(read ? [`${read}.`] : []), ...chosen.reasons, ...(fee ? [`Aretia fee: ${fee.amount} (raw, ${FEE_PERCENT} of the amount entered) is sent to ${fee.treasury.slice(0, 6)}… in the same transaction, in ${fee.native ? 'SOL' : 'the token you are paying with'}.`] : [])], ...(fee ? { fee } : {}) };
     return {
       id: `aretia-sol:${fetchedAt}:${from.address.slice(0, 6)}:${to.address.slice(0, 6)}`,
       providerId: this.id,
@@ -469,7 +469,7 @@ export class DirectSolanaProvider implements DexProvider {
     const legs = mainLegs;
     // What leaves the wallet in all: the amount swapped and the Aretia fee, taken from the amount the user entered.
     const totalIn = quote.inAmount + (raw.fee?.amount ?? 0n);
-    if (raw.fee) warnings.push(`The Aretia fee of ${raw.fee.amount} (raw, ${FEE_PERCENT}) is taken from the amount you entered, in ${raw.fee.native ? 'SOL' : 'the stablecoin you are paying with'}, in this same transaction.`);
+    if (raw.fee) warnings.push(`The Aretia fee of ${raw.fee.amount} (raw, ${FEE_PERCENT}) is taken from the amount you entered, in ${raw.fee.native ? 'SOL' : 'the token you are paying with'}, in this same transaction.`);
 
     // 2. wSOL handling: never close a wSOL account that already holds something.
     const wsolAccount = ataAddress(web3, user, WSOL_MINT, TOKEN_PROGRAM_ID);
@@ -504,7 +504,7 @@ export class DirectSolanaProvider implements DexProvider {
           const dest = ataAddress(web3, fee.treasury, fee.mint, program);
           return {
             ixs: [createAtaIdempotentInstruction(web3, user, dest, fee.treasury, fee.mint, program), transferCheckedInstruction(web3, program, accounts[fee.mint]!, fee.mint, dest, user, fee.amount, decimals)],
-            steps: [`Aretia fee: send ${fee.amount} (raw, ${FEE_PERCENT}) of the stablecoin you are paying with to ${fee.treasury.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
+            steps: [`Aretia fee: send ${fee.amount} (raw, ${FEE_PERCENT}) of the token you are paying with to ${fee.treasury.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
           };
         };
       }

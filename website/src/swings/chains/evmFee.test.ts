@@ -231,16 +231,17 @@ describe('the Aretia fee in the 0x route', () => {
     expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.58%/);
   });
 
-  it('takes no fee when a token is being sold: 0x is asked to swap everything entered, and no fee transaction is added', async () => {
+  it('takes the fee when a token is being sold too: 0x is asked to swap the rest, and the fee is sent in the token being sold', async () => {
     const { p, asked } = provider();
-    const sell = { ...req, from: { chain: 'base' as const, address: '0x' + '7'.repeat(40) } };
+    const token = '0x' + '7'.repeat(40);
+    const sell = { ...req, from: { chain: 'base' as const, address: token } };
     const q = await p.getQuote(sell);
-    expect(asked[0]!.sellAmount).toBe('1000000');
-    expect(q.inAmount).toBe(1_000_000n);
-    expect(q.costs.aretiaFee.amount).toBe(0n);
+    expect(asked[0]!.sellAmount).toBe('994200');
+    expect(q.inAmount).toBe(994_200n);
+    expect(q.costs.aretiaFee).toMatchObject({ amount: 5_800n, asset: { address: token } });
     const prepared = await p.buildTransaction(q);
-    expect((prepared.payload as { fee?: unknown }).fee).toBeUndefined();
-    expect(prepared.simulation.warnings.join(' ')).not.toMatch(/Aretia fee of/);
+    expect((prepared.payload as { fee: unknown }).fee).toMatchObject({ amount: 5_800n, token, recipient: FEE_ADDRESS });
+    expect(prepared.simulation.warnings.join(' ')).toMatch(/0\.58%/);
   });
 
   it('pauses the swap when the fee address is not set', async () => {

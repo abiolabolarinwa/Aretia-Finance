@@ -36,7 +36,7 @@ export function selectFee(legs: readonly ExecutionLeg[], chains: readonly (Chain
     const leg = legs[i]!;
     const chain = chains[i] ?? null;
     if (leg.kind !== 'swap' || !chain || leg.input.amount === null) continue;
-    const plan = planAretiaFee(leg.input.amount, chain, config, leg.input.assetKey);
+    const plan = planAretiaFee(leg.input.amount, chain, config);
     if (plan.state === 'blocked') return { legIndex: null, chain, amount: 0n, reason: `The Aretia fee is blocked: ${plan.reasons.join(' ')}` };
     if (plan.state === 'ready') return { legIndex: i, chain, amount: plan.fee, reason: null };
   }

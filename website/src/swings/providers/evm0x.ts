@@ -127,7 +127,7 @@ export class Evm0xProvider implements DexProvider {
     if (sameToken(from, to)) throw new SwingsError('invalid', 'Choose two different tokens.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
     // The Aretia fee comes out of the amount entered; the rest is what 0x is asked to swap.
-    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, from.address);
+    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
 
     const json = await this.deps.quote({ chainId: info.evmChainId, sellToken: from.address, buyToken: to.address, sellAmount: feePlan.net.toString(), taker: taker.address, slippageBps: request.slippageBps }, signal);
@@ -209,7 +209,7 @@ export class Evm0xProvider implements DexProvider {
     }
 
     // The Aretia fee: its own transaction, in the asset being sold, sent just before the swap. The balance must cover both.
-    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, request.from.address);
+    const feePlan = planAretiaFee(request.amountIn, request.chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     const fee = feePlan.state === 'ready' ? evmFeeTransfer(request.account.address, request.from.address, feePlan.fee, feePlan.treasury) : null;
     if (fee && !raw.balanceShort) {

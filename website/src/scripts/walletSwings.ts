@@ -1040,7 +1040,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}; shown by your wallet before you sign`],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia fee', sum.aretiaFee.state === 'off' ? (sum.aretiaFee.offBecause === 'token' ? 'None: you are selling a token, and Aretia charges only when you pay with a coin or stablecoin' : 'None') : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT}), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
+      ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT}), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });

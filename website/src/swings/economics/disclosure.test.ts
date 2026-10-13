@@ -39,10 +39,9 @@ describe('Aretia fee economics', () => {
     expect(a.reason).toMatch(/No step in this plan is a swap/);
   });
 
-  it('carries no fee on a plan that only sells a token, and says why', () => {
+  it('carries the fee on a plan that sells a token, like any other swap', () => {
     const a = selectFee([leg('swap', '0x' + '7'.repeat(40), BASE_USDC, 1_000_000n, 1n, [], 'base')], ['base'], liveFeeConfig('0x1111111111111111111111111111111111111111'));
-    expect(a).toMatchObject({ legIndex: null, amount: 0n });
-    expect(a.reason).toMatch(/No step in this plan is a swap/);
+    expect(a).toMatchObject({ legIndex: 0, amount: 5_800n, reason: null });
   });
 
   it('is off when the policy is off, and on every network once the EVM fee address is set', () => {

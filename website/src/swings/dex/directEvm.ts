@@ -130,7 +130,7 @@ export class DirectEvmProvider implements DexProvider {
     if (!from || !to || from.address === to.address) throw new SwingsError('invalid', 'Choose two different, valid tokens on this network.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
     // The Aretia fee comes out of the amount entered; the rest is what is routed and swapped.
-    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, from.address);
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     const amountIn = feePlan.net;
     if (amountIn <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
@@ -455,7 +455,7 @@ export class DirectEvmProvider implements DexProvider {
     const read = this.deps.read(chain);
     const taker = request.account.address.toLowerCase();
     // The Aretia fee, from the amount the user entered: its own transaction just before the swap.
-    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG, request.from.address);
+    const feePlan = planAretiaFee(request.amountIn, chain, this.deps.fee ?? DEFAULT_FEE_CONFIG);
     if (feePlan.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
     const feeAmount = feePlan.fee;
     const blockers: string[] = [];

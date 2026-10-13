@@ -9,7 +9,6 @@ const USDC_SOL = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const WSOL = 'So11111111111111111111111111111111111111112';
 const USDC_ETH = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 /** The coin a swap on a network is paid with. */
-const coin = (id: ChainId): string => (id === 'solana' ? WSOL : EVM_NATIVE_ADDRESS);
 
 describe('token identity', () => {
   it('lower-cases EVM addresses so one contract has one key', () => {
@@ -49,7 +48,7 @@ describe('Aretia fee policy', () => {
   const EVM_FEE = '0x1111111111111111111111111111111111111111';
 
   it('ships off: no fee on any chain, and everything entered is swapped', () => {
-    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id, DEFAULT_FEE_CONFIG, coin(id))).toEqual({ state: 'off', fee: 0n, net: 1_000_000n, treasury: null, reasons: [], offBecause: 'policy' });
+    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id, DEFAULT_FEE_CONFIG)).toEqual({ state: 'off', fee: 0n, net: 1_000_000n, treasury: null, reasons: [], offBecause: 'policy' });
   });
 
   it('is 58 basis points (0.58%), and the live configuration is on for every network', () => {
@@ -57,38 +56,38 @@ describe('Aretia fee policy', () => {
     expect(DEFAULT_FEE_CONFIG.policy).toEqual({ enabled: false, rateBps: 58 });
     const live = liveFeeConfig(EVM_FEE);
     expect(() => validateFeeConfig(live)).not.toThrow();
-    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id, live, coin(id))).toMatchObject({ state: 'ready', fee: 5_800n, net: 994_200n });
+    for (const id of Object.keys(CHAINS) as ChainId[]) expect(planAretiaFee(1_000_000n, id, live)).toMatchObject({ state: 'ready', fee: 5_800n, net: 994_200n });
   });
 
   it('splits the amount entered exactly into the fee and the rest, rounding the fee down', () => {
     const live = liveFeeConfig(EVM_FEE);
     for (const amount of [1n, 99n, 345n, 999n, 1_000_000n, 123_456_789_012n]) {
-      const p = planAretiaFee(amount, 'base', live, EVM_NATIVE_ADDRESS);
+      const p = planAretiaFee(amount, 'base', live);
       expect(p.fee + p.net).toBe(amount);
       expect(p.fee).toBe((amount * 58n) / 10_000n);
     }
-    expect(planAretiaFee(172n, 'solana', LIVE_FEE_CONFIG, WSOL).fee).toBe(0n);
-    expect(planAretiaFee(173n, 'solana', LIVE_FEE_CONFIG, WSOL).fee).toBe(1n);
+    expect(planAretiaFee(172n, 'solana', LIVE_FEE_CONFIG).fee).toBe(0n);
+    expect(planAretiaFee(173n, 'solana', LIVE_FEE_CONFIG).fee).toBe(1n);
   });
 
   it('sends Solana fees to the owner\'s fee wallet and EVM fees to the one EVM address supplied', () => {
-    expect(planAretiaFee(1_000_000n, 'solana', LIVE_FEE_CONFIG, WSOL)).toMatchObject({ state: 'ready', treasury: DEFAULT_FEE_CONFIG.chains.solana.treasuryAddress });
-    expect(planAretiaFee(1_000_000n, 'ethereum', liveFeeConfig(EVM_FEE.toUpperCase().replace('0X', '0x')), EVM_NATIVE_ADDRESS)).toMatchObject({ treasury: EVM_FEE });
+    expect(planAretiaFee(1_000_000n, 'solana', LIVE_FEE_CONFIG)).toMatchObject({ state: 'ready', treasury: DEFAULT_FEE_CONFIG.chains.solana.treasuryAddress });
+    expect(planAretiaFee(1_000_000n, 'ethereum', liveFeeConfig(EVM_FEE.toUpperCase().replace('0X', '0x')))).toMatchObject({ treasury: EVM_FEE });
   });
 
   it('blocks EVM swaps, rather than skipping the fee, until the EVM fee address is supplied or when it is malformed', () => {
     for (const address of [undefined, '', 'nonsense', '0x123']) {
-      const plan = planAretiaFee(1_000_000n, 'base', liveFeeConfig(address), EVM_NATIVE_ADDRESS);
+      const plan = planAretiaFee(1_000_000n, 'base', liveFeeConfig(address));
       expect(plan.state).toBe('blocked');
       expect(plan.fee).toBe(0n);
       expect(plan.reasons[0]).toMatch(/fee address/);
     }
     // Solana never needs the EVM address.
-    expect(planAretiaFee(1_000_000n, 'solana', liveFeeConfig(), WSOL).state).toBe('ready');
+    expect(planAretiaFee(1_000_000n, 'solana', liveFeeConfig()).state).toBe('ready');
   });
 
   it('refuses a zero amount, and a rate above the ceiling or in fractions of a basis point', () => {
-    expect(planAretiaFee(0n, 'solana', LIVE_FEE_CONFIG, WSOL).state).toBe('blocked');
+    expect(planAretiaFee(0n, 'solana', LIVE_FEE_CONFIG).state).toBe('blocked');
     const bad = (rateBps: number): AretiaFeeConfig => ({ ...DEFAULT_FEE_CONFIG, policy: { ...DEFAULT_FEE_CONFIG.policy, rateBps } });
     expect(() => validateFeeConfig(bad(MAX_FEE_BPS + 1))).toThrow();
     expect(() => validateFeeConfig(bad(5.8))).toThrow();
@@ -150,19 +149,23 @@ describe('which swaps carry the Aretia fee', () => {
 
   it('charges 0.58% when the swap is paid with a coin, a wrapped coin or a stablecoin', () => {
     for (const [chain, asset] of [['solana', WSOL], ['solana', USDC_SOL], ['solana', USDT_SOL], ['bnb', EVM_NATIVE_ADDRESS], ['bnb', WBNB], ['bnb', USDC_BNB], ['bnb', USDT_BNB], ['ethereum', USDC_ETH]] as const) {
-      expect(planAretiaFee(1_000_000n, chain, live, asset), `${chain} ${asset}`).toMatchObject({ state: 'ready', fee: 5_800n, net: 994_200n });
+      expect(planAretiaFee(1_000_000n, chain, live), `${chain} ${asset}`).toMatchObject({ state: 'ready', fee: 5_800n, net: 994_200n });
     }
   });
 
-  it('charges nothing when a token is being sold, and then swaps everything entered', () => {
+  it('charges 0.58% when a token is being sold too, exactly as for a coin or stablecoin', () => {
     for (const [chain, asset] of [['solana', SOME_TOKEN_SOL], ['bnb', ARK], ['ethereum', '0x' + 'ab'.repeat(20)]] as const) {
-      expect(planAretiaFee(1_000_000n, chain, live, asset), `${chain} ${asset}`).toEqual({ state: 'off', fee: 0n, net: 1_000_000n, treasury: null, reasons: [], offBecause: 'token' });
+      expect(planAretiaFee(1_000_000n, chain, live), `${chain} ${asset}`).toMatchObject({ state: 'ready', fee: 5_800n, net: 994_200n, reasons: [] });
     }
   });
 
-  it('does not need the EVM fee address for a sale, since no fee is taken', () => {
-    expect(planAretiaFee(1_000_000n, 'bnb', liveFeeConfig(), ARK).state).toBe('off');
-    expect(planAretiaFee(1_000_000n, 'bnb', liveFeeConfig(), EVM_NATIVE_ADDRESS).state).toBe('blocked');
+  it('needs the EVM fee address for a sale as well, and is blocked rather than free without it', () => {
+    expect(planAretiaFee(1_000_000n, 'bnb', liveFeeConfig()).state).toBe('blocked');
+    expect(planAretiaFee(1_000_000n, 'bnb', liveFeeConfig()).state).toBe('blocked');
+  });
+
+  it('is off only when the policy is off, whatever is being paid with', () => {
+    expect(planAretiaFee(1_000_000n, 'bnb', DEFAULT_FEE_CONFIG)).toEqual({ state: 'off', fee: 0n, net: 1_000_000n, treasury: null, reasons: [], offBecause: 'policy' });
   });
 
   it('reads an EVM address in any letter case, and knows the coin of every network', () => {
@@ -171,24 +174,25 @@ describe('which swaps carry the Aretia fee', () => {
     for (const id of Object.keys(CHAINS) as ChainId[]) expect(isFeeAsset(id, id === 'solana' ? WSOL : EVM_NATIVE_ADDRESS), id).toBe(true);
   });
 
-  it('says in the summary that selling a token is free, and why', () => {
+  it('reports the fee in the summary when a token is being sold, with no "selling is free" note', () => {
     const sell: Quote = {
       id: 'q2',
       providerId: 'test',
       request: { chain: 'bnb', from: { chain: 'bnb', address: ARK }, to: { chain: 'bnb', address: EVM_NATIVE_ADDRESS }, amountIn: 1_000_000n, slippageBps: 50, account: { chain: 'bnb', address: '0x' + '1'.repeat(40) } },
-      inAmount: 1_000_000n,
+      inAmount: 994_200n,
       expectedOut: 5_000n,
       minOut: 4_975n,
       priceImpactBps: 12,
       route: { legs: [] },
-      costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
+      costs: { network: null, provider: null, aretiaFee: { amount: 5_800n, asset: { chain: 'bnb', address: ARK } } },
       fetchedAt: 0,
       expiresAt: 1,
       raw: null,
     };
     const s = summarizeQuote(sell, live);
-    expect(s.aretiaFee).toMatchObject({ state: 'off', offBecause: 'token' });
-    expect(s.notes.join(' ')).toMatch(/selling a token is free/);
+    expect(s.aretiaFee).toMatchObject({ state: 'ready', amount: 5_800n });
+    expect(s.aretiaFee.offBecause).toBeUndefined();
+    expect(s.notes.join(' ')).not.toMatch(/selling a token is free|No Aretia fee/);
     expect(s.canProceed).toBe(true);
   });
 });

@@ -25,6 +25,7 @@ import { ratingKey } from './walletRatingGuide.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
+import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeCall } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
@@ -1426,6 +1427,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let pageNo = 1;
     let error: string | null = null;
     let loading = false;
+    /** When the list on screen was loaded, if it is the last saved one because the market service could not be reached. */
+    let staleAt: number | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let failures = 0;
     let page = false;
     const tokenPage = createTokenPage();
     let seq = 0;
@@ -1542,7 +1547,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
+      clearTimeout(retryTimer);
+      if (m.kind === 'new' || m.kind === 'favourites') staleAt = null;
       if (!silent) {
+        failures = 0;
         loading = true;
         error = null;
         draw();
@@ -1579,7 +1587,25 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           if (mine !== seq) return;
           rows = rateRows(rated);
         } else {
-          const got = await loadList({ kind: m.kind, chain: m.chain, window: m.window, page: pageNo });
+          const q = { kind: m.kind, chain: m.chain, window: m.window, page: pageNo };
+          const key = listKey(q);
+          let got: MarketRow[];
+          try {
+            got = await loadList(q);
+            saveList(browserStorage(), key, got, Date.now());
+            staleAt = null;
+            failures = 0;
+          } catch (err) {
+            // The market service could not be reached: show the last list that loaded, say how old it is, and keep trying by itself.
+            const old = readList(browserStorage(), key, Date.now());
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(() => {
+              if (!document.hidden && m.kind !== 'new' && m.kind !== 'favourites') void load(true);
+            }, retryDelayMs(failures++));
+            if (!old) throw new Error(`${(err instanceof Error ? err.message : 'The market list is unavailable right now.').replace(/ It may be busy; try again in a minute\.| Try again in a minute\./, '')} Aretia is trying again by itself.`, { cause: err });
+            got = old.rows;
+            staleAt = old.at;
+          }
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
@@ -1760,6 +1786,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const shownRows = visible();
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
+      if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));
       if (error) card.append(banner('warn', error));
       else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));

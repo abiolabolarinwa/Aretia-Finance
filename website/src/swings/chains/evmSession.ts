@@ -114,14 +114,16 @@ export function publicRead(chain: ChainId, fetchImpl: typeof fetch = fetch): Evm
 export function decodeAbiString(hex: unknown): string | null {
   if (typeof hex !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(hex)) return null;
   const bytes = hex.slice(2);
+  // The bytes are UTF-8 text (a token named in Korean or Chinese is not Latin-1): decode them as such, and drop control characters.
   const toText = (h: string): string => {
-    let s = '';
+    const out: number[] = [];
     for (let i = 0; i < h.length; i += 2) {
       const c = Number.parseInt(h.slice(i, i + 2), 16);
       if (c === 0) break;
-      s += String.fromCharCode(c);
+      out.push(c);
     }
-    return s;
+    // eslint-disable-next-line no-control-regex
+    return new TextDecoder('utf-8').decode(new Uint8Array(out)).replace(/[\u0000-\u001f\u007f-\u009f\ufffd]/g, '').trim();
   };
   if (bytes.length === 64) return toText(bytes) || null;
   if (bytes.length < 128) return null;

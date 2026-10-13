@@ -125,6 +125,9 @@ describe('EVM reads', () => {
   it('decodes ABI strings and bytes32 symbols, and refuses malformed data', () => {
     expect(decodeAbiString(encodeString('USDC'))).toBe('USDC');
     expect(decodeAbiString('0x' + '4d4b52'.padEnd(64, '0'))).toBe('MKR');
+    // Non-Latin names are UTF-8 text, not one character per byte (Korean 강남 is six bytes, two letters).
+    const utf8 = Array.from(new TextEncoder().encode('강남'), (b) => b.toString(16).padStart(2, '0')).join('');
+    expect(decodeAbiString('0x' + utf8.padEnd(64, '0'))).toBe('강남');
     expect(decodeAbiString('0x')).toBeNull();
     expect(decodeAbiString('zz')).toBeNull();
     expect(decodeAbiString('0x' + '20'.padStart(64, '0') + 'f'.repeat(64))).toBeNull();

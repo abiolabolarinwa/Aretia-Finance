@@ -7,7 +7,7 @@
  * falls back to the token's first letters (the screen does that), and only https links are ever used.
  */
 import { SOLANA_NATIVE_ADDRESS, EVM_NATIVE_ADDRESS, type ChainId } from '../core/types.js';
-import { DEXSCREENER_CHAIN } from '../charts/pool.js';
+import { DEXSCREENER_CHAIN, GECKO_NETWORK } from '../charts/pool.js';
 
 const WRAPPED_SOL = 'So11111111111111111111111111111111111111112';
 /** Aretia's own token uses Aretia's own mark; no outside service has a picture for it. */
@@ -80,6 +80,19 @@ export function parseDexLogos(body: unknown): { address: string; url: string }[]
   return out;
 }
 
+/** Pictures in a GeckoTerminal tokens answer. A token it has no picture for comes back with a placeholder, which is not used. Pure. */
+export function parseGeckoLogos(body: unknown): { address: string; url: string }[] {
+  const data = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  const out: { address: string; url: string }[] = [];
+  for (const t of data as { attributes?: { address?: string; image_url?: string | null } }[]) {
+    const address = t?.attributes?.address;
+    const url = t?.attributes?.image_url;
+    if (typeof address === 'string' && typeof url === 'string' && /^https:\/\//.test(url) && url.length < 500 && !/missing/i.test(url)) out.push({ address, url });
+  }
+  return out;
+}
+
 /** Looks up pictures for tokens that have none yet. Resolves true when at least one new picture was found. */
 export async function ensureLogos(chain: ChainId, addresses: readonly string[], fetchImpl: typeof fetch = (...a) => fetch(...a), now: () => number = Date.now): Promise<boolean> {
   restore();
@@ -100,6 +113,24 @@ export async function ensureLogos(chain: ChainId, addresses: readonly string[], 
       }
     } catch {
       // the batch is treated as "not found for now"
+    }
+    // DexScreener has no picture for many new tokens; GeckoTerminal sometimes does. Asked only about the ones still without.
+    const still = batch.filter((a) => !found.has(logoKey(chain, a)));
+    if (still.length > 0) {
+      try {
+        const res = await fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/tokens/multi/${still.map(encodeURIComponent).join(',')}`, { headers: { accept: 'application/json' } });
+        if (res.ok) {
+          for (const { address, url } of parseGeckoLogos(await res.json())) {
+            const k = logoKey(chain, address);
+            if (asked.has(k) && !found.has(k)) {
+              found.set(k, url);
+              gotAny = true;
+            }
+          }
+        }
+      } catch {
+        // the second source is a bonus
+      }
     }
     for (const k of asked) if (!found.has(k)) missing.set(k, now());
   }

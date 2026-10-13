@@ -8,7 +8,7 @@
  * so it is tested without the library.
  */
 import type { ChainId } from '../core/types.js';
-import { GECKO_NETWORK } from './pool.js';
+import { DEXSCREENER_CHAIN, GECKO_NETWORK } from './pool.js';
 
 /** One bar in the shape TradingView reads: `time` in milliseconds, volume in US dollars. */
 export interface TvBar {
@@ -116,6 +116,41 @@ export function parseBars(body: unknown): TvBar[] {
   return [...bars.values()].sort((a, b) => a.time - b.time);
 }
 
+/** The last candle's price follows the pool's live price this often. DexScreener allows far more than this per visitor. */
+const LIVE_PRICE_MS = 3_000;
+/** After a live reading, the candle data's own close is not trusted over it for this long (candle data runs a little behind). */
+const LIVE_PRICE_TRUST_MS = 12_000;
+
+const positive = (v: unknown): number | null => {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/**
+ * The price of the charted token from DexScreener's pair answer. The answer prices the pair's first token in dollars and
+ * in the second token; the other three cases follow from those two numbers. Null when the answer lacks what is needed. Pure.
+ */
+export function livePriceFrom(body: unknown, side: 'base' | 'quote', currency: 'usd' | 'token'): number | null {
+  const pair = (body as { pairs?: { priceUsd?: unknown; priceNative?: unknown }[] } | null)?.pairs?.[0];
+  const usd = positive(pair?.priceUsd);
+  const native = positive(pair?.priceNative);
+  if (side === 'base') return currency === 'usd' ? usd : native;
+  if (currency === 'usd') return usd !== null && native !== null ? usd / native : null;
+  return native !== null ? 1 / native : null;
+}
+
+/**
+ * Moves the candle on screen to a new price, or starts a new one when a new candle period has begun. A reading that jumps
+ * to a third or triple of the last price in one step is a glitch in the source, not a market move, and is ignored. Pure.
+ */
+export function applyLivePrice(current: TvBar | null, price: number, slotMs: number): TvBar | null {
+  if (current && current.time > slotMs) return null;
+  if (current && (price > current.close * 3 || price < current.close / 3)) return null;
+  if (current && current.time === slotMs) return { ...current, close: price, high: Math.max(current.high, price), low: Math.min(current.low, price) };
+  const open = current?.close ?? price;
+  return { time: slotMs, open, high: Math.max(open, price), low: Math.min(open, price), close: price, volume: 0 };
+}
+
 /** History loads try this many times before giving up, waiting a little longer each time. */
 const LOAD_ATTEMPTS = 3;
 const RETRY_BASE_MS = 900;
@@ -130,6 +165,9 @@ export function createPoolDatafeed(
     sleep?: (ms: number) => Promise<void>;
     /** Aretia's own shared, cached candle endpoint (/api/swings-ohlcv). Asked first; GeckoTerminal is asked directly only if it fails. */
     viaServer?: string;
+    /** How often the pool's live price is read to move the last candle, in milliseconds; 0 turns it off. */
+    livePriceMs?: number;
+    dexBase?: string;
   } = {},
 ): TvDatafeed {
   const fetchImpl = deps.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -146,6 +184,21 @@ export function createPoolDatafeed(
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   /** Per interval: the time of the oldest candle the pool has, once a short answer showed there is nothing before it. */
   const exhausted = new Map<string, number>();
+  /** Per interval: the newest candle loaded, where live price readings start from. */
+  const newest = new Map<string, TvBar>();
+  const priceTimers = new Map<string, ReturnType<typeof setInterval>>();
+  const livePriceMs = deps.livePriceMs ?? LIVE_PRICE_MS;
+  const dexBase = deps.dexBase ?? 'https://api.dexscreener.com';
+
+  /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
+  async function fetchLivePrice(): Promise<number | null> {
+    try {
+      const response = await fetchImpl(`${dexBase}/latest/dex/pairs/${DEXSCREENER_CHAIN[o.chain]}/${encodeURIComponent(o.pool)}`, { headers: { accept: 'application/json' } });
+      return response.ok ? livePriceFrom(await response.json(), side, currency) : null;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Candles from Aretia's own endpoint, which reads GeckoTerminal once for everyone and keeps the answer, so a visitor's
@@ -265,6 +318,8 @@ export function createPoolDatafeed(
         .then((bars) => {
           if (bars.length < limit) exhausted.set(resolution, bars[0]?.time ?? Number.POSITIVE_INFINITY);
           const inRange = bars.filter((b) => (params.firstDataRequest ? b.time <= params.to * 1000 : b.time < params.to * 1000));
+          // The newest candle is where live price readings start from.
+          if (params.firstDataRequest && inRange.length > 0) newest.set(resolution, inRange[inRange.length - 1]!);
           onResult(inRange, { noData: inRange.length === 0 });
         })
         .catch((e: unknown) => onError(e instanceof Error ? e.message : 'The chart data could not be loaded.'));
@@ -273,17 +328,47 @@ export function createPoolDatafeed(
       const res = RESOLUTIONS[resolution];
       if (!res) return;
       clearInterval(timers.get(uid));
+      clearInterval(priceTimers.get(uid));
       let latest = 0;
+      /** The candle on screen now, and when its price last moved from a live reading. */
+      let current: TvBar | null = newest.get(resolution) ?? null;
+      let liveAt = 0;
+      const push = (b: TvBar): void => {
+        if (b.time < latest) return;
+        latest = b.time;
+        current = b;
+        onTick(b);
+      };
+      const hidden = (): boolean => typeof document !== 'undefined' && document.hidden;
+
+      // Every few seconds: the pool's price right now moves the last candle's close (and its high or low).
+      const price = (): void => {
+        if (hidden()) return;
+        fetchLivePrice()
+          .then((p) => {
+            if (p === null) return;
+            const slot = Math.floor(now() / 1000 / res.seconds) * res.seconds * 1000;
+            const bar = applyLivePrice(current, p, slot);
+            if (!bar) return;
+            liveAt = now();
+            push(bar);
+          })
+          .catch(() => undefined);
+      };
+      if (livePriceMs > 0) priceTimers.set(uid, setInterval(price, livePriceMs));
+
+      // Every so often: the real candles, which carry the volume and correct anything the live readings missed.
       const tick = (): void => {
-        if (typeof document !== 'undefined' && document.hidden) return;
+        if (hidden()) return;
         // Skip the cache so a live poll sees fresh data.
         cache.clear();
         candles(res, Math.floor(now() / 1000) + res.seconds, 2)
           .then((bars) => {
             for (const b of bars) {
-              if (b.time < latest) continue;
-              latest = b.time;
-              onTick(b);
+              // A candle the live price has just moved keeps that price until the candle data catches up.
+              if (current && b.time === current.time && now() - liveAt < LIVE_PRICE_TRUST_MS) {
+                push({ ...b, close: current.close, high: Math.max(b.high, current.high), low: Math.min(b.low, current.low) });
+              } else push(b);
             }
           })
           .catch(() => undefined);
@@ -293,6 +378,8 @@ export function createPoolDatafeed(
     unsubscribeBars(uid) {
       clearInterval(timers.get(uid));
       timers.delete(uid);
+      clearInterval(priceTimers.get(uid));
+      priceTimers.delete(uid);
     },
   };
 }

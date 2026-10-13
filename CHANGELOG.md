@@ -12,6 +12,7 @@ Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant
 - CI: `shellcheck` workflow for the operator shell scripts; Dependabot (monthly, human-reviewed) for the five `scripts/*` projects.
 - Docs: implementation-status banners on `PROTOCOL.md` and `TOKENOMICS.md`; stale cross-references fixed (`PROTOCOL.md` roadmap section number, `TOKENOMICS.md` mint record link).
 - Swings fee: the 0.58% fee now applies to token sales as well (owner decision). `planAretiaFee` no longer takes the paying asset and no longer exempts any token; the fee is taken in the asset being sold. `core/feeAssets.ts` stays only to recognise major assets (Shield). Tests updated first; not yet proven on chain for a sale. Risks recorded in `website/docs/aretia-swings/production-readiness.md`.
+- EVM: on wallets that cannot batch, the swap and the fee transfer are simulated (`eth_call` as the taker) after approvals are mined and before the Aretia fee is sent; a revert or an unreachable node sends nothing and takes no fee (F-21).
 
 ### Moved
 - AMM transfer-fee compatibility proofs (Raydium / Orca / Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).

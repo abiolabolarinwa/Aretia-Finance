@@ -154,6 +154,9 @@ export class EvmChainAdapter implements ChainAdapter {
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
     if (p.fee && !this.feePaid.has(quoteId)) {
+      // Nothing is paid until both the swap and the fee transfer have been simulated against the chain as it is now (the approvals
+      // above are mined by this point), so a swap that would revert is never preceded by a fee that has already been sent.
+      await this.preflight(p, p.fee.tx);
       // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
       const hash = await this.wallet.sendTransaction(p.fee.tx);
       const status = await this.waitForReceipt(hash);
@@ -167,6 +170,38 @@ export class EvmChainAdapter implements ChainAdapter {
       if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
       throw e;
     }
+  }
+
+  /**
+   * Simulates the swap and then the fee transfer, as the taker, with `eth_call`. Throws `simulation-failed` if either would revert
+   * or if no node can answer, so the caller sends nothing. (A wallet that batches sends approvals, fee and swap atomically instead,
+   * so a failing swap reverts the fee with it and this check is not needed there.)
+   */
+  private async preflight(p: EvmSwapPayload, feeTx: EvmTxRequest): Promise<void> {
+    for (const [label, tx] of [['swap', p.swap], ['fee transfer', feeTx]] as const) {
+      try {
+        await this.simulate(tx);
+      } catch (e) {
+        const why = e instanceof Error && e.message ? `: ${e.message.slice(0, 160)}` : '';
+        throw new SwingsError('simulation-failed', `The ${label} would fail on ${CHAINS[this.chain].name}${why}. Nothing more was sent and no Aretia fee was taken.`);
+      }
+    }
+  }
+
+  /** One `eth_call` from the taker at the latest block: the chain's read node first when there is one, then the wallet's own node. */
+  private async simulate(tx: EvmTxRequest): Promise<void> {
+    const params = [{ from: tx.from, to: tx.to, ...(tx.data ? { data: tx.data } : {}), ...(tx.value ? { value: tx.value } : {}) }, 'latest'];
+    const nodes: ((m: string, p: unknown[]) => Promise<unknown>)[] = [...(this.options.read ? [this.options.read] : []), (m, p) => this.wallet.request(m, p)];
+    let last: unknown;
+    for (const ask of nodes) {
+      try {
+        await ask('eth_call', params);
+        return;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last;
   }
 
   /**

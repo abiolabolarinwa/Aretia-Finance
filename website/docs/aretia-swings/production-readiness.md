@@ -10,6 +10,7 @@
 - **Solana:** the first sale of any token also opens the fee wallet's account for that token, and the user pays that rent once (about 0.002 SOL). Outside routes (Jupiter) cannot collect the fee, so they are no longer offered for sales.
 - **EVM:** a sale now needs `PUBLIC_ARETIA_EVM_FEE_ADDRESS`, like every other swap, and sends a separate fee transaction in the token before the swap.
 - **Gas for the extra transaction** on EVM sales was not re-checked.
+- **Simulated before the fee is sent (F-21).** On a wallet that cannot batch, the adapter now checks the swap and the fee transfer with `eth_call` after the approvals are mined and before the fee goes out; a revert, or no node answering, stops everything with no fee taken. This is a point-in-time check, unit-tested against a fake wallet only, not against a real token.
 
 ## Update, 10 October 2026 (later): the fee is now 0.58%, on swaps paid with a coin or stablecoin
 

@@ -155,6 +155,7 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
   // The box is also a search: type a token's name and pick it from the list.
   const field = h('div', 'wapp-sh__field');
   const suggest = h('ul', 'wapp-sh__suggest');
+  suggest.setAttribute('data-lenis-prevent', '');
   suggest.id = 'wapp-sh-suggest';
   suggest.setAttribute('role', 'listbox');
   suggest.hidden = true;

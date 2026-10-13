@@ -689,6 +689,27 @@ const sendTips = [
   .wapp-mt__chart, .wapp-tp__chart { --dex-footer-crop: 46px; }
   .wapp-mt__chart-frame { display: block; width: 100%; height: calc(max(520px, 62vh) + var(--dex-footer-crop)); margin-bottom: calc(var(--dex-footer-crop) * -1); clip-path: inset(0 0 var(--dex-footer-crop) 0 round 10px); border: 0; border-radius: 10px; background: #fff; }
   /* The numbers as one grid table: hairlines between cells, header rows, 12 columns so rows of 3, 4 and 2 line up. */
+  /* The Transactions table under a chart: recent trades, newest first, in a box that scrolls. */
+  .wapp-tx { display: grid; gap: 10px; min-width: 0; margin-top: 4px; }
+  .wapp-tx__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .wapp-tx__title { margin: 0; font-size: 14px; color: var(--color-strong); }
+  .wapp-tx__filters { gap: 6px; }
+  .wapp-tx__filters .wapp__chip { padding: 4px 10px; }
+  .wapp-tx__note { margin-left: auto; }
+  .wapp-tx__scroll { max-height: 340px; overflow: auto; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); }
+  .wapp-tx__empty { margin: 0; padding: 18px 14px; }
+  .wapp-tx__table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .wapp-tx__table th { position: sticky; top: 0; z-index: 1; padding: 8px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-align: left; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
+  .wapp-tx__table td { padding: 7px 12px; border-bottom: 1px solid var(--color-border); color: var(--color-strong); }
+  .wapp-tx__table tr:last-child td { border-bottom: 0; }
+  .wapp-tx__table .num { text-align: right; }
+  .wapp-tx__table .wapp-tx__date { color: var(--color-muted); }
+  .wapp-tx__table .is-buy .wapp-tx__type, .wapp-tx__table .is-buy td.num { color: var(--color-ok); }
+  .wapp-tx__table .is-sell .wapp-tx__type, .wapp-tx__table .is-sell td.num { color: #b3261e; }
+  .wapp-tx__table .wapp-tx__type { font-weight: 700; }
+  .wapp-tx__link { color: var(--color-brand); text-decoration: none; }
+  .wapp-tx__link:hover { text-decoration: underline; }
+  .wapp-tx__txn { text-align: center; }
   .wapp-mp__grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; overflow: clip; flex: none; min-height: min-content; background: var(--color-border-strong); border: 1px solid var(--color-border-strong); border-radius: 12px; }
   .wapp-mp__cell { display: grid; gap: 1px; align-content: center; justify-items: center; min-width: 0; padding: 8px 6px; text-align: center; background: var(--wapp-indigo); }
   .wapp-mp__span-3 { grid-column: span 3; } .wapp-mp__span-4 { grid-column: span 4; } .wapp-mp__span-6 { grid-column: span 6; } .wapp-mp__span-12 { grid-column: 1 / -1; }

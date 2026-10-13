@@ -340,7 +340,7 @@ describe('the datafeed', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify(body([[200, 1, 2, 1, 1.5, 1], [100, 1, 2, 1, 1.2, 1]]))))
         .mockResolvedValueOnce(new Response(JSON.stringify(body([[100, 1, 2, 1, 1.1, 1]]))))
         .mockResolvedValue(new Response(JSON.stringify(body([]))));
-      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f as unknown as typeof fetch, pollMs: 1000, now: () => 0 });
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f as unknown as typeof fetch, pollMs: 1000, now: () => 0, livePriceMs: 0 });
       const ticks: number[] = [];
       feed.subscribeBars({} as never, '1', (b) => ticks.push(b.time / 1000), 'uid');
       await vi.advanceTimersByTimeAsync(1000);

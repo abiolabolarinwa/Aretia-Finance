@@ -881,7 +881,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
     for (const t of items.slice(0, 12)) list.append(row(t));
     wantLogos(s.chain, items.slice(0, 12));
-    const pop = el('div', { class: 'wapp__pick-pop' }, [input, list]);
+    const pop = el('div', { class: 'wapp__pick-pop', attrs: { 'data-lenis-prevent': '' } }, [input, list]);
     box.append(pop);
     input.focus();
   }

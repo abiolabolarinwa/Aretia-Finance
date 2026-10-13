@@ -76,7 +76,7 @@ const sendTips = [
   <script slot="head" is:inline>document.documentElement.dataset.wappSidebar = 'collapsed';</script>
 
   <div class="wapp" data-wapp data-connected="false" data-view="dashboard">
-    <aside class="wapp__side" aria-label="Wallet">
+    <aside class="wapp__side" aria-label="Wallet" data-lenis-prevent>
       <div class="wapp__side-head">
         <a class="wapp__brand" href="/home" aria-label="Aretia Finance home">
           <img src="/assets/logo-mark.png" width="28" height="28" alt="" />
@@ -482,7 +482,7 @@ const sendTips = [
     </section>
   </div>
 
-  <div class="wapp-swapdlg" data-swap-dialog hidden>
+  <div class="wapp-swapdlg" data-swap-dialog data-lenis-prevent hidden>
     <div class="wapp-swapdlg__box" role="dialog" aria-modal="true" aria-label="Swap">
       <div class="wapp-swapdlg__bar">
         <button type="button" class="wapp-swapdlg__close" data-swap-dialog-close aria-label="Close the swap window"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>

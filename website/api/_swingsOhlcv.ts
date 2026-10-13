@@ -58,12 +58,12 @@ function cleanRows(list: unknown): Row[] {
 export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   if (input.method !== 'GET') return json(405, { error: 'method' }, { ...headers, allow: 'GET' });
-  const { chain = '', pool = '', tf = '', token = 'base' } = input.query;
+  const { chain = '', pool = '', tf = '', token = 'base', currency = 'usd' } = input.query;
   const size = SIZES[tf];
   const aggregate = Math.floor(Number(input.query.agg ?? '1'));
   const limit = Math.floor(Number(input.query.limit ?? '300'));
   const before = Math.floor(Number(input.query.before ?? '0'));
-  if (!isChainId(chain) || !POOL.test(pool) || !size || !size.aggregates.includes(aggregate) || (token !== 'base' && token !== 'quote') || !Number.isFinite(limit) || limit < 1 || limit > MAX_LIMIT || !Number.isFinite(before) || before < 1) {
+  if (!isChainId(chain) || !POOL.test(pool) || !size || !size.aggregates.includes(aggregate) || (token !== 'base' && token !== 'quote') || (currency !== 'usd' && currency !== 'token') || !Number.isFinite(limit) || limit < 1 || limit > MAX_LIMIT || !Number.isFinite(before) || before < 1) {
     return json(400, { error: 'bad-request' }, headers);
   }
   const step = size.seconds * aggregate;
@@ -72,7 +72,7 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   const alignedBefore = Math.min(Math.ceil(before / step) * step, Math.ceil(nowSec / step) * step + step);
   const history = alignedBefore <= nowSec;
   const fresh = history ? HISTORY_FRESH_MS : (LIVE_FRESH_MS[tf] ?? 60_000);
-  const key = `${chain}|${chain === 'solana' ? pool : pool.toLowerCase()}|${tf}|${aggregate}|${alignedBefore}|${limit}|${token}`;
+  const key = `${chain}|${chain === 'solana' ? pool : pool.toLowerCase()}|${tf}|${aggregate}|${alignedBefore}|${limit}|${token}|${currency}`;
   const ok = (rows: Row[], stale: boolean): TokensOutput =>
     json(200, { data: { attributes: { ohlcv_list: rows } }, stale }, { ...headers, 'cache-control': stale ? 'no-store' : `public, s-maxage=${Math.floor(fresh / 1000)}, stale-while-revalidate=${Math.floor(fresh / 500)}` });
 
@@ -80,7 +80,7 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   if (hit && input.now - hit.at < fresh) return ok(hit.rows, false);
   if (overLimit(`ohlcv:${input.ip}`, input.now)) return hit ? ok(hit.rows, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
 
-  const url = `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency: 'usd', token })}`;
+  const url = `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency, token })}`;
   // Visitors asking for the same thing at once share one upstream request.
   let pending = inFlight.get(key);
   if (!pending) {

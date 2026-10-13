@@ -96,7 +96,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     plot.setAttribute('aria-label', `${o.symbol} price chart`);
     const tradesHost = el('div', 'wapp-tp__trades');
     parts.chart.replaceChildren(plot, tradesHost);
-    tv = mountTvChart(plot, { chain: o.chain, pool, label: `${o.symbol} / USD`, priceHint: d?.priceUsd ?? null, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
+    tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
     // The pool's recent trades, under the chart.
     trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });
 

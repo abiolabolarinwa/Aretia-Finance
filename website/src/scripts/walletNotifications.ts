@@ -174,7 +174,15 @@ export function initNotifications(): void {
       });
     });
     foot.append(label, test);
-    foot.append(el('p', 'wapp-bell__note', 'Notifications are kept in this browser and arrive only while Aretia is open.'));
+    const phone = el('a', 'wapp-bell__link', 'Get alerts on your phone: Telegram or browser notifications');
+    phone.href = '#/favourites';
+    phone.addEventListener('click', () => {
+      setOpen(false);
+      // The card is on the Favourites page; it is drawn a moment after the page changes.
+      setTimeout(() => document.querySelector('[data-alerts-card]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 700);
+    });
+    foot.append(phone);
+    foot.append(el('p', 'wapp-bell__note', 'These are kept in this browser and arrive while Aretia is open. Link Telegram or browser alerts to be told when it is closed.'));
     pop.replaceChildren(head, body, foot);
   }
 

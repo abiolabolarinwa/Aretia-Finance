@@ -282,3 +282,36 @@ describe('slow providers and what the person is told', () => {
     expect(explainNoRoute([{ providerId: 'aretia-sol', message: 'Temporarily skipped after repeated failures.' }], label)).toBe('No route was found for this swap. Try a different amount or token.');
   });
 });
+
+describe('time budget', () => {
+  it('does not hold a good route back for a slow provider beyond the grace window', async () => {
+    vi.useFakeTimers();
+    try {
+      const fast = fakeProvider('fast', () => new Promise<Quote>((res) => setTimeout(() => res(quoteFrom('fast', 100n)), 1_000)));
+      const slow = { ...fakeProvider('slow', () => new Promise<Quote>((res) => setTimeout(() => res(quoteFrom('slow', 500n)), 20_000))), quoteTimeoutMs: 25_000 };
+      const r = new AretiaRouter({ providers: [fast, slow], adapters: [], isChainEnabled: () => true, now, providerTimeoutMs: 8_000 });
+      let finished = false;
+      const pending = r.findRoutes(request).then((x) => ((finished = true), x));
+      await vi.advanceTimersByTimeAsync(1_000 + 4_000 + 50);
+      expect(finished).toBe(true);
+      const res = await pending;
+      expect(res.routes.map((q) => q.providerId)).toEqual(['fast']);
+      expect(res.failures[0]).toMatchObject({ providerId: 'slow', answered: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ends a preparation that hangs with a clear error', async () => {
+    vi.useFakeTimers();
+    try {
+      const hang: DexProvider = { ...fakeProvider('hang', async () => quoteFrom('hang', 100n)), buildTransaction: () => new Promise<PreparedSwap>(() => undefined) };
+      const r = new AretiaRouter({ providers: [hang], adapters: [], isChainEnabled: () => true, now, buildTimeoutMs: 12_000 });
+      const out = expect(r.buildTransaction(quoteFrom('hang', 100n))).rejects.toMatchObject({ message: /took too long/ });
+      await vi.advanceTimersByTimeAsync(12_100);
+      await out;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

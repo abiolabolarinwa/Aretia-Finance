@@ -3,6 +3,7 @@
  * so adding another EVM network is a CHAINS entry, not new code. It never holds keys; the user's wallet
  * signs and broadcasts.
  */
+import { RECEIPT_TIMEOUT_MS } from '../router/budget.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type ChainAdapter, type ChainId, type PreparedSwap, type TokenRef, type TransactionStatus, type WalletAccount } from '../core/types.js';
 import type { EvmTxRequest, EvmWalletAdapter } from './evmWallet.js';
 
@@ -192,7 +193,7 @@ export class EvmChainAdapter implements ChainAdapter {
   }
 
   private async waitForReceipt(hash: string): Promise<'confirmed' | 'failed' | 'pending'> {
-    const deadline = Date.now() + (this.options.approvalTimeoutMs ?? 120_000);
+    const deadline = Date.now() + (this.options.approvalTimeoutMs ?? RECEIPT_TIMEOUT_MS);
     while (Date.now() < deadline) {
       const s = await this.getStatus(hash);
       if (s === 'confirmed' || s === 'failed') return s;

@@ -12,7 +12,7 @@
  * carries that account, so the simulation runs from the account that would really sign.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ataAddress, createAtaIdempotentInstruction, solTransferInstruction, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../core/solanaTools.js';
+import { ataAddress, createAtaIdempotentInstruction, mintTransferFeeBps, solTransferInstruction, SWAP_FEE_ACCOUNT_RENT_LAMPORTS, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../core/solanaTools.js';
 import { DEFAULT_FEE_CONFIG, FEE_PERCENT, planAretiaFee } from '../core/fee.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest, type TokenRef } from '../core/types.js';
@@ -28,6 +28,8 @@ import { createSolanaVenues, type SolanaVenue } from './venues.js';
 export const SOLANA_QUOTE_TTL_MS = 12_000;
 /** SOL a swap may use beyond the amount: fees, priority fee and rent for several new accounts. */
 const OVERHEAD_LAMPORTS = 8_000_000n;
+/** Lamports as a SOL figure for plain-language notes (5 decimals). */
+const solText = (lamports: bigint): string => (Number(lamports) / 1e9).toFixed(5);
 /** Intermediate tokens a route may pass through. */
 export const SOLANA_HUBS = [WSOL_MINT, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'] as const;
 /** The second hop sells slightly less than the first is expected to deliver, so normal movement cannot starve it. */
@@ -64,7 +66,7 @@ interface SolanaRaw {
   nativeOut: boolean;
   reasons: string[];
   /** The Aretia fee carried in the same transaction, when the fee policy is on: a transfer, in the asset being sold, to the fee address. */
-  fee?: { amount: bigint; treasury: string; mint: string; native: boolean };
+  fee?: { amount: bigint; treasury: string; mint: string; native: boolean; /** Whether the fee wallet has no account for this token yet, so the sale opens one at the seller's cost (null: could not be read). */ opensAccount?: boolean | null; /** The rent that account costs, in lamports. */ rentLamports?: bigint };
 }
 
 interface Leg {
@@ -148,12 +150,42 @@ export class DirectSolanaProvider implements DexProvider {
     return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}), ...(o.prelude ? { prelude: o.prelude } : {}) });
   }
 
-  /** A mint's decimals, read from the mint account itself (byte 44 for both token programs). */
-  private async mintDecimals(mint: string): Promise<number> {
-    const r = await this.deps.rpc<{ value: { data: [string, string] } | null }>('getAccountInfo', [mint, { encoding: 'base64', commitment: 'confirmed' }]);
+  /** A mint account read from the chain: its decimals (byte 44 for both token programs), its owning program, and its raw data. */
+  private async mintAccount(mint: string): Promise<{ decimals: number; owner: string | null; data: Uint8Array }> {
+    const r = await this.deps.rpc<{ value: { data: [string, string]; owner?: string } | null }>('getAccountInfo', [mint, { encoding: 'base64', commitment: 'confirmed' }]);
     const d = r.value ? Uint8Array.from(atob(r.value.data[0]), (c) => c.charCodeAt(0)) : null;
     if (!d || d.length < 82 || d[44]! > 18) throw new SwingsError('invalid', 'The token being sold could not be read, so the Aretia fee could not be set up.');
-    return d[44]!;
+    return { decimals: d[44]!, owner: r.value?.owner ?? null, data: d };
+  }
+
+  /**
+   * What collecting the fee in this token costs or does beyond the fee itself, read from the chain now: whether the fee wallet has no
+   * account for it yet (the seller then pays its rent, once), what that rent is, and whether the token keeps part of every transfer.
+   * Nothing here can fail a quote: what cannot be read comes back as unknown.
+   */
+  private async feeAccountFacts(web3: typeof Web3, treasury: string, mint: string, program: string): Promise<{ opensAccount: boolean | null; rentLamports: bigint; transferFeeBps: number | null }> {
+    let opensAccount: boolean | null = null;
+    try {
+      const r = await this.deps.rpc<{ value: unknown }>('getAccountInfo', [ataAddress(web3, treasury, mint, program), { encoding: 'base64', dataSlice: { offset: 0, length: 0 }, commitment: 'confirmed' }]);
+      opensAccount = r.value === null;
+    } catch {
+      // unknown: the quote says the sale may open an account
+    }
+    let rentLamports = SWAP_FEE_ACCOUNT_RENT_LAMPORTS;
+    try {
+      const rent = await this.deps.rpc<number>('getMinimumBalanceForRentExemption', [165]);
+      if (typeof rent === 'number' && rent > 0) rentLamports = BigInt(rent);
+    } catch {
+      // keep the upper estimate
+    }
+    let transferFeeBps: number | null = null;
+    try {
+      const m = await this.mintAccount(mint);
+      transferFeeBps = m.owner ? mintTransferFeeBps(m.owner, m.data) : null;
+    } catch {
+      // not a Token-2022 fee we can read
+    }
+    return { opensAccount, rentLamports, transferFeeBps };
   }
 
   private async blockhash(): Promise<string> {
@@ -374,7 +406,17 @@ export class DirectSolanaProvider implements DexProvider {
     if (legs.some((l) => l.minOut <= 0n)) throw new SwingsError('no-route', 'The route pays too little to set a minimum.');
 
     // The Aretia fee, taken in the same transaction, in the asset being sold: SOL for a swap that starts in SOL, otherwise the token being sold (any SPL token, including a sale).
-    const fee: SolanaRaw['fee'] = feePlan.state === 'ready' && feePlan.fee > 0n ? { amount: feePlan.fee, treasury: feePlan.treasury, mint: from.address, native: isWsol(from) } : undefined;
+    let fee: SolanaRaw['fee'] = feePlan.state === 'ready' && feePlan.fee > 0n ? { amount: feePlan.fee, treasury: feePlan.treasury, mint: from.address, native: isWsol(from) } : undefined;
+    // Selling a token other than SOL pays the fee in that token, into the fee wallet's account for it. Say now what that costs.
+    const notes: string[] = [];
+    if (fee && !fee.native) {
+      const lead = chosen.legs[0]!;
+      const facts = await this.feeAccountFacts(web3, fee.treasury, fee.mint, lead.venue.programFor(lead.pool, from.address));
+      fee = { ...fee, opensAccount: facts.opensAccount, rentLamports: facts.rentLamports };
+      if (facts.opensAccount === true) notes.push(`Aretia's fee wallet has no account for this token yet, so this sale also opens one: a one-time rent of about ${solText(facts.rentLamports)} SOL, paid from your wallet on top of the ${FEE_PERCENT} fee. Later sales of this token do not pay it again.`);
+      else if (facts.opensAccount === null) notes.push(`This sale may also open an account for this token in Aretia's fee wallet: a one-time rent of about ${solText(facts.rentLamports)} SOL, paid from your wallet on top of the ${FEE_PERCENT} fee.`);
+      if (facts.transferFeeBps) notes.push(`This token keeps about ${(facts.transferFeeBps / 100).toString()}% of every transfer, so Aretia's fee wallet receives slightly less than ${FEE_PERCENT} of what you sell.`);
+    }
 
     const label = (p: Plan): string => (p.shape === 'direct' ? p.legs[0]!.venue.name : p.shape === 'two-hop' ? 'two hops' : 'split');
     const compared = plans.slice(0, 5).map((p) => `${label(p)} pays ${p.amountOut}`).join('; ') + (plans.length > 5 ? `; and ${plans.length - 5} more that pay less` : '');
@@ -390,6 +432,7 @@ export class DirectSolanaProvider implements DexProvider {
       priceImpactBps: chosen.impactBps,
       route: { legs: chosen.legs.map((l) => ({ venue: l.venue.name, from: l.tokenIn, to: l.tokenOut, shareBps: chosen.shape === 'split' ? Number((l.amountIn * 10_000n) / feePlan.net) : 10_000 })) },
       costs: { network: null, provider: null, aretiaFee: fee ? { amount: fee.amount, asset: from } : { amount: 0n, asset: null } },
+      ...(notes.length > 0 ? { notes } : {}),
       fetchedAt,
       expiresAt: fetchedAt + SOLANA_QUOTE_TTL_MS,
       raw,
@@ -499,12 +542,23 @@ export class DirectSolanaProvider implements DexProvider {
         prelude = () => ({ ixs: [solTransferInstruction(web3, user, fee.treasury, fee.amount)], steps: [`Aretia fee: send ${fee.amount} lamports (${FEE_PERCENT}) to ${fee.treasury.slice(0, 6)}….`] });
       } else {
         const program = mainLegs[0]!.venue.programFor(mainLegs[0]!.pool, fee.mint);
-        const decimals = await this.mintDecimals(fee.mint);
+        const { decimals } = await this.mintAccount(fee.mint);
+        // Read again now, not from the quote: the account may have been opened since (by another sale) or the rent may have changed.
+        const facts = await this.feeAccountFacts(web3, fee.treasury, fee.mint, program);
+        if (facts.opensAccount === true) warnings.push(`Opening Aretia's account for this token costs about ${solText(facts.rentLamports)} SOL (one-time rent, paid by you).`);
+        else if (facts.opensAccount === null) warnings.push(`Aretia's account for this token could not be checked. If it does not exist yet, this swap opens it for about ${solText(facts.rentLamports)} SOL (one-time rent, paid by you).`);
+        const where = `${fee.treasury.slice(0, 6)}…`;
+        const stepText =
+          facts.opensAccount === true
+            ? `Aretia fee: open Aretia's account for this token (one-time rent, paid by you), then send ${fee.amount} (raw, ${FEE_PERCENT}) of the token you are paying with to ${where}.`
+            : facts.opensAccount === false
+              ? `Aretia fee: send ${fee.amount} (raw, ${FEE_PERCENT}) of the token you are paying with to ${where}.`
+              : `Aretia fee: send ${fee.amount} (raw, ${FEE_PERCENT}) of the token you are paying with to ${where}, opening Aretia's account for it first if it does not exist (you pay that rent).`;
         prelude = (accounts) => {
           const dest = ataAddress(web3, fee.treasury, fee.mint, program);
           return {
             ixs: [createAtaIdempotentInstruction(web3, user, dest, fee.treasury, fee.mint, program), transferCheckedInstruction(web3, program, accounts[fee.mint]!, fee.mint, dest, user, fee.amount, decimals)],
-            steps: [`Aretia fee: send ${fee.amount} (raw, ${FEE_PERCENT}) of the token you are paying with to ${fee.treasury.slice(0, 6)}… (you pay the new account's rent only if it is new).`],
+            steps: [stepText],
           };
         };
       }

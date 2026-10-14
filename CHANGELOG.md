@@ -14,6 +14,7 @@ Format: Keep a Changelog. Only user-visible, security-relevant or build-relevant
 - Swings fee: the 0.58% fee now applies to token sales as well (owner decision). `planAretiaFee` no longer takes the paying asset and no longer exempts any token; the fee is taken in the asset being sold. `core/feeAssets.ts` stays only to recognise major assets (Shield). Tests updated first; not yet proven on chain for a sale. Risks recorded in `website/docs/aretia-swings/production-readiness.md`.
 - EVM: on wallets that cannot batch, the swap and the fee transfer are simulated (`eth_call` as the taker) after approvals are mined and before the Aretia fee is sent; a revert or an unreachable node sends nothing and takes no fee (F-21).
 - Fee wiring: tests that build the web wallet's router and fail if the 0.58% fee is off for any network or provider (`liveFeeWiring.test.ts`); `PUBLIC_ARETIA_EVM_FEE_ADDRESS` documented in `.env.example`; stale "1%" comments on the legacy Trade-tab helper corrected.
+- Solana token sales: the quote and the review screen now say when a sale opens the fee wallet's account for the token (one-time rent, about 0.002 SOL, paid by the seller) and when a Token-2022 token keeps part of every transfer, so the fee wallet receives less than 0.58% (F-22, partly). Who bears the rent is still an owner decision.
 
 ### Moved
 - AMM transfer-fee compatibility proofs (Raydium / Orca / Meteora), real-ACT mainnet simulations, devnet test-token setup + JSON and `inspect-fee` → `scripts/devnet-amm` (own manifest, 9 dependencies).

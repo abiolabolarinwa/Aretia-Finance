@@ -8,7 +8,7 @@ import { findTip, JITO_TIP_ACCOUNTS } from './jito.js';
 import { getAmountOut, getAmountOutCpmm } from '../engine/amm.js';
 import { AretiaDexRegistry } from '../engine/registry.js';
 import { SOLANA_DEXES } from '../dex/entries.js';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
+import { ataAddress, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../core/solanaTools.js';
 import type { AretiaFeeConfig, SwapRequest } from '../core/types.js';
 import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
 import { AretiaRouter } from '../router/router.js';
@@ -368,6 +368,91 @@ describe('DirectSolanaProvider', () => {
       expect(raw.fee).toMatchObject({ amount: 5_800n, mint: USDC, native: false });
       expect(q.inAmount).toBe(994_200n);
       expect(q.costs.aretiaFee).toMatchObject({ amount: 5_800n, asset: { address: USDC } });
+    });
+
+    describe('the fee wallet account for the token being sold (F-22)', () => {
+      const RENT = 2_039_280;
+      const dest = (): string => ataAddress(web3, TREASURY, USDC, TOKEN_PROGRAM_ID);
+      const sell = { ...req, from: { chain: 'solana' as const, address: USDC }, to: { chain: 'solana' as const, address: WSOL_MINT }, amountIn: 1_000_000n };
+      /** Answers for the fee wallet's account for USDC and the rent figure; everything else goes to the harness. */
+      const watching = (o: { exists?: boolean; fail?: boolean; mint?: Uint8Array; mintOwner?: string } = {}) => {
+        const asked: string[] = [];
+        const base = rpcWith().rpc;
+        const rpc = (async (method: string, params: unknown[]) => {
+          if (method === 'getAccountInfo' && params[0] === dest()) {
+            asked.push('treasury-account');
+            if (o.fail) throw new Error('rpc down');
+            return { value: o.exists ? { data: ['', 'base64'], owner: TOKEN_PROGRAM_ID } : null };
+          }
+          if (method === 'getMinimumBalanceForRentExemption') return RENT;
+          if (method === 'getAccountInfo' && params[0] === USDC) {
+            const d = o.mint ?? (() => { const m = new Uint8Array(82); m[44] = 6; return m; })();
+            return { value: { data: [btoa(String.fromCharCode(...d)), 'base64'], owner: o.mintOwner ?? TOKEN_PROGRAM_ID } };
+          }
+          return base(method, params);
+        }) as SolRpc;
+        return { rpc, asked };
+      };
+      const quoteWith = (o: Parameters<typeof watching>[0] = {}) => {
+        const w = watching(o);
+        const p = withFee(w.rpc, fee());
+        return { p, w, q: p.getQuote(sell) };
+      };
+
+      it('says in the quote, with the amount, that a first sale of this token also opens an account at the seller\'s cost', async () => {
+        const { q } = quoteWith();
+        const quote = await q;
+        expect(quote.notes?.join(' ')).toMatch(/no account for this token yet.*one-time rent of about 0\.00204 SOL.*paid from your wallet.*on top of the 0\.58% fee/s);
+        expect(quote.raw as { fee: unknown }).toMatchObject({ fee: { amount: 5_800n, opensAccount: true, rentLamports: BigInt(RENT) } });
+      });
+
+      it('says nothing about rent when the fee wallet already has the account', async () => {
+        const quote = await quoteWith({ exists: true }).q;
+        expect(quote.notes?.join(' ') ?? '').not.toMatch(/rent/);
+        expect(quote.raw as { fee: unknown }).toMatchObject({ fee: { opensAccount: false } });
+      });
+
+      it('looks nothing up for a swap paid in SOL, which needs no token account', async () => {
+        const w = watching();
+        const quote = await withFee(w.rpc, fee()).getQuote(req);
+        expect(w.asked).toEqual([]);
+        expect(quote.notes?.join(' ') ?? '').not.toMatch(/rent/);
+      });
+
+      it('still quotes when the account cannot be looked up, and says it may open one', async () => {
+        const quote = await quoteWith({ fail: true }).q;
+        expect(quote.notes?.join(' ')).toMatch(/may also open an account.*about 0\.00204 SOL/s);
+        expect(quote.raw as { fee: unknown }).toMatchObject({ fee: { opensAccount: null } });
+      });
+
+      it('repeats the cost on the review screen, from a fresh look at the chain, and no longer hedges in the step text', async () => {
+        const { p, q } = quoteWith();
+        const prepared = await p.buildTransaction(await q);
+        expect(prepared.simulation.warnings.join(' ')).toMatch(/Opening Aretia's account for this token costs about 0\.00204 SOL \(one-time rent, paid by you\)/);
+        const feeStep = (prepared.payload as { steps: string[] }).steps.find((s) => s.startsWith('Aretia fee'))!;
+        expect(feeStep).toMatch(/open Aretia's account for this token \(one-time rent, paid by you\), then send 5800/);
+        expect(feeStep).not.toMatch(/only if it is new/);
+      });
+
+      it('does not warn on the review screen when the account already exists', async () => {
+        const { p, q } = quoteWith({ exists: true });
+        const prepared = await p.buildTransaction(await q);
+        expect(prepared.simulation.warnings.join(' ')).not.toMatch(/Opening Aretia's account/);
+      });
+
+      it('tells the seller when the token keeps part of every transfer, so the fee wallet receives a little less than 0.58%', async () => {
+        const mint = new Uint8Array(166 + 4 + 108);
+        mint[44] = 6;
+        mint[45] = 1;
+        mint[165] = 1;
+        const dv = new DataView(mint.buffer);
+        dv.setUint16(166, 1, true);
+        dv.setUint16(168, 108, true);
+        dv.setUint16(166 + 4 + 88, 150, true);
+        dv.setUint16(166 + 4 + 106, 150, true);
+        const quote = await quoteWith({ exists: true, mint, mintOwner: TOKEN_2022_PROGRAM_ID }).q;
+        expect(quote.notes?.join(' ')).toMatch(/keeps about 1\.5% of every transfer.*slightly less than 0\.58%/s);
+      });
     });
 
     it('charges nothing, and swaps everything, when the amount is too small for a whole unit of fee', async () => {

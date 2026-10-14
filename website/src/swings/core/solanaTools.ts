@@ -187,6 +187,30 @@ export function parseMint(owner: string, data: Uint8Array): MintInfo | null {
   return { decimals: data[44]!, hasExtensions: owner === TOKEN_2022_PROGRAM_ID && data.length > 82 };
 }
 
+/**
+ * The transfer fee, in basis points, that a Token-2022 mint withholds from every transfer (its TransferFeeConfig extension), or null
+ * when it has none, is not a Token-2022 mint, or the data cannot be read. It takes the higher of the current and the scheduled rate,
+ * so a disclosure built on it is never too low. Never throws on hostile data.
+ */
+export function mintTransferFeeBps(owner: string, data: Uint8Array): number | null {
+  const TLV_START = 166; // 82-byte mint, padded to 165, one byte of account type, then type/length/value entries
+  if (owner !== TOKEN_2022_PROGRAM_ID || data.length <= TLV_START || data[165] !== 1) return null;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  for (let o = TLV_START; o + 4 <= data.length; ) {
+    const type = view.getUint16(o, true);
+    const length = view.getUint16(o + 2, true);
+    const start = o + 4;
+    if (start + length > data.length) return null;
+    if (type === 1) {
+      // TransferFeeConfig: two authorities (64 bytes), withheld amount (8), then the older and newer fee (epoch 8, maximum 8, bps 2 each).
+      if (length < 108) return null;
+      return Math.max(view.getUint16(start + 88, true), view.getUint16(start + 106, true));
+    }
+    o = start + length;
+  }
+  return null;
+}
+
 export interface TokenAccountInfo {
   amount: bigint;
   frozen: boolean;

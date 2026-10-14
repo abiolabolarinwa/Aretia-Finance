@@ -1,5 +1,9 @@
 # Production readiness
 
+## Update, 14 October 2026 (later): on Solana, a sale into SOL, USDC or USDT pays the fee from what is received
+
+Owner decision, to fix F-22. When a token other than SOL, USDC or USDT is sold for one of those three on Solana, the whole amount entered is swapped and the fee, 0.58% of the quoted output, is sent in that asset after the swap (and after any SOL unwrap) in the same transaction. The "you receive" and "at least" figures are shown net of it, the review screen says the fee is taken from what is received, and the swap's own on-chain floor is unchanged. Buys, sales of SOL, USDC or USDT, and one token swapped for another still pay on the amount entered, in the asset sold. **Not proven on chain** (unit tests only; the harness simulation does not deduct the fee, so the judge's handling of the net minimum has not been exercised against a real program). The fee is fixed at quote time from the quoted output, so a better or worse actual fill does not change it. Effects: the fee wallet only receives assets it already has accounts for, so the seller pays no account rent and no unsellable token reaches the fee wallet. **EVM is unchanged**: an EVM token sale still pays the fee in the token sold (F-21 simulation applies).
+
 ## Update, 14 October 2026: 0.58% seen on chain for a swap paid with BNB
 
 BNB Chain, tx `0x95581640ab7bdd8eeec6527aefe5fad2f6481ca934081dbf9402a9502e0f8b35` (block 127539657, success): 0.00000863243 BNB to the EVM fee address `0xeB8725E1…Ecc4D0945` and 0.00147971757 BNB to the PancakeSwap router, in one batched transaction, which is exactly 0.58% of the 0.00148835 BNB entered. Source: a block-explorer screenshot from the owner; the reviewer could not query the chain. **Not covered:** a token sale at 0.58%, Solana, any other EVM network. The `aretia-fee-evm` gate stays not done.

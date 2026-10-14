@@ -15,6 +15,6 @@ Legend: ✅ done on branch + evidence · 🟡 partial · ⬜ not started · 👤
 | F-09 | Import cycle | ✅ | `madge --circular` clean; suite green. `any`/suppression counts still open |
 | F-10 | Status labels on design docs | 🟡 | status banner added to `PROTOCOL.md`, `TOKENOMICS.md`; stale cross-references fixed. Public whitepapers deliberately not bannered; mint/treasury records already carry status. |
 | F-21 | Simulate or atomically collect the EVM token-sale fee | 🟡 | simulate-before-send implemented, 8 unit tests; needs a testnet or fork test |
-| F-22 | Solana token-sale fee: treasury account rent and Token-2022 mints | 🟡 | disclosure of the rent and of a token's own transfer fee implemented, 11 tests; who pays the rent, and unsellable tokens in the fee wallet, need an owner decision |
+| F-22 | Solana token-sale fee: treasury account rent and Token-2022 mints | 🟡 | fee now taken from the output for sales into SOL/USDC/USDT (owner decision 2026-10-14), tested; token-to-token swaps still on the input with disclosure; needs an on-chain canary sale |
 | F-23 | Outside routes rejected for sales | 👤 | accept or add a fee-collecting wrapper |
 | F-24/F-25 | Zero-fee reporting; naming debt | ⬜ | small, safe to batch |

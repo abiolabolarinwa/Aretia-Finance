@@ -691,11 +691,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       render();
     }
     try {
-      const prepared = await router.buildTransaction(quote);
+      // The gas balance is read while the transaction is built, not after it: one wait instead of two.
+      const wantsGas = isEvm(quote.request.chain) && !!s.from;
+      const [prepared, native] = await Promise.all([
+        router.buildTransaction(quote),
+        wantsGas ? readBalance(publicRead(quote.request.chain), quote.request.account.address, EVM_NATIVE_ADDRESS) : Promise.resolve(0n),
+      ]);
       if (mySeq !== s.seq) return;
       s.extraBlockers = [];
-      if (isEvm(quote.request.chain) && s.from) {
-        const native = await readBalance(publicRead(quote.request.chain), quote.request.account.address, EVM_NATIVE_ADDRESS);
+      if (wantsGas && s.from) {
         const problem = evmGasProblem({ nativeBalance: native, networkFee: quote.costs.network?.amount ?? null, sellsNative: s.from.mint === EVM_NATIVE_ADDRESS, amountIn: quote.inAmount, nativeSymbol: CHAINS[quote.request.chain].nativeSymbol });
         if (problem) s.extraBlockers.push(problem);
       }

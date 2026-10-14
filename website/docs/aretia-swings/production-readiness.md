@@ -1,5 +1,9 @@
 # Production readiness
 
+## Update, 14 October 2026: 0.58% seen on chain for a swap paid with BNB
+
+BNB Chain, tx `0x95581640ab7bdd8eeec6527aefe5fad2f6481ca934081dbf9402a9502e0f8b35` (block 127539657, success): 0.00000863243 BNB to the EVM fee address `0xeB8725E1…Ecc4D0945` and 0.00147971757 BNB to the PancakeSwap router, in one batched transaction, which is exactly 0.58% of the 0.00148835 BNB entered. Source: a block-explorer screenshot from the owner; the reviewer could not query the chain. **Not covered:** a token sale at 0.58%, Solana, any other EVM network. The `aretia-fee-evm` gate stays not done.
+
 ## Update, 13 October 2026: the 0.58% fee now applies to token sales too
 
 **Verdict unchanged: not production ready.** The owner decided the fee applies to every swap, including selling a token. `planAretiaFee` no longer exempts any asset; the fee is taken in the asset being paid with, so a sale pays it in the token being sold. `core/feeAssets.ts` no longer decides who pays (Shield still reads it to recognise major assets). Changes that follow from it, and what is **not** proven:

@@ -728,6 +728,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   async function swapNow(): Promise<void> {
     if (swapBusy) return;
     swapBusy = true;
+    swapPressedAt = Date.now();
+    timingNote = '';
     try {
       const stale = !s.quote || !s.prepared || Date.now() - s.preparedAt > FRESH_MS || expiryLabel(s.quote).expired;
       if (stale) await getQuote(true);
@@ -758,14 +760,22 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     pushTrades();
   }
 
+  // Time from pressing Swap to the end, with the seconds spent in the wallet counted apart: those belong to the person.
+  let swapPressedAt = 0;
+  let timingNote = '';
+  const seconds = (ms: number): string => `${Math.max(1, Math.round(ms / 1000))} s`;
+
   async function confirm(): Promise<void> {
     if (!s.quote || !s.prepared || s.extraBlockers.length > 0) return;
+    if (!swapPressedAt) swapPressedAt = Date.now();
     const quote = s.quote;
     s.phase = 'signing';
     s.error = null;
     render();
     try {
+      const walletFrom = Date.now();
       let execution = await router.executeRoute(s.prepared, quote, { quoteId: quote.id, confirmed: true });
+      const walletMs = Date.now() - walletFrom;
       s.execution = execution;
       if (execution.status === 'rejected') {
         s.phase = 'review';
@@ -793,6 +803,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       s.execution = execution;
       record(execution, quote);
       s.phase = 'done';
+      if (execution.status === 'confirmed' && swapPressedAt) {
+        const total = Date.now() - swapPressedAt;
+        timingNote = `Whole swap ${seconds(total)}, of which ${seconds(walletMs)} in your wallet.`;
+      }
+      swapPressedAt = 0;
       // What is held has changed: read it again for the percentage buttons.
       s.balance = { key: '', raw: null };
       render();
@@ -1224,7 +1239,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (s.phase === 'tracking') card.append(banner('info', 'Sent. Waiting for the network to confirm. Do not send it again.'));
     if (s.phase === 'done' && s.execution) {
       const ex = s.execution;
-      if (ex.status === 'confirmed') card.append(banner('ok', 'Done. Confirmed on-chain.'));
+      if (ex.status === 'confirmed') card.append(banner('ok', `Done. Confirmed on-chain.${timingNote ? ` ${timingNote}` : ''}`));
       else if (ex.status === 'failed') {
         card.append(banner('warn', ex.error ?? 'The transaction failed on-chain. Your tokens were not swapped.'));
         card.append(el('p', { class: 'wapp__fine', text: 'The usual reasons: the price moved more than your slippage allows (new tokens can move several percent in seconds), or the token keeps a fee on every trade. Open Details, choose a higher slippage such as 3%, and try again.' }));

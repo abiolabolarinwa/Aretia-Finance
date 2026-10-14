@@ -4,6 +4,7 @@
  * every signature happens inside the user's own wallet. The Aretia Wallet extension plugs in by
  * announcing itself through EIP-6963 like any other wallet, or by implementing EvmWalletAdapter.
  */
+import { BATCH_TIMEOUT_MS } from '../router/budget.js';
 import { SwingsError } from '../core/types.js';
 
 /** EIP-1193: the one method every injected provider has. */
@@ -232,7 +233,7 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
       throw new SwingsError('not-enabled', 'The wallet cannot send these together.');
     }
     // The wallet reports progress by id: 1xx pending, 2xx confirmed, 4xx/5xx failed.
-    const deadline = Date.now() + 180_000;
+    const deadline = Date.now() + BATCH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const res = (await this.request('wallet_getCallsStatus', [id])) as { status?: number; receipts?: { transactionHash?: string; status?: string }[] } | null;
       const code = res?.status ?? 100;
@@ -248,7 +249,7 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
       if (code >= 400 && code < 500) throw new SwingsError('not-sent', `Your wallet did not send this: it stopped before anything reached the network, so nothing was spent and nothing was swapped. (Wallet status ${code}.)`);
       if (code === 500) throw new SwingsError('failed', 'The transaction reached the network and was reverted. Nothing was swapped; only the network fee was spent.');
       if (code >= 500) throw new SwingsError('failed', `Part of this went through (wallet status ${code}). Check your wallet activity before trying again.`);
-      await new Promise((r) => setTimeout(r, 1_500));
+      await new Promise((r) => setTimeout(r, 1_000));
     }
     throw new SwingsError('failed', 'The transaction is still pending. Check your wallet before trying again.');
   }

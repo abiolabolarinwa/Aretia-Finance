@@ -8,6 +8,7 @@
  *  - one quote executes at most once, and a broadcast is never retried here;
  *  - nothing is sent without an explicit confirmation naming the quote.
  */
+import { BUILD_TIMEOUT_MS, QUOTE_GRACE_MS, TRACK_INTERVAL_MS, TRACK_TIMEOUT_MS } from './budget.js';
 import { DEFAULT_FEE_CONFIG, FEE_PERCENT, planAretiaFee } from '../core/fee.js';
 import { sameToken } from '../core/token.js';
 import { summarizeQuote, type ExecutionSummary } from '../core/summary.js';
@@ -28,6 +29,10 @@ import {
 
 export interface RouterOptions {
   providers: DexProvider[];
+  /** After the first usable route arrives, how long the other providers get to beat it (default QUOTE_GRACE_MS). */
+  quoteGraceMs?: number;
+  /** Longest building and checking of a transaction (default BUILD_TIMEOUT_MS). */
+  buildTimeoutMs?: number;
   adapters: ChainAdapter[];
   feeConfig?: AretiaFeeConfig;
   now?: () => number;
@@ -123,6 +128,8 @@ export class AretiaRouter {
   private readonly feeConfig: AretiaFeeConfig;
   private readonly now: () => number;
   private readonly timeoutMs: number;
+  private readonly graceMs: number;
+  private readonly buildTimeoutMs: number;
   private readonly maxImpact: number;
   private readonly enabled: (chain: ChainId) => boolean;
   private readonly emit: (e: RouterEvent) => void;
@@ -137,6 +144,8 @@ export class AretiaRouter {
     this.feeConfig = options.feeConfig ?? DEFAULT_FEE_CONFIG;
     this.now = options.now ?? Date.now;
     this.timeoutMs = options.providerTimeoutMs ?? 8_000;
+    this.graceMs = options.quoteGraceMs ?? QUOTE_GRACE_MS;
+    this.buildTimeoutMs = options.buildTimeoutMs ?? BUILD_TIMEOUT_MS;
     this.maxImpact = options.maxPriceImpactBps ?? 1_500;
     this.enabled = options.isChainEnabled ?? ((c) => CHAINS[c].executionEnabled);
     this.emit = options.onEvent ?? (() => {});
@@ -204,11 +213,56 @@ export class AretiaRouter {
         if (!active.includes(p)) failures.push({ providerId: p.id, message: 'Temporarily skipped after repeated failures.' });
       }
     }
-    const settled = await Promise.allSettled(active.map((p) => withTimeout((signal) => p.getQuote(request, signal), p.quoteTimeoutMs ?? this.timeoutMs)));
+    // Every provider is asked at once. The first usable route starts a short grace window for the others to beat it; whoever has
+    // not answered when it ends is left out (and told to stop), so one slow provider never holds the price back.
+    const problemsOf = (provider: DexProvider, quote: Quote): string[] => {
+      const problems = this.executabilityProblems(quote, request);
+      if (!provider.carriesAretiaFee && planAretiaFee(request.amountIn, request.chain, this.feeConfig, request.from.address).state === 'ready') problems.push(`An outside route was found, but it cannot collect the ${FEE_PERCENT} Aretia fee, so Aretia does not offer it.`);
+      return problems;
+    };
+    const asked = active.map((p) => {
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const promise = new Promise<Quote>((resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error('The provider did not answer in time.'));
+        }, p.quoteTimeoutMs ?? this.timeoutMs);
+        p.getQuote(request, controller.signal).then(resolve, reject);
+      }).finally(() => clearTimeout(timer));
+      return { controller, promise };
+    });
+    const settled: (PromiseSettledResult<Quote> | undefined)[] = active.map(() => undefined);
+    await new Promise<void>((done) => {
+      let left = active.length;
+      let grace: ReturnType<typeof setTimeout> | undefined;
+      asked.forEach((a, i) => {
+        a.promise.then(
+          (value) => (settled[i] = { status: 'fulfilled', value }),
+          (reason: unknown) => (settled[i] = { status: 'rejected', reason }),
+        ).then(() => {
+          left--;
+          if (left === 0) {
+            clearTimeout(grace);
+            return done();
+          }
+          const got = settled[i];
+          if (grace === undefined && got?.status === 'fulfilled' && problemsOf(active[i]!, got.value).length === 0) grace = setTimeout(done, this.graceMs);
+        });
+      });
+    });
+    asked.forEach((a, i) => {
+      if (settled[i] === undefined) a.controller.abort();
+    });
     const routes: Quote[] = [];
     const rejected: RejectedQuote[] = [];
     settled.forEach((result, i) => {
       const providerId = active[i]!.id;
+      if (result === undefined) {
+        // A faster route was already in hand: this one is left out, and that is not held against it.
+        failures.push({ providerId, message: 'Left out: a route was already found and this one was too slow to beat it.', answered: true });
+        return;
+      }
       const fault = result.status === 'rejected' && isProviderFault(result.reason);
       this.noteResult(providerId, !fault);
       if (result.status === 'rejected') {
@@ -217,8 +271,7 @@ export class AretiaRouter {
         this.emit({ type: 'quote-failed', providerId, message });
         return;
       }
-      const problems = this.executabilityProblems(result.value, request);
-      if (!active[i]!.carriesAretiaFee && planAretiaFee(request.amountIn, request.chain, this.feeConfig, request.from.address).state === 'ready') problems.push(`An outside route was found, but it cannot collect the ${FEE_PERCENT} Aretia fee, so Aretia does not offer it.`);
+      const problems = problemsOf(active[i]!, result.value);
       if (problems.length > 0) {
         rejected.push({ providerId, reasons: problems });
         this.emit({ type: 'quote-rejected', providerId, reasons: problems });
@@ -292,7 +345,11 @@ export class AretiaRouter {
     const provider = this.providers.find((p) => p.id === quote.providerId);
     if (!provider) throw new SwingsError('invalid', 'The provider for this quote is no longer available.');
     if (summary.aretiaFee.state === 'ready' && !provider.carriesAretiaFee) throw new SwingsError('config-missing', 'This route cannot collect the Aretia fee, so it cannot be executed while the fee is on.');
-    return provider.buildTransaction(quote);
+    // Building reads the chain and simulates the swap; it is given a limit, so a stuck node ends in an answer instead of a spinner.
+    return withTimeout(() => provider.buildTransaction(quote), this.buildTimeoutMs).catch((e: unknown) => {
+      if (e instanceof Error && e.message === 'The provider did not answer in time.') throw new SwingsError('provider-failed', 'Preparing the swap took too long. Nothing was sent. Try again.');
+      throw e;
+    });
   }
 
   /** Same as buildTransaction; named for the spec. The prepared swap carries its simulation report. */
@@ -341,8 +398,8 @@ export class AretiaRouter {
     if (!execution.txId || isTerminal(execution.status)) return execution;
     const adapter = this.adapters.get(execution.chain);
     if (!adapter) return execution;
-    const deadline = this.now() + (options.timeoutMs ?? 90_000);
-    const interval = options.intervalMs ?? 2_000;
+    const deadline = this.now() + (options.timeoutMs ?? TRACK_TIMEOUT_MS);
+    const interval = options.intervalMs ?? TRACK_INTERVAL_MS;
     let status: TransactionStatus = execution.status;
     while (this.now() < deadline) {
       status = await adapter.getStatus(execution.txId);

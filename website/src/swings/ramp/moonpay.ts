@@ -19,6 +19,18 @@ export interface RampApiCatalog {
 export interface RampApiStatus {
   enabled: boolean;
   providers?: { id: string; name: string; sides: string[] }[];
+  /** Sandbox only: the kind and length of the configured keys, never the keys. */
+  keyCheck?: { publishable: string; secret: string };
+}
+
+export type RampState = 'ready' | 'unreachable' | 'off' | 'not-configured' | 'catalog-failed' | 'no-sides';
+
+/** Why buying and selling is, or is not, available right now, in words the person (or whoever runs the site) can act on. */
+export interface RampDiagnosis {
+  state: RampState;
+  summary: string;
+  /** What to check or do, one line each. */
+  steps: string[];
 }
 
 /** Calls Aretia's `/api/ramp`. Injected so tests need no network. */
@@ -49,6 +61,61 @@ export class MoonPayRampProvider implements RampProvider {
     const catalog = live ? ((await this.o.api({ action: 'catalog' }, signal)) as RampApiCatalog) : null;
     this.cache = { at: this.now(), status, catalog };
     return this.cache;
+  }
+
+  /** Forgets what was learned, so the next question asks the service again. */
+  reset(): void {
+    this.cache = null;
+  }
+
+  /**
+   * Asks the service step by step and says exactly where it stops: not reachable, switched off, no keys, keys that look wrong,
+   * MoonPay's own list not loading, or nothing offered. Never throws.
+   */
+  async diagnose(signal?: AbortSignal): Promise<RampDiagnosis> {
+    const why = (e: unknown): string => (e instanceof Error && e.message ? e.message.slice(0, 160) : 'no reason given');
+    let status: RampApiStatus;
+    try {
+      status = (await this.o.api({ action: 'status' }, signal)) as RampApiStatus;
+    } catch (e) {
+      return {
+        state: 'unreachable',
+        summary: `The Pay service could not be reached (${why(e)}).`,
+        steps: ['/api/ramp answers 404 when the server function is missing from the deployment, and 5xx when it crashed: check the latest deployment and its function logs.', 'If you are offline or the page is blocked by a browser extension, try again from another network or browser.'],
+      };
+    }
+    if (status?.enabled !== true) {
+      return { state: 'off', summary: 'Buying and selling is switched off on the server.', steps: ['In Vercel (Runtime environment), set RAMP_ENABLED=1 and redeploy.'] };
+    }
+    const kc = status.keyCheck;
+    const suspect: string[] = [];
+    if (kc) {
+      const pk = kc.publishable.split(' ')[0] ?? '';
+      const sk = kc.secret.split(' ')[0] ?? '';
+      if (pk === 'unrecognised' || !pk.startsWith('pk_')) suspect.push(`The publishable key does not look like one (the server sees: ${kc.publishable}). It should start with pk_test_ or pk_live_.`);
+      if (sk === 'unrecognised' || !sk.startsWith('sk_')) suspect.push(`The secret key does not look like one (the server sees: ${kc.secret}). It should start with sk_test_ or sk_live_.`);
+      if (pk.startsWith('pk_') && sk.startsWith('sk_') && pk.slice(3, 7) !== sk.slice(3, 7)) suspect.push('One key is a test key and the other a live key. Use two keys of the same kind from the same MoonPay account.');
+      if (/stray spaces/.test(kc.publishable + kc.secret)) suspect.push('A key has stray spaces around it. Paste it again without them.');
+    }
+    const me = (status.providers ?? []).find((p) => p.id === 'moonpay');
+    if (!me) {
+      return {
+        state: 'not-configured',
+        summary: 'MoonPay has no keys on the server, so it is not offered.',
+        steps: ['In Vercel (Runtime environment), set MoonPay\'s publishable key and its secret key (the variable names are in docs/ramp.md; mark the secret one Sensitive) and redeploy.', ...suspect],
+      };
+    }
+    try {
+      await this.o.api({ action: 'catalog' }, signal);
+    } catch (e) {
+      return {
+        state: 'catalog-failed',
+        summary: `MoonPay's country and currency list could not be loaded (${why(e)}).`,
+        steps: ['This is the public list from api.moonpay.com. It is usually a short outage: check again in a minute.', 'If it keeps failing, the server may be blocked from reaching api.moonpay.com.', ...suspect],
+      };
+    }
+    if (me.sides.length === 0) return { state: 'no-sides', summary: 'MoonPay is configured but offers neither buying nor selling.', steps: ['Check the server settings for MoonPay.', ...suspect] };
+    return { state: 'ready', summary: `MoonPay is available (${me.sides.join(' and ')}).`, steps: suspect };
   }
 
   /** What MoonPay currently offers, for filling the screen's choices. Null if the service is off or unreachable. */

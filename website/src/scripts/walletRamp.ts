@@ -5,11 +5,12 @@
  */
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
 import { publicRead, readBalance, type EvmSession } from '../swings/chains/evmSession.js';
-import { MoonPayRampProvider, type RampApiCatalog } from '../swings/ramp/moonpay.js';
+import { MoonPayRampProvider, type RampApiCatalog, type RampDiagnosis } from '../swings/ramp/moonpay.js';
 import { RampRouter, type RampSearch } from '../swings/ramp/router.js';
 import { judgeWatch, type RampWatch } from '../swings/ramp/watch.js';
 import type { RampIntent, RampQuote, RampSide } from '../swings/ramp/types.js';
 import { formatUnits } from '../swings/crosschain/view.js';
+import { currencyFor, defaultAmount, pickCountry } from './walletBuyDefaults';
 
 const CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
 const WATCH_KEY = 'aretia-swings-ramp-watch';
@@ -78,6 +79,8 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     country: store.get<string>(COUNTRY_KEY) ?? '',
     amount: '100',
     avail: undefined as { catalog: RampApiCatalog; sides: string[] } | null | undefined,
+    /** Why nothing is offered, when nothing is: asked once the availability check has failed. */
+    diag: undefined as RampDiagnosis | null | undefined,
     busy: false,
     error: null as string | null,
     search: null as RampSearch | null,
@@ -96,6 +99,13 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
   async function load(): Promise<void> {
     if (s.avail !== undefined) return;
     s.avail = await moonpay.availability();
+    if (s.avail) {
+      // Starting answers from the browser, so the person is not asked what can be worked out: their country, its currency, a sensible amount.
+      const buyable = s.avail.catalog.countries.filter((c) => c.buy);
+      s.country = pickCountry(s.country, navigator.languages?.length ? navigator.languages : [navigator.language], buyable);
+      s.fiat = currencyFor(s.country, s.avail.catalog.fiats);
+      s.amount = defaultAmount(s.fiat);
+    }
     draw();
   }
 
@@ -185,7 +195,28 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
       return void root.append(card);
     }
     if (s.avail === null) {
-      card.append(banner('warn', 'Buying and selling is not switched on, or could not be reached right now. Nothing is offered until it is confirmed.'));
+      if (s.diag === undefined) {
+        s.diag = null; // asking
+        void moonpay.diagnose().then((d) => {
+          s.diag = d;
+          draw();
+        });
+      }
+      if (!s.diag) {
+        card.append(el('p', { class: 'wapp__fine', text: 'Checking why buying and selling is not available…' }));
+        return void root.append(card);
+      }
+      const d = s.diag;
+      card.append(banner('warn', d.summary));
+      if (d.steps.length > 0) card.append(el('ul', { class: 'wapp__list' }, d.steps.map((x) => el('li', { text: x }))));
+      const again = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check again', attrs: { type: 'button' } });
+      again.addEventListener('click', () => {
+        moonpay.reset();
+        s.avail = undefined;
+        s.diag = undefined;
+        draw();
+      });
+      card.append(again);
       return void root.append(card);
     }
     const a = s.avail;

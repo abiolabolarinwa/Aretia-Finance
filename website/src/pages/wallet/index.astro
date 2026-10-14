@@ -229,12 +229,12 @@ const sendTips = [
       <section class="wapp-svc" data-services aria-labelledby="svc-title">
         <h2 class="wapp__h2" id="svc-title">Everything Aretia does</h2>
         <ul class="wapp-svc__grid">
-          <li><button type="button" class="wapp-svc__tile" data-nav="swings"><ProductLogo product="marketplace" size={44} /><strong>Marketplace</strong><span>Browse and trade markets across chains</span></button></li>
-          <li><button type="button" class="wapp-svc__tile" data-nav="send"><ProductLogo product="pay" size={44} /><strong>Pay</strong><span>Send to a name, not an address</span></button></li>
-          <li><button type="button" class="wapp-svc__tile" data-nav="carbon"><ProductLogo product="carbon" size={44} /><strong>Carbon Credit</strong><span>Registry-backed, then retired</span></button></li>
-          <li><button type="button" class="wapp-svc__tile" data-nav="shield"><ProductLogo product="shield" size={44} /><strong>Shield</strong><span>Check an address before you send</span></button></li>
-          <li><button type="button" class="wapp-svc__tile" data-nav="safesend"><ProductLogo product="safesend" size={44} /><strong>SafeSend</strong><span>Cancel a send before it lands</span></button></li>
-          <li><button type="button" class="wapp-svc__tile" data-nav="radar"><ProductLogo product="radar" size={44} /><strong>Radar</strong><span>Market and wallet signals</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="swings"><ProductLogo product="marketplace" size={28} /><strong>Marketplace</strong></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="send"><ProductLogo product="pay" size={28} /><strong>Pay</strong></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="carbon"><ProductLogo product="carbon" size={28} /><strong>Carbon Credit</strong></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="shield"><ProductLogo product="shield" size={28} /><strong>Shield</strong></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="safesend"><ProductLogo product="safesend" size={28} /><strong>SafeSend</strong></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="radar"><ProductLogo product="radar" size={28} /><strong>Radar</strong></button></li>
         </ul>
       </section>
 
@@ -1133,16 +1133,16 @@ const sendTips = [
   .wapp-dash__link, .wapp-dash__more { padding: 0; font: inherit; font-size: 13px; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: none; }
   .wapp-dash__link:hover, .wapp-dash__more:hover { text-decoration: underline; }
   /* The services as a 3 by 2 matrix: always on the dashboard, connected or not, each tile opens its screen. */
-  .wapp-svc { display: none; gap: 12px; }
+  .wapp-svc { display: none; gap: 8px; max-width: 640px; margin-inline: auto; width: 100%; }
   .wapp[data-view='dashboard'] .wapp-svc { display: grid; }
-  .wapp-svc__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .wapp-svc .wapp__h2 { margin: 0; font-size: 13px; }
+  .wapp-svc__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
   .wapp-svc__grid li { display: flex; }
-  .wapp-svc__tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 18px; font: inherit; text-align: left; color: var(--color-strong); background: #fff; border: 1px solid #e4e6ec; border-radius: var(--radius-lg); cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease; }
-  .wapp-svc__tile .pl { margin-bottom: 10px; }
-  .wapp-svc__tile strong { font-size: 15px; }
-  .wapp-svc__tile span { font-size: 13px; line-height: 1.4; color: var(--color-muted); }
+  .wapp-svc__tile { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; font: inherit; text-align: left; color: var(--color-strong); background: #fff; border: 1px solid #e4e6ec; border-radius: var(--radius-md); cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease; }
+  .wapp-svc__tile .pl { flex: none; }
+  .wapp-svc__tile strong { min-width: 0; font-size: 13px; line-height: 1.2; }
   .wapp-svc__tile:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-  @media (hover: hover) { .wapp-svc__tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); } }
+  @media (hover: hover) { .wapp-svc__tile:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); } }
   @media (max-width: 559px) { .wapp-svc__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .wapp-dash__more:focus-visible, .wapp-dash__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   .wapp-dash__recent-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }

@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import ProductLogo from '../../components/brand/ProductLogo.astro';
 import { ACT, PRODUCTS } from '../../data/site';
 import { CHAINS } from '../../swings/core/types';
 
@@ -215,17 +216,6 @@ const sendTips = [
             <a class="wapp-dash__link" data-solscan target="_blank" rel="noopener noreferrer" href="https://solscan.io">View on Solscan ↗</a>
           </section>
 
-          <section class="wapp__card wapp-dash__tools" aria-labelledby="dash-tools">
-            <h2 class="wapp__h2" id="dash-tools">Do more with Aretia</h2>
-            <ul class="wapp-dash__toollist">
-              <li><button type="button" class="wapp-dash__tool" data-nav="send"><span class="wapp-dash__tool-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M7 17L17 7M9 7h8v8" /></svg></span><span class="wapp-dash__tool-text"><strong>Pay by name</strong><span>Send to a .sns name, not a long address</span></span></button></li>
-              <li><button type="button" class="wapp-dash__tool" data-nav="shield"><span class="wapp-dash__tool-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg></span><span class="wapp-dash__tool-text"><strong>Shield</strong><span>Check an address before you send</span></span></button></li>
-              <li><button type="button" class="wapp-dash__tool" data-nav="intent"><span class="wapp-dash__tool-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg></span><span class="wapp-dash__tool-text"><strong>Intent</strong><span>Type what you want, then review it</span></span></button></li>
-              <li><button type="button" class="wapp-dash__tool" data-nav="safesend"><span class="wapp-dash__tool-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6zM9 12l2 2 4-4" /></svg></span><span class="wapp-dash__tool-text"><strong>SafeSend <em>Not on mainnet yet</em></strong><span>Hold a transfer so you can cancel it</span></span></button></li>
-              <li><button type="button" class="wapp-dash__tool" data-nav="universal"><span class="wapp-dash__tool-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg></span><span class="wapp-dash__tool-text"><strong>Universal <em>Testnet</em></strong><span>Move ACT between Solana and Ethereum</span></span></button></li>
-            </ul>
-          </section>
-
           <section class="wapp__card wapp-dash__recent" aria-labelledby="dash-recent">
             <div class="wapp-dash__head">
               <h2 class="wapp__h2" id="dash-recent">Recent activity</h2>
@@ -235,6 +225,18 @@ const sendTips = [
           </section>
         </aside>
       </div>
+
+      <section class="wapp-svc" data-services aria-labelledby="svc-title">
+        <h2 class="wapp__h2" id="svc-title">Everything Aretia does</h2>
+        <ul class="wapp-svc__grid">
+          <li><button type="button" class="wapp-svc__tile" data-nav="swings"><ProductLogo product="marketplace" size={44} /><strong>Marketplace</strong><span>Browse and trade markets across chains</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="send"><ProductLogo product="pay" size={44} /><strong>Pay</strong><span>Send to a name, not an address</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="carbon"><ProductLogo product="carbon" size={44} /><strong>Carbon Credit</strong><span>Registry-backed, then retired</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="shield"><ProductLogo product="shield" size={44} /><strong>Shield</strong><span>Check an address before you send</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="safesend"><ProductLogo product="safesend" size={44} /><strong>SafeSend</strong><span>Cancel a send before it lands</span></button></li>
+          <li><button type="button" class="wapp-svc__tile" data-nav="radar"><ProductLogo product="radar" size={44} /><strong>Radar</strong><span>Market and wallet signals</span></button></li>
+        </ul>
+      </section>
 
       <div data-pane="send" class="wapp__pane" hidden>
         <div class="wapp__stack wapp-pay">
@@ -1130,14 +1132,20 @@ const sendTips = [
   .wapp-dash__evm[hidden] { display: none; }
   .wapp-dash__link, .wapp-dash__more { padding: 0; font: inherit; font-size: 13px; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: none; }
   .wapp-dash__link:hover, .wapp-dash__more:hover { text-decoration: underline; }
-  .wapp-dash__toollist, .wapp-dash__recent-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-  .wapp-dash__tool { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 8px; font: inherit; text-align: left; color: var(--color-strong); background: none; border: 0; border-radius: 14px; cursor: pointer; transition: background-color 160ms ease; }
-  .wapp-dash__tool:hover { background: var(--color-bg-alt); }
-  .wapp-dash__tool:focus-visible, .wapp-dash__more:focus-visible, .wapp-dash__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-  .wapp-dash__tool-art { display: grid; flex: none; place-items: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, #4a2ee0, #26168a); border-radius: 12px; }
-  .wapp-dash__tool-text { display: grid; gap: 1px; min-width: 0; font-size: 12px; color: var(--color-muted); }
-  .wapp-dash__tool-text strong { font-size: 14px; color: var(--color-strong); }
-  .wapp-dash__tool-text em { margin-left: 6px; padding: 1px 7px; font-size: 10px; font-style: normal; font-weight: 600; color: var(--color-muted); background: var(--color-bg-alt); border-radius: var(--radius-pill); }
+  /* The services as a 3 by 2 matrix: always on the dashboard, connected or not, each tile opens its screen. */
+  .wapp-svc { display: none; gap: 12px; }
+  .wapp[data-view='dashboard'] .wapp-svc { display: grid; }
+  .wapp-svc__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .wapp-svc__grid li { display: flex; }
+  .wapp-svc__tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 18px; font: inherit; text-align: left; color: var(--color-strong); background: #fff; border: 1px solid #e4e6ec; border-radius: var(--radius-lg); cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease; }
+  .wapp-svc__tile .pl { margin-bottom: 10px; }
+  .wapp-svc__tile strong { font-size: 15px; }
+  .wapp-svc__tile span { font-size: 13px; line-height: 1.4; color: var(--color-muted); }
+  .wapp-svc__tile:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  @media (hover: hover) { .wapp-svc__tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); } }
+  @media (max-width: 559px) { .wapp-svc__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .wapp-dash__more:focus-visible, .wapp-dash__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-dash__recent-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
   .wapp-dash__recent-list li { display: flex; align-items: center; gap: 10px; padding: 8px 2px; font-size: 13px; border-top: 1px solid var(--color-border); }
   .wapp-dash__recent-list li:first-child { border-top: 0; }
   .wapp-dash__recent-list .wapp-sub { padding: 4px 0; }

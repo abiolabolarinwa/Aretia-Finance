@@ -81,7 +81,10 @@ export function cleanTrade(v: unknown, account: string): { id: string; at: numbe
   const acct = typeof o.account === 'string' ? o.account : '';
   const same = chain === 'solana' ? acct === account : acct.toLowerCase() === account.toLowerCase();
   if (!same) return null;
-  return { id, at, data: { id, at, account: acct, chain, provider, fromSymbol, toSymbol, amountIn, expectedOut, txId, status } };
+  // The tokens' addresses are kept when they are plain strings of a sensible length, so the activity list can open the token.
+  const fromAddress = typeof o.fromAddress === 'string' && o.fromAddress.length >= 20 && o.fromAddress.length <= 100 ? cleanText(o.fromAddress, 100) : '';
+  const toAddress = typeof o.toAddress === 'string' && o.toAddress.length >= 20 && o.toAddress.length <= 100 ? cleanText(o.toAddress, 100) : '';
+  return { id, at, data: { id, at, account: acct, chain, provider, fromSymbol, toSymbol, amountIn, expectedOut, txId, status, ...(fromAddress ? { fromAddress } : {}), ...(toAddress ? { toAddress } : {}) } };
 }
 
 export async function handleAccount(input: AccountInput): Promise<AccountOutput> {

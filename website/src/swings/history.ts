@@ -19,6 +19,9 @@ export interface HistoryItem {
   expectedOut: string;
   txId: string | null;
   status: TransactionStatus;
+  /** The two tokens' addresses, so the activity list can open their chart and details. Absent on swaps saved before this was kept. */
+  fromAddress?: string;
+  toAddress?: string;
 }
 
 export interface StorageLike {
@@ -44,7 +47,9 @@ const valid = (v: unknown): v is HistoryItem => {
     typeof o.amountIn === 'string' &&
     typeof o.expectedOut === 'string' &&
     (o.txId === null || typeof o.txId === 'string') &&
-    STATUSES.includes(o.status as TransactionStatus)
+    STATUSES.includes(o.status as TransactionStatus) &&
+    (o.fromAddress === undefined || typeof o.fromAddress === 'string') &&
+    (o.toAddress === undefined || typeof o.toAddress === 'string')
   );
 };
 

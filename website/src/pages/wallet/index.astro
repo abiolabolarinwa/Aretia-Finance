@@ -1178,6 +1178,9 @@ const sendTips = [
   .wapp__swap-go:disabled { cursor: not-allowed; opacity: 0.55; }
   /* The token list is a dropdown under the token button that was pressed, over the rest of the card, not a block further down. */
   /* "Alerts on your phone": the card on the Favourites page that links Telegram and this browser. */
+  .wapp-act__token { padding: 0; font: inherit; font-weight: 700; color: var(--color-brand); text-decoration: underline; text-underline-offset: 2px; background: none; border: 0; cursor: pointer; }
+  .wapp-act__token:hover { color: var(--color-strong); }
+  .wapp-act__token:disabled { cursor: progress; opacity: 0.6; }
   .wapp-pa { display: grid; gap: 10px; padding: 16px 18px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
   .wapp-pa__title { margin: 0; font-size: 1.05rem; }
   .wapp-pa__rows { display: grid; gap: 8px; }

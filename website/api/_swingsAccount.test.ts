@@ -168,4 +168,13 @@ describe('the account endpoint', () => {
     expect(cleanTrade(item, 'soladdr')).toBeNull();
     expect(cleanTrade({ ...item, status: 'weird' }, 'SoLAddr')).toBeNull();
   });
+
+  it('cleanTrade keeps the two token addresses when they are sensible, and drops them when they are not', () => {
+    const item = { id: 'a', at: 1, account: 'SoLAddr', chain: 'solana', provider: 'p', fromSymbol: 'A', toSymbol: 'B', amountIn: '1', expectedOut: '1', txId: null, status: 'confirmed' };
+    const mint = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
+    expect(cleanTrade({ ...item, fromAddress: mint, toAddress: mint }, 'SoLAddr')?.data).toMatchObject({ fromAddress: mint, toAddress: mint });
+    const bad = cleanTrade({ ...item, fromAddress: 'x', toAddress: 5 }, 'SoLAddr')?.data;
+    expect(bad).not.toHaveProperty('fromAddress');
+    expect(bad).not.toHaveProperty('toAddress');
+  });
 });

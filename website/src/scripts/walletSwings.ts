@@ -45,7 +45,7 @@ import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { sponsorBlock } from './walletSponsor.js';
-import type { SearchHit } from '../swings/tokens/globalSearch.js';
+import { searchTokens as searchEverywhere, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
 import { CHAINS, CHAIN_IDS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId, type PreparedSwap, type Quote, type SwapExecution, type TokenRecord, type TokenRisk } from '../swings/core/types.js';
@@ -751,6 +751,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       expectedOut: fromSmallestUnit(quote.expectedOut, s.to.decimals),
       txId: execution.txId ?? null,
       status: execution.status,
+      fromAddress: s.from.mint,
+      toAddress: s.to.mint,
     };
     history.save(item);
     pushTrades();
@@ -1934,6 +1936,36 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   // ------------------------------------------------------------------ Activity
 
+  /**
+   * A traded token as a button that opens its details and chart on Markets. When the swap was saved with the token's address that is
+   * used; an older one is looked up by its symbol on the same network (the best-traded match), and if nothing matches, the symbol
+   * is put in the search box.
+   */
+  function tokenLink(i: HistoryItem, symbol: string, address: string | undefined): HTMLElement {
+    const b = el('button', { class: 'wapp-act__token', text: symbol, attrs: { type: 'button', title: `Open ${symbol}: chart and details` } });
+    b.addEventListener('click', () => {
+      const open = (hit: { address: string; name: string; icon: string | null; symbol: string }): void => {
+        window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain: i.chain, address: hit.address, symbol: hit.symbol, name: hit.name, icon: hit.icon, page: 'swings' } }));
+      };
+      if (address && address !== EVM_NATIVE_ADDRESS && address !== SOL_MINT) return open({ address, name: symbol, icon: null, symbol });
+      b.disabled = true;
+      void searchEverywhere(symbol, undefined, undefined, { accept: (h) => h.chain === i.chain && h.symbol.toUpperCase() === symbol.toUpperCase(), limit: 3 })
+        .then((hits) => {
+          const best = hits[0];
+          if (best) return open(best);
+          const box = document.querySelector<HTMLInputElement>('.wapp-search__input');
+          if (box) {
+            box.value = symbol;
+            box.dispatchEvent(new Event('input', { bubbles: true }));
+            box.focus();
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => { b.disabled = false; });
+    });
+    return b;
+  }
+
   function renderActivity(): void {
     activityPanel.replaceChildren();
     const card = activityPanel;
@@ -1965,8 +1997,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const price = s.priceUsd !== null ? `$${sig3(s.priceUsd)}` : `${sig3(s.priceInQuote ?? 0)} ${s.quote.symbol}`;
         const verb = s.kind === 'bought' ? 'Bought' : 'Sold';
         const money = s.kind === 'bought' ? `paid ${i.amountIn} ${i.fromSymbol}` : `expected ${i.expectedOut} ${i.toSymbol}`;
-        row.append(el('div', {}, [el('strong', { text: `${verb} ${s.token.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${s.token.symbol}` }), el('span', { text: `${price} each · ${money} · ${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()}` })]));
-      } else row.append(el('div', {}, [el('strong', { text: `${i.amountIn} ${i.fromSymbol} → ${i.toSymbol}` }), el('span', { text: `${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()} · expected ${i.expectedOut} ${i.toSymbol}` })]));
+        // The token itself is a button: it opens that token's details and chart on Markets.
+        const heading = el('strong', { text: `${verb} ${s.token.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })} ` });
+        heading.append(tokenLink(i, s.token.symbol, s.kind === 'bought' ? i.toAddress : i.fromAddress));
+        row.append(el('div', {}, [heading, el('span', { text: `${price} each · ${money} · ${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()}` })]));
+      } else {
+        const heading = el('strong', { text: `${i.amountIn} ${i.fromSymbol} → ` });
+        heading.append(tokenLink(i, i.toSymbol, i.toAddress));
+        row.append(el('div', {}, [heading, el('span', { text: `${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()} · expected ${i.expectedOut} ${i.toSymbol}` })]));
+      }
       const right = el('div', { class: 'wapp__row-actions' });
       right.append(el('span', { class: `wapp__state wapp__state--${i.status === 'confirmed' ? 'on' : i.status === 'failed' ? 'warn' : 'off'}`, text: i.status }));
       if (i.txId) right.append(el('a', { text: 'View', attrs: { href: EXPLORER_TX[i.chain] + encodeURIComponent(i.txId), target: '_blank', rel: 'noopener noreferrer' } }));

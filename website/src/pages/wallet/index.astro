@@ -273,8 +273,10 @@ const sendTips = [
                 )}
                 <label for="send-asset" class="wapp__eyebrow">Asset</label>
                 <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
+                <div class="wapp-assetcard" data-send-asset-card hidden></div>
                 <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
                 <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
+                <div class="wapp-recent" data-send-recent hidden aria-label="Recent recipients"></div>
                 <label for="send-amount" class="wapp__eyebrow">Amount</label>
                 <div class="wapp__amount">
                   <input id="send-amount" class="wapp__input" data-send-amount inputmode="decimal" autocomplete="off" placeholder="0.0" />
@@ -1340,6 +1342,16 @@ const sendTips = [
   @media (max-width: 860px) { .wapp-pay__hub { grid-template-columns: minmax(0, 1fr); } }
   /* Pay is a few forms, not a dashboard: on a wide screen it stays one readable column, centred, instead of stretching edge to edge. */
   .wapp-pay { width: 100%; max-width: 1080px; justify-self: center; }
+  .wapp-assetcard { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--wapp-line, rgba(127,127,127,0.25)); border-radius: 10px; }
+  .wapp-assetcard[hidden], .wapp-recent[hidden] { display: none; }
+  .wapp-assetcard__icon { width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; }
+  .wapp-assetcard__icon--blank { display: inline-grid; place-items: center; background: rgba(127,127,127,0.2); font-weight: 600; }
+  .wapp-assetcard__text { display: grid; min-width: 0; line-height: 1.2; }
+  .wapp-assetcard__text span { opacity: 0.7; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-assetcard__amount { margin-left: auto; text-align: right; font-size: 0.9em; }
+  .wapp-recent { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+  .wapp-chip { padding: 0.2rem 0.6rem; font-size: 0.85em; }
+  .wapp-save { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
   .wapp-pay [data-pay-panel='ramp'], .wapp-pay [data-pay-panel='transfer'] { width: 100%; max-width: 680px; justify-self: center; }
   /* The page title lines up with the centred column below it. */
   .wapp[data-view='send'] .wapp__top h1 { width: 100%; max-width: 1080px; margin-inline: auto; }

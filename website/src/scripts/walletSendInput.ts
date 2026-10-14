@@ -47,3 +47,35 @@ export function sendAssetLabel(h: { mint: string; symbol: string; name: string; 
   const tail = h.mint !== nativeMint && (duplicated || !h.name) ? ` · ${short(h.mint)}` : '';
   return `${h.symbol}${name} · ${amount}${tail}`;
 }
+
+/** An address the person has used before, as the Send page offers it again. */
+export interface RecentRecipient {
+  address: string;
+  /** The name they gave it, or null. */
+  label: string | null;
+  trusted: boolean;
+  lastUsed: number;
+}
+
+/**
+ * The few addresses worth offering as one-tap choices: Solana addresses only (an Ethereum-style one cannot be sent to here), the
+ * saved and named ones first, then the most recently used, at most `max`. Anything that is not a plain Solana address is dropped.
+ */
+export function recentRecipients(book: readonly RecentRecipient[], max = 5): RecentRecipient[] {
+  return book
+    .filter((k) => isSolanaAddress(k.address))
+    .sort((a, b) => Number(b.trusted) - Number(a.trusted) || b.lastUsed - a.lastUsed)
+    .slice(0, max);
+}
+
+/** What to write on the one-tap choice: the name if there is one, otherwise the start and end of the address. */
+export function recipientChipText(r: Pick<RecentRecipient, 'address' | 'label'>): string {
+  return r.label ? r.label : `${r.address.slice(0, 4)}…${r.address.slice(-4)}`;
+}
+
+/** The balance left in the wallet after a send, in the smallest unit: never below zero. */
+export function leftAfterSend(balanceRaw: string | null, amountRaw: bigint, feeRaw: bigint): bigint | null {
+  if (balanceRaw === null || !/^\d+$/.test(balanceRaw)) return null;
+  const left = BigInt(balanceRaw) - amountRaw - feeRaw;
+  return left > 0n ? left : 0n;
+}

@@ -14,6 +14,7 @@
  * blocks execution; nothing falls back to another address.
  */
 import { SWAP_FEE_WALLET } from './solanaTools.js';
+import { isFeeAsset } from './feeAssets.js';
 import { CHAIN_IDS, type AretiaChainFeeConfig, type AretiaFeeConfig, type AretiaFeePolicy, type ChainId } from './types.js';
 
 /** The rate: 58 basis points, 0.58%. */
@@ -68,6 +69,20 @@ export function validateFeeConfig(config: AretiaFeeConfig): void {
   for (const id of CHAIN_IDS) {
     if (config.chains[id]?.chainId !== id) throw new Error(`Fee config for ${id} is missing or mislabelled.`);
   }
+}
+
+/** Which side of a swap pays the Aretia fee: the amount entered ('input'), or what is received ('output'). */
+export type FeeSide = 'input' | 'output';
+
+/**
+ * Solana only. When a token that is not SOL, USDC or USDT is sold for one of those three, the fee is taken from what is RECEIVED, in
+ * that asset, after the swap and in the same transaction. The fee wallet then only ever receives SOL, USDC or USDT, whose accounts it
+ * already has, instead of an arbitrary token that costs the seller account rent and can be taxed, blocked or impossible to sell.
+ * Every other swap (a buy, SOL, USDC or USDT sold, or one token swapped for another) pays on the amount entered, as before. The rate
+ * is the same either way; only the side differs.
+ */
+export function solanaFeeSide(from: string, to: string): FeeSide {
+  return !isFeeAsset('solana', from) && isFeeAsset('solana', to) ? 'output' : 'input';
 }
 
 export type FeePlan =

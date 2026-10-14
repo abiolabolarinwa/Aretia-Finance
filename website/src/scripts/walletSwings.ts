@@ -1031,7 +1031,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const impactBps = s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000);
     const mev = assessMevExposure(quote.request.slippageBps, impactBps);
     const rows: [string, string][] = [
-      ['You pay', `${fmt(sum.swap.amountIn + sum.aretiaFee.amount, from.decimals)} ${from.symbol}`],
+      ['You pay', `${fmt(sum.swap.amountIn + (quote.costs.aretiaFee.takenFrom === 'received' ? 0n : sum.aretiaFee.amount), from.decimals)} ${from.symbol}`],
       ['You receive (expected)', `${fmt(sum.swap.expectedOut, to.decimals)} ${to.symbol}`],
       ['Minimum you will receive', `${fmt(sum.swap.minOut, to.decimals)} ${to.symbol}`],
       ['Slippage allowed', `${(quote.request.slippageBps / 100).toFixed(2)}%`],
@@ -1040,7 +1040,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       ['Route', sum.swap.route.join(' + ') || 'Not reported'],
       ['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}; shown by your wallet before you sign`],
       ['DEX / provider fee', sum.provider ? 'Included' : 'Included in the quoted price'],
-      ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT}), taken from the amount you entered` : 'Paused: the fee address is not set up for this network yet'],
+      ['Aretia fee', sum.aretiaFee.state === 'off' ? 'None' : sum.aretiaFee.state === 'ready' ? (quote.costs.aretiaFee.takenFrom === 'received' ? `${fmt(sum.aretiaFee.amount, to.decimals)} ${to.symbol} (${FEE_PERCENT}), taken from the amount you receive; the amounts above are after it` : `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT}), taken from the amount you entered`) : 'Paused: the fee address is not set up for this network yet'],
       ['Priced and built by', providerLabel(quote.providerId)],
     ];
     const dl = el('dl', { class: 'wapp__rows' });

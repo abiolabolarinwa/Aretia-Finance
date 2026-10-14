@@ -175,14 +175,19 @@ export class AretiaRouter {
     if (quote.expectedOut <= 0n) problems.push('The quote returns nothing.');
     if (quote.minOut <= 0n) problems.push('The quote has no minimum output.');
     if (quote.minOut > quote.expectedOut) problems.push('The quote is inconsistent: minimum is above expected output.');
-    // What the user entered is what is swapped plus the Aretia fee taken out of it.
-    if (quote.inAmount + quote.costs.aretiaFee.amount !== request.amountIn) problems.push('The quote is for a different amount than you entered.');
+    // The Aretia fee comes either out of the amount entered (what is swapped plus the fee is what the user entered) or, for a Solana sale into
+    // SOL, USDC or USDT, out of what is received (the whole amount entered is swapped, and the quoted output is already net of the fee).
+    const feeFromOutput = quote.costs.aretiaFee.takenFrom === 'received';
+    const feeOnInput = feeFromOutput ? 0n : quote.costs.aretiaFee.amount;
+    const feeOnOutput = feeFromOutput ? quote.costs.aretiaFee.amount : 0n;
+    if (quote.inAmount + feeOnInput !== request.amountIn) problems.push('The quote is for a different amount than you entered.');
     if (!sameToken(quote.request.from, request.from) || !sameToken(quote.request.to, request.to)) problems.push('The quote is for different tokens than you chose.');
     if (quote.request.chain !== request.chain) problems.push('The quote is for a different network.');
     if (quote.priceImpactBps !== null && quote.priceImpactBps > this.maxImpact) problems.push(`Price impact ${(quote.priceImpactBps / 100).toFixed(2)}% is above the limit.`);
     // Slippage promise: the minimum must honour the slippage the user chose.
-    const floor = (quote.expectedOut * BigInt(10_000 - request.slippageBps)) / 10_000n;
-    if (quote.minOut < floor) problems.push('The quote accepts more slippage than you chose.');
+    // Measured on what the swap itself pays, before an output-side fee: the on-chain floor is what the slippage setting controls.
+    const floor = ((quote.expectedOut + feeOnOutput) * BigInt(10_000 - request.slippageBps)) / 10_000n;
+    if (quote.minOut + feeOnOutput < floor) problems.push('The quote accepts more slippage than you chose.');
     return problems;
   }
 

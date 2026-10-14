@@ -227,8 +227,10 @@ describe('DirectSolanaProvider', () => {
   const req: SwapRequest = { chain: 'solana', from: { chain: 'solana', address: WSOL_MINT }, to: { chain: 'solana', address: USDC }, amountIn: 10_000_000n, slippageBps: 100, account: { chain: 'solana', address: USER } };
 
   /** A fake RPC holding one deep and one shallow pool for SOL/USDC, and a simulator whose answer is controlled. */
-  function rpcWith(opts: { sim?: 'ok' | 'fail'; wsolHolds?: boolean; payoutShortfall?: bigint; second?: { fee: bigint; r0: bigint; r1: bigint }; watchPayout?: bigint } = {}) {
+  function rpcWith(opts: { pair?: [string, string]; sim?: 'ok' | 'fail'; wsolHolds?: boolean; payoutShortfall?: bigint; second?: { fee: bigint; r0: bigint; r1: bigint }; watchPayout?: bigint } = {}) {
     const store = new Map<string, { data: [string, string]; owner: string; lamports?: number }>();
+    // The pools are for WSOL/USDC unless a pair is given (a sale of some other token for USDC or SOL, say).
+    const [p0, p1] = opts.pair ? sortMints(web3, opts.pair[0], opts.pair[1]) : [m0, m1];
     const b64 = (d: Uint8Array) => btoa(String.fromCharCode(...d));
     const watchToken = (amount: bigint) => {
       const t = new Uint8Array(165);
@@ -238,12 +240,12 @@ describe('DirectSolanaProvider', () => {
     };
     const mk = (index: number, fee: bigint, r0: bigint, r1: bigint) => {
       const config = adapterForAddresses.configAddress(index);
-      const poolAddr = adapterForAddresses.poolAddress(config, m0, m1);
+      const poolAddr = adapterForAddresses.poolAddress(config, p0, p1);
       const v0 = rnd();
       const v1 = rnd();
       const d = new Uint8Array(645);
       const put = (o: number, k: string) => d.set(new web3.PublicKey(k).toBytes(), o);
-      put(8, config); put(72, v0); put(104, v1); put(168, m0); put(200, m1); put(232, TOKEN_PROGRAM_ID); put(264, TOKEN_PROGRAM_ID); put(296, rnd());
+      put(8, config); put(72, v0); put(104, v1); put(168, p0); put(200, p1); put(232, TOKEN_PROGRAM_ID); put(264, TOKEN_PROGRAM_ID); put(296, rnd());
       const cfg = new Uint8Array(236);
       new DataView(cfg.buffer).setUint16(10, index, true);
       new DataView(cfg.buffer).setBigUint64(12, fee, true);
@@ -276,7 +278,9 @@ describe('DirectSolanaProvider', () => {
       if (method === 'getLatestBlockhash') return { value: { blockhash: web3.PublicKey.default.toBase58() } };
       if (method === 'simulateTransaction') {
         if (opts.sim === 'fail') return { value: { err: { InstructionError: [4, 'Custom'] }, logs: ['Program log: Error: ExceededSlippage'], accounts: null } };
-        const out = (store.get(deep) ? getAmountOutCpmm(10_000_000n, 500_000_000_000n, 100_000_000_000n, 2500) : 0n) - (opts.payoutShortfall ?? 0n);
+        const inIsFirst = !opts.pair || opts.pair[0] === p0;
+        const gross = inIsFirst ? getAmountOutCpmm(10_000_000n, 500_000_000_000n, 100_000_000_000n, 2500) : getAmountOutCpmm(10_000_000n, 100_000_000_000n, 500_000_000_000n, 2500);
+        const out = (store.get(deep) ? gross : 0n) - (opts.payoutShortfall ?? 0n);
         const t = new Uint8Array(165);
         new DataView(t.buffer).setBigUint64(64, out, true);
         t[108] = 1;
@@ -481,6 +485,143 @@ describe('DirectSolanaProvider', () => {
       const i = built.steps.indexOf('prelude step');
       expect(i).toBeGreaterThan(0);
       expect(built.steps.indexOf('swap')).toBeGreaterThan(i);
+    });
+
+    it('the route builder runs a postlude after the swaps and after the wSOL is unwrapped, so a fee can be taken from what arrived', async () => {
+      const { buildRouteTransaction } = await import('./builder.js');
+      const dest = new web3.Keypair().publicKey.toBase58();
+      const built = await buildRouteTransaction(web3, {
+        user: USER,
+        steps: [{ tokenIn: { chain: 'solana', address: USDC }, tokenOut: { chain: 'solana', address: WSOL_MINT }, programIn: TOKEN_PROGRAM_ID, programOut: TOKEN_PROGRAM_ID, amountIn: 5n, label: 'swap', swapInstruction: async () => web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(USER), toPubkey: new web3.PublicKey(dest), lamports: 1 }) }],
+        nativeIn: false,
+        nativeOut: true,
+        closeWsol: true,
+        recentBlockhash: web3.PublicKey.default.toBase58(),
+        tip: { account: JITO_TIP_ACCOUNTS[0]!, lamports: 1000 },
+        postlude: () => ({ ixs: [web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(USER), toPubkey: new web3.PublicKey(dest), lamports: 7 })], steps: ['postlude step'] }),
+      });
+      const swap = built.steps.indexOf('swap');
+      const unwrap = built.steps.findIndex((s) => /Unwrap/.test(s));
+      const post = built.steps.indexOf('postlude step');
+      const tip = built.steps.findIndex((s) => /tip/.test(s));
+      expect(swap).toBeGreaterThan(0);
+      expect(unwrap).toBeGreaterThan(swap);
+      expect(post).toBeGreaterThan(unwrap);
+      expect(tip).toBeGreaterThan(post);
+    });
+
+    describe('selling a token for SOL, USDC or USDT: the fee comes out of what is received', () => {
+      const TOKEN_X = rnd();
+      const TOKEN_Y = rnd();
+      const ref = (address: string) => ({ chain: 'solana' as const, address });
+      const sale = (to: string, amountIn = 10_000_000n): SwapRequest => ({ ...req, from: ref(TOKEN_X), to: ref(to), amountIn });
+      const treasuryUsdc = (): string => ataAddress(web3, TREASURY, USDC, TOKEN_PROGRAM_ID);
+      /** The harness with a pool for the pair, USDC's mint readable, and the fee wallet's USDC account already open (as it is in production). */
+      const world = (pair: [string, string], o: { wsolHolds?: boolean } = {}) => {
+        const base = rpcWith({ pair, ...(o.wsolHolds ? { wsolHolds: true } : {}) }).rpc;
+        return (async (method: string, params: unknown[]) => {
+          if (method === 'getAccountInfo' && params[0] === treasuryUsdc()) return { value: { data: ['', 'base64'], owner: TOKEN_PROGRAM_ID } };
+          if (method === 'getMinimumBalanceForRentExemption') return 2_039_280;
+          return withMint(base)(method, params);
+        }) as SolRpc;
+      };
+      const raw = (q: { raw: unknown }) => q.raw as { fee?: { amount: bigint; mint: string; native: boolean; side?: string; treasury: string }; legs: { amountIn: bigint; minOut: bigint }[] };
+
+      it('leaves the amount entered whole, takes 0.58% of the quoted output, and shows what is received net of it', async () => {
+        const pair: [string, string] = [TOKEN_X, USDC];
+        const off = await provider(world(pair)).getQuote(sale(USDC)); // the same trade with no fee policy: the gross figures
+        const q = await withFee(world(pair), fee()).getQuote(sale(USDC));
+        const f = (off.expectedOut * 58n) / 10_000n;
+        expect(f).toBeGreaterThan(0n);
+        expect(q.inAmount).toBe(10_000_000n);
+        expect(raw(q).legs[0]!.amountIn).toBe(10_000_000n);
+        expect(raw(q).fee).toMatchObject({ amount: f, mint: USDC, native: false, side: 'output', treasury: TREASURY });
+        expect(q.expectedOut).toBe(off.expectedOut - f);
+        expect(q.minOut).toBe(off.minOut - f);
+        expect(raw(q).legs[0]!.minOut).toBe(off.minOut); // the on-chain floor of the swap itself is unchanged
+        expect(q.costs.aretiaFee).toMatchObject({ amount: f, asset: { address: USDC }, takenFrom: 'received' });
+        expect(q.request.amountIn).toBe(10_000_000n);
+      });
+
+      it('does the same for a sale into SOL, with the fee in SOL', async () => {
+        const pair: [string, string] = [TOKEN_X, WSOL_MINT];
+        const off = await provider(world(pair)).getQuote(sale(WSOL_MINT));
+        const q = await withFee(world(pair), fee()).getQuote(sale(WSOL_MINT));
+        const f = (off.expectedOut * 58n) / 10_000n;
+        expect(raw(q).fee).toMatchObject({ amount: f, mint: WSOL_MINT, native: true, side: 'output' });
+        expect(q.inAmount).toBe(10_000_000n);
+        expect(q.expectedOut).toBe(off.expectedOut - f);
+      });
+
+      it('mentions no account rent for a sold token: the fee wallet is paid in an asset it already holds', async () => {
+        const q = await withFee(world([TOKEN_X, USDC]), fee()).getQuote(sale(USDC));
+        expect(q.notes?.join(' ') ?? '').not.toMatch(/rent|no account for this token/);
+      });
+
+      it('still takes the fee from the amount entered when SOL, USDC or USDT is sold, or one token is swapped for another', async () => {
+        const buy = await withFee(world([USDC, TOKEN_X]), fee()).getQuote({ ...req, from: ref(USDC), to: ref(TOKEN_X), amountIn: 1_000_000n });
+        expect(raw(buy).fee).toMatchObject({ amount: 5_800n, mint: USDC, side: 'input' });
+        expect(buy.inAmount).toBe(994_200n);
+        const swap = await withFee(world([TOKEN_X, TOKEN_Y]), fee()).getQuote({ ...req, from: ref(TOKEN_X), to: ref(TOKEN_Y), amountIn: 10_000_000n });
+        expect(raw(swap).fee).toMatchObject({ amount: 58_000n, mint: TOKEN_X, side: 'input' });
+        expect(swap.inAmount).toBe(9_942_000n);
+      });
+
+      it('charges nothing, and shows the gross figures, when the output is too small for a whole unit of fee', async () => {
+        const q = await withFee(world([TOKEN_X, USDC]), fee()).getQuote(sale(USDC, 30n));
+        expect(raw(q).fee).toBeUndefined();
+        expect(q.costs.aretiaFee.amount).toBe(0n);
+        expect(q.inAmount).toBe(30n);
+      });
+
+      it('is reported by the summary as a fee that is ready, in the amount taken', async () => {
+        const { summarizeQuote } = await import('../core/summary.js');
+        const q = await withFee(world([TOKEN_X, USDC]), fee()).getQuote(sale(USDC));
+        expect(summarizeQuote(q).aretiaFee).toMatchObject({ state: 'ready', amount: raw(q).fee!.amount });
+      });
+
+      it('is accepted by the router: the amount entered still matches, and the slippage promise is measured on what the swap itself guarantees', async () => {
+        const providers = [withFee(world([TOKEN_X, USDC]), fee())] as never;
+        const router = new AretiaRouter({ providers, adapters: [], feeConfig: fee(), now: () => 1_000_000, isChainEnabled: () => true });
+        const found = await router.findRoutes(sale(USDC));
+        expect(found.rejected).toEqual([]);
+        expect(found.routes.map((r) => r.providerId)).toEqual(['aretia-sol']);
+        const quote = found.routes[0]!;
+        expect(router.executabilityProblems(quote, sale(USDC))).toEqual([]);
+        // The router still refuses a quote that is for another amount, and one that accepts more slippage than chosen.
+        expect(router.executabilityProblems({ ...quote, inAmount: quote.inAmount - 1n }, sale(USDC)).join(' ')).toMatch(/different amount/);
+        expect(router.executabilityProblems({ ...quote, minOut: quote.minOut - quote.minOut / 50n }, sale(USDC)).join(' ')).toMatch(/more slippage/);
+      });
+
+      it('puts the fee transfer after the swap in the transaction, and says it is taken from what is received', async () => {
+        const p = withFee(world([TOKEN_X, USDC]), fee());
+        const prepared = await p.buildTransaction(await p.getQuote(sale(USDC)));
+        const steps = (prepared.payload as { steps: string[] }).steps;
+        const swap = steps.findIndex((s) => /Raydium CPMM pool/.test(s));
+        const feeStep = steps.findIndex((s) => s.startsWith('Aretia fee'));
+        expect(swap).toBeGreaterThan(0);
+        expect(feeStep).toBeGreaterThan(swap);
+        expect(steps[feeStep]).toMatch(/of the USDC you receive/);
+        expect(prepared.simulation.warnings.join(' ')).toMatch(/taken from the amount you receive, in USDC/);
+        expect(prepared.simulation.warnings.join(' ')).not.toMatch(/taken from the amount you entered/);
+      });
+
+      it('for a sale into SOL, sends the fee in SOL after the wSOL is unwrapped', async () => {
+        const p = withFee(world([TOKEN_X, WSOL_MINT]), fee());
+        const prepared = await p.buildTransaction(await p.getQuote(sale(WSOL_MINT)));
+        const steps = (prepared.payload as { steps: string[] }).steps;
+        const unwrap = steps.findIndex((s) => /Unwrap/.test(s));
+        const feeStep = steps.findIndex((s) => /^Aretia fee: send \d+ lamports/.test(s));
+        expect(unwrap).toBeGreaterThan(0);
+        expect(feeStep).toBeGreaterThan(unwrap);
+      });
+
+      it('for a sale into SOL when wrapped SOL is already held, still sends the fee in SOL and says where it comes from', async () => {
+        const p = withFee(world([TOKEN_X, WSOL_MINT], { wsolHolds: true }), fee());
+        const prepared = await p.buildTransaction(await p.getQuote(sale(WSOL_MINT)));
+        expect(prepared.simulation.warnings.join(' ')).toMatch(/stays as wrapped SOL.*fee.*from your SOL balance/s);
+        expect((prepared.payload as { steps: string[] }).steps.some((s) => /^Aretia fee: send \d+ lamports/.test(s))).toBe(true);
+      });
     });
 
     it('the router drops a provider that cannot collect the fee while it is on, and offers it when it is off', async () => {

@@ -150,6 +150,8 @@ export interface RouteBuildOptions {
   tip?: { account: string; lamports: number };
   /** Extra instructions that run after the token accounts exist and before the swaps (for example the Aretia fee transfer). */
   prelude?: (accounts: Record<string, string>) => { ixs: Web3.TransactionInstruction[]; steps: string[] };
+  /** Extra instructions that run after the swaps and after any wSOL is unwrapped, before the tip (for example a fee taken from what arrived). */
+  postlude?: (accounts: Record<string, string>) => { ixs: Web3.TransactionInstruction[]; steps: string[] };
 }
 
 export interface BuiltRoute extends BuiltSwap {
@@ -209,6 +211,11 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   if (o.closeWsol && programOf.has(WSOL_MINT) && (o.nativeIn || o.nativeOut || (routeIn !== WSOL_MINT && routeOut !== WSOL_MINT))) {
     ixs.push(closeAccount(web3, accounts[WSOL_MINT]!, o.user, o.user));
     steps.push(o.nativeOut ? 'Unwrap the received wSOL back to SOL.' : 'Close the temporary wSOL account and return its SOL.');
+  }
+  if (o.postlude) {
+    const extra = o.postlude(accounts);
+    ixs.push(...extra.ixs);
+    steps.push(...extra.steps);
   }
   if (o.tip) {
     ixs.push(tipInstruction(web3, o.user, o.tip.lamports, o.tip.account));

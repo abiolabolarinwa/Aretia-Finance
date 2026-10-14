@@ -102,8 +102,11 @@ export interface QuoteCosts {
   network: Cost | null;
   /** Fees charged by the DEX or aggregator. `null` when not itemised (they are then inside the output). */
   provider: Cost | null;
-  /** The Aretia fee, in the asset the user is paying with. Zero when the policy is off. See AretiaFeePolicy. */
-  aretiaFee: Cost;
+  /**
+   * The Aretia fee. Zero when the policy is off. See AretiaFeePolicy. By default it is in the asset the user is paying with and comes out of the
+   * amount entered; `takenFrom: 'received'` means it is in `asset` and comes out of what the user receives (a Solana sale into SOL, USDC or USDT).
+   */
+  aretiaFee: Cost & { takenFrom?: 'entered' | 'received' };
 }
 
 export interface Quote {

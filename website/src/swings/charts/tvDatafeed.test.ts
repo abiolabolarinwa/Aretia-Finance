@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPoolDatafeed, parseBars, priceScaleFor, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
+import { applyLivePrice, createPoolDatafeed, livePriceFrom, parseBars, priceScaleFor, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
 
 const POOL = 'DopePool1111111111111111111111111111111111';
 // Newest first, as GeckoTerminal sends them: [seconds, open, high, low, close, volume].
@@ -238,6 +238,89 @@ describe('the datafeed', () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
+  describe('live price', () => {
+    const dex = (priceUsd: string, priceNative: string) => ({ pairs: [{ priceUsd, priceNative }] });
+
+    it('reads the charted token\'s price from the pair answer, in each of the four cases', () => {
+      const body = dex('2', '0.5');
+      expect(livePriceFrom(body, 'base', 'usd')).toBe(2);
+      expect(livePriceFrom(body, 'base', 'token')).toBe(0.5);
+      // The second token is worth 2 / 0.5 = 4 dollars, and 1 / 0.5 = 2 of the first token.
+      expect(livePriceFrom(body, 'quote', 'usd')).toBe(4);
+      expect(livePriceFrom(body, 'quote', 'token')).toBe(2);
+    });
+
+    it('gives nothing when the answer lacks what is needed or holds nonsense', () => {
+      for (const bad of [null, {}, { pairs: [] }, { pairs: [{}] }, dex('x', '1'), dex('-1', '1'), dex('0', '0')]) {
+        expect(livePriceFrom(bad, 'base', 'usd')).toBeNull();
+      }
+      expect(livePriceFrom({ pairs: [{ priceUsd: '2' }] }, 'quote', 'usd')).toBeNull();
+      expect(livePriceFrom({ pairs: [{ priceUsd: '2' }] }, 'base', 'token')).toBeNull();
+    });
+
+    it('moves the candle on screen, or starts the next one', () => {
+      const bar = { time: 1000, open: 1, high: 1.2, low: 0.9, close: 1.1, volume: 7 };
+      expect(applyLivePrice(bar, 1.3, 1000)).toEqual({ time: 1000, open: 1, high: 1.3, low: 0.9, close: 1.3, volume: 7 });
+      expect(applyLivePrice(bar, 0.8, 1000)).toMatchObject({ high: 1.2, low: 0.8, close: 0.8 });
+      // A new period opens where the last one closed, with no volume yet.
+      expect(applyLivePrice(bar, 1.2, 2000)).toEqual({ time: 2000, open: 1.1, high: 1.2, low: 1.1, close: 1.2, volume: 0 });
+      expect(applyLivePrice(null, 5, 2000)).toEqual({ time: 2000, open: 5, high: 5, low: 5, close: 5, volume: 0 });
+    });
+
+    it('ignores a reading from the past and one that jumps threefold in a step', () => {
+      const bar = { time: 5000, open: 1, high: 1, low: 1, close: 1, volume: 0 };
+      expect(applyLivePrice(bar, 1.2, 4000)).toBeNull();
+      expect(applyLivePrice(bar, 3.5, 5000)).toBeNull();
+      expect(applyLivePrice(bar, 0.3, 5000)).toBeNull();
+      expect(applyLivePrice(bar, 2.9, 5000)).not.toBeNull();
+    });
+
+    it('ticks the last candle from the live price between candle polls, and stops when unsubscribed', async () => {
+      vi.useFakeTimers();
+      try {
+        // A 15 minute candle starts on a multiple of 900 seconds.
+        const slotSec = 1_700_001_900;
+        const aligned = [[slotSec, 3, 4, 2, 3.5, 30], [slotSec - 900, 2, 3, 1, 2.5, 20]];
+        const f = vi.fn(async (url: unknown) => {
+          const u = String(url);
+          if (u.includes('/latest/dex/pairs/solana/')) return new Response(JSON.stringify(dex('3', '0.03')));
+          return new Response(JSON.stringify(body(aligned)));
+        });
+        let clock = (slotSec + 100) * 1000;
+        const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f as unknown as typeof fetch, now: () => clock, pollMs: 20_000, livePriceMs: 1000 });
+        // The chart loads its candles first; the newest of them is where live readings start from.
+        await getBars(feed, '15', { from: 0, to: slotSec + 100, countBack: 300, firstDataRequest: true });
+        const ticks: TvBar[] = [];
+        feed.subscribeBars({} as never, '15', (b) => ticks.push(b), 'u1');
+        clock += 1000;
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(ticks).toHaveLength(1);
+        // The candle keeps its open, high, low and volume; its close follows the live price (3), down from 3.5.
+        expect(ticks[0]).toEqual({ time: slotSec * 1000, open: 3, high: 4, low: 2, close: 3, volume: 30 });
+        const calls = f.mock.calls.length;
+        feed.unsubscribeBars('u1');
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(f.mock.calls.length).toBe(calls);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not read the live price when it is switched off', async () => {
+      vi.useFakeTimers();
+      try {
+        const f = vi.fn(async () => new Response(JSON.stringify(body(LIST)))) as unknown as typeof fetch;
+        const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, livePriceMs: 0, pollMs: 50_000 });
+        feed.subscribeBars({} as never, '15', () => undefined, 'u2');
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(f).not.toHaveBeenCalled();
+        feed.unsubscribeBars('u2');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('refuses an interval the service cannot serve', async () => {
     const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: reply(body(LIST)) });
     expect(await getBars(feed, '3', { from: 0, to: 1, firstDataRequest: true })).toEqual({ error: 'The 3 interval is not available.' });
@@ -257,7 +340,7 @@ describe('the datafeed', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify(body([[200, 1, 2, 1, 1.5, 1], [100, 1, 2, 1, 1.2, 1]]))))
         .mockResolvedValueOnce(new Response(JSON.stringify(body([[100, 1, 2, 1, 1.1, 1]]))))
         .mockResolvedValue(new Response(JSON.stringify(body([]))));
-      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f as unknown as typeof fetch, pollMs: 1000, now: () => 0 });
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f as unknown as typeof fetch, pollMs: 1000, now: () => 0, livePriceMs: 0 });
       const ticks: number[] = [];
       feed.subscribeBars({} as never, '1', (b) => ticks.push(b.time / 1000), 'uid');
       await vi.advanceTimersByTimeAsync(1000);

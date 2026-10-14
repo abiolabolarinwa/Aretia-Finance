@@ -1,5 +1,5 @@
 /**
- * One function behind seven public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind ten public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-trades   recent trades of a pool for the Transactions table, shared and cached (GET)
@@ -7,9 +7,13 @@
  *   /api/swings-market   the shared Marketplace lists (GET)
  *   /api/swings-account  favourites and saved swaps   (POST)
  *   /api/swings-radar    the Aretia Radar server       (GET, POST)
+ *   /api/swings-notify   alerts to a phone: Telegram and browser push (GET, POST)
+ *   /api/swings-telegram the Telegram bot's webhook    (POST)
+ *   /api/swings-alerts-run the scheduled alert check   (GET, with the cron secret)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
  */
 import { handleAccount } from './_swingsAccount.js';
+import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleMarket } from './_swingsMarket.js';
 import { handleOhlcv } from './_swingsOhlcv.js';
@@ -58,6 +62,9 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   }
   if (route === 'account') out = await handleAccount({ ...common, body });
   else if (route === 'radar') out = await handleRadar({ ...common, query, body });
+  else if (route === 'notify') out = await handleNotify({ ...common, query, body });
+  else if (route === 'telegram') out = await handleTelegramWebhook({ ...common, query, body, telegramSecret: one(req.headers['x-telegram-bot-api-secret-token']) });
+  else if (route === 'alerts-run') out = await handleAlertsRun({ ...common, query, body });
   else if (route === 'candles') out = await handleCandles({ ...common, query });
   else if (route === 'pools') out = await handlePools({ ...common, query });
   else if (route === 'market') out = await handleMarket({ ...common, query });

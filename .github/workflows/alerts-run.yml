@@ -1,0 +1,31 @@
+name: alerts-run
+
+# Checks everyone's favourites and price orders and sends Telegram and browser alerts. GitHub's scheduler runs late, often by
+# many minutes, so for alerts that should arrive within a minute use the Supabase schedule in supabase/cron/alerts-every-minute.sql
+# instead (or as well: running twice is harmless, a move is only reported once). It does nothing until a repository secret
+# named CRON_SECRET exists, the same one the site uses.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Skip until the secret is set
+        if: env.CRON_SECRET == ''
+        run: echo "CRON_SECRET is not set as a repository secret, so nothing was run."
+      - name: Check alerts
+        if: env.CRON_SECRET != ''
+        run: |
+          status=$(curl -sS -m 90 -o response.json -w '%{http_code}' -H "Authorization: Bearer ${CRON_SECRET}" https://aretiafinance.org/api/swings-alerts-run)
+          echo "HTTP ${status}"
+          head -c 600 response.json || true
+          echo
+          test "$status" = "200"

@@ -3,7 +3,7 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": { "api/swings-discover.ts": { "maxDuration": 60 } },
+  "functions": { "api/swings-discover.ts": { "maxDuration": 60 }, "api/swings-data.ts": { "maxDuration": 60 } },
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
@@ -13,7 +13,10 @@
     { "source": "/api/swings-pools", "destination": "/api/swings-data?route=pools" },
     { "source": "/api/swings-market", "destination": "/api/swings-data?route=market" },
     { "source": "/api/swings-account", "destination": "/api/swings-data?route=account" },
-    { "source": "/api/swings-radar", "destination": "/api/swings-data?route=radar" }
+    { "source": "/api/swings-radar", "destination": "/api/swings-data?route=radar" },
+    { "source": "/api/swings-notify", "destination": "/api/swings-data?route=notify" },
+    { "source": "/api/swings-telegram", "destination": "/api/swings-data?route=telegram" },
+    { "source": "/api/swings-alerts-run", "destination": "/api/swings-data?route=alerts-run" }
   ],
   "redirects": [
     {

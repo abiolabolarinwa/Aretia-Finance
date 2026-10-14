@@ -17,6 +17,7 @@ import { browserStorage } from '../swings/history.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
+import { tokenTitle } from './walletTitle.js';
 
 export interface MarketPanelOptions {
   /** Aretia's own on-chain check of a token. Null when it could not be made. */
@@ -344,6 +345,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     // Paid or not, the card is labelled, sits after everything that helps a decision, and never changes the rating above.
     root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r), compact: true }));
     root.append(el('p', 'wapp-mp__tiny', 'Anyone can create a token. Aretia does not endorse the tokens listed.'));
+    applyTitle();
   }
 
   /** Shows a row. The same row again only refreshes what is drawn; a new one starts its numbers and its check. */
@@ -387,6 +389,29 @@ export function createMarketPanel(o: MarketPanelOptions) {
       },
     );
   }
+
+  // The browser tab names the token that is open and its price, so it can be read from another tab. It goes back to the page's
+  // own title when no token is showing (another page, or the panel hidden on a narrow screen).
+  const baseTitle = document.title;
+  function applyTitle(): void {
+    if (!row || !root.isConnected || root.offsetParent === null) {
+      document.title = baseTitle;
+      return;
+    }
+    document.title = tokenTitle({ symbol: detail?.baseSymbol ?? row.symbol, name: detail?.name || row.name, quoteSymbol: detail?.quoteSymbol ?? row.quoteSymbol, chainName: CHAINS[row.chain].name, dex: detail?.dex ?? null, priceUsd: detail?.priceUsd ?? row.priceUsd }, 'Aretia Finance');
+  }
+  window.addEventListener('hashchange', () => setTimeout(applyTitle, 80));
+  // The price in the title is read again every 20 seconds while the tab is in view; the panel itself is not redrawn by it.
+  setInterval(() => {
+    if (document.hidden || !row || !row.pool || root.offsetParent === null) return;
+    const mine = seq;
+    void fetchPairDetail(row.chain, row.pool).then((d) => {
+      if (mine !== seq) return;
+      cache.set(row!.pool, { at: Date.now(), detail: d });
+      detail = d;
+      applyTitle();
+    }, () => undefined);
+  }, 20_000);
 
   render();
   return {

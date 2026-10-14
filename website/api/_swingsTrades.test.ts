@@ -42,12 +42,12 @@ describe('shared trades for the Transactions table', () => {
   it('serves many visitors from one upstream request, and lets the CDN keep the answer', async () => {
     const f = upstream();
     const a = await handleTrades(input(q(), f));
-    const b = await handleTrades(input(q(), f, NOW + 10_000, '4.4.4.4'));
+    const b = await handleTrades(input(q(), f, NOW + 2_000, '4.4.4.4'));
     expect(calls(f)).toHaveLength(1);
-    expect(a.headers['cache-control']).toBe('public, s-maxage=15, stale-while-revalidate=30');
+    expect(a.headers['cache-control']).toBe('public, s-maxage=3, stale-while-revalidate=6');
     expect(JSON.parse(b.body).stale).toBe(false);
     // Once the answer is old it is asked for again.
-    await handleTrades(input(q(), f, NOW + 20_000));
+    await handleTrades(input(q(), f, NOW + 4_000));
     expect(calls(f)).toHaveLength(2);
   });
 

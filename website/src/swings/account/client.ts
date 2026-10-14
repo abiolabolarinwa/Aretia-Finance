@@ -86,8 +86,8 @@ export class AccountClient {
   }
 
   /** One call under a session. A refused session is forgotten so the page asks to sign in again. */
-  async call<T>(session: Session, payload: Record<string, unknown>): Promise<T> {
-    const res = await this.fetchImpl('/api/swings-account', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session.token}` }, body: JSON.stringify(payload) });
+  async call<T>(session: Session, payload: Record<string, unknown>, path = '/api/swings-account'): Promise<T> {
+    const res = await this.fetchImpl(path, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session.token}` }, body: JSON.stringify(payload) });
     if (res.status === 401) {
       const all = this.readAll();
       delete all[session.owner];

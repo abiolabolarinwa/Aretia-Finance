@@ -47,11 +47,11 @@ export function resetAccountState(): void {
 const json = (status: number, data: unknown, headers: Record<string, string>): AccountOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
-interface Rest {
+export interface Rest {
   call(path: string, init?: RequestInit): Promise<unknown>;
 }
 
-function rest(url: string, key: string, fetchImpl: typeof fetch): Rest {
+export function rest(url: string, key: string, fetchImpl: typeof fetch): Rest {
   return {
     async call(path, init = {}) {
       const res = await fetchImpl(`${url}/rest/v1/${path}`, { ...init, headers: { ...supabaseHeaders(key), 'content-type': 'application/json', ...(init.headers as Record<string, string> | undefined) } });

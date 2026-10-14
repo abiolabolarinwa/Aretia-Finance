@@ -46,7 +46,7 @@ export function mountTokenSearch(): void {
   handle.setAttribute('d', 'M16 16l4.5 4.5');
   svg.append(ring, handle);
   icon.append(svg);
-  const list = el('ul', { class: 'wapp-search__list', attrs: { id: 'wapp-search-list', role: 'listbox', hidden: '' } });
+  const list = el('ul', { class: 'wapp-search__list', attrs: { id: 'wapp-search-list', role: 'listbox', hidden: '', 'data-lenis-prevent': '' } });
   wrap.append(icon, input, list);
 
   // On a wide screen the box sits in the site bar next to the chips; on a narrow one it sits at the top of the page.

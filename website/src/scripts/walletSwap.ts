@@ -1,8 +1,9 @@
 /**
  * Swaps for the web wallet, using Jupiter's Swap API behind our own screen.
  *
- * Jupiter quotes the route and supplies the swap instructions; this page adds Aretia's 1% fee as one
- * extra transfer and assembles the transaction itself. Because the swap instructions come from a third
+ * Jupiter quotes the route and supplies the swap instructions; this page can add a fee as one
+ * extra transfer (`feeBps`; the web wallet's Swings screen passes 0n, because Aretia's 0.58% fee is collected by the providers in
+ * core/fee.ts, not here) and assembles the transaction itself. Because the swap instructions come from a third
  * party, nothing is signed on trust: the page decodes it, checks the fee payer, simulates it on our
  * RPC with the wallet's own balances watched, and judges the swap by what it would do to those
  * balances (see judgeSwapSimulation). Only then does it ask the connected wallet to sign, checks the

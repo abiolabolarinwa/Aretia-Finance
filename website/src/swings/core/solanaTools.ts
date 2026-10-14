@@ -282,7 +282,7 @@ export function judgeRecipient(account: AccountSnapshot): RecipientVerdict {
 export const SWAP_SOL_OVERHEAD_LAMPORTS = 4_500_000n;
 /** Extra SOL allowed when the swap also opens Aretia's fee account (rent for a token account, with room to spare). */
 export const SWAP_FEE_ACCOUNT_RENT_LAMPORTS = 2_200_000n;
-/** Aretia's fee on every swap: 1% of what the user sells, taken from the token being sold. */
+/** Legacy Trade-tab rate (1%). No screen uses it: the web wallet passes `feeBps: 0n` and charges the product fee, `ARETIA_FEE_BPS` (0.58%) in core/fee.ts. */
 export const SWAP_FEE_BPS = 100n;
 /** Where swap fees go: the management-fee wallet (see MANAGEMENT_FEE.md). */
 export const SWAP_FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';

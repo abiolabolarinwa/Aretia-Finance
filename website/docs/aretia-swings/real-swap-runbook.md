@@ -39,7 +39,10 @@ Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sens
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.
 
 ## 7. The Aretia fee (0.58%, on every swap)
-- Set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` in Vercel (the address that receives EVM fees) and redeploy.
+- Set `PUBLIC_ARETIA_EVM_FEE_ADDRESS` in Vercel (the address that receives EVM fees) and redeploy. It is read at **build** time, so a change only takes effect after a new build.
+- Check the deployed build really carries it (the address is inlined into the wallet page's script; without it EVM swaps are paused):
+  `curl -s https://aretiafinance.org/wallet | grep -oE '/_astro/[^"]+\.js' | sort -u | while read u; do curl -s "https://aretiafinance.org$u" | grep -q '<the fee address>' && echo "found in $u"; done`
+  Nothing printed means the deployed build has no fee address and EVM swaps are paused. (A local build with and without the variable shows exactly this difference.)
 - With the canary wallet and tiny amounts: swap SOL on Solana and confirm 0.58% of the SOL entered arrives at the fee wallet, in the same transaction; swap a little USDC for SOL and confirm the fee arrives in USDC; sell a small amount of a plain token and confirm 0.58% of it, in that token, arrives at the fee wallet (Solana: also expect the one-time rent for the fee wallet's new token account), then try a token that taxes or restricts transfers and confirm the sale fails clearly rather than skipping the fee; on one EVM network confirm the fee transaction is sent and confirmed before the swap (or in the same batch), and arrives at the EVM fee address.
 
 ## 8. Optional features

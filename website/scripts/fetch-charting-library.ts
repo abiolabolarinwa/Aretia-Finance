@@ -13,13 +13,13 @@
  * Set TRADINGVIEW_REQUIRED=1 to make a missing library fail the build instead.
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** The release the wallet is built and tested against. Bump it deliberately; chart behaviour changes between releases. */
-const VERSION = 'v32.2.0';
+const VERSION = 'v33.0.0';
 const REPO = 'tradingview/charting_library';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -48,8 +48,11 @@ function skip(reason: string): never {
 }
 
 async function main(): Promise<void> {
-  if (existsSync(marker) && existsSync(versionFile) && process.env.TRADINGVIEW_FORCE !== '1') {
-    console.log(`[charting-library] already present, skipping download.`);
+  // Skip only when the installed copy is the pinned release. Checking just that the folder exists would leave an older
+  // release in place on any machine that already has one, so a version bump would quietly not take effect there.
+  const installed = existsSync(versionFile) ? readFileSync(versionFile, 'utf8').trim() : null;
+  if (existsSync(marker) && installed === VERSION && process.env.TRADINGVIEW_FORCE !== '1') {
+    console.log(`[charting-library] ${VERSION} already present, skipping download.`);
     return;
   }
   const t = token();

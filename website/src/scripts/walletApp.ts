@@ -12,7 +12,7 @@ import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
-import { checkSendInput, sendAssetLabel } from './walletSendInput';
+import { checkSendInput, leftAfterSend, recentRecipients, recipientChipText, sendAssetLabel } from './walletSendInput';
 import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
@@ -839,6 +839,73 @@ export function initWalletApp(): void {
   }
 
   function renderSendAssets(): void {
+    renderSendAssetsList();
+    renderAssetCard();
+    renderRecentRecipients();
+  }
+
+  /** The chosen asset with its logo, full name, balance and value, so lookalike tickers are told apart. */
+  function renderAssetCard(): void {
+    const card = $<HTMLElement>('[data-send-asset-card]');
+    if (!card) return;
+    card.textContent = '';
+    const evm = isEvmSend();
+    const h = evm ? selectedEvmHolding() : selectedHolding();
+    if (!h || sendEls().asset?.disabled) return void (card.hidden = true);
+    const icon = evm ? null : (h as Holding).icon;
+    const avatar = icon
+      ? el('img', { class: 'wapp-assetcard__icon', attrs: { src: icon, alt: '', width: '32', height: '32', loading: 'lazy', referrerpolicy: 'no-referrer' } })
+      : el('span', { class: 'wapp-assetcard__icon wapp-assetcard__icon--blank', text: h.symbol.slice(0, 1).toUpperCase(), attrs: { 'aria-hidden': 'true' } });
+    const value = h.value === null ? '' : ` · about $${h.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    card.append(
+      avatar,
+      el('span', { class: 'wapp-assetcard__text' }, [el('strong', { text: h.symbol }), el('span', { text: h.name })]),
+      el('span', { class: 'wapp-assetcard__amount', text: `${formatAmount(h.amount)}${value}` }),
+    );
+    card.hidden = false;
+  }
+  $('[data-send-asset]')?.addEventListener('change', renderAssetCard);
+
+  /** Addresses sent to before, as one-tap chips. Solana sends only; never shown for an Ethereum-style account. */
+  function renderRecentRecipients(): void {
+    const box = $<HTMLElement>('[data-send-recent]');
+    if (!box) return;
+    box.textContent = '';
+    const list = !address || isEvmSend() ? [] : recentRecipients(shield.book().list());
+    if (list.length === 0) return void (box.hidden = true);
+    box.append(el('span', { class: 'wapp__eyebrow', text: 'Recent' }));
+    for (const r of list) {
+      const chip = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-chip', text: recipientChipText(r), attrs: { type: 'button', title: r.address } });
+      chip.addEventListener('click', () => {
+        const { to, amount } = sendEls();
+        if (to) to.value = r.address;
+        sendEls().out?.replaceChildren();
+        amount?.focus();
+      });
+      box.append(chip);
+    }
+    box.hidden = false;
+  }
+
+  /** After a send: offer to keep the address under a name, so it shows as a chip next time. */
+  function saveRecipientForm(to: string, known: string | null): HTMLElement {
+    const form = el('div', { class: 'wapp-save' });
+    if (known) return form;
+    const input = el('input', { class: 'wapp__input', attrs: { type: 'text', maxlength: '40', placeholder: 'Name this address (optional)', 'aria-label': 'Name for this address' } });
+    const save = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Save', attrs: { type: 'button' } });
+    save.addEventListener('click', () => {
+      const label = input.value.trim();
+      if (!label) return;
+      shield.book().trust(to, label);
+      form.textContent = '';
+      form.append(banner('ok', `Saved as ${label}.`));
+      renderRecentRecipients();
+    });
+    form.append(input, save);
+    return form;
+  }
+
+  function renderSendAssetsList(): void {
     const { asset } = sendEls();
     if (!asset) return;
     const previous = asset.value;
@@ -898,6 +965,9 @@ export function initWalletApp(): void {
       ['To', toCell],
       ['Network fee', `about ${sol(plan.feeLamports)}`],
     ];
+    const sentHolding = holdings?.find((h) => h.mint === (plan.mint ?? SOL_MINT));
+    const left = leftAfterSend(sentHolding?.raw ?? null, plan.amountRaw, plan.mint === null ? plan.feeLamports + plan.rentLamports : 0n);
+    if (left !== null && sentHolding?.decimals != null) rows.push(['Left in your wallet', `${fromSmallestUnit(left, sentHolding.decimals)} ${plan.symbol}`]);
     if (plan.createsDestAta) rows.push(['Opens recipient account', `about ${sol(plan.rentLamports)}, paid by you`]);
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
 
@@ -949,6 +1019,7 @@ export function initWalletApp(): void {
         const signature = await signAndSubmit(active);
         // Remembered from now on, so a copy-cat of it can be caught next time.
         shield.book().rememberSent(active.to);
+        renderRecentRecipients();
         status.textContent = '';
         if (simBanner) simBanner.hidden = true; // "no funds have moved" is no longer true once it is sent
         const link = el('a', { text: 'View on Solscan', attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } });
@@ -958,6 +1029,7 @@ export function initWalletApp(): void {
         status.textContent = '';
         const text = result === 'confirmed' ? 'Confirmed on Solana.' : result === 'failed' ? 'The transaction failed on-chain. Check Solscan for the reason.' : 'Not confirmed yet. It may still land; check Solscan.';
         status.append(el('p', { class: `wapp__banner wapp__banner--${result === 'confirmed' ? 'ok' : result === 'failed' ? 'warn' : 'info'}` }, [document.createTextNode(`${text} `), el('a', { text: 'View on Solscan', attrs: { href: `https://solscan.io/tx/${signature}`, target: '_blank', rel: 'noopener noreferrer' } })]));
+        if (result !== 'failed') status.append(saveRecipientForm(active.to, name));
         void refresh();
       } catch (e) {
         status.textContent = '';

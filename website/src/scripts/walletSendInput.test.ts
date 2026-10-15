@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkSendInput, sendAssetLabel } from './walletSendInput';
+import { checkSendInput, leftAfterSend, recentRecipients, recipientChipText, sendAssetLabel } from './walletSendInput';
 
 const FROM = '8s2TcBz5e8jvFZDVx9gJqW175JK3kpVGX1a6D4WnDRHz';
 const OTHER = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -38,5 +38,35 @@ describe('sendAssetLabel', () => {
     expect(sendAssetLabel({ mint: 'C', symbol: 'SOL', name: 'Solana', amount: 1 }, all, '1', 'C', short)).toBe('SOL (Solana) · 1');
     expect(sendAssetLabel({ mint: 'A', symbol: 'USDC', name: 'USD Coin', amount: 1 }, all, '5', 'C', short)).toBe('USDC (USD Coin) · 5 · A');
     expect(sendAssetLabel({ mint: 'Z', symbol: 'ZED', name: '', amount: 1 }, [{ mint: 'Z', symbol: 'ZED' }], '2', 'C', short)).toBe('ZED · 2 · Z');
+  });
+});
+
+describe('recent recipients', () => {
+  const A = '8s2TcBz5e8jvFZDVx9gJqW175JK3kpVGX1a6D4WnDRHz';
+  const B = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+  const C = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+  const evm = '0x' + 'a'.repeat(40);
+  it('offers saved names first, then the most recent, leaves out Ethereum-style addresses, and stops at the limit', () => {
+    const list = [
+      { address: A, label: null, trusted: false, lastUsed: 5 },
+      { address: evm, label: 'Me on Base', trusted: true, lastUsed: 99 },
+      { address: B, label: 'Alice', trusted: true, lastUsed: 1 },
+      { address: C, label: null, trusted: false, lastUsed: 9 },
+    ];
+    expect(recentRecipients(list).map((r) => r.address)).toEqual([B, C, A]);
+    expect(recentRecipients(list, 2).map((r) => r.address)).toEqual([B, C]);
+    expect(recentRecipients([])).toEqual([]);
+  });
+  it('writes the name, or the start and end of the address', () => {
+    expect(recipientChipText({ address: A, label: 'Alice' })).toBe('Alice');
+    expect(recipientChipText({ address: A, label: null })).toBe('8s2T…DRHz');
+  });
+});
+
+describe('leftAfterSend', () => {
+  it('is what stays in the wallet after the amount and the fee, never below zero', () => {
+    expect(leftAfterSend('5049600', 1_000_000n, 0n)).toBe(4_049_600n);
+    expect(leftAfterSend('10000', 6000n, 5000n)).toBe(0n);
+    expect(leftAfterSend(null, 1n, 0n)).toBeNull();
   });
 });

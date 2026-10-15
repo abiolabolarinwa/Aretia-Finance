@@ -180,7 +180,7 @@ describe('fetchTrades', () => {
   describe('when the route is failing', () => {
     const route = (f: (url: string) => Response | Promise<Response>) => vi.fn(async (url: unknown) => f(String(url))) as unknown as typeof fetch;
     const serverCalls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('/api/swings-trades')).length;
-    const directCalls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('https://api.geckoterminal.com')).length;
+    const directCalls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => new URL(String(c[0]), 'https://x.test').hostname === 'api.geckoterminal.com').length;
 
     it('stops asking the route for a minute after it fails, and asks again once the minute is up', async () => {
       let clock = 1_000_000;

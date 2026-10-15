@@ -205,7 +205,7 @@ describe('the datafeed', () => {
     await getBars(feed, '60', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
     expect(serverCalls()).toBe(1);
     // The chart still gets its candles, from GeckoTerminal, without waiting on the endpoint each time.
-    const direct = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('https://api.geckoterminal.com')).length;
+    const direct = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => new URL(String(c[0]), 'https://x.test').hostname === 'api.geckoterminal.com').length;
     expect(direct).toBe(3);
     clock += 61_000;
     await getBars(feed, '240', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });

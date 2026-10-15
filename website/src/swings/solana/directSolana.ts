@@ -246,9 +246,8 @@ export class DirectSolanaProvider implements DexProvider {
     const hubs = SOLANA_HUBS.filter((h) => h !== from.address && h !== to.address).map((address): TokenRef => ({ chain: 'solana', address }));
 
     // Read every pool the plans might use, in parallel.
-    const [direct, ...viaHubs] = await Promise.all([this.poolsOf(venues, from, to), ...hubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)])]);
-    // The blockhash was asked for at the same time as the pools, so it costs no extra wait.
-    const blockhash = await blockhashPending;
+    // The blockhash is asked for at the same time, so it costs no extra wait, and if the node cannot answer it the quote fails at once instead of after the pools.
+    const [blockhash, direct, ...viaHubs] = await Promise.all([blockhashPending, this.poolsOf(venues, from, to), ...hubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)])] as const) as [string, Awaited<ReturnType<typeof this.poolsOf>>, ...Awaited<ReturnType<typeof this.poolsOf>>[]];
     const plans: Plan[] = [];
 
     // 2. Two hops through each hub: the deepest pool for each leg, checked by simulating the whole transaction. Each hub needs two

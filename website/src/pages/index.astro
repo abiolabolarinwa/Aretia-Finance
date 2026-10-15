@@ -6,6 +6,7 @@ import type { ProductKey } from '../lib/logos';
 import { HOUSE_ADS } from '../data/houseAds';
 import { SPONSORS } from '../data/sponsors';
 import { problemWith } from '../lib/sponsors';
+import { chartArt } from '../lib/adArt';
 
 /* Aretia Finance home: the whole product map on one screen, no scrolling.
    Each card links to the live page for its service. Radar has no page yet, so
@@ -34,9 +35,9 @@ const services: Service[] = [
    is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
 const sponsored = SPONSORS.filter((s) => s.slots.includes('home-canvas') && problemWith(s) === null).map((s, i) => ({
   id: `sponsor-${s.id}`, kind: 'sponsor' as const, label: 'Ad', by: s.advertiser, product: null as ProductKey | null, headline: s.headline, body: s.body, cta: s.cta, href: s.href,
-  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall', image: s.image ?? null, from: s.from, to: s.to,
+  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
 }));
-const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, bg: a.bg, art: a.art, layout: a.layout, image: null as string | null, from: '', to: '' }));
+const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, bg: a.bg, art: a.art, layout: a.layout, image: a.image ?? null, chart: a.chart ? chartArt(a.chart.seed, a.chart.style, a.chart.up).inner : null, mark: a.mark ?? null, from: '', to: '' }));
 const slides = [...sponsored, ...house];
 ---
 
@@ -105,8 +106,21 @@ const slides = [...sponsored, ...house];
           slides.map((a, i) => (
             <section class={`ad ad--${a.layout}${i === sponsored.length ? ' is-active' : ''}`} data-ad data-kind={a.kind} data-from={a.from} data-to={a.to} style={`--bg:${a.bg};--art:${a.art}`} aria-label={`${a.label}: ${a.headline}`}>
               <figure class="ad__frame" aria-hidden="true">
-                {a.image ? <img src={a.image} alt="" loading="lazy" /> : <span class="ad__art">{a.product && <ProductLogo product={a.product} size={150} />}</span>}
+                {a.image ? <img src={a.image.src} alt={a.image.alt} loading="lazy" /> : (
+                  <span class="ad__art">
+                    {a.chart && <svg class="ad__chart" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid meet" set:html={a.chart} />}
+                    {a.layout !== 'duo' && a.mark && <span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span>}
+                    {!a.chart && !a.mark && a.product && <ProductLogo product={a.product} size={150} />}
+                    {a.chart && <span class="ad__caption">Illustration, not live data</span>}
+                  </span>
+                )}
               </figure>
+              {a.layout === 'duo' && a.mark && (
+                <figure class="ad__frame ad__frame--b" aria-hidden="true">
+                  <span class="ad__art"><span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span></span>
+                </figure>
+              )}
+              {a.image?.credit && <span class="ad__credit">Photo: {a.image.credit}</span>}
               <div class="ad__copy">
                 <h2 class="ad__title">{a.headline}</h2>
                 <p class="ad__body">{a.body}</p>
@@ -131,7 +145,7 @@ const slides = [...sponsored, ...house];
     </main>
 
     <script>
-      /* Rotate the adverts. A sponsor outside its dates is dropped; with none left, Aretia's own adverts show. Paused on hover and
+      /* Rotate the adverts, every 5 to 7 seconds. A sponsor outside its dates is dropped; with none left, Aretia's own adverts show. Paused on hover and
          focus, while the tab is hidden, and never automatic for people who ask for less motion. */
       const canvas = document.querySelector<HTMLElement>('[data-canvas]');
       if (canvas) {
@@ -161,13 +175,19 @@ const slides = [...sponsored, ...house];
           d.addEventListener('click', () => { show(n); restart(); });
           dots.append(d);
         });
+        /* Each advert stays 5 to 7 seconds, a little different every time so the page never feels like a metronome. */
         let timer: number | undefined;
         let held = false;
-        const restart = (): void => {
-          window.clearInterval(timer);
+        const wait = (): number => 5000 + Math.round(Math.random() * 2000);
+        const next = (): void => {
+          window.clearTimeout(timer);
           if (ads.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-          timer = window.setInterval(() => { if (!held && !document.hidden) show(index + 1); }, 7000);
+          timer = window.setTimeout(() => {
+            if (!held && !document.hidden) show(index + 1);
+            next();
+          }, wait());
         };
+        const restart = next;
         canvas.addEventListener('pointerenter', () => (held = true));
         canvas.addEventListener('pointerleave', () => (held = false));
         canvas.addEventListener('focusin', () => (held = true));
@@ -251,6 +271,12 @@ const slides = [...sponsored, ...house];
   .ad__art::before { width: 70%; aspect-ratio: 1; left: -12%; bottom: -30%; }
   .ad__art::after { width: 46%; aspect-ratio: 1; right: -8%; top: -14%; }
   .ad__art .pl { position: relative; z-index: 1; transform: scale(1.4); }
+  .ad__chart { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ad__mark { position: relative; z-index: 1; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; font-size: 2.2rem; font-weight: 700; line-height: 1; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
+  .ad__mark img { width: 52px; height: 52px; object-fit: contain; }
+  .ad__caption { position: absolute; z-index: 1; right: 12px; bottom: 10px; font-size: 0.6rem; letter-spacing: 0.03em; color: rgba(255, 255, 255, 0.6); }
+  .ad--duo .ad__caption { right: auto; left: 12px; }
+  .ad__credit { position: absolute; z-index: 2; right: clamp(1rem, 3vw, 2.25rem); bottom: 56px; font-size: 0.6rem; color: rgba(14, 11, 43, 0.6); }
   .ad__title { margin: 0; font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-size: clamp(1.5rem, min(2.5vw, 4.2vh), 2.4rem); font-weight: 500; line-height: 1.05; letter-spacing: -0.02em; color: #0e0b2b; text-wrap: balance; }
   .ad__body { margin: 0; font-size: clamp(0.82rem, 1.5vh, 0.95rem); line-height: 1.45; color: #1d1a3d; }
   .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 84px; height: 84px; padding: 8px; font-size: 0.74rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #0e0b2b; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
@@ -264,6 +290,12 @@ const slides = [...sponsored, ...house];
   .ad--wide .ad__copy { position: absolute; left: calc(max(520px, 40%) + 72px); right: clamp(1rem, 3vw, 2.25rem); bottom: 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: end; gap: 1rem 2rem; }
   .ad--wide .ad__badge { left: calc(max(520px, 40%) - 24px); bottom: 150px; }
   /* Tall: a portrait frame, the words beside it. */
+  /* Duo: two frames, one above the other, with the words beside them. */
+  .ad--duo .ad__frame { left: max(520px, 40%); width: min(30%, 440px); top: 88px; height: calc((100% - 88px - 72px - 20px) * 0.62); }
+  .ad--duo .ad__frame--b { top: calc(88px + (100% - 88px - 72px - 20px) * 0.62 + 20px); height: calc((100% - 88px - 72px - 20px) * 0.38); }
+  .ad--duo .ad__tag { left: calc(max(520px, 40%) + 12px); top: 100px; }
+  .ad--duo .ad__copy { position: absolute; left: calc(max(520px, 40%) + min(30%, 440px) + 3rem); right: clamp(1rem, 3vw, 2.25rem); top: 50%; transform: translateY(-50%); display: grid; gap: 1.1rem; max-width: 30rem; }
+  .ad--duo .ad__badge { left: calc(max(520px, 40%) + min(30%, 440px) - 48px); top: calc(88px + (100% - 88px - 72px - 20px) * 0.62 - 38px); }
   .ad--tall .ad__frame { left: max(500px, 38%); width: min(30%, 440px); top: 88px; bottom: 72px; }
   .ad--tall .ad__tag { left: calc(max(500px, 38%) + 12px); top: 100px; }
   .ad--tall .ad__copy { position: absolute; left: calc(max(500px, 38%) + min(30%, 440px) + 3rem); right: clamp(1rem, 3vw, 2.25rem); top: 50%; transform: translateY(-50%); display: grid; gap: 1.1rem; max-width: 30rem; }
@@ -295,11 +327,12 @@ const slides = [...sponsored, ...house];
     .stage { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; padding: 0 1rem 1.5rem; }
     .canvas { position: relative; inset: auto; order: -1; height: 340px; border-radius: 22px; margin-top: 0; }
     .ad__frame { display: none; }
-    .ad--wide .ad__copy, .ad--tall .ad__copy { position: absolute; inset: 2.6rem 1.25rem auto 1.25rem; transform: none; display: grid; grid-template-columns: 1fr; gap: 0.7rem; max-width: none; }
+    .ad--wide .ad__copy, .ad--tall .ad__copy, .ad--duo .ad__copy { position: absolute; inset: 2.6rem 1.25rem auto 1.25rem; transform: none; display: grid; grid-template-columns: 1fr; gap: 0.7rem; max-width: none; }
     .ad__title { font-size: 1.8rem; }
     .ad__body { font-size: 0.95rem; }
-    .ad--wide .ad__badge, .ad--tall .ad__badge { left: 1.25rem; bottom: 52px; width: 84px; height: 84px; font-size: 0.78rem; }
-    .ad--wide .ad__tag, .ad--tall .ad__tag { left: auto; right: 12px; top: 12px; color: #0e0b2b; background: rgba(14, 11, 43, 0.08); }
+    .ad__credit { display: none; }
+    .ad--wide .ad__badge, .ad--tall .ad__badge, .ad--duo .ad__badge { top: auto; left: 1.25rem; bottom: 52px; width: 84px; height: 84px; font-size: 0.78rem; }
+    .ad--wide .ad__tag, .ad--tall .ad__tag, .ad--duo .ad__tag { left: auto; right: 12px; top: 12px; color: #0e0b2b; background: rgba(14, 11, 43, 0.08); }
     .canvas__foot { inset: auto 1rem 12px 1rem; }
     .card { width: 100%; box-shadow: 0 10px 30px rgba(14, 11, 43, 0.12); border: 1px solid var(--c-line); }
   }

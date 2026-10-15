@@ -9,6 +9,13 @@
  */
 import type { ChainId } from '../core/types.js';
 import { GECKO_NETWORK } from './pool.js';
+import { spaced } from './geckoGate.js';
+import { allowEvery, markRouteDown, markRouteUp, routeIsDown } from './upstreamHealth.js';
+
+/** The name this route is remembered under while it is failing. */
+const ROUTE = 'trades';
+/** Direct reads of GeckoTerminal for one pool's trades are at most this far apart. */
+const DIRECT_GAP_MS = 15_000;
 
 export interface Trade {
   /** When the trade was confirmed, in milliseconds. */
@@ -87,19 +94,30 @@ export function parseTrades(body: unknown, side: TradeSide = 'base'): Trade[] {
  * GeckoTerminal is asked directly only if that route fails (it does not exist in local development). Throws a message fit
  * to show when neither answers.
  */
-export async function fetchTrades(chain: ChainId, pool: string, side: TradeSide = 'base', fetchImpl: typeof fetch = (...args) => fetch(...args), signal?: AbortSignal): Promise<Trade[]> {
-  try {
-    const res = await fetchImpl(`/api/swings-trades?${new URLSearchParams({ chain, pool, token: side })}`, { signal });
-    if (res.ok) {
-      const rows = readServerTrades(await res.json());
-      if (rows) return rows;
+export async function fetchTrades(chain: ChainId, pool: string, side: TradeSide = 'base', fetchImpl: typeof fetch = (...args) => fetch(...args), signal?: AbortSignal, now: () => number = Date.now): Promise<Trade[]> {
+  // A route that failed in the last minute is skipped, so each check does not wait on a refusal before going to the fallback.
+  if (!routeIsDown(ROUTE, now())) {
+    try {
+      const res = await fetchImpl(`/api/swings-trades?${new URLSearchParams({ chain, pool, token: side })}`, { signal });
+      if (res.ok) {
+        const rows = readServerTrades(await res.json());
+        if (rows) {
+          markRouteUp(ROUTE);
+          return rows;
+        }
+      }
+      markRouteDown(ROUTE, now());
+    } catch {
+      if (signal?.aborted) throw new Error('cancelled');
+      markRouteDown(ROUTE, now());
     }
-  } catch {
-    if (signal?.aborted) throw new Error('cancelled');
   }
+  // Reading GeckoTerminal directly spends this visitor's own small allowance, and the chart's candles need it too. So the
+  // table does it at most once every 15 seconds per pool; in between it keeps showing what it has.
+  if (!allowEvery(`trades-direct:${chain}:${pool}`, DIRECT_GAP_MS, now())) throw new Error('The trades will refresh shortly.');
   let res: Response;
   try {
-    res = await fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/trades`, { headers: { accept: 'application/json' }, signal });
+    res = await spaced(() => fetchImpl(`https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/trades`, { headers: { accept: 'application/json' }, signal }));
   } catch {
     throw new Error(signal?.aborted ? 'cancelled' : 'The trades could not be loaded.');
   }

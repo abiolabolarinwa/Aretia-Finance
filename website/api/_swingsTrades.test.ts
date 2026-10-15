@@ -89,7 +89,13 @@ describe('shared trades for the Transactions table', () => {
     expect(JSON.parse(out.body).stale).toBe(true);
     expect(out.headers['cache-control']).toBe('no-store');
     resetTradesCache(0);
-    expect((await handleTrades(input(q(), refused))).status).toBe(502);
+    const never = await handleTrades(input(q(), refused));
+    expect(never.status).toBe(502);
+    // The answer says what the source said, so a failure can be diagnosed from it.
+    expect(JSON.parse(never.body)).toEqual({ error: 'source', upstream: 429 });
+    resetTradesCache(0);
+    const unreachable = vi.fn(async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch;
+    expect(JSON.parse((await handleTrades(input(q(), unreachable))).body)).toEqual({ error: 'source', upstream: null });
   });
 
   it('treats an unknown pool as an empty list', async () => {

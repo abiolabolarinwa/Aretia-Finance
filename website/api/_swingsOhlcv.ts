@@ -102,9 +102,12 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
     if (answers.size >= MAX_ENTRIES) answers.clear();
     answers.set(key, { at: input.now, rows });
     return ok(rows, false);
-  } catch {
+  } catch (e) {
     // The source refused or failed: the last good answer is better than an empty chart, and it is marked as old.
     if (hit && input.now - hit.at < STALE_MS) return ok(hit.rows, true);
-    return json(502, { error: 'source' }, headers);
+    // Say what the source answered (a status number, or null when it could not be reached), so a failure can be diagnosed
+    // from the response instead of guessed at.
+    const status = /source (\d+)/.exec(e instanceof Error ? e.message : '')?.[1];
+    return json(502, { error: 'source', upstream: status ? Number(status) : null }, headers);
   }
 }

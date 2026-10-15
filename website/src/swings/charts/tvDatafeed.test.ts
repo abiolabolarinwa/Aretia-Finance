@@ -1,5 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyLivePrice, createPoolDatafeed, livePriceFrom, parseBars, priceScaleFor, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
+import { setGeckoGap } from './geckoGate.js';
+import { resetUpstreamHealth } from './upstreamHealth.js';
+
+// What a visit has learned about a failing route is shared by every datafeed, so each test starts without it. Direct reads
+// are normally spaced about two seconds apart; the tests do not wait for that.
+beforeEach(() => {
+  resetUpstreamHealth();
+  setGeckoGap(0);
+});
 
 const POOL = 'DopePool1111111111111111111111111111111111';
 // Newest first, as GeckoTerminal sends them: [seconds, open, high, low, close, volume].
@@ -182,6 +191,41 @@ describe('the datafeed', () => {
       const hosts = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]).slice(0, 12));
       expect(hosts[hosts.length - 1]).toBe('https://api.');
     }
+  });
+
+  it('stops asking a failing shared endpoint for a minute and goes straight to GeckoTerminal, then tries the endpoint again', async () => {
+    let clock = 1_700_000_000_000;
+    const f = vi.fn(async (url: unknown) => (String(url).startsWith('/api/swings-ohlcv') ? new Response('{}', { status: 502 }) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', now: () => clock, sleep: async () => undefined, livePriceMs: 0 });
+    const serverCalls = () => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('/api/swings-ohlcv')).length;
+    // A fresh load each time: the interval changes, so nothing comes from the short-lived cache.
+    await getBars(feed, '5', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect(serverCalls()).toBe(1);
+    await getBars(feed, '15', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    await getBars(feed, '60', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect(serverCalls()).toBe(1);
+    // The chart still gets its candles, from GeckoTerminal, without waiting on the endpoint each time.
+    const direct = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => new URL(String(c[0]), 'https://x.test').hostname === 'api.geckoterminal.com').length;
+    expect(direct).toBe(3);
+    clock += 61_000;
+    await getBars(feed, '240', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
+    expect(serverCalls()).toBe(2);
+  });
+
+  it('tells its owner when the first load of candles fails for good, so the chart can be started again, and not otherwise', async () => {
+    const failures: string[] = [];
+    const make = (f: typeof fetch) => createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, sleep: async () => undefined, livePriceMs: 0, onLoadFailed: (m) => failures.push(m) });
+    const down = vi.fn(async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
+    const first = { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true };
+    await getBars(make(down), '15', first);
+    expect(failures).toEqual(['The price service answered 503.']);
+    // Paging back for older candles is not a failed load of the chart.
+    await getBars(make(down), '15', { ...first, firstDataRequest: false });
+    expect(failures).toHaveLength(1);
+    // A pool with no candles, and a load that works, are not failures either.
+    await getBars(make(reply({}, 404)), '15', first);
+    await getBars(make(reply(body(LIST))), '15', first);
+    expect(failures).toHaveLength(1);
   });
 
   it('names Aretia beside the symbol in the legend unless told otherwise', async () => {

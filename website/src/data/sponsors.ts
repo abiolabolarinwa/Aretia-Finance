@@ -18,7 +18,7 @@
  *     href: 'https://example.org/project',
  *     image: '/assets/sponsors/example.png',   // optional, https or under /assets/sponsors/
  *     slots: ['token-panel', 'market-footer', 'home-canvas'],   // 'home-canvas' is the full-page background of the home page
- *     gradient: ['#ffffff', '#ffcc00', '#ff6600', '#330000'],   // optional, home-canvas only: 2 to 4 colours, light to dark
+ *     background: '#f6ecb4',                                   // optional, home-canvas only: the flat page colour; `image` is shown as the framed picture
  *     chains: ['solana'],                        // optional: only beside tokens on these chains
  *     from: '2026-11-01',
  *     to: '2026-11-30',

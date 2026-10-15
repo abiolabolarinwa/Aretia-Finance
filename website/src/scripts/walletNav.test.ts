@@ -46,4 +46,24 @@ describe('the wallet page', () => {
   it('still lets other buttons open the Swap page (for example the dashboard\'s Swap button)', () => {
     expect(page).toContain('data-nav="swap"');
   });
+
+  it('lists the sidebar in the agreed order, with Favourites and Activity at the end', () => {
+    const order = [...sidebar.matchAll(/data-nav="(\w+)"/g)].map((m) => m[1]);
+    expect(order).toEqual(['dashboard', 'swings', 'send', 'radar', 'shield', 'safesend', 'carbon', 'intent', 'universal', 'favourites', 'activity']);
+    const labels = [...sidebar.matchAll(/wapp__label">([^<]+)</g)].map((m) => m[1]);
+    expect(labels).toEqual(['Dashboard', 'Markets', 'Pay', 'Radar', 'Shield', 'SafeSend', 'Carbon Credit', 'Intent', 'Universal', 'Favourites', 'Activity']);
+  });
+
+  it('keeps Dashboard as the page marked current when the wallet opens', () => {
+    expect(sidebar).toMatch(/data-nav="dashboard" aria-current="page"/);
+    expect(sidebar.match(/aria-current/g)).toHaveLength(1);
+  });
+
+  it('has no About, Buy ACT or Verify ACT links at the foot of the sidebar, only Notifications and Lock wallet', () => {
+    const start = page.indexOf('<div class="wapp__side-foot">');
+    const foot = page.slice(start, page.indexOf('</aside>', start));
+    expect(foot).not.toMatch(/About Aretia Wallet|Buy ACT|Verify ACT/);
+    expect(foot).not.toMatch(/<a /);
+    expect([...foot.matchAll(/wapp__label">([^<]+)</g)].map((m) => m[1])).toEqual(['Notifications', 'Lock wallet']);
+  });
 });

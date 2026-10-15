@@ -27,6 +27,15 @@ const target = join(root, 'public', 'charting_library');
 const marker = join(target, 'charting_library.standalone.js');
 const versionFile = join(target, '.aretia-version');
 
+/** The release already installed, or null when none is. Read directly, not checked for first, so the file cannot change between the two. */
+function installedVersion(): string | null {
+  try {
+    return readFileSync(versionFile, 'utf8').trim();
+  } catch {
+    return null;
+  }
+}
+
 function token(): string | null {
   const env = process.env.TRADINGVIEW_GITHUB_TOKEN?.trim();
   if (env) return env;
@@ -50,8 +59,7 @@ function skip(reason: string): never {
 async function main(): Promise<void> {
   // Skip only when the installed copy is the pinned release. Checking just that the folder exists would leave an older
   // release in place on any machine that already has one, so a version bump would quietly not take effect there.
-  const installed = existsSync(versionFile) ? readFileSync(versionFile, 'utf8').trim() : null;
-  if (existsSync(marker) && installed === VERSION && process.env.TRADINGVIEW_FORCE !== '1') {
+  if (installedVersion() === VERSION && existsSync(marker) && process.env.TRADINGVIEW_FORCE !== '1') {
     console.log(`[charting-library] ${VERSION} already present, skipping download.`);
     return;
   }

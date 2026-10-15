@@ -74,6 +74,9 @@ const sendTips = [
   footer={false}
 >
   <link slot="head" rel="stylesheet" href="/assets/wallet/wallet.css" />
+  <!-- The chart and its table read from these two hosts; opening the connections early saves the handshake on the first read. -->
+  <link slot="head" rel="preconnect" href="https://api.geckoterminal.com" crossorigin />
+  <link slot="head" rel="preconnect" href="https://api.dexscreener.com" crossorigin />
   <script slot="head" is:inline>document.documentElement.dataset.wappSidebar = 'collapsed';</script>
 
   <div class="wapp" data-wapp data-connected="false" data-view="dashboard">

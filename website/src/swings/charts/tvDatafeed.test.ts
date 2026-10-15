@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyLivePrice, createPoolDatafeed, livePriceFrom, parseBars, priceScaleFor, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
+import { applyLivePrice, createPoolDatafeed, livePriceFrom, parseBars, priceScaleFor, resetCandleStore, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
 import { setGeckoGap } from './geckoGate.js';
 import { resetUpstreamHealth } from './upstreamHealth.js';
 
@@ -7,6 +7,7 @@ import { resetUpstreamHealth } from './upstreamHealth.js';
 // are normally spaced about two seconds apart; the tests do not wait for that.
 beforeEach(() => {
   resetUpstreamHealth();
+  resetCandleStore();
   setGeckoGap(0);
 });
 
@@ -152,7 +153,7 @@ describe('the datafeed', () => {
     expect('bars' in r && r.bars).toHaveLength(3);
     expect(f).toHaveBeenCalledTimes(3);
     // It waits a little longer each time.
-    expect(waits).toEqual([900, 1800]);
+    expect(waits).toEqual([300, 600]);
   });
 
   it('does not retry a missing pool, and live polls do not retry at all', async () => {
@@ -177,6 +178,9 @@ describe('the datafeed', () => {
 
   it('goes to GeckoTerminal directly when the shared endpoint is missing, refused or unreadable', async () => {
     for (const broken of [{ status: 404 }, { status: 502 }, { throws: true }, { garbage: true }]) {
+      // Each case is a fresh visit.
+      resetCandleStore();
+      resetUpstreamHealth();
       const f = vi.fn(async (url: unknown) => {
         if (String(url).startsWith('/api/swings-ohlcv')) {
           if ('throws' in broken) throw new Error('offline');
@@ -239,6 +243,7 @@ describe('the datafeed', () => {
 
   it('asks for prices in US dollars by default and in the other token when told to, direct and through the shared endpoint', async () => {
     const currencyOf = async (currency: 'usd' | 'token' | undefined, viaServer?: string) => {
+      resetCandleStore();
       const f = reply(body(LIST));
       const feed = createPoolDatafeed({ chain: 'ethereum', pool: POOL, label: 'X', ...(currency ? { currency } : {}) }, { fetchImpl: f, ...(viaServer ? { viaServer } : {}) });
       await getBars(feed, '15', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
@@ -280,6 +285,134 @@ describe('the datafeed', () => {
     const fewer = await getBars(feed, '15', { from: 0, to: 1_700_045_000, countBack: 200, firstDataRequest: true });
     expect('bars' in fewer && fewer.bars).toHaveLength(50);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  describe('speed: reading candles early, and not waiting on a slow endpoint', () => {
+    const isServer = (u: unknown): boolean => String(u).startsWith('/api/swings-ohlcv');
+    const make = (f: typeof fetch, extra: Partial<Parameters<typeof createPoolDatafeed>[1]> = {}) =>
+      createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', sleep: async () => undefined, livePriceMs: 0, ...extra });
+    const first = { from: 0, to: 1_700_001_800, countBack: 330, firstDataRequest: true };
+    const okBody = () => new Response(JSON.stringify(body(LIST)));
+    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    it('serves the chart from candles read when the token was opened, so the chart asks for nothing more', async () => {
+      const f = vi.fn(async () => okBody()) as unknown as typeof fetch;
+      // One datafeed reads early (as when a token is clicked); a second, made later, is the chart's own. They share a clock, as
+      // they do in practice (the chart asks for candles up to "now").
+      const at = { now: () => 1_700_001_805_000 };
+      make(f, at).warm?.('15');
+      await delay(5);
+      const r = await getBars(make(f, at), '15', first);
+      expect('bars' in r && r.bars).toHaveLength(3);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+
+    it('joins a read that is still under way instead of making a second one', async () => {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const f = vi.fn(async () => {
+        await gate;
+        return okBody();
+      }) as unknown as typeof fetch;
+      const at = { hedgeMs: 10_000, now: () => 1_700_001_805_000 };
+      make(f, at).warm?.('15');
+      const chart = getBars(make(f, at), '15', first);
+      release();
+      const r = await chart;
+      expect('bars' in r && r.bars).toHaveLength(3);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reach for GeckoTerminal when the endpoint answers in time', async () => {
+      const f = vi.fn(async () => okBody()) as unknown as typeof fetch;
+      await getBars(make(f, { hedgeMs: 10_000 }), '15', first);
+      expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls.every((c) => isServer(c[0]))).toBe(true);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads GeckoTerminal directly as well when the endpoint is slow, and takes the answer that comes first', async () => {
+      const f = vi.fn(async (u: unknown) => {
+        if (isServer(u)) {
+          await delay(300);
+          return okBody();
+        }
+        return okBody();
+      }) as unknown as typeof fetch;
+      const started = Date.now();
+      const r = await getBars(make(f, { hedgeMs: 20 }), '15', first);
+      expect('bars' in r && r.bars).toHaveLength(3);
+      // The direct read won; the slow endpoint did not hold the chart up for its 300ms.
+      expect(Date.now() - started).toBeLessThan(250);
+      expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c) => !isServer(c[0]))).toBe(true);
+    });
+
+    it('still gets the candles from a slow endpoint when the direct read is refused', async () => {
+      const f = vi.fn(async (u: unknown) => {
+        if (isServer(u)) {
+          await delay(80);
+          return okBody();
+        }
+        return new Response('{}', { status: 429 });
+      }) as unknown as typeof fetch;
+      const r = await getBars(make(f, { hedgeMs: 10 }), '15', first);
+      expect('bars' in r && r.bars).toHaveLength(3);
+    });
+
+    it('reports the direct read\'s own message when both the endpoint and GeckoTerminal fail', async () => {
+      const f = vi.fn(async (u: unknown) => {
+        if (isServer(u)) {
+          await delay(60);
+          return new Response('{}', { status: 502 });
+        }
+        return new Response('{}', { status: 429 });
+      }) as unknown as typeof fetch;
+      const r = await getBars(make(f, { hedgeMs: 10 }), '15', first);
+      expect(r).toEqual({ error: 'The price service is busy. Try again in a minute.' });
+    });
+
+    it('goes straight to GeckoTerminal, without hedging, when the endpoint fails quickly', async () => {
+      const f = vi.fn(async (u: unknown) => (isServer(u) ? new Response('{}', { status: 502 }) : okBody())) as unknown as typeof fetch;
+      const r = await getBars(make(f, { hedgeMs: 10_000 }), '15', first);
+      expect('bars' in r && r.bars).toHaveLength(3);
+      const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => isServer(c[0]));
+      expect(calls).toEqual([true, false]);
+    });
+
+    it('drops its read, and does not retry it, when the chart it was for has been closed', async () => {
+      setGeckoGap(2_100);
+      let closed = false;
+      const f = vi.fn(async (u: unknown) => (isServer(u) ? new Response('{}', { status: 502 }) : okBody())) as unknown as typeof fetch;
+      // A read for another token holds the line while this one waits; the chart is closed in the meantime.
+      const at = { now: () => 1_700_001_805_000 };
+      const ahead = createPoolDatafeed({ chain: 'solana', pool: 'OtherPool'.padEnd(44, 'x'), label: 'O' }, { fetchImpl: f, livePriceMs: 0, ...at });
+      void ahead.warm?.('15');
+      const feed = make(f, { ...at, cancelled: () => closed });
+      const result = getBars(feed, '15', first);
+      closed = true;
+      const r = await result;
+      expect(r).toEqual({ error: 'cancelled' });
+      // Only the other token's read was made, and this one was not retried.
+      const direct = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => new URL(String(c[0]), 'https://x.test').hostname === 'api.geckoterminal.com');
+      expect(direct).toHaveLength(1);
+    });
+
+    it('asks a live poll for fresh candles even when the same ones were stored a moment ago', async () => {
+      vi.useFakeTimers();
+      try {
+        const aligned = [[1_700_001_900, 3, 4, 2, 3.5, 30]];
+        const f = vi.fn(async () => new Response(JSON.stringify(body(aligned)))) as unknown as typeof fetch;
+        const clock = (1_700_001_900 + 100) * 1000;
+        const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, now: () => clock, pollMs: 1000, livePriceMs: 0, sleep: async () => undefined });
+        await getBars(feed, '15', { from: 0, to: 1_700_001_900 + 100, countBack: 300, firstDataRequest: true });
+        const before = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+        feed.subscribeBars({} as never, '15', () => undefined, 'poll');
+        await vi.advanceTimersByTimeAsync(1000);
+        expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before);
+        feed.unsubscribeBars('poll');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('live price', () => {

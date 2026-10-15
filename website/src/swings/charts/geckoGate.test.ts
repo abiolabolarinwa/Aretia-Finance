@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GAP_MS, holdLowPriority, resetGeckoGap, setGeckoGap, spaced } from './geckoGate.js';
+import { CancelledRead, GAP_MS, holdLowPriority, resetGeckoGap, setGeckoGap, spaced } from './geckoGate.js';
 
 /** A clock the test moves by hand: sleeping moves it forward, so no real time passes. */
 function clock(start = 1_000_000) {
@@ -101,6 +101,33 @@ describe('the GeckoTerminal gate', () => {
     release();
     await table;
     expect(order).toEqual(['chart', 'table']);
+  });
+
+  it('drops a read that is no longer wanted when its turn comes, without making it or using up the gap', async () => {
+    const c = clock();
+    const order: string[] = [];
+    let wanted = true;
+    const first = spaced(async () => order.push('first'), { ...c, priority: 1 });
+    // Two reads queue behind it; the reader then moves on, so the first of them is no longer wanted.
+    const stale = spaced(async () => order.push('stale'), { ...c, priority: 1, cancelled: () => !wanted });
+    const current = spaced(async () => order.push('current'), { ...c, priority: 1 });
+    wanted = false;
+    await first;
+    await expect(stale).rejects.toBeInstanceOf(CancelledRead);
+    await current;
+    expect(order).toEqual(['first', 'current']);
+    // Only one wait: the dropped read did not take a turn.
+    expect(c.sleeps).toEqual([GAP_MS]);
+  });
+
+  it('drops a read that stops being wanted while it is waiting', async () => {
+    const c = clock();
+    await spaced(async () => 1, c);
+    let wanted = true;
+    // This read has to wait out the gap; the reader leaves during the wait.
+    const slow = (ms: number) => new Promise<void>((resolve) => setTimeout(() => { wanted = false; c.advance(ms); resolve(); }, 0));
+    const waiting = spaced(async () => 'made', { now: c.now, sleep: slow, cancelled: () => !wanted });
+    await expect(waiting).rejects.toBeInstanceOf(CancelledRead);
   });
 
   it('keeps the order of reads that share a priority', async () => {

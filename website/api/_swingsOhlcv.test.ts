@@ -19,10 +19,16 @@ describe('shared candles for the chart', () => {
   });
 
   it('tries the source once more when it refuses for a moment, before giving up', async () => {
-    const f = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 429 })).mockResolvedValue(new Response(JSON.stringify({ data: { attributes: { ohlcv_list: LIST } } })));
+    const f = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 503 })).mockResolvedValue(new Response(JSON.stringify({ data: { attributes: { ohlcv_list: LIST } } })));
     const out = await handleOhlcv(input(q(), f as unknown as typeof fetch));
     expect(out.status).toBe(200);
     expect(f).toHaveBeenCalledTimes(2);
+    // A 429 is not retried: a rate-limited source stays that way far longer than a retry waits, so it only delays the answer.
+    resetOhlcvCache(0);
+    const limited = upstream({}, 429);
+    const refused = await handleOhlcv(input(q(), limited));
+    expect(refused.status).toBe(502);
+    expect(limited).toHaveBeenCalledTimes(1);
     resetOhlcvCache(0);
     const down = vi.fn(async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
     expect((await handleOhlcv(input(q(), down))).status).toBe(502);

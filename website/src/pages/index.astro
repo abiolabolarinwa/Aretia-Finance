@@ -3,6 +3,9 @@ import '../styles/global.css';
 import ProductLogo from '../components/brand/ProductLogo.astro';
 import { NAV, LINKS } from '../data/site';
 import type { ProductKey } from '../lib/logos';
+import { HOUSE_ADS } from '../data/houseAds';
+import { SPONSORS } from '../data/sponsors';
+import { problemWith } from '../lib/sponsors';
 
 /* Aretia Finance home: the whole product map on one screen, no scrolling.
    Each card links to the live page for its service. Radar has no page yet, so
@@ -44,6 +47,20 @@ const registries = [
   { name: 'American Carbon Registry', logo: '/assets/registries/american-carbon-registry.png', w: 541, h: 243, show: 36 },
   { name: 'Climate Action Reserve', logo: '/assets/registries/climate-action-reserve.png', w: 324, h: 132, show: 30 },
 ];
+
+/* The canvas: the whole page background is an advert. Paid sponsors (src/data/sponsors.ts, slot 'home-canvas') show when one
+   is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
+const DEFAULT_COLORS = ['#efe9ff', '#a58bff', '#5b3df0', '#1c1160'];
+const sponsored = SPONSORS.filter((s) => s.slots.includes('home-canvas') && problemWith(s) === null).map((s) => ({
+  id: `sponsor-${s.id}`, kind: 'sponsor' as const, label: 'Ad', by: s.advertiser, product: null as ProductKey | null, headline: s.headline, body: s.body, cta: s.cta, href: s.href,
+  colors: s.gradient && s.gradient.length >= 2 ? [...s.gradient] : DEFAULT_COLORS, from: s.from, to: s.to,
+}));
+const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, colors: [...a.colors], from: '', to: '' }));
+const slides = [...sponsored, ...house];
+const bg = (c: string[]) => {
+  const [c0, c1 = c[0], c2 = c[1], c3 = c[c.length - 1]] = c;
+  return `background: radial-gradient(60% 70% at 15% 10%, ${c0} 0%, transparent 70%), radial-gradient(55% 65% at 90% 25%, ${c1} 0%, transparent 70%), radial-gradient(70% 70% at 55% 105%, ${c2} 0%, transparent 70%), ${c3};`;
+};
 ---
 
 <!doctype html>
@@ -94,60 +111,100 @@ const registries = [
     </header>
 
     <main id="main" class="stage">
-      <section class="intro">
-        <h1>Home of <span>Decentralized Finance</span></h1>
-        <p>Swap, pay, protect and offset, from one self-custody wallet on every chain you use.</p>
-        <a class="intro__cta" href="/wallet">Open Wallet</a>
-      </section>
+      <div class="canvas" data-canvas aria-roledescription="carousel" aria-label="Aretia adverts">
+        {
+          slides.map((a, i) => (
+            <section class={`ad${i === sponsored.length ? ' is-active' : ''}`} data-ad data-kind={a.kind} data-from={a.from} data-to={a.to} style={bg(a.colors)} aria-label={`${a.label}: ${a.headline}`}>
+              <div class="ad__inner">
+                {a.product && <ProductLogo product={a.product} size={56} />}
+                <h2 class="ad__title">{a.headline}</h2>
+                <p class="ad__body">{a.body}</p>
+                <a class="ad__cta" href={a.href} rel={a.kind === 'sponsor' ? 'sponsored noopener noreferrer' : undefined} target={a.kind === 'sponsor' ? '_blank' : undefined}>{a.cta}</a>
+              </div>
+              <span class="ad__tag">{a.label}{a.kind === 'sponsor' ? ` · ${a.by}` : ''}</span>
+            </section>
+          ))
+        }
+        <div class="canvas__foot">
+          <div class="canvas__dots" data-dots role="tablist" aria-label="Choose an advert"></div>
+          <a class="canvas__sell" href="/advertise">Advertise with Aretia →</a>
+        </div>
+      </div>
 
-      <section class="services" aria-labelledby="services-title">
-        <h2 id="services-title" class="services__title">Everything Aretia does.</h2>
-        <ul class="grid">
+      <section class="card" aria-labelledby="home-title">
+        <h1 id="home-title">Home of <span>Decentralized Finance</span></h1>
+        <p class="card__lead">Swap, pay, protect and offset, from one self-custody wallet on every chain you use.</p>
+        <a class="card__cta" href="/wallet">Open Wallet</a>
+        <ul class="tiles" aria-label="Aretia services">
           {
             services.map((s) => (
               <li>
-                <a class="card" href={s.href}>
-                  <ProductLogo product={s.key} size={48} />
-                  <span class="card__name">{s.name}</span>
-                  <span class="card__line">{s.line}</span>
+                <a class="tile" href={s.href}>
+                  <ProductLogo product={s.key} size={32} />
+                  <span>{s.name}</span>
                 </a>
               </li>
             ))
           }
         </ul>
-      </section>
-
-      <section class="flows" aria-label="Where Aretia connects">
-        <div class="flow">
-          <h2 class="flow__label">Chains in Aretia Wallet</h2>
-          <ul class="flow__items">
-            {
-              chains.map((c, i) => (
-                <li class="chain" style={`--i:${i}`}>
-                  <span class="chain__logo">
-                    <img src={c.logo} alt="" width="28" height="28" />
-                  </span>
-                  <span>{c.name}</span>
-                </li>
-              ))
-            }
-          </ul>
-        </div>
-
-        <div class="flow">
-          <h2 class="flow__label">Tokenisation of Carbon Credit is coming to:</h2>
-          <ul class="flow__items flow__items--logos">
-            {
-              registries.map((r) => (
-                <li>
-                  <img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${r.show}px`} />
-                </li>
-              ))
-            }
-          </ul>
+        <div class="card__chains" aria-label="Chains in Aretia Wallet">
+          {chains.map((c) => <img src={c.logo} alt={c.name} title={c.name} width="22" height="22" loading="lazy" />)}
         </div>
       </section>
+
+      <aside class="registries" aria-label="Carbon registries">
+        <span>Carbon credit tokenisation is coming to</span>
+        {registries.map((r) => <img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${Math.round(r.show * 0.62)}px`} />)}
+      </aside>
     </main>
+
+    <script>
+      /* Rotate the adverts. A sponsor outside its dates is dropped; with none left, Aretia's own adverts show. Paused on hover and
+         focus, while the tab is hidden, and never automatic for people who ask for less motion. */
+      const canvas = document.querySelector<HTMLElement>('[data-canvas]');
+      if (canvas) {
+        const today = new Date().toISOString().slice(0, 10);
+        let ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        for (const a of ads) if (a.dataset.kind === 'sponsor' && !(a.dataset.from! <= today && today <= a.dataset.to!)) a.remove();
+        ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        const running = ads.filter((a) => a.dataset.kind === 'sponsor');
+        if (running.length > 0) for (const a of ads) if (a.dataset.kind === 'house') a.remove();
+        ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        const dots = canvas.querySelector<HTMLElement>('[data-dots]')!;
+        let index = Math.max(0, ads.findIndex((a) => a.classList.contains('is-active')));
+        const show = (i: number): void => {
+          index = (i + ads.length) % ads.length;
+          ads.forEach((a, n) => {
+            a.classList.toggle('is-active', n === index);
+            a.toggleAttribute('inert', n !== index);
+            a.setAttribute('aria-hidden', String(n !== index));
+          });
+          [...dots.children].forEach((d, n) => d.setAttribute('aria-selected', String(n === index)));
+        };
+        ads.forEach((a, n) => {
+          const d = document.createElement('button');
+          d.type = 'button';
+          d.setAttribute('role', 'tab');
+          d.setAttribute('aria-label', `Advert ${n + 1} of ${ads.length}`);
+          d.addEventListener('click', () => { show(n); restart(); });
+          dots.append(d);
+        });
+        let timer: number | undefined;
+        let held = false;
+        const restart = (): void => {
+          window.clearInterval(timer);
+          if (ads.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+          timer = window.setInterval(() => { if (!held && !document.hidden) show(index + 1); }, 7000);
+        };
+        canvas.addEventListener('pointerenter', () => (held = true));
+        canvas.addEventListener('pointerleave', () => (held = false));
+        canvas.addEventListener('focusin', () => (held = true));
+        canvas.addEventListener('focusout', () => (held = false));
+        if (ads.length < 2) dots.hidden = true;
+        show(index);
+        restart();
+      }
+    </script>
   </body>
 </html>
 
@@ -174,83 +231,83 @@ const registries = [
 
   /* One screen on desktop: the page is exactly the viewport tall and never scrolls.
      Below 900px wide, or when the window is too short to fit it, it scrolls normally. */
-  @media (min-width: 900px) and (min-height: 720px) {
+  @media (min-width: 900px) and (min-height: 640px) {
     html, body.console { height: 100dvh; overflow: hidden; }
   }
-  /* Narrow desktops wrap the card text onto more lines, so they need a little more height before the page can stay on one screen. */
-  @media (min-width: 900px) and (max-width: 1180px) and (max-height: 749px) {
-    html, body.console { height: auto; overflow: auto; }
-  }
 
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 0 clamp(1rem, 4vw, 3rem); height: 64px; flex: none; position: relative; z-index: 5; }
-  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-size: 1rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
-  .bar__brand img { width: 30px; height: 30px; border-radius: 8px; }
-  .bar__nav { display: flex; align-items: center; gap: 0.25rem; }
+  /* The top bar floats over the advert as white pills, so it reads on any background. */
+  .bar { position: absolute; inset: 0 0 auto 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 14px clamp(1rem, 3vw, 2.25rem); pointer-events: none; }
+  .bar > * { pointer-events: auto; }
+  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; padding: 7px 16px 7px 9px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
+  .bar__brand img { width: 28px; height: 28px; border-radius: 8px; }
+  .bar__nav { display: flex; align-items: center; gap: 0.25rem; padding: 6px 8px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); }
   .bar__nav ul { list-style: none; margin: 0; padding: 0; }
   .bar__nav > ul { display: flex; gap: 0.1rem; }
   .menu { position: relative; }
   .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.9rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
-  .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 6px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
-  /* Bridges the 6px gap so the pointer can travel from button to panel. */
-  .menu__panel::before { content: ''; position: absolute; inset: -8px 0 auto; height: 8px; }
+  .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 10px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
+  .menu__panel::before { content: ''; position: absolute; inset: -12px 0 auto; height: 12px; }
   .menu:hover .menu__panel, .menu:focus-within .menu__panel { opacity: 1; visibility: visible; transform: none; }
   .menu__panel a { display: flex; flex-direction: column; gap: 1px; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
   .menu__panel b { font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
   .menu__panel span { font-size: 0.78rem; color: var(--color-faint); }
-  .bar__cta { margin-left: 0.5rem; padding: 0.5rem 1.05rem; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; color: var(--color-strong); border: 1px solid var(--c-line); background: var(--c-card); transition: border-color var(--duration-fast); }
-  @media (hover: hover) {
-    .menu__btn:hover { background: rgba(14, 11, 43, 0.05); }
-    .bar__cta:hover { border-color: var(--color-border-strong); }
-  }
+  .bar__cta { margin-left: 0.25rem; padding: 0.5rem 1.05rem; border-radius: 999px; font-size: 0.9rem; font-weight: 600; color: #fff; background: var(--color-strong); transition: background-color var(--duration-fast); }
+  .bar__cta:focus-visible, .menu__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
 
-  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 1.25rem; width: 100%; max-width: 1360px; margin-inline: auto; padding: 0 clamp(1rem, 4vw, 3rem) clamp(1rem, 2.5vh, 1.75rem); }
+  .stage { position: relative; flex: 1; min-height: 0; width: 100%; display: grid; align-items: center; padding: 84px clamp(1rem, 3vw, 2.25rem) 64px; }
 
-  .intro { text-align: center; }
-  .intro h1 { font-size: clamp(2.1rem, min(5vw, 7.4vh), 4.25rem); font-weight: 500; line-height: 1.06; letter-spacing: -0.03em; }
-  .intro h1 span { display: block; color: var(--color-brand); }
-  .intro__cta { display: inline-block; margin-top: clamp(0.7rem, 2vh, 1.4rem); padding: 0.7rem 1.9rem; font-size: 1rem; font-weight: 600; color: #fff; background: var(--color-brand); border-radius: 999px; box-shadow: 0 8px 20px rgba(58, 34, 200, 0.28); transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
-  .intro__cta:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) { .intro__cta:hover { background: var(--color-brand-bright); transform: translateY(-2px); } }
-  .intro p { margin: 0.9rem auto 0; max-width: 46ch; font-size: clamp(0.95rem, 1.7vh, 1.1rem); color: var(--color-muted); }
+  /* The advert: the whole page background. */
+  .canvas { position: absolute; inset: 0; overflow: hidden; background: #1c1160; }
+  .ad { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity 700ms ease, visibility 700ms; }
+  .ad.is-active { opacity: 1; visibility: visible; }
+  .ad::after { content: ''; position: absolute; inset: 0; opacity: 0.18; mix-blend-mode: overlay; pointer-events: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>"); }
+  .ad__inner { position: absolute; z-index: 1; left: min(44%, 560px); right: clamp(1rem, 6vw, 5rem); top: 50%; transform: translateY(-50%); display: grid; justify-items: start; gap: 1rem; max-width: 760px; color: #fff; }
+  .ad .ad__title { color: #fff; margin: 0; font-size: clamp(2.4rem, min(6.2vw, 10vh), 5.6rem); font-weight: 600; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; text-shadow: 0 2px 30px rgba(14, 11, 43, 0.25); }
+  .ad__body { margin: 0; max-width: 34rem; font-size: clamp(1rem, 1.8vh, 1.2rem); line-height: 1.45; color: rgba(255, 255, 255, 0.92); }
+  .ad__cta { display: inline-block; margin-top: 0.4rem; padding: 0.8rem 1.6rem; font-size: 1rem; font-weight: 600; color: #fff; background: #0e0b2b; border-radius: 12px; transition: transform var(--duration-base) var(--ease-out), background-color var(--duration-fast); }
+  .ad__cta:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  @media (hover: hover) { .ad__cta:hover { transform: translateY(-2px); background: #000; } }
+  .ad__tag { position: absolute; z-index: 1; right: clamp(1rem, 3vw, 2.25rem); bottom: 72px; padding: 3px 9px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.45); border-radius: 6px; }
+  .canvas__foot { position: absolute; z-index: 2; inset: auto clamp(1rem, 3vw, 2.25rem) 22px; display: flex; align-items: center; justify-content: flex-end; gap: 1.25rem; pointer-events: none; }
+  .canvas__foot > * { pointer-events: auto; }
+  .canvas__dots { display: flex; gap: 8px; }
+  .canvas__dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.5); cursor: pointer; transition: background-color 160ms, transform 160ms; }
+  .canvas__dots button[aria-selected='true'] { background: #fff; transform: scale(1.3); }
+  .canvas__dots button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .canvas__sell { font-size: 0.8rem; font-weight: 600; color: #fff; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
 
-  .services__title { margin: 0 0 0.9rem; font-size: clamp(1.4rem, min(2.2vw, 3.6vh), 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; text-align: left; color: var(--color-strong); }
-  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; }
-  /* One soft grey card per service: icon at the top left, then the name and a short line. */
-  .grid li { display: flex; }
-  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; width: 100%; padding: 1.1rem 1.1rem 1.25rem; border-radius: var(--radius-lg); background: var(--c-card); color: inherit; transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base); }
-  .card .pl { margin-bottom: 0.9rem; }
-  .card__name { font-size: 0.95rem; font-weight: 600; line-height: 1.25; letter-spacing: -0.005em; color: var(--color-strong); }
-  .card__line { font-size: 0.82rem; line-height: 1.4; color: var(--color-muted); }
-  .card:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) {
-    .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
-  }
+  /* The card over the advert: Aretia's front door. */
+  .card { position: relative; z-index: 3; width: min(360px, 100%); display: grid; gap: 0.9rem; padding: 1.5rem; background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  .card h1 { margin: 0; font-size: clamp(1.5rem, min(2.4vw, 3.6vh), 2rem); font-weight: 500; line-height: 1.1; letter-spacing: -0.03em; color: var(--color-strong); }
+  .card h1 span { display: block; color: var(--color-brand); }
+  .card__lead { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--color-muted); }
+  .card__cta { display: block; padding: 0.8rem 1rem; font-size: 1rem; font-weight: 600; text-align: center; color: #fff; background: var(--color-brand); border-radius: 12px; box-shadow: 0 8px 20px rgba(58, 34, 200, 0.28); transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .card__cta:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
+  @media (hover: hover) { .card__cta:hover { background: var(--color-brand-bright); transform: translateY(-2px); } }
+  .tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tile { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; font-size: 0.74rem; font-weight: 600; text-align: center; color: var(--color-strong); background: var(--c-card); border-radius: 14px; transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base); }
+  .tile:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
+  @media (hover: hover) { .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); } }
+  .card__chains { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; padding-top: 0.2rem; }
+  .card__chains img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
 
-  .flows { display: grid; gap: clamp(1.1rem, 3.6vh, 3rem); }
-  .flow { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; text-align: center; }
-  .flow__label { font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; color: var(--color-strong); }
-  .flow__items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1.75rem; min-width: 0; }
-  .chain { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 500; color: var(--color-strong); white-space: nowrap; }
-  .chain__logo { position: relative; display: block; width: 26px; height: 26px; }
-  .chain__logo img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
-  /* A signal passes along the chain: each logo lifts and sends out a ring in turn, left to right, then it starts over. */
-  @media (prefers-reduced-motion: no-preference) {
-    .chain { animation: chain-float 3.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -0.4s); }
-    .chain__logo::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--color-brand-bright); opacity: 0; pointer-events: none; animation: chain-ring 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
-    .chain__logo img { animation: chain-pop 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
-  }
-  @keyframes chain-float { from { transform: translateY(0); } to { transform: translateY(-4px); } }
-  @keyframes chain-ring { 0% { opacity: 0.55; transform: scale(0.9); } 12% { opacity: 0; transform: scale(2.1); } 100% { opacity: 0; transform: scale(2.1); } }
-  @keyframes chain-pop { 0% { transform: scale(1); } 5% { transform: scale(1.18); } 14%, 100% { transform: scale(1); } }
-  .flow__items--logos { gap: 0.5rem 2.5rem; }
-  .flow__items--logos img { width: auto; max-width: none; }
+  .registries { position: absolute; z-index: 3; left: clamp(1rem, 3vw, 2.25rem); bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 6px 14px; font-size: 0.72rem; font-weight: 600; color: var(--color-strong); background: rgba(255, 255, 255, 0.92); border-radius: 999px; max-width: calc(100% - 2rem); }
+  .registries img { width: auto; max-width: none; }
 
   @media (max-width: 899px) {
+    .bar { position: relative; padding: 12px 1rem; background: transparent; }
     .bar__nav > ul { display: none; }
-    .stage { gap: 2rem; padding-top: 1rem; }
-    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stage { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; padding: 0 1rem 1.5rem; }
+    .canvas { position: relative; inset: auto; order: -1; height: 340px; border-radius: 22px; margin-top: 0; }
+    .ad__inner { left: 1.25rem; right: 1.25rem; }
+    .ad__title { font-size: 2rem; }
+    .ad__body { font-size: 0.95rem; }
+    .ad__tag { bottom: auto; top: 12px; right: 12px; }
+    .canvas__foot { inset: auto 1rem 12px 1rem; }
+    .card { width: 100%; box-shadow: 0 10px 30px rgba(14, 11, 43, 0.12); border: 1px solid var(--c-line); }
+    .registries { position: static; border-radius: 16px; background: var(--c-card); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .card, .menu__panel { transition: none; }
+    .ad, .tile, .card__cta, .ad__cta, .menu__panel { transition: none; }
   }
 </style>

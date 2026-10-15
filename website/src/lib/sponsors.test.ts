@@ -58,3 +58,14 @@ describe('choosing one', () => {
     expect(seen).toEqual(new Set(['a', 'b']));
   });
 });
+
+describe('the home-page canvas', () => {
+  it('accepts the canvas slot and a valid gradient, and refuses a bad one', () => {
+    expect(problemWith(ad({ slots: ['home-canvas'], gradient: ['#ffffff', '#3a22c8'] }))).toBeNull();
+    expect(problemWith(ad({ slots: ['home-canvas'], gradient: ['#fff', '#3a22c8'] }))).toMatch(/gradient/);
+    expect(problemWith(ad({ slots: ['home-canvas'], gradient: ['#ffffff'] }))).toMatch(/gradient/);
+    expect(sponsorsFor([ad({ slots: ['home-canvas'] })], 'home-canvas', NOW)).toHaveLength(1);
+    expect(sponsorsFor([ad({ slots: ['home-canvas'] })], 'token-panel', NOW)).toEqual([]);
+  });
+});
+

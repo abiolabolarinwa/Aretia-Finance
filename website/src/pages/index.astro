@@ -29,14 +29,6 @@ const services: Service[] = [
 ];
 
 
-/* Carbon registries, with their own logos (trimmed copies in public/assets/registries/).
-   `h` is the display height in px, set per logo so each reads at a similar visual weight. */
-const registries = [
-  { name: 'Gold Standard', logo: '/assets/registries/gold-standard.png', w: 712, h: 352, show: 40 },
-  { name: 'Verra', logo: '/assets/registries/verra.png', w: 601, h: 222, show: 30 },
-  { name: 'American Carbon Registry', logo: '/assets/registries/american-carbon-registry.png', w: 541, h: 243, show: 36 },
-  { name: 'Climate Action Reserve', logo: '/assets/registries/climate-action-reserve.png', w: 324, h: 132, show: 30 },
-];
 
 /* The canvas: the whole page background is an advert. Paid sponsors (src/data/sponsors.ts, slot 'home-canvas') show when one
    is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
@@ -54,7 +46,7 @@ const slides = [...sponsored, ...house];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Aretia Finance</title>
-    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Carbon Credit, Shield, SafeSend and Radar, across nine chains and the major carbon registries." />
+    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Carbon Credit, Shield, SafeSend and Radar, across nine chains." />
     <link rel="canonical" href="https://aretiafinance.org/" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <meta name="theme-color" content="#ffffff" />
@@ -70,7 +62,7 @@ const slides = [...sponsored, ...house];
           services.map((s) => (
             <li>
               <a class="rail__item" href={s.href} title={s.line}>
-                <ProductLogo product={s.key} size={34} />
+                <ProductLogo product={s.key} size={40} bare />
                 <span>{s.name}</span>
               </a>
             </li>
@@ -136,10 +128,6 @@ const slides = [...sponsored, ...house];
         <a class="card__btn" href={LINKS.walletWaitlist}>Download Aretia Wallet</a>
       </section>
 
-      <aside class="registries" aria-label="Carbon registries">
-        <span>Carbon credit tokenisation is coming to</span>
-        {registries.map((r) => <img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${Math.round(r.show * 0.62)}px`} />)}
-      </aside>
     </main>
 
     <script>
@@ -223,10 +211,10 @@ const slides = [...sponsored, ...house];
   /* The services rail, down the left edge: a logo with its name under it, one tap to the service. */
   .rail { position: fixed; z-index: 6; inset: 0 auto 0 0; width: var(--rail); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; overflow-y: auto; scrollbar-width: none; background: #fff; border-right: 1px solid var(--c-line); }
   .rail::-webkit-scrollbar { display: none; }
-  .rail__brand { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 6px; border-radius: 12px; }
+  .rail__brand { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 0; border-radius: 12px; }
   .rail__brand img { width: 34px; height: 34px; border-radius: 9px; }
-  .rail__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; width: 100%; }
-  .rail__item { display: grid; justify-items: center; gap: 5px; margin: 0 8px; padding: 9px 2px 8px; font-size: 0.7rem; font-weight: 600; line-height: 1.1; text-align: center; color: var(--color-strong); border-radius: 14px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .rail__list { list-style: none; margin: auto 0; padding: 0; display: grid; gap: 4px; width: 100%; }
+  .rail__item { display: grid; justify-items: center; gap: 5px; margin: 0 8px; padding: 9px 2px 8px; font-size: 0.64rem; font-weight: 600; line-height: 1.1; text-align: center; color: var(--color-strong); border-radius: 14px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
   .rail__item:focus-visible, .rail__brand:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
   @media (hover: hover) { .rail__item:hover { background: var(--c-card); transform: translateY(-1px); } }
 
@@ -239,14 +227,14 @@ const slides = [...sponsored, ...house];
   .bar__nav ul { list-style: none; margin: 0; padding: 0; }
   .bar__nav > ul { display: flex; gap: 0.1rem; }
   .menu { position: relative; }
-  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.9rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
+  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: var(--radius-pill); font-size: 0.8rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
   .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 10px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
   .menu__panel::before { content: ''; position: absolute; inset: -12px 0 auto; height: 12px; }
   .menu:hover .menu__panel, .menu:focus-within .menu__panel { opacity: 1; visibility: visible; transform: none; }
   .menu__panel a { display: flex; flex-direction: column; gap: 1px; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
   .menu__panel b { font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
   .menu__panel span { font-size: 0.78rem; color: var(--color-faint); }
-  .bar__cta { margin-left: 0.25rem; padding: 0.5rem 1.05rem; border-radius: 999px; font-size: 0.9rem; font-weight: 600; color: #fff; background: var(--color-strong); transition: background-color var(--duration-fast); }
+  .bar__cta { margin-left: 0.25rem; padding: 0.42rem 0.95rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: #fff; background: var(--color-strong); transition: background-color var(--duration-fast); }
   .bar__cta:focus-visible, .menu__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
 
   .stage { position: relative; flex: 1; min-height: 0; width: 100%; display: grid; align-items: center; padding: 84px clamp(1rem, 3vw, 2.25rem) 64px calc(var(--rail) + clamp(1rem, 3vw, 2.25rem)); }
@@ -262,13 +250,13 @@ const slides = [...sponsored, ...house];
   .ad__art::before, .ad__art::after { content: ''; position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.07); }
   .ad__art::before { width: 70%; aspect-ratio: 1; left: -12%; bottom: -30%; }
   .ad__art::after { width: 46%; aspect-ratio: 1; right: -8%; top: -14%; }
-  .ad__art .pl { position: relative; z-index: 1; transform: scale(1.6); }
-  .ad__title { margin: 0; font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-size: clamp(1.9rem, min(3.4vw, 5.6vh), 3.2rem); font-weight: 500; line-height: 1.05; letter-spacing: -0.02em; color: #0e0b2b; text-wrap: balance; }
-  .ad__body { margin: 0; font-size: clamp(0.95rem, 1.8vh, 1.15rem); line-height: 1.45; color: #1d1a3d; }
-  .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 96px; height: 96px; padding: 10px; font-size: 0.85rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #0e0b2b; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
+  .ad__art .pl { position: relative; z-index: 1; transform: scale(1.4); }
+  .ad__title { margin: 0; font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-size: clamp(1.5rem, min(2.5vw, 4.2vh), 2.4rem); font-weight: 500; line-height: 1.05; letter-spacing: -0.02em; color: #0e0b2b; text-wrap: balance; }
+  .ad__body { margin: 0; font-size: clamp(0.82rem, 1.5vh, 0.95rem); line-height: 1.45; color: #1d1a3d; }
+  .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 84px; height: 84px; padding: 8px; font-size: 0.74rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #0e0b2b; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
   .ad__badge:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
   @media (hover: hover) { .ad__badge:hover { transform: scale(1.06) rotate(-4deg); } }
-  .ad__tag { position: absolute; z-index: 2; padding: 3px 9px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.55); border-radius: 6px; }
+  .ad__tag { position: absolute; z-index: 2; padding: 2px 8px; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.55); border-radius: 6px; }
 
   /* Wide: a landscape frame, the words under it, the badge on its corner. */
   .ad--wide .ad__frame { left: max(520px, 40%); right: clamp(1rem, 3vw, 2.25rem); top: 88px; bottom: 190px; }
@@ -286,18 +274,15 @@ const slides = [...sponsored, ...house];
   .canvas__dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: rgba(14, 11, 43, 0.25); cursor: pointer; transition: background-color 160ms, transform 160ms; }
   .canvas__dots button[aria-selected='true'] { background: #0e0b2b; transform: scale(1.3); }
   .canvas__dots button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
-  .canvas__sell { font-size: 0.8rem; font-weight: 600; color: #0e0b2b; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
+  .canvas__sell { font-size: 0.72rem; font-weight: 600; color: #0e0b2b; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
 
   /* The card over the advert: Aretia's front door. */
   .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  .card { position: relative; z-index: 3; width: min(320px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
-  .card__btn { display: block; padding: 0.95rem 1rem; font-size: 1rem; font-weight: 600; text-align: center; color: var(--color-brand); background: var(--c-card); border-radius: 12px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .card { position: relative; z-index: 3; width: min(280px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  .card__btn { display: block; padding: 0.8rem 1rem; font-size: 0.88rem; font-weight: 600; text-align: center; color: var(--color-brand); background: var(--c-card); border-radius: 12px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
   .card__btn--primary { color: #fff; background: var(--color-brand); }
   .card__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
   @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #ebebf0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
-
-  .registries { position: absolute; z-index: 3; left: calc(var(--rail) + clamp(1rem, 3vw, 2.25rem)); bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 6px 14px; font-size: 0.72rem; font-weight: 600; color: var(--color-strong); background: rgba(255, 255, 255, 0.92); border-radius: 999px; max-width: calc(100% - 2rem); }
-  .registries img { width: auto; max-width: none; }
 
   @media (max-width: 899px) {
     body.console { --rail: 0px; }
@@ -317,7 +302,6 @@ const slides = [...sponsored, ...house];
     .ad--wide .ad__tag, .ad--tall .ad__tag { left: auto; right: 12px; top: 12px; color: #0e0b2b; background: rgba(14, 11, 43, 0.08); }
     .canvas__foot { inset: auto 1rem 12px 1rem; }
     .card { width: 100%; box-shadow: 0 10px 30px rgba(14, 11, 43, 0.12); border: 1px solid var(--c-line); }
-    .registries { position: static; border-radius: 16px; background: var(--c-card); }
   }
   @media (prefers-reduced-motion: reduce) {
     .ad, .rail__item, .card__btn, .ad__badge, .menu__panel { transition: none; }

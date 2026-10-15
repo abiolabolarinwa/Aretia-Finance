@@ -59,3 +59,16 @@ export const GLYPHS: Record<ProductKey, string> = {
 
 export const markSvg = (k: ProductKey, size = 64): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}" role="img" aria-label="${PRODUCT_NAMES[k]}"><rect width="64" height="64" rx="16" fill="${TILE}"/>${GLYPHS[k]}</svg>`;
+
+/** Colours for the bare mark (no tile): a main colour for the white sticks and an accent for the lavender one, each clear on white. */
+export const BARE: Record<ProductKey, { main: string; accent: string }> = {
+  wallet: { main: '#3a22c8', accent: '#f5a524' },
+  swap: { main: '#0f7ae5', accent: '#14b8a6' },
+  pay: { main: '#5b3df0', accent: '#ec4899' },
+  safesend: { main: '#0f9d58', accent: '#3a22c8' },
+  market: { main: '#e11d48', accent: '#3a22c8' },
+  carbon: { main: '#16a34a', accent: '#65a30d' },
+  marketplace: { main: '#7c3aed', accent: '#f59e0b' },
+  shield: { main: '#2563eb', accent: '#10b981' },
+  radar: { main: '#0891b2', accent: '#7c3aed' },
+};

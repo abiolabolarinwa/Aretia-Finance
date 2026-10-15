@@ -36,6 +36,11 @@ A message only carries a title, some numbers and a link to the site. It never as
 6. **Schedule.** Run `supabase/cron/alerts-every-minute.sql` in the SQL editor (fill in the two placeholders). The GitHub workflow
    `alerts-run.yml` is a backup that runs every five minutes, when GitHub gets to it.
 
+## Checking the setup
+
+`node scripts/alerts-check.ts` (or `npm run alerts:check`) lists what is still missing and what to do about each item. Add
+`TELEGRAM_BOT_TOKEN=...` in front to also check the bot and its webhook.
+
 ## Trying it
 
 Open the wallet, sign in ("Save to my wallet"), go to **Favourites**, and use **Alerts on your phone**: *Connect Telegram* opens the

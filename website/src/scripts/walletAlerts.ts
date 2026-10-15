@@ -182,7 +182,7 @@ export function alertsCard(deps: AlertsDeps): HTMLElement {
       return;
     }
     if (!config.telegram && !config.webpush) {
-      box.append(el('p', 'wapp__fine', 'Not available on this server yet.'));
+      box.append(el('p', 'wapp__fine', 'Alerts to your phone are not switched on yet. They will appear here as soon as Aretia finishes setting them up.'));
       return;
     }
     if (!session) {

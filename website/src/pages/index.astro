@@ -168,7 +168,7 @@ const bg = (c: string[]) => {
           });
           [...dots.children].forEach((d, n) => d.setAttribute('aria-selected', String(n === index)));
         };
-        ads.forEach((a, n) => {
+        ads.forEach((_a, n) => {
           const d = document.createElement('button');
           d.type = 'button';
           d.setAttribute('role', 'tab');

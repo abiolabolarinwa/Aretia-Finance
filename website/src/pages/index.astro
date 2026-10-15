@@ -28,18 +28,6 @@ const services: Service[] = [
   { key: 'radar', name: 'Radar', line: 'Market and wallet signals', href: '/wallet#/radar' },
 ];
 
-/** The chains in Aretia Wallet. Marks: public/assets/chains/CREDITS.md. */
-const chains = [
-  { name: 'Solana', logo: '/assets/chains/solana.png' },
-  { name: 'Ethereum', logo: '/assets/chains/ethereum.png' },
-  { name: 'BNB Chain', logo: '/assets/chains/bnb.png' },
-  { name: 'Polygon', logo: '/assets/chains/polygon.png' },
-  { name: 'Base', logo: '/assets/chains/base.png' },
-  { name: 'Arbitrum', logo: '/assets/chains/arbitrum.png' },
-  { name: 'Optimism', logo: '/assets/chains/optimism.png' },
-  { name: 'Avalanche', logo: '/assets/chains/avalanche.png' },
-  { name: 'Robinhood Chain', logo: '/assets/chains/robinhood.png' },
-];
 
 /* Carbon registries, with their own logos (trimmed copies in public/assets/registries/).
    `h` is the display height in px, set per logo so each reads at a similar visual weight. */
@@ -145,13 +133,10 @@ const bg = (c: string[]) => {
         </div>
       </div>
 
-      <section class="card" aria-labelledby="home-title">
-        <h1 id="home-title">Home of <span>Decentralized Finance</span></h1>
-        <p class="card__lead">Swap, pay, protect and offset, from one self-custody wallet on every chain you use.</p>
-        <a class="card__cta" href="/wallet">Open Wallet</a>
-        <div class="card__chains" aria-label="Chains in Aretia Wallet">
-          {chains.map((c) => <img src={c.logo} alt={c.name} title={c.name} width="22" height="22" loading="lazy" />)}
-        </div>
+      <h1 class="sr-only">Aretia Finance: home of decentralized finance</h1>
+      <section class="card" aria-label="Aretia Wallet">
+        <a class="card__btn card__btn--primary" href="/wallet">Open Aretia Wallet</a>
+        <a class="card__btn" href={LINKS.walletWaitlist}>Download Aretia Wallet</a>
       </section>
 
       <aside class="registries" aria-label="Carbon registries">
@@ -290,15 +275,12 @@ const bg = (c: string[]) => {
   .canvas__sell { font-size: 0.8rem; font-weight: 600; color: #fff; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
 
   /* The card over the advert: Aretia's front door. */
-  .card { position: relative; z-index: 3; width: min(360px, 100%); display: grid; gap: 0.9rem; padding: 1.5rem; background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
-  .card h1 { margin: 0; font-size: clamp(1.5rem, min(2.4vw, 3.6vh), 2rem); font-weight: 500; line-height: 1.1; letter-spacing: -0.03em; color: var(--color-strong); }
-  .card h1 span { display: block; color: var(--color-brand); }
-  .card__lead { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--color-muted); }
-  .card__cta { display: block; padding: 0.8rem 1rem; font-size: 1rem; font-weight: 600; text-align: center; color: #fff; background: var(--color-brand); border-radius: 12px; box-shadow: 0 8px 20px rgba(58, 34, 200, 0.28); transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
-  .card__cta:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) { .card__cta:hover { background: var(--color-brand-bright); transform: translateY(-2px); } }
-  .card__chains { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; padding-top: 0.2rem; }
-  .card__chains img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .card { position: relative; z-index: 3; width: min(320px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  .card__btn { display: block; padding: 0.95rem 1rem; font-size: 1rem; font-weight: 600; text-align: center; color: var(--color-brand); background: var(--c-card); border-radius: 12px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .card__btn--primary { color: #fff; background: var(--color-brand); }
+  .card__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
+  @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #ebebf0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
 
   .registries { position: absolute; z-index: 3; left: calc(var(--rail) + clamp(1rem, 3vw, 2.25rem)); bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 6px 14px; font-size: 0.72rem; font-weight: 600; color: var(--color-strong); background: rgba(255, 255, 255, 0.92); border-radius: 999px; max-width: calc(100% - 2rem); }
   .registries img { width: auto; max-width: none; }
@@ -322,6 +304,6 @@ const bg = (c: string[]) => {
     .registries { position: static; border-radius: 16px; background: var(--c-card); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .ad, .rail__item, .card__cta, .ad__cta, .menu__panel { transition: none; }
+    .ad, .rail__item, .card__btn, .ad__cta, .menu__panel { transition: none; }
   }
 </style>

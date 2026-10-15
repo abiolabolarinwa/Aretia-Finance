@@ -9,6 +9,13 @@
  */
 import type { ChainId } from '../core/types.js';
 import { DEXSCREENER_CHAIN, GECKO_NETWORK } from './pool.js';
+import { spaced } from './geckoGate.js';
+import { markRouteDown, markRouteUp, routeIsDown } from './upstreamHealth.js';
+
+/** The name Aretia's candle route is remembered under while it is failing. */
+const CANDLES_ROUTE = 'candles';
+/** The chart's reads go ahead of the trades table's in the queue for GeckoTerminal. */
+const CHART_PRIORITY = 1;
 
 /** One bar in the shape TradingView reads: `time` in milliseconds, volume in US dollars. */
 export interface TvBar {
@@ -168,6 +175,8 @@ export function createPoolDatafeed(
     /** How often the pool's live price is read to move the last candle, in milliseconds; 0 turns it off. */
     livePriceMs?: number;
     dexBase?: string;
+    /** Called when the chart's first load of candles fails for good (after its own retries), so the chart can be started again. */
+    onLoadFailed?: (message: string) => void;
   } = {},
 ): TvDatafeed {
   const fetchImpl = deps.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -206,13 +215,20 @@ export function createPoolDatafeed(
    */
   async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
     if (!deps.viaServer) return null;
+    // A route that failed in the last minute is skipped, so each load does not wait on a refusal before going direct.
+    if (routeIsDown(CANDLES_ROUTE, now())) return null;
     const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency });
     try {
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
-      return response.ok ? parseBars(await response.json()) : null;
+      if (response.ok) {
+        markRouteUp(CANDLES_ROUTE);
+        return parseBars(await response.json());
+      }
     } catch {
-      return null;
+      // Treated like any other failure below.
     }
+    markRouteDown(CANDLES_ROUTE, now());
+    return null;
   }
 
   /**
@@ -239,7 +255,8 @@ export function createPoolDatafeed(
     let response: Response | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
-        response = await fetchImpl(url, { headers: { accept: 'application/json' } });
+        // Direct reads of GeckoTerminal are spaced out; a retry that came too soon after the last read would only be turned away too.
+        response = await spaced(() => fetchImpl(url, { headers: { accept: 'application/json' } }), { priority: CHART_PRIORITY });
       } catch {
         response = null;
       }
@@ -322,7 +339,12 @@ export function createPoolDatafeed(
           if (params.firstDataRequest && inRange.length > 0) newest.set(resolution, inRange[inRange.length - 1]!);
           onResult(inRange, { noData: inRange.length === 0 });
         })
-        .catch((e: unknown) => onError(e instanceof Error ? e.message : 'The chart data could not be loaded.'));
+        .catch((e: unknown) => {
+          const message = e instanceof Error ? e.message : 'The chart data could not be loaded.';
+          // The chart gives up on a failed load and stays empty, so the owner is told and can try the whole chart again.
+          if (params.firstDataRequest) deps.onLoadFailed?.(message);
+          onError(message);
+        });
     },
     subscribeBars(_info, resolution, onTick, uid) {
       const res = RESOLUTIONS[resolution];

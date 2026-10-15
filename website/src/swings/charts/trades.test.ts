@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setGeckoGap } from './geckoGate.js';
+import { resetUpstreamHealth } from './upstreamHealth.js';
 import { fetchTrades, formatAmount, formatTradeUsd, MAX_TRADES, parseTrades, readServerTrades, timeAgo, traderLink, txLink, type Trade } from './trades.js';
 
 const TX = '0xca405963804bb9eb745dc1e5a5f2ed6ac249d0e23f262c01f14e6d5c700d2b39';
@@ -135,6 +137,10 @@ describe('formatting', () => {
 });
 
 describe('fetchTrades', () => {
+  beforeEach(() => {
+    resetUpstreamHealth();
+    setGeckoGap(0);
+  });
   const ok = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
   const serverRow: Trade = { t: 1, kind: 'buy', usd: 5, tokenAmount: 2, quoteAmount: 3, priceUsd: 2.5, trader: WHO, tx: TX };
 
@@ -150,6 +156,7 @@ describe('fetchTrades', () => {
 
   it('goes to GeckoTerminal directly when the route is missing, refused or unreadable', async () => {
     for (const broken of [() => ok({}, 404), () => ok({}, 502), () => { throw new Error('offline'); }, () => ok({ nope: true })]) {
+      resetUpstreamHealth();
       const f = vi.fn(async (url: unknown) => (String(url).startsWith('/api/swings-trades') ? broken() : ok(body(raw())))) as unknown as typeof fetch;
       const rows = await fetchTrades('polygon', POOL, 'base', f);
       expect(rows).toHaveLength(1);
@@ -160,10 +167,71 @@ describe('fetchTrades', () => {
 
   it('says plainly when nothing can be loaded, and treats an unknown pool as an empty list', async () => {
     const down = (status: number) => vi.fn(async () => ok({}, status)) as unknown as typeof fetch;
+    // Each case is a fresh visit, so the earlier ones' rationing does not carry over.
     await expect(fetchTrades('solana', POOL, 'base', down(503))).rejects.toThrow('The trades could not be loaded.');
+    resetUpstreamHealth();
     await expect(fetchTrades('solana', POOL, 'base', down(429))).rejects.toThrow(/busy/);
+    resetUpstreamHealth();
     await expect(fetchTrades('solana', POOL, 'base', (async () => { throw new Error('offline'); }) as unknown as typeof fetch)).rejects.toThrow('The trades could not be loaded.');
+    resetUpstreamHealth();
     expect(await fetchTrades('solana', POOL, 'base', down(404))).toEqual([]);
+  });
+
+  describe('when the route is failing', () => {
+    const route = (f: (url: string) => Response | Promise<Response>) => vi.fn(async (url: unknown) => f(String(url))) as unknown as typeof fetch;
+    const serverCalls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('/api/swings-trades')).length;
+    const directCalls = (f: typeof fetch) => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('https://api.geckoterminal.com')).length;
+
+    it('stops asking the route for a minute after it fails, and asks again once the minute is up', async () => {
+      let clock = 1_000_000;
+      const f = route((u) => (u.startsWith('/api/swings-trades') ? ok({}, 502) : ok(body(raw()))));
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(serverCalls(f)).toBe(1);
+      // Later checks go straight to the fallback without waiting on the route.
+      clock += 20_000;
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      clock += 20_000;
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(serverCalls(f)).toBe(1);
+      // After a minute it gets another chance.
+      clock += 30_000;
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(serverCalls(f)).toBe(2);
+    });
+
+    it('goes back to the route as soon as it answers again', async () => {
+      let clock = 5_000_000;
+      let healthy = false;
+      const f = route((u) => (u.startsWith('/api/swings-trades') ? (healthy ? ok({ trades: [serverRow] }) : ok({}, 502)) : ok(body(raw()))));
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      healthy = true;
+      clock += 61_000;
+      expect(await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock)).toEqual([serverRow]);
+      // And it stays in use: the next check asks it again, not the fallback.
+      clock += 1_000;
+      const before = directCalls(f);
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(directCalls(f)).toBe(before);
+    });
+
+    it("rations reads of GeckoTerminal itself to one every 15 seconds per pool, so the table cannot use up the visitor's allowance", async () => {
+      let clock = 9_000_000;
+      const f = route((u) => (u.startsWith('/api/swings-trades') ? ok({}, 502) : ok(body(raw()))));
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(directCalls(f)).toBe(1);
+      // The table checks every second; nothing more is read until 15 seconds have passed.
+      for (let i = 0; i < 10; i++) {
+        clock += 1_000;
+        await expect(fetchTrades('polygon', POOL, 'base', f, undefined, () => clock)).rejects.toThrow('The trades will refresh shortly.');
+      }
+      expect(directCalls(f)).toBe(1);
+      clock += 6_000;
+      await fetchTrades('polygon', POOL, 'base', f, undefined, () => clock);
+      expect(directCalls(f)).toBe(2);
+      // Another pool has its own allowance.
+      await fetchTrades('polygon', '0x9999999999999999999999999999999999999999', 'base', f, undefined, () => clock);
+      expect(directCalls(f)).toBe(3);
+    });
   });
 
   it('stops quietly when the table was closed while it was loading', async () => {

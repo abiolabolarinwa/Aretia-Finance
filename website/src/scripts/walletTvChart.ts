@@ -7,7 +7,8 @@
  * fail to start, `onUnavailable` is called so the screen can show its fallback chart instead of an empty box.
  */
 import type { ChainId } from '../swings/core/types.js';
-import { createPoolDatafeed, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
+import { holdLowPriority } from '../swings/charts/geckoGate.js';
+import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
 
 const LIBRARY_PATH = '/charting_library/';
 const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
@@ -15,6 +16,7 @@ const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
 interface TvWidget {
   remove(): void;
   onChartReady(cb: () => void): void;
+  activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void } };
   headerReady(): Promise<void>;
   createButton(): HTMLElement;
 }
@@ -79,22 +81,34 @@ const DISABLED = ['header_symbol_search', 'symbol_search_hot_key', 'header_compa
 /** Which unit prices are shown in: US dollars, or the other token of the pool. The choice lasts for the visit, so it carries from token to token. */
 let lastCurrency: 'usd' | 'token' = 'usd';
 
+/** How many times a chart that failed to load is started again, and how long it waits before the first (then twice, three times as long). */
+const MAX_RESTARTS = 3;
+const RESTART_AFTER_MS = 8_000;
+
+/** The timeframe the reader last chose (1h, 4h...), so it survives opening another token or flipping the unit. */
+let lastInterval: string | null = null;
+
 /** Draws the chart into `host`. Returns a handle to take it down again. */
 export function mountTvChart(
   host: HTMLElement,
   o: TvChartOptions,
-  makeFeed: (currency: 'usd' | 'token', label: string) => TvDatafeed = (currency, label) =>
+  makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void) => TvDatafeed = (currency, label, onLoadFailed) =>
     createPoolDatafeed(
       { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) },
-      { viaServer: '/api/swings-ohlcv' },
+      { viaServer: '/api/swings-ohlcv', onLoadFailed },
     ),
 ): TvChart {
   let widget: TvWidget | null = null;
   let disposed = false;
+  let library: TvGlobal | null = null;
+  let restarts = 0;
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
   const canSwitch = !!o.quoteSymbol;
   let currency: 'usd' | 'token' = canSwitch ? lastCurrency : 'usd';
   host.replaceChildren();
   host.classList.add('wapp-tv');
+  // The chart asks for its candles in a moment, once the library has loaded; reads for the trades table wait for it.
+  holdLowPriority(4_000);
 
   const unavailable = (): void => {
     if (disposed || !o.fallbackUrl) return;
@@ -138,15 +152,37 @@ export function mountTvChart(
     }).catch(() => undefined);
   }
 
+  /**
+   * A chart whose first load of candles failed stays empty on its own. So it is started again after a pause, a few times,
+   * which is usually enough for a busy data source to have recovered, instead of waiting for the reader to reload the page.
+   */
+  function scheduleRestart(): void {
+    if (disposed || restartTimer !== null || restarts >= MAX_RESTARTS || !library) return;
+    const lib = library;
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (disposed) return;
+      restarts++;
+      try {
+        widget?.remove();
+      } catch {
+        // Already gone.
+      }
+      host.replaceChildren();
+      build(lib);
+    }, RESTART_AFTER_MS * (restarts + 1));
+  }
+
   function build(TradingView: TvGlobal): void {
-    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`);
+    library = TradingView;
+    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart);
     try {
         const w = new TradingView.widget({
           container: host,
           library_path: LIBRARY_PATH,
           datafeed: feed,
           symbol: `${o.chain}:${o.pool}`,
-          interval: o.interval ?? '15',
+          interval: lastInterval ?? o.interval ?? '15',
           locale: 'en',
           timezone: 'Etc/UTC',
           theme: 'light',
@@ -156,6 +192,16 @@ export function mountTvChart(
           overrides: { 'paneProperties.background': '#ffffff', 'paneProperties.backgroundType': 'solid', 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });
         widget = w;
+        // Remember the timeframe the reader picks, but only one the datafeed can serve.
+        w.onChartReady(() => {
+          try {
+            w.activeChart().onIntervalChanged().subscribe(null, (interval) => {
+              if (SUPPORTED_RESOLUTIONS.includes(interval)) lastInterval = interval;
+            });
+          } catch {
+            // The chart is already gone.
+          }
+        });
         if (canSwitch) addSwitch(w, TradingView);
     } catch {
       unavailable();
@@ -171,6 +217,8 @@ export function mountTvChart(
   return {
     dispose() {
       disposed = true;
+      if (restartTimer !== null) clearTimeout(restartTimer);
+      restartTimer = null;
       try {
         widget?.remove();
       } catch {

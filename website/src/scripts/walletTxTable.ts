@@ -48,6 +48,9 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
   let filter: Filter = 'all';
   let disposed = false;
   let loading = false;
+  /** Consecutive failed reads, and the time before which the next read is not tried. */
+  let failures = 0;
+  let retryAt = 0;
   /** Cancels a read still under way when the table is closed. */
   const active = new AbortController();
 
@@ -140,8 +143,10 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
     if (loading) return;
     loading = true;
     try {
-      const next = await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, active.signal);
+      const next = await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, active.signal, now);
       if (disposed) return;
+      failures = 0;
+      retryAt = 0;
       // Most reads return what is already on screen (new trades arrive a few at a time), so only a changed list is redrawn.
       const same = rows !== null && rows.length === next.length && rows[0]?.tx === next[0]?.tx && rows[rows.length - 1]?.tx === next[next.length - 1]?.tx;
       rows = next;
@@ -150,6 +155,9 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
       else draw();
     } catch (e) {
       if (disposed) return;
+      // A failing source is asked less and less often (2s, 4s, ... up to 15s) instead of every second.
+      failures++;
+      retryAt = now() + Math.min(15_000, 1000 * 2 ** failures);
       // Keep what is already on screen; only say so when there is nothing to show yet.
       if (rows === null) {
         problem = e instanceof Error ? e.message : 'The trades could not be loaded.';
@@ -165,8 +173,8 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
   const timer = setInterval(() => {
     // Stop when the table is gone from the page or the tab is in the background.
     if (disposed || !root.isConnected || document.hidden) return;
-    // A read still in flight is left to finish; meanwhile the times keep moving.
-    if (loading) updateTimes();
+    // A read still in flight, or a source being given a rest after failing, is left alone; meanwhile the times keep moving.
+    if (loading || now() < retryAt) updateTimes();
     else void load();
   }, REFRESH_MS);
 

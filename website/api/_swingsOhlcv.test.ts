@@ -88,8 +88,14 @@ describe('shared candles for the chart', () => {
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body).stale).toBe(true);
     expect(out.headers['cache-control']).toBe('no-store');
-    resetOhlcvCache();
-    expect((await handleOhlcv(input(q(), refused))).status).toBe(502);
+    resetOhlcvCache(0);
+    const never = await handleOhlcv(input(q(), refused));
+    expect(never.status).toBe(502);
+    // The answer says what the source said, so a failure can be diagnosed from it.
+    expect(JSON.parse(never.body)).toEqual({ error: 'source', upstream: 429 });
+    resetOhlcvCache(0);
+    const unreachable = vi.fn(async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch;
+    expect(JSON.parse((await handleOhlcv(input(q(), unreachable))).body)).toEqual({ error: 'source', upstream: null });
   });
 
   it('treats an unknown pool as an empty chart, and drops malformed candles', async () => {

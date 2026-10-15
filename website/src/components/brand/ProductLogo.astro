@@ -1,21 +1,24 @@
 ---
-import { GLYPHS, PRODUCT_NAMES, type ProductKey } from '../../lib/logos';
+import { ACCENT, BARE, GLYPHS, PRODUCT_NAMES, WHITE, type ProductKey } from '../../lib/logos';
 
 interface Props {
   product: ProductKey;
   size?: number;
   /** Show the "Aretia <Product>" wordmark beside the mark. */
   wordmark?: boolean;
+  /** The mark alone, in visible colours, without the deep indigo tile. */
+  bare?: boolean;
 }
-const { product, size = 44, wordmark = false } = Astro.props;
+const { product, size = 44, wordmark = false, bare = false } = Astro.props;
+const glyph = bare ? GLYPHS[product].replaceAll(WHITE, BARE[product].main).replaceAll(ACCENT, BARE[product].accent) : GLYPHS[product];
 const label = PRODUCT_NAMES[product];
 const rest = label.replace('Aretia ', '');
 ---
 
 <span class="pl" style={`--pl-size:${size}px`}>
   <svg class="pl__mark" viewBox="0 0 64 64" width={size} height={size} role={wordmark ? undefined : 'img'} aria-label={wordmark ? undefined : label} aria-hidden={wordmark ? 'true' : undefined}>
-    <rect width="64" height="64" rx="16" fill="#150681"></rect>
-    <g set:html={GLYPHS[product]} />
+    {!bare && <rect width="64" height="64" rx="16" fill="#150681"></rect>}
+    <g set:html={glyph} />
   </svg>
   {wordmark && <span class="pl__word"><b>Aretia</b> {rest}</span>}
 </span>

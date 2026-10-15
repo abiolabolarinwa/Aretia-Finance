@@ -4,6 +4,14 @@ import PageHero from '../components/typography/PageHero.astro';
 import Button from '../components/buttons/Button.astro';
 import { paperClass, type PaperTheme } from '../lib/paper';
 
+/* The registries this is being designed for. Their own marks, shown only to name them; see the note under the logos. */
+const registries = [
+  { name: 'Gold Standard', logo: '/assets/registries/gold-standard.png', w: 712, h: 352, show: 40 },
+  { name: 'Verra', logo: '/assets/registries/verra.png', w: 601, h: 222, show: 30 },
+  { name: 'American Carbon Registry', logo: '/assets/registries/american-carbon-registry.png', w: 541, h: 243, show: 36 },
+  { name: 'Climate Action Reserve', logo: '/assets/registries/climate-action-reserve.png', w: 324, h: 132, show: 30 },
+];
+
 const PAPERS: PaperTheme[] = ['brand', 'mint', 'ink', 'light', 'bright'];
 
 const steps = [
@@ -104,6 +112,13 @@ const notBuilt = [
               <ul>{notBuilt.map((b) => <li>{b}</li>)}</ul>
             </div>
           </div>
+          <div class="regs" data-reveal>
+            <h3 class="regs__title">Tokenisation of carbon credits is being designed for these registries</h3>
+            <ul class="regs__logos">
+              {registries.map((r) => <li><img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${r.show}px`} loading="lazy" /></li>)}
+            </ul>
+            <p class="regs__note">These are the registries' own marks, shown only to name them. None of them is a partner, customer or approver of this work.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -126,6 +141,11 @@ const notBuilt = [
 </Base>
 
 <style>
+  .regs { margin-top: var(--space-xl, 2.5rem); display: grid; gap: 0.9rem; }
+  .regs__title { font-size: 1rem; font-weight: 600; }
+  .regs__logos { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2.25rem; }
+  .regs__logos img { width: auto; max-width: none; }
+  .regs__note { margin: 0; font-size: 0.85rem; color: var(--color-muted); }
   .notice { margin-bottom: var(--space-xl); padding: 1.1rem 1.4rem; border: 1px solid var(--c-accent); border-radius: var(--radius-lg); display: grid; gap: 0.35rem; }
   .notice p { color: var(--c-muted); line-height: 1.6; margin: 0; }
   .chapters { display: grid; gap: 16px; margin-bottom: var(--space-2xl); }

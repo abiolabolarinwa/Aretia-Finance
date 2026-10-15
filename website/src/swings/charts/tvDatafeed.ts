@@ -9,7 +9,7 @@
  */
 import type { ChainId } from '../core/types.js';
 import { DEXSCREENER_CHAIN, GECKO_NETWORK } from './pool.js';
-import { spaced } from './geckoGate.js';
+import { CancelledRead, spaced } from './geckoGate.js';
 import { markRouteDown, markRouteUp, routeIsDown } from './upstreamHealth.js';
 
 /** The name Aretia's candle route is remembered under while it is failing. */
@@ -94,6 +94,8 @@ interface PeriodParams {
 
 /** The part of TradingView's IBasicDataFeed that this chart uses. */
 export interface TvDatafeed {
+  /** Starts reading the first candles for an interval now, before the chart asks for them. Optional: the chart works without it. */
+  warm?(resolution: string): void;
   onReady(cb: (config: Record<string, unknown>) => void): void;
   searchSymbols(input: string, exchange: string, type: string, cb: (r: unknown[]) => void): void;
   resolveSymbol(name: string, onResolve: (info: TvSymbolInfo) => void, onError: (reason: string) => void): void;
@@ -158,9 +160,47 @@ export function applyLivePrice(current: TvBar | null, price: number, slotMs: num
   return { time: slotMs, open, high: Math.max(open, price), low: Math.min(open, price), close: price, volume: 0 };
 }
 
-/** History loads try this many times before giving up, waiting a little longer each time. */
+/**
+ * History loads try this many times before giving up. Direct reads are already spaced about two seconds apart by the gate, so
+ * the extra wait before a retry is short.
+ */
 const LOAD_ATTEMPTS = 3;
-const RETRY_BASE_MS = 900;
+const RETRY_BASE_MS = 300;
+
+/** If Aretia's own candle endpoint has not answered in this long, GeckoTerminal is read directly as well and the first good answer wins. */
+const HEDGE_MS = 700;
+
+/** How many candles an early read (see `warm`) asks for: more than the chart's first request, so it can serve it. */
+const WARM_LIMIT = 500;
+
+/** Candles already read, shared by every datafeed so a read started early serves the chart that opens a moment later. */
+const store = new Map<string, { at: number; bars: TvBar[]; limit: number }>();
+const inFlight = new Map<string, { limit: number; promise: Promise<TvBar[]> }>();
+
+/** For tests, and for a page that wants a clean slate. */
+export function resetCandleStore(): void {
+  store.clear();
+  inFlight.clear();
+}
+
+/**
+ * Whichever of two reads gives a good answer first. A read that fails only counts against it if the other fails as well, and
+ * then the direct read's own error is the one reported, since that is the more useful message. Pure apart from the promises.
+ */
+function firstGood(server: Promise<TvBar[] | null>, direct: Promise<TvBar[]>): Promise<TvBar[]> {
+  return new Promise<TvBar[]>((resolve, reject) => {
+    let failed = 0;
+    let directError: unknown = new Error('The price service could not be reached.');
+    const oneFailed = (): void => {
+      if (++failed === 2) reject(directError);
+    };
+    server.then((bars) => (bars ? resolve(bars) : oneFailed()), oneFailed);
+    direct.then(resolve, (e: unknown) => {
+      directError = e;
+      oneFailed();
+    });
+  });
+}
 
 export function createPoolDatafeed(
   o: PoolChartOptions,
@@ -177,6 +217,10 @@ export function createPoolDatafeed(
     dexBase?: string;
     /** Called when the chart's first load of candles fails for good (after its own retries), so the chart can be started again. */
     onLoadFailed?: (message: string) => void;
+    /** How long Aretia's endpoint has to answer before GeckoTerminal is also read directly, in milliseconds. */
+    hedgeMs?: number;
+    /** True once the chart this datafeed serves has been closed: reads still waiting their turn for GeckoTerminal are then dropped. */
+    cancelled?: () => boolean;
   } = {},
 ): TvDatafeed {
   const fetchImpl = deps.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -189,7 +233,7 @@ export function createPoolDatafeed(
   const currency = o.currency ?? 'usd';
   /** Shown beside the symbol in the chart's legend, like "DOPE / USD · 15 · aretiafinance.org". */
   const exchange = o.exchange ?? 'aretiafinance.org';
-  const cache = new Map<string, { at: number; bars: TvBar[]; limit: number }>();
+  const hedgeMs = deps.hedgeMs ?? HEDGE_MS;
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   /** Per interval: the time of the oldest candle the pool has, once a short answer showed there is nothing before it. */
   const exhausted = new Map<string, number>();
@@ -236,28 +280,65 @@ export function createPoolDatafeed(
    * needs, so that shows up as a failed fetch rather than a 429; both are a short wait away from working, so history
    * loads (attempts > 1) try again before giving up.
    */
-  async function candles(res: Resolution, requestedBefore: number, limit: number, attempts = 1): Promise<TvBar[]> {
+  async function candles(res: Resolution, requestedBefore: number, limit: number, attempts = 1, fresh = false): Promise<TvBar[]> {
     // Round the time up to a whole candle. Asks made a moment apart then share one answer (the symbol lookup and the chart's
     // first request, say), which matters because GeckoTerminal turns away a second request that follows the first closely.
     const beforeSec = Math.ceil(requestedBefore / res.seconds) * res.seconds;
-    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: side });
-    const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     // An answer holding at least as many candles as asked for serves the newest of them, whatever limit it was fetched with.
-    const key = `${res.tf}|${res.aggregate}|${beforeSec}`;
-    const hit = cache.get(key);
-    if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return hit.bars.slice(-limit);
+    // The store is shared by every datafeed, so a read started when a token is opened (see `warm`) serves the chart that
+    // opens a moment later, and a read still under way is joined rather than made twice.
+    const key = `${o.chain}|${o.pool}|${side}|${currency}|${res.tf}|${res.aggregate}|${beforeSec}`;
+    if (!fresh) {
+      const hit = store.get(key);
+      if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return hit.bars.slice(-limit);
+      const pending = inFlight.get(key);
+      if (pending && pending.limit >= limit) return pending.promise.then((bars) => bars.slice(-limit));
+    }
+    const promise = loadCandles(res, beforeSec, limit, attempts, key);
+    const entry = { limit, promise };
+    inFlight.set(key, entry);
+    const forget = (): void => {
+      if (inFlight.get(key) === entry) inFlight.delete(key);
+    };
+    promise.then(forget, forget);
+    return promise;
+  }
+
+  /**
+   * Reads candles from whichever source answers first. Aretia's own endpoint is asked first (it shares one read among
+   * everyone), but it is often slower than going direct, and it can be refused outright. So if it has not answered within
+   * `hedgeMs`, the page also reads GeckoTerminal directly and takes whichever good answer arrives first. When the endpoint
+   * fails quickly the direct read simply follows, as before.
+   */
+  async function loadCandles(res: Resolution, beforeSec: number, limit: number, attempts: number, key: string): Promise<TvBar[]> {
     const keep = (bars: TvBar[]): TvBar[] => {
-      cache.set(key, { at: now(), bars, limit });
+      store.set(key, { at: now(), bars, limit });
       return bars;
     };
-    const shared = await fromServer(res, beforeSec, limit);
-    if (shared) return keep(shared);
+    const direct = (): Promise<TvBar[]> => readDirect(res, beforeSec, limit, attempts);
+    const server = fromServer(res, beforeSec, limit);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<'late'>((resolve) => {
+      timer = setTimeout(() => resolve('late'), hedgeMs);
+    });
+    const first = await Promise.race([server, late]);
+    clearTimeout(timer);
+    if (first !== 'late') return keep(first ?? (await direct()));
+    return keep(await firstGood(server, direct()));
+  }
+
+  /** Reads GeckoTerminal itself: spaced out, retried a little, and read into bars. */
+  async function readDirect(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<TvBar[]> {
+    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: side });
+    const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     let response: Response | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         // Direct reads of GeckoTerminal are spaced out; a retry that came too soon after the last read would only be turned away too.
-        response = await spaced(() => fetchImpl(url, { headers: { accept: 'application/json' } }), { priority: CHART_PRIORITY });
-      } catch {
+        response = await spaced(() => fetchImpl(url, { headers: { accept: 'application/json' } }), { priority: CHART_PRIORITY, ...(deps.cancelled ? { cancelled: deps.cancelled } : {}) });
+      } catch (e) {
+        // A read for a chart that has been closed is dropped, not retried.
+        if (e instanceof CancelledRead) throw e;
         response = null;
       }
       const retryable = response === null || response.status === 429 || response.status >= 500;
@@ -274,7 +355,7 @@ export function createPoolDatafeed(
     } catch {
       throw new Error('The price service returned something unreadable.');
     }
-    return keep(parseBars(body));
+    return parseBars(body);
   }
 
   const info: TvSymbolInfo = {
@@ -298,6 +379,13 @@ export function createPoolDatafeed(
   };
 
   return {
+    warm(resolution) {
+      const res = RESOLUTIONS[resolution];
+      if (!res) return;
+      // The chart takes a moment to start before it asks for candles; reading them now overlaps the two. A failure here is
+      // not the chart's failure: when it asks, it reads again.
+      void candles(res, Math.floor(now() / 1000) + res.seconds, currency === 'token' ? MAX_PER_REQUEST : WARM_LIMIT, LOAD_ATTEMPTS).catch(() => undefined);
+    },
     onReady(cb) {
       setTimeout(() => cb({ supported_resolutions: SUPPORTED_RESOLUTIONS, supports_marks: false, supports_timescale_marks: false, supports_time: false, exchanges: [], symbols_types: [] }), 0);
     },
@@ -382,9 +470,8 @@ export function createPoolDatafeed(
       // Every so often: the real candles, which carry the volume and correct anything the live readings missed.
       const tick = (): void => {
         if (hidden()) return;
-        // Skip the cache so a live poll sees fresh data.
-        cache.clear();
-        candles(res, Math.floor(now() / 1000) + res.seconds, 2)
+        // Skip what is stored so a live poll sees fresh data.
+        candles(res, Math.floor(now() / 1000) + res.seconds, 2, 1, true)
           .then((bars) => {
             for (const b of bars) {
               // A candle the live price has just moved keeps that price until the candle data catches up.

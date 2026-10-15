@@ -18,8 +18,20 @@ export const GAP_MS = 2_100;
 interface Job {
   priority: number;
   start: () => void;
+  /** Gives up on the read without making it. */
+  drop: (error: Error) => void;
+  /** True once the read is no longer wanted (its chart was closed). Checked when its turn comes. */
+  cancelled?: () => boolean;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
+}
+
+/** What a read that was dropped before its turn fails with. It was never made, so nothing was used up. */
+export class CancelledRead extends Error {
+  constructor() {
+    super('cancelled');
+    this.name = 'CancelledRead';
+  }
 }
 
 let gapMs = GAP_MS;
@@ -46,6 +58,12 @@ async function pump(): Promise<void> {
   try {
     while (waiting.length > 0) {
       const next = pick();
+      // A read nobody wants any more (the reader moved on to another token) is dropped without waiting its turn or using up the gap.
+      if (next.cancelled?.()) {
+        waiting.splice(waiting.indexOf(next), 1);
+        next.drop(new CancelledRead());
+        continue;
+      }
       const now = next.now();
       // A lower-priority read also stays back while a chart is opening (see holdLowPriority); a priority one does not.
       const wait = Math.max(lastStart + gapMs - now, next.priority > 0 ? 0 : holdUntil - now);
@@ -54,6 +72,8 @@ async function pump(): Promise<void> {
         wake = null;
         // Something more important may have been asked for while this waited; look again.
         if (pick() !== next) continue;
+        // Or this read stopped being wanted while it waited.
+        if (next.cancelled?.()) continue;
       }
       waiting.splice(waiting.indexOf(next), 1);
       lastStart = next.now();
@@ -65,10 +85,10 @@ async function pump(): Promise<void> {
 }
 
 /** Runs `task` once it is its turn: reads start one at a time, never closer together than the gap. */
-export function spaced<T>(task: () => Promise<T>, opts: { priority?: number; now?: () => number; sleep?: (ms: number) => Promise<void> } = {}): Promise<T> {
+export function spaced<T>(task: () => Promise<T>, opts: { priority?: number; cancelled?: () => boolean; now?: () => number; sleep?: (ms: number) => Promise<void> } = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const priority = opts.priority ?? 0;
-    waiting.push({ priority, now: opts.now ?? Date.now, sleep: opts.sleep ?? realSleep, start: () => task().then(resolve, reject) });
+    waiting.push({ priority, now: opts.now ?? Date.now, sleep: opts.sleep ?? realSleep, ...(opts.cancelled ? { cancelled: opts.cancelled } : {}), start: () => task().then(resolve, reject), drop: reject });
     if (priority > 0) wake?.();
     void pump();
   });

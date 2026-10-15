@@ -75,10 +75,15 @@ describe('shared trades for the Transactions table', () => {
   });
 
   it('tries the source once more when it refuses for a moment', async () => {
-    const f = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 429 })).mockResolvedValue(new Response(JSON.stringify({ data: [row()] })));
+    const f = vi.fn().mockResolvedValueOnce(new Response('{}', { status: 503 })).mockResolvedValue(new Response(JSON.stringify({ data: [row()] })));
     const out = await handleTrades(input(q(), f as unknown as typeof fetch));
     expect(out.status).toBe(200);
     expect(f).toHaveBeenCalledTimes(2);
+    // A 429 is not retried: a rate-limited source stays that way far longer than a retry waits, so it only delays the answer.
+    resetTradesCache(0);
+    const limited = upstream([], 429);
+    expect((await handleTrades(input(q(), limited))).status).toBe(502);
+    expect(limited).toHaveBeenCalledTimes(1);
   });
 
   it('returns the last good trades, marked old, when the source fails; and an error when it never answered', async () => {

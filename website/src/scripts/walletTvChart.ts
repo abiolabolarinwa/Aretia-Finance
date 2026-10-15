@@ -75,6 +75,17 @@ export function loadChartingLibrary(): Promise<TvGlobal> {
   return loading;
 }
 
+/**
+ * Loads the chart library in the background, before any chart is opened, so the first chart does not wait for it. Safe to call
+ * any number of times, and to ignore: if it fails, opening a chart tries again.
+ */
+export function preloadChartingLibrary(): void {
+  const start = (): void => void loadChartingLibrary().catch(() => undefined);
+  // After the page has settled, so it does not compete with what the reader is looking at.
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(start, { timeout: 4_000 });
+  else setTimeout(start, 1_500);
+}
+
 /** What is turned off: the datafeed carries one pool, so there is nothing to search or compare, and nothing is saved to a server. */
 const DISABLED = ['header_symbol_search', 'symbol_search_hot_key', 'header_compare', 'header_saveload', 'header_screenshot', 'display_market_status', 'popup_hints'];
 
@@ -92,14 +103,16 @@ let lastInterval: string | null = null;
 export function mountTvChart(
   host: HTMLElement,
   o: TvChartOptions,
-  makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void) => TvDatafeed = (currency, label, onLoadFailed) =>
+  makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean) => TvDatafeed = (currency, label, onLoadFailed, cancelled) =>
     createPoolDatafeed(
       { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) },
-      { viaServer: '/api/swings-ohlcv', onLoadFailed },
+      { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled },
     ),
 ): TvChart {
   let widget: TvWidget | null = null;
   let disposed = false;
+  /** True once this chart has been closed; reads still waiting their turn for GeckoTerminal are then dropped. */
+  const isClosed = (): boolean => disposed;
   let library: TvGlobal | null = null;
   let restarts = 0;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -109,6 +122,13 @@ export function mountTvChart(
   host.classList.add('wapp-tv');
   // The chart asks for its candles in a moment, once the library has loaded; reads for the trades table wait for it.
   holdLowPriority(4_000);
+  // Starting up the chart takes a second or so, and it only asks for candles afterwards. Reading them now overlaps the two,
+  // so they are usually there the moment the chart asks. (A throwaway datafeed does the reading into a store they share.)
+  try {
+    makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, () => undefined, isClosed).warm?.(lastInterval ?? o.interval ?? '15');
+  } catch {
+    // Not needed for the chart to work.
+  }
 
   const unavailable = (): void => {
     if (disposed || !o.fallbackUrl) return;
@@ -175,7 +195,7 @@ export function mountTvChart(
 
   function build(TradingView: TvGlobal): void {
     library = TradingView;
-    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart);
+    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart, isClosed);
     try {
         const w = new TradingView.widget({
           container: host,

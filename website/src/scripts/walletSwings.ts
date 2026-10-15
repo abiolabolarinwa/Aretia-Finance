@@ -32,7 +32,7 @@ import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
-import { mountTvChart, type TvChart } from './walletTvChart';
+import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
@@ -1469,6 +1469,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let failures = 0;
     let page = false;
     const tokenPage = createTokenPage();
+    // The chart library is a few hundred kilobytes; fetch it in the background so the first chart opens without waiting for it.
+    preloadChartingLibrary();
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
     let tableEl: HTMLElement | null = null;

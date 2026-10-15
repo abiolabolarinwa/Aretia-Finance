@@ -57,7 +57,9 @@ export async function handleTrades(input: TokensInput): Promise<TokensOutput> {
   if (!pending) {
     pending = (async () => {
       let res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });
-      if (res.status === 429 || res.status >= 500) {
+      // One retry for a server error. A 429 is not retried: a source that is rate-limiting stays that way for far longer than
+      // a retry waits, so retrying only delays the answer (the page falls back to reading the source itself).
+      if (res.status >= 500) {
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });
       }

@@ -96,6 +96,13 @@ export interface SolanaSwapPayload {
   protectedSubmission?: { tipLamports: number };
 }
 
+/**
+ * Once a direct pool has priced the trade, two-hop routes through the hubs get this long to beat it. They need two simulations one after
+ * the other, so on a slow node they can take many seconds, and for almost every token the direct pool wins anyway. A two-hop that
+ * answers in time is still compared; one that does not is left out rather than making everyone wait for it.
+ */
+const TWO_HOP_WAIT_MS = 2_500;
+
 const isWsol = (t: TokenRef): boolean => t.address === WSOL_MINT;
 /** How much of `mint` a pool holds: the yardstick for "deepest pool" among pools that share that token. */
 const depthOf = (pool: LiquidityPool, mint: string): bigint => (pool.token0.address === mint ? pool.reserve0 : pool.reserve1);
@@ -232,40 +239,21 @@ export class DirectSolanaProvider implements DexProvider {
   }
 
   /** Every route that can fill `req` (direct, two-hop, split), best first. Throws no-route when none can. */
-  private async findPlans(web3: typeof Web3, req: SwapRequest, venues: SolanaVenue[], blockhash: string): Promise<{ plans: Plan[]; read: string }> {
+  private async findPlans(web3: typeof Web3, req: SwapRequest, venues: SolanaVenue[], blockhashPending: Promise<string>): Promise<{ plans: Plan[]; read: string }> {
     const { from, to } = req;
     const request = req;
     this.skipped = [];
     const hubs = SOLANA_HUBS.filter((h) => h !== from.address && h !== to.address).map((address): TokenRef => ({ chain: 'solana', address }));
 
     // Read every pool the plans might use, in parallel.
-    const [direct, ...viaHubs] = await Promise.all([this.poolsOf(venues, from, to), ...hubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)])]);
+    // The blockhash is asked for at the same time, so it costs no extra wait, and if the node cannot answer it the quote fails at once instead of after the pools.
+    const [blockhash, direct, ...viaHubs] = await Promise.all([blockhashPending, this.poolsOf(venues, from, to), ...hubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)])] as const) as [string, Awaited<ReturnType<typeof this.poolsOf>>, ...Awaited<ReturnType<typeof this.poolsOf>>[]];
     const plans: Plan[] = [];
-
-    // 1. Direct, through each pool.
-    const directLegs: Leg[] = direct.map(({ venue, pool }) => ({ venue, pool, tokenIn: from, tokenOut: to, amountIn: request.amountIn, minOut: 1n }));
-    const directOuts = await Promise.all(directLegs.map((leg) => this.legOut(web3, req, leg, blockhash).catch(() => null)));
-    const directPlans: Plan[] = [];
-    directLegs.forEach((leg, i) => {
-      const out = directOuts[i];
-      if (out === null || out === undefined) return;
-      directPlans.push({
-        shape: 'direct',
-        legs: [leg],
-        legOuts: [out],
-        amountOut: out,
-        impactBps: null,
-        reasons: [`${leg.venue.name} pool ${short(leg.pool.ref.address)} ${leg.venue.localQuote ? "priced by Aretia's own exact maths" : 'priced by the program itself (simulated from your account)'}.`],
-      });
-    });
-    plans.push(...directPlans);
-    directPlans.sort((a, b) => (a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0));
-    if (directPlans[0]) directPlans[0].impactBps = await this.impactOf(web3, req, directPlans[0].legs[0]!, directPlans[0].amountOut, blockhash);
 
     // 2. Two hops through each hub: the deepest pool for each leg, checked by simulating the whole transaction. Each hub needs two
     // simulations one after the other, so the hubs are worked on together, not one after another: the quote has a time limit, and
     // doing them in turn made a two-hop swap into a new token take twice as long as it needs to.
-    const twoHops = await Promise.all(
+    const twoHopsPending = Promise.all(
       hubs.map(async (hub, k): Promise<Plan | null> => {
         const first = viaHubs[k * 2]!;
         const second = viaHubs[k * 2 + 1]!;
@@ -300,7 +288,33 @@ export class DirectSolanaProvider implements DexProvider {
         }
       }),
     );
-    for (const plan of twoHops) if (plan) plans.push(plan);
+
+    // 1. Direct, through each pool.
+    const directLegs: Leg[] = direct.map(({ venue, pool }) => ({ venue, pool, tokenIn: from, tokenOut: to, amountIn: request.amountIn, minOut: 1n }));
+    const directOuts = await Promise.all(directLegs.map((leg) => this.legOut(web3, req, leg, blockhash).catch(() => null)));
+    const directPlans: Plan[] = [];
+    directLegs.forEach((leg, i) => {
+      const out = directOuts[i];
+      if (out === null || out === undefined) return;
+      directPlans.push({
+        shape: 'direct',
+        legs: [leg],
+        legOuts: [out],
+        amountOut: out,
+        impactBps: null,
+        reasons: [`${leg.venue.name} pool ${short(leg.pool.ref.address)} ${leg.venue.localQuote ? "priced by Aretia's own exact maths" : 'priced by the program itself (simulated from your account)'}.`],
+      });
+    });
+    plans.push(...directPlans);
+    directPlans.sort((a, b) => (a.amountOut > b.amountOut ? -1 : a.amountOut < b.amountOut ? 1 : 0));
+    // How much the trade's own size costs is measured while the two-hop routes are still being worked out, not before them.
+    const impactPending = directPlans[0] ? this.impactOf(web3, req, directPlans[0].legs[0]!, directPlans[0].amountOut, blockhash).catch(() => null) : Promise.resolve(null);
+
+
+    // Two-hop routes: all of them, if there is no direct pool to fall back on; otherwise only those that answer within a short window.
+    const twoHops = directPlans.length === 0 ? await twoHopsPending : await Promise.race([twoHopsPending, new Promise<null>((res) => setTimeout(() => res(null), TWO_HOP_WAIT_MS))]);
+    if (directPlans[0]) directPlans[0].impactBps = await impactPending;
+    for (const plan of twoHops ?? []) if (plan) plans.push(plan);
 
     // 3. Split a large trade between the two best direct pools when that pays measurably more.
     const best = directPlans[0];
@@ -363,8 +377,9 @@ export class DirectSolanaProvider implements DexProvider {
     const web3 = await this.deps.web3();
     const req: SwapRequest = { ...request, from, to, amountIn: feePlan.net };
     const venues = createSolanaVenues(web3, this.deps.rpc, this.deps.registry, this.now);
-    const blockhash = await this.blockhash();
-    const { plans, read } = await this.findPlans(web3, req, venues, blockhash);
+    const blockhashPending = this.blockhash();
+    blockhashPending.catch(() => undefined);
+    const { plans, read } = await this.findPlans(web3, req, venues, blockhashPending);
     const chosen = plans[0]!;
     const slip = BigInt(request.slippageBps);
     const minOut = after(chosen.amountOut, slip);

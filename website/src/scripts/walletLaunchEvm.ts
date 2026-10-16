@@ -19,6 +19,7 @@ import {
   type EvmLaunchForm,
   type LaunchEvmChain,
 } from './walletLaunchEvmCore';
+import { createEvmPool } from './walletPoolEvm';
 import { EvmLaunchFlow, friendlyEvmError, type EvmOutcome, type EvmProgress, type EvmReview } from './walletLaunchEvmFlow';
 
 export interface LaunchEvmHost {
@@ -49,7 +50,7 @@ const PROGRESS_STEPS: { id: EvmProgress; label: string }[] = [
 ];
 
 /** Reads for one chain, straight from a public node and never through the wallet, so pricing never prompts or switches the wallet. */
-function readerFor(chain: LaunchEvmChain): EvmRead {
+export function readerFor(chain: LaunchEvmChain): EvmRead {
   if (!chain.testnet) return publicRead(chain.key as ChainId);
   const url = chain.addParams?.rpcUrls[0];
   return async (method, params) => {
@@ -97,6 +98,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   let acknowledged = false;
   let adapter: EvmWalletAdapter | null = null;
   let redrawNow: () => void = () => undefined;
+  const pool = createEvmPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) });
 
   const set = (f: Partial<EvmLaunchForm>): void => {
     form = { ...form, ...f };
@@ -395,9 +397,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       else if (stage === 'review') drawReview(card);
       else if (stage === 'working') drawWorking(card);
       else drawDone(card);
+      // Opening a pool for a token is offered below, on the networks where it is available.
+      pool.draw(card, redraw, form.chain, outcome?.token ?? null);
     },
-    isBusy: () => busy,
+    isBusy: () => busy || pool.isBusy(),
     reset(): void {
+      pool.reset();
       stage = 'form';
       review = null;
       outcome = null;

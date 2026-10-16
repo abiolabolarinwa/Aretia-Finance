@@ -44,6 +44,28 @@ const carbonNeeds = [
   'An independent security audit of the token contract and the key management.',
   'Legal and data-protection review, and approval of the issuance and retirement workflows.',
 ];
+// Aretia Launch. Restates the status in the aretia-wallet repo (docs/aretia-launch/production-readiness.md, decision: NO-GO).
+// Kept on this page rather than in PRODUCTS so the public features page does not announce it; keep the two in step.
+const launchDoes = [
+  'Create a token with a fixed supply. On Ethereum-style networks the token has no mint, pause or blacklist function at all; on Solana the mint and freeze powers can be given up.',
+  'Sell it on a bonding curve, with the price rule, the fees and what happens at sell-out shown before you sign.',
+  'Open a liquidity pool with your own tokens and coin. Aretia adds none and never matches it.',
+  'See a trust panel for any launched token: who can still change it, how it was shared out, who can withdraw the liquidity. It shows evidence only: no score, and never the word “safe”.',
+];
+const launchRows: StatusRow[] = [
+  { network: 'Solana mainnet (this page)', state: 'Off', tone: 'off' },
+  { network: 'Any other mainnet', state: 'Off', tone: 'off' },
+  { network: 'Solana devnet', state: 'Built, not run live', tone: 'warn' },
+  { network: 'Base, BNB Chain, Ethereum and Polygon test networks', state: 'Built, not deployed', tone: 'warn' },
+  { network: 'Independent security audit', state: 'None', tone: 'off' },
+];
+const launchNeeds = [
+  'Deploying the contracts and the Solana program to test networks and running every step on a real chain. So far it has only run in simulators.',
+  'An independent security audit of the contracts and the Solana program.',
+  'The step that moves a sold-out Solana sale into a liquidity pool, which is not built yet.',
+  'Decisions on fees and payments. Aretia charges nothing for Launch today.',
+  'Legal review of launching and trading tokens.',
+];
 const safesendNeeds = [
   'SafeSend deployed on Solana mainnet. Today the Solana program exists on devnet only.',
   'A security audit of the vault and the program before it holds anyone’s real funds.',
@@ -104,6 +126,10 @@ const sendTips = [
         <button type="button" data-nav="radar">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 12l5-5" /></svg>
           <span class="wapp__label">Radar</span>
+        </button>
+        <button type="button" data-nav="launch">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3c3 2.3 5 5.2 5 9l-2.2 3.2H9.2L7 12c0-3.8 2-6.7 5-9zM9.2 15.2L7 19l3.2-1.2M14.8 15.2L17 19l-3.2-1.2M12 9.5v.01" /></svg>
+          <span class="wapp__label">Launch</span>
         </button>
         <button type="button" data-nav="send">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
@@ -391,6 +417,33 @@ const sendTips = [
         </div>
       </div>
 
+      <div data-pane="launch" class="wapp__pane" hidden>
+        <div class="wapp__grid wapp__grid--trade">
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Aretia Launch</span>
+            <h2 class="wapp__h2">Create and sell your own token</h2>
+            <p class="wapp__fine">Launch a token, sell it on a bonding curve and open a liquidity pool, with every permission, fee and risk shown before you sign. Aretia never holds your keys: your wallet signs.</p>
+            <p class="wapp__banner wapp__banner--warn"><b>Not available on this web wallet yet.</b> Launch is built and tested on test networks only. It has not been deployed, run on a live network or audited, and it is switched off on Solana mainnet, which is what this page uses.</p>
+            <span class="wapp__eyebrow">What it does</span>
+            <ul class="wapp__list">
+              {launchDoes.map((point) => <li>{point}</li>)}
+            </ul>
+          </div>
+          <div class="wapp__card">
+            <span class="wapp__eyebrow">Where it stands</span>
+            <dl class="wapp__rows">
+              {launchRows.map((row) => <div><dt>{row.network}</dt><dd><span class={`wapp__state wapp__state--${row.tone}`}>{row.state}</span></dd></div>)}
+            </dl>
+            <span class="wapp__eyebrow">What has to happen first</span>
+            <ul class="wapp__list">
+              {launchNeeds.map((need) => <li>{need}</li>)}
+            </ul>
+            <p class="wapp__fine">Launch is also in the Aretia browser extension, which is in development and not yet in the Chrome Web Store. It works on test networks only.</p>
+            <p class="wapp__fine"><a href="/wallet/about">About Aretia Wallet</a></p>
+          </div>
+        </div>
+      </div>
+
       <div data-pane="carbon" class="wapp__pane" hidden>
         <div class="wapp__grid wapp__grid--trade">
           <div class="wapp__card">
@@ -631,8 +684,9 @@ const sendTips = [
   .wapp__row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
   .wapp[data-connected='false'][data-view='safesend'] .wapp__gate,
   .wapp[data-connected='false'][data-view='universal'] .wapp__gate,
-  .wapp[data-connected='false'][data-view='carbon'] .wapp__gate { display: none; }
-  .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='universal'] [data-refresh], .wapp[data-view='carbon'] [data-refresh] { display: none; }
+  .wapp[data-connected='false'][data-view='carbon'] .wapp__gate,
+  .wapp[data-connected='false'][data-view='launch'] .wapp__gate { display: none; }
+  .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='universal'] [data-refresh], .wapp[data-view='carbon'] [data-refresh], .wapp[data-view='launch'] [data-refresh] { display: none; }
   .wapp__state { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
   .wapp__state--on { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
   .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
@@ -1358,10 +1412,10 @@ const sendTips = [
   @media (min-width: 961px) { .wapp-pay [data-pay-panel='send'] .wapp__grid--trade { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
   /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
   .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: center; }
-  .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) { width: 100%; max-width: 1120px; justify-self: start; }
+  .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend'], [data-pane='universal']) { width: 100%; max-width: 1120px; justify-self: start; }
   /* Radar is one lookup, so it sits in the middle of the page rather than against the sidebar. */
   .wapp__pane[data-pane='radar'] { justify-self: center; }
-  @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='safesend'], [data-pane='universal']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
+  @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend'], [data-pane='universal']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
 
   /* ---- Swap opened over the page it was started from ---- */
   .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }

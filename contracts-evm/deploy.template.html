@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><title>Deploy Aretia token factory</title>
+<style>body{font:15px system-ui;max-width:640px;margin:2rem auto;padding:0 1rem}select,button{font:inherit;padding:.5rem;margin:.3rem 0}code{word-break:break-all}</style>
+<h1>Deploy the Aretia token factory</h1>
+<p>Your own wallet signs and pays. Pick a network, check the fee and recipient below, and approve in the wallet. Do a test network first.</p>
+<select id="net"></select><br>
+<dl><dt>Fee recipient</dt><dd><code id="to"></code></dd><dt>Fee (wei)</dt><dd><code id="fee"></code></dd></dl>
+<button id="go">Deploy</button>
+<p id="out"></p>
+<script>
+const FACTORY_BYTECODE = "__BYTECODE__";
+const FEE_TO = "__FEE_TO__";
+const NETS = __NETS__;
+const net = document.getElementById('net');
+NETS.forEach((n, i) => net.add(new Option(`${n.name} (${n.chainId})${n.testnet ? '' : ' — MAINNET, real money'}`, i)));
+const cur = () => NETS[net.value];
+const show = () => { document.getElementById('to').textContent = FEE_TO; document.getElementById('fee').textContent = cur().fee; };
+net.onchange = show; show();
+const out = document.getElementById('out');
+document.getElementById('go').onclick = async () => {
+  const n = cur(), eth = window.ethereum;
+  if (!eth) { out.textContent = 'No browser wallet found.'; return; }
+  try {
+    const [from] = await eth.request({ method: 'eth_requestAccounts' });
+    const id = '0x' + n.chainId.toString(16);
+    try { await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: id }] }); }
+    catch (e) { if (n.add) await eth.request({ method: 'wallet_addEthereumChain', params: [{ chainId: id, ...n.add }] }); else throw e; }
+    if (await eth.request({ method: 'eth_chainId' }) !== id) throw new Error('Wallet is on the wrong network.');
+    const args = FEE_TO.slice(2).padStart(64, '0') + BigInt(n.fee).toString(16).padStart(64, '0');
+    const hash = await eth.request({ method: 'eth_sendTransaction', params: [{ from, data: FACTORY_BYTECODE + args }] });
+    out.textContent = 'Sent: ' + hash + ' — waiting…';
+    for (let i = 0; i < 90; i++) {
+      const r = await eth.request({ method: 'eth_getTransactionReceipt', params: [hash] });
+      if (r) { out.textContent = r.status === '0x1' ? `Deployed. Factory address: ${r.contractAddress}  (send this to Claude)` : 'Failed on chain: ' + hash; return; }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    out.textContent = 'Still pending: ' + hash;
+  } catch (e) { out.textContent = 'Stopped: ' + (e.message || e); }
+};
+</script>

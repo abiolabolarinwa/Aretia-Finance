@@ -33,19 +33,22 @@ export interface LaunchEvmChain {
 /** "0.003" -> wei, by string arithmetic (no floating point). */
 const coin = (amount: string): bigint => BigInt(toSmallestUnit(amount, 18) ?? '0');
 
+/** Aretia's EVM fee address (the owner's), the same on every network. Lower-case. */
+const FEE_ADDRESS = '0xeb8725e16e504036c2166aa47804d88ecc4d0945';
+
 /**
- * PROPOSED fees, not yet confirmed by the owner: about the size of the 0.05 SOL Solana fee, in each chain's coin. Change them here and in the
- * factory deployment together. Testnet fees are token amounts only. Every factory is null until it is deployed and checked.
+ * Mainnet fees set by the owner: about $10 in each chain's coin. Change them here and in the factory deployment together. Testnet fees are
+ * token amounts only. Every factory is null until it is deployed and checked, so every network stays off until then.
  */
 export const LAUNCH_EVM_CHAINS: readonly LaunchEvmChain[] = [
-  { key: 'base', name: 'Base', chainId: 8453, symbol: 'ETH', testnet: false, feeWei: coin('0.003'), factory: null, feeAddress: null, explorer: 'https://basescan.org' },
-  { key: 'bnb', name: 'BNB Chain', chainId: 56, symbol: 'BNB', testnet: false, feeWei: coin('0.01'), factory: null, feeAddress: null, explorer: 'https://bscscan.com' },
-  { key: 'ethereum', name: 'Ethereum', chainId: 1, symbol: 'ETH', testnet: false, feeWei: coin('0.003'), factory: null, feeAddress: null, explorer: 'https://etherscan.io' },
-  { key: 'polygon', name: 'Polygon', chainId: 137, symbol: 'POL', testnet: false, feeWei: coin('10'), factory: null, feeAddress: null, explorer: 'https://polygonscan.com' },
-  { key: 'baseSepolia', name: 'Base Sepolia (test)', chainId: 84532, symbol: 'ETH', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: null, explorer: 'https://sepolia.basescan.org', addParams: { chainName: 'Base Sepolia', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://sepolia.base.org'], blockExplorerUrls: ['https://sepolia.basescan.org'] } },
-  { key: 'bscTestnet', name: 'BNB Chain testnet (test)', chainId: 97, symbol: 'tBNB', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: null, explorer: 'https://testnet.bscscan.com', addParams: { chainName: 'BNB Smart Chain Testnet', nativeCurrency: { name: 'tBNB', symbol: 'tBNB', decimals: 18 }, rpcUrls: ['https://data-seed-prebsc-1-s1.bnbchain.org:8545'], blockExplorerUrls: ['https://testnet.bscscan.com'] } },
-  { key: 'sepolia', name: 'Ethereum Sepolia (test)', chainId: 11155111, symbol: 'ETH', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: null, explorer: 'https://sepolia.etherscan.io', addParams: { chainName: 'Sepolia', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'], blockExplorerUrls: ['https://sepolia.etherscan.io'] } },
-  { key: 'polygonAmoy', name: 'Polygon Amoy (test)', chainId: 80002, symbol: 'POL', testnet: true, feeWei: coin('0.1'), factory: null, feeAddress: null, explorer: 'https://amoy.polygonscan.com', addParams: { chainName: 'Polygon Amoy', nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 }, rpcUrls: ['https://rpc-amoy.polygon.technology'], blockExplorerUrls: ['https://amoy.polygonscan.com'] } },
+  { key: 'base', name: 'Base', chainId: 8453, symbol: 'ETH', testnet: false, feeWei: coin('0.0042'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://basescan.org' },
+  { key: 'bnb', name: 'BNB Chain', chainId: 56, symbol: 'BNB', testnet: false, feeWei: coin('0.014'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://bscscan.com' },
+  { key: 'ethereum', name: 'Ethereum', chainId: 1, symbol: 'ETH', testnet: false, feeWei: coin('0.0042'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://etherscan.io' },
+  { key: 'polygon', name: 'Polygon', chainId: 137, symbol: 'POL', testnet: false, feeWei: coin('105'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://polygonscan.com' },
+  { key: 'baseSepolia', name: 'Base Sepolia (test)', chainId: 84532, symbol: 'ETH', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://sepolia.basescan.org', addParams: { chainName: 'Base Sepolia', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://sepolia.base.org'], blockExplorerUrls: ['https://sepolia.basescan.org'] } },
+  { key: 'bscTestnet', name: 'BNB Chain testnet (test)', chainId: 97, symbol: 'tBNB', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://testnet.bscscan.com', addParams: { chainName: 'BNB Smart Chain Testnet', nativeCurrency: { name: 'tBNB', symbol: 'tBNB', decimals: 18 }, rpcUrls: ['https://data-seed-prebsc-1-s1.bnbchain.org:8545'], blockExplorerUrls: ['https://testnet.bscscan.com'] } },
+  { key: 'sepolia', name: 'Ethereum Sepolia (test)', chainId: 11155111, symbol: 'ETH', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://sepolia.etherscan.io', addParams: { chainName: 'Sepolia', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'], blockExplorerUrls: ['https://sepolia.etherscan.io'] } },
+  { key: 'polygonAmoy', name: 'Polygon Amoy (test)', chainId: 80002, symbol: 'POL', testnet: true, feeWei: coin('0.1'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://amoy.polygonscan.com', addParams: { chainName: 'Polygon Amoy', nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 }, rpcUrls: ['https://rpc-amoy.polygon.technology'], blockExplorerUrls: ['https://amoy.polygonscan.com'] } },
 ];
 
 const ADDR = /^0x[0-9a-fA-F]{40}$/;

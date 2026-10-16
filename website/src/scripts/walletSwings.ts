@@ -926,8 +926,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const railEl = document.querySelector<HTMLElement>('[data-rail]');
   /** Which screen the rail is beside: on Markets it filters the lists (or shows every network), on Swap it picks the network to swap on. */
   let railView: 'swap' | 'markets' = 'markets';
-  /** Called when the Markets network filter changes from its own menu, so the rail shows the same choice. */
-  let onNetworkChange: () => void = () => undefined;
 
   /** Chooses a network for the whole Swings page: the swap, the chart and the token lists all follow it. */
   function selectChain(id: ChainId): void {
@@ -1807,17 +1805,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
         bar.append(win);
       }
-      // Favourites are one list across every network, so the network filter is not offered there.
-      if (m.kind !== 'favourites') {
-        bar.append(
-          select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
-            m.chain = v as typeof m.chain;
-            pageNo = 1;
-            onNetworkChange();
-            void load();
-          }),
-        );
-      }
+      // The network is chosen from the rail beside the sidebar (the Aretia mark is every network), so there is no network menu here.
       bar.append(
         select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; autoAge = false; refilter(); }),
         select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
@@ -2249,7 +2237,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   showTab('markets');
   showPayTab('send');
 
-  onNetworkChange = renderRail;
   renderRail();
   void loadRuntime().then(() => {
     renderRail();

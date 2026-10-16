@@ -114,7 +114,7 @@ describe('inspectors', () => {
 const w = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
 const aw = (a: string) => '0x' + a.slice(2).padStart(64, '0');
 
-function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3 } = {}) {
+function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3; feeRejectOnce?: boolean } = {}) {
   const sent: { to?: string; data?: string; value?: string; gas?: string }[] = [];
   let approved = false;
   let opened = false;
@@ -148,8 +148,8 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
     }
     if (method === 'eth_getTransactionReceipt') {
       const hash = p[0] as string;
-      if (hash.endsWith('01')) return { status: s.feeReceipt === 'fail' ? '0x0' : '0x1' };
-      if (hash.endsWith('02')) return s.receipt1 === 'none' ? null : { status: s.receipt1 === 'fail' ? '0x0' : '0x1' };
+      if (hash.endsWith('03')) return s.feeReceipt === 'fail' ? { status: '0x0' } : { status: '0x1' };
+      if (hash.endsWith('01')) return s.receipt1 === 'none' ? null : { status: s.receipt1 === 'fail' ? '0x0' : '0x1' };
       return { status: s.receipt2 === 'fail' ? '0x0' : '0x1' };
     }
     throw new Error(`unexpected ${method}`);
@@ -184,14 +184,17 @@ describe('PoolFlow', () => {
     const out = await x.flow.create(review, (p) => steps.push(p));
     expect(out.differences).toEqual([]);
     expect(out.pair).toBe(PAIR);
-    expect(steps).toEqual(['checking', 'paying-fee', 'confirming-fee', 'approving', 'confirming-approve', 'adding', 'confirming', 'verifying', 'done']);
+    expect(steps).toEqual(['checking', 'approving', 'confirming-approve', 'adding', 'confirming', 'verifying', 'paying-fee', 'confirming-fee', 'done']);
+    expect(out.feeHash).toMatch(/^0x/);
+    expect(out.feeError).toBeNull();
     expect(x.sent).toHaveLength(3);
-    expect(x.sent[0]!.to).toBe(dex.stables.USDC.address);
-    expect(x.sent[0]!.data).toBe(encodeTransfer(POOL_FEE_ADDRESS, 10n * 10n ** 18n));
-    expect(x.sent[1]!.to).toBe(TOKEN);
-    expect(x.sent[2]!.to).toBe(dex.router);
-    expect(x.sent[2]!.value).toBe('0x' + COIN.toString(16));
-    expect(decodeAddLiquidityEth(x.sent[2]!.data!)!.to).toBe(DEAD_ADDRESS);
+    expect(x.sent[0]!.to).toBe(TOKEN);
+    expect(x.sent[1]!.to).toBe(dex.router);
+    expect(x.sent[1]!.value).toBe('0x' + COIN.toString(16));
+    expect(decodeAddLiquidityEth(x.sent[1]!.data!)!.to).toBe(DEAD_ADDRESS);
+    // The fee is the last transaction.
+    expect(x.sent[2]!.to).toBe(dex.stables.USDC.address);
+    expect(x.sent[2]!.data).toBe(encodeTransfer(POOL_FEE_ADDRESS, 10n * 10n ** 18n));
   });
   it('blocks on a router that does not report the expected factory or wrapped coin, or has no code', async () => {
     expect((await world({ factory: OTHER }).flow.prepare(config())).blockers.join(' ')).toMatch(/does not report/);
@@ -224,21 +227,21 @@ describe('PoolFlow', () => {
   it('stops if the allowance is not exactly what was approved, and says the tokens did not move', async () => {
     const x = world({ allowance: TOKENS * 2n });
     await expect(x.flow.create(await x.flow.prepare(config()))).rejects.toThrow(/allowance is not exactly/);
-    expect(x.sent).toHaveLength(2);
+    expect(x.sent).toHaveLength(1);
   });
   it('says what state things are in when the pool step cannot go ahead', async () => {
     const refuse = world({ addEstimateFails: true });
     await expect(refuse.flow.create(await refuse.flow.prepare(config()))).rejects.toThrow(/refuse to open the pool.*approval is in place for exactly/);
-    expect(refuse.sent).toHaveLength(2);
-    const declined = world({ rejectAt: 3 });
-    await expect(declined.flow.create(await declined.flow.prepare(config()))).rejects.toThrow(/closed the wallet.*fee was already paid and the approval is in place/);
+    expect(refuse.sent).toHaveLength(1);
+    const declined = world({ rejectAt: 2 });
+    await expect(declined.flow.create(await declined.flow.prepare(config()))).rejects.toThrow(/closed the wallet.*approval is in place for exactly.*no fee was charged/);
     const failed = world({ receipt2: 'fail' });
     await expect(failed.flow.create(await failed.flow.prepare(config()))).rejects.toThrow(/pool transaction failed/);
   });
   it('reports a declined, failed or unconfirmed approval', async () => {
     const r = await world().flow.prepare(config());
-    await expect(world({ rejectAt: 2 }).flow.create(r)).rejects.toThrow(/closed the wallet/);
-    await expect(world({ receipt1: 'fail' }).flow.create(r)).rejects.toThrow(/fee was already paid. The approval failed/);
+    await expect(world({ rejectAt: 1 }).flow.create(r)).rejects.toThrow(/closed the wallet/);
+    await expect(world({ receipt1: 'fail' }).flow.create(r)).rejects.toThrow(/approval failed/);
     await expect(world({ receipt1: 'none' }).flow.create(r)).rejects.toThrow(/approval was sent but has not confirmed/);
   });
   it('lists every difference when the pool read back is not what was approved', async () => {
@@ -270,14 +273,30 @@ describe('the Aretia fee', () => {
     expect(bad({ ...fee(), value: '0x1' })).toMatch(/carries coins/);
     expect(inspectFeeTx(fee(), config(), 1).join(' ')).toMatch(/network 1/);
   });
-  it('blocks when the stablecoin balance is too low or its decimals are not the expected ones, and sends nothing if the fee is declined', async () => {
+  it('blocks when the stablecoin balance is too low or its decimals are not the expected ones, and an unpaid fee is reported and can be paid later', async () => {
     expect((await world({ feeBal: 9n * 10n ** 18n }).flow.prepare(config())).blockers.join(' ')).toMatch(/need 10 USDC/);
     expect((await world({ feeDecimals: 6n }).flow.prepare(config())).blockers.join(' ')).toMatch(/not the one this page expects/);
-    const x = world({ rejectAt: 1 });
-    await expect(x.flow.create(await x.flow.prepare(config()))).rejects.toThrow(/closed the wallet/);
-    expect(x.sent).toHaveLength(0);
+    // Declined or failed fee: the pool exists, the outcome says the fee is owed, and it can be paid afterwards.
+    const declined = world({ rejectAt: 3 });
+    const review = await declined.flow.prepare(config());
+    const out = await declined.flow.create(review);
+    expect(out.feeHash).toBeNull();
+    expect(out.feeError).toMatch(/closed the wallet/);
+    expect(out.differences).toEqual([]);
+    expect(declined.sent).toHaveLength(2);
     const failed = world({ feeReceipt: 'fail' });
-    await expect(failed.flow.create(await failed.flow.prepare(config()))).rejects.toThrow(/fee transfer failed.*nothing else was sent/);
-    expect(failed.sent).toHaveLength(1);
+    const out2 = await failed.flow.create(await failed.flow.prepare(config()));
+    expect(out2.feeHash).toBeNull();
+    expect(out2.feeError).toMatch(/fee transfer failed/);
+    const later = world();
+    const paid = await later.flow.payFee(await later.flow.prepare(config()));
+    expect(paid.error).toBeNull();
+    expect(paid.hash).toMatch(/^0x/);
+    expect(later.sent).toHaveLength(1);
+    expect(later.sent[0]!.to).toBe(dex.stables.USDC.address);
+    const tampered = world();
+    const rv = await tampered.flow.prepare(config());
+    expect((await tampered.flow.payFee({ ...rv, feeTx: { ...rv.feeTx, data: encodeTransfer(OTHER, 10n * 10n ** 18n) } })).error).toMatch(/not Aretia’s fee address/);
+    expect(tampered.sent).toHaveLength(0);
   });
 });

@@ -36,7 +36,9 @@ export interface PoolReview {
 export type PoolProgress = 'checking' | 'paying-fee' | 'confirming-fee' | 'approving' | 'confirming-approve' | 'adding' | 'confirming' | 'verifying' | 'done';
 
 export interface PoolOutcome {
-  feeHash: string;
+  /** Aretia's fee transaction, or null if it has not been paid (the pool then exists but the fee is owed: see `payFee`). */
+  feeHash: string | null;
+  feeError: string | null;
   pair: string;
   approveHash: string;
   addHash: string;
@@ -182,27 +184,19 @@ export class PoolFlow {
       throw new PoolError('The network would refuse the approval, so nothing was sent.', true);
     }
 
-    // Aretia's fee goes first, as its own transaction, and is read back before anything else is signed.
-    progress('paying-fee');
-    const feeHash = await this.send(review.feeTx, 'fee transfer');
-    progress('confirming-fee');
-    const fr = await this.receipt(feeHash);
-    if (!fr) throw new PoolError(`The fee transfer was sent but has not confirmed yet. Check ${feeHash} on an explorer. Nothing else was sent.`);
-    if (fr.status !== '0x1') throw new PoolError(`The fee transfer failed on the network, so nothing else was sent. (${feeHash})`);
-
     progress('approving');
     const approveHash = await this.send(review.approveTx, 'approval');
     progress('confirming-approve');
     const ar = await this.receipt(approveHash);
-    if (!ar) throw new PoolError(`Aretia’s fee was already paid. The approval was sent but has not confirmed yet. Check ${approveHash} on an explorer, then start again.`);
-    if (ar.status !== '0x1') throw new PoolError(`Aretia’s fee was already paid. The approval failed on the network; nothing was approved. (${approveHash})`);
+    if (!ar) throw new PoolError(`The approval was sent but has not confirmed yet. Check ${approveHash} on an explorer, then start again.`);
+    if (ar.status !== '0x1') throw new PoolError(`The approval failed on the network; nothing was approved and no fee was charged. (${approveHash})`);
     const allowance = word(await this.call(config.token, SEL.allowance + pad(config.creator) + pad(dex.router)));
-    if (allowance !== config.tokenRaw) throw new PoolError(`Aretia’s fee was already paid. The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
+    if (allowance !== config.tokenRaw) throw new PoolError(`The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
 
     // The pool transaction is built now, so its deadline starts now.
     const now = this.d.nowSeconds();
     let addTx = buildAddTx(config, now);
-    const stuck = `Aretia’s fee was already paid and the approval is in place for exactly the tokens you chose; nothing else has happened. You can start again to open the pool (the fee would be charged again).`;
+    const stuck = 'The approval is in place for exactly the tokens you chose and no fee was charged. You can start again to open the pool.';
     const addProblems = inspectAddTx(addTx, config, await this.d.adapter.getChainId(), now);
     if (addProblems.length > 0) throw new PoolError(`Not signing the pool: ${addProblems.join(' ')} ${stuck}`);
     try {
@@ -226,8 +220,33 @@ export class PoolFlow {
 
     progress('verifying');
     const { pair, differences } = await this.readBack(config);
+    // Aretia's fee is last: asked only once the pool exists and has been read back. If it is not paid here the pool still exists, and the
+    // person is told the fee is owed and can pay it from the result screen (`payFee`).
+    const fee = await this.payFee(review, progress);
     progress('done');
-    return { pair, feeHash, approveHash, addHash, differences };
+    return { pair, feeHash: fee.hash, feeError: fee.error, approveHash, addHash, differences };
+  }
+
+  /** Sends Aretia's fee (checked, simulated, wallet-signed, confirmed). Never throws: the result says whether it was paid and, if not, why. */
+  async payFee(review: PoolReview, progress: (p: PoolProgress) => void = () => undefined): Promise<{ hash: string | null; error: string | null }> {
+    const { config } = review;
+    try {
+      const account = (await this.d.adapter.getAccounts())[0];
+      if (!account || account.toLowerCase() !== config.creator) return { hash: null, error: 'The account selected in your wallet changed. Switch back to pay the fee.' };
+      if ((await this.d.adapter.getChainId()) !== config.dex.chainId) await this.d.adapter.switchChain(config.dex.chainId);
+      const problems = inspectFeeTx(review.feeTx, config, await this.d.adapter.getChainId());
+      if (problems.length > 0) return { hash: null, error: `Not signing the fee: ${problems.join(' ')}` };
+      await this.d.read('eth_call', [{ from: review.feeTx.from, to: review.feeTx.to, data: review.feeTx.data, value: '0x0' }, 'latest']);
+      progress('paying-fee');
+      const hash = await this.send(review.feeTx, 'fee transfer');
+      progress('confirming-fee');
+      const receipt = await this.receipt(hash);
+      if (!receipt) return { hash: null, error: `The fee transfer was sent but has not confirmed yet. Check ${hash} on an explorer before paying again.` };
+      if (receipt.status !== '0x1') return { hash: null, error: `The fee transfer failed on the network. (${hash})` };
+      return { hash, error: null };
+    } catch (e) {
+      return { hash: null, error: e instanceof PoolError || e instanceof Error ? e.message : 'The fee could not be sent.' };
+    }
   }
 
   /** Reads the pool from the chain and lists every difference from what was approved (empty means it matches). */

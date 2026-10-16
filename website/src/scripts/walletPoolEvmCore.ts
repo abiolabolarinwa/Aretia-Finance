@@ -12,8 +12,8 @@
  *  - The minimum amounts equal the amounts, so if anyone creates the pool at another price first, the transaction reverts instead of filling at it.
  *  - "Lock" sends the pool's liquidity tokens to the dead address, so nobody, including you, can ever take the liquidity out. Trading fees then
  *    accrue to the pool and are not claimable. Not locking gives the liquidity tokens to your wallet.
- *  - Aretia's fee for opening a pool is a flat 10 USDC or 10 USDT (the person's choice), sent from their wallet to the Aretia fee address as the FIRST
- *    transaction. The stablecoin contracts and their decimals below were read from each chain; the flow reads the decimals again before signing.
+ *  - Aretia's fee for opening a pool is a flat 10 USDC or 10 USDT (the person's choice), sent from their wallet to the Aretia fee address as the LAST
+ *    transaction, once the pool exists and has been read back. If it is not paid then, the result screen keeps asking for it. The stablecoin contracts and their decimals below were read from each chain; the flow reads the decimals again before signing.
  */
 import { toSmallestUnit } from './walletTools';
 import { FEE_ADDRESS, isEvmAddress, type LaunchEvmChainKey } from './walletLaunchEvmCore';
@@ -131,7 +131,7 @@ export function poolDisclosuresOf(c: PoolConfig): { severity: 'info' | 'caution'
       ? { severity: 'caution', text: 'You chose to lock the liquidity for good. Nobody, including you, can ever take the tokens or the coins back out, and the trading fees stay in the pool. This cannot be undone.' }
       : { severity: 'caution', text: 'The liquidity is not locked. You hold the pool’s liquidity tokens and could take the pool out at any time, which buyers may treat as a risk.' },
     { severity: 'caution', text: 'Anyone can buy or sell against the pool once it exists. A price set too low or too high can be traded away quickly. Nothing here checks the price against any market.' },
-    { severity: 'caution', text: `Aretia’s fee of ${POOL_FEE_UNITS} ${c.fee.asset} is sent first, as its own transaction. It is not returned if a later step fails or you stop.` },
+    { severity: 'caution', text: `Aretia’s fee of ${POOL_FEE_UNITS} ${c.fee.asset} is the last transaction, after the pool exists. If you do not pay it, the pool still exists but the fee stays owed, and this page keeps asking for it.` },
     { severity: 'caution', text: 'The transactions are real: the coins, tokens and fee, plus the network gas, are paid from your wallet and cannot be recovered except by trading.' },
   ];
 }

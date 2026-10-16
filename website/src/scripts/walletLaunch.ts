@@ -31,6 +31,8 @@ export interface LaunchHost {
   evm?: LaunchEvmHost;
   /** Offers to open a pool for a token that was just created. */
   offerPool?(mint: string): void;
+  /** Offers to sell it on the Aretia bonding curve. Absent unless the page has the curve card, which is off on mainnet until audited. */
+  offerCurve?(mint: string): void;
 }
 
 type Network = 'solana' | LaunchEvmChainKey;
@@ -328,6 +330,12 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
       pool.type = 'button';
       pool.addEventListener('click', () => host.offerPool?.(outcome!.mint));
       card.append(pool);
+    }
+    if (host.offerCurve) {
+      const curve = h('button', 'wapp__btn wapp__btn--primary', 'Sell it on a bonding curve');
+      curve.type = 'button';
+      curve.addEventListener('click', () => host.offerCurve?.(outcome!.mint));
+      card.append(curve);
     }
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Create another');
     again.type = 'button';

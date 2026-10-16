@@ -19,3 +19,7 @@ Fees (set by the owner): Ethereum 0.0042 ETH, BNB Chain 0.014 BNB, Polygon 105 P
 ## Tests
 
 `website/src/scripts/walletLaunchEvmContract.test.ts` runs this exact artifact in an in-process EVM (`npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util` first; skipped without it).
+
+## Bonding curve (UNAUDITED, not deployed)
+
+`AretiaCurve.sol` is the EVM version of Aretia's bonding curve. See `docs/BONDING_CURVE_EVM.md`. Rebuild its artifact with `compile-curve.mjs` (needs `solc@0.8.26`); test stand-ins and their build script are in `test-mocks/`.

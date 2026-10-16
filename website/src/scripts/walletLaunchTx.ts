@@ -6,7 +6,7 @@
  * walletLaunchTx.test.ts and its fixture), so the two products create identical tokens.
  *
  * Two transactions, because one does not reliably fit in Solana's 1232-byte limit with metadata and several recipients:
- *   1. create the mint, point its metadata at itself, initialise it, write the name, symbol and link
+ *   1. pay Aretia's flat creation fee, create the mint, point its metadata at itself, initialise it, write the name, symbol and link
  *   2. create each recipient's token account, mint the supply, then give up the mint authority
  * Between the two the creator still holds the mint authority and the supply is zero. If the second fails, the creator can run it
  * again (see walletLaunchChain.ts): it refuses unless the supply is still zero, so it can never mint twice.
@@ -15,7 +15,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
-import { distributionOf, shareOf, type DistributionLine, type LaunchConfig } from './walletLaunchCore';
+import { LAUNCH_FEE_ADDRESS, LAUNCH_FEE_LAMPORTS, distributionOf, shareOf, type DistributionLine, type LaunchConfig } from './walletLaunchCore';
 
 export const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
 export const RENT_SYSVAR_ID = 'SysvarRent111111111111111111111111111111111';
@@ -94,7 +94,7 @@ export interface Step1Input {
   mintRentLamports: bigint;
 }
 
-/** Transaction 1: create the token and write its name, symbol and link. */
+/** Transaction 1: pay the creation fee, create the token and write its name, symbol and link. */
 export function buildStep1(web3: typeof Web3, { config, mint, mintRentLamports }: Step1Input): Web3.TransactionInstruction[] {
   const payer = config.creator;
   const sizes = mintSizes(config);
@@ -133,7 +133,14 @@ export function buildStep1(web3: typeof Web3, { config, mint, mintRentLamports }
     ],
     concat(METADATA_INITIALIZE, borshString(config.name), borshString(config.symbol), borshString(config.metadataUri)),
   );
-  return [createAccount, pointer, initMint, metadata];
+  // Aretia's flat creation fee: a plain System transfer, first so nothing is created if it cannot be paid.
+  const fee = instruction(
+    web3,
+    SYSTEM_PROGRAM_ID,
+    [keyOf(web3, payer, true, true), keyOf(web3, LAUNCH_FEE_ADDRESS, false, true)],
+    concat(u32le(2), u64le(LAUNCH_FEE_LAMPORTS)),
+  );
+  return [fee, createAccount, pointer, initMint, metadata];
 }
 
 /** Transaction 2: create the token accounts, mint the whole supply, and give up the mint authority. */
@@ -185,6 +192,7 @@ export function assemble(web3: typeof Web3, instructions: Web3.TransactionInstru
 // ---------------------------------------------------------------- reading a transaction back
 
 export type Decoded =
+  | { kind: 'transfer'; from: string; to: string; lamports: bigint }
   | { kind: 'create-account'; from: string; to: string; lamports: bigint; space: bigint; owner: string }
   | { kind: 'metadata-pointer'; authority: string | null; metadataAddress: string; mint: string }
   | { kind: 'initialize-mint'; mint: string; decimals: number; mintAuthority: string; freezeAuthority: string | null }
@@ -213,6 +221,8 @@ export function decodeInstruction(web3: typeof Web3, ix: Web3.TransactionInstruc
     if (program === SYSTEM_PROGRAM_ID) {
       if (d.length === 52 && view(d).getUint32(0, true) === 0 && k.length === 2)
         return { kind: 'create-account', from: k[0]!, to: k[1]!, lamports: view(d).getBigUint64(4, true), space: view(d).getBigUint64(12, true), owner: new web3.PublicKey(d.subarray(20, 52)).toBase58() };
+      if (d.length === 12 && view(d).getUint32(0, true) === 2 && k.length === 2)
+        return { kind: 'transfer', from: k[0]!, to: k[1]!, lamports: view(d).getBigUint64(4, true) };
       return { kind: 'unknown', program, note: `system instruction ${d.length >= 4 ? view(d).getUint32(0, true) : '?'}` };
     }
     if (program === ATA_PROGRAM_ID) {
@@ -277,9 +287,11 @@ export function inspectStep(web3: typeof Web3, tx: Web3.Transaction, step: 1 | 2
 
   if (step === 1) {
     const sizes = mintSizes(config);
-    const [a, b, c, e] = decoded;
-    if (decoded.length !== 4 || a?.kind !== 'create-account' || b?.kind !== 'metadata-pointer' || c?.kind !== 'initialize-mint' || e?.kind !== 'initialize-metadata')
-      return ['The first transaction is not the expected four steps.'];
+    const [f, a, b, c, e] = decoded;
+    if (decoded.length !== 5 || f?.kind !== 'transfer' || a?.kind !== 'create-account' || b?.kind !== 'metadata-pointer' || c?.kind !== 'initialize-mint' || e?.kind !== 'initialize-metadata')
+      return ['The first transaction is not the expected five steps.'];
+    if (f.from !== payer || f.to !== LAUNCH_FEE_ADDRESS) blockers.push('The Aretia fee would go to an account other than the one shown.');
+    if (f.lamports !== LAUNCH_FEE_LAMPORTS) blockers.push('The Aretia fee is not the amount shown.');
     if (a.from !== payer || a.to !== mint) blockers.push('The new token account is not the one shown.');
     if (a.lamports !== mintRentLamports) blockers.push('The deposit for the token account is not the amount shown.');
     if (a.space !== BigInt(sizes.allocated)) blockers.push('The token account size is not the expected one.');

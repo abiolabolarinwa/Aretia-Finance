@@ -1,7 +1,7 @@
 import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import fixtures from './__fixtures__/launchTokenCreation.json';
-import { distributionOf, type LaunchConfig } from './walletLaunchCore';
+import { LAUNCH_FEE_ADDRESS, LAUNCH_FEE_LAMPORTS, distributionOf, type LaunchConfig } from './walletLaunchCore';
 import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
 import { SYSTEM_PROGRAM_ID, assemble, buildStep1, buildStep2, decodeInstruction, inspectStep, mintSizes } from './walletLaunchTx';
 
@@ -43,7 +43,7 @@ describe('the instructions match what the Aretia Wallet extension builds with th
     expect(mintSizes(config({ metadataUri: '', metadataMutable: true }))).toEqual(fx.keepEverything!.sizes);
   });
   it('transaction 1, byte for byte, for a token whose metadata can never change', () => {
-    expect(buildStep1(web3, { config: c, mint: MINT, mintRentLamports: RENT }).map(shape)).toEqual(fx.renouncedImmutable!.step1);
+    expect(buildStep1(web3, { config: c, mint: MINT, mintRentLamports: RENT }).slice(1).map(shape)).toEqual(fx.renouncedImmutable!.step1); // after the Aretia fee transfer
   });
   it('transaction 2, byte for byte', () => {
     expect(buildStep2(web3, c, MINT).map(shape)).toEqual(fx.renouncedImmutable!.step2);
@@ -53,7 +53,7 @@ describe('the instructions match what the Aretia Wallet extension builds with th
   });
   it('matches for a token whose metadata stays changeable (the parts this page supports)', () => {
     const mutable = config({ metadataUri: '', metadataMutable: true });
-    const ours = buildStep1(web3, { config: mutable, mint: MINT, mintRentLamports: RENT }).map(shape);
+    const ours = buildStep1(web3, { config: mutable, mint: MINT, mintRentLamports: RENT }).slice(1).map(shape);
     const theirs = fx.keepEverything!.step1;
     expect(ours[0]).toEqual(theirs[0]); // create account
     expect(ours[1]).toEqual(theirs[1]); // metadata pointer
@@ -81,6 +81,38 @@ describe('inspectStep accepts exactly what was shown', () => {
   });
 });
 
+describe('the Aretia fee', () => {
+  const withFee = (lamports: bigint, to: string, from = PAYER) => {
+    const t = tx1();
+    t.instructions[0] = web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(from), toPubkey: new web3.PublicKey(to), lamports });
+    return t;
+  };
+  it('is the first instruction: 0.05 SOL to the management-fee wallet', () => {
+    const first = decodeInstruction(web3, buildStep1(web3, input())[0]!);
+    expect(first).toEqual({ kind: 'transfer', from: PAYER, to: LAUNCH_FEE_ADDRESS, lamports: LAUNCH_FEE_LAMPORTS });
+    expect(LAUNCH_FEE_LAMPORTS).toBe(50_000_000n);
+  });
+  it('is accepted only when the amount and recipient are exactly the ones shown', () => {
+    expect(inspectStep(web3, withFee(LAUNCH_FEE_LAMPORTS, LAUNCH_FEE_ADDRESS), 1, input())).toEqual([]);
+    expect(inspectStep(web3, withFee(LAUNCH_FEE_LAMPORTS + 1n, LAUNCH_FEE_ADDRESS), 1, input()).join(' ')).toMatch(/fee is not the amount/);
+    expect(inspectStep(web3, withFee(LAUNCH_FEE_LAMPORTS, OTHER), 1, input()).join(' ')).toMatch(/fee would go to an account/);
+  });
+  it('is refused when it is missing, taken from another account, or paid twice', () => {
+    const missing = tx1();
+    missing.instructions.shift();
+    expect(inspectStep(web3, missing, 1, input()).join(' ')).toMatch(/not the expected/);
+    expect(inspectStep(web3, withFee(LAUNCH_FEE_LAMPORTS, LAUNCH_FEE_ADDRESS, OTHER), 1, input()).length).toBeGreaterThan(0);
+    const twice = tx1();
+    twice.instructions.unshift(twice.instructions[0]!);
+    expect(inspectStep(web3, twice, 1, input()).join(' ')).toMatch(/not the expected/);
+  });
+  it('is never part of the second transaction', () => {
+    const t = tx2();
+    t.instructions.unshift(buildStep1(web3, input())[0]!);
+    expect(inspectStep(web3, t, 2, input()).join(' ')).toMatch(/not the expected/);
+  });
+});
+
 describe('inspectStep refuses anything else', () => {
   const add = (tx: web3.Transaction, ix: web3.TransactionInstruction) => {
     tx.add(ix);
@@ -89,8 +121,8 @@ describe('inspectStep refuses anything else', () => {
   const theft = web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(PAYER), toPubkey: new web3.PublicKey(OTHER), lamports: 1_000_000_000 });
 
   it('an extra SOL transfer', () => {
-    expect(inspectStep(web3, add(tx1(), theft), 1, input()).join(' ')).toMatch(/did not expect/);
-    expect(inspectStep(web3, add(tx2(), theft), 2, input()).join(' ')).toMatch(/did not expect/);
+    expect(inspectStep(web3, add(tx1(), theft), 1, input()).join(' ')).toMatch(/not the expected/);
+    expect(inspectStep(web3, add(tx2(), theft), 2, input()).join(' ')).toMatch(/not the expected/);
   });
   it('a different fee payer', () => {
     const t = tx1();
@@ -114,18 +146,18 @@ describe('inspectStep refuses anything else', () => {
   it('a freeze authority, a different mint authority or different decimals', () => {
     const c = config();
     const t = tx1(c);
-    const d = Uint8Array.from(t.instructions[2]!.data);
+    const d = Uint8Array.from(t.instructions[3]!.data);
     const withFreeze = new Uint8Array(67);
     withFreeze.set(d, 0);
     withFreeze[34] = 1;
     withFreeze.set(new web3.PublicKey(OTHER).toBytes(), 35);
-    t.instructions[2] = new web3.TransactionInstruction({ programId: t.instructions[2]!.programId, keys: t.instructions[2]!.keys, data: withFreeze as unknown as Buffer });
+    t.instructions[3] = new web3.TransactionInstruction({ programId: t.instructions[3]!.programId, keys: t.instructions[3]!.keys, data: withFreeze as unknown as Buffer });
     expect(inspectStep(web3, t, 1, input(c)).join(' ')).toMatch(/freeze authority/);
 
     const t2 = tx1(c);
-    const dd = Uint8Array.from(t2.instructions[2]!.data);
+    const dd = Uint8Array.from(t2.instructions[3]!.data);
     dd[1] = 9;
-    t2.instructions[2] = new web3.TransactionInstruction({ programId: t2.instructions[2]!.programId, keys: t2.instructions[2]!.keys, data: dd as unknown as Buffer });
+    t2.instructions[3] = new web3.TransactionInstruction({ programId: t2.instructions[3]!.programId, keys: t2.instructions[3]!.keys, data: dd as unknown as Buffer });
     expect(inspectStep(web3, t2, 1, input(c)).join(' ')).toMatch(/settings are not the ones shown/);
   });
   it('a changed name, symbol, link or update authority', () => {
@@ -170,10 +202,10 @@ describe('inspectStep refuses anything else', () => {
 describe('decodeInstruction', () => {
   it('names what each instruction does, and calls the rest unknown', () => {
     const kinds = [...buildStep1(web3, input()), ...buildStep2(web3, config(), MINT)].map((i) => decodeInstruction(web3, i).kind);
-    expect(kinds).toEqual(['create-account', 'metadata-pointer', 'initialize-mint', 'initialize-metadata', 'create-token-account', 'mint-to', 'create-token-account', 'mint-to', 'set-authority']);
+    expect(kinds).toEqual(['transfer', 'create-account', 'metadata-pointer', 'initialize-mint', 'initialize-metadata', 'create-token-account', 'mint-to', 'create-token-account', 'mint-to', 'set-authority']);
     const noise = new web3.TransactionInstruction({ programId: new web3.PublicKey(ATA_PROGRAM_ID), keys: [], data: Buffer.from([0]) });
     expect(decodeInstruction(web3, noise).kind).toBe('unknown');
-    const sys = web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(PAYER), toPubkey: new web3.PublicKey(OTHER), lamports: 1 });
+    const sys = web3.SystemProgram.allocate({ accountPubkey: new web3.PublicKey(PAYER), space: 1 });
     expect(decodeInstruction(web3, sys)).toMatchObject({ kind: 'unknown', program: SYSTEM_PROGRAM_ID });
   });
 });

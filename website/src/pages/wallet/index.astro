@@ -44,25 +44,6 @@ const carbonNeeds = [
   'An independent security audit of the token contract and the key management.',
   'Legal and data-protection review, and approval of the issuance and retirement workflows.',
 ];
-// Aretia Launch on this page: creating a token on Solana mainnet. Sales, pools and the other chains are in the Aretia Wallet
-// extension on test networks only (docs/aretia-launch in the aretia-wallet repository). Keep this copy in step with what the page does.
-const launchDoes = [
-  'Creates a token on Solana mainnet with a fixed supply. Its name, symbol and link are stored on the token itself.',
-  'Gives up the mint and freeze powers, so nobody, including you, can create more of it or freeze a holder.',
-  'Reads the token back from the network afterwards and compares it with what you approved.',
-];
-const launchDoesNot = [
-  'It does not start a sale or open a liquidity pool, so nobody can buy the token yet.',
-  'It does not lock the tokens you keep. They sit in your wallet, and you could send or sell them at any time.',
-  'It does not host your image or description. You supply a link to a page or file you host.',
-  'It charges no Aretia fee. You pay the Solana network fee and the account deposits.',
-];
-const launchRows: StatusRow[] = [
-  { network: 'Create a token on Solana mainnet', state: 'Available, not audited', tone: 'warn' },
-  { network: 'Sell it on a bonding curve', state: 'Not on this page', tone: 'off' },
-  { network: 'Open a liquidity pool', state: 'Not on this page', tone: 'off' },
-  { network: 'Base, BNB Chain, Ethereum, Polygon', state: 'Not on this page', tone: 'off' },
-];
 const safesendNeeds = [
   'SafeSend deployed on Solana mainnet. Today the Solana program exists on devnet only.',
   'A security audit of the vault and the program before it holds anyone’s real funds.',
@@ -415,23 +396,6 @@ const sendTips = [
         <div class="wapp__grid wapp__grid--trade">
           <div class="wapp__card">
             <div data-launch-root aria-live="polite"></div>
-          </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">What this page does</span>
-            <ul class="wapp__list">
-              {launchDoes.map((point) => <li>{point}</li>)}
-            </ul>
-            <span class="wapp__eyebrow">What it does not do</span>
-            <ul class="wapp__list">
-              {launchDoesNot.map((point) => <li>{point}</li>)}
-            </ul>
-            <p class="wapp__banner wapp__banner--warn"><b>Not independently audited.</b> This page builds the transactions and your wallet signs them. They use Solana’s own Token-2022 program; Aretia has no program of its own in them. The code has automated tests, and no outside reviewer has checked it.</p>
-            <span class="wapp__eyebrow">Where it stands</span>
-            <dl class="wapp__rows">
-              {launchRows.map((row) => <div><dt>{row.network}</dt><dd><span class={`wapp__state wapp__state--${row.tone}`}>{row.state}</span></dd></div>)}
-            </dl>
-            <p class="wapp__fine">Sales and pools exist in the Aretia browser extension, which is in development and not yet in the Chrome Web Store. They work on test networks only.</p>
-            <p class="wapp__fine"><a href="/wallet/about">About Aretia Wallet</a></p>
           </div>
         </div>
       </div>

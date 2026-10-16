@@ -82,7 +82,7 @@ function world(c: LaunchConfig = config()): World {
       for (const s of signers) tx.partialSign(s);
       w.sent.push({ tx, signatures: tx.signatures.map((x) => (x.signature ? 'signed' : 'missing')) });
       if (step === 1) {
-        w.chain.mint = tx.instructions[0]!.keys[1]!.pubkey.toBase58();
+        w.chain.mint = tx.instructions[1]!.keys[1]!.pubkey.toBase58();
         w.chain.state = w.script.afterStep1 ?? 'afterStep1';
       } else {
         w.chain.state = 'final';

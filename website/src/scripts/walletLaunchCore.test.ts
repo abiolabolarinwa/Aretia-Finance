@@ -8,6 +8,7 @@ import {
   disclosuresOf,
   distributionOf,
   estimateCost,
+  LAUNCH_FEE_LAMPORTS,
   pctToBps,
   validateLaunch,
   type LaunchForm,
@@ -142,7 +143,8 @@ describe('estimateCost', () => {
     const c = estimateCost({ mintDeposit: 3_000_000n, tokenAccountDeposit: 2_100_000n, accountCount: 2 });
     expect(c.networkFee).toBe(15_000n);
     expect(c.tokenAccountDeposits).toBe(4_200_000n);
-    expect(c.total).toBe(15_000n + 3_000_000n + 4_200_000n);
+    expect(c.aretiaFee).toBe(LAUNCH_FEE_LAMPORTS);
+    expect(c.total).toBe(15_000n + LAUNCH_FEE_LAMPORTS + 3_000_000n + 4_200_000n);
   });
 });
 

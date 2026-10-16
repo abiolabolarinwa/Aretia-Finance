@@ -49,3 +49,4 @@ website/public/charting_library/
 .env
 .env.*
 !.env.example
+program/*/tests/Cargo.lock

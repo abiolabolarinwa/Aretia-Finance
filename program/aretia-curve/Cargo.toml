@@ -1,0 +1,9 @@
+[workspace]
+members = ["curve-math", "programs/*"]
+exclude = ["tests"]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1

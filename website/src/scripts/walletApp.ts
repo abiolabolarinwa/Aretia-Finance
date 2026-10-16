@@ -389,7 +389,18 @@ export function initWalletApp(): void {
   });
 
   const pool = initPool({ getAddress: () => address, refreshWallet: () => void refresh() });
-  const launch = initLaunch({ getAddress: () => address, refreshWallet: () => void refresh(), offerPool: (mint) => pool.offer(mint) });
+  const launch = initLaunch({
+    getAddress: () => address,
+    refreshWallet: () => void refresh(),
+    offerPool: (mint) => pool.offer(mint),
+    evm: {
+      getAccount: () => evmSession.account ?? evmAccount,
+      connect: async () => {
+        const adapter = await ensureEvmWallet();
+        return { adapter, account: evmSession.account };
+      },
+    },
+  });
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.

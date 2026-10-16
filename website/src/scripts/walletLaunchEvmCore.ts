@@ -42,7 +42,7 @@ const FEE_ADDRESS = '0xeb8725e16e504036c2166aa47804d88ecc4d0945';
  */
 export const LAUNCH_EVM_CHAINS: readonly LaunchEvmChain[] = [
   { key: 'base', name: 'Base', chainId: 8453, symbol: 'ETH', testnet: false, feeWei: coin('0.0042'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://basescan.org' },
-  { key: 'bnb', name: 'BNB Chain', chainId: 56, symbol: 'BNB', testnet: false, feeWei: coin('0.014'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://bscscan.com' },
+  { key: 'bnb', name: 'BNB Chain', chainId: 56, symbol: 'BNB', testnet: false, feeWei: coin('0.014'), factory: '0xc3eb98c45795cffb10b61178332cc6fcbbc0385c', feeAddress: FEE_ADDRESS, explorer: 'https://bscscan.com' },
   { key: 'ethereum', name: 'Ethereum', chainId: 1, symbol: 'ETH', testnet: false, feeWei: coin('0.0042'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://etherscan.io' },
   { key: 'polygon', name: 'Polygon', chainId: 137, symbol: 'POL', testnet: false, feeWei: coin('105'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://polygonscan.com' },
   { key: 'baseSepolia', name: 'Base Sepolia (test)', chainId: 84532, symbol: 'ETH', testnet: true, feeWei: coin('0.0001'), factory: null, feeAddress: FEE_ADDRESS, explorer: 'https://sepolia.basescan.org', addParams: { chainName: 'Base Sepolia', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://sepolia.base.org'], blockExplorerUrls: ['https://sepolia.basescan.org'] } },

@@ -34,7 +34,7 @@ export interface LaunchEvmChain {
 const coin = (amount: string): bigint => BigInt(toSmallestUnit(amount, 18) ?? '0');
 
 /** Aretia's EVM fee address (the owner's), the same on every network. Lower-case. */
-const FEE_ADDRESS = '0xeb8725e16e504036c2166aa47804d88ecc4d0945';
+export const FEE_ADDRESS = '0xeb8725e16e504036c2166aa47804d88ecc4d0945';
 
 /**
  * Mainnet fees set by the owner: about $10 in each chain's coin. Change them here and in the factory deployment together. Testnet fees are

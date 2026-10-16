@@ -13,7 +13,7 @@ import { SwingsError } from '../swings/core/types.js';
 import type { EvmFlowDeps } from './walletLaunchEvmFlow';
 import { toHexQuantity } from './walletLaunchEvmTx';
 import type { PoolConfig } from './walletPoolEvmCore';
-import { SEL, buildAddTx, buildApproveTx, inspectAddTx, inspectApproveTx } from './walletPoolEvmTx';
+import { SEL, buildAddTx, buildApproveTx, buildFeeTx, inspectAddTx, inspectApproveTx, inspectFeeTx } from './walletPoolEvmTx';
 
 export interface PoolFlowDeps extends EvmFlowDeps {
   /** Unix seconds. */
@@ -22,7 +22,10 @@ export interface PoolFlowDeps extends EvmFlowDeps {
 
 export interface PoolReview {
   config: PoolConfig;
+  feeTx: import('../swings/chains/evmWallet.js').EvmTxRequest;
   approveTx: import('../swings/chains/evmWallet.js').EvmTxRequest;
+  /** What the person holds of the stablecoin the fee is paid in, in its smallest unit. */
+  feeBalance: bigint;
   /** A rough ceiling for the gas of both transactions, in wei. Null if it could not be estimated. */
   gasCostWei: bigint | null;
   coinBalance: bigint;
@@ -30,9 +33,10 @@ export interface PoolReview {
   blockers: string[];
 }
 
-export type PoolProgress = 'checking' | 'approving' | 'confirming-approve' | 'adding' | 'confirming' | 'verifying' | 'done';
+export type PoolProgress = 'checking' | 'paying-fee' | 'confirming-fee' | 'approving' | 'confirming-approve' | 'adding' | 'confirming' | 'verifying' | 'done';
 
 export interface PoolOutcome {
+  feeHash: string;
   pair: string;
   approveHash: string;
   addHash: string;
@@ -72,6 +76,8 @@ export class PoolFlow {
     const { read } = this.d;
     const blockers: string[] = [];
     let approveTx = buildApproveTx(config);
+    const feeTx = buildFeeTx(config);
+    let feeBalance = 0n;
     let gasCostWei: bigint | null = null;
     let coinBalance = 0n;
     let tokenBalance = 0n;
@@ -89,6 +95,12 @@ export class PoolFlow {
           tokenBalance = word(await this.call(config.token, SEL.balanceOf + pad(config.creator))) ?? 0n;
           coinBalance = asBig(await read('eth_getBalance', [config.creator, 'latest'])) ?? 0n;
           if (tokenBalance < config.tokenRaw) blockers.push(`You hold fewer ${config.tokenSymbol} than the amount you want to put in.`);
+          // The stablecoin's decimals are read again: the fee amount depends on them, so a contract that reports something else is refused.
+          if (word(await this.call(config.fee.token, '0x313ce567')) !== BigInt(config.fee.decimals)) blockers.push(`The ${config.fee.asset} contract on this network is not the one this page expects, so nothing was sent.`);
+          else {
+            feeBalance = word(await this.call(config.fee.token, SEL.balanceOf + pad(config.creator))) ?? 0n;
+            if (feeBalance < config.fee.raw) blockers.push(`You need ${config.fee.raw / 10n ** BigInt(config.fee.decimals)} ${config.fee.asset} for Aretia’s fee, and your wallet holds less.`);
+          }
           const pair = addr(await this.call(dex.factory, SEL.getPair + pad(config.token) + pad(dex.wrapped)));
           if (pair && pair !== ZERO) {
             const r = reservesOf(await this.call(pair, SEL.getReserves));
@@ -99,13 +111,14 @@ export class PoolFlow {
         if (blockers.length === 0) {
           try {
             const gas = asBig(await read('eth_estimateGas', [approveTx]));
+            const feeGas = asBig(await read('eth_estimateGas', [feeTx]));
             const price = asBig(await read('eth_gasPrice', []));
-            if (gas === null || price === null) throw new Error('no estimate');
+            if (gas === null || price === null || feeGas === null) throw new Error('no estimate');
             const limit = (gas * GAS_MARGIN_NUM) / GAS_MARGIN_DEN;
-            gasCostWei = (limit + ADD_GAS_CEILING) * price;
+            gasCostWei = (limit + (feeGas * GAS_MARGIN_NUM) / GAS_MARGIN_DEN + ADD_GAS_CEILING) * price;
             approveTx = { ...approveTx, gas: toHexQuantity(limit) };
           } catch {
-            blockers.push('The network would not accept the approval, so nothing was sent.');
+            blockers.push('The network would not accept the fee or the approval, so nothing was sent.');
           }
           if (blockers.length === 0 && coinBalance < config.coinWei + (gasCostWei ?? 0n)) blockers.push(`You need more ${dex.symbol}: the amount for the pool plus the network gas for both transactions.`);
         }
@@ -113,7 +126,7 @@ export class PoolFlow {
     } catch {
       blockers.push('The network could not be reached to check this pool. Try again in a moment.');
     }
-    return { config, approveTx, gasCostWei, coinBalance, tokenBalance, blockers };
+    return { config, feeTx, feeBalance, approveTx, gasCostWei, coinBalance, tokenBalance, blockers };
   }
 
   private async receipt(hash: string): Promise<{ status?: string } | null> {
@@ -153,6 +166,14 @@ export class PoolFlow {
         throw new PoolError(e instanceof Error ? e.message : 'Your wallet could not switch networks.', true);
       }
     }
+    const chainNow = await this.d.adapter.getChainId();
+    const feeProblems = inspectFeeTx(review.feeTx, config, chainNow);
+    if (feeProblems.length > 0) throw new PoolError(`Not signing: ${feeProblems.join(' ')}`, true);
+    try {
+      await this.d.read('eth_call', [{ from: review.feeTx.from, to: review.feeTx.to, data: review.feeTx.data, value: '0x0' }, 'latest']);
+    } catch {
+      throw new PoolError('The network would refuse the fee transfer, so nothing was sent.', true);
+    }
     const approveProblems = inspectApproveTx(review.approveTx, config, await this.d.adapter.getChainId());
     if (approveProblems.length > 0) throw new PoolError(`Not signing: ${approveProblems.join(' ')}`, true);
     try {
@@ -161,19 +182,27 @@ export class PoolFlow {
       throw new PoolError('The network would refuse the approval, so nothing was sent.', true);
     }
 
+    // Aretia's fee goes first, as its own transaction, and is read back before anything else is signed.
+    progress('paying-fee');
+    const feeHash = await this.send(review.feeTx, 'fee transfer');
+    progress('confirming-fee');
+    const fr = await this.receipt(feeHash);
+    if (!fr) throw new PoolError(`The fee transfer was sent but has not confirmed yet. Check ${feeHash} on an explorer. Nothing else was sent.`);
+    if (fr.status !== '0x1') throw new PoolError(`The fee transfer failed on the network, so nothing else was sent. (${feeHash})`);
+
     progress('approving');
     const approveHash = await this.send(review.approveTx, 'approval');
     progress('confirming-approve');
     const ar = await this.receipt(approveHash);
-    if (!ar) throw new PoolError(`The approval was sent but has not confirmed yet. Check ${approveHash} on an explorer, then start again.`);
-    if (ar.status !== '0x1') throw new PoolError(`The approval failed on the network. Nothing was approved or spent except the gas. (${approveHash})`);
+    if (!ar) throw new PoolError(`Aretia’s fee was already paid. The approval was sent but has not confirmed yet. Check ${approveHash} on an explorer, then start again.`);
+    if (ar.status !== '0x1') throw new PoolError(`Aretia’s fee was already paid. The approval failed on the network; nothing was approved. (${approveHash})`);
     const allowance = word(await this.call(config.token, SEL.allowance + pad(config.creator) + pad(dex.router)));
-    if (allowance !== config.tokenRaw) throw new PoolError(`The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
+    if (allowance !== config.tokenRaw) throw new PoolError(`Aretia’s fee was already paid. The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
 
     // The pool transaction is built now, so its deadline starts now.
     const now = this.d.nowSeconds();
     let addTx = buildAddTx(config, now);
-    const stuck = 'The approval is in place for exactly the tokens you chose, and nothing else has happened. You can start again to open the pool.';
+    const stuck = `Aretia’s fee was already paid and the approval is in place for exactly the tokens you chose; nothing else has happened. You can start again to open the pool (the fee would be charged again).`;
     const addProblems = inspectAddTx(addTx, config, await this.d.adapter.getChainId(), now);
     if (addProblems.length > 0) throw new PoolError(`Not signing the pool: ${addProblems.join(' ')} ${stuck}`);
     try {
@@ -198,7 +227,7 @@ export class PoolFlow {
     progress('verifying');
     const { pair, differences } = await this.readBack(config);
     progress('done');
-    return { pair, approveHash, addHash, differences };
+    return { pair, feeHash, approveHash, addHash, differences };
   }
 
   /** Reads the pool from the chain and lists every difference from what was approved (empty means it matches). */

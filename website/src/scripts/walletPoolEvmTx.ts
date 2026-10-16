@@ -7,7 +7,7 @@
 import { keccak256 } from '../swings/core/keccak.js';
 import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
 import { toHexQuantity } from './walletLaunchEvmTx';
-import type { PoolConfig } from './walletPoolEvmCore';
+import { POOL_FEE_ADDRESS, type PoolConfig } from './walletPoolEvmCore';
 
 const enc = new TextEncoder();
 const selectorOf = (signature: string): string => '0x' + [...keccak256(enc.encode(signature))].slice(0, 4).map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -28,6 +28,9 @@ export const SEL = {
 
 /** How long a pool transaction stays valid once built: if it is still waiting after this, the network refuses it. */
 export const POOL_DEADLINE_SECONDS = 20 * 60;
+
+export const TRANSFER_SELECTOR = selectorOf('transfer(address,uint256)');
+export const encodeTransfer = (to: string, amount: bigint): string => TRANSFER_SELECTOR + addrWord(to) + word(amount);
 
 export const encodeApprove = (spender: string, amount: bigint): string => APPROVE_SELECTOR + addrWord(spender) + word(amount);
 
@@ -63,6 +66,10 @@ export const decodeAddLiquidityEth = (data: string): DecodedAdd | null => {
   return w && token && to ? { token, tokenRaw: BigInt('0x' + w[1]), tokenMin: BigInt('0x' + w[2]), coinMin: BigInt('0x' + w[3]), to, deadline: BigInt('0x' + w[5]) } : null;
 };
 
+export function buildFeeTx(c: PoolConfig): EvmTxRequest {
+  return { from: c.creator, to: c.fee.token, data: encodeTransfer(POOL_FEE_ADDRESS, c.fee.raw), value: '0x0' };
+}
+
 export function buildApproveTx(c: PoolConfig): EvmTxRequest {
   return { from: c.creator, to: c.token, data: encodeApprove(c.dex.router, c.tokenRaw), value: '0x0' };
 }
@@ -88,6 +95,26 @@ function common(tx: EvmTxRequest, c: PoolConfig, walletChainId: number): string[
   return p;
 }
 const valueOf = (tx: EvmTxRequest): bigint | null => (typeof tx.value === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.value) ? BigInt(tx.value) : null);
+
+export const decodeTransfer = (data: string): { to: string; amount: bigint } | null => {
+  const w = words(data, TRANSFER_SELECTOR, 2);
+  const to = w ? asAddr(w[0]!) : null;
+  return w && to ? { to, amount: BigInt('0x' + w[1]) } : null;
+};
+
+/** The fee must be a plain transfer, on the chosen stablecoin's contract, of exactly the flat amount to the Aretia fee address, carrying no coins. */
+export function inspectFeeTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: number): string[] {
+  const p = common(tx, c, walletChainId);
+  if (typeof tx.to !== 'string' || tx.to.toLowerCase() !== c.fee.token) p.push(`The fee is not sent on the ${c.fee.asset} contract you chose.`);
+  if (valueOf(tx) !== 0n) p.push('The fee transaction carries coins, which it should not.');
+  const d = typeof tx.data === 'string' ? decodeTransfer(tx.data) : null;
+  if (!d) p.push('The fee transaction data is not a plain transfer.');
+  else {
+    if (d.to !== POOL_FEE_ADDRESS) p.push('The fee would go to an address that is not Aretia’s fee address.');
+    if (d.amount !== c.fee.raw) p.push(`The fee is not exactly the flat amount of ${c.fee.asset}.`);
+  }
+  return p;
+}
 
 /** The approval must go to the token, name the exchange's router as spender, and be for exactly the tokens going in (never unlimited). */
 export function inspectApproveTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: number): string[] {

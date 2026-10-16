@@ -18,6 +18,8 @@ import {
   type LaunchForm,
 } from './walletLaunchCore';
 import { LaunchError, LaunchFlow, friendlyError, type Outcome, type Progress, type Review } from './walletLaunchFlow';
+import { createEvmLaunch, type LaunchEvmHost } from './walletLaunchEvm';
+import { LAUNCH_EVM_CHAINS, chainEnabled, type LaunchEvmChainKey } from './walletLaunchEvmCore';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
 
 export interface LaunchHost {
@@ -25,8 +27,11 @@ export interface LaunchHost {
   getAddress(): string | null;
   /** Re-reads balances after something was created. */
   refreshWallet(): void;
+  /** The Ethereum-style side: the connected account and a way to connect. Absent where the page has no such wallet. */
+  evm?: LaunchEvmHost;
 }
 
+type Network = 'solana' | LaunchEvmChainKey;
 type Stage = 'form' | 'review' | 'working' | 'done';
 
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] => {
@@ -71,6 +76,8 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
   let acknowledged = false;
   let notice: { action: 'none' | 'finish' | 'verify' | 'stop'; reason: string } | null = null;
   let flow: LaunchFlow | null = null;
+  let network: Network = 'solana';
+  const evm = host.evm ? createEvmLaunch(host.evm) : null;
 
   async function flowFor(): Promise<LaunchFlow> {
     if (flow) return flow;
@@ -347,10 +354,51 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     card.append(wrap);
   }
 
+  /** The network choice. A network whose token factory is not deployed yet is listed but cannot be chosen. */
+  function drawPicker(): HTMLElement {
+    const wrap = h('div', 'wapp-ln__field');
+    const lab = h('label', 'wapp__eyebrow', 'Network');
+    lab.htmlFor = 'launch-network';
+    const select = h('select', 'wapp__input');
+    select.id = 'launch-network';
+    const option = (value: Network, text: string, enabled: boolean, into: HTMLElement): void => {
+      const o = h('option', '', enabled ? text : `${text} — not available yet`);
+      o.value = value;
+      o.disabled = !enabled;
+      o.selected = value === network;
+      into.append(o);
+    };
+    option('solana', 'Solana', true, select);
+    const group = (label: string, testnet: boolean): void => {
+      if (!evm) return;
+      const g = h('optgroup');
+      g.label = label;
+      for (const c of LAUNCH_EVM_CHAINS.filter((x) => x.testnet === testnet)) option(c.key, c.name, chainEnabled(c), g);
+      select.append(g);
+    };
+    group('Ethereum-style networks', false);
+    group('Test networks', true);
+    // Never switch networks while something is being created.
+    select.disabled = busy || (evm?.isBusy() ?? false);
+    select.addEventListener('change', () => {
+      network = select.value as Network;
+      error = null;
+      draw();
+    });
+    wrap.append(lab, select);
+    return wrap;
+  }
+
   function draw(): void {
     if (!root) return;
     root.textContent = '';
     const card = h('div', 'wapp-ln');
+    card.append(drawPicker());
+    if (network !== 'solana' && evm) {
+      evm.draw(card, draw, network);
+      root.append(card);
+      return;
+    }
     drawNotice(card);
     if (stage === 'form') drawForm(card);
     else if (stage === 'review') drawReview(card);
@@ -469,6 +517,7 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     },
     onWalletChange(): void {
       // A different wallet is a different person: nothing typed or approved for the last one carries over.
+      evm?.reset();
       review = null;
       outcome = null;
       stage = 'form';

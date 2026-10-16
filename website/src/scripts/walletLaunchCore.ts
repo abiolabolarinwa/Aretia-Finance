@@ -3,7 +3,8 @@
  *
  * This is a port of the token-creation rules from the Aretia Launch code in the Aretia Wallet repository
  * (packages/launch-core). It creates ONE thing: a fixed-supply Token-2022 token with its name, symbol and link stored on
- * the token itself. It does not start a sale, open a pool or charge any fee: none of those exist on this page yet.
+ * the token itself. It does not start a sale or open a pool: neither exists on this page yet. The only Aretia charge is the flat
+ * creation fee below, paid in SOL in the first transaction.
  *
  * Choices made here, on purpose:
  *  - The mint and freeze powers are always given up. A token made here has a fixed supply and nobody can freeze a holder.
@@ -236,9 +237,19 @@ export function disclosuresOf(config: LaunchConfig): Disclosure[] {
 
 export const BASE_FEE_LAMPORTS = 5_000n;
 
+/**
+ * Aretia's flat fee for creating a token: 0.05 SOL, paid from the creator's wallet in the first transaction. It goes to the
+ * management-fee wallet recorded in MANAGEMENT_FEE.md, which is separate from the treasury multisig. The fee is fixed in code, not
+ * read from the network or from the form, so the check before signing can refuse any other amount or recipient.
+ */
+export const LAUNCH_FEE_LAMPORTS = 50_000_000n;
+export const LAUNCH_FEE_ADDRESS = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
+
 export interface CostEstimate {
   /** Network fees: two transactions, the first signed twice (you and the new token's key). */
   networkFee: bigint;
+  /** Aretia's flat creation fee. */
+  aretiaFee: bigint;
   /** Deposit that keeps the token's own account alive. Not refundable in practice: the token stays. */
   mintDeposit: bigint;
   /** One deposit per wallet that receives tokens. */
@@ -252,10 +263,11 @@ export function estimateCost(args: { mintDeposit: bigint; tokenAccountDeposit: b
   const accountDeposits = args.tokenAccountDeposit * BigInt(args.accountCount);
   return {
     networkFee,
+    aretiaFee: LAUNCH_FEE_LAMPORTS,
     mintDeposit: args.mintDeposit,
     tokenAccountDeposits: accountDeposits,
     accountCount: args.accountCount,
-    total: networkFee + args.mintDeposit + accountDeposits,
+    total: networkFee + LAUNCH_FEE_LAMPORTS + args.mintDeposit + accountDeposits,
   };
 }
 

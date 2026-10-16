@@ -4,7 +4,7 @@
  * of events in walletLaunchFlow.ts, each with its own tests.
  *
  * What it does: one fixed-supply token with its name, symbol and link stored on the token, created in two transactions that the
- * person's own wallet signs. What it does not do: start a sale, open a pool, charge any fee, or lock anything.
+ * person's own wallet signs. What it does not do: start a sale, open a pool, or lock anything. It charges one flat creation fee, shown before signing.
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.
  */
 import { browserStorage } from '../swings/history.js';
@@ -133,7 +133,7 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     const address = host.getAddress();
     card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h2', 'wapp__h2', 'Create a token'));
     card.append(
-      h('p', 'wapp__fine', 'Make a token with a fixed supply and a name that is stored on the token itself. Your own wallet signs everything; Aretia never holds your keys and charges no fee.'),
+      h('p', 'wapp__fine', 'Make a token with a fixed supply and a name that is stored on the token itself. Your own wallet signs everything; Aretia never holds your keys. Creating a token costs a flat 0.05 SOL Aretia fee, shown before you sign.'),
     );
     if (!address) {
       card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect a Solana wallet to create a token.'));
@@ -221,11 +221,11 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
 
     card.append(h('span', 'wapp__eyebrow', 'What it costs, in SOL'));
     const costs = h('dl', 'wapp__rows');
+    row(costs, 'Aretia fee', sol(cost.aretiaFee));
     row(costs, 'Network fees (two transactions)', sol(cost.networkFee));
     row(costs, 'Deposit for the token', sol(cost.mintDeposit));
     row(costs, `Deposits for ${cost.accountCount} token account${cost.accountCount === 1 ? '' : 's'}`, sol(cost.tokenAccountDeposits));
-    row(costs, 'Aretia fee', 'None');
-    row(costs, 'Total, about', sol(cost.total));
+        row(costs, 'Total, about', sol(cost.total));
     row(costs, 'Your balance', sol(balance));
     card.append(costs);
     card.append(h('p', 'wapp__fine', 'The deposits keep the accounts alive on Solana. The estimate comes from the network’s current rent; the final amounts are shown by your wallet.'));

@@ -356,7 +356,7 @@ export class DirectSolanaProvider implements DexProvider {
       // Pools were found but none could be used: say why, because "no pool" would send the user looking in the wrong place.
       if (direct.length > 0 && this.skipped.length > 0) {
         const why = [...new Set(this.skipped)].slice(0, 2).join('; ');
-        throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}. A first swap into a token also needs a little extra SOL for the new token account and fees.`);
+        throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}.${/lamport|insufficient|rent|funds/i.test(why) ? ' A first swap into a token also needs a little extra SOL for the new token account and fees.' : ''}`);
       }
       // A reader that failed is not the same as a pool that does not exist: saying "no pool" would send the user away from a token that may trade fine.
       if (direct.length === 0 && this.venueMisses > 0) throw new SwingsError('provider-failed', 'Some of the places Aretia reads pools from did not answer, so this may be temporary and the token may well have a pool. Try again in a moment.');

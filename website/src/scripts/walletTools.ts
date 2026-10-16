@@ -341,6 +341,33 @@ export interface SwapVerdict {
 }
 
 /**
+ * Pump.fun's AMM program (PumpSwap) and what its error numbers mean, from its published interface (idl/pump_amm.json in
+ * pump-fun/pump-public-docs). These are faults in the accounts a swap sends, not in the person's balance, so they are said that way.
+ */
+const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+const PUMP_AMM_ERRORS: Record<number, string> = {
+  6044: 'not enough extra accounts were sent',
+  6049: 'cashback is disabled for this pool',
+  6053: 'the buyback fee recipient was not accepted',
+  6059: 'a cashback trade is missing the accounts it needs',
+  6060: 'the cashback accumulator account was not accepted',
+  6061: 'the cashback token account was missing or not accepted',
+  6062: 'the pool record account was missing or not accepted',
+  6079: 'this pool pays cashback and needs the other trade form',
+};
+
+/** The program's own error text in plain words where it is known; otherwise the text as it came. */
+export function explainProgramError(error: string): string {
+  const m = /Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)/.exec(error);
+  if (!m || m[1] !== PUMP_AMM_PROGRAM) return error;
+  const code = parseInt(m[2]!, 16);
+  const what = PUMP_AMM_ERRORS[code];
+  return what
+    ? `Pump.fun's trading program turned this swap down because ${what} (its error ${code}). The problem is in how Aretia talks to this pool, not in your balance. Nothing was sent.`
+    : `Pump.fun's trading program turned this swap down (its error ${code}). Nothing was sent.`;
+}
+
+/**
  * Judges a simulated swap by what it would do to the wallet, not by what the API says it will do.
  * The transaction comes from a third party, so these checks are what stand between a bad or
  * tampered response and a signature.
@@ -356,7 +383,7 @@ export function judgeSwapSimulation(args: {
   const { sim, amountIn } = args;
   const overheadCap = args.overheadLamports ?? SWAP_SOL_OVERHEAD_LAMPORTS;
   const problems: string[] = [];
-  if (sim.error !== null) problems.push(`The network would reject this swap: ${sim.error}`);
+  if (sim.error !== null) problems.push(`The network would reject this swap: ${explainProgramError(sim.error)}`);
 
   const solSpent = sim.solPre - sim.solPost; // negative if SOL was received
   let paid: bigint | null = null;

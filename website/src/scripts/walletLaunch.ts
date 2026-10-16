@@ -381,8 +381,10 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
       if (!evm) return;
       const g = h('optgroup');
       g.label = label;
-      for (const c of LAUNCH_EVM_CHAINS.filter((x) => x.testnet === testnet)) option(c.key, c.name, chainEnabled(c), g);
-      select.append(g);
+      // A test network is listed only once its factory is deployed; until then it would be a dead entry.
+      const chains = LAUNCH_EVM_CHAINS.filter((x) => x.testnet === testnet && (!testnet || chainEnabled(x)));
+      for (const c of chains) option(c.key, c.name, chainEnabled(c), g);
+      if (chains.length > 0) select.append(g);
     };
     group('Ethereum-style networks', false);
     group('Test networks', true);

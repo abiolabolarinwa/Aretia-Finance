@@ -53,6 +53,10 @@ const universalNeeds = [
   'An Ethereum wallet connection. This page connects Solana wallets only, and a bridge needs both sides.',
 ];
 
+// Aretia's own bonding curve stays out of the page until the site is built with PUBLIC_CURVE_ENABLED=1, and does nothing on mainnet even then
+// until it has an audited, deployed program (see docs/BONDING_CURVE.md).
+const curveOn = import.meta.env.PUBLIC_CURVE_ENABLED === '1';
+
 // Sending from an Ethereum-style account stays out of the page until the site is built with PUBLIC_PAY_EVM_SEND=1.
 const evmSendOn = import.meta.env.PUBLIC_PAY_EVM_SEND === '1';
 const evmSendNetworks = (Object.values(CHAINS) as { id: string; name: string; kind: string }[]).filter((c) => c.kind === 'evm');
@@ -400,6 +404,11 @@ const sendTips = [
           <div class="wapp__card">
             <div data-pool-root aria-live="polite"></div>
           </div>
+          {curveOn && (
+            <div class="wapp__card">
+              <div data-curve-root aria-live="polite"></div>
+            </div>
+          )}
         </div>
       </div>
 

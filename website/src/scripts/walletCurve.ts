@@ -25,7 +25,7 @@ import {
   type CurveIssue,
   type CurveState,
 } from './walletCurveCore';
-import { CurveFlow, type CurveOutcome, type CurveProgress, type CurveReview } from './walletCurveFlow';
+import { CurveFlow, type CurveFlowDeps, type CurveOutcome, type CurveProgress, type CurveReview } from './walletCurveFlow';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateWithBalance, waitForConfirmation } from './walletSend';
 import type { PoolToken } from './walletPoolCore';
 
@@ -58,10 +58,19 @@ const STEPS: { id: CurveProgress; label: string }[] = [
 
 const noop = { onShow(): void {}, onWalletChange(): void {}, offer(): void {} };
 
-export function initCurve(host: CurveHost): { onShow(): void; onWalletChange(): void; offer(mint: string): void } {
+/**
+ * A seam for the local test harness (website/dev/curve-harness), which runs this card against the devnet program with a local
+ * test key. The wallet page passes nothing, so the card there can only ever use the mainnet program, which does not exist yet.
+ */
+export interface CurveOptions {
+  program?: string;
+  deps?: Omit<CurveFlowDeps, 'program'>;
+}
+
+export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow(): void; onWalletChange(): void; offer(mint: string): void } {
   const root = document.querySelector<HTMLElement>('[data-curve-root]');
   if (!root) return noop;
-  const program = curveProgramFor('mainnet');
+  const program = opts.program ?? curveProgramFor('mainnet');
 
   let tab: Tab = 'create';
   let stage: Stage = 'form';
@@ -88,6 +97,10 @@ export function initCurve(host: CurveHost): { onShow(): void; onWalletChange(): 
   async function flowFor(): Promise<CurveFlow> {
     if (flow) return flow;
     if (!program) throw new Error('There is no curve program on this network yet.');
+    if (opts.deps) {
+      flow = new CurveFlow({ ...opts.deps, program });
+      return flow;
+    }
     const web3 = await loadWeb3();
     flow = new CurveFlow({
       web3,

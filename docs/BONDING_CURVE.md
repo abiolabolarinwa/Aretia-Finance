@@ -155,3 +155,9 @@ A full run through the web flow code against the upgraded program (`npm run test
 | Move into a pool | `4vCtwtEaxGrrWrVj67rrunFowZGX3DCDbxZ7iYx1e5vWvLrziA44FbFjJkpoKDEroJqVgvcfSTQc2knb1iYtoFY6` (pool `H8A7FZVJRHs13263j42jpvvgAwSWDDfQBZwJYnVG7XJ1`, curve `8YbPb4pbcDRqzMMRzvYcC9wwGs8x87Lo7Y6HivimHHDy`) |
 
 The devnet run used a single wallet as creator and buyer; a second wallet buying was covered in the local VM only.
+
+## 13. The card, run in a browser against devnet
+
+`website/dev/curve-harness/` is a local-only page (not part of the site build) that runs the real Launch-page card against the devnet program, with two throwaway test keys kept in the browser's local storage standing in for wallets. Start it with `npx vite --config dev/curve-harness/vite.config.ts` in `website` and open `http://localhost:4391/curve-harness/`; fund the two addresses it shows with devnet SOL. It uses a small seam in `initCurve` (`opts.program`, `opts.deps`) that the wallet page never uses.
+
+Run on 2026-10-16 with the card's own buttons, creator and buyer as two different wallets: make a token, review and open a curve (0.3 SOL target), switch wallet, look the curve up, buy 0.1 SOL, sell 100,000,000 tokens back, buy the rest with an oversized offer (the card then offered "Move into a pool"), and move it into a Meteora pool. Every step's review screen showed the right numbers and every result was read back from the network as matching. What this did not cover: a real browser wallet (the harness signs with a local key), the mobile layout, and the "Unwind this curve" button.

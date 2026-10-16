@@ -8,6 +8,7 @@ import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initShield } from './walletShield';
+import { initSafe } from './walletSafe';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
@@ -315,9 +316,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safe' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safe', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safe: 'Aretia Safe', safesend: 'SafeSend', universal: 'Universal' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -377,6 +378,7 @@ export function initWalletApp(): void {
   let showUnpriced = readShowUnpriced();
   let loadToken = 0;
   initRadar();
+  initSafe();
   const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
   const shield = initShield({
     getAddress: () => address,

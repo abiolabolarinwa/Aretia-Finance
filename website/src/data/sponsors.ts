@@ -4,7 +4,8 @@
  *
  * Each entry is checked before it is shown (see src/lib/sponsors.ts): an https link, short text, valid dates. An entry
  * that fails a check is skipped, never shown half-formed. While the list is empty the slots show Aretia's own
- * "Sponsor space" card, which points to /advertise.
+ * "Sponsor space" card, which points to /advertise. On the home page, while no sponsor is running for 'home-canvas', Aretia's
+ * own adverts (src/data/houseAds.ts) fill the background; once one runs, only sponsors show there.
  *
  * Example, for reference (not live):
  *
@@ -16,7 +17,8 @@
  *     cta: 'See the project',
  *     href: 'https://example.org/project',
  *     image: '/assets/sponsors/example.png',   // optional, https or under /assets/sponsors/
- *     slots: ['token-panel', 'market-footer'],
+ *     slots: ['token-panel', 'market-footer', 'home-canvas'],   // 'home-canvas' is the full-page background of the home page
+ *     background: '#f6ecb4',                                   // optional, home-canvas only: the flat page colour; `image` is shown as the framed picture
  *     chains: ['solana'],                        // optional: only beside tokens on these chains
  *     from: '2026-11-01',
  *     to: '2026-11-30',

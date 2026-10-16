@@ -1,8 +1,14 @@
 ---
 import '../styles/global.css';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/newsreader/opsz.css';
 import ProductLogo from '../components/brand/ProductLogo.astro';
 import { NAV, LINKS } from '../data/site';
 import type { ProductKey } from '../lib/logos';
+import { HOUSE_ADS } from '../data/houseAds';
+import { SPONSORS } from '../data/sponsors';
+import { problemWith } from '../lib/sponsors';
+import { chartArt } from '../lib/adArt';
 
 /* Aretia Finance home: the whole product map on one screen, no scrolling.
    Each card links to the live page for its service. Radar has no page yet, so
@@ -15,35 +21,26 @@ interface Service {
 }
 
 const services: Service[] = [
-  { key: 'marketplace', name: 'Marketplace', line: 'Browse and trade markets across chains', href: '/wallet' },
+  { key: 'wallet', name: 'Wallet', line: 'Balances, activity and trading', href: '/wallet' },
+  { key: 'swap', name: 'Swap', line: 'Trade across chains', href: '/wallet#/swap' },
+  { key: 'marketplace', name: 'Markets', line: 'Browse and trade markets across chains', href: '/wallet#/swings' },
   { key: 'pay', name: 'Pay', line: 'Send to a name, not an address', href: '/wallet#/send' },
-  { key: 'carbon', name: 'Carbon Credit', line: 'Registry-backed, then retired', href: '/carboncredit' },
-  { key: 'shield', name: 'Shield', line: 'Every send checked before you sign', href: '/features#shield' },
-  { key: 'safesend', name: 'SafeSend', line: 'Cancel a send before it lands', href: '/features#safesend' },
-  { key: 'radar', name: 'Radar', line: 'Market and wallet signals', href: '/ecosystem' },
+  { key: 'carbon', name: 'Carbon', line: 'Registry-backed, then retired', href: '/wallet#/carbon' },
+  { key: 'shield', name: 'Shield', line: 'Every send checked before you sign', href: '/wallet#/shield' },
+  { key: 'safesend', name: 'SafeSend', line: 'Cancel a send before it lands', href: '/wallet#/safesend' },
+  { key: 'radar', name: 'Radar', line: 'Market and wallet signals', href: '/wallet#/radar' },
 ];
 
-/** The chains in Aretia Wallet. Marks: public/assets/chains/CREDITS.md. */
-const chains = [
-  { name: 'Solana', logo: '/assets/chains/solana.png' },
-  { name: 'Ethereum', logo: '/assets/chains/ethereum.png' },
-  { name: 'BNB Chain', logo: '/assets/chains/bnb.png' },
-  { name: 'Polygon', logo: '/assets/chains/polygon.png' },
-  { name: 'Base', logo: '/assets/chains/base.png' },
-  { name: 'Arbitrum', logo: '/assets/chains/arbitrum.png' },
-  { name: 'Optimism', logo: '/assets/chains/optimism.png' },
-  { name: 'Avalanche', logo: '/assets/chains/avalanche.png' },
-  { name: 'Robinhood Chain', logo: '/assets/chains/robinhood.png' },
-];
 
-/* Carbon registries, with their own logos (trimmed copies in public/assets/registries/).
-   `h` is the display height in px, set per logo so each reads at a similar visual weight. */
-const registries = [
-  { name: 'Gold Standard', logo: '/assets/registries/gold-standard.png', w: 712, h: 352, show: 40 },
-  { name: 'Verra', logo: '/assets/registries/verra.png', w: 601, h: 222, show: 30 },
-  { name: 'American Carbon Registry', logo: '/assets/registries/american-carbon-registry.png', w: 541, h: 243, show: 36 },
-  { name: 'Climate Action Reserve', logo: '/assets/registries/climate-action-reserve.png', w: 324, h: 132, show: 30 },
-];
+
+/* The canvas: the whole page background is an advert. Paid sponsors (src/data/sponsors.ts, slot 'home-canvas') show when one
+   is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
+const sponsored = SPONSORS.filter((s) => s.slots.includes('home-canvas') && problemWith(s) === null).map((s, i) => ({
+  id: `sponsor-${s.id}`, kind: 'sponsor' as const, label: 'Ad', by: s.advertiser, product: null as ProductKey | null, headline: s.headline, body: s.body, cta: s.cta, href: s.href,
+  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
+}));
+const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, bg: a.bg, art: a.art, layout: a.layout, image: a.image ?? null, chart: a.chart ? chartArt(a.chart.seed, a.chart.style, a.chart.up).inner : null, mark: a.mark ?? null, from: '', to: '' }));
+const slides = [...sponsored, ...house];
 ---
 
 <!doctype html>
@@ -52,20 +49,31 @@ const registries = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Aretia Finance</title>
-    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Carbon Credit, Shield, SafeSend and Radar, across nine chains and the major carbon registries." />
+    <meta name="description" content="Every Aretia service on one screen: Marketplace, Pay, Carbon Credit, Shield, SafeSend and Radar, across nine chains." />
     <link rel="canonical" href="https://aretiafinance.org/" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <meta name="theme-color" content="#ffffff" />
-    <link rel="preload" href="/fonts/ibm-plex-sans/ibm-plex-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body class="console">
     <a class="skip-link" href="#main">Skip to content</a>
 
+    <nav class="rail" aria-label="Aretia services">
+      <a class="rail__brand" href="/" aria-label="Aretia Finance home"><img src="/assets/logo-mark.png" alt="" width="34" height="34" /></a>
+      <ul class="rail__list">
+        {
+          services.map((s) => (
+            <li>
+              <a class="rail__item" href={s.href} title={s.line}>
+                <ProductLogo product={s.key} size={40} bare />
+                <span>{s.name}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
     <header class="bar">
-      <a class="bar__brand" href="/" aria-label="Aretia Finance home">
-        <img src="/assets/logo-mark.png" alt="" width="28" height="28" />
-        <span>Aretia<br />Finance</span>
-      </a>
       <nav class="bar__nav" aria-label="Primary">
         <ul>
           {
@@ -94,76 +102,114 @@ const registries = [
     </header>
 
     <main id="main" class="stage">
-      <section class="intro">
-        <h1>Home of <span>Decentralized Finance</span></h1>
-        <p>Swap, pay, protect and offset, from one self-custody wallet on every chain you use.</p>
-        <a class="intro__cta" href="/wallet">Open Wallet</a>
-      </section>
-
-      <section class="services" aria-labelledby="services-title">
-        <h2 id="services-title" class="services__title">Everything Aretia does.</h2>
-        <ul class="grid">
-          {
-            services.map((s) => (
-              <li>
-                <a class="card" href={s.href}>
-                  <ProductLogo product={s.key} size={48} />
-                  <span class="card__name">{s.name}</span>
-                  <span class="card__line">{s.line}</span>
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-      </section>
-
-      <section class="flows" aria-label="Where Aretia connects">
-        <div class="flow">
-          <h2 class="flow__label">Chains in Aretia Wallet</h2>
-          <ul class="flow__items">
-            {
-              chains.map((c, i) => (
-                <li class="chain" style={`--i:${i}`}>
-                  <span class="chain__logo">
-                    <img src={c.logo} alt="" width="28" height="28" />
+      <div class="canvas" data-canvas aria-roledescription="carousel" aria-label="Aretia adverts">
+        {
+          slides.map((a, i) => (
+            <section class={`ad ad--${a.layout}${i === sponsored.length ? ' is-active' : ''}`} data-ad data-kind={a.kind} data-from={a.from} data-to={a.to} style={`--bg:${a.bg};--art:${a.art}`} aria-label={`${a.label}: ${a.headline}`}>
+              <figure class="ad__frame" aria-hidden="true">
+                {a.image ? <img src={a.image.src} alt={a.image.alt} loading="lazy" /> : (
+                  <span class="ad__art">
+                    {a.chart && <svg class="ad__chart" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid meet" set:html={a.chart} />}
+                    {a.layout !== 'duo' && a.mark && <span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span>}
+                    {!a.chart && !a.mark && a.product && <ProductLogo product={a.product} size={150} />}
+                    {a.chart && <span class="ad__caption">Illustration, not live data</span>}
                   </span>
-                  <span>{c.name}</span>
-                </li>
-              ))
-            }
-          </ul>
+                )}
+              </figure>
+              {a.layout === 'duo' && a.mark && (
+                <figure class="ad__frame ad__frame--b" aria-hidden="true">
+                  <span class="ad__art"><span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span></span>
+                </figure>
+              )}
+              {a.image?.credit && <span class="ad__credit">Photo: {a.image.credit}</span>}
+              <div class="ad__copy">
+                <h2 class="ad__title">{a.headline}</h2>
+                <p class="ad__body">{a.body}</p>
+              </div>
+              <a class="ad__badge" href={a.href} rel={a.kind === 'sponsor' ? 'sponsored noopener noreferrer' : undefined} target={a.kind === 'sponsor' ? '_blank' : undefined}>{a.cta}</a>
+              <span class="ad__tag">{a.label}{a.kind === 'sponsor' ? ` · ${a.by}` : ''}</span>
+            </section>
+          ))
+        }
+        <div class="canvas__foot">
+          <div class="canvas__dots" data-dots role="tablist" aria-label="Choose an advert"></div>
+          <a class="canvas__sell" href="/advertise">Advertise with Aretia →</a>
         </div>
+      </div>
 
-        <div class="flow">
-          <h2 class="flow__label">Tokenisation of Carbon Credit is coming to:</h2>
-          <ul class="flow__items flow__items--logos">
-            {
-              registries.map((r) => (
-                <li>
-                  <img src={r.logo} alt={r.name} width={r.w} height={r.h} style={`height:${r.show}px`} />
-                </li>
-              ))
-            }
-          </ul>
-        </div>
+      <h1 class="sr-only">Aretia Finance: home of decentralized finance</h1>
+      <section class="card" aria-label="Aretia Wallet">
+        <a class="card__btn card__btn--primary" href="/wallet">Start Trading</a>
+        <a class="card__btn" href={LINKS.walletWaitlist}>Download Aretia Wallet</a>
       </section>
+
     </main>
+
+    <script>
+      /* Rotate the adverts, every 5 to 7 seconds. A sponsor outside its dates is dropped; with none left, Aretia's own adverts show. Paused on hover and
+         focus, while the tab is hidden, and never automatic for people who ask for less motion. */
+      const canvas = document.querySelector<HTMLElement>('[data-canvas]');
+      if (canvas) {
+        const today = new Date().toISOString().slice(0, 10);
+        let ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        for (const a of ads) if (a.dataset.kind === 'sponsor' && !(a.dataset.from! <= today && today <= a.dataset.to!)) a.remove();
+        ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        const running = ads.filter((a) => a.dataset.kind === 'sponsor');
+        if (running.length > 0) for (const a of ads) if (a.dataset.kind === 'house') a.remove();
+        ads = [...canvas.querySelectorAll<HTMLElement>('[data-ad]')];
+        const dots = canvas.querySelector<HTMLElement>('[data-dots]')!;
+        let index = Math.max(0, ads.findIndex((a) => a.classList.contains('is-active')));
+        const show = (i: number): void => {
+          index = (i + ads.length) % ads.length;
+          ads.forEach((a, n) => {
+            a.classList.toggle('is-active', n === index);
+            a.toggleAttribute('inert', n !== index);
+            a.setAttribute('aria-hidden', String(n !== index));
+          });
+          [...dots.children].forEach((d, n) => d.setAttribute('aria-selected', String(n === index)));
+        };
+        ads.forEach((_a, n) => {
+          const d = document.createElement('button');
+          d.type = 'button';
+          d.setAttribute('role', 'tab');
+          d.setAttribute('aria-label', `Advert ${n + 1} of ${ads.length}`);
+          d.addEventListener('click', () => { show(n); restart(); });
+          dots.append(d);
+        });
+        /* Each advert stays 5 to 7 seconds, a little different every time so the page never feels like a metronome. */
+        let timer: number | undefined;
+        let held = false;
+        const wait = (): number => 5000 + Math.round(Math.random() * 2000);
+        const next = (): void => {
+          window.clearTimeout(timer);
+          if (ads.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+          timer = window.setTimeout(() => {
+            if (!held && !document.hidden) show(index + 1);
+            next();
+          }, wait());
+        };
+        const restart = next;
+        canvas.addEventListener('pointerenter', () => (held = true));
+        canvas.addEventListener('pointerleave', () => (held = false));
+        canvas.addEventListener('focusin', () => (held = true));
+        canvas.addEventListener('focusout', () => (held = false));
+        if (ads.length < 2) dots.hidden = true;
+        show(index);
+        restart();
+      }
+    </script>
   </body>
 </html>
 
 <style is:global>
-  /* IBM Plex Sans: a clear, open grotesque with a banking heritage; self-hosted, scoped to this page. */
-  @font-face {
-    font-family: 'IBM Plex Sans';
-    src: url('/fonts/ibm-plex-sans/ibm-plex-sans-latin-wght-normal.woff2') format('woff2');
-    font-weight: 100 700;
-    font-style: normal;
-    font-display: swap;
-  }
-
   body.console {
-    --font-display: 'IBM Plex Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
-    --font-body: 'IBM Plex Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --rail: 84px;
+    /* Body and interface: Inter (open licence), a practical stand-in for Actief Grotesque.
+       Headlines: Newsreader (open licence), a display serif standing in for GT Super Display, which is a paid font. To use GT Super
+       Display, buy a web licence, put its files under public/fonts/, declare it with @font-face, and put its name first in --font-serif. */
+    --font-display: 'Inter Variable', Inter, -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --font-body: 'Inter Variable', Inter, -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --font-serif: 'Newsreader Variable', 'Iowan Old Style', Georgia, serif;
     --c-card: #f5f5f7;
     --c-line: rgba(14, 11, 43, 0.09);
     background: #fff;
@@ -174,83 +220,119 @@ const registries = [
 
   /* One screen on desktop: the page is exactly the viewport tall and never scrolls.
      Below 900px wide, or when the window is too short to fit it, it scrolls normally. */
-  @media (min-width: 900px) and (min-height: 720px) {
+  @media (min-width: 900px) and (min-height: 640px) {
     html, body.console { height: 100dvh; overflow: hidden; }
   }
-  /* Narrow desktops wrap the card text onto more lines, so they need a little more height before the page can stay on one screen. */
-  @media (min-width: 900px) and (max-width: 1180px) and (max-height: 749px) {
-    html, body.console { height: auto; overflow: auto; }
-  }
 
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 0 clamp(1rem, 4vw, 3rem); height: 64px; flex: none; position: relative; z-index: 5; }
-  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-size: 1rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
-  .bar__brand img { width: 30px; height: 30px; border-radius: 8px; }
-  .bar__nav { display: flex; align-items: center; gap: 0.25rem; }
+  /* The services rail, down the left edge: a logo with its name under it, one tap to the service. */
+  .rail { position: fixed; z-index: 6; inset: 0 auto 0 0; width: var(--rail); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; overflow-y: auto; scrollbar-width: none; background: #fff; border-right: 1px solid var(--c-line); }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail__brand { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 0; border-radius: 12px; }
+  .rail__brand img { width: 34px; height: 34px; border-radius: 9px; }
+  .rail__list { list-style: none; margin: auto 0; padding: 0; display: grid; gap: 4px; width: 100%; }
+  .rail__item { display: grid; justify-items: center; gap: 5px; margin: 0 8px; padding: 9px 2px 8px; font-size: 0.64rem; font-weight: 600; line-height: 1.1; text-align: center; color: var(--color-strong); border-radius: 14px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .rail__item:focus-visible, .rail__brand:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
+  @media (hover: hover) { .rail__item:hover { background: var(--c-card); transform: translateY(-1px); } }
+
+  /* The top bar floats over the advert as white pills, so it reads on any background. */
+  .bar { position: absolute; inset: 0 0 auto var(--rail); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 14px clamp(1rem, 3vw, 2.25rem); pointer-events: none; }
+  .bar > * { pointer-events: auto; }
+  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; padding: 7px 16px 7px 9px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
+  .bar__brand img { width: 28px; height: 28px; border-radius: 8px; }
+  .bar__nav { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; padding: 6px 8px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); }
   .bar__nav ul { list-style: none; margin: 0; padding: 0; }
   .bar__nav > ul { display: flex; gap: 0.1rem; }
   .menu { position: relative; }
-  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.9rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
-  .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 6px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
-  /* Bridges the 6px gap so the pointer can travel from button to panel. */
-  .menu__panel::before { content: ''; position: absolute; inset: -8px 0 auto; height: 8px; }
+  .menu__btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: var(--radius-pill); font-size: 0.8rem; font-weight: 500; color: var(--color-text); transition: background-color var(--duration-fast); }
+  .menu__panel { position: absolute; top: 100%; left: 0; min-width: 290px; padding: 0.4rem; margin-top: 10px; background: #fff; border: 1px solid var(--c-line); border-radius: var(--radius-md); box-shadow: var(--shadow-float); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity var(--duration-fast), transform var(--duration-fast) var(--ease-out), visibility var(--duration-fast); }
+  .menu__panel::before { content: ''; position: absolute; inset: -12px 0 auto; height: 12px; }
   .menu:hover .menu__panel, .menu:focus-within .menu__panel { opacity: 1; visibility: visible; transform: none; }
   .menu__panel a { display: flex; flex-direction: column; gap: 1px; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
   .menu__panel b { font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
   .menu__panel span { font-size: 0.78rem; color: var(--color-faint); }
-  .bar__cta { margin-left: 0.5rem; padding: 0.5rem 1.05rem; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; color: var(--color-strong); border: 1px solid var(--c-line); background: var(--c-card); transition: border-color var(--duration-fast); }
-  @media (hover: hover) {
-    .menu__btn:hover { background: rgba(14, 11, 43, 0.05); }
-    .bar__cta:hover { border-color: var(--color-border-strong); }
-  }
+  .bar__cta { margin-left: 0.25rem; padding: 0.42rem 0.95rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: #fff; background: var(--color-strong); transition: background-color var(--duration-fast); }
+  .bar__cta:focus-visible, .menu__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 2px; }
 
-  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 1.25rem; width: 100%; max-width: 1360px; margin-inline: auto; padding: 0 clamp(1rem, 4vw, 3rem) clamp(1rem, 2.5vh, 1.75rem); }
+  .stage { position: relative; flex: 1; min-height: 0; width: 100%; display: grid; align-items: center; padding: 84px clamp(1rem, 3vw, 2.25rem) 64px calc(var(--rail) + clamp(1rem, 3vw, 2.25rem)); }
 
-  .intro { text-align: center; }
-  .intro h1 { font-size: clamp(2.1rem, min(5vw, 7.4vh), 4.25rem); font-weight: 500; line-height: 1.06; letter-spacing: -0.03em; }
-  .intro h1 span { display: block; color: var(--color-brand); }
-  .intro__cta { display: inline-block; margin-top: clamp(0.7rem, 2vh, 1.4rem); padding: 0.7rem 1.9rem; font-size: 1rem; font-weight: 600; color: #fff; background: var(--color-brand); border-radius: 999px; box-shadow: 0 8px 20px rgba(58, 34, 200, 0.28); transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
-  .intro__cta:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) { .intro__cta:hover { background: var(--color-brand-bright); transform: translateY(-2px); } }
-  .intro p { margin: 0.9rem auto 0; max-width: 46ch; font-size: clamp(0.95rem, 1.7vh, 1.1rem); color: var(--color-muted); }
+  /* The advert: the whole page background. */
+  .canvas { position: absolute; inset: 0 0 0 var(--rail); overflow: hidden; background: #e9e9ef; }
+  .ad { position: absolute; inset: 0; background: var(--bg); color: #0e0b2b; opacity: 0; visibility: hidden; transition: opacity 600ms ease, visibility 600ms; }
+  .ad.is-active { opacity: 1; visibility: visible; }
+  /* The framed picture: an Aretia service on a flat colour, or the sponsor's own image. */
+  .ad__frame { position: absolute; margin: 0; overflow: hidden; background: var(--art); }
+  .ad__frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .ad__art { position: absolute; inset: 0; display: grid; place-items: center; }
+  .ad__art::before, .ad__art::after { content: ''; position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.07); }
+  .ad__art::before { width: 70%; aspect-ratio: 1; left: -12%; bottom: -30%; }
+  .ad__art::after { width: 46%; aspect-ratio: 1; right: -8%; top: -14%; }
+  .ad__art .pl { position: relative; z-index: 1; transform: scale(1.4); }
+  .ad__chart { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ad__mark { position: relative; z-index: 1; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; font-size: 2.2rem; font-weight: 700; line-height: 1; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
+  .ad__mark img { width: 52px; height: 52px; object-fit: contain; }
+  .ad__caption { position: absolute; z-index: 1; right: 12px; bottom: 10px; font-size: 0.6rem; letter-spacing: 0.03em; color: rgba(255, 255, 255, 0.6); }
+  .ad--duo .ad__caption { right: auto; left: 12px; }
+  .ad__credit { position: absolute; z-index: 2; right: clamp(1rem, 3vw, 2.25rem); bottom: 56px; font-size: 0.6rem; color: rgba(14, 11, 43, 0.6); }
+  .ad__title { margin: 0; font-family: var(--font-serif); font-size: clamp(1.6rem, min(2.7vw, 4.5vh), 2.6rem); font-weight: 450; line-height: 1.05; letter-spacing: -0.02em; color: #0e0b2b; text-wrap: balance; }
+  .ad__body { margin: 0; font-size: clamp(0.82rem, 1.5vh, 0.95rem); line-height: 1.45; color: #1d1a3d; }
+  .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 84px; height: 84px; padding: 8px; font-size: 0.74rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #0e0b2b; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
+  .ad__badge:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
+  @media (hover: hover) { .ad__badge:hover { transform: scale(1.06) rotate(-4deg); } }
+  .ad__tag { position: absolute; z-index: 2; padding: 2px 8px; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.55); border-radius: 6px; }
 
-  .services__title { margin: 0 0 0.9rem; font-size: clamp(1.4rem, min(2.2vw, 3.6vh), 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; text-align: left; color: var(--color-strong); }
-  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; }
-  /* One soft grey card per service: icon at the top left, then the name and a short line. */
-  .grid li { display: flex; }
-  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; width: 100%; padding: 1.1rem 1.1rem 1.25rem; border-radius: var(--radius-lg); background: var(--c-card); color: inherit; transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base); }
-  .card .pl { margin-bottom: 0.9rem; }
-  .card__name { font-size: 0.95rem; font-weight: 600; line-height: 1.25; letter-spacing: -0.005em; color: var(--color-strong); }
-  .card__line { font-size: 0.82rem; line-height: 1.4; color: var(--color-muted); }
-  .card:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) {
-    .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
-  }
+  /* Wide: a landscape frame, the words under it, the badge on its corner. */
+  .ad--wide .ad__frame { left: max(520px, 40%); right: clamp(1rem, 3vw, 2.25rem); top: 88px; bottom: 190px; }
+  .ad--wide .ad__tag { left: calc(max(520px, 40%) + 12px); top: 100px; }
+  .ad--wide .ad__copy { position: absolute; left: calc(max(520px, 40%) + 72px); right: clamp(1rem, 3vw, 2.25rem); bottom: 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: end; gap: 1rem 2rem; }
+  .ad--wide .ad__badge { left: calc(max(520px, 40%) - 24px); bottom: 150px; }
+  /* Tall: a portrait frame, the words beside it. */
+  /* Duo: two frames, one above the other, with the words beside them. */
+  .ad--duo .ad__frame { left: max(520px, 40%); width: min(30%, 440px); top: 88px; height: calc((100% - 88px - 72px - 20px) * 0.62); }
+  .ad--duo .ad__frame--b { top: calc(88px + (100% - 88px - 72px - 20px) * 0.62 + 20px); height: calc((100% - 88px - 72px - 20px) * 0.38); }
+  .ad--duo .ad__tag { left: calc(max(520px, 40%) + 12px); top: 100px; }
+  .ad--duo .ad__copy { position: absolute; left: calc(max(520px, 40%) + min(30%, 440px) + 3rem); right: clamp(1rem, 3vw, 2.25rem); top: 50%; transform: translateY(-50%); display: grid; gap: 1.1rem; max-width: 30rem; }
+  .ad--duo .ad__badge { left: calc(max(520px, 40%) + min(30%, 440px) - 48px); top: calc(88px + (100% - 88px - 72px - 20px) * 0.62 - 38px); }
+  .ad--tall .ad__frame { left: max(500px, 38%); width: min(30%, 440px); top: 88px; bottom: 72px; }
+  .ad--tall .ad__tag { left: calc(max(500px, 38%) + 12px); top: 100px; }
+  .ad--tall .ad__copy { position: absolute; left: calc(max(500px, 38%) + min(30%, 440px) + 3rem); right: clamp(1rem, 3vw, 2.25rem); top: 50%; transform: translateY(-50%); display: grid; gap: 1.1rem; max-width: 30rem; }
+  .ad--tall .ad__badge { left: calc(max(500px, 38%) + min(30%, 440px) - 48px); bottom: 100px; }
+  .canvas__foot { position: absolute; z-index: 2; inset: auto clamp(1rem, 3vw, 2.25rem) 22px; display: flex; align-items: center; justify-content: flex-end; gap: 1.25rem; pointer-events: none; }
+  .canvas__foot > * { pointer-events: auto; }
+  .canvas__dots { display: flex; gap: 8px; }
+  .canvas__dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: rgba(14, 11, 43, 0.25); cursor: pointer; transition: background-color 160ms, transform 160ms; }
+  .canvas__dots button[aria-selected='true'] { background: #0e0b2b; transform: scale(1.3); }
+  .canvas__dots button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+  .canvas__sell { font-size: 0.72rem; font-weight: 600; color: #0e0b2b; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
 
-  .flows { display: grid; gap: clamp(1.1rem, 3.6vh, 3rem); }
-  .flow { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; text-align: center; }
-  .flow__label { font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; color: var(--color-strong); }
-  .flow__items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem 1.75rem; min-width: 0; }
-  .chain { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 500; color: var(--color-strong); white-space: nowrap; }
-  .chain__logo { position: relative; display: block; width: 26px; height: 26px; }
-  .chain__logo img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
-  /* A signal passes along the chain: each logo lifts and sends out a ring in turn, left to right, then it starts over. */
-  @media (prefers-reduced-motion: no-preference) {
-    .chain { animation: chain-float 3.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -0.4s); }
-    .chain__logo::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--color-brand-bright); opacity: 0; pointer-events: none; animation: chain-ring 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
-    .chain__logo img { animation: chain-pop 5.4s ease-out infinite; animation-delay: calc(var(--i) * 0.6s); }
-  }
-  @keyframes chain-float { from { transform: translateY(0); } to { transform: translateY(-4px); } }
-  @keyframes chain-ring { 0% { opacity: 0.55; transform: scale(0.9); } 12% { opacity: 0; transform: scale(2.1); } 100% { opacity: 0; transform: scale(2.1); } }
-  @keyframes chain-pop { 0% { transform: scale(1); } 5% { transform: scale(1.18); } 14%, 100% { transform: scale(1); } }
-  .flow__items--logos { gap: 0.5rem 2.5rem; }
-  .flow__items--logos img { width: auto; max-width: none; }
+  /* The card over the advert: Aretia's front door. */
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .card { position: relative; z-index: 3; width: min(280px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  .card__btn { display: block; padding: 0.8rem 1rem; font-size: 0.88rem; font-weight: 600; text-align: center; color: var(--color-brand); background: var(--c-card); border-radius: 12px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
+  .card__btn--primary { color: #fff; background: var(--color-brand); }
+  .card__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
+  @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #ebebf0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
 
   @media (max-width: 899px) {
+    body.console { --rail: 0px; }
+    .rail { position: static; width: auto; flex-direction: row; align-items: center; gap: 4px; padding: 8px 0.6rem; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--c-line); }
+    .rail__brand { margin: 0 4px 0 0; }
+    .rail__list { display: flex; width: auto; gap: 0; }
+    .rail__item { min-width: 64px; margin: 0 2px; }
+    .bar { position: relative; padding: 12px 1rem; background: transparent; }
     .bar__nav > ul { display: none; }
-    .stage { gap: 2rem; padding-top: 1rem; }
-    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stage { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; padding: 0 1rem 1.5rem; }
+    .canvas { position: relative; inset: auto; order: -1; height: 340px; border-radius: 22px; margin-top: 0; }
+    .ad__frame { display: none; }
+    .ad--wide .ad__copy, .ad--tall .ad__copy, .ad--duo .ad__copy { position: absolute; inset: 2.6rem 1.25rem auto 1.25rem; transform: none; display: grid; grid-template-columns: 1fr; gap: 0.7rem; max-width: none; }
+    .ad__title { font-size: 1.8rem; }
+    .ad__body { font-size: 0.95rem; }
+    .ad__credit { display: none; }
+    .ad--wide .ad__badge, .ad--tall .ad__badge, .ad--duo .ad__badge { top: auto; left: 1.25rem; bottom: 52px; width: 84px; height: 84px; font-size: 0.78rem; }
+    .ad--wide .ad__tag, .ad--tall .ad__tag, .ad--duo .ad__tag { left: auto; right: 12px; top: 12px; color: #0e0b2b; background: rgba(14, 11, 43, 0.08); }
+    .canvas__foot { inset: auto 1rem 12px 1rem; }
+    .card { width: 100%; box-shadow: 0 10px 30px rgba(14, 11, 43, 0.12); border: 1px solid var(--c-line); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .card, .menu__panel { transition: none; }
+    .ad, .rail__item, .card__btn, .ad__badge, .menu__panel { transition: none; }
   }
 </style>

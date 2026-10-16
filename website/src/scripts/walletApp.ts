@@ -8,6 +8,7 @@ import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initShield } from './walletShield';
+import { initLaunch } from './walletLaunch';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
@@ -315,9 +316,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safesend', 'universal'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -385,6 +386,8 @@ export function initWalletApp(): void {
     revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
     refreshWallet: () => void refresh(),
   });
+
+  const launch = initLaunch({ getAddress: () => address, refreshWallet: () => void refresh() });
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.
@@ -1183,6 +1186,7 @@ export function initWalletApp(): void {
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'activity') swings.onActivityShow();
     if (view === 'shield') shield.onShow(location.hash);
+    if (view === 'launch') launch.onShow();
     if (view === 'send') {
       void loadWeb3();
       swings.onPayShow();
@@ -1265,6 +1269,7 @@ export function initWalletApp(): void {
     clearSessionOutputs();
     swings.onWalletChange();
     shield.onWalletChange();
+    launch.onWalletChange();
     renderChrome();
     void refresh();
   }

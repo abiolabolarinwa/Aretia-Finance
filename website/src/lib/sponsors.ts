@@ -6,9 +6,9 @@
  */
 import type { ChainId } from '../swings/core/types.js';
 
-/** Where a card can appear: beside a token in the Markets panel, or under the Markets list. */
-export type SlotId = 'token-panel' | 'market-footer';
-export const SLOTS: readonly SlotId[] = ['token-panel', 'market-footer'];
+/** Where a card can appear: beside a token in the Markets panel, under the Markets list, or as the full-page background of the home page. */
+export type SlotId = 'token-panel' | 'market-footer' | 'home-canvas';
+export const SLOTS: readonly SlotId[] = ['token-panel', 'market-footer', 'home-canvas'];
 
 export interface Sponsor {
   id: string;
@@ -21,6 +21,8 @@ export interface Sponsor {
   /** A small logo: https, or a file under /assets/sponsors/. Optional. */
   image?: string;
   slots: readonly SlotId[];
+  /** For the home-page canvas: the flat background colour (#rrggbb). Optional; a soft grey is used when left out. */
+  background?: string;
   /** Only shown beside tokens on these chains. Leave out to show on all. */
   chains?: readonly ChainId[];
   /** The run, as ISO dates (YYYY-MM-DD). The last day is included. */
@@ -50,6 +52,7 @@ export function problemWith(s: Sponsor): string | null {
   if (!httpsUrl(s.href)) return 'the link is not an https address';
   if (s.image !== undefined && !(httpsUrl(s.image) || /^\/assets\/sponsors\/[\w.-]+$/.test(s.image))) return 'the image is not https or under /assets/sponsors/';
   if (s.slots.length === 0 || s.slots.some((x) => !SLOTS.includes(x))) return 'it names no valid slot';
+  if (s.background !== undefined && !/^#[0-9a-fA-F]{6}$/.test(s.background)) return 'the background needs a #rrggbb colour';
   const from = day(s.from);
   const to = day(s.to);
   if (from === null || to === null || to < from) return 'the dates are not a valid run';

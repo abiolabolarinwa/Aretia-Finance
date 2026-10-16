@@ -924,6 +924,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   // ------------------------------------------------------------------ network rail (logos beside the sidebar)
 
   const railEl = document.querySelector<HTMLElement>('[data-rail]');
+  /** Which screen the rail is beside: on Markets it filters the lists (or shows every network), on Swap it picks the network to swap on. */
+  let railView: 'swap' | 'markets' = 'markets';
 
   /** Chooses a network for the whole Swings page: the swap, the chart and the token lists all follow it. */
   function selectChain(id: ChainId): void {
@@ -943,9 +945,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function renderRail(): void {
     if (!railEl) return;
     railEl.replaceChildren();
+    const listChain = markets.chain();
+    // Every network at once: the Aretia mark, above the networks. It only filters the lists; the swap keeps its own network.
+    if (railView === 'markets') {
+      const all = el('button', { class: 'wapp__netbtn wapp__netbtn--all', attrs: { type: 'button', title: 'All networks', 'aria-pressed': String(listChain === ''), 'aria-label': 'All networks' } });
+      all.append(el('img', { attrs: { src: '/assets/logo-mark.png', alt: '', width: '36', height: '36', draggable: 'false' } }));
+      all.addEventListener('click', () => {
+        markets.setChain('');
+        renderRail();
+      });
+      railEl.append(all);
+    }
     for (const id of CHAIN_IDS) {
       const off = runtime.loaded && !isChainEnabled(id);
-      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', title: off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(s.chain === id), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
+      const pressed = railView === 'swap' ? s.chain === id : listChain === id;
+      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', title: off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(pressed), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
       b.append(el('img', { attrs: { src: `/assets/chains/${id}.png`, alt: '', width: '36', height: '36', draggable: 'false' } }));
       b.addEventListener('click', () => selectChain(id));
       railEl.append(b);
@@ -1791,16 +1805,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
         bar.append(win);
       }
-      // Favourites are one list across every network, so the network filter is not offered there.
-      if (m.kind !== 'favourites') {
-        bar.append(
-          select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
-            m.chain = v as typeof m.chain;
-            pageNo = 1;
-            void load();
-          }),
-        );
-      }
+      // The network is chosen from the rail beside the sidebar (the Aretia mark is every network), so there is no network menu here.
       bar.append(
         select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; autoAge = false; refilter(); }),
         select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
@@ -1850,7 +1855,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();
         const ordered = tsort.key ? sortRows(shownNow, tsort.key, tsort.dir) : shownNow;
-        const cur = ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
+        // While a chart is open the panel describes that token and no other, even when the list has changed under it and the token is no
+        // longer in it. Without a chart, it follows the selected row, or the first one.
+        const charted = chartRow ? (rows ?? []).find((r) => r.chain === chartRow!.chain && r.pool === chartRow!.pool) ?? chartRow : null;
+        const cur = charted ?? ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
         if (cur) {
           panel.show(cur);
           markSelected(tableEl, tableRowKey(cur));
@@ -1943,13 +1951,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         pick(rateRows([rated ?? row])[0]!);
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
-      setChain(id: ChainId): void {
+      setChain(id: ChainId | ''): void {
         if (m.chain === id) return;
         m.chain = id;
         pageNo = 1;
         if (rows !== null || loading) void load();
         else draw();
       },
+      /** The network the lists are filtered to: a chain, or '' for every network. */
+      chain: (): '' | ChainId => m.chain,
     };
   }
 
@@ -2237,6 +2247,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   return {
     onShow(view) {
       closeSwapDialog();
+      railView = view === 'swap' ? 'swap' : 'markets';
+      renderRail();
       showTab(view === 'swap' ? 'swap' : 'markets');
       render();
       if (view !== 'swap') markets.setFavouritesPage(view === 'favourites');

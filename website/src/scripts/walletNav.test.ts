@@ -8,7 +8,7 @@ describe('sidebarItemFor', () => {
   });
 
   it('leaves every other view as it is', () => {
-    for (const view of ['dashboard', 'swings', 'favourites', 'send', 'carbon', 'activity', 'shield', 'intent', 'safesend', 'universal']) {
+    for (const view of ['dashboard', 'swings', 'favourites', 'send', 'launch', 'carbon', 'activity', 'shield', 'intent', 'safesend', 'universal']) {
       expect(sidebarItemFor(view)).toBe(view);
     }
   });

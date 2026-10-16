@@ -58,3 +58,13 @@ describe('choosing one', () => {
     expect(seen).toEqual(new Set(['a', 'b']));
   });
 });
+
+describe('the home-page canvas', () => {
+  it('accepts the canvas slot and a valid background colour, and refuses a bad one', () => {
+    expect(problemWith(ad({ slots: ['home-canvas'], background: '#e4e7fb' }))).toBeNull();
+    expect(problemWith(ad({ slots: ['home-canvas'], background: '#fff' }))).toMatch(/background/);
+    expect(sponsorsFor([ad({ slots: ['home-canvas'] })], 'home-canvas', NOW)).toHaveLength(1);
+    expect(sponsorsFor([ad({ slots: ['home-canvas'] })], 'token-panel', NOW)).toEqual([]);
+  });
+});
+

@@ -1,0 +1,8 @@
+# Extends the default rules. The one allowance: a test fixture of PUBLIC Solana addresses and numbers printed by the curve program tests
+# (program/aretia-curve/tests/examples/vectors.rs). Addresses are not secrets; the generic-api-key rule mistakes them for keys.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "public addresses in the bonding curve test vectors"
+paths = ['''website/src/scripts/__fixtures__/curveVectors\.json''']

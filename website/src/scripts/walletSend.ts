@@ -281,14 +281,17 @@ export async function signAndSubmit(plan: SendPlan): Promise<string> {
   return signAndSubmitTransaction(plan.transaction);
 }
 
-/** The same for any transaction built on this page (Shield's revoke and reclaim use it). */
-export async function signAndSubmitTransaction(transaction: Web3.Transaction): Promise<string> {
+/** The same for any transaction built on this page (Shield's revoke and reclaim use it). `extraSigners` are keys this page holds itself. */
+export async function signAndSubmitTransaction(transaction: Web3.Transaction, extraSigners: readonly Web3.Signer[] = []): Promise<string> {
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
   if (!ctx?.signTransaction) throw new Error('The connected wallet cannot sign from this page.');
   const signed = await ctx.signTransaction(transaction);
   if (!bytesEqual(signed.serializeMessage(), transaction.serializeMessage())) {
     throw new Error('The wallet returned a different transaction from the one shown. Nothing was sent.');
   }
+  // Keys that only this page holds (Launch's new token) sign last, after the wallet has had its say, so a wallet that rewrites
+  // the transaction cannot leave them signing something other than what was shown.
+  for (const signer of extraSigners) signed.partialSign(signer);
   const wire = signed.serialize();
   return rpcCall<string>('sendTransaction', [toBase64(wire), { encoding: 'base64', preflightCommitment: 'confirmed', maxRetries: 3 }]);
 }

@@ -50,7 +50,7 @@ function curveBytes(c: Pick<CurveState, 'status' | 'vSol' | 'vTok' | 'realSol' |
   at += 32;
   data.set(new web3.PublicKey(c.mint ?? MINT).toBytes(), at);
   at += 32;
-  v.setUint16(at, c.feeBps ?? 100, true);
+  v.setUint16(at, c.feeBps ?? 58, true);
   at += 2;
   for (const x of [c.target, c.vSol0, c.curveTokens, c.lpTokens, c.vSol, c.vTok, c.realSol, c.realTok]) {
     v.setBigUint64(at, x, true);
@@ -121,7 +121,7 @@ async function createSetup(w = world(), form: Partial<typeof DEFAULT_CURVE_FORM>
 function afterCreate(w: World, config: CurveConfig, bought = 0n): void {
   const curve = curveAddress(web3, PROGRAM, config.mint);
   const start = startOf(config.derived);
-  const q = bought > 0n ? quoteBuy(start, config.firstBuyLamports, 100)! : null;
+  const q = bought > 0n ? quoteBuy(start, config.firstBuyLamports, 58)! : null;
   const s = q ? q.next : start;
   w.accounts.set(curve, { owner: PROGRAM, data: curveBytes({ ...fresh(), ...s, status: 'trading' }) });
   w.accounts.set(tokenVaultAddress(web3, curve, config.mint), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(config.totalRaw - bought) });
@@ -253,7 +253,7 @@ describe('buy', () => {
     w.script.spent = 5n * SOL + 3_000_000n;
     const review = await flow.prepareBuy(BUYER, curve, 5n * SOL, 100);
     expect(review.blockers).toEqual([]);
-    expect(review.quote!.fee).toBe(50_000_000n);
+    expect(review.quote!.fee).toBe(29_000_000n);
     expect(review.minOut).toBe((review.quote!.tokensOut * 9_900n) / 10_000n);
     expect(review.network).toBe(3_000_000n);
     w.script.onSend = () => w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(review.quote!.tokensOut) });
@@ -295,7 +295,7 @@ describe('buy', () => {
 
 describe('sell', () => {
   it('quotes, sends, and checks the wallet’s tokens afterwards', async () => {
-    const w = tradingWorld({ ...fresh(), ...quoteBuy(startOf(derived), 20n * SOL, 100)!.next });
+    const w = tradingWorld({ ...fresh(), ...quoteBuy(startOf(derived), 20n * SOL, 58)!.next });
     w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(1_000_000_000n) });
     const flow = new CurveFlow(w.deps);
     const curve = (await flow.loadCurve(MINT))!;
@@ -311,7 +311,7 @@ describe('sell', () => {
   });
 
   it('blocks selling more than is held, selling to a curve that is closed, and selling more than was ever sold', async () => {
-    const w = tradingWorld({ ...fresh(), ...quoteBuy(startOf(derived), 20n * SOL, 100)!.next });
+    const w = tradingWorld({ ...fresh(), ...quoteBuy(startOf(derived), 20n * SOL, 58)!.next });
     w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(1_000n) });
     const flow = new CurveFlow(w.deps);
     const curve = (await flow.loadCurve(MINT))!;
@@ -325,7 +325,7 @@ describe('sell', () => {
   });
 
   it('allows selling to an unwound curve', async () => {
-    const sold = quoteBuy(startOf(derived), 1_000n * SOL, 100)!.next;
+    const sold = quoteBuy(startOf(derived), 1_000n * SOL, 58)!.next;
     const w = tradingWorld({ ...fresh(), ...sold, status: 'aborted', soldOutAt: 1_000n });
     w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(1_000_000_000n) });
     const flow = new CurveFlow(w.deps);
@@ -336,7 +336,7 @@ describe('sell', () => {
 
 describe('graduation', () => {
   const soldOutState = () => {
-    const q = quoteBuy(startOf(derived), 1_000n * SOL, 100)!;
+    const q = quoteBuy(startOf(derived), 1_000n * SOL, 58)!;
     return { ...fresh(), ...q.next, status: 'soldOut' as CurveStatus, soldOutAt: 1_700_000_100n };
   };
 

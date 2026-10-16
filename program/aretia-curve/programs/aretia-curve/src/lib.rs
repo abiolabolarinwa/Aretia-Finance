@@ -35,8 +35,8 @@ declare_id!("9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4");
 
 /// Aretia's management-fee wallet (the same one the Launch page and the swap fee use).
 pub const FEE_WALLET: Pubkey = pubkey!("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
-/// Fee taken on every trade, in basis points of the SOL leg. UNCONFIRMED by the owner: see the design doc.
-pub const FEE_BPS: u16 = 100;
+/// Fee taken on every trade, in basis points of the SOL leg: 0.58%, as set by the owner.
+pub const FEE_BPS: u16 = 58;
 /// Smallest raise a curve may target: 0.1 SOL.
 pub const MIN_TARGET_LAMPORTS: u64 = 100_000_000;
 /// How long a sold-out curve may wait for its migration before holders can unwind it (7 days).

@@ -22,7 +22,7 @@ pub const FEE_WALLET: Address = Address::from_str_const("2tcBrd1JQjL8VHNFRYB1Eur
 pub const METEORA: Address = Address::from_str_const("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
 pub const METEORA_POOL_AUTHORITY: Address = Address::from_str_const("HLnpSz9h2S4hiLQ43rnSD9XkcUThA7B8hQMKmDaiTLcC");
 pub const SOL: u64 = 1_000_000_000;
-pub const FEE_BPS: u16 = 100;
+pub const FEE_BPS: u16 = 58;
 
 pub type Sent = Result<TransactionMetadata, FailedTransactionMetadata>;
 

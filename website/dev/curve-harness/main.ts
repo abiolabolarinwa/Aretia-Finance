@@ -10,8 +10,8 @@ const RPC = 'https://api.devnet.solana.com';
 const connection = new web3.Connection(RPC, 'confirmed');
 
 // Held in memory only: a reload makes new keys, so fund the addresses the page shows each time.
-const loadKey = (_name: string): web3.Keypair => web3.Keypair.generate();
-const wallets = { creator: loadKey('creator'), buyer: loadKey('buyer') };
+const loadKey = (): web3.Keypair => web3.Keypair.generate();
+const wallets = { creator: loadKey(), buyer: loadKey() };
 let active: 'creator' | 'buyer' = 'creator';
 const me = () => wallets[active];
 

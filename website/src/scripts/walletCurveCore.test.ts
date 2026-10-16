@@ -7,6 +7,7 @@ import {
   CURVE_ACCOUNT_DISCRIMINATOR,
   CURVE_ACCOUNT_SIZE,
   CURVE_FEE_ADDRESS,
+  CURVE_TARGET_PRESETS,
   CURVE_FEE_BPS,
   CURVE_PROGRAM_ID_DEVNET,
   CURVE_PROGRAM_ID_MAINNET,
@@ -14,6 +15,10 @@ import {
   canAbort,
   canMigrate,
   curveFlagOn,
+  curvePreview,
+  curveProgressPercent,
+  curveShareHash,
+  parseCurveHash,
   curveProblems,
   curveProgramFor,
   deriveCurve,
@@ -288,5 +293,37 @@ describe('reading a curve account', () => {
     expect(canAbort(withSoldOut(1_000n), 1_000 + CURVE_ABORT_AFTER_SECS - 1)).toBe(false);
     expect(canAbort(withSoldOut(1_000n), 1_000 + CURVE_ABORT_AFTER_SECS)).toBe(true);
     expect(canAbort(read(account())!, 4_000_000_000)).toBe(false);
+  });
+});
+
+describe('what a creator sees while typing, and sharing', () => {
+  const tok = { decimals: 6, supply: 1_000_000_000_000_000n };
+  it('previews the split and the price rise, and needs nothing but the token and two numbers', () => {
+    const p = curvePreview({ tokenAmount: '1,000,000,000', target: '85' }, tok)!;
+    expect(p.curveTokens + p.lpTokens).toBe(1_000_000_000_000_000n);
+    expect(p.startPrice).toBe('0.000000027958412098');
+    expect(p.priceMultiple).toBe('14.7');
+    expect(p.raisesAbout).toBe('85');
+  });
+  it('shows nothing until it can', () => {
+    expect(curvePreview({ tokenAmount: '', target: '85' }, tok)).toBeNull();
+    expect(curvePreview({ tokenAmount: '1,000', target: '' }, tok)).toBeNull();
+    expect(curvePreview({ tokenAmount: '1,000', target: '0.01' }, tok)).toBeNull();
+    expect(curvePreview({ tokenAmount: '1,000', target: '85' }, null)).toBeNull();
+    expect(curvePreview({ tokenAmount: '0', target: '85' }, tok)).toBeNull();
+  });
+  it('offers targets that are all valid', () => {
+    for (const t of CURVE_TARGET_PRESETS) expect(curvePreview({ tokenAmount: '1,000,000,000', target: t }, tok)).not.toBeNull();
+  });
+  it('rounds progress down and shows 100 only when sold out', () => {
+    expect(curveProgressPercent({ curveTokens: 1000n, realTok: 1000n })).toBe(0);
+    expect(curveProgressPercent({ curveTokens: 1000n, realTok: 501n })).toBe(49);
+    expect(curveProgressPercent({ curveTokens: 1000n, realTok: 1n })).toBe(99);
+    expect(curveProgressPercent({ curveTokens: 1000n, realTok: 0n })).toBe(100);
+    expect(curveProgressPercent({ curveTokens: 0n, realTok: 0n })).toBe(0);
+  });
+  it('round-trips a share link and refuses anything else', () => {
+    expect(parseCurveHash(curveShareHash(MINT))).toBe(MINT);
+    for (const bad of ['', '#/launch', '#/launch/curve/', '#/launch/curve/nope', `#/launch/curve/${MINT}/x`, `#/swap/curve/${MINT}`, `#/launch/curve/${MINT}0`, '#/launch/curve/<script>']) expect(parseCurveHash(bad)).toBeNull();
   });
 });

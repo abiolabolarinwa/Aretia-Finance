@@ -161,3 +161,10 @@ The devnet run used a single wallet as creator and buyer; a second wallet buying
 `website/dev/curve-harness/` is a local-only page (not part of the site build) that runs the real Launch-page card against the devnet program, with two throwaway test keys, generated fresh and kept in memory only, standing in for wallets. Start it with `npx vite --config dev/curve-harness/vite.config.ts` in `website` and open `http://localhost:4391/curve-harness/`; fund the two addresses it shows with devnet SOL. It uses a small seam in `initCurve` (`opts.program`, `opts.deps`) that the wallet page never uses.
 
 Run on 2026-10-16 with the card's own buttons, creator and buyer as two different wallets: make a token, review and open a curve (0.3 SOL target), switch wallet, look the curve up, buy 0.1 SOL, sell 100,000,000 tokens back, buy the rest with an oversized offer (the card then offered "Move into a pool"), and move it into a Meteora pool. Every step's review screen showed the right numbers and every result was read back from the network as matching. What this did not cover: a real browser wallet (the harness signs with a local key), the mobile layout, and the "Unwind this curve" button.
+
+## 14. What a creator sees (added after section 13's run)
+
+- After a token is made on the Launch page, a "Sell it on a bonding curve" button sits beside "Open a liquidity pool for it" (only where the card exists, so not on mainnet today).
+- The create form shows, as the creator types, how the tokens split, the first and last token price, how many times the price rises, and what the whole supply is worth at each end. One-tap targets of 10, 30 and 85 SOL.
+- A finished curve gives a link, `#/launch/curve/<token address>` on the Launch page, that opens it for anyone, with a progress bar and the state in plain words.
+- Run in the browser harness on devnet: the live preview, the presets, creating a curve, the done screen with its share link, "View your curve", and opening the link in a fresh page with different keys. Not run: the button on the token-created screen (covered by a source test only), a real wallet, mobile.

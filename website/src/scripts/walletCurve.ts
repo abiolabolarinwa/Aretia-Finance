@@ -6,15 +6,20 @@
  * shows a notice and no form until walletCurveCore.ts has a mainnet program address, which it will not have before an independent
  * audit. Everything typed, and everything read from the chain, is shown with textContent, never as markup.
  */
-import { SLIPPAGE_PRESETS_BPS, fromSmallestUnit } from './walletTools';
+import { SLIPPAGE_PRESETS_BPS, fromSmallestUnit, isSolanaAddress } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import {
   CURVE_FEE_BPS,
+  CURVE_TARGET_PRESETS,
   DEFAULT_CURVE_FORM,
   SLIPPAGE_BPS_DEFAULT,
   canAbort,
   canMigrate,
   curveDisclosures,
+  curvePreview,
+  curveProgressPercent,
+  curveShareHash,
+  parseCurveHash,
   curveProgramFor,
   solToLamports,
   summarise,
@@ -56,7 +61,15 @@ const STEPS: { id: CurveProgress; label: string }[] = [
   { id: 'done', label: 'Done' },
 ];
 
-const noop = { onShow(): void {}, onWalletChange(): void {}, offer(): void {} };
+export interface CurveCard {
+  /** True when the page has the card (the site was built with the flag on). The Launch page offers a curve only then. */
+  present: boolean;
+  onShow(): void;
+  onWalletChange(): void;
+  offer(mint: string): void;
+}
+
+const noop: CurveCard = { present: false, onShow(): void {}, onWalletChange(): void {}, offer(): void {} };
 
 /**
  * A seam for the local test harness (website/dev/curve-harness), which runs this card against the devnet program with a local
@@ -67,7 +80,7 @@ export interface CurveOptions {
   deps?: Omit<CurveFlowDeps, 'program'>;
 }
 
-export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow(): void; onWalletChange(): void; offer(mint: string): void } {
+export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
   const root = document.querySelector<HTMLElement>('[data-curve-root]');
   if (!root) return noop;
   const program = opts.program ?? curveProgramFor('mainnet');
@@ -84,6 +97,9 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
   let busy = false;
   let acknowledged = false;
   let flow: CurveFlow | null = null;
+  // The token typed into the create form, read ahead of Review so the preview can show real numbers.
+  let previewToken: PoolToken | null = null;
+  let previewEl: HTMLElement | null = null;
 
   // Trading side.
   let lookup = '';
@@ -141,7 +157,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
     return a;
   }
 
-  function field(label: string, id: string, value: string, onInput: (v: string) => void, opts: { placeholder?: string; mono?: boolean; inputmode?: string; hint?: string; problem?: string } = {}): HTMLElement {
+  function field(label: string, id: string, value: string, onInput: (v: string) => void, opts: { placeholder?: string; mono?: boolean; inputmode?: string; hint?: string; problem?: string; onChange?: () => void } = {}): HTMLElement {
     const wrap = h('div', 'wapp-ln__field');
     const lab = h('label', 'wapp__eyebrow', label);
     lab.htmlFor = id;
@@ -153,6 +169,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
     if (opts.placeholder) input.placeholder = opts.placeholder;
     if (opts.inputmode) input.inputMode = opts.inputmode;
     input.addEventListener('input', () => onInput(input.value));
+    if (opts.onChange) input.addEventListener('change', opts.onChange);
     wrap.append(lab, input);
     if (opts.problem) {
       input.setAttribute('aria-invalid', 'true');
@@ -186,16 +203,76 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
 
   // ---------------------------------------------------------------- the create form
 
+  /** Redraws the live preview in place, so typing never loses its place. */
+  function updatePreview(): void {
+    if (!previewEl) return;
+    previewEl.textContent = '';
+    const p = curvePreview(form, previewToken);
+    if (!p || !previewToken) {
+      previewEl.append(h('p', 'wapp__fine', 'Fill in the token, how many tokens and how much to raise, and this shows how the curve would work.'));
+      return;
+    }
+    const dec = previewToken.decimals;
+    previewEl.append(h('span', 'wapp__eyebrow', 'How it would work'));
+    const dl = h('dl', 'wapp__rows');
+    row(dl, 'Sold along the curve', amountText(p.curveTokens, dec));
+    row(dl, 'Kept for the pool', amountText(p.lpTokens, dec));
+    row(dl, 'First token costs', `${p.startPrice} SOL`);
+    row(dl, 'Last token costs', `${p.endPrice} SOL`);
+    row(dl, 'The price rises', `${p.priceMultiple}× from first to last`);
+    row(dl, 'Whole supply is worth', `${p.startValue} SOL at the start, ${p.endValue} SOL at the end`);
+    previewEl.append(dl);
+  }
+
+  async function refreshPreviewToken(): Promise<void> {
+    const mint = form.mint.trim();
+    previewToken = null;
+    updatePreview();
+    if (!program || !isSolanaAddress(mint)) return;
+    try {
+      previewToken = await (await flowFor()).loadToken(host.getAddress() ?? mint, mint);
+    } catch {
+      previewToken = null;
+    }
+    updatePreview();
+  }
+
+  const shareLink = (mint: string): string => `${location.origin}${location.pathname}${curveShareHash(mint)}`;
+
+  function copyButton(label: string, text: string): HTMLButtonElement {
+    const b = h('button', 'wapp__btn wapp__btn--ghost', label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      void navigator.clipboard?.writeText(text).then(() => (b.textContent = 'Copied'));
+    });
+    return b;
+  }
+
   function drawCreateForm(card: HTMLElement): void {
     card.append(
       h('p', 'wapp__fine', `Sell a token on Aretia’s own curve. Buyers pay SOL along a price curve; when every token on it is sold, the SOL raised and the tokens set aside open a locked liquidity pool. Aretia takes ${CURVE_FEE_BPS / 100}% of each trade. Your own wallet signs everything.`),
     );
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
-    f.append(field('Token address', 'curve-mint', form.mint, (v) => (form = { ...form, mint: v }), { mono: true, placeholder: 'Token address', hint: 'A fixed-supply token you hold, such as one made on this page.', problem: problemFor('mint') }));
-    f.append(field('Tokens to commit', 'curve-total', form.tokenAmount, (v) => (form = { ...form, tokenAmount: v }), { inputmode: 'decimal', hint: 'In whole tokens. About four fifths go on the curve and the rest are kept for the pool.', problem: problemFor('tokenAmount') }));
-    f.append(field('SOL to raise', 'curve-target', form.target, (v) => (form = { ...form, target: v }), { inputmode: 'decimal', hint: 'The curve closes when buyers have paid in about this much.', problem: problemFor('target') }));
+    f.append(field('Token address', 'curve-mint', form.mint, (v) => (form = { ...form, mint: v }), { mono: true, placeholder: 'Token address', hint: 'A fixed-supply token you hold, such as one made on this page.', problem: problemFor('mint'), onChange: () => void refreshPreviewToken() }));
+    f.append(field('Tokens to commit', 'curve-total', form.tokenAmount, (v) => { form = { ...form, tokenAmount: v }; updatePreview(); }, { inputmode: 'decimal', hint: 'In whole tokens. About four fifths go on the curve and the rest are kept for the pool.', problem: problemFor('tokenAmount') }));
+    f.append(field('SOL to raise', 'curve-target', form.target, (v) => { form = { ...form, target: v }; updatePreview(); }, { inputmode: 'decimal', hint: 'The curve closes when buyers have paid in about this much.', problem: problemFor('target') }));
+    const presets = h('div', 'wapp__row-actions');
+    for (const t of CURVE_TARGET_PRESETS) {
+      const pb = h('button', `wapp__btn ${form.target === t ? 'wapp__btn--primary' : 'wapp__btn--ghost'}`, `${t} SOL`);
+      pb.type = 'button';
+      pb.addEventListener('click', () => {
+        form = { ...form, target: t };
+        draw();
+      });
+      presets.append(pb);
+    }
+    f.append(presets);
     f.append(field('Your own first buy, in SOL (optional)', 'curve-first', form.firstBuy, (v) => (form = { ...form, firstBuy: v }), { inputmode: 'decimal', hint: 'Bought in the same transaction, before anyone else can. Leave empty for none.', problem: problemFor('firstBuy') }));
+    previewEl = h('div', 'wapp-ln__field');
+    previewEl.setAttribute('aria-live', 'polite');
+    f.append(previewEl);
+    updatePreview();
     const go = h('button', 'wapp__btn wapp__btn--primary', busy ? 'Checking…' : 'Review');
     go.type = 'submit';
     go.disabled = busy || !host.getAddress();
@@ -240,9 +317,16 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
     row(dl, 'Price now', `${priceText(c, dec)} SOL per token`);
     row(dl, 'Sold so far', `${amountText(c.curveTokens - c.realTok, dec)} of ${amountText(c.curveTokens, dec)}`);
     row(dl, 'SOL raised so far', `${sol(c.realSol)} of about ${sol(c.target)}`);
+    const pct = curveProgressPercent(c);
+    const bar = h('progress');
+    bar.max = 100;
+    bar.value = pct;
+    bar.setAttribute('aria-label', `${pct}% of the curve sold`);
+    row(dl, 'Progress', bar);
     row(dl, 'Fee', `${c.feeBps / 100}% of each trade, to Aretia`);
     if (c.pool) row(dl, 'Pool', link(short(c.pool), `https://app.meteora.ag/dammv2/${encodeURIComponent(c.pool)}`));
     card.append(dl);
+    card.append(copyButton('Copy link to this curve', shareLink(c.mint)));
 
     const slip = h('div', 'wapp-ln__field');
     const sl = h('label', 'wapp__eyebrow', 'Accept at most this much slippage');
@@ -412,6 +496,21 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
     row(dl, 'Transaction', link(short(outcome.signature), `https://solscan.io/tx/${encodeURIComponent(outcome.signature)}`));
     if (outcome.pool) row(dl, 'Pool', link(short(outcome.pool), `https://app.meteora.ag/dammv2/${encodeURIComponent(outcome.pool)}`));
     card.append(dl);
+    if (tab === 'create' && ok) {
+      // A creator's next step is to tell people. The link opens the curve for anyone, on the Launch page.
+      card.append(h('p', 'wapp__fine', 'Your curve is open. Share this link so people can buy from it.'));
+      card.append(copyButton('Copy link to your curve', shareLink(form.mint.trim())));
+      const view = h('button', 'wapp__btn wapp__btn--primary', 'View your curve');
+      view.type = 'button';
+      view.addEventListener('click', () => {
+        tab = 'trade';
+        lookup = form.mint.trim();
+        stage = 'form';
+        outcome = null;
+        void findCurve();
+      });
+      card.append(view);
+    }
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Back');
     again.type = 'button';
     again.addEventListener('click', () => {
@@ -570,7 +669,19 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
   }
 
   return {
-    onShow: draw,
+    present: true,
+    onShow(): void {
+      // A shared link ("#/launch/curve/<token>") opens that curve for trading.
+      const shared = parseCurveHash(location.hash);
+      if (shared && program && shared !== lookup) {
+        lookup = shared;
+        tab = 'trade';
+        stage = 'form';
+        void findCurve();
+        return;
+      }
+      draw();
+    },
     onWalletChange(): void {
       // A different wallet is a different person: nothing typed or approved for the last one carries over.
       review = null;
@@ -584,6 +695,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): { onShow():
     offer(mint: string): void {
       form = { ...DEFAULT_CURVE_FORM, mint };
       lookup = mint;
+      void refreshPreviewToken();
       tab = 'create';
       stage = 'form';
       review = null;

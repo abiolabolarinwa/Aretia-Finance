@@ -51,6 +51,19 @@ describe('the page keeps the curve off mainnet', () => {
   });
 });
 
+describe('the Launch page offers the curve only where the card exists', () => {
+  it('shows the button only when the host supplies offerCurve, and the page supplies it only when the card is present', () => {
+    const launch = read('./walletLaunch.ts');
+    const at = launch.indexOf('Sell it on a bonding curve');
+    expect(at).toBeGreaterThan(-1);
+    expect(launch.slice(launch.lastIndexOf('if (host.offerCurve)', at), at)).toContain('if (host.offerCurve) {');
+    expect(read('./walletApp.ts')).toContain('offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined');
+    const card = read('./walletCurve.ts');
+    expect(card).toContain('const noop: CurveCard = { present: false');
+    expect(card).toContain('present: true,');
+  });
+});
+
 describe('the web constants are the program’s constants', () => {
   it('has the same fee rate, fee wallet, minimum target, wait and rent cap', () => {
     const src = program();

@@ -434,3 +434,51 @@ export function curveDisclosures(kind: 'create' | 'buy' | 'sell' | 'migrate' | '
       return [{ severity: 'info', text: 'The curve sold out but never moved into a pool. This reopens selling (not buying), so holders can sell back along the curve.' }, unaudited];
   }
 }
+
+// ---------------------------------------------------------------- what a creator sees while typing, and sharing a curve
+
+/** Raise targets offered as one-tap choices on the create form. */
+export const CURVE_TARGET_PRESETS = ['10', '30', '85'] as const;
+
+export interface CurvePreview extends CurveSummary {
+  curveTokens: bigint;
+  lpTokens: bigint;
+  /** How many times dearer the last curve token is than the first. */
+  priceMultiple: string;
+}
+
+/**
+ * The numbers a creator is shown while still typing: how the tokens split and what the price does. Needs only the token's decimals and
+ * supply, not the wallet, so it works before anything is connected. Null until the amount and the target are both usable.
+ */
+export function curvePreview(form: Pick<CurveForm, 'tokenAmount' | 'target'>, token: Pick<PoolToken, 'decimals' | 'supply'> | null): CurvePreview | null {
+  if (!token) return null;
+  const raw = toSmallestUnit(form.tokenAmount.replace(/,/g, '').trim(), token.decimals);
+  const target = solToLamports(form.target);
+  if (raw === null || BigInt(raw) <= 0n || target === null) return null;
+  const derived = deriveCurve(BigInt(raw), target);
+  if (!derived) return null;
+  const s = summarise({ decimals: token.decimals, targetLamports: target, derived }, token.supply);
+  const end = { vSol: derived.vSol0 + target, vTok: derived.vTok0 - derived.curveTokens };
+  const num = end.vSol * derived.vTok0 * 10n;
+  const den = derived.vSol0 * end.vTok;
+  const multiple = ((2n * num + den) / (2n * den)).toString(); // to one decimal place, rounded to nearest
+  return { ...s, curveTokens: derived.curveTokens, lpTokens: derived.lpTokens, priceMultiple: `${multiple.slice(0, -1) || '0'}.${multiple.slice(-1)}` };
+}
+
+/** Whole percent of the curve's tokens sold, rounded down; never 100 until the last one is gone. */
+export function curveProgressPercent(c: Pick<CurveState, 'curveTokens' | 'realTok'>): number {
+  if (c.curveTokens === 0n) return 0;
+  const sold = c.curveTokens - c.realTok;
+  const pct = Number((sold * 100n) / c.curveTokens);
+  return c.realTok === 0n ? 100 : Math.min(pct, 99);
+}
+
+/** The part of the page address that opens a curve: "#/launch/curve/<token address>". */
+export const curveShareHash = (mint: string): string => `#/launch/curve/${mint}`;
+
+/** The token address in a page address like the one above, or null for anything else. */
+export function parseCurveHash(hash: string): string | null {
+  const m = /^#\/launch\/curve\/([1-9A-HJ-NP-Za-km-z]{32,44})$/.exec(hash.trim());
+  return m && isSolanaAddress(m[1]!) ? m[1]! : null;
+}

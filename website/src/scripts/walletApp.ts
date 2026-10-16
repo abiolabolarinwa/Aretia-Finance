@@ -395,6 +395,7 @@ export function initWalletApp(): void {
     getAddress: () => address,
     refreshWallet: () => void refresh(),
     offerPool: (mint) => pool.offer(mint),
+    offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined,
     evm: {
       getAccount: () => evmSession.account ?? evmAccount,
       connect: async () => {

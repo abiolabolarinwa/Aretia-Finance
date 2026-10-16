@@ -924,6 +924,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   // ------------------------------------------------------------------ network rail (logos beside the sidebar)
 
   const railEl = document.querySelector<HTMLElement>('[data-rail]');
+  /** Which screen the rail is beside: on Markets it filters the lists (or shows every network), on Swap it picks the network to swap on. */
+  let railView: 'swap' | 'markets' = 'markets';
+  /** Called when the Markets network filter changes from its own menu, so the rail shows the same choice. */
+  let onNetworkChange: () => void = () => undefined;
 
   /** Chooses a network for the whole Swings page: the swap, the chart and the token lists all follow it. */
   function selectChain(id: ChainId): void {
@@ -943,9 +947,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function renderRail(): void {
     if (!railEl) return;
     railEl.replaceChildren();
+    const listChain = markets.chain();
+    // Every network at once: the Aretia mark, above the networks. It only filters the lists; the swap keeps its own network.
+    if (railView === 'markets') {
+      const all = el('button', { class: 'wapp__netbtn wapp__netbtn--all', attrs: { type: 'button', title: 'All networks', 'aria-pressed': String(listChain === ''), 'aria-label': 'All networks' } });
+      all.append(el('img', { attrs: { src: '/assets/logo-mark.png', alt: '', width: '36', height: '36', draggable: 'false' } }));
+      all.addEventListener('click', () => {
+        markets.setChain('');
+        renderRail();
+      });
+      railEl.append(all);
+    }
     for (const id of CHAIN_IDS) {
       const off = runtime.loaded && !isChainEnabled(id);
-      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', title: off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(s.chain === id), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
+      const pressed = railView === 'swap' ? s.chain === id : listChain === id;
+      const b = el('button', { class: 'wapp__netbtn', attrs: { type: 'button', title: off ? `${CHAINS[id].name} (switched off)` : CHAINS[id].name, 'data-off': String(off), 'aria-pressed': String(pressed), 'aria-label': `${CHAINS[id].name}${off ? ', switched off' : ''}` } });
       b.append(el('img', { attrs: { src: `/assets/chains/${id}.png`, alt: '', width: '36', height: '36', draggable: 'false' } }));
       b.addEventListener('click', () => selectChain(id));
       railEl.append(b);
@@ -1797,6 +1813,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           select('Network', m.chain, [['', 'All networks'], ...CHAIN_IDS.map((c): [string, string] => [c, CHAINS[c].name])], (v) => {
             m.chain = v as typeof m.chain;
             pageNo = 1;
+            onNetworkChange();
             void load();
           }),
         );
@@ -1946,13 +1963,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         pick(rateRows([rated ?? row])[0]!);
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
-      setChain(id: ChainId): void {
+      setChain(id: ChainId | ''): void {
         if (m.chain === id) return;
         m.chain = id;
         pageNo = 1;
         if (rows !== null || loading) void load();
         else draw();
       },
+      /** The network the lists are filtered to: a chain, or '' for every network. */
+      chain: (): '' | ChainId => m.chain,
     };
   }
 
@@ -2230,6 +2249,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   showTab('markets');
   showPayTab('send');
 
+  onNetworkChange = renderRail;
   renderRail();
   void loadRuntime().then(() => {
     renderRail();
@@ -2240,6 +2260,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   return {
     onShow(view) {
       closeSwapDialog();
+      railView = view === 'swap' ? 'swap' : 'markets';
+      renderRail();
       showTab(view === 'swap' ? 'swap' : 'markets');
       render();
       if (view !== 'swap') markets.setFavouritesPage(view === 'favourites');

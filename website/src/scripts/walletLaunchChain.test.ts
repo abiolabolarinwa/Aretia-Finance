@@ -32,9 +32,10 @@ const config = (over: Partial<LaunchConfig> = {}): LaunchConfig => ({
   metadataMutable: false,
   ...over,
 });
-const bytes = (b64: string) => Uint8Array.from(Buffer.from(b64, 'base64'));
-const real = mints as Record<string, string>;
-const parse = (b64: string, owner = TOKEN_2022_PROGRAM_ID) => parseMintAccount(web3, owner, bytes(b64));
+/** Real Token-2022 mint accounts written by the official client, stored as 32-byte hex rows. */
+const bytes = (rows: string[]) => Uint8Array.from(Buffer.from(rows.join(''), 'hex'));
+const real = mints as Record<string, string[]>;
+const parse = (rows: string[], owner = TOKEN_2022_PROGRAM_ID) => parseMintAccount(web3, owner, bytes(rows));
 
 describe('parseMintAccount reads real Token-2022 accounts, as written by the official client', () => {
   it('a finished token', () => {
@@ -81,7 +82,7 @@ describe('parseMintAccount refuses what it cannot describe exactly', () => {
   });
 });
 
-const facts = (b64: string) => parse(b64) as MintFacts;
+const facts = (rows: string[]) => parse(rows) as MintFacts;
 
 describe('compareMint', () => {
   it('accepts the finished token that was approved, and the half-finished one', () => {

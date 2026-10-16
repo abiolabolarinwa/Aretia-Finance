@@ -249,13 +249,13 @@ export interface CostEstimate {
 
 export function estimateCost(args: { mintDeposit: bigint; tokenAccountDeposit: bigint; accountCount: number }): CostEstimate {
   const networkFee = BASE_FEE_LAMPORTS * 3n; // 2 signatures + 1 signature
-  const tokenAccountDeposits = args.tokenAccountDeposit * BigInt(args.accountCount);
+  const accountDeposits = args.tokenAccountDeposit * BigInt(args.accountCount);
   return {
     networkFee,
     mintDeposit: args.mintDeposit,
-    tokenAccountDeposits,
+    tokenAccountDeposits: accountDeposits,
     accountCount: args.accountCount,
-    total: networkFee + args.mintDeposit + tokenAccountDeposits,
+    total: networkFee + args.mintDeposit + accountDeposits,
   };
 }
 

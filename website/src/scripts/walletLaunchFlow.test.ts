@@ -28,7 +28,7 @@ const config = (over: Partial<LaunchConfig> = {}): LaunchConfig => ({
 
 /** The real account bytes the official client wrote, with the fixture's token address swapped for the one under test. */
 function mintBytes(kind: 'afterStep1' | 'final', mint: string): Uint8Array {
-  const data = Uint8Array.from(Buffer.from((mints as Record<string, string>)[kind]!, 'base64'));
+  const data = Uint8Array.from(Buffer.from((mints as Record<string, string[]>)[kind]!.join(''), 'hex'));
   const from = new web3.PublicKey(FIXTURE_MINT).toBytes();
   const to = new web3.PublicKey(mint).toBytes();
   for (let i = 0; i + 32 <= data.length; i++) if (from.every((b, j) => data[i + j] === b)) data.set(to, i);

@@ -171,14 +171,14 @@ export interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-const PENDING_KEY = 'aretia-launch-pending-v1';
+const STORE_NAME = 'aretia-launch-pending-v1';
 
 type Stored = Omit<PendingCreation, 'config'> & { config: LaunchConfigJson };
 const STAGES: Stage[] = ['started', 'created', 'minted'];
 
 function readAll(storage: StorageLike): Record<string, Stored> {
   try {
-    const parsed: unknown = JSON.parse(storage.getItem(PENDING_KEY) ?? '{}');
+    const parsed: unknown = JSON.parse(storage.getItem(STORE_NAME) ?? '{}');
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, Stored>) : {};
   } catch {
     return {};
@@ -198,7 +198,7 @@ export function savePending(storage: StorageLike, p: PendingCreation): void {
   const all = readAll(storage);
   all[p.config.creator] = { ...p, config: configToJson(p.config) };
   try {
-    storage.setItem(PENDING_KEY, JSON.stringify(all));
+    storage.setItem(STORE_NAME, JSON.stringify(all));
   } catch {
     /* storage full or blocked: the creation still works, it just cannot be resumed after a reload */
   }
@@ -208,7 +208,7 @@ export function clearPending(storage: StorageLike, creator: string): void {
   const all = readAll(storage);
   delete all[creator];
   try {
-    storage.setItem(PENDING_KEY, JSON.stringify(all));
+    storage.setItem(STORE_NAME, JSON.stringify(all));
   } catch {
     /* nothing to do */
   }

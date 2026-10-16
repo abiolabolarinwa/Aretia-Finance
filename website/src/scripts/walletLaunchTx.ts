@@ -191,7 +191,7 @@ export type Decoded =
   | { kind: 'initialize-metadata'; metadata: string; updateAuthority: string; mint: string; mintAuthority: string; name: string; symbol: string; uri: string }
   | { kind: 'create-token-account'; payer: string; ata: string; owner: string; mint: string }
   | { kind: 'mint-to'; mint: string; destination: string; authority: string; amount: bigint }
-  | { kind: 'set-authority'; account: string; authorityType: number; newAuthority: string | null }
+  | { kind: 'set-authority'; account: string; authorityType: number; successor: string | null }
   | { kind: 'unknown'; program: string; note: string };
 
 const eq = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -240,7 +240,7 @@ export function decodeInstruction(web3: typeof Web3, ix: Web3.TransactionInstruc
       if (d[0] === IX.mintTo && d.length === 9 && k.length === 3)
         return { kind: 'mint-to', mint: k[0]!, destination: k[1]!, authority: k[2]!, amount: view(d).getBigUint64(1, true) };
       if (d[0] === IX.setAuthority && k.length === 2 && ((d.length === 3 && d[2] === 0) || (d.length === 35 && d[2] === 1)))
-        return { kind: 'set-authority', account: k[0]!, authorityType: d[1]!, newAuthority: d[2] === 1 ? new web3.PublicKey(d.subarray(3, 35)).toBase58() : null };
+        return { kind: 'set-authority', account: k[0]!, authorityType: d[1]!, successor: d[2] === 1 ? new web3.PublicKey(d.subarray(3, 35)).toBase58() : null };
       return { kind: 'unknown', program, note: `token instruction ${d[0]}` };
     }
   } catch {
@@ -318,6 +318,6 @@ export function inspectStep(web3: typeof Web3, tx: Web3.Transaction, step: 1 | 2
   });
   if (total !== config.totalSupplyRaw || total !== shareOf(config.totalSupplyRaw, 10_000)) blockers.push('The amounts do not add up to the supply that was shown.');
   const r = revoked[0]!;
-  if (r.account !== mint || r.authorityType !== AUTHORITY_MINT || r.newAuthority !== null) blockers.push('The mint authority would not be given up.');
+  if (r.account !== mint || r.authorityType !== AUTHORITY_MINT || r.successor !== null) blockers.push('The mint authority would not be given up.');
   return blockers;
 }

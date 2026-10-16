@@ -1,0 +1,388 @@
+{
+ "renouncedImmutable": {
+  "config": {
+   "name": "Aretia Test Token",
+   "symbol": "ATEST",
+   "uri": "https://example.com/m.json",
+   "decimals": 6,
+   "supply": "1000000000000000",
+   "mint": "renounced",
+   "freeze": "renounced",
+   "mutable": false
+  },
+  "sizes": {
+   "allocated": 234,
+   "withMetadata": 366
+  },
+  "step1": [
+   {
+    "program": "11111111111111111111111111111111",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "ws"
+     }
+    ],
+    "data": "0000000080841e0000000000ea0000000000000006ddf6e1ee758fde18425dbce46ccddab61afc4d83b90d27febdf928d8a18bfc"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     }
+    ],
+    "data": "27000000000000000000000000000000000000000000000000000000000000000000604a9008ff7255012cb7739999aa875b8a840bebc6c73ec81b36225165f6de57"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "SysvarRent111111111111111111111111111111111",
+      "role": "r"
+     }
+    ],
+    "data": "00063789f9040e334bba44fcc2d4357614f12ad2c255623141b0c42da26178e1277c00"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "11111111111111111111111111111111",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "d2e11ea258b84d8d11000000417265746961205465737420546f6b656e0500000041544553541a00000068747470733a2f2f6578616d706c652e636f6d2f6d2e6a736f6e"
+   }
+  ],
+  "step2": [
+   {
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "5MyFwsDEoVyMuEVTGDG8buQEA8spjh2NzirdmrmUFDzq",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "11111111111111111111111111111111",
+      "role": "r"
+     },
+     {
+      "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "role": "r"
+     }
+    ],
+    "data": "01"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "5MyFwsDEoVyMuEVTGDG8buQEA8spjh2NzirdmrmUFDzq",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "070060891c05600300"
+   },
+   {
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "EtKaZMcze4pMahkc4aKHjNNsyJzTKZgz55NzytMMjqKC",
+      "role": "w"
+     },
+     {
+      "address": "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "11111111111111111111111111111111",
+      "role": "r"
+     },
+     {
+      "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "role": "r"
+     }
+    ],
+    "data": "01"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "EtKaZMcze4pMahkc4aKHjNNsyJzTKZgz55NzytMMjqKC",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "0700203d88792d0000"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "060000"
+   }
+  ],
+  "distribution": [
+   {
+    "owner": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+    "amount": "950000000000000"
+   },
+   {
+    "owner": "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2",
+    "amount": "50000000000000"
+   }
+  ]
+ },
+ "keepEverything": {
+  "config": {
+   "name": "Aretia Test Token",
+   "symbol": "ATEST",
+   "uri": "",
+   "decimals": 6,
+   "supply": "1000000000000000",
+   "mint": "creator",
+   "freeze": "creator",
+   "mutable": true
+  },
+  "sizes": {
+   "allocated": 234,
+   "withMetadata": 340
+  },
+  "step1": [
+   {
+    "program": "11111111111111111111111111111111",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "ws"
+     }
+    ],
+    "data": "0000000080841e0000000000ea0000000000000006ddf6e1ee758fde18425dbce46ccddab61afc4d83b90d27febdf928d8a18bfc"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     }
+    ],
+    "data": "27000000000000000000000000000000000000000000000000000000000000000000604a9008ff7255012cb7739999aa875b8a840bebc6c73ec81b36225165f6de57"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "SysvarRent111111111111111111111111111111111",
+      "role": "r"
+     }
+    ],
+    "data": "00063789f9040e334bba44fcc2d4357614f12ad2c255623141b0c42da26178e1277c013789f9040e334bba44fcc2d4357614f12ad2c255623141b0c42da26178e1277c"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "d2e11ea258b84d8d11000000417265746961205465737420546f6b656e05000000415445535400000000"
+   }
+  ],
+  "step2": [
+   {
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "5MyFwsDEoVyMuEVTGDG8buQEA8spjh2NzirdmrmUFDzq",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "11111111111111111111111111111111",
+      "role": "r"
+     },
+     {
+      "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "role": "r"
+     }
+    ],
+    "data": "01"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "5MyFwsDEoVyMuEVTGDG8buQEA8spjh2NzirdmrmUFDzq",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "070060891c05600300"
+   },
+   {
+    "program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "accounts": [
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "ws"
+     },
+     {
+      "address": "EtKaZMcze4pMahkc4aKHjNNsyJzTKZgz55NzytMMjqKC",
+      "role": "w"
+     },
+     {
+      "address": "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2",
+      "role": "r"
+     },
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "r"
+     },
+     {
+      "address": "11111111111111111111111111111111",
+      "role": "r"
+     },
+     {
+      "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "role": "r"
+     }
+    ],
+    "data": "01"
+   },
+   {
+    "program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "accounts": [
+     {
+      "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG",
+      "role": "w"
+     },
+     {
+      "address": "EtKaZMcze4pMahkc4aKHjNNsyJzTKZgz55NzytMMjqKC",
+      "role": "w"
+     },
+     {
+      "address": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+      "role": "rs"
+     }
+    ],
+    "data": "0700203d88792d0000"
+   }
+  ],
+  "distribution": [
+   {
+    "owner": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX",
+    "amount": "950000000000000"
+   },
+   {
+    "owner": "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2",
+    "amount": "50000000000000"
+   }
+  ]
+ }
+}

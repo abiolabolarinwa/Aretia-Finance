@@ -8,6 +8,7 @@ import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initShield } from './walletShield';
+import { initLaunch } from './walletLaunch';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
@@ -385,6 +386,8 @@ export function initWalletApp(): void {
     revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
     refreshWallet: () => void refresh(),
   });
+
+  const launch = initLaunch({ getAddress: () => address, refreshWallet: () => void refresh() });
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.
@@ -1183,6 +1186,7 @@ export function initWalletApp(): void {
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'activity') swings.onActivityShow();
     if (view === 'shield') shield.onShow(location.hash);
+    if (view === 'launch') launch.onShow();
     if (view === 'send') {
       void loadWeb3();
       swings.onPayShow();
@@ -1265,6 +1269,7 @@ export function initWalletApp(): void {
     clearSessionOutputs();
     swings.onWalletChange();
     shield.onWalletChange();
+    launch.onWalletChange();
     renderChrome();
     void refresh();
   }

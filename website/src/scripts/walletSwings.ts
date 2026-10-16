@@ -1850,7 +1850,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();
         const ordered = tsort.key ? sortRows(shownNow, tsort.key, tsort.dir) : shownNow;
-        const cur = ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
+        // While a chart is open the panel describes that token and no other, even when the list has changed under it and the token is no
+        // longer in it. Without a chart, it follows the selected row, or the first one.
+        const charted = chartRow ? (rows ?? []).find((r) => r.chain === chartRow!.chain && r.pool === chartRow!.pool) ?? chartRow : null;
+        const cur = charted ?? ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
         if (cur) {
           panel.show(cur);
           markSelected(tableEl, tableRowKey(cur));

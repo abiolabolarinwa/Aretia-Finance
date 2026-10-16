@@ -314,6 +314,14 @@ describe('DirectSolanaProvider', () => {
     expect(raw.reasons.join(' ')).toMatch(/Split/);
   });
 
+  it('says a pool reader failed, not that there is no pool, when the node cannot be read', async () => {
+    const blind = (async (method: string) => {
+      if (method === 'getLatestBlockhash') return { value: { blockhash: web3.PublicKey.default.toBase58() } };
+      throw new Error('429 Too Many Requests');
+    }) as SolRpc;
+    await expect(provider(blind).getQuote(req)).rejects.toMatchObject({ code: 'provider-failed', message: expect.stringMatching(/did not answer/) });
+  });
+
   it('does not split a small trade', async () => {
     const q = await provider(rpcWith({ second: { fee: 2500n, r0: 400_000_000_000n, r1: 80_000_000_000n } }).rpc).getQuote(req);
     expect((q.raw as { shape: string }).shape).toBe('direct');

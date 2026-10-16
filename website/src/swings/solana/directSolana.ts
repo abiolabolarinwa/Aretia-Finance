@@ -123,6 +123,8 @@ export class DirectSolanaProvider implements DexProvider {
   private readonly fee: AretiaFeeConfig;
   /** Why pools that were found could not be used in the quote being worked out (a simulation refusal, an unanswered check). */
   private skipped: string[] = [];
+  /** How many pool readers failed (rather than finding nothing) while the quote being worked out was being read. */
+  private venueMisses = 0;
 
   constructor(private readonly deps: DirectSolanaDeps) {
     this.now = deps.now ?? Date.now;
@@ -218,6 +220,7 @@ export class DirectSolanaProvider implements DexProvider {
         try {
           return (await this.track(venue.id, () => venue.getPools(a, b))).filter((p) => p.status === 'active').map((pool) => ({ venue, pool }));
         } catch {
+          this.venueMisses++;
           return [];
         }
       }),
@@ -243,6 +246,7 @@ export class DirectSolanaProvider implements DexProvider {
     const { from, to } = req;
     const request = req;
     this.skipped = [];
+    this.venueMisses = 0;
     const hubs = SOLANA_HUBS.filter((h) => h !== from.address && h !== to.address).map((address): TokenRef => ({ chain: 'solana', address }));
 
     // Read every pool the plans might use, in parallel.
@@ -354,6 +358,8 @@ export class DirectSolanaProvider implements DexProvider {
         const why = [...new Set(this.skipped)].slice(0, 2).join('; ');
         throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}. A first swap into a token also needs a little extra SOL for the new token account and fees.`);
       }
+      // A reader that failed is not the same as a pool that does not exist: saying "no pool" would send the user away from a token that may trade fine.
+      if (direct.length === 0 && this.venueMisses > 0) throw new SwingsError('provider-failed', 'Some of the places Aretia reads pools from did not answer, so this may be temporary and the token may well have a pool. Try again in a moment.');
       throw new SwingsError('no-route', 'No pool Aretia reads directly can fill this trade.');
     }
     plans.sort((x, y) => (x.amountOut !== y.amountOut ? (x.amountOut > y.amountOut ? -1 : 1) : x.legs.length - y.legs.length));

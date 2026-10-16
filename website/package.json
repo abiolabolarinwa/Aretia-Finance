@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",
+    "test:curve-devnet": "vitest run --config vitest.devnet.config.ts",
     "db:migrate": "node scripts/apply-migrations.ts",
     "readiness": "node scripts/readiness.ts",
     "alerts:check": "node scripts/alerts-check.ts"

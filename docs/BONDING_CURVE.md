@@ -105,13 +105,14 @@ Only a Token-2022 mint with all of: no mint authority (fixed supply), no freeze 
 | 12 | Dust and zero trades | A trade that buys or pays out nothing is refused. | |
 | 13 | Clock | `abort_migration` reads the cluster clock; validators can move it by seconds. | |
 | 14 | Re-initialisation | No curve is ever closed, so a curve address is never reused. | The curve's rent, the SOL vault's rent and any dust are locked for good. |
-| 15 | Compute | `migrate` used about 207,000 compute units in the test VM; the web flow asks for 400,000. | Meteora's cost may change. |
+| 15 | Compute | `migrate` used about 218,000 compute units in the test VM and 227,000 on devnet; the web flow asks for 400,000. | Meteora's cost may change. |
+| 16 | **A fee wallet that does not exist yet** | Every trade pays its fee by plain transfer. A transfer that would leave the fee wallet below the rent minimum (0.00089 SOL) fails, so a fee of less than that into an **empty** wallet reverts the trade. The mainnet management-fee wallet already holds SOL. | A fresh cluster (or a changed fee wallet) must be funded once first. On devnet it was funded with 0.002 SOL. |
 
 ## 9. What is not done, and known limits
 
 - **No audit.** Nobody but the author has read this code adversarially.
 - **Not on mainnet.** Never run with real SOL. Devnet and a local VM only.
-- Tested against Meteora's mainnet program binary in the local VM, and against Meteora on devnet; Meteora's mainnet behaviour was not exercised with a real transaction.
+- Tested against Meteora's mainnet program binary in the local VM, and against the live Meteora program on devnet (a different build from the mainnet one: the binaries' hashes differ). Meteora's mainnet behaviour was not exercised with a real transaction.
 - The pool's trading fee accrues to the locked position and **cannot be claimed** in v1. The money is not lost, it just sits.
 - No fuzzing beyond the property tests, no formal verification, no load test.
 - A curve that is never fully bought just stays open. There is no refund path for a curve nobody finishes, other than selling back.
@@ -139,4 +140,18 @@ Build notes for Windows: do not build into a OneDrive folder (the linker cannot 
 
 ## 12. Devnet
 
-Program id: `9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4`. The keypair that made the id is not in the repo. See the end of this file for the deployment record.
+Program id: `9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4`, upgradeable, upgrade authority `DWkwVbRZ3WUPSxLdmLdnNeq3rAkrev5vusjkpwrjU4fw` (the devnet deployer key; **a single key, so devnet only**). The program keypair is not in the repo.
+
+Deployed 2026-10-16 from this source, built with `cargo build-sbf` (release profile `opt-level = "s"`), 317,240 bytes, sha-256 of the `.so` `f7f152b1b07193d65b2fc6e5b105b5c8b8f81d134e585e4648e8c88f4485d4f2` (the on-chain data matches it byte for byte). It was deployed with `--max-len` equal to its size to save devnet SOL, so a bigger build needs `solana program extend` first.
+
+A full run through the web flow code against it (`npm run test:curve-devnet` in `website`, with `CURVE_DEVNET_KEYPAIR` set) passed: make a fixed-supply Token-2022 token, open a curve (1,000,000,000 tokens, target 0.1 SOL), buy, sell half back (the Aretia fee reached the fee wallet to the lamport), buy the rest with an oversized offer (only what was left was charged), and move into a Meteora pool, whose position was locked in the same transaction. The numbers each step showed matched the chain every time.
+
+| Step | Transaction (devnet) |
+|---|---|
+| Open the curve | `3nSM1A9rqyo2HKehTJ3FYDaEp5ygUjuJNQBBGEnWkSi2vKV9QY9RtdqpN9nYSdzfvZXf3MA1ha868Gu5YU6j3vdT` |
+| Buy | `44kAKzy9Pc8yMzv9CPbmsfs8goVAS2Uvopo9ENCbXAhd4qisNcJLDTpkXqLFHRGPwAwfqR7P3BRUsVSwCKU838sW` |
+| Sell | `ZfGpekgygFUBqFp7vYscWgJz6jZdv5WtgCiFfzuxDHCVRc38YYypdieo7s2efpgdcKELBzWzaKwL6GLUCwRqcci` |
+| Sell out | `5U9HGzYy594m3FpVSzPUnnmXYWHHfMiE3E8JCPwfKQzfkYmpED9imCgPG2ZWcnh1HJEhzKre1eG94Ai44rZkfLc9` |
+| Move into a pool | `jvivgkkmtLjP7gn4cYyAe4rDniR1LKtfjUXedTCbVxpqMSfx7C425TQSfXtdLE6HY4RrfX81wMEc9MMpoHZNicM` (pool `DUqEDXKuKuaHZzf6337fpTJ8g1TR1h5qvQfGWs2qQpEZ`, curve `Ep7atHK9k9hiKtaGfaKpMU8oSWUxNNMeP9NF44GMqjnY`) |
+
+The devnet faucet was rate-limited during this work, so the devnet run used a single wallet as creator and buyer; a second wallet buying was covered in the local VM only.

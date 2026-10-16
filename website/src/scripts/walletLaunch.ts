@@ -4,7 +4,7 @@
  * of events in walletLaunchFlow.ts, each with its own tests.
  *
  * What it does: one fixed-supply token with its name, symbol and link stored on the token, created in two transactions that the
- * person's own wallet signs. What it does not do: start a sale, open a pool, or lock anything. It charges one flat creation fee, shown before signing.
+ * person's own wallet signs. What it does not do: start a sale or lock anything (pools are opened by walletPool.ts). It charges one flat creation fee, shown before signing.
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.
  */
 import { browserStorage } from '../swings/history.js';
@@ -25,6 +25,8 @@ export interface LaunchHost {
   getAddress(): string | null;
   /** Re-reads balances after something was created. */
   refreshWallet(): void;
+  /** Offers to open a pool for a token that was just created. */
+  offerPool?(mint: string): void;
 }
 
 type Stage = 'form' | 'review' | 'working' | 'done';
@@ -225,7 +227,7 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     row(costs, 'Network fees (two transactions)', sol(cost.networkFee));
     row(costs, 'Deposit for the token', sol(cost.mintDeposit));
     row(costs, `Deposits for ${cost.accountCount} token account${cost.accountCount === 1 ? '' : 's'}`, sol(cost.tokenAccountDeposits));
-        row(costs, 'Total, about', sol(cost.total));
+    row(costs, 'Total, about', sol(cost.total));
     row(costs, 'Your balance', sol(balance));
     card.append(costs);
     card.append(h('p', 'wapp__fine', 'The deposits keep the accounts alive on Solana. The estimate comes from the network’s current rent; the final amounts are shown by your wallet.'));
@@ -313,7 +315,13 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
       void navigator.clipboard?.writeText(outcome!.mint).then(() => (copy.textContent = 'Copied'));
     });
     card.append(copy);
-    card.append(h('p', 'wapp__fine', 'Nobody can buy this token yet. A token has no market until a sale or a liquidity pool exists, and this page does not create one. The tokens you hold are in your wallet now.'));
+    card.append(h('p', 'wapp__fine', 'Nobody can buy this token yet. A token has no market until a sale or a liquidity pool exists. You can open a pool for it below. The tokens you hold are in your wallet now.'));
+    if (host.offerPool) {
+      const pool = h('button', 'wapp__btn wapp__btn--primary', 'Open a liquidity pool for it');
+      pool.type = 'button';
+      pool.addEventListener('click', () => host.offerPool?.(outcome!.mint));
+      card.append(pool);
+    }
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Create another');
     again.type = 'button';
     again.addEventListener('click', () => {

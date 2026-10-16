@@ -1,4 +1,4 @@
-// Local harness: the real curve card, the devnet program, two throwaway keys kept in this browser's localStorage.
+// Local harness: the real curve card, the devnet program, two throwaway keys held in memory.
 import { Buffer } from 'buffer';
 (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 import * as web3 from '@solana/web3.js';
@@ -9,13 +9,8 @@ import { TOKEN_2022_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } fro
 const RPC = 'https://api.devnet.solana.com';
 const connection = new web3.Connection(RPC, 'confirmed');
 
-function loadKey(name: string): web3.Keypair {
-  const saved = localStorage.getItem(`curve-harness-${name}`);
-  if (saved) return web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(saved) as number[]));
-  const k = web3.Keypair.generate();
-  localStorage.setItem(`curve-harness-${name}`, JSON.stringify([...k.secretKey]));
-  return k;
-}
+// Held in memory only: a reload makes new keys, so fund the addresses the page shows each time.
+const loadKey = (_name: string): web3.Keypair => web3.Keypair.generate();
 const wallets = { creator: loadKey('creator'), buyer: loadKey('buyer') };
 let active: 'creator' | 'buyer' = 'creator';
 const me = () => wallets[active];

@@ -9,7 +9,7 @@ import type { EvmWalletAdapter } from '../swings/chains/evmWallet.js';
 import { fromSmallestUnit } from './walletTools';
 import { chainByKey, chainEnabled, type LaunchEvmChainKey } from './walletLaunchEvmCore';
 import { friendlyEvmError } from './walletLaunchEvmFlow';
-import { DEFAULT_POOL_FORM, POOL_DEXES, dexFor, poolConfigOf, poolDisclosuresOf, validatePoolForm, type PoolForm, type PoolIssue } from './walletPoolEvmCore';
+import { DEFAULT_POOL_FORM, POOL_DEXES, POOL_FEE_UNITS, dexFor, poolConfigOf, poolDisclosuresOf, validatePoolForm, type PoolForm, type PoolIssue } from './walletPoolEvmCore';
 import { PoolFlow, type PoolOutcome, type PoolProgress, type PoolReview } from './walletPoolEvmFlow';
 
 export interface PoolEvmHost {
@@ -29,6 +29,8 @@ const short = (a: string): string => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 const STEPS: { id: PoolProgress; label: string }[] = [
   { id: 'checking', label: 'Checking everything once more' },
+  { id: 'paying-fee', label: 'Waiting for you to approve Aretia’s fee in your wallet' },
+  { id: 'confirming-fee', label: 'Confirming the fee' },
   { id: 'approving', label: 'Waiting for you to approve the token approval in your wallet' },
   { id: 'confirming-approve', label: 'Confirming the approval' },
   { id: 'adding', label: 'Waiting for you to approve opening the pool' },
@@ -97,12 +99,26 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
   function drawForm(card: HTMLElement): void {
     const dex = dexFor(form.chain);
     card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h3', 'wapp__h2', 'Open a liquidity pool'));
-    card.append(h('p', 'wapp__fine', `Give a token a market on ${dex?.name ?? 'this network'}. Your tokens and some ${dex?.symbol ?? 'coin'} go into a new pool, which sets the starting price. Your own wallet signs two transactions: an approval for exactly the tokens, then the pool. Opening a pool has no Aretia fee yet.`));
+    card.append(h('p', 'wapp__fine', `Give a token a market on ${dex?.name ?? 'this network'}. Your tokens and some ${dex?.symbol ?? 'coin'} go into a new pool, which sets the starting price. Your own wallet signs three transactions: the fee, an approval for exactly the tokens, then the pool. Opening a pool costs a flat Aretia fee of 10 USDC or 10 USDT, sent first as its own transaction.`));
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
     f.append(field('Token address', 'token', { mono: true, placeholder: '0x…', hint: 'A token you hold, such as one made on this page.' }));
     f.append(field('Tokens to put in the pool', 'tokenAmount', { hint: 'In whole tokens. Only your tokens go in; nothing is bought.' }));
     f.append(field(`${dex?.symbol ?? 'Coin'} to put in the pool`, 'coinAmount', { hint: `The starting price is this amount divided by the tokens above.` }));
+    const feeWrap = h('div', 'wapp-ln__field');
+    const feeLab = h('label', 'wapp__eyebrow', 'Pay Aretia’s 10 fee in');
+    feeLab.htmlFor = 'pool-evm-feeAsset';
+    const feeSel = h('select', 'wapp__input');
+    feeSel.id = 'pool-evm-feeAsset';
+    for (const a of ['USDC', 'USDT'] as const) {
+      const o = h('option', '', a);
+      o.value = a;
+      o.selected = form.feeAsset === a;
+      feeSel.append(o);
+    }
+    feeSel.addEventListener('change', () => void (form = { ...form, feeAsset: feeSel.value as PoolForm['feeAsset'] }));
+    feeWrap.append(feeLab, feeSel);
+    f.append(feeWrap);
     const lock = h('label', 'wapp__check');
     const box = h('input');
     box.type = 'checkbox';
@@ -134,6 +150,8 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
     row(dl, `${c.dex.symbol} going in`, `${fromSmallestUnit(c.coinWei, 18)} ${c.dex.symbol}`);
     row(dl, 'Starting price', `${fromSmallestUnit(c.coinWei * 10n ** BigInt(c.tokenDecimals) / c.tokenRaw, 18)} ${c.dex.symbol} per ${c.tokenSymbol}`);
     row(dl, 'Liquidity', c.lock ? 'Locked for good (sent to the dead address)' : 'Sent to your wallet');
+    row(dl, 'Aretia fee', `${POOL_FEE_UNITS} ${c.fee.asset}, sent first`);
+    row(dl, `Your ${c.fee.asset}`, `${fromSmallestUnit(review.feeBalance, c.fee.decimals)} ${c.fee.asset}`);
     row(dl, 'Network gas, at most about', gasCostWei === null ? 'could not be estimated' : `${fromSmallestUnit(gasCostWei, 18)} ${c.dex.symbol}`);
     row(dl, `Your ${c.dex.symbol}`, `${fromSmallestUnit(coinBalance, 18)} ${c.dex.symbol}`);
     row(dl, `Your ${c.tokenSymbol}`, `${grouped(fromSmallestUnit(tokenBalance, c.tokenDecimals))} ${c.tokenSymbol}`);
@@ -158,7 +176,7 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
       acknowledged = box.checked;
       go.disabled = !acknowledged || blockers.length > 0 || busy;
     });
-    ack.append(box, h('span', '', 'I understand this opens a real pool, costs about the amounts above, and cannot be undone.'));
+    ack.append(box, h('span', '', 'I understand this opens a real pool, costs about the amounts above plus the fee, and cannot be undone.'));
     card.append(ack);
     const actions = h('div', 'wapp__row-actions');
     const back = h('button', 'wapp__btn wapp__btn--ghost', 'Back');
@@ -178,7 +196,7 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
 
   function drawWorking(card: HTMLElement): void {
     card.append(h('span', 'wapp__eyebrow', 'Opening'), h('h3', 'wapp__h2', 'Opening your pool'));
-    card.append(h('p', 'wapp__fine', 'Keep this page open. Your wallet will ask you to approve two transactions, one after the other.'));
+    card.append(h('p', 'wapp__fine', 'Keep this page open. Your wallet will ask you to approve three transactions, one after the other.'));
     const list = h('ol', 'wapp-ln__steps');
     const at = STEPS.findIndex((s) => s.id === progress);
     STEPS.forEach((s, i) => {

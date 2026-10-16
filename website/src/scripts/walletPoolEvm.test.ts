@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SwingsError } from '../swings/core/types.js';
-import { DEAD_ADDRESS, DEFAULT_POOL_FORM, POOL_DEXES, poolConfigOf, validatePoolForm, type PoolConfig, type PoolForm } from './walletPoolEvmCore';
-import { ADD_LIQUIDITY_ETH_SELECTOR, APPROVE_SELECTOR, SEL, buildAddTx, buildApproveTx, decodeAddLiquidityEth, decodeApprove, encodeAddLiquidityEth, encodeApprove, inspectAddTx, inspectApproveTx } from './walletPoolEvmTx';
+import { DEAD_ADDRESS, DEFAULT_POOL_FORM, POOL_DEXES, POOL_FEE_ADDRESS, poolConfigOf, validatePoolForm, type PoolConfig, type PoolForm } from './walletPoolEvmCore';
+import { ADD_LIQUIDITY_ETH_SELECTOR, APPROVE_SELECTOR, SEL, buildAddTx, buildApproveTx, buildFeeTx, encodeTransfer, inspectFeeTx, decodeAddLiquidityEth, decodeApprove, encodeAddLiquidityEth, encodeApprove, inspectAddTx, inspectApproveTx } from './walletPoolEvmTx';
 import { PoolError, PoolFlow, type PoolFlowDeps } from './walletPoolEvmFlow';
 
 const CREATOR = '0x1111111111111111111111111111111111111111';
@@ -13,7 +13,7 @@ const TOKENS = 1_000_000n * 10n ** 18n;
 const COIN = 5n * 10n ** 17n;
 const NOW = 1_800_000_000;
 
-const config = (over: Partial<PoolConfig> = {}): PoolConfig => ({ dex, creator: CREATOR, token: TOKEN, tokenSymbol: 'ATEST', tokenDecimals: 18, tokenRaw: TOKENS, coinWei: COIN, lock: true, lpTo: DEAD_ADDRESS, ...over });
+const config = (over: Partial<PoolConfig> = {}): PoolConfig => ({ dex, creator: CREATOR, token: TOKEN, tokenSymbol: 'ATEST', tokenDecimals: 18, tokenRaw: TOKENS, coinWei: COIN, lock: true, fee: { asset: 'USDC', token: dex.stables.USDC.address, decimals: 18, raw: 10n * 10n ** 18n }, lpTo: DEAD_ADDRESS, ...over });
 
 describe('the exchange table', () => {
   it('has the three live networks, all lower-case', () => {
@@ -114,7 +114,7 @@ describe('inspectors', () => {
 const w = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
 const aw = (a: string) => '0x' + a.slice(2).padStart(64, '0');
 
-function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; account?: string; chainId?: number; rejectAt?: 1 | 2 } = {}) {
+function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3 } = {}) {
   const sent: { to?: string; data?: string; value?: string; gas?: string }[] = [];
   let approved = false;
   let opened = false;
@@ -134,6 +134,8 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
     if (method === 'eth_call') {
       const c = p[0] as { to?: string; data?: string };
       const d = c.data ?? '';
+      if (c.to === dex.stables.USDC.address && d === '0x313ce567') return w(s.feeDecimals ?? 18n);
+      if (c.to === dex.stables.USDC.address && d.startsWith(SEL.balanceOf)) return w(s.feeBal ?? 100n * 10n ** 18n);
       if (c.to === dex.router && d === SEL.routerFactory) return aw(s.factory ?? dex.factory);
       if (c.to === dex.router && d === SEL.routerWeth) return aw(s.wrapped ?? dex.wrapped);
       if (c.to === TOKEN && d.startsWith(SEL.balanceOf)) return w(s.tokenBal ?? TOKENS);
@@ -146,7 +148,8 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
     }
     if (method === 'eth_getTransactionReceipt') {
       const hash = p[0] as string;
-      if (hash.endsWith('01')) return s.receipt1 === 'none' ? null : { status: s.receipt1 === 'fail' ? '0x0' : '0x1' };
+      if (hash.endsWith('01')) return { status: s.feeReceipt === 'fail' ? '0x0' : '0x1' };
+      if (hash.endsWith('02')) return s.receipt1 === 'none' ? null : { status: s.receipt1 === 'fail' ? '0x0' : '0x1' };
       return { status: s.receipt2 === 'fail' ? '0x0' : '0x1' };
     }
     throw new Error(`unexpected ${method}`);
@@ -160,8 +163,8 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
         if (s.rejectAt === sent.length + 1) throw new SwingsError('rejected', 'no');
         sent.push(tx);
         if (tx.to === TOKEN) approved = true;
-        else opened = true;
-        return '0x' + (sent.length === 1 ? '01' : '02').padStart(64, '0');
+        else if (tx.to === dex.router) opened = true;
+        return '0x' + String(sent.length).padStart(2, '0').padStart(64, '0');
       },
     },
     read,
@@ -181,12 +184,14 @@ describe('PoolFlow', () => {
     const out = await x.flow.create(review, (p) => steps.push(p));
     expect(out.differences).toEqual([]);
     expect(out.pair).toBe(PAIR);
-    expect(steps).toEqual(['checking', 'approving', 'confirming-approve', 'adding', 'confirming', 'verifying', 'done']);
-    expect(x.sent).toHaveLength(2);
-    expect(x.sent[0]!.to).toBe(TOKEN);
-    expect(x.sent[1]!.to).toBe(dex.router);
-    expect(x.sent[1]!.value).toBe('0x' + COIN.toString(16));
-    expect(decodeAddLiquidityEth(x.sent[1]!.data!)!.to).toBe(DEAD_ADDRESS);
+    expect(steps).toEqual(['checking', 'paying-fee', 'confirming-fee', 'approving', 'confirming-approve', 'adding', 'confirming', 'verifying', 'done']);
+    expect(x.sent).toHaveLength(3);
+    expect(x.sent[0]!.to).toBe(dex.stables.USDC.address);
+    expect(x.sent[0]!.data).toBe(encodeTransfer(POOL_FEE_ADDRESS, 10n * 10n ** 18n));
+    expect(x.sent[1]!.to).toBe(TOKEN);
+    expect(x.sent[2]!.to).toBe(dex.router);
+    expect(x.sent[2]!.value).toBe('0x' + COIN.toString(16));
+    expect(decodeAddLiquidityEth(x.sent[2]!.data!)!.to).toBe(DEAD_ADDRESS);
   });
   it('blocks on a router that does not report the expected factory or wrapped coin, or has no code', async () => {
     expect((await world({ factory: OTHER }).flow.prepare(config())).blockers.join(' ')).toMatch(/does not report/);
@@ -198,7 +203,7 @@ describe('PoolFlow', () => {
     expect((await world({ coinBal: COIN }).flow.prepare(config())).blockers.join(' ')).toMatch(/need more BNB/);
     expect((await world({ existing: [1n, 1n] }).flow.prepare(config())).blockers.join(' ')).toMatch(/already exists with liquidity/);
     expect((await world({ existing: [0n, 0n] }).flow.prepare(config())).blockers).toEqual([]);
-    expect((await world({ approveFails: true }).flow.prepare(config())).blockers.join(' ')).toMatch(/not accept the approval/);
+    expect((await world({ approveFails: true }).flow.prepare(config())).blockers.join(' ')).toMatch(/not accept the fee or the approval/);
   });
   it('sends nothing when blocked, the account changed, or the wallet stays on another network', async () => {
     const ready = await world().flow.prepare(config());
@@ -219,26 +224,60 @@ describe('PoolFlow', () => {
   it('stops if the allowance is not exactly what was approved, and says the tokens did not move', async () => {
     const x = world({ allowance: TOKENS * 2n });
     await expect(x.flow.create(await x.flow.prepare(config()))).rejects.toThrow(/allowance is not exactly/);
-    expect(x.sent).toHaveLength(1);
+    expect(x.sent).toHaveLength(2);
   });
   it('says what state things are in when the pool step cannot go ahead', async () => {
     const refuse = world({ addEstimateFails: true });
     await expect(refuse.flow.create(await refuse.flow.prepare(config()))).rejects.toThrow(/refuse to open the pool.*approval is in place for exactly/);
-    expect(refuse.sent).toHaveLength(1);
-    const declined = world({ rejectAt: 2 });
-    await expect(declined.flow.create(await declined.flow.prepare(config()))).rejects.toThrow(/closed the wallet.*approval is in place/);
+    expect(refuse.sent).toHaveLength(2);
+    const declined = world({ rejectAt: 3 });
+    await expect(declined.flow.create(await declined.flow.prepare(config()))).rejects.toThrow(/closed the wallet.*fee was already paid and the approval is in place/);
     const failed = world({ receipt2: 'fail' });
     await expect(failed.flow.create(await failed.flow.prepare(config()))).rejects.toThrow(/pool transaction failed/);
   });
   it('reports a declined, failed or unconfirmed approval', async () => {
     const r = await world().flow.prepare(config());
-    await expect(world({ rejectAt: 1 }).flow.create(r)).rejects.toThrow(/closed the wallet/);
-    await expect(world({ receipt1: 'fail' }).flow.create(r)).rejects.toThrow(/approval failed/);
-    await expect(world({ receipt1: 'none' }).flow.create(r)).rejects.toThrow(/not confirmed yet/);
+    await expect(world({ rejectAt: 2 }).flow.create(r)).rejects.toThrow(/closed the wallet/);
+    await expect(world({ receipt1: 'fail' }).flow.create(r)).rejects.toThrow(/fee was already paid. The approval failed/);
+    await expect(world({ receipt1: 'none' }).flow.create(r)).rejects.toThrow(/approval was sent but has not confirmed/);
   });
   it('lists every difference when the pool read back is not what was approved', async () => {
     const x = world({ reserves: [TOKENS - 1n, COIN + 1n], lp: 0n });
     const out = await x.flow.create(await x.flow.prepare(config()));
     expect(out.differences).toEqual(['The pool does not hold exactly the tokens you put in.', 'The pool does not hold exactly the BNB you put in.', 'No liquidity tokens reached the dead address.']);
+  });
+});
+
+describe('the Aretia fee', () => {
+  const fee = () => buildFeeTx(config());
+  it('is a plain transfer of exactly 10 whole units of the chosen stablecoin to the fee address', () => {
+    expect(inspectFeeTx(fee(), config(), 56)).toEqual([]);
+    expect(POOL_FEE_ADDRESS).toBe('0xeb8725e16e504036c2166aa47804d88ecc4d0945');
+    expect(fee().to).toBe(dex.stables.USDC.address);
+  });
+  it('uses each network’s own decimals: 6 on Ethereum and Polygon, 18 on BNB Chain', () => {
+    for (const d of POOL_DEXES) for (const a of ['USDC', 'USDT'] as const) expect(d.stables[a].decimals).toBe(d.key === 'bnb' ? 18 : 6);
+    const v = validatePoolForm({ ...DEFAULT_POOL_FORM, chain: 'ethereum', token: TOKEN, tokenAmount: '1', coinAmount: '1', feeAsset: 'USDT' }, CREATOR, ['ethereum']);
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(poolConfigOf(v, CREATOR, true, { symbol: 'A', decimals: 18 })!.fee).toEqual({ asset: 'USDT', token: '0xdac17f958d2ee523a2206206994597c13d831ec7', decimals: 6, raw: 10_000_000n });
+  });
+  it('is refused if it goes elsewhere, is a different amount, another token, or carries coins', () => {
+    const bad = (tx: ReturnType<typeof fee>) => inspectFeeTx(tx, config(), 56).join(' ');
+    expect(bad({ ...fee(), data: encodeTransfer(OTHER, 10n * 10n ** 18n) })).toMatch(/not Aretia’s fee address/);
+    expect(bad({ ...fee(), data: encodeTransfer(POOL_FEE_ADDRESS, 10n ** 18n) })).toMatch(/not exactly the flat amount/);
+    expect(bad({ ...fee(), data: encodeTransfer(POOL_FEE_ADDRESS, 100n * 10n ** 18n) })).toMatch(/not exactly the flat amount/);
+    expect(bad({ ...fee(), to: dex.stables.USDT.address })).toMatch(/not sent on the USDC contract/);
+    expect(bad({ ...fee(), value: '0x1' })).toMatch(/carries coins/);
+    expect(inspectFeeTx(fee(), config(), 1).join(' ')).toMatch(/network 1/);
+  });
+  it('blocks when the stablecoin balance is too low or its decimals are not the expected ones, and sends nothing if the fee is declined', async () => {
+    expect((await world({ feeBal: 9n * 10n ** 18n }).flow.prepare(config())).blockers.join(' ')).toMatch(/need 10 USDC/);
+    expect((await world({ feeDecimals: 6n }).flow.prepare(config())).blockers.join(' ')).toMatch(/not the one this page expects/);
+    const x = world({ rejectAt: 1 });
+    await expect(x.flow.create(await x.flow.prepare(config()))).rejects.toThrow(/closed the wallet/);
+    expect(x.sent).toHaveLength(0);
+    const failed = world({ feeReceipt: 'fail' });
+    await expect(failed.flow.create(await failed.flow.prepare(config()))).rejects.toThrow(/fee transfer failed.*nothing else was sent/);
+    expect(failed.sent).toHaveLength(1);
   });
 });

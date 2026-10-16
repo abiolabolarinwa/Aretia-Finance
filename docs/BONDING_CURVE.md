@@ -142,16 +142,16 @@ Build notes for Windows: do not build into a OneDrive folder (the linker cannot 
 
 Program id: `9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4`, upgradeable, upgrade authority `DWkwVbRZ3WUPSxLdmLdnNeq3rAkrev5vusjkpwrjU4fw` (the devnet deployer key; **a single key, so devnet only**). The program keypair is not in the repo.
 
-Deployed 2026-10-16 from this source, built with `cargo build-sbf` (release profile `opt-level = "s"`), 317,240 bytes, sha-256 of the `.so` `f7f152b1b07193d65b2fc6e5b105b5c8b8f81d134e585e4648e8c88f4485d4f2` (the on-chain data matches it byte for byte). It was deployed with `--max-len` equal to its size to save devnet SOL, so a bigger build needs `solana program extend` first.
+Deployed 2026-10-16, then upgraded the same day to the 0.58% fee from source at commit `1c9fe3b`. Built with `cargo build-sbf` (release profile `opt-level = "s"`), 317,240 bytes, sha-256 of the `.so` `459006a479c3e91dfb19249c66615e262903ddf6f49803212fcefbc15aed4399` (the on-chain data matches it byte for byte). It was first deployed with `--max-len` equal to its size to save devnet SOL, so a bigger build needs `solana program extend` first.
 
-A full run through the web flow code against it (`npm run test:curve-devnet` in `website`, with `CURVE_DEVNET_KEYPAIR` set) passed: make a fixed-supply Token-2022 token, open a curve (1,000,000,000 tokens, target 0.1 SOL), buy, sell half back (the Aretia fee reached the fee wallet to the lamport), buy the rest with an oversized offer (only what was left was charged), and move into a Meteora pool, whose position was locked in the same transaction. The numbers each step showed matched the chain every time.
+A full run through the web flow code against the upgraded program (`npm run test:curve-devnet` in `website`, with `CURVE_DEVNET_KEYPAIR` set) passed: make a fixed-supply Token-2022 token, open a curve (1,000,000,000 tokens, target 0.1 SOL), buy, sell half back (the Aretia fee reached the fee wallet to the lamport, at 0.58%), buy the rest with an oversized offer (only what was left was charged), and move into a Meteora pool, whose position was locked in the same transaction. The numbers each step showed matched the chain every time.
 
 | Step | Transaction (devnet) |
 |---|---|
-| Open the curve | `3nSM1A9rqyo2HKehTJ3FYDaEp5ygUjuJNQBBGEnWkSi2vKV9QY9RtdqpN9nYSdzfvZXf3MA1ha868Gu5YU6j3vdT` |
-| Buy | `44kAKzy9Pc8yMzv9CPbmsfs8goVAS2Uvopo9ENCbXAhd4qisNcJLDTpkXqLFHRGPwAwfqR7P3BRUsVSwCKU838sW` |
-| Sell | `ZfGpekgygFUBqFp7vYscWgJz6jZdv5WtgCiFfzuxDHCVRc38YYypdieo7s2efpgdcKELBzWzaKwL6GLUCwRqcci` |
-| Sell out | `5U9HGzYy594m3FpVSzPUnnmXYWHHfMiE3E8JCPwfKQzfkYmpED9imCgPG2ZWcnh1HJEhzKre1eG94Ai44rZkfLc9` |
-| Move into a pool | `jvivgkkmtLjP7gn4cYyAe4rDniR1LKtfjUXedTCbVxpqMSfx7C425TQSfXtdLE6HY4RrfX81wMEc9MMpoHZNicM` (pool `DUqEDXKuKuaHZzf6337fpTJ8g1TR1h5qvQfGWs2qQpEZ`, curve `Ep7atHK9k9hiKtaGfaKpMU8oSWUxNNMeP9NF44GMqjnY`) |
+| Open the curve | `pRkQ83KrPQaTZ9LSRetsnuumWdk4oSwcEE1fB69UqiXmtL2fpL7yM4JLdJQbkPpvX2Gc2sKVBzAZTukpxCqVnvp` |
+| Buy | `21MdXUmhAkM1vAd9gyTshFjyywwus2xxyvhD9YvR58BfjsGpQpeSzypw7BvTqp1CVXuXVTedueCP8Uwyeijd7Riu` |
+| Sell | `CBz1CoLf4iZRBZ8Rmpap9SJqcBa5WG2AQZy9AdSRTo1JqmyzwiantLGK5m9rBxszT9rvRmfDr7oyEN5mb4CttkK` |
+| Sell out | `C9DYopWDa9FdVV3NHx1yEStvtFZfjWKQ2mERWEUbsrCsGL8X4hup1tcpKPjjctnhSsLQBWieners3chBadAYdpc` |
+| Move into a pool | `4vCtwtEaxGrrWrVj67rrunFowZGX3DCDbxZ7iYx1e5vWvLrziA44FbFjJkpoKDEroJqVgvcfSTQc2knb1iYtoFY6` (pool `H8A7FZVJRHs13263j42jpvvgAwSWDDfQBZwJYnVG7XJ1`, curve `8YbPb4pbcDRqzMMRzvYcC9wwGs8x87Lo7Y6HivimHHDy`) |
 
-The devnet faucet was rate-limited during this work, so the devnet run used a single wallet as creator and buyer; a second wallet buying was covered in the local VM only.
+The devnet run used a single wallet as creator and buyer; a second wallet buying was covered in the local VM only.

@@ -262,6 +262,21 @@ export async function simulateTransaction(transaction: Web3.Transaction): Promis
   return { ok: false, error: lastLog ?? JSON.stringify(r.value.err) };
 }
 
+/** The same, and also reports `watch`'s SOL balance after the transaction, so a cost can be measured instead of guessed. */
+export async function simulateWithBalance(transaction: Web3.Transaction, watch: string): Promise<{ ok: boolean; error: string | null; lamportsAfter: bigint | null }> {
+  const bytes = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
+  const r = await rpcCall<{ value: { err: unknown; logs: string[] | null; accounts: ({ lamports: number } | null)[] | null } }>('simulateTransaction', [
+    toBase64(bytes),
+    { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed', accounts: { encoding: 'base64', addresses: [watch] } },
+  ]);
+  if (r.value.err === null) {
+    const after = r.value.accounts?.[0]?.lamports;
+    return { ok: true, error: null, lamportsAfter: typeof after === 'number' ? BigInt(after) : null };
+  }
+  const lastLog = (r.value.logs ?? []).filter((l) => /failed|error|insufficient/i.test(l)).pop();
+  return { ok: false, error: lastLog ?? JSON.stringify(r.value.err), lamportsAfter: null };
+}
+
 // ---------------------------------------------------------------- signing
 
 interface SigningContext {

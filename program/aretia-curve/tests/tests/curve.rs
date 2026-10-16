@@ -384,3 +384,32 @@ fn migrate_refuses_the_wrong_pool_address_and_a_ready_made_pool_blocks_it_until_
     assert_fails_with(l.env.send(&[migrate_ix(&payer, &l.mint, &a, 300_000_000, liquidity, sqrt_price)], &[&a.nft]), "BadParameters");
     let _ = buyer;
 }
+
+/// Curves from a thousand raw tokens to the largest the program allows all sell out and move into a pool.
+#[test]
+fn curves_of_every_size_migrate() {
+    let mut env = Env::new();
+    if !env.has_meteora {
+        eprintln!("skipped: no Meteora binary");
+        return;
+    }
+    for (total, target) in [(1_000u64, 100_000_000u64), (10_000, 100_000_000), (100_000, 100_000_000), (1_000_000, 100_000_000), (100_000_000, 100_000_000), (1_000_000_000_000, 100_000_000), (1_000_000_000_000_000_000, 100_000_000), (4_000_000_000_000_000_000, 1_000_000_000_000)] {
+        let creator = env.user(10);
+        let mint = env.make_mint(MintKind::Launch, DECIMALS, total.max(1_000), &creator);
+        if env.send(&[create_curve_ix(&creator.pubkey(), &mint, total, target)], &[&creator]).is_err() {
+            panic!("total {total} target {target}: curve refused");
+        }
+        let buyer = env.user(5_000);
+        env.make_ata(&buyer.pubkey(), &mint);
+        let r = env.send(&[buy_ix(&buyer.pubkey(), &mint, u64::MAX / 8, 0)], &[&buyer]);
+        if r.is_err() {
+            panic!("total {total} target {target}: buy-out refused: {}", err_text(&r));
+        }
+        let c = env.curve(&mint);
+        let (l, p) = pool_args(c.real_sol, c.lp_tokens);
+        let a = MigrateAccounts::new(&mint);
+        let payer = env.payer.pubkey();
+        let m = env.send(&[compute_budget_ix(1_400_000), migrate_ix(&payer, &mint, &a, 100_000_000, l, p)], &[&a.nft]);
+        assert!(m.is_ok(), "total {total} target {target}: lp {} raised {}: migrate failed: {}", c.lp_tokens, c.real_sol, err_text(&m));
+    }
+}

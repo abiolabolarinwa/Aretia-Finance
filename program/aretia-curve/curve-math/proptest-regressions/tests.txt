@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 769f26a2c2bf5dafef5a4342b97fbf5b71ff1ba66425e97cd218961a178d46ca # shrinks to total = 1000000, target = 100000000, fee_bps = 0, ops = [Buy { actor: 2, lamports: 66 }, Sell { actor: 2, bps: 5000 }]

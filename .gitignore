@@ -50,3 +50,4 @@ website/public/charting_library/
 .env.*
 !.env.example
 program/*/tests/Cargo.lock
+program/*/curve-math/proptest-regressions/

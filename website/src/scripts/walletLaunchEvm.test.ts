@@ -20,7 +20,7 @@ describe('the chain table', () => {
     expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => [c.name, c.chainId])).toEqual([['Base', 8453], ['BNB Chain', 56], ['Ethereum', 1], ['Polygon', 137]]);
     expect(LAUNCH_EVM_CHAINS.filter((c) => c.testnet)).toHaveLength(4);
     // Only networks whose factory has been deployed and its address written into the table are on.
-    expect(LAUNCH_EVM_CHAINS.filter(chainEnabled).map((c) => c.key)).toEqual(['bnb']);
+    expect(LAUNCH_EVM_CHAINS.filter(chainEnabled).map((c) => c.key)).toEqual(['bnb', 'ethereum']);
   });
   it('is enabled only with both lower-case addresses and a positive fee', () => {
     expect(chainEnabled(chain)).toBe(true);
@@ -41,7 +41,7 @@ describe('validateEvmLaunch', () => {
     }
   });
   it('refuses a chain with no factory yet', () => {
-    const v = validateEvmLaunch(form({ chain: 'ethereum' }), CREATOR);
+    const v = validateEvmLaunch(form({ chain: 'polygon' }), CREATOR);
     expect(v.ok).toBe(false);
     if (!v.ok) expect(v.issues.find((i) => i.field === 'chain')?.message).toMatch(/not available yet/);
   });

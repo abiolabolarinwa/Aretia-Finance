@@ -19,7 +19,7 @@ The curve maths (`v_sol × v_tok = k`, the 6 : 17 virtual reserve, the split tha
 | Where the money sits | A system account per curve | One contract holds all curves. A running total of what it owes (`totalOwed`) is checked after every trade, so one curve can never spend another's coin. |
 | Graduation | Meteora DAMM v2, position permanently locked | The network's Uniswap V2-style exchange (Uniswap V2 on Ethereum), liquidity tokens sent to the dead address. |
 | Verifying the pool | Both sides at least 99.9% consumed | The same, plus the pool's price must be within 1% of the curve's last price, read back from the pair. |
-| Creating | One transaction | **Two:** an approval for exactly the tokens, then `createCurve`. Selling also needs an approval first. |
+| Creating | One transaction | **Two:** an approval for exactly the tokens, then `createCurve`. Selling also needs an approval first. The creator's own first buy can ride in the same `createCurve` call (any coin sent with it), so nobody can buy before the creator; if that buy would give less than the creator asked, the whole creation reverts. |
 | Minimum raise | 0.1 SOL | 0.01 of the chain's coin (a constant). |
 
 ## 3. Decisions for the owner
@@ -33,7 +33,7 @@ The curve maths (`v_sol × v_tok = k`, the 6 : 17 virtual reserve, the split tha
 
 ## 4. How it works
 
-`createCurve(token, factoryNonce, total, target)`: proves the token is the factory's, pulls `total` tokens in (approval first), stores the curve. `buy(token, minTokensOut)` payable: pays `msg.value`, fee to the recipient, any part of the payment not needed (a cut-down final buy) back to the buyer. `sell(token, tokensIn, minCoinOut)`: pulls tokens in (approval first), pays the seller, fee to the recipient. `graduate(token)`: anyone, once sold out. `abortMigration(token)`: anyone, 7 days after selling out. `quoteBuy` is a read-only helper. The contract only accepts coin from the exchange (the refund of unused coin at graduation) or with a `buy`.
+`createCurve(token, factoryNonce, total, target, minFirstBuyOut)` payable: proves the token is the factory's, pulls `total` tokens in (approval first), stores the curve, and makes the creator's first buy with any coin sent. `buy(token, minTokensOut)` payable: pays `msg.value`, fee to the recipient, any part of the payment not needed (a cut-down final buy) back to the buyer. `sell(token, tokensIn, minCoinOut)`: pulls tokens in (approval first), pays the seller, fee to the recipient. `graduate(token)`: anyone, once sold out. `abortMigration(token)`: anyone, 7 days after selling out. `quoteBuy` is a read-only helper. The contract only accepts coin from the exchange (the refund of unused coin at graduation) or with a `buy`.
 
 ## 5. Attack list
 
@@ -56,7 +56,7 @@ The curve maths (`v_sol × v_tok = k`, the 6 : 17 virtual reserve, the split tha
 
 | What | Result |
 |---|---|
-| In-process EVM with the real compiled contract and the real token factory code, and a stand-in exchange | 12 tests: the maths against the model, the factory-only rule at every nonce size, fees to the wei, every refusal, an oversized buy, a 60-step random run, reentrancy (with a mutation check), graduation, a pool at another price and the 7-day unwind, immutability (no owner, setter, upgrade or withdraw in the ABI). |
+| In-process EVM with the real compiled contract and the real token factory code, and a stand-in exchange | 17 tests, 4 of them driving the page's own flow code against the contract (open a curve with a first buy, buy, sell, sell out, graduate, unwind, and a tampered transaction refused). The 13 contract tests: the maths against the model, the factory-only rule at every nonce size, fees to the wei, every refusal, an oversized buy, a 60-step random run, reentrancy (with a mutation check), graduation, a pool at another price and the 7-day unwind, immutability (no owner, setter, upgrade or withdraw in the ABI). |
 | A local copy of Ethereum mainnet (read-only RPC), Aretia's **real deployed factory**, the **real Uniswap V2** router, factory and pair code | A curve opened with a token made by the real factory, bought out, and graduated: pair created, tokens and coin in at the right ratio, liquidity tokens held by the dead address, nothing owed. A pool created first at another price makes graduation revert with the exchange's own message. |
 
 Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @ethereumjs/block @ethereumjs/statemanager` in `website`, then `npx vitest run src/scripts/walletCurveEvmContract.test.ts` and `npm run test:curve-fork`. They are skipped or separate in CI, as the factory's test is, because the EVM library is not a website dependency.
@@ -66,10 +66,19 @@ Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @e
 - **No audit, no deployment, not even on a testnet.** The first real-network step is a testnet deployment (Sepolia), which needs test ETH and the owner's go-ahead for the deployer key.
 - The fork test does not check what happens after a revert (the lazy state manager does not roll back storage); that is covered by the in-process tests.
 - The solc build is not yet reproduced by a second person. The compiler input is committed so anyone can.
-- No web flow yet (see the next step in the project plan). BNB Chain (PancakeSwap V2) and Polygon (QuickSwap) need only different constructor arguments but each needs its own fork test.
+- The web flow exists (section 8) but has only been run against the contract in a local EVM, never in a browser with a real wallet. BNB Chain (PancakeSwap V2) and Polygon (QuickSwap) need only different constructor arguments but each needs its own fork test.
 - Fee-on-transfer or rebasing tokens are not supported and cannot occur: only factory tokens are accepted.
 
-## 8. Before mainnet
+## 8. The web flow
+
+`website/src/scripts/walletCurveEvm{Core,Tx,Flow}.ts` and the card `walletCurveEvm.ts`, drawn under the pool card on the Launch page's Ethereum-style networks, in the same style as the Solana curve and the EVM pool.
+
+- **Core:** the maths in BigInt (no 64-bit limit), forms, the proof that a token came from the factory (the page searches the factory's CREATE nonces, newest first, with the same RLP rule the contract uses), reading a curve from the contract's answer, a live preview, presets (1, 5, 20 of the coin), and plain-language notes.
+- **Transactions and the inspector:** approve (exactly the tokens, to the curve, never unlimited), create (which carries the creator's first buy), buy, sell, graduate, unwind. The inspector decodes each from its bytes and refuses a changed digit anywhere in the data, another contract, another sender, another amount of coin, an extra field, a gas limit that is not a number, or the wrong network.
+- **Flow:** prepares, inspects, simulates, switches the wallet to the right network, sends, waits for the receipt, then reads the curve back and compares. If the second transaction of a pair cannot go ahead it says the approval stays for exactly the tokens and nothing else happened.
+- **Off twice:** the card exists only on a build with `PUBLIC_CURVE_ENABLED=1`, and `EVM_CURVE_ADDRESSES` is `null` for every network, which makes the card show "not live" and nothing else. A test pins both, and pins every shared constant and every function selector to the contract's source and compiled ABI.
+
+## 9. Before mainnet
 
 1. Independent audit of `AretiaCurve.sol`.
 2. A Sepolia deployment, exercised with the real wallet flow.

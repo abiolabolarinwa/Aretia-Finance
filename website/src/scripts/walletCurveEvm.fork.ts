@@ -111,7 +111,7 @@ describe('the compiled curve against real Ethereum mainnet contracts (a local co
     const open = async (creator: string, target: bigint) => {
       const t = await makeToken(creator);
       await approve(creator, t.token, curve, SUPPLY);
-      await send(creator, curve, call('createCurve(address,uint256,uint256,uint256)', t.token, t.nonce, SUPPLY, target));
+      await send(creator, curve, call('createCurve(address,uint256,uint256,uint256,uint256)', t.token, t.nonce, SUPPLY, target, 0n));
       return t;
     };
     const getPair = async (token: string) => '0x' + (await view(dex.factory, call('getPair(address,address)', token, dex.wrapped))).slice(-40);

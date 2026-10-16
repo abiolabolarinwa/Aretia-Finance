@@ -136,8 +136,11 @@ contract AretiaCurve {
      * Opens the curve for `token`. `total` tokens move from the caller (who must have approved this contract for at least that much)
      * into the contract and are split between the curve and the pool. `factoryNonce` is the factory's contract nonce when it made
      * the token (the first token it ever made used 1): it proves the factory deployed it.
+     *
+     * Any coin sent with this call is the creator's own first buy, made inside the same transaction so nobody can buy before the
+     * creator. `minFirstBuyOut` is the least that buy must give; it is ignored when no coin is sent.
      */
-    function createCurve(address token, uint256 factoryNonce, uint256 total, uint256 target) external nonReentrant {
+    function createCurve(address token, uint256 factoryNonce, uint256 total, uint256 target, uint256 minFirstBuyOut) external payable nonReentrant {
         require(curves[token].status == Status.None, "exists");
         require(token == _createAddress(factory, factoryNonce), "not from the factory");
         require(total > 0 && total <= MAX_TOTAL, "total");
@@ -170,6 +173,7 @@ contract AretiaCurve {
         require(IAretiaToken(token).transferFrom(msg.sender, address(this), total), "transfer");
         require(IAretiaToken(token).balanceOf(address(this)) == before + total, "balance");
         emit Created(token, msg.sender, c, lp, target, vSol0, vTok0);
+        if (msg.value > 0) _buy(token, minFirstBuyOut, msg.value);
     }
 
     // ------------------------------------------------------------ buy
@@ -179,9 +183,14 @@ contract AretiaCurve {
      * and the rest is sent straight back. Reverts unless at least `minTokensOut` result.
      */
     function buy(address token, uint256 minTokensOut) external payable nonReentrant {
+        _buy(token, minTokensOut, msg.value);
+    }
+
+    /** The buy, for `paid` of the coin sent with the call. Any part not needed is sent back to the caller. */
+    function _buy(address token, uint256 minTokensOut, uint256 paid) private {
         Curve storage c = curves[token];
         require(c.status == Status.Trading, "not trading");
-        (uint256 gross, uint256 fee, uint256 net, uint256 out) = _quoteBuy(c, msg.value);
+        (uint256 gross, uint256 fee, uint256 net, uint256 out) = _quoteBuy(c, paid);
         require(out >= minTokensOut, "slippage");
 
         c.vSol += net;
@@ -197,7 +206,7 @@ contract AretiaCurve {
 
         require(IAretiaToken(token).transfer(msg.sender, out), "transfer");
         if (fee > 0) _send(feeRecipient, fee);
-        uint256 refund = msg.value - gross;
+        uint256 refund = paid - gross;
         if (refund > 0) _send(msg.sender, refund);
         require(address(this).balance >= totalOwed, "insolvent");
     }

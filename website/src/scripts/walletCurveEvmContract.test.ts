@@ -13,6 +13,8 @@ import factoryArtifact from '../../../contracts-evm/AretiaTokenFactory.artifact.
 import mockArtifact from '../../../contracts-evm/test-mocks/MockExchange.artifact.json';
 import { quoteBuy, quoteSell, deriveCurve, type CurveMath } from './walletCurveCore';
 import { encodeCreate } from './walletLaunchEvmTx';
+import { evmCurveChain, evmDerive, type EvmCurveChain, type EvmCurveConfig } from './walletCurveEvmCore';
+import { EvmCurveFlow } from './walletCurveEvmFlow';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let lib: { vm: any; common: any; util: any; block: any } | null = null;
@@ -177,7 +179,7 @@ describe.skipIf(lib === null)('the compiled curve, in an in-process EVM', () => 
     const open = async (supply: bigint, total: bigint, target: bigint, creator = CREATOR) => {
       const t = await makeToken(creator, supply);
       await approve(creator, t.token, curve, total);
-      await send(creator, curve, call('createCurve(address,uint256,uint256,uint256)', t.token, BigInt(t.nonce), total, target));
+      await send(creator, curve, call('createCurve(address,uint256,uint256,uint256,uint256)', t.token, BigInt(t.nonce), total, target, 0n));
       return t;
     };
     return {
@@ -212,15 +214,36 @@ describe.skipIf(lib === null)('the compiled curve, in an in-process EVM', () => 
 
     // A second curve for the same token, a token the factory did not make, a wrong nonce, and numbers out of range.
     await w.approve(CREATOR, t.token, w.curve, SUPPLY);
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', t.token, BigInt(t.nonce), 1n, TARGET))).toBe('exists');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', t.token, BigInt(t.nonce), 1n, TARGET, 0n))).toBe('exists');
     const b = await w.makeToken(CREATOR, SUPPLY);
     await w.approve(CREATOR, b.token, w.curve, SUPPLY);
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, BigInt(b.nonce + 1), SUPPLY, TARGET))).toBe('not from the factory');
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, 0n, SUPPLY, TARGET))).toBe('not from the factory');
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, BigInt(b.nonce), 0n, TARGET))).toBe('total');
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, BigInt(b.nonce), 1n << 97n, TARGET))).toBe('total');
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, BigInt(b.nonce), SUPPLY, ETH / 1000n))).toBe('target');
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', b.token, BigInt(b.nonce), SUPPLY, 10n ** 25n))).toBe('target');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, BigInt(b.nonce + 1), SUPPLY, TARGET, 0n))).toBe('not from the factory');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, 0n, SUPPLY, TARGET, 0n))).toBe('not from the factory');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, BigInt(b.nonce), 0n, TARGET, 0n))).toBe('total');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, BigInt(b.nonce), 1n << 97n, TARGET, 0n))).toBe('total');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, BigInt(b.nonce), SUPPLY, ETH / 1000n, 0n))).toBe('target');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', b.token, BigInt(b.nonce), SUPPLY, 10n ** 25n, 0n))).toBe('target');
+  });
+
+  it('lets the creator make the first buy inside the same transaction, or nothing happens at all', async () => {
+    const w = await world();
+    const t = await w.makeToken(CREATOR, SUPPLY);
+    await w.approve(CREATOR, t.token, w.curve, SUPPLY);
+    const d = mDerive(SUPPLY, TARGET);
+    const q = mBuy({ vSol: d.vSol0, vTok: d.vTok0, realSol: 0n, realTok: d.c }, ETH)!;
+    const create = (min: bigint) => call('createCurve(address,uint256,uint256,uint256,uint256)', t.token, BigInt(t.nonce), SUPPLY, TARGET, min);
+    // A first buy that would give less than asked reverts the whole creation: no curve, and the tokens never left.
+    expect(await w.fails(CREATOR, w.curve, create(q.out + 1n), ETH)).toBe('slippage');
+    expect((await w.read(t.token)).status).toBe(0);
+    expect(await w.tokenBalance(t.token, CREATOR)).toBe(SUPPLY);
+    const before = await w.balance(CREATOR);
+    await w.send(CREATOR, w.curve, create(q.out), ETH);
+    const c = await w.read(t.token);
+    expect([c.vSol, c.vTok, c.realSol, c.realTok]).toEqual([q.next.vSol, q.next.vTok, q.next.realSol, q.next.realTok]);
+    expect(await w.tokenBalance(t.token, CREATOR)).toBe(q.out);
+    expect(before - (await w.balance(CREATOR))).toBe(q.gross);
+    expect(await w.balance(FEE_RECIPIENT)).toBe(q.fee);
+    expect(await w.balance(w.curve)).toBe(c.realSol);
   });
 
   it('refuses a token deployed by someone else, however it is dressed up', async () => {
@@ -230,9 +253,9 @@ describe.skipIf(lib === null)('the compiled curve, in an in-process EVM', () => 
     const own = await w.deploy(factoryArtifact.token.bytecode, args);
     await w.approve(CREATOR, own, w.curve, SUPPLY);
     for (const nonce of [0n, 1n, 2n, 3n, 255n, 256n, 65_536n, 16_777_216n, 4_294_967_295n]) {
-      expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', own, nonce, SUPPLY, TARGET))).toBe('not from the factory');
+      expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', own, nonce, SUPPLY, TARGET, 0n))).toBe('not from the factory');
     }
-    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256)', own, 4_294_967_296n, SUPPLY, TARGET))).toBe('nonce');
+    expect(await w.fails(CREATOR, w.curve, call('createCurve(address,uint256,uint256,uint256,uint256)', own, 4_294_967_296n, SUPPLY, TARGET, 0n))).toBe('nonce');
   });
 
   it('works for every factory nonce size: the token address the contract derives is the one the factory made', async () => {
@@ -456,5 +479,185 @@ describe.skipIf(lib === null)('the compiled curve, in an in-process EVM', () => 
     await w.buy(BUYER, t.token, ETH, q.out);
     const c = await w.read(t.token);
     expect([c.vSol, c.realSol]).toEqual([q.next.vSol, q.next.realSol]);
+  });
+
+  // ---------------------------------------------------------------- the web flow, driving the real compiled contract
+
+  /** The page's flow, wired to the in-process EVM: reads, simulation, and a "wallet" that sends from whichever account is selected. */
+  function flowFor(w: World, getChain: () => EvmCurveChain) {
+    let account = CREATOR;
+    const receipts = new Map<string, { status: string }>();
+    let hashCounter = 0;
+    let clock = 0;
+    const sent: any[] = [];
+    const hex = (n: bigint) => '0x' + n.toString(16);
+    const simulate = async (tx: any, commit: boolean) => w.exec(tx.from ?? CREATOR, tx.to, tx.data, BigInt(tx.value ?? '0x0'), commit);
+    const read = async (method: string, params: unknown[]): Promise<unknown> => {
+      const p = params as any[];
+      if (method === 'eth_chainId') return '0x1';
+      if (method === 'eth_getCode') return w.toHex(await w.vm.stateManager.getCode(w.addr(p[0])));
+      if (method === 'eth_getBalance') return hex((await w.vm.stateManager.getAccount(w.addr(p[0])))?.balance ?? 0n);
+      if (method === 'eth_getTransactionCount') return hex((await w.vm.stateManager.getAccount(w.addr(p[0])))?.nonce ?? 0n);
+      if (method === 'eth_gasPrice') return hex(20_000_000_000n);
+      if (method === 'eth_estimateGas' || method === 'eth_call') {
+        const r = await simulate(p[0], false);
+        if (r.execResult.exceptionError) throw new Error(`execution reverted: ${r.execResult.returnValue.length ? Buffer.from(w.toHex(r.execResult.returnValue).slice(2 + 8 + 128), 'hex').toString().replace(/\0/g, '').trim() : ''}`);
+        return method === 'eth_call' ? w.toHex(r.execResult.returnValue) : hex(r.execResult.executionGasUsed + 21_000n);
+      }
+      if (method === 'eth_getTransactionReceipt') return receipts.get(p[0]) ?? null;
+      throw new Error(`unexpected ${method}`);
+    };
+    const adapter = {
+      getAccounts: async () => [account],
+      getChainId: async () => 1,
+      switchChain: async () => undefined,
+      sendTransaction: async (tx: any) => {
+        sent.push(tx);
+        const r = await simulate(tx, true);
+        const hash = '0x' + (++hashCounter).toString(16).padStart(64, '0');
+        receipts.set(hash, { status: r.execResult.exceptionError ? '0x0' : '0x1' });
+        return hash;
+      },
+    };
+    const flow = new EvmCurveFlow({ adapter, read, now: () => (clock += 60_000), nowSeconds: () => w.now(), sleep: async () => undefined } as any);
+    void getChain;
+    return { flow, sent, as: (a: string) => void (account = a) };
+  }
+
+  async function chainFor(w: World): Promise<EvmCurveChain> {
+    const base = evmCurveChain('ethereum', { ethereum: w.curve })!;
+    return { ...base, factory: w.factory };
+  }
+  const configFor = (chain: EvmCurveChain, token: string, nonce: number, total: bigint, target: bigint, firstBuy = 0n): EvmCurveConfig => ({
+    chain,
+    creator: CREATOR,
+    token,
+    tokenSymbol: 'TST',
+    tokenDecimals: 18,
+    tokenSupply: SUPPLY,
+    factoryNonce: BigInt(nonce),
+    totalRaw: total,
+    targetWei: target,
+    firstBuyWei: firstBuy,
+    derived: evmDerive(total, target)!,
+  });
+
+  it('the web flow opens a curve, with the creator’s own first buy, against the real contract', async () => {
+    const w = await world();
+    const chain = await chainFor(w);
+    const t = await w.makeToken(CREATOR, SUPPLY);
+    const f = flowFor(w, () => chain);
+    // The factory proof: the flow finds the nonce from the factory's own account nonce.
+    const info = await f.flow.loadToken(chain, CREATOR, t.token);
+    expect(info).toMatchObject({ symbol: 'TST', decimals: 18, supply: SUPPLY, held: SUPPLY, factoryNonce: BigInt(t.nonce) });
+    const other = await w.makeToken(CREATOR, SUPPLY);
+    expect((await f.flow.loadToken(chain, CREATOR, other.token))!.factoryNonce).toBe(BigInt(other.nonce));
+    expect((await f.flow.loadToken(chain, CREATOR, w.curve))?.factoryNonce ?? null).toBeNull();
+
+    const config = configFor(chain, t.token, t.nonce, SUPPLY, TARGET, ETH);
+    const review = await f.flow.prepareCreate(config);
+    expect(review.blockers).toEqual([]);
+    const steps: string[] = [];
+    const out = await f.flow.create(review, (p) => steps.push(p));
+    expect(out.differences).toEqual([]);
+    expect(out.hashes).toHaveLength(2);
+    expect(steps[0]).toBe('checking');
+    expect(steps.at(-1)).toBe('done');
+    expect(f.sent).toHaveLength(2);
+    const c = await w.read(t.token);
+    const d = mDerive(SUPPLY, TARGET);
+    const q = mBuy({ vSol: d.vSol0, vTok: d.vTok0, realSol: 0n, realTok: d.c }, ETH)!;
+    expect([c.vSol, c.vTok, c.realSol, c.realTok]).toEqual([q.next.vSol, q.next.vTok, q.next.realSol, q.next.realTok]);
+    expect(await w.tokenBalance(t.token, CREATOR)).toBe(q.out);
+    // The same curve cannot be opened twice.
+    expect((await f.flow.prepareCreate(config)).blockers.join(' ')).toMatch(/already exists/);
+  });
+
+  it('the web flow buys, sells, sells the curve out, and graduates, against the real contract', async () => {
+    const w = await world();
+    const chain = await chainFor(w);
+    const t = await w.open(SUPPLY, SUPPLY, TARGET);
+    const f = flowFor(w, () => chain);
+    await w.fund(BUYER);
+    f.as(BUYER);
+    let curve = (await f.flow.loadCurve(chain, t.token))!;
+    expect(curve.status).toBe('trading');
+
+    const buyReview = await f.flow.prepareBuy(chain, BUYER, curve, t.token, ETH);
+    expect(buyReview.blockers).toEqual([]);
+    expect(buyReview.quote!.fee).toBe((ETH * 58n + 9_999n) / 10_000n);
+    const bought = await f.flow.buy(buyReview);
+    expect(bought.differences).toEqual([]);
+    expect(bought.tokensAfter).toBe(buyReview.quote!.tokensOut);
+
+    curve = (await f.flow.loadCurve(chain, t.token))!;
+    const sellReview = await f.flow.prepareSell(chain, BUYER, curve, t.token, buyReview.quote!.tokensOut / 2n);
+    expect(sellReview.blockers).toEqual([]);
+    const sold = await f.flow.sell(sellReview);
+    expect(sold.differences).toEqual([]);
+    expect(sold.hashes).toHaveLength(2);
+    expect(sold.tokensAfter).toBe(buyReview.quote!.tokensOut - buyReview.quote!.tokensOut / 2n);
+
+    curve = (await f.flow.loadCurve(chain, t.token))!;
+    const rest = await f.flow.prepareBuy(chain, BUYER, curve, t.token, 100n * ETH);
+    expect(rest.blockers).toEqual([]);
+    expect(rest.quote!.soldOut).toBe(true);
+    await f.flow.buy(rest);
+    curve = (await f.flow.loadCurve(chain, t.token))!;
+    expect(curve.status).toBe('soldOut');
+
+    // Closed for trading; too early to unwind; graduation goes through.
+    expect((await f.flow.prepareBuy(chain, BUYER, curve, t.token, ETH)).blockers.join(' ')).toMatch(/not open for buying/);
+    expect((await f.flow.prepareAbort(chain, BUYER, curve, t.token)).blockers.join(' ')).toMatch(/seven days/);
+    const grad = await f.flow.prepareGraduate(chain, BUYER, curve, t.token);
+    expect(grad.blockers).toEqual([]);
+    const out = await f.flow.graduate(grad);
+    expect(out.differences).toEqual([]);
+    expect((await f.flow.loadCurve(chain, t.token))!.status).toBe('migrated');
+  });
+
+  it('the web flow unwinds a curve whose pool someone made first, and lets holders sell back', async () => {
+    const w = await world();
+    const chain = await chainFor(w);
+    const t = await soldOut(w);
+    const f = flowFor(w, () => chain);
+    f.as(BUYER);
+    let curve = (await f.flow.loadCurve(chain, t.token))!;
+    const c = await w.read(t.token);
+    await w.send(CREATOR, w.exchange, '0x' + w.mockSel('MockExchange', 'seedPool(address,uint112,uint112)') + word(t.token) + word(c.lpTokens * 2n) + word(c.realSol));
+    // The page refuses before sending: the network would refuse, and it says why.
+    const grad = await f.flow.prepareGraduate(chain, BUYER, curve, t.token);
+    expect(grad.blockers.join(' ')).toMatch(/already exists at another price/);
+    w.advance(7 * 24 * 3600 + 10);
+    curve = (await f.flow.loadCurve(chain, t.token))!;
+    const abort = await f.flow.prepareAbort(chain, BUYER, curve, t.token);
+    expect(abort.blockers).toEqual([]);
+    expect((await f.flow.abort(abort)).differences).toEqual([]);
+    curve = (await f.flow.loadCurve(chain, t.token))!;
+    expect(curve.status).toBe('aborted');
+    const held = await w.tokenBalance(t.token, BUYER);
+    const sell = await f.flow.prepareSell(chain, BUYER, curve, t.token, held);
+    expect(sell.blockers).toEqual([]);
+    expect((await f.flow.sell(sell)).differences).toEqual([]);
+  });
+
+  it('the web flow will not sign a transaction that is not the one reviewed', async () => {
+    const w = await world();
+    const chain = await chainFor(w);
+    const t = await w.open(SUPPLY, SUPPLY, TARGET);
+    await w.fund(BUYER);
+    const f = flowFor(w, () => chain);
+    f.as(BUYER);
+    const curve = (await f.flow.loadCurve(chain, t.token))!;
+    const review = await f.flow.prepareBuy(chain, BUYER, curve, t.token, ETH);
+    // Someone swaps the amount of coin in the built transaction for a bigger one, or the curve for another contract.
+    await expect(f.flow.buy({ ...review, tx: { ...review.tx, value: '0x' + (10n * ETH).toString(16) } })).rejects.toThrow(/Not signing/);
+    await expect(f.flow.buy({ ...review, tx: { ...review.tx, to: BUYER } })).rejects.toThrow(/Not signing/);
+    expect(f.sent).toHaveLength(0);
+    // A review with blockers is never sent, and a changed wallet account stops it.
+    await expect(f.flow.buy({ ...review, blockers: ['x'] })).rejects.toMatchObject({ nothingSent: true });
+    f.as(OTHER);
+    await expect(f.flow.buy(review)).rejects.toThrow(/account selected in your wallet changed/);
+    expect(f.sent).toHaveLength(0);
   });
 });

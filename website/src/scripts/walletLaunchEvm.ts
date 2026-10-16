@@ -20,6 +20,7 @@ import {
   type LaunchEvmChain,
 } from './walletLaunchEvmCore';
 import { createEvmPool } from './walletPoolEvm';
+import { createEvmCurve } from './walletCurveEvm';
 import { EvmLaunchFlow, friendlyEvmError, type EvmOutcome, type EvmProgress, type EvmReview } from './walletLaunchEvmFlow';
 
 export interface LaunchEvmHost {
@@ -99,6 +100,8 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   let adapter: EvmWalletAdapter | null = null;
   let redrawNow: () => void = () => undefined;
   const pool = createEvmPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) });
+  // Aretia's own bonding curve: off unless the site is built with PUBLIC_CURVE_ENABLED=1, and even then it does nothing on a network without a deployed contract.
+  const curve = import.meta.env.PUBLIC_CURVE_ENABLED === '1' ? createEvmCurve({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
 
   const set = (f: Partial<EvmLaunchForm>): void => {
     form = { ...form, ...f };
@@ -399,10 +402,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       else drawDone(card);
       // Opening a pool for a token is offered below, on the networks where it is available.
       pool.draw(card, redraw, form.chain, outcome?.token ?? null);
+      curve?.draw(card, redraw, form.chain, outcome?.token ?? null);
     },
-    isBusy: () => busy || pool.isBusy(),
+    isBusy: () => busy || pool.isBusy() || (curve?.isBusy() ?? false),
     reset(): void {
       pool.reset();
+      curve?.reset();
       stage = 'form';
       review = null;
       outcome = null;

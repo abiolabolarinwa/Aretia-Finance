@@ -1,0 +1,539 @@
+/**
+ * Aretia Launch on Ethereum-style chains: the steps of selling a token on the Aretia curve, with every outside dependency passed in so each
+ * path can be tested without a network or a wallet. walletCurveEvm.ts connects it to the page.
+ *
+ *   loadToken / loadCurve    read the token (and prove the factory made it) or a curve from the chain, without asking the wallet anything
+ *   prepare*                 work out the numbers, build the transactions, refuse anything that is wrong, and price the gas
+ *   create / buy / sell /    check each transaction against what was approved (independent inspector), simulate it, make sure the wallet is
+ *   graduate / abort         on the right network and account, have the wallet send it, wait for the receipt, then read the result back
+ * An approval and the action it enables are two transactions. If the second cannot go ahead the approval stays in place for exactly the tokens
+ * approved and nothing else has happened; the error says so.
+ */
+import { SwingsError } from '../swings/core/types.js';
+import { decodeAbiString } from '../swings/chains/evmSession.js';
+import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
+import type { EvmFlowDeps } from './walletLaunchEvmFlow';
+import {
+  EVM_SLIPPAGE_BPS_DEFAULT,
+  createAddress,
+  evmCanAbort,
+  evmCanGraduate,
+  evmCurveProblems,
+  evmMinOut,
+  evmQuoteBuy,
+  evmQuoteSell,
+  evmStart,
+  findFactoryNonce,
+  parseCurveReturn,
+  type EvmBuyQuote,
+  type EvmCurveChain,
+  type EvmCurveConfig,
+  type EvmCurveState,
+  type EvmCurveToken,
+  type EvmSellQuote,
+} from './walletCurveEvmCore';
+import {
+  CURVE_SEL,
+  buildAbortTx,
+  buildApproveTx,
+  buildBuyTx,
+  buildCreateTx,
+  buildGraduateTx,
+  buildSellTx,
+  curveReadData,
+  inspectAbort,
+  inspectApprove,
+  inspectBuy,
+  inspectCreate,
+  inspectGraduate,
+  inspectSell,
+} from './walletCurveEvmTx';
+
+export interface EvmCurveFlowDeps extends EvmFlowDeps {
+  /** Unix seconds. */
+  nowSeconds(): number;
+}
+
+export class EvmCurveError extends Error {
+  constructor(
+    message: string,
+    readonly nothingSent = false,
+  ) {
+    super(message);
+  }
+}
+
+interface ReviewBase {
+  chain: EvmCurveChain;
+  account: string;
+  /** A rough ceiling for the gas of every transaction in this action, in wei. Null if it could not be estimated. */
+  gasCostWei: bigint | null;
+  coinBalance: bigint;
+  blockers: string[];
+}
+export interface EvmCreateReview extends ReviewBase {
+  kind: 'create';
+  config: EvmCurveConfig;
+  approveTx: EvmTxRequest;
+  createTx: EvmTxRequest;
+  firstBuy: EvmBuyQuote | null;
+  minFirstBuyOut: bigint;
+  tokenBalance: bigint;
+}
+export interface EvmBuyReview extends ReviewBase {
+  kind: 'buy';
+  token: string;
+  curve: EvmCurveState;
+  quote: EvmBuyQuote | null;
+  wei: bigint;
+  minOut: bigint;
+  tx: EvmTxRequest;
+  tokensBefore: bigint;
+}
+export interface EvmSellReview extends ReviewBase {
+  kind: 'sell';
+  token: string;
+  curve: EvmCurveState;
+  quote: EvmSellQuote | null;
+  tokens: bigint;
+  minOut: bigint;
+  approveTx: EvmTxRequest;
+  tx: EvmTxRequest;
+  tokensBefore: bigint;
+}
+export interface EvmGraduateReview extends ReviewBase {
+  kind: 'graduate';
+  token: string;
+  curve: EvmCurveState;
+  tx: EvmTxRequest;
+}
+export interface EvmAbortReview extends ReviewBase {
+  kind: 'abort';
+  token: string;
+  curve: EvmCurveState;
+  tx: EvmTxRequest;
+}
+export type EvmCurveReview = EvmCreateReview | EvmBuyReview | EvmSellReview | EvmGraduateReview | EvmAbortReview;
+
+export type EvmCurveProgress = 'checking' | 'approving' | 'confirming-approve' | 'sending' | 'confirming' | 'verifying' | 'done';
+
+export interface EvmCurveOutcome {
+  hashes: string[];
+  token: string;
+  /** Differences between what was approved and what the network shows. Empty means it matches. */
+  differences: string[];
+  tokensAfter?: bigint;
+}
+
+const SEL = { name: '0x06fdde03', symbol: '0x95d89b41', decimals: '0x313ce567', totalSupply: '0x18160ddd', balanceOf: '0x70a08231' } as const;
+const asBig = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v) ? BigInt(v) : null);
+const wordOf = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a-fA-F]{64}$/.test(v) ? BigInt(v) : null);
+const pad = (a: string): string => a.slice(2).toLowerCase().padStart(64, '0');
+const GAS_MARGIN_NUM = 12n;
+const GAS_MARGIN_DEN = 10n;
+/** What a curve creation (and its first buy) costs in gas is under this; used for the balance check and the shown ceiling, as the approval comes first and the creation cannot be estimated until then. */
+const CREATE_GAS_CEILING = 450_000n;
+/** Graduating into the exchange creates a pool, which is expensive: measured at about 2.8 million gas, so this leaves room. */
+const GRADUATE_GAS_CEILING = 3_500_000n;
+
+export class EvmCurveFlow {
+  constructor(private readonly d: EvmCurveFlowDeps) {}
+
+  private sleep = (ms: number) => (this.d.sleep ?? ((n: number) => new Promise<void>((r) => setTimeout(r, n))))(ms);
+  private call = (to: string, data: string): Promise<unknown> => this.d.read('eth_call', [{ to, data }, 'latest']);
+
+  // ---------------------------------------------------------------- reading
+
+  /** The token, the holder's balance, and the proof the factory made it. Null if it cannot be read as a token. */
+  async loadToken(chain: EvmCurveChain, owner: string, token: string): Promise<EvmCurveToken | null> {
+    const code = await this.d.read('eth_getCode', [token, 'latest']);
+    if (typeof code !== 'string' || code === '0x') return null;
+    let reads: unknown[];
+    try {
+      reads = await Promise.all([
+        this.call(token, SEL.name),
+        this.call(token, SEL.symbol),
+        this.call(token, SEL.decimals),
+        this.call(token, SEL.totalSupply),
+        this.call(token, SEL.balanceOf + pad(owner)),
+        this.d.read('eth_getTransactionCount', [chain.factory, 'latest']),
+      ]);
+    } catch {
+      // Something that is not a token reverts on its name: it is not a token this page can describe.
+      return null;
+    }
+    const [name, symbol, decimals, supply, held, count] = reads;
+    const dec = wordOf(decimals);
+    const sup = wordOf(supply);
+    const bal = wordOf(held);
+    const next = asBig(count);
+    const n = decodeAbiString(name);
+    const s = decodeAbiString(symbol);
+    if (dec === null || dec > 36n || sup === null || bal === null || next === null || n === null || s === null) return null;
+    return { address: token.toLowerCase(), name: n, symbol: s, decimals: Number(dec), supply: sup, held: bal, factoryNonce: findFactoryNonce(chain.factory, token, next) };
+  }
+
+  /** The curve for a token, or null if there is none or its answer is malformed. */
+  async loadCurve(chain: EvmCurveChain, token: string): Promise<EvmCurveState | null> {
+    const c = parseCurveReturn(await this.call(chain.curve, curveReadData(token)));
+    return c && c.status !== 'none' ? c : null;
+  }
+
+  private async tokenBalance(token: string, who: string): Promise<bigint> {
+    return wordOf(await this.call(token, SEL.balanceOf + pad(who))) ?? 0n;
+  }
+
+  private async gasPrice(): Promise<bigint | null> {
+    return asBig(await this.d.read('eth_gasPrice', []));
+  }
+
+  private async checkChain(chain: EvmCurveChain, blockers: string[]): Promise<boolean> {
+    if (asBig(await this.d.read('eth_chainId', [])) !== BigInt(chain.chainId)) {
+      blockers.push('The network node did not answer as the right network. Try again in a moment.');
+      return false;
+    }
+    const code = await this.d.read('eth_getCode', [chain.curve, 'latest']);
+    if (typeof code !== 'string' || code === '0x') {
+      blockers.push('The Aretia curve contract is not on this network at the address this page expects, so nothing was sent.');
+      return false;
+    }
+    return true;
+  }
+
+  private async estimate(tx: EvmTxRequest): Promise<bigint | null> {
+    try {
+      const g = asBig(await this.d.read('eth_estimateGas', [tx]));
+      return g === null ? null : (g * GAS_MARGIN_NUM) / GAS_MARGIN_DEN;
+    } catch {
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------- create
+
+  async prepareCreate(config: EvmCurveConfig): Promise<EvmCreateReview> {
+    const { chain } = config;
+    const blockers: string[] = [];
+    let gasCostWei: bigint | null = null;
+    let coinBalance = 0n;
+    let tokenBalance = 0n;
+    let firstBuy: EvmBuyQuote | null = null;
+    let minFirstBuyOut = 0n;
+    if (createAddress(chain.factory, config.factoryNonce) !== config.token) blockers.push('This token was not made by Aretia’s token factory, so it cannot be sold on a curve.');
+    if (config.firstBuyWei > 0n) {
+      firstBuy = evmQuoteBuy(evmStart(config.derived), config.firstBuyWei);
+      if (!firstBuy) blockers.push('Your first buy is too small to get any tokens.');
+      else minFirstBuyOut = firstBuy.tokensOut;
+    }
+    const approveTx = buildApproveTx(config.creator, config.token, chain.curve, config.totalRaw);
+    const createTx = buildCreateTx(config, minFirstBuyOut);
+    try {
+      if (await this.checkChain(chain, blockers)) {
+        if (await this.loadCurve(chain, config.token)) blockers.push('A curve for this token already exists, and only one can be opened.');
+        tokenBalance = await this.tokenBalance(config.token, config.creator);
+        coinBalance = asBig(await this.d.read('eth_getBalance', [config.creator, 'latest'])) ?? 0n;
+        if (tokenBalance < config.totalRaw) blockers.push(`You hold fewer ${config.tokenSymbol} than the amount you want to put in the curve.`);
+        const approveGas = await this.estimate(approveTx);
+        const price = await this.gasPrice();
+        if (approveGas === null || price === null) blockers.push('The network would not accept the approval, so nothing was sent.');
+        else {
+          gasCostWei = (approveGas + CREATE_GAS_CEILING) * price;
+          if (coinBalance < config.firstBuyWei + gasCostWei) blockers.push(`You need more ${chain.symbol}: your first buy (if any) plus the network gas for both transactions.`);
+        }
+      }
+    } catch {
+      blockers.push('The network could not be reached to check this curve. Try again in a moment.');
+    }
+    return { kind: 'create', chain, account: config.creator, config, approveTx, createTx, firstBuy, minFirstBuyOut, tokenBalance, gasCostWei, coinBalance, blockers };
+  }
+
+  async create(review: EvmCreateReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { config, chain } = review;
+    const hashes: string[] = [];
+    await this.begin(review, progress);
+    const approveHash = await this.runTx(review.approveTx, (tx, id) => inspectApprove(tx, { chain, from: config.creator, token: config.token, amount: config.totalRaw }, id), 'approval', progress, 'approving', 'confirming-approve');
+    hashes.push(approveHash);
+    const allowance = wordOf(await this.call(config.token, CURVE_SEL.allowance + pad(config.creator) + pad(chain.curve)));
+    if (allowance !== config.totalRaw) throw new EvmCurveError(`The approval confirmed but the allowance is not exactly what you approved, so the curve was not opened. Your tokens did not move. (${approveHash})`);
+    const stuck = 'The approval is in place for exactly the tokens you chose and nothing else happened. You can start again to open the curve.';
+    let createHash: string;
+    try {
+      createHash = await this.runTx(review.createTx, (tx, id) => inspectCreate(tx, { config, minFirstBuyOut: review.minFirstBuyOut }, id), 'curve creation', progress, 'sending', 'confirming');
+    } catch (e) {
+      throw new EvmCurveError(`${e instanceof Error ? e.message : String(e)} ${stuck}`, false);
+    }
+    hashes.push(createHash);
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, config.token));
+    const differences: string[] = [];
+    if (!state) differences.push('The new curve could not be read back from the network.');
+    else {
+      const d = config.derived;
+      if (state.creator !== config.creator) differences.push('The curve names a different creator.');
+      if (state.target !== config.targetWei) differences.push('The curve’s raise target is not the one approved.');
+      if (state.curveTokens !== d.curveTokens || state.lpTokens !== d.lpTokens) differences.push('The curve’s split between the curve and the pool is not the one approved.');
+      if (state.vSol0 !== d.vSol0) differences.push('The curve’s starting reserves are not the ones approved.');
+      differences.push(...evmCurveProblems(state));
+      const held = await this.tokenBalance(config.token, chain.curve);
+      if (held < config.totalRaw - (review.firstBuy?.tokensOut ?? 0n)) differences.push('The curve contract does not hold the tokens approved.');
+    }
+    progress('done');
+    return { hashes, token: config.token, differences };
+  }
+
+  // ---------------------------------------------------------------- buy and sell
+
+  async prepareBuy(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string, wei: bigint, slippageBps: number = EVM_SLIPPAGE_BPS_DEFAULT): Promise<EvmBuyReview> {
+    const blockers = evmCurveProblems(curve);
+    if (curve.status !== 'trading') blockers.push('This curve is not open for buying.');
+    const quote = evmQuoteBuy(curve, wei);
+    const minOut = quote ? evmMinOut(quote.tokensOut, slippageBps) : 0n;
+    const tx = buildBuyTx(account, chain, token, minOut, wei);
+    let gasCostWei: bigint | null = null;
+    let coinBalance = 0n;
+    let tokensBefore = 0n;
+    if (!quote) blockers.push('That amount is too small to buy any tokens, or the curve has nothing left to sell.');
+    try {
+      if (await this.checkChain(chain, blockers)) {
+        coinBalance = asBig(await this.d.read('eth_getBalance', [account, 'latest'])) ?? 0n;
+        tokensBefore = await this.tokenBalance(token, account);
+        if (quote) {
+          const gas = await this.estimate(tx);
+          const price = await this.gasPrice();
+          if (gas === null || price === null) blockers.push('The network would not accept this purchase, so nothing was sent.');
+          else {
+            gasCostWei = gas * price;
+            if (coinBalance < wei + gasCostWei) blockers.push(`You need more ${chain.symbol}: the amount you are paying plus the network gas.`);
+          }
+        }
+      }
+    } catch {
+      blockers.push('The network could not be reached to check this purchase. Try again in a moment.');
+    }
+    return { kind: 'buy', chain, account, token, curve, quote, wei, minOut, tx, tokensBefore, gasCostWei, coinBalance, blockers };
+  }
+
+  async buy(review: EvmBuyReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { chain, token } = review;
+    await this.begin(review, progress);
+    const hash = await this.runTx(review.tx, (tx, id) => inspectBuy(tx, { chain, from: review.account, token, wei: review.wei, minOut: review.minOut }, id), 'purchase', progress, 'sending', 'confirming');
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, token));
+    const after = await this.tokenBalance(token, review.account);
+    const differences: string[] = [];
+    if (!state) differences.push('The curve could not be read back from the network.');
+    else differences.push(...evmCurveProblems(state));
+    if (after < review.tokensBefore + review.minOut) differences.push('The wallet holds fewer tokens than the least it was willing to accept.');
+    progress('done');
+    return { hashes: [hash], token, differences, tokensAfter: after };
+  }
+
+  async prepareSell(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string, tokens: bigint, slippageBps: number = EVM_SLIPPAGE_BPS_DEFAULT): Promise<EvmSellReview> {
+    const blockers = evmCurveProblems(curve);
+    if (curve.status !== 'trading' && curve.status !== 'aborted') blockers.push('This curve is not open for selling.');
+    const quote = evmQuoteSell(curve, curve.curveTokens, tokens);
+    const minOut = quote ? evmMinOut(quote.net, slippageBps) : 0n;
+    const approveTx = buildApproveTx(account, token, chain.curve, tokens);
+    const tx = buildSellTx(account, chain, token, tokens, minOut);
+    let gasCostWei: bigint | null = null;
+    let coinBalance = 0n;
+    let tokensBefore = 0n;
+    if (!quote) blockers.push('That amount cannot be sold back to the curve.');
+    try {
+      if (await this.checkChain(chain, blockers)) {
+        coinBalance = asBig(await this.d.read('eth_getBalance', [account, 'latest'])) ?? 0n;
+        tokensBefore = await this.tokenBalance(token, account);
+        if (tokens > tokensBefore) blockers.push('More than your wallet holds of this token.');
+        const approveGas = await this.estimate(approveTx);
+        const price = await this.gasPrice();
+        if (approveGas === null || price === null) blockers.push('The network would not accept the approval, so nothing was sent.');
+        else {
+          gasCostWei = (approveGas + 150_000n) * price;
+          if (coinBalance < gasCostWei) blockers.push(`You need more ${chain.symbol} for the network gas of both transactions.`);
+        }
+      }
+    } catch {
+      blockers.push('The network could not be reached to check this sale. Try again in a moment.');
+    }
+    return { kind: 'sell', chain, account, token, curve, quote, tokens, minOut, approveTx, tx, tokensBefore, gasCostWei, coinBalance, blockers };
+  }
+
+  async sell(review: EvmSellReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { chain, token } = review;
+    const hashes: string[] = [];
+    await this.begin(review, progress);
+    const approveHash = await this.runTx(review.approveTx, (tx, id) => inspectApprove(tx, { chain, from: review.account, token, amount: review.tokens }, id), 'approval', progress, 'approving', 'confirming-approve');
+    hashes.push(approveHash);
+    const allowance = wordOf(await this.call(token, CURVE_SEL.allowance + pad(review.account) + pad(chain.curve)));
+    if (allowance !== review.tokens) throw new EvmCurveError(`The approval confirmed but the allowance is not exactly what you approved, so nothing was sold. Your tokens did not move. (${approveHash})`);
+    let hash: string;
+    try {
+      hash = await this.runTx(review.tx, (tx, id) => inspectSell(tx, { chain, from: review.account, token, tokens: review.tokens, minCoinOut: review.minOut }, id), 'sale', progress, 'sending', 'confirming');
+    } catch (e) {
+      throw new EvmCurveError(`${e instanceof Error ? e.message : String(e)} The approval is in place for exactly the tokens you chose and nothing was sold. You can start again.`, false);
+    }
+    hashes.push(hash);
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, token));
+    const after = await this.tokenBalance(token, review.account);
+    const differences: string[] = [];
+    if (!state) differences.push('The curve could not be read back from the network.');
+    else differences.push(...evmCurveProblems(state));
+    if (after !== review.tokensBefore - review.tokens) differences.push('The wallet does not hold the amount of tokens it should after the sale.');
+    progress('done');
+    return { hashes, token, differences, tokensAfter: after };
+  }
+
+  // ---------------------------------------------------------------- graduation
+
+  async prepareGraduate(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string): Promise<EvmGraduateReview> {
+    const blockers = evmCurveProblems(curve);
+    if (!evmCanGraduate(curve)) blockers.push('This curve has not sold out, or has already moved on.');
+    const tx = buildGraduateTx(account, chain, token);
+    return this.prepareSimple('graduate', chain, account, curve, token, tx, blockers, GRADUATE_GAS_CEILING);
+  }
+
+  async prepareAbort(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string): Promise<EvmAbortReview> {
+    const blockers = evmCurveProblems(curve);
+    if (!evmCanAbort(curve, this.d.nowSeconds())) blockers.push('This curve cannot be unwound yet: it must have sold out and waited seven days without moving into a pool.');
+    const tx = buildAbortTx(account, chain, token);
+    return this.prepareSimple('abort', chain, account, curve, token, tx, blockers, 100_000n);
+  }
+
+  private async prepareSimple<K extends 'graduate' | 'abort'>(kind: K, chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string, tx: EvmTxRequest, blockers: string[], gasCeiling: bigint) {
+    let gasCostWei: bigint | null = null;
+    let coinBalance = 0n;
+    try {
+      if (await this.checkChain(chain, blockers)) {
+        coinBalance = asBig(await this.d.read('eth_getBalance', [account, 'latest'])) ?? 0n;
+        const price = await this.gasPrice();
+        if (price === null) blockers.push('The network did not give a gas price. Try again in a moment.');
+        else {
+          gasCostWei = gasCeiling * price;
+          if (coinBalance < gasCostWei) blockers.push(`You need more ${chain.symbol} for the network gas${kind === 'graduate' ? ', which is large because the pool is created' : ''}.`);
+        }
+        if (blockers.length === 0 && (await this.estimate(tx)) === null) blockers.push(kind === 'graduate' ? 'The network would refuse this: most likely a pool for this token already exists at another price.' : 'The network would not accept this, so nothing was sent.');
+      }
+    } catch {
+      blockers.push('The network could not be reached to check this. Try again in a moment.');
+    }
+    return { kind, chain, account, token, curve, tx, gasCostWei, coinBalance, blockers } as K extends 'graduate' ? EvmGraduateReview : EvmAbortReview;
+  }
+
+  async graduate(review: EvmGraduateReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { chain, token } = review;
+    await this.begin(review, progress);
+    const hash = await this.runTx(review.tx, (tx, id) => inspectGraduate(tx, { chain, from: review.account, token }, id), 'graduation', progress, 'sending', 'confirming');
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, token));
+    const differences: string[] = [];
+    if (!state || state.status !== 'migrated') differences.push('The curve does not show as moved into a pool.');
+    progress('done');
+    return { hashes: [hash], token, differences };
+  }
+
+  async abort(review: EvmAbortReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { chain, token } = review;
+    await this.begin(review, progress);
+    const hash = await this.runTx(review.tx, (tx, id) => inspectAbort(tx, { chain, from: review.account, token }, id), 'unwind', progress, 'sending', 'confirming');
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, token));
+    const differences: string[] = [];
+    if (!state || state.status !== 'aborted') differences.push('The curve does not show as unwound.');
+    progress('done');
+    return { hashes: [hash], token, differences };
+  }
+
+  // ---------------------------------------------------------------- shared
+
+  /** Refuses a review with blockers, and makes sure the wallet is on the right account and network. */
+  private async begin(review: ReviewBase, progress: (p: EvmCurveProgress) => void): Promise<void> {
+    if (review.blockers.length > 0) throw new EvmCurveError(review.blockers.join(' '), true);
+    progress('checking');
+    const account = (await this.d.adapter.getAccounts())[0];
+    if (!account || account.toLowerCase() !== review.account.toLowerCase()) throw new EvmCurveError('The account selected in your wallet changed. Start again.', true);
+    if ((await this.d.adapter.getChainId()) !== review.chain.chainId) {
+      try {
+        await this.d.adapter.switchChain(review.chain.chainId);
+      } catch (e) {
+        throw new EvmCurveError(e instanceof Error ? e.message : 'Your wallet could not switch networks.', true);
+      }
+    }
+  }
+
+  private async receipt(hash: string): Promise<{ status?: string } | null> {
+    const deadline = this.d.now() + 180_000;
+    while (this.d.now() < deadline) {
+      try {
+        const r = (await this.d.read('eth_getTransactionReceipt', [hash])) as { status?: string } | null;
+        if (r) return r;
+      } catch {
+        // not answered yet
+      }
+      await this.sleep(2_000);
+    }
+    return null;
+  }
+
+  /** Inspect, simulate, send, wait. Returns the hash, or throws a plain-language error at the first thing that is wrong. */
+  private async runTx(
+    tx: EvmTxRequest,
+    inspect: (tx: EvmTxRequest, walletChainId: number) => string[],
+    what: string,
+    progress: (p: EvmCurveProgress) => void,
+    signing: EvmCurveProgress,
+    confirming: EvmCurveProgress,
+  ): Promise<string> {
+    const problems = inspect(tx, await this.d.adapter.getChainId());
+    if (problems.length > 0) throw new EvmCurveError(`Not signing: ${problems.join(' ')}`, true);
+    try {
+      await this.d.read('eth_call', [{ from: tx.from, to: tx.to, data: tx.data, value: tx.value }, 'latest']);
+    } catch (e) {
+      throw new EvmCurveError(`The network would refuse the ${what}, so nothing was sent${reasonOf(e)}.`, true);
+    }
+    progress(signing);
+    let hash: string;
+    try {
+      hash = await this.d.adapter.sendTransaction(tx);
+    } catch (e) {
+      const rejected = e instanceof SwingsError && e.code === 'rejected';
+      throw new EvmCurveError(rejected ? 'You closed the wallet without approving.' : `The ${what} was not sent: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]!.slice(0, 160)}`, false);
+    }
+    progress(confirming);
+    const r = await this.receipt(hash);
+    if (!r) throw new EvmCurveError(`The ${what} was sent but has not confirmed yet. Check ${hash} on an explorer before trying again.`);
+    if (r.status !== '0x1') throw new EvmCurveError(`The ${what} failed on the network; nothing from it took effect. (${hash})`);
+    return hash;
+  }
+
+  /** Reads a few times: a node can briefly lag behind the confirmation. */
+  private async readBack<T>(read: () => Promise<T | null>): Promise<T | null> {
+    for (let i = 0; i < 6; i++) {
+      try {
+        const v = await read();
+        if (v) return v;
+      } catch {
+        // try again
+      }
+      await this.sleep(1000);
+    }
+    return null;
+  }
+}
+
+/** The contract's own refusal reasons, in words, when the node reports one. */
+const REASONS: [RegExp, string][] = [
+  [/slippage/i, ': the price moved past the limit you set'],
+  [/not trading/i, ': the curve is not open for this'],
+  [/not sold out/i, ': the curve has not sold out'],
+  [/too early/i, ': it is too early'],
+  [/INSUFFICIENT_[AB]_AMOUNT|pool price/i, ': a pool for this token already exists at another price'],
+  [/not from the factory/i, ': the token was not made by Aretia’s factory'],
+  [/exists/i, ': a curve for this token already exists'],
+  [/allowance/i, ': the approval is missing'],
+];
+function reasonOf(e: unknown): string {
+  const text = e instanceof Error ? e.message : String(e);
+  for (const [re, words] of REASONS) if (re.test(text)) return words;
+  return '';
+}

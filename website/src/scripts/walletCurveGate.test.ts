@@ -93,3 +93,57 @@ describe('the web constants are the program’s constants', () => {
     expect(doc).toContain(`${(CURVE_FEE_BPS / 100).toFixed(2)}% (${CURVE_FEE_BPS} bps)`);
   });
 });
+
+describe('the Ethereum curve is off, and its web constants are the contract’s', () => {
+  const sol = () => read('../../../contracts-evm/AretiaCurve.sol');
+  const num = (name: string): bigint => {
+    const m = new RegExp(`${name} = ([^;]+);`).exec(sol());
+    if (!m) throw new Error(`${name} not found in the contract`);
+    const v = m[1]!.trim().replace(/_/g, '').replace(/ days$/, '');
+    const exp = /^(\d+)e(\d+)$/.exec(v);
+    if (exp) return BigInt(exp[1]!) * 10n ** BigInt(exp[2]!);
+    const shift = /^(\d+) << (\d+)$/.exec(v);
+    if (shift) return BigInt(shift[1]!) << BigInt(shift[2]!);
+    return BigInt(v);
+  };
+
+  it('has no deployed contract on any network, and no way to switch one on without editing the table', async () => {
+    const core = await import('./walletCurveEvmCore');
+    for (const v of Object.values(core.EVM_CURVE_ADDRESSES)) expect(v).toBeNull();
+    expect(core.evmCurveChain('ethereum')).toBeNull();
+  });
+
+  it('is only created when the site is built with the flag, and only draws a form for a network with a contract', () => {
+    const launch = read('./walletLaunchEvm.ts');
+    expect(launch).toContain("import.meta.env.PUBLIC_CURVE_ENABLED === '1' ? createEvmCurve(");
+    expect(launch.match(/createEvmCurve\(/g)).toHaveLength(1);
+    const card = read('./walletCurveEvm.ts');
+    const at = card.indexOf('if (!chain) {');
+    expect(at).toBeGreaterThan(-1);
+    expect(card.slice(at, at + 700)).toContain('return;');
+  });
+
+  it('has the same fee, limits, wait, dead address and token factory rule', async () => {
+    const core = await import('./walletCurveEvmCore');
+    expect(num('FEE_BPS')).toBe(BigInt(core.EVM_FEE_BPS));
+    expect(num('MIN_TARGET')).toBe(core.EVM_MIN_TARGET_WEI);
+    expect(num('MAX_TARGET')).toBe(core.EVM_MAX_TARGET_WEI);
+    expect(num('MAX_TOTAL')).toBe(core.EVM_MAX_TOTAL);
+    expect(num('ABORT_AFTER') * 86_400n).toBe(BigInt(core.EVM_ABORT_AFTER_SECS));
+    expect(sol()).toContain('0x000000000000000000000000000000000000dEaD');
+    expect(Number(num('FEE_BPS'))).toBe(CURVE_FEE_BPS);
+  });
+
+  it('calls the contract by the selectors its compiled ABI has, with the argument lists the web code builds', async () => {
+    const { CURVE_SEL } = await import('./walletCurveEvmTx');
+    const artifact = JSON.parse(read('../../../contracts-evm/AretiaCurve.artifact.json')) as { curve: { selectors: Record<string, string> } };
+    const sel = artifact.curve.selectors;
+    expect(CURVE_SEL.createCurve).toBe('0x' + sel['createCurve(address,uint256,uint256,uint256,uint256)']);
+    expect(CURVE_SEL.buy).toBe('0x' + sel['buy(address,uint256)']);
+    expect(CURVE_SEL.sell).toBe('0x' + sel['sell(address,uint256,uint256)']);
+    expect(CURVE_SEL.graduate).toBe('0x' + sel['graduate(address)']);
+    expect(CURVE_SEL.abort).toBe('0x' + sel['abortMigration(address)']);
+    expect(CURVE_SEL.curves).toBe('0x' + sel['curves(address)']);
+    expect(CURVE_SEL.totalOwed).toBe('0x' + sel['totalOwed()']);
+  });
+});

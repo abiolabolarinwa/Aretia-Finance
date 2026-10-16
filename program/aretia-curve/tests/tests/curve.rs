@@ -101,7 +101,7 @@ fn a_buy_matches_the_maths_to_the_lamport() {
     assert_eq!(l.env.lamports(&FEE_WALLET) - fee_before, expect.fee);
     assert_eq!(l.env.lamports(&sol_vault_pda(&curve_pda(&l.mint))) - curve_before, expect.net);
     assert_eq!(buyer_before - l.env.lamports(&buyer.pubkey()), expect.gross, "the buyer pays the offer and nothing else (the transaction fee is the payer's)");
-    assert_eq!(expect.fee, 20_000_000, "1% of 2 SOL");
+    assert_eq!(expect.fee, 11_600_000, "0.58% of 2 SOL");
 }
 
 #[test]

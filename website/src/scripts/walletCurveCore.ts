@@ -18,8 +18,8 @@ export const CURVE_PROGRAM_ID_DEVNET = '9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJ
 /** Empty on purpose: set only after an independent audit and the owner's go-ahead. */
 export const CURVE_PROGRAM_ID_MAINNET: string | null = null;
 
-/** Fee on every trade, in basis points of the SOL side. The rate is the owner's to confirm; it is also a constant in the program. */
-export const CURVE_FEE_BPS = 100;
+/** Fee on every trade, in basis points of the SOL side. The owner set it at 0.58%; it is also a constant in the program. */
+export const CURVE_FEE_BPS = 58;
 export const CURVE_FEE_ADDRESS = LAUNCH_FEE_ADDRESS;
 export const CURVE_MIN_TARGET_LAMPORTS = 100_000_000n;
 export const CURVE_MAX_TARGET_LAMPORTS = 1_000_000_000_000_000n;

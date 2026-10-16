@@ -126,7 +126,7 @@ describe('the rules the program enforces, restated', () => {
     expect(feeUp(10_000n, 100)).toBe(100n);
     expect(feeUp(10_001n, 100)).toBe(101n);
     const q = quoteBuy(startOf(d), 2n * SOL, CURVE_FEE_BPS)!;
-    expect(q.fee).toBe(20_000_000n);
+    expect(q.fee).toBe(11_600_000n);
     expect(q.gross).toBe(q.fee + q.net);
   });
   it('cuts an oversized offer to what is left and charges only that', () => {
@@ -246,7 +246,7 @@ describe('reading a curve account', () => {
     data[at++] = over.status ?? 0;
     data.set(key(CREATOR), at); at += 32;
     data.set(key(MINT), at); at += 32;
-    v.setUint16(at, over.feeBps ?? 100, true); at += 2;
+    v.setUint16(at, over.feeBps ?? 58, true); at += 2;
     const u64 = (x: bigint) => { v.setBigUint64(at, x, true); at += 8; };
     u64(85n * SOL); // target
     u64(30n * SOL); // v_sol0
@@ -264,7 +264,7 @@ describe('reading a curve account', () => {
 
   it('reads every field', () => {
     const c = read(account())!;
-    expect(c).toMatchObject({ status: 'trading', creator: CREATOR, mint: MINT, feeBps: 100, target: 85n * SOL, vSol0: 30n * SOL, curveTokens: 793_103_448_275_863n, createdAt: 1_700_000_000n, pool: null, bump: 254, solBump: 253 });
+    expect(c).toMatchObject({ status: 'trading', creator: CREATOR, mint: MINT, feeBps: 58, target: 85n * SOL, vSol0: 30n * SOL, curveTokens: 793_103_448_275_863n, createdAt: 1_700_000_000n, pool: null, bump: 254, solBump: 253 });
     expect(curveProblems(c)).toEqual([]);
   });
   it('refuses another owner, another size, another discriminator, an unknown status', () => {

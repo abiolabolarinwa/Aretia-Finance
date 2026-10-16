@@ -10,7 +10,7 @@ What it is: for a fixed-supply token made on the Launch page, the creator can se
 
 | Decision | Built as | Where to change it |
 |---|---|---|
-| Fee on each trade | **1.00% (100 bps)** of the SOL side, paid to `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. **This rate was not confirmed with the owner.** It equals the web wallet's own swap fee (`SWAP_FEE_BPS`, 1%); the browser extension's swap fee is 0.29%. | `FEE_BPS` in `lib.rs`, `CURVE_FEE_BPS` in `walletCurveCore.ts` (a test keeps them equal). A change is a redeploy; it does not touch curves already open (each stores its own rate). |
+| Fee on each trade | **0.58% (58 bps)** of the SOL side, paid to `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. Confirmed by the owner on 2026-10-16. | `FEE_BPS` in `lib.rs`, `CURVE_FEE_BPS` in `walletCurveCore.ts` (a test keeps them equal). A change is a redeploy; it does not touch curves already open (each stores its own rate). |
 | Smallest raise a creator may target | 0.1 SOL | `MIN_TARGET_LAMPORTS` |
 | Pool trading fee after graduation | 0.25%, paid to the locked position. **Nobody can claim it in v1** (see section 9). | `POOL_BASE_FEE_NUMERATOR` |
 | Wait before an unfinished migration can be unwound | 7 days | `ABORT_AFTER_SECS` |
@@ -81,7 +81,7 @@ The web flow reuses `walletPoolTx.ts` for what the two flows share: the Meteora 
 
 ## 6. The fee
 
-1% of the SOL leg, rounded up, taken on both buys (from the offer, before the curve sees it) and sells (from the SOL the vault pays out). The fee wallet is an address constraint, so a transaction naming any other wallet fails. The rate is stored per curve at creation. Creating a curve costs the creator only rent (about 0.006 SOL). Graduation costs the caller about 0.04 SOL of pool rent that stays in the locked pool's accounts.
+0.58% of the SOL leg, rounded up, taken on both buys (from the offer, before the curve sees it) and sells (from the SOL the vault pays out). The fee wallet is an address constraint, so a transaction naming any other wallet fails. The rate is stored per curve at creation. Creating a curve costs the creator only rent (about 0.006 SOL). Graduation costs the caller about 0.04 SOL of pool rent that stays in the locked pool's accounts.
 
 ## 7. Which tokens are accepted
 

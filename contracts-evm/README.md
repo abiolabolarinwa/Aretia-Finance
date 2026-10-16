@@ -1,6 +1,6 @@
 # Aretia Launch, EVM token factory
 
-`AretiaTokenFactory.sol` makes fixed-supply ERC-20 tokens for the Launch page on Base, BNB Chain, Ethereum and Polygon.
+`AretiaTokenFactory.sol` makes fixed-supply ERC-20 tokens for the Launch page on BNB Chain, Ethereum and Polygon (Base was dropped: the owner cannot use it from their region).
 
 - **Token** (`AretiaToken`): standard ERC-20. No owner, no mint after construction, no pause, no blacklist, no transfer fee, no upgrade. The whole supply is minted once to the creator.
 - **Factory** (`AretiaTokenFactory`): immutable, no owner or setters. `fee` and `feeRecipient` are fixed at deployment. `create(name, symbol, decimals, supply)` requires `msg.value == fee`, forwards it to `feeRecipient` in the same transaction, and holds nothing.
@@ -14,7 +14,7 @@
 
 Constructor arguments: `(feeRecipient, feeWei)`. They must equal `feeAddress` and `feeWei` in `LAUNCH_EVM_CHAINS` (`website/src/scripts/walletLaunchEvmCore.ts`). Deploy to the test network first, create a token from the page, then deploy to the mainnet and write the **lower-case** factory and fee addresses into that table. A chain stays disabled on the page until both are set, and the page refuses a factory whose on-chain `fee()` or `feeRecipient()` differs from the table.
 
-Fees (set by the owner): Base 0.0042 ETH, Ethereum 0.0042 ETH, BNB Chain 0.014 BNB, Polygon 105 POL. Fee address on all chains: `0xeb8725e16e504036c2166aa47804d88ecc4d0945`.
+Fees (set by the owner): Ethereum 0.0042 ETH, BNB Chain 0.014 BNB, Polygon 105 POL. Fee address on all chains: `0xeb8725e16e504036c2166aa47804d88ecc4d0945`.
 
 ## Tests
 

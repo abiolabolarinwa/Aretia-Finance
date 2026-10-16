@@ -10,15 +10,15 @@ const FEE_TO = '0x3333333333333333333333333333333333333333';
 const TOKEN = '0x4444444444444444444444444444444444444444';
 const FEE = 3_000_000_000_000_000n;
 
-const chain: LaunchEvmChain = { ...LAUNCH_EVM_CHAINS.find((c) => c.key === 'base')!, feeWei: FEE, factory: FACTORY, feeAddress: FEE_TO };
+const chain: LaunchEvmChain = { ...LAUNCH_EVM_CHAINS.find((c) => c.key === 'bnb')!, feeWei: FEE, factory: FACTORY, feeAddress: FEE_TO };
 const config = (over: Partial<EvmLaunchConfig> = {}): EvmLaunchConfig => ({ chain, creator: CREATOR, name: 'Aretia Test', symbol: 'ATEST', decimals: 18, totalSupplyRaw: 1_000_000n * 10n ** 18n, ...over });
 const form = (over: Partial<EvmLaunchForm> = {}): EvmLaunchForm => ({ ...DEFAULT_EVM_FORM, name: 'Aretia Test', symbol: 'ATEST', ...over });
 const table = [chain];
 
 describe('the chain table', () => {
-  it('has the four requested networks and their test networks, all off until a factory and fee address are set', () => {
-    expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => [c.name, c.chainId])).toEqual([['Base', 8453], ['BNB Chain', 56], ['Ethereum', 1], ['Polygon', 137]]);
-    expect(LAUNCH_EVM_CHAINS.filter((c) => c.testnet)).toHaveLength(4);
+  it('has the three networks in use and their test networks, all off until a factory and fee address are set', () => {
+    expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => [c.name, c.chainId])).toEqual([['BNB Chain', 56], ['Ethereum', 1], ['Polygon', 137]]);
+    expect(LAUNCH_EVM_CHAINS.filter((c) => c.testnet)).toHaveLength(3);
     // Only networks whose factory has been deployed and its address written into the table are on.
     expect(LAUNCH_EVM_CHAINS.filter(chainEnabled).map((c) => c.key)).toEqual(['bnb', 'ethereum', 'polygon']);
   });
@@ -41,7 +41,7 @@ describe('validateEvmLaunch', () => {
     }
   });
   it('refuses a chain with no factory yet', () => {
-    const v = validateEvmLaunch(form({ chain: 'base' }), CREATOR);
+    const v = validateEvmLaunch(form({ chain: 'sepolia' }), CREATOR);
     expect(v.ok).toBe(false);
     if (!v.ok) expect(v.issues.find((i) => i.field === 'chain')?.message).toMatch(/not available yet/);
   });
@@ -109,12 +109,12 @@ describe('inspectCreateTx', () => {
     expect(check({ ...good(), gas: '0x30d40' })).toEqual([]);
   });
   it('refuses the wrong network', () => {
-    expect(check(good(), {}, 1).join(' ')).toMatch(/network 1, not Base/);
+    expect(check(good(), {}, 1).join(' ')).toMatch(/network 1, not BNB Chain/);
   });
   it('refuses a different target, sender, fee amount, or a changed field', () => {
     expect(check({ ...good(), to: TOKEN }).join(' ')).toMatch(/not sent to Aretia/);
     expect(check({ ...good(), from: TOKEN }).join(' ')).toMatch(/not from the account/);
-    expect(check({ ...good(), value: '0x0' }).join(' ')).toMatch(/exactly the ETH creation fee/);
+    expect(check({ ...good(), value: '0x0' }).join(' ')).toMatch(/exactly the BNB creation fee/);
     expect(check({ ...good(), value: '0x' + (FEE + 1n).toString(16) }).join(' ')).toMatch(/exactly/);
     expect(check({ ...good(), value: undefined }).join(' ')).toMatch(/exactly/);
     expect(check({ ...good(), value: '3000000000000000' }).join(' ')).toMatch(/exactly/);
@@ -227,10 +227,10 @@ describe('EvmLaunchFlow', () => {
   it('blocks on a factory with a different fee, a different fee address, or no code', async () => {
     expect((await world({ feeOnChain: FEE * 2n }).flow.prepare(config())).blockers.join(' ')).toMatch(/different fee/);
     expect((await world({ recipient: TOKEN }).flow.prepare(config())).blockers.join(' ')).toMatch(/different address/);
-    expect((await world({ code: '0x' }).flow.prepare(config())).blockers.join(' ')).toMatch(/not on Base/);
+    expect((await world({ code: '0x' }).flow.prepare(config())).blockers.join(' ')).toMatch(/not on BNB Chain/);
   });
   it('blocks when the balance cannot cover the fee and gas, and when the network would refuse', async () => {
-    expect((await world({ balance: FEE }).flow.prepare(config())).blockers.join(' ')).toMatch(/need more ETH/);
+    expect((await world({ balance: FEE }).flow.prepare(config())).blockers.join(' ')).toMatch(/need more BNB/);
     expect((await world({ callFails: true }).flow.create(await world().flow.prepare(config())).catch((e: Error) => e.message))).toMatch(/refuse this transaction/);
   });
   it('refuses to prepare a chain that is not enabled', async () => {

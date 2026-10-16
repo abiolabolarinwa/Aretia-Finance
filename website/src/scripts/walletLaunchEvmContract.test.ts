@@ -86,7 +86,7 @@ describe.skipIf(lib === null)('the compiled factory, driven by the page flow', (
         return hash;
       },
     };
-    const chain: LaunchEvmChain = { ...LAUNCH_EVM_CHAINS.find((c) => c.key === 'baseSepolia')!, feeWei: FEE, factory, feeAddress: FEE_ADDRESS };
+    const chain: LaunchEvmChain = { ...LAUNCH_EVM_CHAINS.find((c) => c.key === 'sepolia')!, feeWei: FEE, factory, feeAddress: FEE_ADDRESS };
     const config = (over: Partial<EvmLaunchConfig> = {}): EvmLaunchConfig => ({ chain, creator: CREATOR, name: 'Aretia Test Token', symbol: 'ATEST', decimals: 18, totalSupplyRaw: 1_000_000n * 10n ** 18n, ...over });
     const flow = new EvmLaunchFlow({ adapter, read, now: () => Date.now(), sleep: async () => undefined });
     return { vm, addr, read, adapter, sent, flow, config, chain, factory, setWrongChain: () => (wrongChain = true), balanceOf: async (a: string) => (await vm.stateManager.getAccount(addr(a)))?.balance ?? 0n };

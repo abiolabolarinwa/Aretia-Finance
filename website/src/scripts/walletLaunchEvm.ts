@@ -1,5 +1,5 @@
 /**
- * The Ethereum-style half of the Launch page: the form, review and result for creating a token on Base, BNB Chain, Ethereum or Polygon
+ * The Ethereum-style half of the Launch page: the form, review and result for creating a token on BNB Chain, Ethereum or Polygon
  * (and their test networks). Rules are in walletLaunchEvmCore.ts, the transaction and its inspector in walletLaunchEvmTx.ts, the order of
  * events in walletLaunchEvmFlow.ts. This file only draws and connects them to the wallet the page already uses for Swap and Pay.
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.

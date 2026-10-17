@@ -4,8 +4,7 @@
  * ------------------------------------------------------------------
  * Creates ACT/USDC and ACT/SOL pools on Meteora DAMM v2 (CP-AMM, program
  * cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG -- the AMM proven with an
- * ACT-like 3.5%-fee Token-2022 mint on devnet, see
- * program/act-presale/scripts/exercise-devnet-meteora-damm.mjs).
+ * ACT-like 3.5%-fee Token-2022 mint on devnet).
  *
  * Each pool is SINGLE-SIDED: it opens at the floor price with only ACT
  * deposited, over a range from the floor to the protocol maximum. Nobody can

@@ -50,6 +50,8 @@ function logo(key: string, cls: string): HTMLImageElement | HTMLSpanElement {
   return img;
 }
 
+const VIEW_ORDER: Record<View, number> = { token: 0, market: 1, live: 2 };
+
 const STAGE_STATE: Record<string, StepState> = { form: 'current', review: 'current', working: 'busy', done: 'done' };
 
 export interface LaunchHub {
@@ -192,13 +194,28 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
       rail.append(li);
     });
     hub.dataset.tokenStage = stageOf(roots().token);
+    const fill = $('[data-hub-bar] > span');
+    if (fill) fill.style.width = `${(s.token === 'done' ? 50 : s.token === 'busy' ? 20 : 0) + (s.market === 'done' ? 50 : s.market === 'busy' ? 20 : 0)}%`;
   }
 
   // ---------------------------------------------------------------- stages
 
+  /** Slides the stage that just opened in, from the side it is reached from. Skipped when the person asks for less motion. */
+  function enter(v: View): void {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const el = $(`[data-step="${v}"]`);
+    if (!el) return;
+    el.classList.remove('lh-enter');
+    void el.offsetWidth;
+    el.classList.add('lh-enter');
+  }
+
   /** Shows the one stage that is open and hides the others. */
   function applyView(): void {
+    const changed = hub.dataset.view !== undefined && hub.dataset.view !== view;
+    if (changed) hub.dataset.dir = VIEW_ORDER[view] >= VIEW_ORDER[hub.dataset.view as View] ? 'fwd' : 'back';
     hub.dataset.view = view;
+    if (changed) enter(view);
     drawRail();
     drawNavs();
     drawLive();

@@ -409,6 +409,7 @@ const sendTips = [
             </div>
           </header>
           <ol class="lh__rail" data-hub-rail aria-label="Progress"></ol>
+          <div class="lh__bar" data-hub-bar aria-hidden="true"><span></span></div>
           <div class="lh__grid">
             <div class="lh__main">
               <section class="wapp__card lh__step" data-step="token" aria-label="Create your token">
@@ -832,6 +833,37 @@ const sendTips = [
   .lh-live__copy { min-height: 36px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; }
   .lh-live__copy:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   .lh-live .lh-nav__go { margin: 8px 0 0; }
+
+  /* The Launch pane sits in the middle of the page, not against the sidebar. */
+  .wapp .wapp__pane[data-pane='launch'] { justify-self: center; margin-inline: auto; }
+
+  /* Motion: a progress bar that fills, stages that slide in from the side they are reached from, results that rise in, and a working step that pulses. */
+  .lh__bar { width: 100%; max-width: 780px; height: 4px; margin: -8px auto 0; overflow: hidden; background: var(--color-border); border-radius: 999px; }
+  .lh__bar > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--color-brand), #7a5cff); border-radius: inherit; transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .lh .lh__step.lh-enter { animation: lh-in-fwd 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .lh[data-dir='back'] .lh__step.lh-enter { animation-name: lh-in-back; }
+  @keyframes lh-in-fwd { from { opacity: 0; transform: translateX(28px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes lh-in-back { from { opacity: 0; transform: translateX(-28px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes lh-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .lh [data-stage='review'] .wapp-ln > *, .lh [data-stage='done'] .wapp-ln > * { animation: lh-rise 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .lh [data-stage='review'] .wapp-ln > :nth-child(2), .lh [data-stage='done'] .wapp-ln > :nth-child(2) { animation-delay: 50ms; }
+  .lh [data-stage='review'] .wapp-ln > :nth-child(3), .lh [data-stage='done'] .wapp-ln > :nth-child(3) { animation-delay: 100ms; }
+  .lh [data-stage='review'] .wapp-ln > :nth-child(4), .lh [data-stage='done'] .wapp-ln > :nth-child(4) { animation-delay: 150ms; }
+  .lh [data-stage='review'] .wapp-ln > :nth-child(5), .lh [data-stage='done'] .wapp-ln > :nth-child(5) { animation-delay: 200ms; }
+  .lh [data-stage='review'] .wapp-ln > :nth-child(n + 6), .lh [data-stage='done'] .wapp-ln > :nth-child(n + 6) { animation-delay: 250ms; }
+  .lh [data-stage='working'] .wapp-ln__steps li.is-now { position: relative; overflow: hidden; }
+  .lh [data-stage='working'] .wapp-ln__steps li.is-now::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 35%; background: linear-gradient(90deg, transparent, rgba(74, 46, 224, 0.14), transparent); animation: lh-sweep 1.4s ease-in-out infinite; }
+  @keyframes lh-sweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  .lh [data-stage='working'] .wapp-ln__steps li.is-done::before { display: inline-block; animation: lh-pop 320ms cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  .lh-live > * { animation: lh-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .lh-live > :nth-child(2) { animation-delay: 80ms; }
+  .lh-live > :nth-child(3) { animation-delay: 140ms; }
+  .lh-live > :nth-child(4) { animation-delay: 200ms; }
+  .lh-live > :nth-child(5) { animation-delay: 260ms; }
+  @media (prefers-reduced-motion: reduce) {
+    .lh .lh__step.lh-enter, .lh [data-stage] .wapp-ln > *, .lh-live > *, .lh-live__mark, .lh [data-stage='working'] .wapp-ln__steps li::before, .lh [data-stage='working'] .wapp-ln__steps li::after { animation: none; }
+    .lh__bar > span { transition: none; }
+  }
   @media (max-width: 1100px) {
     .lh__grid { grid-template-columns: minmax(0, 1fr); }
     .lh__side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); order: -1; }

@@ -12,5 +12,3 @@ safesend; safesend also has its plain backdrop extended).
 | pay.webp | https://unsplash.com/photos/person-paying-with-credit-card-tgquMvhNLc4 | Clay Banks |
 | shield.webp | https://unsplash.com/photos/brown-wooden-door-with-brass-door-knob-3ROwc3JSjCk | Brock Wegner |
 | safesend.webp | https://unsplash.com/photos/clear-hour-glass-with-coins-COoxOZZtwzA | Ricardo Díaz |
-
-treasury.webp: the Aretia Treasury slide, supplied by the Aretia owner (a composed image using stock photographs; the individual photo credits were not supplied with it).

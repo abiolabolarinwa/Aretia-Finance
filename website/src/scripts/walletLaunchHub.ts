@@ -15,6 +15,7 @@ import type { LaunchApi, LaunchNetwork } from './walletLaunch';
 
 type Stage = 'form' | 'review' | 'working' | 'done' | 'off' | '';
 type Tab = 'pool' | 'curve';
+type View = 'token' | 'market' | 'live';
 type StepState = 'upcoming' | 'current' | 'busy' | 'done';
 
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] => {
@@ -55,7 +56,7 @@ export interface LaunchHub {
   onShow(): void;
 }
 
-export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): LaunchHub | null {
+export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** Clears every form, for launching another token. */ resetAll?: () => void }): LaunchHub | null {
   const found = document.querySelector<HTMLElement>('[data-launch-hub]');
   if (!found) return null;
   const hub: HTMLElement = found;
@@ -65,13 +66,16 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
   const tabsEl = $('[data-hub-market-tabs]');
   const feesEl = $('[data-hub-fees]');
   const previewEl = $('[data-hub-preview]');
-  const marketCard = $('[data-step="market"]');
   const marketOff = $('[data-hub-market-off]');
   const panel = (t: Tab): HTMLElement | null => $(`[data-market-panel="${t}"]`);
   const root = (sel: string): HTMLElement | null => $(sel);
 
   let tab: Tab = 'pool';
+  let view: View = 'token';
   let lastTokenStage: Stage = '';
+  let lastMarketDone = false;
+  /** What was made, read off the created screens the moment they appear, because create another clears them. */
+  let made: { token: string | null; pool: string | null } = { token: null, pool: null };
 
   const stageOf = (el: HTMLElement | null): Stage => ((el?.dataset.stage ?? '') as Stage);
   const onSolana = (): boolean => launch.getNetwork() === 'solana';
@@ -105,6 +109,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       b.disabled = !n.enabled;
       if (!n.enabled) b.title = 'Not available yet';
       b.append(logo(n.key, 'lh-chip__logo'), document.createTextNode(n.name));
+      if (n.key === current) b.append(h('span', 'lh-chip__check', '✓'));
       b.addEventListener('click', () => {
         if (n.key === launch.getNetwork()) return;
         if (!launch.setNetwork(n.key)) {
@@ -113,6 +118,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
           return;
         }
         tab = 'pool';
+        view = 'token';
         placeRoots();
         drawChips();
         refresh();
@@ -142,29 +148,149 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
     return { token, market, live };
   }
 
+  /** Which stages a person may open now. The first two are always open; the last only once a market exists. Nothing moves while something is being made. */
+  function canOpen(v: View): boolean {
+    const r = roots();
+    const working = [r.token, r.pool, r.curve].some((el) => stageOf(el) === 'working');
+    if (working) return v === view;
+    if (v === 'live') return steps().live === 'done';
+    return true;
+  }
+
+  function go(next: View): void {
+    if (!canOpen(next)) return;
+    view = next;
+    applyView();
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    hub.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
   function drawRail(): void {
     if (!rail) return;
     const s = steps();
-    const items: { key: keyof typeof s; title: string; sub: Record<StepState, string> }[] = [
-      { key: 'token', title: 'Create your token', sub: { upcoming: 'Name, supply, your share', current: 'Name, supply, your share', busy: 'Creating it now', done: 'Token created' } },
-      { key: 'market', title: 'Give it a market', sub: { upcoming: 'A pool or a bonding curve', current: 'Choose how people buy', busy: 'Opening it now', done: 'Market open' } },
-      { key: 'live', title: 'It’s live', sub: { upcoming: 'Anyone can buy it', current: 'Anyone can buy it', busy: '', done: 'People can buy it' } },
+    const items: { key: keyof typeof s; view: View; title: string; sub: Record<StepState, string> }[] = [
+      { key: 'token', view: 'token', title: 'Create your token', sub: { upcoming: 'Name, supply, your share', current: 'Name, supply, your share', busy: 'Creating it now', done: 'Token created' } },
+      { key: 'market', view: 'market', title: 'Give it a market', sub: { upcoming: 'A pool or a bonding curve', current: 'Choose how people buy', busy: 'Opening it now', done: 'Market open' } },
+      { key: 'live', view: 'live', title: 'It’s live', sub: { upcoming: 'Anyone can buy it', current: 'Anyone can buy it', busy: '', done: 'People can buy it' } },
     ];
     rail.textContent = '';
     items.forEach((it, i) => {
       const state = s[it.key];
-      const li = h('li', `lh-step is-${state}`);
-      if (state === 'current' || state === 'busy') li.setAttribute('aria-current', 'step');
+      const li = h('li', `lh-step is-${state}${it.view === view ? ' is-here' : ''}`);
+      const btn = h('button', 'lh-step__btn');
+      btn.type = 'button';
+      btn.disabled = !canOpen(it.view);
+      if (it.view === view) btn.setAttribute('aria-current', 'step');
+      btn.addEventListener('click', () => go(it.view));
       const mark = h('span', 'lh-step__mark');
       mark.textContent = state === 'done' ? '✓' : String(i + 1);
       mark.setAttribute('aria-hidden', 'true');
       const text = h('span', 'lh-step__text');
       text.append(h('strong', '', it.title), h('small', '', it.sub[state]));
-      li.append(mark, text);
+      btn.append(mark, text);
+      li.append(btn);
       rail.append(li);
     });
     hub.dataset.tokenStage = stageOf(roots().token);
-    if (marketCard) marketCard.dataset.ready = s.token === 'done' || s.market !== 'upcoming' ? '1' : '0';
+  }
+
+  // ---------------------------------------------------------------- stages
+
+  /** Shows the one stage that is open and hides the others. */
+  function applyView(): void {
+    hub.dataset.view = view;
+    drawRail();
+    drawNavs();
+    drawLive();
+  }
+
+  /** The buttons that carry a person from one stage to the next, shown only when the stage before is finished. */
+  function drawNavs(): void {
+    const tokenNav = $('[data-hub-token-nav]');
+    const marketNav = $('[data-hub-market-nav]');
+    const s = steps();
+    if (tokenNav) {
+      tokenNav.textContent = '';
+      tokenNav.hidden = s.token !== 'done';
+      if (s.token === 'done') {
+        const next = h('button', 'wapp__btn wapp__btn--primary lh-nav__go', 'Continue: give it a market');
+        next.type = 'button';
+        next.addEventListener('click', () => {
+          tab = 'pool';
+          go('market');
+        });
+        tokenNav.append(h('p', 'lh-nav__note', 'Your token exists. The next step lets people buy it.'), next);
+      }
+    }
+    if (marketNav) {
+      marketNav.textContent = '';
+      const back = h('button', 'lh-nav__back', '← Back to your token');
+      back.type = 'button';
+      back.disabled = !canOpen('token');
+      back.addEventListener('click', () => go('token'));
+      marketNav.append(back);
+      if (s.live === 'done') {
+        const next = h('button', 'wapp__btn wapp__btn--primary lh-nav__go', 'Finish: see your launch');
+        next.type = 'button';
+        next.addEventListener('click', () => go('live'));
+        marketNav.append(next);
+      }
+    }
+  }
+
+  /** Reads a labelled value (such as "Token address") off a created screen. */
+  function readRow(from: HTMLElement | null, label: RegExp): string | null {
+    if (!from) return null;
+    for (const dt of from.querySelectorAll('dt')) {
+      if (label.test(dt.textContent ?? '')) {
+        const text = dt.nextElementSibling?.textContent?.trim() ?? '';
+        if (text !== '') return text;
+      }
+    }
+    return null;
+  }
+
+  function drawLive(): void {
+    const el = $('[data-hub-live]');
+    if (!el) return;
+    el.textContent = '';
+    if (view !== 'live') return;
+    const net = launch.networks().find((n) => n.key === launch.getNetwork());
+    const mark = h('div', 'lh-live__mark', '✓');
+    mark.setAttribute('aria-hidden', 'true');
+    el.append(mark, h('h2', 'lh-live__title', 'Your token is live'), h('p', 'lh-live__lead', `It exists on ${net?.name ?? 'the network'} and has a market, so people can buy it.`));
+    const dl = h('dl', 'lh-live__rows');
+    const add = (k: string, v: string | null): void => {
+      if (!v) return;
+      const d = h('div');
+      const dd = h('dd', 'wapp-mono');
+      dd.textContent = v;
+      const copy = h('button', 'lh-live__copy', 'Copy');
+      copy.type = 'button';
+      copy.addEventListener('click', () => {
+        void navigator.clipboard?.writeText(v).then(() => {
+          copy.textContent = 'Copied';
+          window.setTimeout(() => (copy.textContent = 'Copy'), 1600);
+        });
+      });
+      d.append(h('dt', '', k), dd, copy);
+      dl.append(d);
+    };
+    add('Token address', made.token);
+    add('Market address', made.pool);
+    el.append(dl);
+    const again = h('button', 'wapp__btn wapp__btn--primary lh-nav__go', 'Launch another token');
+    again.type = 'button';
+    again.addEventListener('click', () => {
+      opts.resetAll?.();
+      made = { token: null, pool: null };
+      view = 'token';
+      lastTokenStage = '';
+      lastMarketDone = false;
+      tab = 'pool';
+      refresh();
+    });
+    el.append(again);
   }
 
   // ---------------------------------------------------------------- market tabs
@@ -280,18 +406,19 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
   // ---------------------------------------------------------------- refresh
 
   function refresh(): void {
-    drawRail();
     drawTabs();
     drawFees();
     drawPreview();
-    const tokenStage = stageOf(roots().token);
-    if (tokenStage === 'done' && lastTokenStage !== 'done') {
-      tab = 'pool';
-      drawTabs();
-      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      marketCard?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-    }
+    const r = roots();
+    const tokenStage = stageOf(r.token);
+    const marketDone = steps().live === 'done';
+    // Remember what was made, read off the created screens while they are on show.
+    if (tokenStage === 'done' && lastTokenStage !== 'done') made.token = readRow(r.token, /token address/i) ?? made.token;
+    if (marketDone && !lastMarketDone) made.pool = readRow(stageOf(r.pool) === 'done' ? r.pool : r.curve, /(pool|curve|market)( address)?$/i) ?? made.pool;
     lastTokenStage = tokenStage;
+    lastMarketDone = marketDone;
+    if (view === 'live' && !marketDone) view = 'market';
+    applyView();
   }
 
   /** Marks the total in any cost list, so the number a person is about to approve stands out from the rows above it. */
@@ -310,7 +437,8 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
   hub.addEventListener('lh:offer', (e) => {
     const panelEl = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-market-panel]');
     tab = panelEl?.dataset.marketPanel === 'curve' ? 'curve' : 'pool';
-    drawTabs();
+    view = 'market';
+    refresh();
   });
   hub.addEventListener('input', (e) => {
     if ((e.target as HTMLElement | null)?.closest('[data-launch-root]')) drawPreview();

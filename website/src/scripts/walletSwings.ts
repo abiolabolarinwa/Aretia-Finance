@@ -14,7 +14,7 @@ import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
-import { mountTokenSearch, OPEN_TOKEN_EVENT, PREFILL_SWAP_EVENT } from './walletSearch.js';
+import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
@@ -2206,21 +2206,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else showTab('swap');
       // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
       await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals ?? 0, icon: t.icon, verified: null }, t.chain);
-    })();
-  });
-
-  // Intent hands over a swap it has read: the Swap page fills in both tokens and the amount, and the person reviews it there.
-  window.addEventListener(PREFILL_SWAP_EVENT, (e) => {
-    const d = (e as CustomEvent<{ from: { mint: string; symbol: string; decimals: number | null }; to: { mint: string; symbol: string; decimals: number | null }; amount: string }>).detail;
-    if (d.from.decimals === null || d.to.decimals === null) return;
-    void (async () => {
-      if (location.hash !== '#/swap') location.hash = '#/swap';
-      selectChain('solana');
-      showTab('swap');
-      await pick('from', { mint: d.from.mint, symbol: d.from.symbol, name: d.from.symbol, decimals: d.from.decimals!, icon: null, verified: null }, 'solana');
-      await pick('to', { mint: d.to.mint, symbol: d.to.symbol, name: d.to.symbol, decimals: d.to.decimals!, icon: null, verified: null }, 'solana');
-      s.amount = d.amount;
-      render();
     })();
   });
 

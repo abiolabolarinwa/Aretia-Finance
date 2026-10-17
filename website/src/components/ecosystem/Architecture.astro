@@ -23,28 +23,26 @@ const byId = Object.fromEntries(PRODUCTS.map((p) => [p.slug, p]));
 
 const defaultNodes: MapNode[] = [
   { id: 'wallet', label: 'Aretia Wallet', x: 50, y: 12, kind: 'core', text: byId.wallet!.summary, status: STATUS_LABEL[byId.wallet!.status] },
-  { id: 'universal', label: 'Aretia Universal', x: 50, y: 44, kind: 'core', text: byId.universal!.summary, status: STATUS_LABEL[byId.universal!.status] },
   { id: 'shield', label: 'Shield', x: 14, y: 22, kind: 'product', text: byId.shield!.summary, status: STATUS_LABEL[byId.shield!.status] },
-  { id: 'intent', label: 'Intent', x: 86, y: 22, kind: 'product', text: byId.intent!.summary, status: STATUS_LABEL[byId.intent!.status] },
   { id: 'pay', label: 'Pay', x: 86, y: 44, kind: 'product', text: byId.pay!.summary, status: STATUS_LABEL[byId.pay!.status] },
   { id: 'act', label: 'ACT', x: 14, y: 44, kind: 'act', text: 'Aretia’s token, live on Solana mainnet. Its 1.5% transfer fee funds the Climate Treasury and operations.', status: 'Live' },
   { id: 'climate', label: 'Climate Treasury', x: 19, y: 56, kind: 'climate', text: `${ACT.transferFee.split.find((s) => s.label === 'Climate Treasury')!.percent}% of every ACT transfer, routed to a 2-of-3 multisig and disbursed against verified milestones.`, status: 'Live' },
-  { id: 'solana', label: 'Solana', x: 20, y: 64, kind: 'chain', text: 'Where ACT is minted and where the NTT hub locks it when bridging.', status: 'Supported' },
-  { id: 'ethereum', label: 'Ethereum', x: 50, y: 64, kind: 'chain', text: 'EVM home of bridged ACT (Sepolia testnet today) and ENS names for Aretia Pay.', status: 'Supported' },
+  { id: 'solana', label: 'Solana', x: 20, y: 64, kind: 'chain', text: 'Where ACT is minted.', status: 'Supported' },
+  { id: 'ethereum', label: 'Ethereum', x: 50, y: 64, kind: 'chain', text: 'EVM network whose ENS names Aretia Pay resolves.', status: 'Supported' },
   { id: 'evm', label: 'Base · BNB · Polygon', x: 80, y: 64, kind: 'chain', text: 'Additional EVM networks the wallet supports from the same account.', status: 'Supported' },
 ];
 
 const defaultEdges: [string, string][] = [
-  ['wallet', 'universal'], ['wallet', 'shield'], ['wallet', 'intent'], ['wallet', 'pay'],
-  ['universal', 'solana'], ['universal', 'ethereum'], ['wallet', 'evm'],
-  ['act', 'solana'], ['act', 'universal'], ['act', 'climate'], ['pay', 'ethereum'],
+  ['wallet', 'shield'], ['wallet', 'pay'], ['wallet', 'evm'],
+  ['wallet', 'solana'], ['wallet', 'ethereum'],
+  ['act', 'solana'], ['act', 'climate'], ['pay', 'ethereum'],
 ];
 
 const {
   id = 'architecture',
   nodes = defaultNodes,
   edges = defaultEdges,
-  intro = { title: 'Aretia architecture', text: 'Every Aretia product plugs into one wallet; Universal carries ACT between chains.' },
+  intro = { title: 'Aretia architecture', text: 'Every Aretia product plugs into one wallet.' },
 } = Astro.props;
 const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
 ---

@@ -8,7 +8,7 @@ describe('sidebarItemFor', () => {
   });
 
   it('leaves every other view as it is', () => {
-    for (const view of ['dashboard', 'swings', 'favourites', 'send', 'launch', 'carbon', 'activity', 'shield', 'intent', 'safesend', 'universal']) {
+    for (const view of ['dashboard', 'swings', 'favourites', 'send', 'launch', 'carbon', 'activity', 'shield', 'safesend']) {
       expect(sidebarItemFor(view)).toBe(view);
     }
   });
@@ -28,7 +28,7 @@ describe('tokenOpenMode', () => {
   });
 
   it('goes to the Swap page from any other page', () => {
-    for (const hash of ['#/dashboard', '#/send', '#/activity', '#/shield', '#/intent', '', '#/unknown']) {
+    for (const hash of ['#/dashboard', '#/send', '#/activity', '#/shield', '', '#/unknown']) {
       expect(tokenOpenMode(hash)).toBe('go-to-swap');
     }
   });

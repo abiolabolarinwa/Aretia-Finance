@@ -1,7 +1,7 @@
 /**
  * Which sidebar entry is marked as the current page for a view. The Swap page is the swap card on the same panel the
  * Markets page is built on, and it has no sidebar entry of its own (it is reached from Markets' Swap button, the
- * dashboard, Intent and the search box), so while it is open the Markets entry stays marked.
+ * dashboard and the search box), so while it is open the Markets entry stays marked.
  */
 export function sidebarItemFor(view: string): string {
   return view === 'swap' ? 'swings' : view;

@@ -21,9 +21,20 @@ interface Slide {
   lead: string;
   cta: { label: string; href: string };
   photo: { src: string; alt: string; position: string };
+  /** The picture carries its own headline: show it as it is, with no overlay or text on top. The text stays for screen readers and the whole slide links to the CTA. */
+  poster?: boolean;
 }
 
 const slides: Slide[] = [
+  {
+    eyebrow: 'Aretia Treasury',
+    status: 'live',
+    title: 'Managing climate needs financing.',
+    lead: 'The Aretia Treasury finances weather forecasting, flood alerting and earthquake detection, funded by every ACT transfer.',
+    cta: { label: 'Explore the Climate Treasury', href: '/details' },
+    photo: { src: '/images/hero/treasury.webp', alt: 'Aretia Treasury: managing climate needs financing, with weather forecasting, flood alerting and earthquake detection, beside a firefighting helicopter and a warning siren', position: '50% 50%' },
+    poster: true,
+  },
   {
     eyebrow: 'Climate Catalyst Fund',
     status: 'live',
@@ -72,7 +83,7 @@ const slides: Slide[] = [
   <div class="hero__frame" data-carousel aria-roledescription="carousel" aria-label="Aretia services">
     {
       slides.map((s, i) => (
-        <div class="hero__slide" class:list={{ 'is-active': i === 0 }} data-slide={i} aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.eyebrow}`} aria-hidden={i === 0 ? undefined : 'true'}>
+        <div class="hero__slide" class:list={{ 'is-active': i === 0, 'hero__slide--poster': s.poster }} data-slide={i} aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.eyebrow}`} aria-hidden={i === 0 ? undefined : 'true'}>
           <img
             class="hero__img"
             src={s.photo.src}
@@ -83,7 +94,8 @@ const slides: Slide[] = [
             loading={i === 0 ? undefined : 'lazy'}
             fetchpriority={i === 0 ? 'high' : undefined}
           />
-          <div class="hero__content">
+          {s.poster && <a class="hero__poster-link" href={s.cta.href} tabindex="-1" aria-hidden="true"></a>}
+          <div class="hero__content" class:list={{ 'sr-only': s.poster }}>
             <p class="hero__eyebrow" data-hero-in>
               <span class="hero__eyebrow-mark" aria-hidden="true"></span>{s.eyebrow} <span class="hero__eyebrow-sep">/</span> {STATUS_LABEL[s.status]}
             </p>
@@ -165,6 +177,8 @@ const slides: Slide[] = [
      separate near-black -- one brand color carries the whole site. */
   .hero__slide::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(21, 6, 129, 0.82) 0%, rgba(21, 6, 129, 0.52) 34%, rgba(21, 6, 129, 0) 62%), linear-gradient(0deg, rgba(21, 6, 129, 0.4), transparent 30%); }
 
+  .hero__slide--poster::before { display: none; }
+  .hero__poster-link { position: absolute; inset: 0; z-index: 0; }
   .hero__content { display: grid; justify-items: start; gap: 22px; width: min(100%, 860px); padding: clamp(24px, 6vw, 96px); color: #fff; }
   /* Tracked-out uppercase label, no pill chip -- a thin square mark instead
      of a soft glowing dot, and a hairline rule underneath rather than a

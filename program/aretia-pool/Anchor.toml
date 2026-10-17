@@ -1,0 +1,21 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+aretia_pool = "4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc"
+
+# No mainnet entry: the mainnet program is not deployed. When it is, it gets its own program id (its own keypair, kept outside the repo)
+# and the upgrade authority goes to the treasury multisig. See docs/ARETIA_POOL.md section 13 and website/scripts/pool-solana-mainnet.mjs.
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+# Built here with cargo build-sbf (no Anchor CLI): the program is plain anchor-lang 0.30.1. The program keypair stays outside the repo.

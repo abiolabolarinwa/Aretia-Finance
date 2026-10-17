@@ -807,4 +807,19 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     status: 'ACTIVE',
     notes: 'Quoted by simulating the swap on the program itself, so it needs the user\'s account. Only the pools listed here are used.',
   },
+  {
+    // Aretia's own pool program (docs/ARETIA_POOL.md section 14). DESIGN ONLY: DISABLED means registry.routable() never returns it, so no venue
+    // code runs and nothing can be routed here. No mainnet program exists and it is unaudited. `router` is the DEVNET test program: when a mainnet
+    // program exists it gets its own id here, and the flip to ACTIVE needs the audit, a live test and the owner's go-ahead.
+    id: 'aretia-pool',
+    name: 'Aretia Pool',
+    chain: 'solana',
+    protocol: 'aretia-pool',
+    model: 'constant-product',
+    mechanism: 'solana-program',
+    router: '4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc',
+    feePpm: 2500,
+    status: 'DISABLED',
+    notes: 'Pool is PDA ["pool", mint], quote side is native SOL, fee 0.25% or 1% in the pool account. Can be priced locally and exactly (walletAretiaPoolCore). Not built as a venue adapter yet.',
+  },
 ];

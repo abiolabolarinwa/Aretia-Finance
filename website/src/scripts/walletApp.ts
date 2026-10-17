@@ -11,6 +11,7 @@ import { initShield } from './walletShield';
 import { initLaunch } from './walletLaunch';
 import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
+import { initAretiaPool } from './walletAretiaPool';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
@@ -386,11 +387,15 @@ export function initWalletApp(): void {
 
   const pool = initPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
+  const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   let launchHub: LaunchHub | null = null;
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),
-    onNetwork: (n) => curve.setActive(n === 'solana'),
+    onNetwork: (n) => {
+      curve.setActive(n === 'solana');
+      aretiaPool.setActive(n === 'solana');
+    },
     offerPool: (mint) => pool.offer(mint),
     offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined,
     evm: {

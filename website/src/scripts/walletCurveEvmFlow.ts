@@ -133,8 +133,8 @@ const GAS_MARGIN_NUM = 12n;
 const GAS_MARGIN_DEN = 10n;
 /** What a curve creation (and its first buy) costs in gas is under this; used for the balance check and the shown ceiling, as the approval comes first and the creation cannot be estimated until then. */
 const CREATE_GAS_CEILING = 450_000n;
-/** Graduating into the exchange creates a pool, which is expensive: measured at about 2.8 million gas, so this leaves room. */
-const GRADUATE_GAS_CEILING = 3_500_000n;
+/** Graduating into the exchange creates a pool, which is expensive: measured at about 2.8 million gas on Ethereum and Polygon and 3.5 million on BNB Chain, so this leaves room. */
+const GRADUATE_GAS_CEILING = 4_500_000n;
 
 export class EvmCurveFlow {
   constructor(private readonly d: EvmCurveFlowDeps) {}

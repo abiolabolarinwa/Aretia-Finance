@@ -27,6 +27,28 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: strin
 const grouped = (text: string): string => text.replace(/^(\d+)/, (whole) => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 const initials = (symbol: string, name: string): string => (symbol || name || '?').trim().slice(0, 2).toUpperCase() || '?';
 
+/** The logo for each network; a test network wears the logo of its main network. */
+const LOGO: Record<string, string> = {
+  solana: 'solana',
+  bnb: 'bnb',
+  bscTestnet: 'bnb',
+  ethereum: 'ethereum',
+  sepolia: 'ethereum',
+  polygon: 'polygon',
+  polygonAmoy: 'polygon',
+};
+function logo(key: string, cls: string): HTMLImageElement | HTMLSpanElement {
+  const file = LOGO[key];
+  if (!file) return h('span', cls);
+  const img = h('img', cls);
+  img.src = `/assets/chains/${file}.png`;
+  img.alt = '';
+  img.width = 22;
+  img.height = 22;
+  img.decoding = 'async';
+  return img;
+}
+
 const STAGE_STATE: Record<string, StepState> = { form: 'current', review: 'current', working: 'busy', done: 'done' };
 
 export interface LaunchHub {
@@ -82,7 +104,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       b.dataset.net = n.key;
       b.disabled = !n.enabled;
       if (!n.enabled) b.title = 'Not available yet';
-      b.append(h('span', 'lh-chip__dot'), document.createTextNode(n.name));
+      b.append(logo(n.key, 'lh-chip__logo'), document.createTextNode(n.name));
       b.addEventListener('click', () => {
         if (n.key === launch.getNetwork()) return;
         if (!launch.setNetwork(n.key)) {
@@ -244,7 +266,11 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       d.append(h('dt', '', k), h('dd', '', v));
       facts.append(d);
     };
-    fact('Network', net?.name ?? '');
+    const netRow = h('div');
+    const netValue = h('dd', 'lh-token__net');
+    netValue.append(logo(launch.getNetwork(), 'lh-token__netlogo'), document.createTextNode(net?.name ?? ''));
+    netRow.append(h('dt', '', 'Network'), netValue);
+    facts.append(netRow);
     fact('Total supply', supply ? grouped(supply.replace(/,/g, '')) : '–');
     fact('Supply can grow', 'Never');
     previewEl.append(h('h3', 'lh-side__h', done ? 'Your token' : 'Preview'), top, facts);

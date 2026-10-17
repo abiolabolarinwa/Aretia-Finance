@@ -711,14 +711,10 @@ const sendTips = [
   .lh-chip:hover:not(:disabled):not(.is-on) { border-color: var(--color-brand); background: var(--color-brand-soft); }
   .lh-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   .lh-chip:disabled { opacity: 0.5; cursor: not-allowed; }
-  .lh-chip__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); }
-  .lh-chip.is-on { color: #fff; background: var(--color-brand); border-color: var(--color-brand); }
+  .lh-chip__logo { flex: none; width: 22px; height: 22px; object-fit: contain; background: #fff; border-radius: 50%; }
+  .lh-chip__logo[src$='/solana.png'], .lh-token__netlogo[src$='/solana.png'] { padding: 4px; background: #0b0b12; box-sizing: border-box; }
+  .lh-chip.is-on .lh-chip__logo { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
   .lh-chip.is-test:not(.is-on) { border-style: dashed; }
-  .lh-chip[data-net='solana'] .lh-chip__dot { background: linear-gradient(135deg, #9945ff, #14f195); }
-  .lh-chip[data-net='bnb'] .lh-chip__dot, .lh-chip[data-net='bscTestnet'] .lh-chip__dot { background: #f0b90b; }
-  .lh-chip[data-net='ethereum'] .lh-chip__dot, .lh-chip[data-net='sepolia'] .lh-chip__dot { background: #627eea; }
-  .lh-chip[data-net='polygon'] .lh-chip__dot, .lh-chip[data-net='polygonAmoy'] .lh-chip__dot { background: #8247e5; }
-  .lh-chip.is-on .lh-chip__dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 
   .lh__rail { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .lh-step { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; transition: border-color 160ms ease, box-shadow 160ms ease; }
@@ -774,6 +770,8 @@ const sendTips = [
   [data-hub-preview][data-empty='1'] .lh-token__name { color: var(--color-muted); }
   .lh-token__head { display: grid; gap: 2px; min-width: 0; }
   .lh-token__name { font-size: 18px; line-height: 1.2; color: var(--color-strong); overflow-wrap: anywhere; }
+  .lh-token__net { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .lh-token__netlogo { width: 18px; height: 18px; object-fit: contain; border-radius: 50%; }
   .lh-token__sym { font-size: 13px; font-weight: 600; color: var(--color-muted); }
   .lh-token__facts, .lh-fees { margin: 0; display: grid; gap: 0; }
   .lh-token__facts > div, .lh-fees > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 13.5px; border-top: 1px solid var(--color-border); }

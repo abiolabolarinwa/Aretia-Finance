@@ -80,8 +80,9 @@ if (mode === 'prepare') {
   // The program account and the program data account, plus the loader's 45-byte header on the data.
   const dataRent = await conn.getMinimumBalanceForRentExemption(45 + so.length);
   const programRent = await conn.getMinimumBalanceForRentExemption(36);
-  // The upload buffer is paid for first and refunded when the program is deployed from it, so the wallet needs both at once for a moment.
-  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, which stays locked in the program's accounts, plus a small network fee. The upload buffer is paid first and refunded, so keep the deploying wallet at ${sol(2n * dataRent + programRent + 50_000_000n)} or more while it runs.`);
+  // Measured on devnet with this exact build: the whole deploy spent 1.6133 SOL. The upload buffer's lamports are handed back to the payer
+  // inside the deploy instruction before the program's data account is paid for, so the wallet never needs the rent twice.
+  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, which stays locked in the program's accounts, plus about 0.002 SOL of network fees (a devnet deploy of this build spent 1.6133 SOL in all). Keep the deploying wallet at ${sol(dataRent + programRent + 50_000_000)} or more.`);
   console.log('Doing this deploys code that holds buyers\' money and is NOT independently audited. It is the owner\'s call, from the owner\'s own wallet.\n');
   console.log(`1. Make the program's own key once, and keep it (it signs only this first deployment). Print its address:
      solana-keygen new --no-bip39-passphrase --outfile <folder>\\aretia-curve-program.json

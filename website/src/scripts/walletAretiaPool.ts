@@ -15,6 +15,8 @@ import {
   aretiaPoolProgramFor,
   DEFAULT_ARETIA_POOL_FORM,
   LAUNCH_PROTECTION,
+  PRICE_RANGES,
+  type PriceRange,
   type LaunchProtection,
   type AretiaPoolForm,
   priceText,
@@ -90,6 +92,8 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
   let tradeText = '';
   let liqText = '';
   let recipientText = '';
+  let transferText = '';
+  let idText = '';
   let flow: AretiaPoolFlow | null = null;
 
   async function flowFor(): Promise<AretiaPoolFlow> {
@@ -198,6 +202,23 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     lpWrap.append(lpLabel, lpSelect, h('p', 'wapp__fine', 'A higher fee right after the pool opens makes sniping bots pay for being first. It falls in a straight line to the trading fee, is shared 20% Aretia and 80% you, and cannot be changed afterwards.'));
     f.append(lpWrap);
 
+    const rWrap = h('div', 'wapp-ln__field');
+    const rLabel = h('label', 'wapp__eyebrow', 'Price range');
+    rLabel.htmlFor = 'ap-range';
+    const rSelect = h('select', 'wapp__input');
+    rSelect.id = 'ap-range';
+    for (const key of Object.keys(PRICE_RANGES) as PriceRange[]) {
+      const o = h('option', '', PRICE_RANGES[key].label);
+      o.value = key;
+      o.selected = key === form.priceRange;
+      rSelect.append(o);
+    }
+    rSelect.addEventListener('change', () => {
+      form = { ...form, priceRange: rSelect.value as PriceRange };
+    });
+    rWrap.append(rLabel, rSelect, h('p', 'wapp__fine', 'A ceiling concentrates the same tokens into a band, so the pool is deeper near the starting price and buyers move it less. Once buyers have taken every token the price stops rising and the pool holds the SOL they paid. Fixed once the pool is open.'));
+    f.append(rWrap);
+
     const lockWrap = h('label', 'wapp__check');
     const lockBox = h('input');
     lockBox.type = 'checkbox';
@@ -237,7 +258,14 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     load.type = 'button';
     load.disabled = busy || !host.getAddress();
     load.addEventListener('click', () => void lookup());
-    box.append(input, load);
+    const idIn = h('input', 'wapp__input wapp__input--mono');
+    idIn.placeholder = 'Position id (only if a position was sent to you)';
+    idIn.value = idText;
+    idIn.autocomplete = 'off';
+    idIn.spellcheck = false;
+    idIn.setAttribute('aria-label', 'Position id');
+    idIn.addEventListener('input', () => (idText = idIn.value.trim()));
+    box.append(input, idIn, load);
     if (note) box.append(h('p', 'wapp__fine', note));
     if (managed) {
       const { pool, position } = managed;
@@ -248,6 +276,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
       if (position) {
         row(dl, 'Your liquidity', `${grouped(position.shares.toString())} (${position.locked === position.shares ? 'locked' : `${grouped(position.locked.toString())} locked`})`);
         row(dl, 'Fees you can claim', sol(managed.claimable));
+        if (position.id !== position.owner) row(dl, 'Position id', short(position.id));
         row(dl, 'Fees are paid to', position.recipient === position.owner ? 'You' : short(position.recipient));
       } else row(dl, 'Your position', 'None in this pool');
       box.append(dl);
@@ -270,6 +299,18 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
         setTo.disabled = busy;
         setTo.addEventListener('click', () => void act('recipient'));
         box.append(to, setTo);
+        const give = h('input', 'wapp__input wapp__input--mono');
+        give.placeholder = 'Give this whole position to another wallet';
+        give.value = transferText;
+        give.autocomplete = 'off';
+        give.spellcheck = false;
+        give.setAttribute('aria-label', 'Wallet to give the position to');
+        give.addEventListener('input', () => (transferText = give.value.trim()));
+        const giveB = h('button', 'wapp__btn wapp__btn--ghost', 'Give the position away');
+        giveB.type = 'button';
+        giveB.disabled = busy;
+        giveB.addEventListener('click', () => void act('transfer'));
+        box.append(give, giveB, h('p', 'wapp__fine', 'The new owner gets everything, locked liquidity included, and the fees waiting on it. Claim yours first. Fees then go to them, not to you. This cannot be undone.'));
         if (position.locked < position.shares) {
           const lock = h('button', 'wapp__btn wapp__btn--ghost', 'Lock the rest for good');
           lock.type = 'button';
@@ -352,6 +393,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     row(dl, 'Starting price', `${config.price} SOL per token`);
     row(dl, 'Trading fee', `${config.tradingFeeBps / 100}% (Aretia keeps 20% of it)`);
     row(dl, 'Liquidity', params.lock ? 'Locked for good' : 'Not locked: you can remove it');
+    row(dl, 'Price range', params.vx0 > 0n ? 'Has a ceiling' : 'No ceiling');
     row(dl, 'Launch protection', params.sniperBps > 0 ? `${params.sniperBps / 100}% falling over ${params.decaySecs / 60} minutes` : 'None');
     row(dl, 'Pool address', short(built.pool));
     card.append(dl);
@@ -519,7 +561,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     draw();
     try {
       const f = await flowFor();
-      managed = await f.loadPool(managedMint, owner);
+      managed = await f.loadPool(managedMint, owner, idText || null);
       if (!managed) note = 'No Aretia pool was found for that token.';
     } catch (e) {
       note = friendlyError(e);
@@ -529,28 +571,33 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     }
   }
 
-  async function act(kind: 'claim' | 'lock' | 'trade' | 'add' | 'remove' | 'recipient', quote: TradeQuote | LiquidityQuote | null = null): Promise<void> {
+  async function act(kind: 'claim' | 'lock' | 'trade' | 'add' | 'remove' | 'recipient' | 'transfer', quote: TradeQuote | LiquidityQuote | null = null): Promise<void> {
     const owner = host.getAddress();
     const view = managed;
     if (!owner || !view) return;
-    if ((kind === 'claim' || kind === 'lock' || kind === 'remove' || kind === 'recipient') && !view.position) return;
+    if ((kind === 'claim' || kind === 'lock' || kind === 'remove' || kind === 'recipient' || kind === 'transfer') && !view.position) return;
     busy = true;
     note = null;
     draw();
     try {
       const f = await flowFor();
-      if (kind === 'claim') await f.claim(owner, managedMint, view.position!.recipient);
+      const id = view.position?.id ?? owner;
+      const none = () => undefined;
+      if (kind === 'claim') await f.claim(owner, managedMint, view.position!.recipient, none, id);
       else if (kind === 'recipient') {
         if (!isSolanaAddress(recipientText)) throw new Error('That is not a valid wallet address.');
-        await f.setRecipient(owner, managedMint, recipientText);
+        await f.setRecipient(owner, managedMint, recipientText, none, id);
+      } else if (kind === 'transfer') {
+        if (!isSolanaAddress(transferText) || transferText === owner) throw new Error('Enter the address of the wallet to give the position to.');
+        await f.transferPosition(owner, managedMint, transferText, none, id);
       }
-      else if (kind === 'lock') await f.lock(owner, managedMint, view.position!.shares - view.position!.locked);
+      else if (kind === 'lock') await f.lock(owner, managedMint, view.position!.shares - view.position!.locked, none, id);
       else if (kind === 'trade' && quote && 'isBuy' in quote) await f.trade(owner, managedMint, quote);
-      else if (kind === 'add' && quote && 'dl' in quote) await f.addLiquidity(owner, managedMint, quote);
-      else if (kind === 'remove' && quote && 'dl' in quote) await f.removeLiquidity(owner, managedMint, quote);
+      else if (kind === 'add' && quote && 'dl' in quote) await f.addLiquidity(owner, managedMint, quote, none, id);
+      else if (kind === 'remove' && quote && 'dl' in quote) await f.removeLiquidity(owner, managedMint, quote, none, id);
       else throw new Error('Nothing to send.');
-      note = { recipient: 'Fees will now be paid to the wallet you named.', claim: 'Fees claimed.', lock: 'Locked for good.', trade: 'Trade sent.', add: 'Liquidity added.', remove: 'Liquidity removed.' }[kind];
-      managed = await f.loadPool(managedMint, owner);
+      note = { transfer: 'The position now belongs to the other wallet.', recipient: 'Fees will now be paid to the wallet you named.', claim: 'Fees claimed.', lock: 'Locked for good.', trade: 'Trade sent.', add: 'Liquidity added.', remove: 'Liquidity removed.' }[kind];
+      managed = await f.loadPool(managedMint, owner, idText || view.position?.id || null);
       host.refreshWallet();
     } catch (e) {
       note = e instanceof LaunchError ? e.message : friendlyError(e);

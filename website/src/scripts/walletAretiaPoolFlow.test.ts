@@ -20,7 +20,7 @@ const tokenAccount = (amount: bigint): Uint8Array => {
   return data;
 };
 
-function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: bigint; feeReserve?: bigint; creator?: string; mint?: string; feeStartBps?: number; decaySecs?: number }): Uint8Array {
+function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: bigint; feeReserve?: bigint; creator?: string; mint?: string; feeStartBps?: number; decaySecs?: number; vx?: bigint }): Uint8Array {
   const d = new Uint8Array(POOL_ACCOUNT_SIZE);
   d.set(POOL_TAG, 0);
   d.set(new web3.PublicKey(p.mint ?? MINT).toBytes(), 10);
@@ -35,6 +35,7 @@ function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: b
   v.setBigUint64(116, p.feeReserve ?? 0n, true);
   v.setUint16(132, p.feeStartBps ?? 0, true);
   v.setUint32(134, p.decaySecs ?? 0, true);
+  v.setBigUint64(138, p.vx ?? 0n, true);
   return d;
 }
 function positionBytes(pool: string, owner: string, shares: bigint, locked: bigint, pending = 0n): Uint8Array {
@@ -47,6 +48,7 @@ function positionBytes(pool: string, owner: string, shares: bigint, locked: bigi
   v.setBigUint64(80, locked, true);
   v.setBigUint64(104, pending, true);
   d.set(new web3.PublicKey(owner).toBytes(), 112);
+  d.set(new web3.PublicKey(owner).toBytes(), 144);
   return d;
 }
 
@@ -73,12 +75,13 @@ function world(): World {
       if (w.script.reject) throw new Error('User rejected the request.');
       w.sent.push(tx);
       const ix = tx.instructions[0]!;
-      if (w.script.poolAppears !== false && ix.data.length === 41) {
+      if (w.script.poolAppears !== false && ix.data.length === 49) {
         const v = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
         const [x, y, l, fee, lock] = [v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), ix.data[34] === 1];
         const [sniper, decay] = [v.getUint16(35, true), v.getUint32(37, true)];
+        const vx = v.getBigUint64(41, true);
         const pool = ix.keys[4]!.pubkey.toBase58();
-        w.accounts.set(pool, { owner: PROGRAM, data: poolBytes({ x: w.script.wrongAmount ? x - 1n : x, y, l, feeBps: fee, feeStartBps: sniper, decaySecs: decay }) });
+        w.accounts.set(pool, { owner: PROGRAM, data: poolBytes({ x: w.script.wrongAmount ? x - 1n : x, y, l, feeBps: fee, feeStartBps: sniper, decaySecs: decay, vx }) });
         w.accounts.set(ix.keys[7]!.pubkey.toBase58(), { owner: PROGRAM, data: positionBytes(pool, CREATOR, l, lock ? l : 0n) });
       }
       return 'sig1';
@@ -249,5 +252,20 @@ describe('trading, claiming and locking', () => {
     await flow.addLiquidity(CREATOR, MINT, a);
     await flow.removeLiquidity(CREATOR, MINT, r);
     expect(w.sent).toHaveLength(2);
+  });
+  it('reads a position by its id after it has been sold, and sends the transfer', async () => {
+    const { w, flow } = await live();
+    const pool = poolAddress(web3, PROGRAM, MINT);
+    const NEW_OWNER = '3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg';
+    const bytes = positionBytes(pool, CREATOR, 100n, 100n);
+    bytes.set(new web3.PublicKey(NEW_OWNER).toBytes(), 40); // owned by someone else now, still under CREATOR's id
+    w.accounts.set(positionAddress(web3, PROGRAM, pool, CREATOR), { owner: PROGRAM, data: bytes });
+    expect((await flow.loadPool(MINT, NEW_OWNER))!.position).toBeNull(); // not under the new owner's own address
+    const v = (await flow.loadPool(MINT, NEW_OWNER, CREATOR))!;
+    expect(v.position).toMatchObject({ owner: NEW_OWNER, id: CREATOR });
+    await flow.claim(NEW_OWNER, MINT, NEW_OWNER, undefined, CREATOR);
+    await flow.transferPosition(NEW_OWNER, MINT, CREATOR, undefined, CREATOR);
+    const sent = w.sent.slice(-2);
+    expect(sent.map((t) => t.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === positionAddress(web3, PROGRAM, pool, CREATOR)))).toEqual([true, true]);
   });
 });

@@ -23,6 +23,7 @@ export const DISC = {
   removeLiquidity: Uint8Array.from([80, 85, 209, 72, 24, 206, 177, 108]),
   claimFees: Uint8Array.from([82, 251, 233, 156, 12, 52, 184, 202]),
   lockLiquidity: Uint8Array.from([179, 201, 236, 158, 212, 98, 70, 182]),
+  transferPosition: Uint8Array.from([139, 130, 102, 147, 135, 77, 113, 222]),
   setRecipient: Uint8Array.from([133, 1, 115, 69, 206, 190, 17, 18]),
 } as const;
 
@@ -37,8 +38,9 @@ export function poolAddress(web3: typeof Web3, program: string, mint: string): s
 export function solVaultAddress(web3: typeof Web3, program: string, pool: string): string {
   return web3.PublicKey.findProgramAddressSync([Buffer.from('sol_vault'), new web3.PublicKey(pool).toBytes()], new web3.PublicKey(program))[0].toBase58();
 }
-export function positionAddress(web3: typeof Web3, program: string, pool: string, owner: string): string {
-  return web3.PublicKey.findProgramAddressSync([Buffer.from('position'), new web3.PublicKey(pool).toBytes(), new web3.PublicKey(owner).toBytes()], new web3.PublicKey(program))[0].toBase58();
+/** A position's address comes from its id, which is the owner's address unless the position was opened under a key that signed for itself. */
+export function positionAddress(web3: typeof Web3, program: string, pool: string, id: string): string {
+  return web3.PublicKey.findProgramAddressSync([Buffer.from('position'), new web3.PublicKey(pool).toBytes(), new web3.PublicKey(id).toBytes()], new web3.PublicKey(program))[0].toBase58();
 }
 
 // ---------------------------------------------------------------- building
@@ -75,16 +77,17 @@ export interface BuiltCreate {
   instructions: Web3.TransactionInstruction[];
   pool: string;
   position: string;
+  positionId: string;
   vault: string;
   solVault: string;
 }
 
 /** `owner` is who will own the position: the creator, on the Launch page. */
-export function buildCreatePool(web3: typeof Web3, program: string, p: CreateParams, owner: string = p.creator): BuiltCreate {
+export function buildCreatePool(web3: typeof Web3, program: string, p: CreateParams, owner: string = p.creator, positionId: string = owner): BuiltCreate {
   const pool = poolAddress(web3, program, p.mint);
   const solVault = solVaultAddress(web3, program, pool);
   const vault = ataAddress(web3, pool, p.mint, TOKEN_2022_PROGRAM_ID);
-  const position = positionAddress(web3, program, pool, owner);
+  const position = positionAddress(web3, program, pool, positionId);
   const ix = new web3.TransactionInstruction({
     programId: new web3.PublicKey(program),
     keys: [
@@ -100,10 +103,11 @@ export function buildCreatePool(web3: typeof Web3, program: string, p: CreatePar
       key(web3, TOKEN_2022_PROGRAM_ID, false, false),
       key(web3, ATA_PROGRAM_ID, false, false),
       key(web3, SYSTEM_PROGRAM_ID, false, false),
+      key(web3, positionId, positionId !== owner, false),
     ],
-    data: data(DISC.createPool, [{ u64: p.x0 }, { u64: p.y0 }, { u64: p.l0 }, { u16: p.feeBps }, { bool: p.lock }, { u16: p.sniperBps }, { u32: p.decaySecs }]),
+    data: data(DISC.createPool, [{ u64: p.x0 }, { u64: p.y0 }, { u64: p.l0 }, { u16: p.feeBps }, { bool: p.lock }, { u16: p.sniperBps }, { u32: p.decaySecs }, { u64: p.vx0 }]),
   });
-  return { instructions: [ix], pool, position, vault, solVault };
+  return { instructions: [ix], pool, position, positionId, vault, solVault };
 }
 
 export interface SwapParams {
@@ -136,6 +140,8 @@ export function buildSwap(web3: typeof Web3, program: string, s: SwapParams): We
 export interface LiquidityParams {
   owner: string;
   mint: string;
+  /** The position's id. The owner's own address unless the position was opened under another key or has been transferred. */
+  positionId?: string;
   /** Liquidity to add or remove. */
   dl: bigint;
   /** Add: the most tokens and SOL the owner will pay. Remove: the least tokens and SOL the owner will accept. */
@@ -143,31 +149,34 @@ export interface LiquidityParams {
   sol: bigint;
 }
 
-function liquidityKeys(web3: typeof Web3, program: string, owner: string, mint: string): Web3.AccountMeta[] {
+function liquidityKeys(web3: typeof Web3, program: string, owner: string, mint: string, id: string, withId: boolean): Web3.AccountMeta[] {
   const pool = poolAddress(web3, program, mint);
-  return [
+  const keys = [
     key(web3, owner, true, true),
     key(web3, pool, false, true),
     key(web3, solVaultAddress(web3, program, pool), false, true),
     key(web3, mint, false, false),
     key(web3, ataAddress(web3, pool, mint, TOKEN_2022_PROGRAM_ID), false, true),
     key(web3, ataAddress(web3, owner, mint, TOKEN_2022_PROGRAM_ID), false, true),
-    key(web3, positionAddress(web3, program, pool, owner), false, true),
+    key(web3, positionAddress(web3, program, pool, id), false, true),
     key(web3, TOKEN_2022_PROGRAM_ID, false, false),
     key(web3, SYSTEM_PROGRAM_ID, false, false),
   ];
+  // Adding takes the id as its last account (removing finds the position from its own stored id).
+  if (withId) keys.push(key(web3, id, id !== owner, false));
+  return keys;
 }
 
 export function buildAddLiquidity(web3: typeof Web3, program: string, l: LiquidityParams): Web3.TransactionInstruction {
-  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint), data: data(DISC.addLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
+  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint, l.positionId ?? l.owner, true), data: data(DISC.addLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
 }
 
 export function buildRemoveLiquidity(web3: typeof Web3, program: string, l: LiquidityParams): Web3.TransactionInstruction {
-  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint), data: data(DISC.removeLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
+  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint, l.positionId ?? l.owner, false), data: data(DISC.removeLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
 }
 
 /** `recipient` is the wallet the position names to receive its fees (the owner unless changed). */
-export function buildClaim(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string = owner): Web3.TransactionInstruction {
+export function buildClaim(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string = owner, positionId: string = owner): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, mint);
   return new web3.TransactionInstruction({
     programId: new web3.PublicKey(program),
@@ -175,7 +184,7 @@ export function buildClaim(web3: typeof Web3, program: string, owner: string, mi
       key(web3, owner, true, true),
       key(web3, pool, false, true),
       key(web3, solVaultAddress(web3, program, pool), false, true),
-      key(web3, positionAddress(web3, program, pool, owner), false, true),
+      key(web3, positionAddress(web3, program, pool, positionId), false, true),
       key(web3, recipient, false, true),
       key(web3, SYSTEM_PROGRAM_ID, false, false),
     ],
@@ -183,20 +192,29 @@ export function buildClaim(web3: typeof Web3, program: string, owner: string, mi
   });
 }
 
-export function buildSetRecipient(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string): Web3.TransactionInstruction {
+export function buildTransferPosition(web3: typeof Web3, program: string, owner: string, mint: string, newOwner: string, positionId: string = owner): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, mint);
   return new web3.TransactionInstruction({
     programId: new web3.PublicKey(program),
-    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, owner), false, true)],
+    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, positionId), false, true)],
+    data: data(DISC.transferPosition, [{ key: new web3.PublicKey(newOwner).toBytes() }]),
+  });
+}
+
+export function buildSetRecipient(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string, positionId: string = owner): Web3.TransactionInstruction {
+  const pool = poolAddress(web3, program, mint);
+  return new web3.TransactionInstruction({
+    programId: new web3.PublicKey(program),
+    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, positionId), false, true)],
     data: data(DISC.setRecipient, [{ key: new web3.PublicKey(recipient).toBytes() }]),
   });
 }
 
-export function buildLock(web3: typeof Web3, program: string, owner: string, mint: string, amount: bigint): Web3.TransactionInstruction {
+export function buildLock(web3: typeof Web3, program: string, owner: string, mint: string, amount: bigint, positionId: string = owner): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, mint);
   return new web3.TransactionInstruction({
     programId: new web3.PublicKey(program),
-    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, owner), false, true)],
+    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, positionId), false, true)],
     data: data(DISC.lockLiquidity, [{ u64: amount }]),
   });
 }
@@ -221,12 +239,14 @@ function inspectOne(
   dataLen: number,
   accounts: Want[],
   args: (d: Uint8Array) => string[],
+  /** Accounts other than the payer that are expected to sign: a position id that signs for itself. */
+  allowedSigners: string[] = [],
 ): string[] {
   const blockers: string[] = [];
   if (tx.feePayer?.toBase58() !== payer) blockers.push('The fee would be paid by an account other than yours.');
   const signers = new Set<string>();
   for (const ix of tx.instructions) for (const m of ix.keys) if (m.isSigner) signers.add(m.pubkey.toBase58());
-  for (const s of signers) if (s !== payer) blockers.push(`An unexpected account would have to sign: ${s}.`);
+  for (const s of signers) if (s !== payer && !allowedSigners.includes(s)) blockers.push(`An unexpected account would have to sign: ${s}.`);
   if (tx.instructions.length !== 1) return [...blockers, 'The transaction is not the single step that was shown.'];
   const ix = tx.instructions[0]!;
   if (ix.programId.toBase58() !== program) return [...blockers, 'The step is not made by the pool program that was shown.'];
@@ -252,12 +272,15 @@ export interface CreateCheck {
   /** The pool address shown to the creator. */
   pool: string;
   owner?: string;
+  /** The position's id: the owner's address unless the position is opened under a key that signs for itself. */
+  positionId?: string;
 }
 
 /** Reads a create-pool transaction back and compares it with what the review screen showed. Returns the reasons not to sign. */
 export function inspectCreate(web3: typeof Web3, tx: Web3.Transaction, c: CreateCheck): string[] {
   const { params: p, program } = c;
   const owner = c.owner ?? p.creator;
+  const id = c.positionId ?? owner;
   const pool = pda(web3, program, [text('pool'), pk(web3, p.mint)]);
   const blockers: string[] = [];
   if (pool !== c.pool) blockers.push('The pool address is not the one shown.');
@@ -269,15 +292,16 @@ export function inspectCreate(web3: typeof Web3, tx: Web3.Transaction, c: Create
     [pool, 'W'],
     [pda(web3, program, [text('sol_vault'), pk(web3, pool)]), 'W'],
     [pda(web3, ATA_PROGRAM_ID, [pk(web3, pool), pk(web3, TOKEN_2022_PROGRAM_ID), pk(web3, p.mint)]), 'W'],
-    [pda(web3, program, [text('position'), pk(web3, pool), pk(web3, owner)]), 'W'],
+    [pda(web3, program, [text('position'), pk(web3, pool), pk(web3, id)]), 'W'],
     [ARETIA_POOL_FEE_ADDRESS, 'W'],
     [TOKEN_2022_PROGRAM_ID, ''],
     [ATA_PROGRAM_ID, ''],
     [SYSTEM_PROGRAM_ID, ''],
+    [id, id !== owner ? 'S' : ''],
   ];
   return [
     ...blockers,
-    ...inspectOne(tx, p.creator, program, DISC.createPool, 8 + 8 + 8 + 8 + 2 + 1 + 2 + 4, accounts, (d) => {
+    ...inspectOne(tx, p.creator, program, DISC.createPool, 8 + 8 + 8 + 8 + 2 + 1 + 2 + 4 + 8, accounts, (d) => {
       const v = view(d);
       const out: string[] = [];
       if (v.getBigUint64(8, true) !== p.x0) out.push('The amount of tokens going in is not the one shown.');
@@ -286,8 +310,9 @@ export function inspectCreate(web3: typeof Web3, tx: Web3.Transaction, c: Create
       if (v.getUint16(32, true) !== p.feeBps) out.push('The trading fee is not the one shown.');
       if (d[34] !== (p.lock ? 1 : 0)) out.push(p.lock ? 'The liquidity would not be locked.' : 'The liquidity would be locked, which was not chosen.');
       if (v.getUint16(35, true) !== p.sniperBps || v.getUint32(37, true) !== p.decaySecs) out.push('The launch protection is not the one shown.');
+      if (v.getBigUint64(41, true) !== p.vx0) out.push('The price range is not the one shown.');
       return out;
-    }),
+    }, id !== owner ? [id] : []),
   ];
 }
 
@@ -319,25 +344,25 @@ export function inspectSwap(web3: typeof Web3, tx: Web3.Transaction, c: SwapChec
   });
 }
 
-export function inspectClaim(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient?: string }): string[] {
+export function inspectClaim(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient?: string; positionId?: string }): string[] {
   const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
   const accounts: Want[] = [
     [c.owner, 'SW'],
     [pool, 'W'],
     [pda(web3, c.program, [text('sol_vault'), pk(web3, pool)]), 'W'],
-    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
+    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
     [c.recipient ?? c.owner, 'W'],
     [SYSTEM_PROGRAM_ID, ''],
   ];
   return inspectOne(tx, c.owner, c.program, DISC.claimFees, 8, accounts, () => []);
 }
 
-export function inspectLock(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; amount: bigint }): string[] {
+export function inspectLock(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; amount: bigint; positionId?: string }): string[] {
   const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
   const accounts: Want[] = [
     [c.owner, 'S'],
     [pool, ''],
-    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
+    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
   ];
   return inspectOne(tx, c.owner, c.program, DISC.lockLiquidity, 16, accounts, (d) => (view(d).getBigUint64(8, true) === c.amount ? [] : ['The amount being locked is not the one shown.']));
 }
@@ -351,10 +376,12 @@ function inspectLiquidity(web3: typeof Web3, tx: Web3.Transaction, program: stri
     [l.mint, ''],
     [pda(web3, ATA_PROGRAM_ID, [pk(web3, pool), pk(web3, TOKEN_2022_PROGRAM_ID), pk(web3, l.mint)]), 'W'],
     [associated(web3, l.owner, l.mint), 'W'],
-    [pda(web3, program, [text('position'), pk(web3, pool), pk(web3, l.owner)]), 'W'],
+    [pda(web3, program, [text('position'), pk(web3, pool), pk(web3, l.positionId ?? l.owner)]), 'W'],
     [TOKEN_2022_PROGRAM_ID, ''],
     [SYSTEM_PROGRAM_ID, ''],
   ];
+  if (add) accounts.push([l.positionId ?? l.owner, (l.positionId ?? l.owner) !== l.owner ? 'S' : '']);
+  const id = l.positionId ?? l.owner;
   return inspectOne(tx, l.owner, program, tag, 8 + 24, accounts, (d) => {
     const v = view(d);
     const out: string[] = [];
@@ -362,7 +389,7 @@ function inspectLiquidity(web3: typeof Web3, tx: Web3.Transaction, program: stri
     if (v.getBigUint64(16, true) !== l.tokens) out.push(add ? 'The most tokens you would pay is not the one shown.' : 'The least tokens you would accept is not the one shown.');
     if (v.getBigUint64(24, true) !== l.sol) out.push(add ? 'The most SOL you would pay is not the one shown.' : 'The least SOL you would accept is not the one shown.');
     return out;
-  });
+  }, add && id !== l.owner ? [id] : []);
 }
 
 export function inspectAddLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: LiquidityParams & { program: string }): string[] {
@@ -373,12 +400,22 @@ export function inspectRemoveLiquidity(web3: typeof Web3, tx: Web3.Transaction, 
   return inspectLiquidity(web3, tx, c.program, DISC.removeLiquidity, c, false);
 }
 
-export function inspectSetRecipient(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient: string }): string[] {
+export function inspectSetRecipient(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient: string; positionId?: string }): string[] {
   const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
   const accounts: Want[] = [
     [c.owner, 'S'],
     [pool, ''],
-    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
+    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
   ];
   return inspectOne(tx, c.owner, c.program, DISC.setRecipient, 8 + 32, accounts, (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.recipient)) ? [] : ['The wallet that would receive the fees is not the one shown.']));
+}
+
+export function inspectTransferPosition(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; newOwner: string; positionId?: string }): string[] {
+  const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
+  const accounts: Want[] = [
+    [c.owner, 'S'],
+    [pool, ''],
+    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
+  ];
+  return inspectOne(tx, c.owner, c.program, DISC.transferPosition, 8 + 32, accounts, (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.newOwner)) ? [] : ['The wallet the position would go to is not the one shown.']));
 }

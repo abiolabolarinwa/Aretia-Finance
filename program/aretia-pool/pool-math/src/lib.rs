@@ -1,9 +1,12 @@
 //! Aretia Pool maths. Pure integer arithmetic, no Solana types, so every rule here can be property-tested
 //! natively. The program (programs/aretia-pool) calls only these functions to price and split money.
 //!
-//! The pool is constant product over effective reserves `X = x` (tokens) and `Y = y + l` (real SOL plus a virtual
-//! reserve equal to the liquidity `l`). A pool made from tokens alone has `y = 0`, and nobody can sell more SOL
-//! out of the pool than buyers paid in (`gross <= y`), so the price never falls below the starting price.
+//! The pool is constant product over effective reserves `X = x + vx` (real tokens plus a virtual token reserve) and
+//! `Y = y + l` (real SOL plus a virtual reserve equal to the liquidity `l`). A pool made from tokens alone has `y = 0`,
+//! and nobody can sell more SOL out of the pool than buyers paid in (`gross <= y`), so the price never falls below the
+//! starting price. With `vx = 0` the price has no ceiling. With `vx > 0` the pool has a price RANGE: buyers can take at
+//! most the real tokens `x` (`out <= x`), so the price tops out where `x` reaches zero. That is the same shape as a
+//! concentrated-liquidity position with a lower and an upper price, fixed for the whole pool.
 //!
 //! Rounding: every division rounds so that the pool keeps the remainder, never the trader or the depositor.
 //!   * swaps: `X * Y` never decreases;
@@ -34,8 +37,10 @@ pub const MAX_AMOUNT: u64 = 1 << 62;
 /// The state the maths needs. All fields move only through the functions below.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pool {
-    /// Token reserve.
+    /// Real token reserve.
     pub x: u64,
+    /// Virtual token reserve: zero means no upper price. Scales with liquidity like `l` does.
+    pub vx: u64,
     /// Real SOL reserve (lamports), not counting accrued fees.
     pub y: u64,
     /// Total liquidity = virtual SOL reserve = total shares.
@@ -87,13 +92,23 @@ pub fn schedule_ok(base_bps: u16, start_bps: u16, decay_secs: u32) -> bool {
 impl Pool {
     /// The pool's opening state, or None for any value outside the safe range.
     pub fn open(x0: u64, y0: u64, l0: u64, fee_bps: u16) -> Option<Pool> {
+        Pool::open_ranged(x0, y0, l0, fee_bps, 0)
+    }
+
+    /// Like `open`, with a virtual token reserve `vx0` that sets an upper price. Zero means none; otherwise it must be
+    /// between a thousandth and a thousand times the tokens deposited, which keeps the range between about 1.002x and
+    /// a million times the starting price.
+    pub fn open_ranged(x0: u64, y0: u64, l0: u64, fee_bps: u16, vx0: u64) -> Option<Pool> {
+        if vx0 != 0 && (vx0 > MAX_AMOUNT || (vx0 as u128) * 1_000 < x0 as u128 || (vx0 as u128) > (x0 as u128) * 1_000) {
+            return None;
+        }
         if !ALLOWED_FEE_BPS.contains(&fee_bps) || x0 < MIN_TOKENS || l0 < MIN_LIQUIDITY {
             return None;
         }
         if x0 > MAX_AMOUNT || y0 > MAX_AMOUNT || l0 > MAX_AMOUNT {
             return None;
         }
-        Some(Pool { x: x0, y: y0, l: l0, fee_bps, acc: 0, fee_reserve: 0 })
+        Some(Pool { x: x0, vx: vx0, y: y0, l: l0, fee_bps, acc: 0, fee_reserve: 0 })
     }
 
     /// Effective SOL reserve.
@@ -101,14 +116,19 @@ impl Pool {
         self.y as u128 + self.l as u128
     }
 
+    /// Effective token reserve.
+    pub fn big_x(&self) -> u128 {
+        self.x as u128 + self.vx as u128
+    }
+
     /// `X * Y`, which fits u128 while both are below 2^64 (checked wherever they grow).
     pub fn k(&self) -> u128 {
-        self.x as u128 * self.big_y()
+        self.big_x() * self.big_y()
     }
 
     /// True while every reserve is inside the range the maths is proved for.
     pub fn in_range(&self) -> bool {
-        self.big_y() <= u64::MAX as u128 && self.x > 0 && self.l > 0
+        self.big_y() <= u64::MAX as u128 && self.big_x() <= u64::MAX as u128 && self.big_x() > 0 && self.l > 0
     }
 
     /// Splits a fee, credits the providers, and returns the protocol part.
@@ -149,13 +169,14 @@ pub fn buy(p: &Pool, gross: u64) -> Option<(Buy, Pool)> {
     if new_y > u64::MAX as u128 {
         return None;
     }
-    let new_x = ceil_div(p.k(), new_y);
-    let out = (p.x as u128).checked_sub(new_x)?;
-    if out == 0 || new_x == 0 {
+    let new_big_x = ceil_div(p.k(), new_y);
+    let out = p.big_x().checked_sub(new_big_x)?;
+    // Buyers can take only real tokens: with a price range, this is where the price tops out.
+    if out == 0 || new_big_x == 0 || out > p.x as u128 {
         return None;
     }
     let mut next = *p;
-    next.x = new_x as u64;
+    next.x = p.x - out as u64;
     next.y = p.y.checked_add(net)?;
     let protocol = next.credit(fee);
     let b = Buy { gross, fee, protocol, net, tokens_out: out as u64 };
@@ -178,11 +199,11 @@ pub fn sell(p: &Pool, tokens_in: u64) -> Option<(Sell, Pool)> {
     if !p.in_range() || tokens_in == 0 {
         return None;
     }
-    let new_x = (p.x as u128).checked_add(tokens_in as u128)?;
-    if new_x > u64::MAX as u128 {
+    let new_big_x = p.big_x().checked_add(tokens_in as u128)?;
+    if new_big_x > u64::MAX as u128 {
         return None;
     }
-    let new_y = ceil_div(p.k(), new_x);
+    let new_y = ceil_div(p.k(), new_big_x);
     let gross = p.big_y().checked_sub(new_y)?;
     if gross == 0 || gross > p.y as u128 {
         return None;
@@ -190,7 +211,7 @@ pub fn sell(p: &Pool, tokens_in: u64) -> Option<(Sell, Pool)> {
     let gross = gross as u64;
     let fee = fee_up(gross, p.fee_bps).min(gross);
     let mut next = *p;
-    next.x = new_x as u64;
+    next.x = p.x.checked_add(tokens_in)?;
     next.y = p.y - gross;
     let protocol = next.credit(fee);
     let s = Sell { gross, fee, protocol, net: gross - fee };
@@ -210,11 +231,13 @@ pub fn add(p: &Pool, dl: u64) -> Option<(Add, Pool)> {
     }
     let dx = ceil_div(p.x as u128 * dl as u128, p.l as u128);
     let dy = ceil_div(p.y as u128 * dl as u128, p.l as u128);
+    let dvx = ceil_div(p.vx as u128 * dl as u128, p.l as u128);
     let mut next = *p;
     next.x = u64::try_from((p.x as u128).checked_add(dx)?).ok()?;
+    next.vx = u64::try_from((p.vx as u128).checked_add(dvx)?).ok()?;
     next.y = u64::try_from((p.y as u128).checked_add(dy)?).ok()?;
     next.l = p.l.checked_add(dl)?;
-    if next.x > MAX_AMOUNT || next.y > MAX_AMOUNT || next.l > MAX_AMOUNT || !next.in_range() {
+    if next.x > MAX_AMOUNT || next.vx > MAX_AMOUNT || next.y > MAX_AMOUNT || next.l > MAX_AMOUNT || !next.in_range() {
         return None;
     }
     Some((Add { tokens_in: dx as u64, sol_in: dy as u64 }, next))
@@ -234,8 +257,10 @@ pub fn remove(p: &Pool, dl: u64) -> Option<(Remove, Pool)> {
     }
     let dx = p.x as u128 * dl as u128 / p.l as u128;
     let dy = p.y as u128 * dl as u128 / p.l as u128;
+    let dvx = p.vx as u128 * dl as u128 / p.l as u128;
     let mut next = *p;
     next.x = p.x - dx as u64;
+    next.vx = p.vx - dvx as u64;
     next.y = p.y - dy as u64;
     next.l = p.l - dl;
     Some((Remove { tokens_out: dx as u64, sol_out: dy as u64 }, next))

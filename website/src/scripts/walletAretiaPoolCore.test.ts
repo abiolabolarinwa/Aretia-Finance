@@ -8,6 +8,8 @@ import {
   POOL_ACCOUNT_SIZE,
   POSITION_ACCOUNT_SIZE,
   addLiquidity,
+  PRICE_RANGES,
+  virtualTokens,
   atTime,
   effectiveFeeBps,
   scheduleOk,
@@ -39,12 +41,12 @@ const CREATOR = '4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX';
 const MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const token = (over: Partial<PoolToken> = {}): PoolToken => ({ mint: MINT, decimals: 6, supply: 1_000_000_000_000_000n, mintAuthority: null, freezeAuthority: null, extensions: [18, 19], held: 900_000_000_000_000n, ...over });
 const form = (over = {}) => ({ ...DEFAULT_ARETIA_POOL_FORM, mint: MINT, tokenAmount: '600,000,000', price: '0.000000016667', ...over });
-const st = (s: { x: string; y: string; l: string; acc: string; feeReserve: string }) => ({ x: BigInt(s.x), y: BigInt(s.y), l: BigInt(s.l), acc: BigInt(s.acc), feeReserve: BigInt(s.feeReserve) });
+const st = (s: { x: string; vx: string; y: string; l: string; acc: string; feeReserve: string }) => ({ x: BigInt(s.x), vx: BigInt(s.vx), y: BigInt(s.y), l: BigInt(s.l), acc: BigInt(s.acc), feeReserve: BigInt(s.feeReserve) });
 
 describe('the maths matches the Rust pool-math, step by step', () => {
   for (const [i, run] of vectors.runs.entries()) {
     it(`run ${i}: x0 ${run.x0}, y0 ${run.y0}, l0 ${run.l0}, fee ${run.fee} bps`, () => {
-      let p: PoolMath = openPool(BigInt(run.x0), BigInt(run.y0), BigInt(run.l0), run.fee)!;
+      let p: PoolMath = openPool(BigInt(run.x0), BigInt(run.y0), BigInt(run.l0), run.fee, BigInt(run.vx0))!;
       expect(p).not.toBeNull();
       let refused = 0;
       for (const [n, step] of run.steps.entries()) {
@@ -74,7 +76,7 @@ describe('the maths matches the Rust pool-math, step by step', () => {
         expect(got, label).not.toBeNull();
         for (const [k, v] of Object.entries(want)) expect(got![k], `${label} ${k}`).toBe(BigInt(v));
         const wantState = st(step.state);
-        expect({ x: next!.x, y: next!.y, l: next!.l, acc: next!.acc, feeReserve: next!.feeReserve }, label).toEqual(wantState);
+        expect({ x: next!.x, vx: next!.vx, y: next!.y, l: next!.l, acc: next!.acc, feeReserve: next!.feeReserve }, label).toEqual(wantState);
         p = next!;
       }
       expect(run.steps.length - refused).toBeGreaterThan(10);
@@ -103,6 +105,49 @@ describe('the launch fee schedule matches the Rust', () => {
     const p = { ...openPool(600_000_000_000_000n, 0n, 10_000_000_000n, 100)!, feeStartBps: 2_000, decaySecs: 600, startTs: 1_000n };
     expect(buy(atTime(p, 1_000n), 1_000_000_000n)!.result.fee).toBe(200_000_000n);
     expect(buy(atTime(p, 1_600n), 1_000_000_000n)!.result.fee).toBe(10_000_000n);
+  });
+});
+
+describe('price ranges', () => {
+  it('turn into a virtual token reserve that keeps the ceiling where the preset says', () => {
+    expect(virtualTokens(900n, 'none')).toBe(0n);
+    expect(virtualTokens(900n, 'wide')).toBe(100n); // s = 10: x / 9
+    expect(virtualTokens(900n, 'medium')).toBe(300n); // s = 4: x / 3
+    expect(virtualTokens(900n, 'narrow')).toBe(900n); // s = 2: x
+    for (const range of Object.keys(PRICE_RANGES) as (keyof typeof PRICE_RANGES)[]) {
+      const x0 = 600_000_000_000_000n;
+      expect(openPool(x0, 0n, 10_000_000_000n, 25, virtualTokens(x0, range)), range).not.toBeNull();
+    }
+  });
+  it('the form prices the start on the effective reserve, real plus virtual', () => {
+    const v = validateAretiaPool(form({ priceRange: 'medium' }), CREATOR, token());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.params.vx0).toBe(200_000_000_000_000n);
+    // 800,000,000 tokens at 0.000000016667 SOL, not 600,000,000.
+    expect(v.params.l0).toBe(liquidityForPrice(800_000_000_000_000n, 6, '0.000000016667'));
+    const p = openPool(v.params.x0, 0n, v.params.l0, 25, v.params.vx0)!;
+    expect(priceText(p, 6)).toBe('0.000000016667');
+  });
+  it('a ranged pool sells out at its ceiling and raises no more than liquidity times (s - 1)', () => {
+    const x0 = 600_000_000_000_000n;
+    const vx0 = virtualTokens(x0, 'medium');
+    let p = openPool(x0, 0n, 10_000_000_000n, 25, vx0)!;
+    let took = 0;
+    for (let i = 0; i < 60; i++) {
+      const b = buy(p, 700_000_000n);
+      if (!b) break;
+      p = b.next;
+      took += 1;
+    }
+    expect(took).toBeGreaterThan(5);
+    expect(p.y).toBeLessThanOrEqual(3n * 10_000_000_000n + 10n);
+    expect(buy(p, 100_000_000_000n)).toBeNull();
+  });
+  it('the disclosures say when there is a ceiling', () => {
+    const params: CreateParams = { creator: CREATOR, mint: MINT, x0: 1n, y0: 0n, l0: 1n, feeBps: 100, lock: true, sniperBps: 0, decaySecs: 0, vx0: 5n };
+    expect(aretiaPoolDisclosures(params).map((d) => d.text).join(' ')).toMatch(/has a ceiling/);
+    expect(aretiaPoolDisclosures({ ...params, vx0: 0n }).map((d) => d.text).join(' ')).toMatch(/no ceiling/);
   });
 });
 
@@ -154,7 +199,7 @@ describe('validateAretiaPool', () => {
     expect(v.ok).toBe(true);
     if (!v.ok) return;
     const p: CreateParams = v.params;
-    expect(p).toEqual({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300 });
+    expect(p).toEqual({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300, vx0: 0n });
   });
   it('keeps the Meteora form’s refusals', () => {
     for (const t of [token({ mintAuthority: CREATOR }), token({ freezeAuthority: CREATOR }), token({ extensions: [18, 19, 1] }), token({ extensions: [14] }), token({ extensions: [12] })]) {
@@ -195,7 +240,7 @@ describe('the flag, the program and the words', () => {
     expect(c).toEqual({ aretiaFee: ARETIA_POOL_FEE_LAMPORTS, network: 7_000_000n, total: 57_000_000n });
   });
   it('never calls a pool safe, says it is unaudited, and says what the lock and the split mean', () => {
-    const params: CreateParams = { creator: CREATOR, mint: MINT, x0: 1n, y0: 0n, l0: 1n, feeBps: 100, lock: true, sniperBps: 2500, decaySecs: 900 };
+    const params: CreateParams = { creator: CREATOR, mint: MINT, x0: 1n, y0: 0n, l0: 1n, feeBps: 100, lock: true, sniperBps: 2500, decaySecs: 900, vx0: 0n };
     const text = aretiaPoolDisclosures(params).map((d) => d.text).join(' ');
     expect(text).toMatch(/not been independently audited/);
     expect(text).toMatch(/locked for good/);
@@ -226,11 +271,12 @@ describe('reading the program’s accounts', () => {
     v.setBigInt64(124, 1_700_000_000n, true);
     v.setUint16(132, 2_000, true);
     v.setUint32(134, 600, true);
+    v.setBigUint64(138, 777n, true);
     return d;
   };
   it('reads the pool', () => {
     const p = parsePoolAccount(poolBytes(), b58)!;
-    expect(p).toMatchObject({ bump: 254, solBump: 253, mint: MINT, creator: CREATOR, feeBps: 100, x: 5000n, y: 6000n, l: 7000n, feeReserve: 42n, createdAt: 1_700_000_000n, feeStartBps: 2000, decaySecs: 600 });
+    expect(p).toMatchObject({ bump: 254, solBump: 253, mint: MINT, creator: CREATOR, feeBps: 100, x: 5000n, y: 6000n, l: 7000n, feeReserve: 42n, createdAt: 1_700_000_000n, feeStartBps: 2000, decaySecs: 600, vx: 777n });
     expect(p.acc).toBe(9n + (1n << 64n));
   });
   it('refuses data that is the wrong size or the wrong account type', () => {
@@ -241,7 +287,7 @@ describe('reading the program’s accounts', () => {
   });
   it('knows what a position can claim, including fees not yet written to it', () => {
     const p = parsePoolAccount(poolBytes(), b58)!;
-    const pos = { pool: '', owner: CREATOR, shares: 1_000n, locked: 1_000n, checkpoint: 0n, pending: 5n, recipient: CREATOR };
+    const pos = { pool: '', owner: CREATOR, shares: 1_000n, locked: 1_000n, checkpoint: 0n, pending: 5n, recipient: CREATOR, id: CREATOR, bump: 255 };
     // acc = 9 + 2^64; shares * acc >> 64 = 1000 + (9000 >> 64 = 0)
     expect(claimable(p, pos)).toBe(1_005n);
   });

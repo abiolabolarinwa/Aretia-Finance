@@ -121,6 +121,7 @@ pub struct PoolState {
     pub created_at: i64,
     pub fee_start_bps: u16,
     pub decay_secs: u32,
+    pub vx: u64,
 }
 
 impl PoolState {
@@ -139,10 +140,11 @@ impl PoolState {
         let created_at = u64_(&mut at) as i64;
         let fee_start_bps = u16::from_le_bytes(d[at..at + 2].try_into().unwrap());
         let decay_secs = u32::from_le_bytes(d[at + 2..at + 6].try_into().unwrap());
-        PoolState { mint, creator, fee_bps, x, y, l, acc, fee_reserve, created_at, fee_start_bps, decay_secs }
+        let vx = u64::from_le_bytes(d[at + 6..at + 14].try_into().unwrap());
+        PoolState { mint, creator, fee_bps, x, y, l, acc, fee_reserve, created_at, fee_start_bps, decay_secs, vx }
     }
     pub fn math(&self) -> pool_math::Pool {
-        pool_math::Pool { x: self.x, y: self.y, l: self.l, fee_bps: self.fee_bps, acc: self.acc, fee_reserve: self.fee_reserve }
+        pool_math::Pool { x: self.x, vx: self.vx, y: self.y, l: self.l, fee_bps: self.fee_bps, acc: self.acc, fee_reserve: self.fee_reserve }
     }
 }
 
@@ -155,6 +157,7 @@ pub struct PositionState {
     pub checkpoint: u128,
     pub pending: u64,
     pub recipient: Address,
+    pub id: Address,
 }
 
 impl PositionState {
@@ -166,7 +169,8 @@ impl PositionState {
         let checkpoint = u128::from_le_bytes(d[88..104].try_into().unwrap());
         let pending = u64::from_le_bytes(d[104..112].try_into().unwrap());
         let recipient = Address::new_from_array(d[112..144].try_into().unwrap());
-        PositionState { pool, owner, shares, locked, checkpoint, pending, recipient }
+        let id = Address::new_from_array(d[144..176].try_into().unwrap());
+        PositionState { pool, owner, shares, locked, checkpoint, pending, recipient, id }
     }
 }
 
@@ -282,6 +286,12 @@ pub fn create_pool_ix(creator: &Address, owner: &Address, mint: &Address, x0: u6
 
 #[allow(clippy::too_many_arguments)]
 pub fn create_pool_ix_sched(creator: &Address, owner: &Address, mint: &Address, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32) -> Instruction {
+    create_pool_ix_full(creator, owner, owner, mint, x0, y0, l0, fee_bps, lock, sniper_bps, decay_secs, 0)
+}
+
+/// `position_id` names the position's address; `vx0` is the virtual token reserve (a price range).
+#[allow(clippy::too_many_arguments)]
+pub fn create_pool_ix_full(creator: &Address, owner: &Address, position_id: &Address, mint: &Address, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32, vx0: u64) -> Instruction {
     let pool = pool_pda(mint);
     let mut d = disc("create_pool").to_vec();
     d.extend_from_slice(&x0.to_le_bytes());
@@ -291,6 +301,7 @@ pub fn create_pool_ix_sched(creator: &Address, owner: &Address, mint: &Address, 
     d.push(lock as u8);
     d.extend_from_slice(&sniper_bps.to_le_bytes());
     d.extend_from_slice(&decay_secs.to_le_bytes());
+    d.extend_from_slice(&vx0.to_le_bytes());
     Instruction::new_with_bytes(
         PROGRAM_ID,
         &d,
@@ -302,11 +313,12 @@ pub fn create_pool_ix_sched(creator: &Address, owner: &Address, mint: &Address, 
             m(pool, true, false),
             m(sol_vault_pda(&pool), true, false),
             m(ata(&pool, mint, &TOKEN_2022), true, false),
-            m(position_pda(&pool, owner), true, false),
+            m(position_pda(&pool, position_id), true, false),
             m(FEE_WALLET, true, false),
             m(TOKEN_2022, false, false),
             m(ATA_PROGRAM, false, false),
             m(SYSTEM, false, false),
+            m(*position_id, false, position_id != owner && position_id != creator),
         ],
     )
 }
@@ -338,6 +350,10 @@ pub fn swap_ix_with(trader: &Address, mint: &Address, trader_token: &Address, fe
 }
 
 fn lp_accounts(owner: &Address, mint: &Address) -> Vec<AccountMeta> {
+    lp_accounts_id(owner, owner, mint)
+}
+
+fn lp_accounts_id(owner: &Address, id: &Address, mint: &Address) -> Vec<AccountMeta> {
     let pool = pool_pda(mint);
     vec![
         m(*owner, true, true),
@@ -346,26 +362,36 @@ fn lp_accounts(owner: &Address, mint: &Address) -> Vec<AccountMeta> {
         m(*mint, false, false),
         m(ata(&pool, mint, &TOKEN_2022), true, false),
         m(ata(owner, mint, &TOKEN_2022), true, false),
-        m(position_pda(&pool, owner), true, false),
+        m(position_pda(&pool, id), true, false),
         m(TOKEN_2022, false, false),
         m(SYSTEM, false, false),
+        m(*id, false, id != owner),
     ]
 }
 
 pub fn add_ix(owner: &Address, mint: &Address, dl: u64, max_tokens: u64, max_sol: u64) -> Instruction {
+    add_ix_id(owner, owner, mint, dl, max_tokens, max_sol)
+}
+/// Adds to (or opens) the position named by `id`. A new id other than the owner must sign.
+pub fn add_ix_id(owner: &Address, id: &Address, mint: &Address, dl: u64, max_tokens: u64, max_sol: u64) -> Instruction {
     let mut d = disc("add_liquidity").to_vec();
     d.extend_from_slice(&dl.to_le_bytes());
     d.extend_from_slice(&max_tokens.to_le_bytes());
     d.extend_from_slice(&max_sol.to_le_bytes());
-    Instruction::new_with_bytes(PROGRAM_ID, &d, lp_accounts(owner, mint))
+    Instruction::new_with_bytes(PROGRAM_ID, &d, lp_accounts_id(owner, id, mint))
 }
 
 pub fn remove_ix(owner: &Address, mint: &Address, dl: u64, min_tokens: u64, min_sol: u64) -> Instruction {
+    remove_ix_id(owner, owner, mint, dl, min_tokens, min_sol)
+}
+pub fn remove_ix_id(owner: &Address, id: &Address, mint: &Address, dl: u64, min_tokens: u64, min_sol: u64) -> Instruction {
     let mut d = disc("remove_liquidity").to_vec();
     d.extend_from_slice(&dl.to_le_bytes());
     d.extend_from_slice(&min_tokens.to_le_bytes());
     d.extend_from_slice(&min_sol.to_le_bytes());
-    Instruction::new_with_bytes(PROGRAM_ID, &d, lp_accounts(owner, mint))
+    let mut accounts = lp_accounts_id(owner, id, mint);
+    accounts.pop(); // removing takes no position id: the position is found from its own stored id
+    Instruction::new_with_bytes(PROGRAM_ID, &d, accounts)
 }
 
 pub fn claim_ix(owner: &Address, mint: &Address) -> Instruction {
@@ -405,4 +431,28 @@ impl Env {
         c.unix_timestamp = unix;
         self.svm.set_sysvar(&c);
     }
+}
+
+/// The same as `claim_ix_to`, for a position named by `id`.
+pub fn claim_ix_id(signer: &Address, id: &Address, mint: &Address, recipient: &Address) -> Instruction {
+    let pool = pool_pda(mint);
+    Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &disc("claim_fees"),
+        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, id), true, false), m(*recipient, true, false), m(SYSTEM, false, false)],
+    )
+}
+
+pub fn transfer_position_ix(owner: &Address, id: &Address, mint: &Address, new_owner: &Address) -> Instruction {
+    let pool = pool_pda(mint);
+    let mut d = disc("transfer_position").to_vec();
+    d.extend_from_slice(new_owner.as_ref());
+    Instruction::new_with_bytes(PROGRAM_ID, &d, vec![m(*owner, false, true), m(pool, false, false), m(position_pda(&pool, id), true, false)])
+}
+
+pub fn lock_ix_id(owner: &Address, id: &Address, mint: &Address, amount: u64) -> Instruction {
+    let pool = pool_pda(mint);
+    let mut d = disc("lock_liquidity").to_vec();
+    d.extend_from_slice(&amount.to_le_bytes());
+    Instruction::new_with_bytes(PROGRAM_ID, &d, vec![m(*owner, false, true), m(pool, false, false), m(position_pda(&pool, id), true, false)])
 }

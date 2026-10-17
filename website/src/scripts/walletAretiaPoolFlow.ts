@@ -31,7 +31,7 @@ import {
   type PoolAccount,
   type PositionAccount,
 } from './walletAretiaPoolCore';
-import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
+import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildTransferPosition, inspectTransferPosition, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
 
 export interface PoolSimulation {
   ok: boolean;
@@ -127,7 +127,7 @@ export class AretiaPoolFlow {
   }
 
   /** The pool for a token and, if the wallet has one, its position. Null when no pool exists or it is not the program's. */
-  async loadPool(mint: string, owner: string | null): Promise<PoolView | null> {
+  async loadPool(mint: string, owner: string | null, positionId: string | null = null): Promise<PoolView | null> {
     const { web3, program, fetchAccount } = this.d;
     const poolAddr = poolAddress(web3, program, mint);
     const acc = await fetchAccount(poolAddr);
@@ -135,8 +135,10 @@ export class AretiaPoolFlow {
     const pool = parsePoolAccount(acc.data, this.toBase58);
     if (!pool || pool.mint !== mint) return null;
     let position: PositionAccount | null = null;
-    if (owner) {
-      const p = await fetchAccount(positionAddress(web3, program, poolAddr, owner));
+    // The position is found by its id, which is the owner's own address unless it was opened under another key or sold.
+    const id = positionId ?? owner;
+    if (id) {
+      const p = await fetchAccount(positionAddress(web3, program, poolAddr, id));
       if (p && p.owner === program) position = parsePositionAccount(p.data, this.toBase58);
     }
     const mintAcc = await fetchAccount(mint);
@@ -207,7 +209,7 @@ export class AretiaPoolFlow {
       if (view) {
         const out: string[] = [];
         const p = view.pool;
-        if (p.x !== params.x0 || p.y !== params.y0 || p.l !== params.l0) out.push('The pool holds different amounts than the ones approved.');
+        if (p.x !== params.x0 || p.y !== params.y0 || p.l !== params.l0 || p.vx !== params.vx0) out.push('The pool holds different amounts than the ones approved.');
         if (p.feeBps !== params.feeBps) out.push('The pool has a different trading fee than the one approved.');
         if (p.creator !== params.creator) out.push('The pool records a different creator.');
         if (!view.position || view.position.shares !== params.l0) out.push('Your position is not the one approved.');
@@ -259,10 +261,10 @@ export class AretiaPoolFlow {
     return { dl, tokens: q.tokensOut, sol: q.solOut, limitTokens: minOut(q.tokensOut, slippageBps), limitSol: minOut(q.solOut, slippageBps) };
   }
 
-  async addLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  async addLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const l = { owner, mint, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
+    const l = { owner, mint, positionId, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
     const tx = assemble(web3, [buildAddLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
     const blockers = inspectAddLiquidity(web3, tx, { ...l, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
@@ -271,10 +273,10 @@ export class AretiaPoolFlow {
     return signature;
   }
 
-  async removeLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  async removeLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const l = { owner, mint, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
+    const l = { owner, mint, positionId, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
     const tx = assemble(web3, [buildRemoveLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
     const blockers = inspectRemoveLiquidity(web3, tx, { ...l, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
@@ -283,33 +285,45 @@ export class AretiaPoolFlow {
     return signature;
   }
 
-  async claim(owner: string, mint: string, recipient: string = owner, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  async claim(owner: string, mint: string, recipient: string = owner, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const tx = assemble(web3, [buildClaim(web3, program, owner, mint, recipient)], owner, ...(await this.blockhash()));
-    const blockers = inspectClaim(web3, tx, { program, owner, mint, recipient });
+    const tx = assemble(web3, [buildClaim(web3, program, owner, mint, recipient, positionId)], owner, ...(await this.blockhash()));
+    const blockers = inspectClaim(web3, tx, { program, owner, mint, recipient, positionId });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
     progress('done');
     return signature;
   }
 
-  async setRecipient(owner: string, mint: string, recipient: string, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  async setRecipient(owner: string, mint: string, recipient: string, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const tx = assemble(web3, [buildSetRecipient(web3, program, owner, mint, recipient)], owner, ...(await this.blockhash()));
-    const blockers = inspectSetRecipient(web3, tx, { program, owner, mint, recipient });
+    const tx = assemble(web3, [buildSetRecipient(web3, program, owner, mint, recipient, positionId)], owner, ...(await this.blockhash()));
+    const blockers = inspectSetRecipient(web3, tx, { program, owner, mint, recipient, positionId });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
     progress('done');
     return signature;
   }
 
-  async lock(owner: string, mint: string, amount: bigint, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  /** Hands the position to another wallet, its locked part included. The fee payee resets to the new owner. */
+  async transferPosition(owner: string, mint: string, newOwner: string, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const tx = assemble(web3, [buildLock(web3, program, owner, mint, amount)], owner, ...(await this.blockhash()));
-    const blockers = inspectLock(web3, tx, { program, owner, mint, amount });
+    const tx = assemble(web3, [buildTransferPosition(web3, program, owner, mint, newOwner, positionId)], owner, ...(await this.blockhash()));
+    const blockers = inspectTransferPosition(web3, tx, { program, owner, mint, newOwner, positionId });
+    if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
+    const signature = await this.submit(tx, owner, progress);
+    progress('done');
+    return signature;
+  }
+
+  async lock(owner: string, mint: string, amount: bigint, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
+    const { web3, program } = this.d;
+    progress('checking');
+    const tx = assemble(web3, [buildLock(web3, program, owner, mint, amount, positionId)], owner, ...(await this.blockhash()));
+    const blockers = inspectLock(web3, tx, { program, owner, mint, amount, positionId });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
     progress('done');

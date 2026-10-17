@@ -19,6 +19,8 @@ import {
   inspectLock,
   buildSetRecipient,
   inspectSetRecipient,
+  buildTransferPosition,
+  inspectTransferPosition,
   inspectSwap,
   poolAddress,
   positionAddress,
@@ -33,7 +35,7 @@ const OTHER = '3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg';
 const MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const BLOCKHASH = 'EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k';
 const other = new web3.PublicKey(OTHER);
-const params = (over: Partial<CreateParams> = {}): CreateParams => ({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300, ...over });
+const params = (over: Partial<CreateParams> = {}): CreateParams => ({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300, vx0: 0n, ...over });
 
 const tamper = (ix: web3.TransactionInstruction, over: { keys?: Record<number, Partial<web3.AccountMeta>>; data?: (d: Buffer) => void; programId?: web3.PublicKey }) => {
   const keys = ix.keys.map((k, i) => ({ ...k, ...(over.keys?.[i] ?? {}) }));
@@ -103,6 +105,7 @@ describe('create pool', () => {
       TOKEN_2022_PROGRAM_ID,
       ATA_PROGRAM_ID,
       '11111111111111111111111111111111',
+      CREATOR,
     ]);
     expect(ARETIA_POOL_FEE_ADDRESS).toBe(LAUNCH_FEE_ADDRESS);
     expect(ix.keys.filter((k) => k.isSigner).map((k) => k.pubkey.toBase58())).toEqual([CREATOR]);
@@ -110,9 +113,9 @@ describe('create pool', () => {
 
   it('encodes the arguments little-endian after the tag', () => {
     const d = make().b.instructions[0]!.data;
-    expect(d.length).toBe(41);
+    expect(d.length).toBe(49);
     const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
-    expect([v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), d[34], v.getUint16(35, true), v.getUint32(37, true)]).toEqual([600_000_000_000_000n, 0n, 10_000_200_000n, 25, 1, 1000, 300]);
+    expect([v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), d[34], v.getUint16(35, true), v.getUint32(37, true), v.getBigUint64(41, true)]).toEqual([600_000_000_000_000n, 0n, 10_000_200_000n, 25, 1, 1000, 300, 0n]);
   });
 
   it('refuses a different fee payer or an extra signer', () => {
@@ -136,12 +139,12 @@ describe('create pool', () => {
   it('refuses another program, another step, or a different set of accounts', () => {
     expect(after((ix) => tamper(ix, { programId: other }))).toMatch(/not made by the pool program/);
     expect(after((ix) => tamper(ix, { data: (d) => d.set([1, 2, 3, 4, 5, 6, 7, 8]) }))).toMatch(/not the expected one/);
-    expect(after((ix) => tamper(ix, { data: () => undefined }).keys.length === 12 ? new web3.TransactionInstruction({ programId: ix.programId, keys: ix.keys.slice(0, 11), data: ix.data }) : ix)).toMatch(/different set of accounts/);
+    expect(after((ix) => new web3.TransactionInstruction({ programId: ix.programId, keys: ix.keys.slice(0, 12), data: ix.data }))).toMatch(/different set of accounts/);
     expect(after((ix) => new web3.TransactionInstruction({ programId: ix.programId, keys: ix.keys, data: Buffer.concat([ix.data, Buffer.from([0])]) }))).toMatch(/not the expected one/);
   });
 
   it('refuses every account being swapped for another', () => {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 13; i++) {
       const msg = after((ix) => tamper(ix, { keys: { [i]: { pubkey: other } } }));
       expect(msg, `account ${i}`).toMatch(/unexpected account in position|fee would be paid|have to sign/);
     }
@@ -151,7 +154,7 @@ describe('create pool', () => {
   });
 
   it('refuses wrong flags on the accounts', () => {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 13; i++) {
       const flip = after((ix) => tamper(ix, { keys: { [i]: { isWritable: !ix.keys[i]!.isWritable } } }));
       expect(flip, `writable flag ${i}`).toMatch(/unexpected account in position/);
     }
@@ -166,6 +169,7 @@ describe('create pool', () => {
     expect(edit((_v, d) => (d[34] = 0))).toMatch(/would not be locked/);
     expect(edit((v) => v.setUint16(35, 2500, true))).toMatch(/launch protection/);
     expect(edit((v) => v.setUint32(37, 3600, true))).toMatch(/launch protection/);
+    expect(edit((v) => v.setBigUint64(41, 5n, true))).toMatch(/price range/);
     expect(after((ix) => tamper(ix, { data: (d) => (d[34] = 1) }), params({ lock: false }))).toMatch(/would be locked, which was not chosen/);
   });
 
@@ -245,6 +249,8 @@ describe('add and remove liquidity', () => {
   const tx = (ix: web3.TransactionInstruction) => assemble(web3, [ix], CREATOR, BLOCKHASH, 1);
   it('are accepted when they are what was shown', () => {
     expect(inspectAddLiquidity(web3, tx(buildAddLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM })).toEqual([]);
+    expect(buildAddLiquidity(web3, PROGRAM, l).keys).toHaveLength(10);
+    expect(buildRemoveLiquidity(web3, PROGRAM, l).keys).toHaveLength(9);
     expect(inspectRemoveLiquidity(web3, tx(buildRemoveLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM })).toEqual([]);
   });
   it('are not interchangeable: an add is refused where a remove was shown', () => {
@@ -280,5 +286,39 @@ describe('claim to another wallet, and naming it', () => {
   });
   it('the tag is sha256("global:set_recipient")', () => {
     expect(DISC.setRecipient).toEqual(Uint8Array.from(createHash('sha256').update('global:set_recipient').digest().subarray(0, 8)));
+  });
+});
+
+describe('position ids and transfers', () => {
+  const tx = (ix: web3.TransactionInstruction) => assemble(web3, [ix], CREATOR, BLOCKHASH, 1);
+  const EXTRA = web3.Keypair.generate().publicKey.toBase58();
+  it('the position address is derived from its id, not from whoever owns it now', () => {
+    const pool = poolAddress(web3, PROGRAM, MINT);
+    expect(positionAddress(web3, PROGRAM, pool, CREATOR)).not.toBe(positionAddress(web3, PROGRAM, pool, EXTRA));
+    const c = buildClaim(web3, PROGRAM, OTHER, MINT, OTHER, CREATOR); // the new owner claims the position opened under CREATOR
+    expect(c.keys[3]!.pubkey.toBase58()).toBe(positionAddress(web3, PROGRAM, pool, CREATOR));
+    expect(inspectClaim(web3, assemble(web3, [c], OTHER, BLOCKHASH, 1), { program: PROGRAM, owner: OTHER, mint: MINT, recipient: OTHER, positionId: CREATOR })).toEqual([]);
+    expect(inspectClaim(web3, assemble(web3, [c], OTHER, BLOCKHASH, 1), { program: PROGRAM, owner: OTHER, mint: MINT, recipient: OTHER }).join(' ')).toMatch(/position 4/);
+  });
+  it('a position under another id must be signed for by that id, in the builder and for the inspector', () => {
+    const l = { owner: CREATOR, mint: MINT, positionId: EXTRA, dl: 5_000n, tokens: 1n, sol: 2n };
+    const add = buildAddLiquidity(web3, PROGRAM, l);
+    expect(add.keys[9]).toMatchObject({ isSigner: true, isWritable: false });
+    expect(add.keys[9]!.pubkey.toBase58()).toBe(EXTRA);
+    expect(inspectAddLiquidity(web3, tx(add), { ...l, program: PROGRAM })).toEqual([]);
+    const unsigned = tamper(add, { keys: { 9: { isSigner: false } } });
+    expect(inspectAddLiquidity(web3, tx(unsigned), { ...l, program: PROGRAM }).join(' ')).toMatch(/position 10/);
+    const c = buildCreatePool(web3, PROGRAM, params(), CREATOR, EXTRA);
+    expect(c.positionId).toBe(EXTRA);
+    expect(inspectCreate(web3, tx(c.instructions[0]!), { params: params(), program: PROGRAM, pool: c.pool, positionId: EXTRA })).toEqual([]);
+    expect(inspectCreate(web3, tx(c.instructions[0]!), { params: params(), program: PROGRAM, pool: c.pool }).join(' ')).toMatch(/position 8|position 13/);
+  });
+  it('a transfer is checked byte for byte, and the tag is right', () => {
+    const t = buildTransferPosition(web3, PROGRAM, CREATOR, MINT, OTHER);
+    expect(inspectTransferPosition(web3, tx(t), { program: PROGRAM, owner: CREATOR, mint: MINT, newOwner: OTHER })).toEqual([]);
+    expect(inspectTransferPosition(web3, tx(t), { program: PROGRAM, owner: CREATOR, mint: MINT, newOwner: EXTRA }).join(' ')).toMatch(/would go to/);
+    const bad = tamper(t, { keys: { 2: { pubkey: other } } });
+    expect(inspectTransferPosition(web3, tx(bad), { program: PROGRAM, owner: CREATOR, mint: MINT, newOwner: OTHER }).join(' ')).toMatch(/position 3/);
+    expect(DISC.transferPosition).toEqual(Uint8Array.from(createHash('sha256').update('global:transfer_position').digest().subarray(0, 8)));
   });
 });

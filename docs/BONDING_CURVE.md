@@ -138,6 +138,18 @@ Build notes for Windows: do not build into a OneDrive folder (the linker cannot 
 4. A real-money rehearsal with a small curve on mainnet, by the owner, watched.
 5. Only then set the flag (`PUBLIC_CURVE_ENABLED=true`) and the mainnet program id in `walletCurveCore.ts`.
 
+## 11b. Mainnet deployment (Solana)
+
+Program id: `CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu`, its own key made by the owner (the key file stays outside the repo and signs only the first deployment). The id is written into the program at build time (`declare_id!`), so the committed build in `program/aretia-curve/artifacts/aretia_curve.so` (with its `.sha256`) is built for this id and no other. The devnet program (section 12) has a different id and keeps running its old build.
+
+`website/scripts/curve-solana-mainnet.mjs` never holds a key and sends nothing:
+- `prepare` checks Meteora's program and the fee wallet, prints the cost (rent that stays locked in the program's accounts) and the four commands to run.
+- `verify --program <id>` checks that the deployed bytes are exactly the committed build, that the build was made for this id, that the **upgrade authority is the treasury multisig vault** `GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` (a single key that can replace the program can take every vault), and that the fee wallet is funded.
+
+The owner deploys from their own wallet, then hands the upgrade authority to the multisig in a second command (a multisig cannot sign the deploy itself). Only after `verify` passes is the id put in `CURVE_PROGRAM_ID_MAINNET` (`walletCurveCore.ts`) and the gate test updated. The site flag `PUBLIC_CURVE_ENABLED` is already on in production for the EVM curves, so setting the id makes the Solana card live at once: rehearse with a very small curve straight after.
+
+Still true on mainnet: **no independent audit**. The program holds buyers' SOL.
+
 ## 12. Devnet
 
 Program id: `9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4`, upgradeable, upgrade authority `DWkwVbRZ3WUPSxLdmLdnNeq3rAkrev5vusjkpwrjU4fw` (the devnet deployer key; **a single key, so devnet only**). The program keypair is not in the repo.

@@ -8,7 +8,11 @@ skip-lint = false
 [programs.devnet]
 aretia_curve = "9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4"
 
-# No [programs.mainnet] on purpose: this program is unaudited and must not go to mainnet. See docs/BONDING_CURVE.md.
+[programs.mainnet]
+aretia_curve = "CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu"
+
+# The mainnet program is unaudited and holds buyers' money. It is deployed by the owner from their own wallet, with the upgrade authority
+# handed to the treasury multisig. See docs/BONDING_CURVE.md section 11 and website/scripts/curve-solana-mainnet.mjs.
 
 [registry]
 url = "https://api.apr.dev"

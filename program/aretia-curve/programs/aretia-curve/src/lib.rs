@@ -31,7 +31,9 @@ use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, Transfer
 
 use curve_math::Curve as Math;
 
-declare_id!("9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4");
+// The mainnet program id: its own key, made by the owner and kept outside the repo. The devnet test program (9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4)
+// was built before this change and keeps running its old build; it cannot be upgraded from this source, because the id is written into the program.
+declare_id!("CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu");
 
 /// Aretia's management-fee wallet (the same one the Launch page and the swap fee use).
 pub const FEE_WALLET: Pubkey = pubkey!("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");

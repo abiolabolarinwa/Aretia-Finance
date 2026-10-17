@@ -88,6 +88,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
   const program = opts.program ?? curveProgramFor('mainnet');
 
   let tab: Tab = 'create';
+  let side: 'buy' | 'sell' = 'buy';
   let stage: Stage = 'form';
   let form: CurveForm = { ...DEFAULT_CURVE_FORM };
   let issues: CurveIssue[] = [];
@@ -345,21 +346,43 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
     slip.append(sl, select);
     card.append(slip);
 
-    const actions = h('div', 'wapp__row-actions');
-    if (c.status === 'trading') {
+
+    // One side at a time: a Buy / Sell switch, one amount box and one button, so an amount can never go into the wrong box.
+    const canBuy = c.status === 'trading';
+    const canSell = c.status === 'trading' || c.status === 'aborted';
+    if (!canBuy) side = 'sell';
+    if (!canSell) side = 'buy';
+    if (canBuy && canSell) {
+      const seg = h('div', 'lh-tabs lh-tabs--side');
+      seg.setAttribute('role', 'group');
+      seg.setAttribute('aria-label', 'Buy or sell');
+      for (const s of ['buy', 'sell'] as const) {
+        const b = h('button', `lh-tab${s === side ? ' is-on' : ''}`, s === 'buy' ? 'Buy' : 'Sell');
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(s === side));
+        b.addEventListener('click', () => {
+          side = s;
+          draw();
+        });
+        seg.append(b);
+      }
+      card.append(seg);
+    }
+    if (side === 'buy' && canBuy) {
       const buy = h('button', 'wapp__btn wapp__btn--primary', 'Review buy');
       buy.type = 'button';
       buy.disabled = busy || !host.getAddress();
       buy.addEventListener('click', () => void startBuy());
       card.append(field('Buy with (SOL)', 'curve-buy', buyText, (v) => (buyText = v), { inputmode: 'decimal', placeholder: '1' }), buy);
     }
-    if (c.status === 'trading' || c.status === 'aborted') {
-      const sell = h('button', 'wapp__btn wapp__btn--ghost', 'Review sell');
+    if (side === 'sell' && canSell) {
+      const sell = h('button', 'wapp__btn wapp__btn--primary', 'Review sell');
       sell.type = 'button';
       sell.disabled = busy || !host.getAddress();
       sell.addEventListener('click', () => void startSell());
       card.append(field('Sell (tokens)', 'curve-sell', sellText, (v) => (sellText = v), { inputmode: 'decimal', placeholder: '1,000' }), sell);
     }
+    const actions = h('div', 'wapp__row-actions');
     if (canMigrate(c)) {
       const m = h('button', 'wapp__btn wapp__btn--primary', 'Move into a pool');
       m.type = 'button';

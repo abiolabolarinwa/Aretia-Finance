@@ -27,6 +27,28 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: strin
 const grouped = (text: string): string => text.replace(/^(\d+)/, (whole) => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 const initials = (symbol: string, name: string): string => (symbol || name || '?').trim().slice(0, 2).toUpperCase() || '?';
 
+/** The logo for each network; a test network wears the logo of its main network. */
+const LOGO: Record<string, string> = {
+  solana: 'solana',
+  bnb: 'bnb',
+  bscTestnet: 'bnb',
+  ethereum: 'ethereum',
+  sepolia: 'ethereum',
+  polygon: 'polygon',
+  polygonAmoy: 'polygon',
+};
+function logo(key: string, cls: string): HTMLImageElement | HTMLSpanElement {
+  const file = LOGO[key];
+  if (!file) return h('span', cls);
+  const img = h('img', cls);
+  img.src = `/assets/chains/${file}.png`;
+  img.alt = '';
+  img.width = 22;
+  img.height = 22;
+  img.decoding = 'async';
+  return img;
+}
+
 const STAGE_STATE: Record<string, StepState> = { form: 'current', review: 'current', working: 'busy', done: 'done' };
 
 export interface LaunchHub {
@@ -79,9 +101,10 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       const b = h('button', `lh-chip${n.key === current ? ' is-on' : ''}${n.testnet ? ' is-test' : ''}`);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(n.key === current));
+      b.dataset.net = n.key;
       b.disabled = !n.enabled;
       if (!n.enabled) b.title = 'Not available yet';
-      b.append(h('span', 'lh-chip__dot'), document.createTextNode(n.name));
+      b.append(logo(n.key, 'lh-chip__logo'), document.createTextNode(n.name));
       b.addEventListener('click', () => {
         if (n.key === launch.getNetwork()) return;
         if (!launch.setNetwork(n.key)) {
@@ -243,7 +266,11 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       d.append(h('dt', '', k), h('dd', '', v));
       facts.append(d);
     };
-    fact('Network', net?.name ?? '');
+    const netRow = h('div');
+    const netValue = h('dd', 'lh-token__net');
+    netValue.append(logo(launch.getNetwork(), 'lh-token__netlogo'), document.createTextNode(net?.name ?? ''));
+    netRow.append(h('dt', '', 'Network'), netValue);
+    facts.append(netRow);
     fact('Total supply', supply ? grouped(supply.replace(/,/g, '')) : '–');
     fact('Supply can grow', 'Never');
     previewEl.append(h('h3', 'lh-side__h', done ? 'Your token' : 'Preview'), top, facts);
@@ -266,6 +293,16 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
     }
     lastTokenStage = tokenStage;
   }
+
+  /** Marks the total in any cost list, so the number a person is about to approve stands out from the rows above it. */
+  function markTotals(): void {
+    for (const row of hub.querySelectorAll<HTMLElement>('.lh__main dl.wapp__rows > div')) {
+      const label = row.querySelector('dt')?.textContent ?? '';
+      row.classList.toggle('is-total', label.trim().toLowerCase().startsWith('total'));
+    }
+  }
+  const main = $('.lh__main');
+  if (main) new MutationObserver(markTotals).observe(main, { childList: true, subtree: true });
 
   // Each form announces where it is by changing data-stage; typing in the create form updates the preview.
   new MutationObserver(() => refresh()).observe(hub, { attributes: true, attributeFilter: ['data-stage'], subtree: true });

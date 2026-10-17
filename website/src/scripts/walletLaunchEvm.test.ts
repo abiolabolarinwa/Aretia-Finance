@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SwingsError } from '../swings/core/types.js';
 import { DEFAULT_EVM_FORM, LAUNCH_EVM_CHAINS, chainEnabled, validateEvmLaunch, type EvmLaunchConfig, type EvmLaunchForm, type LaunchEvmChain } from './walletLaunchEvmCore';
 import { CREATE_SELECTOR, TOKEN_CREATED_TOPIC, buildCreateTx, decodeCreate, encodeCreate, findCreatedToken, inspectCreateTx } from './walletLaunchEvmTx';
-import { EvmLaunchError, EvmLaunchFlow, type EvmFlowDeps } from './walletLaunchEvmFlow';
+import { EvmLaunchError, EvmLaunchFlow, shortfallMessage, type EvmFlowDeps } from './walletLaunchEvmFlow';
 
 const CREATOR = '0x1111111111111111111111111111111111111111';
 const FACTORY = '0x2222222222222222222222222222222222222222';
@@ -239,7 +239,7 @@ describe('EvmLaunchFlow', () => {
   it('says plainly how much more is needed, with the numbers, instead of the network refusal', async () => {
     // Below the fee itself: the network cannot price the gas, so the page does not ask it to.
     const low = (await world({ balance: FEE / 4n }).flow.prepare(config())).blockers.join(' ');
-    expect(low).toMatch(/You need more BNB\. You hold/);
+    expect(low).toMatch(/You need more BNB\. You hold about/);
     expect(low).toMatch(/Add at least/);
     expect(low).toMatch(/Nothing was sent/);
     expect(low).not.toMatch(/wei/);
@@ -250,6 +250,21 @@ describe('EvmLaunchFlow', () => {
     // Enough for the fee but not the gas: the fee, the gas and the total are all named.
     const gasShort = (await world({ balance: FEE }).flow.prepare(config())).blockers.join(' ');
     expect(gasShort).toMatch(/the fee \(.+\) plus the network gas \(about .+\) comes to about/);
+  });
+  it('rounds the amounts for people, and rounds "add at least" up so it is never short', () => {
+    // The case seen on BNB Chain: 0.012531773721576266 held, 0.014 fee.
+    const m = shortfallMessage('BNB', 12_531_773_721_576_266n, 14n * 10n ** 15n, null);
+    expect(m).toContain('You hold about 0.0125 BNB');
+    expect(m).toContain("Aretia's fee alone is about 0.014 BNB");
+    expect(m).toContain('Add at least 0.0015 BNB');
+    expect(m).not.toMatch(/\d\.\d{5,}/);
+    // Rounding up: a shortfall of 0.00000010001 is shown as 0.000001, never rounded down to nothing.
+    expect(shortfallMessage('ETH', 4_199_899_990_000_000n, 4_200_000_000_000_000n, null)).toContain('Add at least 0.000001 ETH');
+    expect(shortfallMessage('ETH', 4_199_899_990_000_000n, 4_200_000_000_000_000n, null)).not.toContain('0.0001 ETH');
+    // With the gas known, every figure is rounded.
+    const g = shortfallMessage('ETH', 1_019_650_786_838_902n, 4_200_000_000_000_000n, 1_234_567_890_123_456n);
+    expect(g).not.toMatch(/\d\.\d{7,}/);
+    expect(g).toContain('Add at least');
   });
   it('refuses to prepare a chain that is not enabled', async () => {
     await expect(world().flow.prepare(config({ chain: { ...chain, factory: null } }))).rejects.toThrow(/not available yet/);

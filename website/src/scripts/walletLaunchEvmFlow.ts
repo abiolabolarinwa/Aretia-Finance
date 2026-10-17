@@ -60,15 +60,26 @@ const addressWord = (v: unknown): string | null => (typeof v === 'string' && /^0
 
 /** "You need more ETH", with the numbers a person can act on, instead of the network's raw refusal. */
 export function shortfallMessage(symbol: string, balance: bigint, feeWei: bigint, gasCostWei: bigint | null): string {
-  const have = fromSmallestUnit(balance, 18);
-  const fee = fromSmallestUnit(feeWei, 18);
+  const have = approx(balance);
+  const fee = approx(feeWei);
   if (gasCostWei === null) {
-    const short = fromSmallestUnit(feeWei - balance, 18);
-    return `You need more ${symbol}. You hold ${have} ${symbol}, and Aretia's fee alone is ${fee} ${symbol}, with the network gas on top. Add at least ${short} ${symbol} plus a little extra for gas, then review again. Nothing was sent.`;
+    const short = approx(feeWei - balance, true);
+    return `You need more ${symbol}. You hold about ${have} ${symbol}, and Aretia's fee alone is about ${fee} ${symbol}, with the network gas on top. Add at least ${short} ${symbol} plus a little extra for gas, then review again. Nothing was sent.`;
   }
   const need = feeWei + gasCostWei;
-  const short = fromSmallestUnit(need - balance, 18);
-  return `You need more ${symbol}. You hold ${have} ${symbol}; the fee (${fee}) plus the network gas (about ${fromSmallestUnit(gasCostWei, 18)}) comes to about ${fromSmallestUnit(need, 18)} ${symbol}. Add at least ${short} ${symbol} and review again. Nothing was sent.`;
+  const short = approx(need - balance, true);
+  return `You need more ${symbol}. You hold about ${have} ${symbol}; the fee (about ${fee}) plus the network gas (about ${approx(gasCostWei)}) comes to about ${approx(need)} ${symbol}. Add at least ${short} ${symbol} and review again. Nothing was sent.`;
+}
+
+/**
+ * A coin amount rounded for people: four decimal places, or six when it is under 0.001. `up` rounds up, so an "add at least" figure is
+ * never short. Never more than the few digits a person can use (the exact wei is for the network, not for the screen).
+ */
+function approx(wei: bigint, up = false): string {
+  const places = wei >= 10n ** 15n ? 4 : 6;
+  const unit = 10n ** BigInt(18 - places);
+  const rounded = up ? (wei + unit - 1n) / unit : (wei + unit / 2n) / unit;
+  return fromSmallestUnit(rounded * unit, 18);
 }
 
 export class EvmLaunchFlow {

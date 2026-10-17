@@ -79,6 +79,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
       const b = h('button', `lh-chip${n.key === current ? ' is-on' : ''}${n.testnet ? ' is-test' : ''}`);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(n.key === current));
+      b.dataset.net = n.key;
       b.disabled = !n.enabled;
       if (!n.enabled) b.title = 'Not available yet';
       b.append(h('span', 'lh-chip__dot'), document.createTextNode(n.name));
@@ -266,6 +267,16 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean }): La
     }
     lastTokenStage = tokenStage;
   }
+
+  /** Marks the total in any cost list, so the number a person is about to approve stands out from the rows above it. */
+  function markTotals(): void {
+    for (const row of hub.querySelectorAll<HTMLElement>('.lh__main dl.wapp__rows > div')) {
+      const label = row.querySelector('dt')?.textContent ?? '';
+      row.classList.toggle('is-total', label.trim().toLowerCase().startsWith('total'));
+    }
+  }
+  const main = $('.lh__main');
+  if (main) new MutationObserver(markTotals).observe(main, { childList: true, subtree: true });
 
   // Each form announces where it is by changing data-stage; typing in the create form updates the preview.
   new MutationObserver(() => refresh()).observe(hub, { attributes: true, attributeFilter: ['data-stage'], subtree: true });

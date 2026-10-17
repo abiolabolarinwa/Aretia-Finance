@@ -713,8 +713,12 @@ const sendTips = [
   .lh-chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .lh-chip__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); }
   .lh-chip.is-on { color: #fff; background: var(--color-brand); border-color: var(--color-brand); }
-  .lh-chip.is-on .lh-chip__dot { background: #9be7b4; }
   .lh-chip.is-test:not(.is-on) { border-style: dashed; }
+  .lh-chip[data-net='solana'] .lh-chip__dot { background: linear-gradient(135deg, #9945ff, #14f195); }
+  .lh-chip[data-net='bnb'] .lh-chip__dot, .lh-chip[data-net='bscTestnet'] .lh-chip__dot { background: #f0b90b; }
+  .lh-chip[data-net='ethereum'] .lh-chip__dot, .lh-chip[data-net='sepolia'] .lh-chip__dot { background: #627eea; }
+  .lh-chip[data-net='polygon'] .lh-chip__dot, .lh-chip[data-net='polygonAmoy'] .lh-chip__dot { background: #8247e5; }
+  .lh-chip.is-on .lh-chip__dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 
   .lh__rail { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .lh-step { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; transition: border-color 160ms ease, box-shadow 160ms ease; }
@@ -724,7 +728,8 @@ const sendTips = [
   .lh-step__text small { font-size: 12.5px; color: var(--color-muted); }
   .lh-step.is-current, .lh-step.is-busy { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(74, 46, 224, 0.12); }
   .lh-step.is-current .lh-step__mark, .lh-step.is-busy .lh-step__mark { color: #fff; background: var(--color-brand); }
-  .lh-step.is-done .lh-step__mark { color: #fff; background: #1f7a46; }
+  .lh-step.is-done .lh-step__mark { color: #fff; background: #1f7a46; animation: lh-pop 320ms cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  @keyframes lh-pop { from { transform: scale(0.6); } to { transform: scale(1); } }
   .lh-step.is-upcoming { background: transparent; }
 
   .lh__grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; }
@@ -738,6 +743,7 @@ const sendTips = [
   .lh__markethead .wapp__fine { margin: 4px 0 0; }
   .lh-tabs { display: flex; gap: 4px; padding: 4px; background: var(--wapp-indigo, #e9e6fc); border-radius: 999px; }
   .lh-tabs[hidden] { display: none; }
+  .lh-tabs--side { width: fit-content; }
   .lh-tab { min-height: 36px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--color-brand); background: transparent; border: 0; border-radius: 999px; cursor: pointer; }
   .lh-tab.is-on { color: #fff; background: var(--color-brand); }
   .lh-tab:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -746,6 +752,8 @@ const sendTips = [
   .lh .wapp-ln__row--wide { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
   .lh .wapp__btn--primary { min-height: 46px; padding-inline: 22px; }
   .lh-nested { padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+  .lh .wapp__rows > div.is-total { margin-top: 4px; padding: 12px 14px; background: var(--wapp-indigo, #e9e6fc); border-radius: 12px; border-top: 0; }
+  .lh .wapp__rows > div.is-total dt, .lh .wapp__rows > div.is-total dd { font-size: 15px; font-weight: 700; color: var(--color-strong); }
   .lh-adv { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg-alt); }
   .lh-adv > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; font-size: 14px; font-weight: 600; color: var(--color-strong); cursor: pointer; list-style: none; }
   .lh-adv > summary::-webkit-details-marker { display: none; }
@@ -784,7 +792,7 @@ const sendTips = [
     .lh .wapp-ln__row--wide { grid-template-columns: 1fr; }
     .lh__side { order: 0; }
   }
-  @media (prefers-reduced-motion: reduce) { .lh-chip, .lh-step, .lh__step { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .lh-chip, .lh-step, .lh__step { transition: none; } .lh-step.is-done .lh-step__mark { animation: none; } }
   .wapp[data-connected='false'][data-view='safesend'] .wapp__gate,
   .wapp[data-connected='false'][data-view='universal'] .wapp__gate,
   .wapp[data-connected='false'][data-view='carbon'] .wapp__gate,

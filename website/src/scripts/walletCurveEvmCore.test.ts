@@ -167,16 +167,16 @@ describe('what a creator may type', () => {
     }
   };
 
-  it('has the verified Ethereum and BNB Chain curves and none anywhere else', () => {
+  it('has the verified Ethereum, BNB Chain and Polygon curves and none anywhere else', () => {
     expect(EVM_CURVE_ADDRESSES.ethereum).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(EVM_CURVE_ADDRESSES.bnb).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
-    expect(EVM_CURVE_ADDRESSES.polygon).toBeNull();
+    expect(EVM_CURVE_ADDRESSES.polygon).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(evmCurveChain('ethereum')?.curve).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(evmCurveChain('bnb')?.curve).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
-    expect(evmCurveChain('polygon')).toBeNull();
+    expect(evmCurveChain('polygon')?.curve).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(evmCurveChain('nowhere')).toBeNull();
     // A network with no deployed curve is still refused, with the plain message.
-    const v = ok({ chain: 'polygon' });
+    const v = ok({ chain: 'sepolia' });
     expect(v.ok).toBe(false);
     expect(v.ok ? '' : v.issues.map((i) => i.message).join(' ')).toMatch(/not available on this network yet/);
   });

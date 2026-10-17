@@ -12,5 +12,3 @@ safesend; safesend also has its plain backdrop extended).
 | pay.webp | https://unsplash.com/photos/person-paying-with-credit-card-tgquMvhNLc4 | Clay Banks |
 | shield.webp | https://unsplash.com/photos/brown-wooden-door-with-brass-door-knob-3ROwc3JSjCk | Brock Wegner |
 | safesend.webp | https://unsplash.com/photos/clear-hour-glass-with-coins-COoxOZZtwzA | Ricardo Díaz |
-| universal.webp | https://unsplash.com/photos/a-chaotic-pile-of-various-international-banknotes-QBELhJJHcIw | John McArthur |
-| intent.webp | https://unsplash.com/photos/graphical-user-interface-application-x07ELaNFt34 | Anne Nygård |

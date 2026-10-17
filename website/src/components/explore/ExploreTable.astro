@@ -15,13 +15,11 @@ interface Row {
 
 const WHERE: Record<string, string> = {
   wallet: `${NETWORKS.length} networks`,
-  universal: 'Solana ↔ Ethereum',
   safesend: 'Testnet; contracts on BNB Chain and Polygon',
   pay: 'ENS and .sol names',
   shield: 'Inside the wallet',
-  intent: 'Inside the wallet',
 };
-const HREF: Record<string, string> = { wallet: '/wallet/about', universal: '/features#universal', pay: '/features#pay', shield: '/features#shield', intent: '/features#intent', safesend: '/features#safesend' };
+const HREF: Record<string, string> = { wallet: '/wallet/about', pay: '/features#pay', shield: '/features#shield', safesend: '/features#safesend' };
 
 const rows: Row[] = [
   ...PRODUCTS.map((p) => ({

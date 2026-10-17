@@ -16,15 +16,13 @@ interface Step {
 }
 
 /* Each step is its own colour of paper in the deck, so the stack reads as
-   eight distinct pages being turned rather than one grey card repeated. */
+   six distinct pages being turned rather than one grey card repeated. */
 const steps: Step[] = [
   { n: 1, theme: 'brand', eyebrow: 'Aretia Wallet', title: 'It starts with one wallet.', body: 'A self-custody wallet: keys stay encrypted on your device, and one recovery phrase covers every supported chain.', status: 'in-development', href: '/wallet/about' },
   { n: 2, theme: 'mint', eyebrow: 'Multichain', title: 'Connected to the chains you use.', body: 'Solana, Ethereum, Base, BNB Smart Chain and Polygon: balances, activity and transactions in one place.' },
-  { n: 3, theme: 'ink', eyebrow: 'Aretia Intent', title: 'Say what you want to do.', body: 'Type “send 0.05 ETH to vitalik.eth”. Intent turns the phrase into a transaction. Nothing is sent from the phrase alone.', status: 'built', href: '/features#intent' },
   { n: 4, theme: 'light', eyebrow: 'Aretia Pay', title: 'Names, not addresses.', body: 'vitalik.eth resolves to its real address and is shown to you before anything is signed. .sol names work the same way.', status: 'built', href: '/features#pay' },
   { n: 5, theme: 'bright', eyebrow: 'Aretia Shield', title: 'Checked before you sign.', body: 'Shield looks at the recipient on-chain (contract or wallet, any activity at all) and flags unlimited approvals and transactions it cannot decode.', status: 'built', href: '/features#shield' },
   { n: 6, theme: 'mint', eyebrow: 'Confirmed', title: 'You approve. It settles.', body: 'Every step ends in a normal review screen and your signature, inside the wallet, never on a website.' },
-  { n: 7, theme: 'brand', eyebrow: 'Aretia Universal', title: 'Across chains, without the plumbing.', body: 'ACT moves between Solana and Ethereum over Wormhole Native Token Transfers, delivered automatically on the other side.', status: 'testnet', href: '/features#universal' },
   { n: 8, theme: 'gold', eyebrow: 'ACT', title: 'ACT runs underneath.', body: 'ACT is live on Solana mainnet. Every transfer has a 1.5% fee withheld on-chain, which the treasury splits: 1% to the Climate Treasury and 0.5% to operations. ACT as the service-fee layer for Aretia products is on the roadmap.', status: 'live', href: '/token' },
 ];
 
@@ -52,10 +50,10 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
       steps.map((s, i) => (
         <section class="fold" data-stack-item style={`z-index:${i + 1}`} aria-labelledby={`fold-title-${s.n}`}>
           <div class="container">
-          <div class:list={['fold__card', `t-${s.theme}`, { 'is-dark': dark.has(s.theme) }]} data-n={String(s.n).padStart(2, '0')}>
+          <div class:list={['fold__card', `t-${s.theme}`, { 'is-dark': dark.has(s.theme) }]} data-n={String(i + 1).padStart(2, '0')}>
           <div class="fold__grid">
             <div class="fold__copy" data-reveal>
-              <span class="fold__num tnum" aria-hidden="true">{String(s.n).padStart(2, '0')}</span>
+              <span class="fold__num tnum" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
               <p class="label">{s.eyebrow}</p>
               <h3 id={`fold-title-${s.n}`} class="subheading">{s.title}</h3>
               <p class="fold__body">{s.body}</p>
@@ -82,16 +80,6 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
                     ))}
                   </ul>
                 )}
-                {s.n === 3 && (
-                  <Fragment>
-                    <p class="field mono"><span class="typed">send 0.05 ETH to vitalik.eth</span></p>
-                    <dl class="pairs">
-                      <div><dt>Action</dt><dd>Send</dd></div>
-                      <div><dt>Amount</dt><dd class="tnum">0.05 ETH</dd></div>
-                      <div><dt>To</dt><dd>vitalik.eth</dd></div>
-                    </dl>
-                  </Fragment>
-                )}
                 {s.n === 4 && (
                   <Fragment>
                     <p class="screen__kicker">You typed</p>
@@ -116,16 +104,6 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
                       <div><dt>Network</dt><dd>Ethereum</dd></div>
                     </dl>
                     <span class="screen__button">Sign in wallet</span>
-                  </Fragment>
-                )}
-                {s.n === 7 && (
-                  <Fragment>
-                    <div class="route">
-                      <span class="route__end"><img src="/assets/chains/solana.png" alt="" width="44" height="44" loading="lazy" />Solana</span>
-                      <span class="route__line" aria-hidden="true"><b></b></span>
-                      <span class="route__end"><img src="/assets/chains/ethereum.png" alt="" width="44" height="44" loading="lazy" />Ethereum</span>
-                    </div>
-                    <p class="screen__sub">ACT over Wormhole Native Token Transfers, delivered automatically on the other side.</p>
                   </Fragment>
                 )}
                 {s.n === 8 && (
@@ -230,15 +208,6 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
   .split i { border-radius: 5px; background: var(--color-brand); }
   .split i + i { background: var(--color-gold); }
 
-  .field { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border-radius: 14px; background: var(--color-bg-alt); font-size: 0.875rem; color: var(--color-strong); }
-  /* The phrase types itself in, then holds. Clip-path, not width, so nothing
-     reflows; at rest (and for reduced motion) the full phrase is showing. */
-  .typed { display: inline-block; animation: typing 7s steps(28, end) infinite; }
-  .typed::after { content: ''; display: inline-block; width: 2px; height: 1.1em; margin-left: 3px; background: var(--color-brand-bright); vertical-align: text-bottom; }
-  @keyframes typing {
-    0% { clip-path: inset(0 100% 0 0); }
-    35%, 100% { clip-path: inset(0 0 0 0); }
-  }
   .pairs { margin: 0; display: grid; }
   .pairs div { display: flex; justify-content: space-between; gap: 1rem; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; }
   .pairs dt { color: var(--color-muted); }
@@ -247,16 +216,6 @@ const dark = new Set<Theme>(['brand', 'ink', 'bright', 'gold']);
   .checks li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9375rem; color: var(--color-strong); }
   .tick { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--color-ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 8.5 2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat; }
 
-  /* Universal: the two chains, with a packet crossing the line between them. */
-  .route { display: flex; align-items: center; gap: 14px; padding: 18px 0 8px; }
-  .route__end { display: grid; justify-items: center; gap: 8px; font-size: 0.875rem; font-weight: 600; color: var(--color-strong); }
-  .route__end img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 0 1px var(--color-border); }
-  .route__line { position: relative; flex: 1; height: 2px; margin-bottom: 26px; border-radius: 2px; background: linear-gradient(90deg, var(--color-mint), var(--color-brand-bright)); container-type: inline-size; }
-  .route__line b { position: absolute; top: -5px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--color-brand); box-shadow: 0 0 0 4px rgba(184, 176, 255, 0.35); animation: packet 2.6s var(--ease-in-out) infinite; }
-  @keyframes packet {
-    from { transform: translateX(0); }
-    to { transform: translateX(calc(100cqw - 12px)); }
-  }
 
   @media (max-width: 900px) {
     .fold__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }

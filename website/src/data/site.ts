@@ -17,7 +17,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 
 export interface Product {
-  slug: 'wallet' | 'universal' | 'pay' | 'shield' | 'intent' | 'safesend';
+  slug: 'wallet' | 'pay' | 'shield' | 'safesend';
   name: string;
   role: string;
   status: Status;
@@ -43,20 +43,6 @@ export const PRODUCTS: Product[] = [
       'Keys encrypted on-device; nothing leaves the browser',
     ],
     roadmap: ['Chrome Web Store release', 'Mobile'],
-  },
-  {
-    slug: 'universal',
-    name: 'Aretia Universal',
-    role: 'Interoperability',
-    status: 'testnet',
-    statusNote: 'ACT bridging runs on Solana devnet ↔ Sepolia today. ACT’s contracts are deployed on BNB Chain and Polygon mainnet; bridging to them is not live yet.',
-    summary: 'Move ACT between chains and pay in whatever token you hold, without managing the route yourself.',
-    today: [
-      'ACT bridging between Solana and Ethereum over Wormhole Native Token Transfers (testnet)',
-      'Automatic destination delivery through Wormhole’s Executor relay: no manual redeem step',
-      'Pay-with-any-token quotes on Solana: see exactly what an exact-output payment costs in another token',
-    ],
-    roadmap: ['Mainnet bridging', 'More networks', 'Executing pay-with-any-token payments end to end'],
   },
   {
     slug: 'pay',
@@ -99,19 +85,6 @@ export const PRODUCTS: Product[] = [
     ],
     roadmap: ['Privacy-preserving transaction options'],
   },
-  {
-    slug: 'intent',
-    name: 'Aretia Intent',
-    role: 'Plain-language transactions',
-    status: 'built',
-    statusNote: 'Version 1: a deterministic phrase parser, not an AI model.',
-    summary: 'Type what you want to do; Aretia turns it into a transaction you review before signing.',
-    today: [
-      'Understands phrases like “send 5 ACT to alex.sol”',
-      'Always produces a normal review screen: nothing is sent from the phrase alone',
-    ],
-    roadmap: ['Route discovery across chains and liquidity sources'],
-  },
 ];
 
 export const ACT = {
@@ -144,7 +117,7 @@ export const ACT = {
     { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury and treasury operations.' },
     { name: 'Staking', status: 'in-development' as Status, detail: 'Lock ACT to build a Capital Access Score.' },
     { name: 'Project registration', status: 'live' as Status, detail: `Project developers pay a ${(5000).toLocaleString('en-US')} ACT fee to apply for catalyst funding.` },
-    { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Universal, Pay, Shield and Intent.' },
+    { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Pay and Shield.' },
   ],
 };
 
@@ -233,10 +206,8 @@ export const NAV: NavGroup[] = [
       { label: 'Open wallet', href: '/wallet', description: 'Balances, activity and trading in your browser' },
       { label: 'Aretia Wallet', href: '/wallet/about', description: 'Multichain self-custody wallet' },
       { label: 'Features', href: '/features', description: 'Everything the wallet does today' },
-      { label: 'Universal', href: '/features#universal', description: 'Cross-chain ACT and any-token pay' },
       { label: 'Pay', href: '/features#pay', description: 'Send to ENS and .sol names' },
       { label: 'Shield', href: '/features#shield', description: 'Pre-send safety checks' },
-      { label: 'Intent', href: '/features#intent', description: 'Plain-language transactions' },
     ],
   },
   {

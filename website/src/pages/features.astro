@@ -3,10 +3,8 @@ import Base from '../layouts/Base.astro';
 import PageHero from '../components/typography/PageHero.astro';
 import ProductSection from '../components/product/ProductSection.astro';
 import WalletMock from '../components/wallet/WalletMock.astro';
-import UniversalVisual from '../components/universal/UniversalVisual.astro';
 import SafeSendVisual from '../components/safesend/SafeSendVisual.astro';
 import ShieldVisual from '../components/shield/ShieldVisual.astro';
-import IntentVisual from '../components/intent/IntentVisual.astro';
 import PayVisual from '../components/pay/PayVisual.astro';
 import ActSection from '../components/token/ActSection.astro';
 import ClimateSection from '../components/climate/ClimateSection.astro';
@@ -15,12 +13,12 @@ import { PRODUCTS, SECURITY, DEVELOPERS } from '../data/site';
 
 const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const index = [
-  ['#wallet', 'Multichain Wallet'], ['#universal', 'Universal'], ['#pay', 'Pay'], ['#shield', 'Shield'], ['#safesend', 'SafeSend'],
-  ['#intent', 'Intent'], ['#act', 'ACT'], ['#climate', 'Climate Treasury'], ['#security', 'Security'], ['#developers', 'Developers'],
+  ['#wallet', 'Multichain Wallet'], ['#pay', 'Pay'], ['#shield', 'Shield'], ['#safesend', 'SafeSend'],
+  ['#act', 'ACT'], ['#climate', 'Climate Treasury'], ['#security', 'Security'], ['#developers', 'Developers'],
 ];
 ---
 
-<Base title="Features" description="Everything Aretia does today, and what is on the roadmap: multichain wallet, Universal, Pay, Shield, Intent, ACT, the Climate Treasury, security and developer infrastructure.">
+<Base title="Features" description="Everything Aretia does today, and what is on the roadmap: multichain wallet, Pay, Shield, ACT, the Climate Treasury, security and developer infrastructure.">
   <PageHero
     eyebrow="Features"
     title="Everything Aretia does, in one place."
@@ -44,10 +42,6 @@ const index = [
     <div class="panel wallet-visual" data-tilt-zone><WalletMock /></div>
   </ProductSection>
 
-  <ProductSection id="universal" photo={{ src: '/images/people/woman-phone-walking.webp', alt: 'A woman in sunglasses walking down a city street, looking at her phone', position: '50% 12%' }} eyebrow="Aretia Universal" title="Move value without thinking about the chain." lead={p.universal!.summary} status={p.universal!.status} points={p.universal!.today} roadmap={p.universal!.roadmap} reverse>
-    <UniversalVisual />
-  </ProductSection>
-
   <ProductSection id="pay" photo={{ src: '/images/people/woman-phone-smiling.webp', alt: 'A young woman smiling at her phone at a café table', position: '50% 20%' }} eyebrow="Aretia Pay" title="Payments without<br />the friction." lead={p.pay!.summary} status={p.pay!.status} points={p.pay!.today} roadmap={p.pay!.roadmap}>
     <PayVisual />
   </ProductSection>
@@ -58,10 +52,6 @@ const index = [
 
   <ProductSection id="safesend" eyebrow="Aretia SafeSend" title="A pause you can<br />take back." lead={p.safesend!.summary} status={p.safesend!.status} points={p.safesend!.today} roadmap={p.safesend!.roadmap} statusNote={p.safesend!.statusNote}>
     <SafeSendVisual />
-  </ProductSection>
-
-  <ProductSection id="intent" photo={{ src: '/images/people/man-glasses-phone.webp', alt: 'A young man in glasses, delighted by something on his phone', position: '50% 10%' }} eyebrow="Aretia Intent" title="Tell Aretia what you want.<br />Review it, then sign." lead={p.intent!.summary} status={p.intent!.status} points={p.intent!.today} roadmap={p.intent!.roadmap} statusNote={p.intent!.statusNote} reverse>
-    <IntentVisual />
   </ProductSection>
 
   <ActSection />

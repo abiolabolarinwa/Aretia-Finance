@@ -4,25 +4,19 @@ import ProductLogo from '../../components/brand/ProductLogo.astro';
 import { ACT, PRODUCTS } from '../../data/site';
 import { CHAINS } from '../../swings/core/types';
 
-// Universal and SafeSend are not usable on this page (mainnet + Solana only), so their tabs report
+// SafeSend is not usable on this page (mainnet + Solana only), so its tab reports
 // status. Copy comes from PRODUCTS, the single source the features page uses; the network rows
 // restate the deployment records (packages/safesend/src/deployments.ts and the bridge config).
 type Tone = 'on' | 'warn' | 'off';
 interface StatusRow { network: string; state: string; tone: Tone }
 const product = (slug: string) => PRODUCTS.find((p) => p.slug === slug)!;
 const safesend = product('safesend');
-const universal = product('universal');
 const safesendRows: StatusRow[] = [
   { network: 'Solana mainnet (this page)', state: 'Not deployed', tone: 'off' },
   { network: 'Solana devnet', state: 'Testnet', tone: 'on' },
   { network: 'Ethereum Sepolia', state: 'Testnet', tone: 'on' },
   { network: 'BNB Chain and Polygon mainnet', state: 'Deployed, not audited', tone: 'warn' },
   { network: 'Ethereum mainnet', state: 'Not deployed', tone: 'off' },
-];
-const universalRows: StatusRow[] = [
-  { network: 'Solana mainnet ↔ Ethereum mainnet', state: 'Not live', tone: 'off' },
-  { network: 'Solana devnet ↔ Ethereum Sepolia', state: 'Testnet', tone: 'on' },
-  { network: 'ACT on BNB Chain and Polygon mainnet', state: 'Deployed, bridging not live', tone: 'warn' },
 ];
 // Restates what src/pages/carboncredit.astro says is built and not built; keep the two in step.
 const carbonRows: StatusRow[] = [
@@ -47,10 +41,6 @@ const carbonNeeds = [
 const safesendNeeds = [
   'SafeSend deployed on Solana mainnet. Today the Solana program exists on devnet only.',
   'A security audit of the vault and the program before it holds anyone’s real funds.',
-];
-const universalNeeds = [
-  'ACT bridging live on mainnet. Today it runs on testnet with zero-value test tokens.',
-  'An Ethereum wallet connection. This page connects Solana wallets only, and a bridge needs both sides.',
 ];
 
 // Aretia's own bonding curve stays out of the page until the site is built with PUBLIC_CURVE_ENABLED=1, and does nothing on mainnet even then
@@ -124,14 +114,6 @@ const sendTips = [
         <button type="button" data-nav="shield">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
           <span class="wapp__label">Shield</span>
-        </button>
-        <button type="button" data-nav="intent">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
-          <span class="wapp__label">Intent</span>
-        </button>
-        <button type="button" data-nav="universal">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 18v-2a9 9 0 0 1 18 0v2M3 18h18M8 18v-5M16 18v-5M12 18v-7" /></svg>
-          <span class="wapp__label">Universal</span>
         </button>
         <button type="button" data-nav="favourites">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8-4.3-4.1 5.9-.9z" /></svg>
@@ -365,37 +347,6 @@ const sendTips = [
         <div class="wapp-sh" data-shield-root></div>
       </div>
 
-      <div data-pane="intent" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card">
-            <h2 class="wapp__h2">Say what you want to do</h2>
-            <p class="wapp__fine">
-              Type a phrase and Intent shows how it read it. A swap opens the Trade tab, and a send opens the Send tab, with everything filled in. Nothing happens until you approve it in your own wallet.
-            </p>
-            <form class="wapp__form" data-intent-form>
-              <label for="intent-input" class="wapp__eyebrow">What would you like to do?</label>
-              <input id="intent-input" class="wapp__input" autocomplete="off" spellcheck="false" placeholder="swap 0.1 SOL for ACT" />
-              <button type="submit" class="wapp__btn wapp__btn--primary">Read it</button>
-            </form>
-            <div class="wapp__examples">
-              <button type="button" class="wapp__chip wapp__chip--btn" data-example="swap 0.1 SOL for ACT">swap 0.1 SOL for ACT</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-example="swap 5 USDC for SOL">swap 5 USDC for SOL</button>
-              <button type="button" class="wapp__chip wapp__chip--btn" data-example="send 0.5 SOL to bob.sns">send 0.5 SOL to bob.sns</button>
-            </div>
-            <div data-intent-result aria-live="polite"></div>
-          </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">How Intent works</span>
-            <ul class="wapp__list">
-              <li>It understands a fixed set of phrases ("swap 10 USDC for SOL", "send 0.5 SOL to …"). It is not an AI model, and it refuses anything else instead of guessing.</li>
-              <li>Amounts must be plain numbers: not "$50", "half" or "all".</li>
-              <li>Swaps use tokens you hold, plus SOL, USDC, USDT and ACT by their real mint addresses. If a name matches more than one token, you pick which one, so a lookalike token is never chosen for you.</li>
-              <li>A send phrase opens the Send tab with the asset, address and amount filled in. You still review it there and approve it in your own wallet.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
       <div data-pane="launch" class="wapp__pane" hidden>
         <div class="lh" data-launch-hub>
           <header class="lh__head">
@@ -502,35 +453,6 @@ const sendTips = [
             </ul>
             <p class="wapp__fine">You can try it on the supported testnets in the Aretia browser extension, which is in development and not yet in the Chrome Web Store.</p>
             <p class="wapp__fine"><a href="/features#safesend">Read more on the features page</a> · <a href="/wallet/about">About Aretia Wallet</a></p>
-          </div>
-        </div>
-      </div>
-
-      <div data-pane="universal" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">Aretia Universal</span>
-            <h2 class="wapp__h2">Move ACT between chains</h2>
-            <p class="wapp__fine">{universal.summary}</p>
-            <p class="wapp__banner wapp__banner--warn"><b>Not available on this web wallet yet.</b> It only works on networks where it is deployed, and this page uses Solana mainnet.</p>
-            <span class="wapp__eyebrow">What it does</span>
-            <ul class="wapp__list">
-              {universal.today.map((point) => <li>{point}</li>)}
-            </ul>
-            <span class="wapp__eyebrow">Still to come</span>
-            <p class="wapp__fine">{universal.roadmap.join(' · ')}</p>
-          </div>
-          <div class="wapp__card">
-            <span class="wapp__eyebrow">Where it runs</span>
-            <dl class="wapp__rows">
-              {universalRows.map((row) => <div><dt>{row.network}</dt><dd><span class={`wapp__state wapp__state--${row.tone}`}>{row.state}</span></dd></div>)}
-            </dl>
-            <span class="wapp__eyebrow">What has to happen first</span>
-            <ul class="wapp__list">
-              {universalNeeds.map((need) => <li>{need}</li>)}
-            </ul>
-            <p class="wapp__fine">You can try it on the supported testnets in the Aretia browser extension, which is in development and not yet in the Chrome Web Store.</p>
-            <p class="wapp__fine"><a href="/features#universal">Read more on the features page</a> · <a href="/wallet/about">About Aretia Wallet</a></p>
           </div>
         </div>
       </div>
@@ -877,10 +799,9 @@ const sendTips = [
   }
   @media (prefers-reduced-motion: reduce) { .lh-chip, .lh-step, .lh__step { transition: none; } .lh-step.is-done .lh-step__mark { animation: none; } }
   .wapp[data-connected='false'][data-view='safesend'] .wapp__gate,
-  .wapp[data-connected='false'][data-view='universal'] .wapp__gate,
   .wapp[data-connected='false'][data-view='carbon'] .wapp__gate,
   .wapp[data-connected='false'][data-view='launch'] .wapp__gate { display: none; }
-  .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='universal'] [data-refresh], .wapp[data-view='carbon'] [data-refresh], .wapp[data-view='launch'] [data-refresh] { display: none; }
+  .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='carbon'] [data-refresh], .wapp[data-view='launch'] [data-refresh] { display: none; }
   .wapp__state { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
   .wapp__state--on { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
   .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
@@ -1298,8 +1219,7 @@ const sendTips = [
   .wapp__tokencard-foot { overflow: hidden; font-size: 11px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
   .wapp[data-connected='false'][data-view='shield'] .wapp__gate,
   .wapp[data-connected='false'][data-view='radar'] .wapp__gate,
-  .wapp[data-connected='false'][data-view='intent'] .wapp__gate { display: none; }
-  .wapp[data-view='shield'] [data-refresh], .wapp[data-view='radar'] [data-refresh], .wapp[data-view='intent'] [data-refresh] { display: none; }
+  .wapp[data-view='shield'] [data-refresh], .wapp[data-view='radar'] [data-refresh] { display: none; }
   .wapp-rd__chains { display: flex; flex-wrap: wrap; gap: 8px; }
   .wapp-rd__chains[hidden] { display: none; }
   .wapp-rd__chain { padding: 6px 12px; font: inherit; font-size: 13px; color: var(--color-strong); background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; }
@@ -1606,10 +1526,10 @@ const sendTips = [
   @media (min-width: 961px) { .wapp-pay [data-pay-panel='send'] .wapp__grid--trade { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
   /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
   .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: center; }
-  .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend'], [data-pane='universal']) { width: 100%; max-width: 1120px; justify-self: start; }
+  .wapp__pane:is([data-pane='radar'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend']) { width: 100%; max-width: 1120px; justify-self: start; }
   /* Radar is one lookup, so it sits in the middle of the page rather than against the sidebar. */
   .wapp__pane[data-pane='radar'] { justify-self: center; }
-  @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='intent'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend'], [data-pane='universal']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
+  @media (min-width: 961px) { .wapp__pane:is([data-pane='radar'], [data-pane='carbon'], [data-pane='launch'], [data-pane='safesend']) .wapp__grid--trade { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
 
   /* ---- Swap opened over the page it was started from ---- */
   .wapp-swapdlg { position: fixed; inset: 0; z-index: 300; display: grid; place-items: start center; overflow-y: auto; padding: calc(var(--nav-height, 64px) + 12px) 16px 32px; background: rgba(15, 12, 40, 0.5); }

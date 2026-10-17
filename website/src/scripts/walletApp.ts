@@ -13,14 +13,12 @@ import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
 import { loadTrades, type TradeRow } from './walletTrades';
-import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
-import { PREFILL_SWAP_EVENT } from './walletSearch';
 import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
 import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
-import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, parseIntent, shieldFindings, toSmallestUnit, type AccountSnapshot, type Candidate, type ParsedIntent } from './walletTools';
+import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, type AccountSnapshot } from './walletTools';
 
 /**
  * Aretia web wallet (aretiafinance.org/wallet).
@@ -48,10 +46,6 @@ import { BASE_FEE_LAMPORTS, candidatesFor, fromSmallestUnit, isSolanaAddress, pa
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const MAX_MINTS = 100;
-/** Below this much SOL a swap can fail: the network fee, plus about 0.002 SOL to open a new token account. */
-const LOW_SOL = 0.003;
-const lowSolMessage = (sol: number): string =>
-  `This wallet holds ${formatAmount(sol)} SOL. A swap needs a little SOL for the network fee, and your first ACT purchase also needs about 0.002 SOL to open your ACT account. Add some SOL first, or the swap will fail.`;
 
 interface WalletState {
   account: { address: string } | null;
@@ -319,9 +313,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'intent' | 'safesend' | 'universal';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'intent', 'safesend', 'universal'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', intent: 'Intent', safesend: 'SafeSend', universal: 'Universal' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -885,16 +879,6 @@ export function initWalletApp(): void {
     if (holdings.some((h) => h.mint === previous)) asset.value = previous;
   }
 
-  /** Called by Intent: fills the Send form and opens it. Nothing is reviewed or sent yet. */
-  function prefillSend(mint: string, recipient: string, amount: string): void {
-    const { asset, to, amount: amountField, out } = sendEls();
-    if (asset) asset.value = mint;
-    if (to) to.value = recipient;
-    if (amountField) amountField.value = amount;
-    if (out) out.textContent = '';
-    location.hash = '#/send';
-  }
-
   const friendlyError = (e: unknown): string => {
     const m = e instanceof Error ? e.message : 'unknown error';
     return /reject|declin|denied|cancel/i.test(m) ? 'You declined the request in your wallet. Nothing was sent.' : m;
@@ -1049,141 +1033,6 @@ export function initWalletApp(): void {
   });
 
   // ---- shield tab
-  // ---- intent tab
-  function candidateLabel(c: Candidate): string {
-    return `${c.symbol} · ${shorten(c.mint)} · ${c.held && c.amount !== null ? `you hold ${formatAmount(c.amount)}` : 'not in your wallet'}`;
-  }
-
-  function pickGroup(name: string, title: string, candidates: Candidate[], chosen: { mint: string | null }, onChange: () => void): HTMLElement {
-    const box = el('div', { class: 'wapp__pick' });
-    box.append(el('span', { class: 'wapp-sub', text: title }));
-    for (const c of candidates) {
-      const input = el('input', { attrs: { type: 'radio', name, value: c.mint } });
-      input.checked = chosen.mint === c.mint;
-      input.addEventListener('change', () => {
-        chosen.mint = c.mint;
-        onChange();
-      });
-      box.append(el('label', {}, [input, el('span', { text: candidateLabel(c) })]));
-    }
-    return box;
-  }
-
-  function renderIntent(phrase: string): void {
-    const out = $('[data-intent-result]');
-    if (!out) return;
-    out.textContent = '';
-    if (!phrase.trim()) return;
-    const intent: ParsedIntent | null = parseIntent(phrase);
-    if (!intent) {
-      out.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: 'Intent could not read that. It understands phrases like "swap 10 USDC for SOL" and "send 0.5 SOL to an address". Amounts must be plain numbers, not "$50" or "half".' }));
-      return;
-    }
-    const card = el('div', { class: 'wapp__result' });
-    out.append(card);
-
-    if (intent.kind === 'send') {
-      card.append(el('strong', { text: `Read as: send ${intent.amount} ${intent.assetSymbol} to ${intent.recipient}` }));
-      if (!address) {
-        card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: 'Connect a wallet so Intent can see what you hold.' }));
-        const connect = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Connect wallet', attrs: { type: 'button' } });
-        connect.addEventListener('click', () => document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click());
-        card.append(connect);
-        return;
-      }
-      if (holdings === null) {
-        card.append(el('p', { class: 'wapp-sub', text: 'Still loading your balances. Try again in a moment.' }));
-        return;
-      }
-      const options = candidatesFor(intent.assetSymbol, holdings, false);
-      const pick = { mint: options.length === 1 ? options[0]!.mint : (null as string | null) };
-      const actions = el('div', { class: 'wapp__row-actions' });
-      const renderSendActions = () => {
-        actions.textContent = '';
-        const chosen = options.find((c) => c.mint === pick.mint);
-        const problems: string[] = [];
-        if (options.length === 0) problems.push(`You do not hold ${intent.assetSymbol} in this wallet.`);
-        if (chosen && chosen.amount !== null && Number(intent.amount) > chosen.amount) problems.push(`You hold ${formatAmount(chosen.amount)} ${chosen.symbol}, which is less than ${intent.amount}.`);
-        for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
-        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Send', attrs: { type: 'button' } });
-        go.disabled = !chosen || problems.length > 0;
-        go.addEventListener('click', () => chosen && prefillSend(chosen.mint, intent.recipient, intent.amount));
-        actions.append(go);
-        if (isSolanaAddress(intent.recipient)) {
-          const check = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Check this address with Shield', attrs: { type: 'button' } });
-          check.addEventListener('click', () => {
-            location.hash = checkHash(intent.recipient);
-          });
-          actions.append(check);
-        }
-      };
-      if (options.length > 1) card.append(pickGroup('intent-send', `${intent.assetSymbol} matches more than one token you hold. Which one?`, options, pick, renderSendActions));
-      card.append(actions);
-      renderSendActions();
-      return;
-    }
-
-    card.append(el('strong', { text: `Read as: swap ${intent.amount} ${intent.fromAssetSymbol} for ${intent.toAssetSymbol}` }));
-    if (!address) {
-      card.append(el('p', { class: 'wapp__banner wapp__banner--info', text: 'Connect a wallet so Intent can see what you hold.' }));
-      const connect = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Connect wallet', attrs: { type: 'button' } });
-      connect.addEventListener('click', () => document.querySelector<HTMLButtonElement>('[data-aretia-wallet-mount] button')?.click());
-      card.append(connect);
-      return;
-    }
-    if (holdings === null) {
-      card.append(el('p', { class: 'wapp-sub', text: 'Still loading your balances. Try again in a moment.' }));
-      return;
-    }
-    const from = candidatesFor(intent.fromAssetSymbol, holdings, false);
-    const to = candidatesFor(intent.toAssetSymbol, holdings, true);
-    const fromPick = { mint: from.length === 1 ? from[0]!.mint : null as string | null };
-    const toPick = { mint: to.length === 1 ? to[0]!.mint : null as string | null };
-    const actions = el('div');
-    const render = () => {
-      actions.textContent = '';
-      const f = from.find((c) => c.mint === fromPick.mint);
-      const t = to.find((c) => c.mint === toPick.mint);
-      const problems: string[] = [];
-      if (from.length === 0) problems.push(`You do not hold ${intent.fromAssetSymbol} in this wallet.`);
-      if (to.length === 0) problems.push(`Intent does not know ${intent.toAssetSymbol}. It only swaps into tokens you hold, plus SOL, USDC, USDT and ACT. Use the Swap page to search for others.`);
-      if (f && t && f.mint === t.mint) problems.push('That swaps a token for itself.');
-      if (f && f.amount !== null && Number(intent.amount) > f.amount) problems.push(`You hold ${formatAmount(f.amount)} ${f.symbol}, which is less than ${intent.amount}.`);
-      const raw = f && f.decimals !== null ? toSmallestUnit(intent.amount, f.decimals) : null;
-      if (f && f.decimals !== null && raw === null) problems.push(`${f.symbol} has ${f.decimals} decimal places, so ${intent.amount} is too precise.`);
-      if (f && f.decimals === null) actions.append(el('p', { class: 'wapp__banner wapp__banner--info', text: `Intent does not know how many decimals ${f.symbol} uses, so it will not fill in the amount. Enter it on the Swap page.` }));
-      for (const p of problems) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: p }));
-      // Not a blocker (the wallet may still have enough), but the usual reason a non-SOL swap fails.
-      const sol = holdings?.find((h) => h.mint === SOL_MINT)?.amount ?? 0;
-      if (f && f.mint !== SOL_MINT && sol < LOW_SOL) actions.append(el('p', { class: 'wapp__banner wapp__banner--warn', text: lowSolMessage(sol) }));
-      const ready = f !== undefined && t !== undefined && problems.length === 0;
-      const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Continue to Swap', attrs: { type: 'button' } });
-      go.disabled = !ready;
-      go.addEventListener('click', () => {
-        if (!f || !t) return;
-        window.dispatchEvent(new CustomEvent(PREFILL_SWAP_EVENT, { detail: { from: { mint: f.mint, symbol: f.symbol, decimals: f.decimals }, to: { mint: t.mint, symbol: t.symbol, decimals: t.decimals }, amount: intent.amount } }));
-        location.hash = '#/swap';
-      });
-      actions.append(go);
-    };
-    if (from.length > 1) card.append(pickGroup('intent-from', `${intent.fromAssetSymbol} matches more than one token you hold. Which one?`, from, fromPick, render));
-    if (to.length > 1) card.append(pickGroup('intent-to', `${intent.toAssetSymbol} matches more than one token. Which one?`, to, toPick, render));
-    card.append(actions);
-    render();
-  }
-
-  $('[data-intent-form]')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    renderIntent($<HTMLInputElement>('#intent-input')?.value ?? '');
-  });
-  document.querySelectorAll<HTMLElement>('[data-example]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const field = $<HTMLInputElement>('#intent-input');
-      if (field) field.value = b.dataset.example ?? '';
-      renderIntent(b.dataset.example ?? '');
-    }),
-  );
-
   // The network chip and Refresh live in the site's top bar, before the ACT price, whenever that bar has room
   // for them (it hides its right-hand side on narrow screens, so there they stay at the top of the page).
   function placeChips(): void {
@@ -1282,8 +1131,8 @@ export function initWalletApp(): void {
   initNotifications();
 
   function clearSessionOutputs(): void {
-    for (const sel of ['[data-send-review]', '[data-intent-result]']) $(sel)?.replaceChildren();
-    for (const sel of ['[data-send-to]', '[data-send-amount]', '#intent-input']) {
+    for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();
+    for (const sel of ['[data-send-to]', '[data-send-amount]']) {
       const field = $<HTMLInputElement>(sel);
       if (field) field.value = '';
     }

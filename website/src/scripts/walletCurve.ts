@@ -67,9 +67,11 @@ export interface CurveCard {
   onShow(): void;
   onWalletChange(): void;
   offer(mint: string): void;
+  /** Shows or hides the whole card: it is the Solana card, so it hides when an Ethereum-style network is chosen. */
+  setActive(active: boolean): void;
 }
 
-const noop: CurveCard = { present: false, onShow(): void {}, onWalletChange(): void {}, offer(): void {} };
+const noop: CurveCard = { present: false, onShow(): void {}, onWalletChange(): void {}, offer(): void {}, setActive(): void {} };
 
 /**
  * A seam for the local test harness (website/dev/curve-harness), which runs this card against the devnet program with a local
@@ -670,6 +672,10 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
 
   return {
     present: true,
+    setActive(active: boolean): void {
+      const card = root.closest<HTMLElement>('.wapp__card');
+      if (card) card.hidden = !active;
+    },
     onShow(): void {
       // A shared link ("#/launch/curve/<token>") opens that curve for trading.
       const shared = parseCurveHash(location.hash);

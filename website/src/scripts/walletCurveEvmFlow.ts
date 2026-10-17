@@ -502,8 +502,25 @@ export class EvmCurveFlow {
     progress(confirming);
     const r = await this.receipt(hash);
     if (!r) throw new EvmCurveError(`The ${what} was sent but has not confirmed yet. Check ${hash} on an explorer before trying again.`);
-    if (r.status !== '0x1') throw new EvmCurveError(`The ${what} failed on the network; nothing from it took effect. (${hash})`);
+    if (r.status !== '0x1') throw new EvmCurveError(`The ${what} failed on the network; nothing from it took effect. (${hash})${await this.walletNote(hash, tx)}`);
     return hash;
+  }
+
+  /**
+   * If the wallet sent something other than the plain transaction it was asked for (MetaMask can upgrade an account to a smart account and send
+   * through its own delegation contract), say so: a failure then is often the wallet's wrapper, and trying again usually works.
+   */
+  private async walletNote(hash: string, asked: EvmTxRequest): Promise<string> {
+    try {
+      const sent = (await this.d.read('eth_getTransactionByHash', [hash])) as { to?: string; type?: string } | null;
+      if (!sent) return '';
+      const different = typeof sent.to === 'string' && typeof asked.to === 'string' && sent.to.toLowerCase() !== asked.to.toLowerCase();
+      if (different || sent.type === '0x4')
+        return ' Your wallet did not send this as the plain transaction shown here: it wrapped it in its smart-account feature, and that wrapper failed. The check done before sending passed, so trying again usually works.';
+    } catch {
+      // not available: no note
+    }
+    return '';
   }
 
   /** Reads a few times: a node can briefly lag behind the confirmation. */

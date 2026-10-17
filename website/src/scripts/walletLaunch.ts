@@ -27,6 +27,8 @@ export interface LaunchHost {
   getAddress(): string | null;
   /** Re-reads balances after something was created. */
   refreshWallet(): void;
+  /** Told which network the page is on whenever it changes, so cards that belong to one network can hide on the others. */
+  onNetwork?(network: string): void;
   /** The Ethereum-style side: the connected account and a way to connect. Absent where the page has no such wallet. */
   evm?: LaunchEvmHost;
   /** Offers to open a pool for a token that was just created. */
@@ -401,6 +403,7 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     select.addEventListener('change', () => {
       network = select.value as Network;
       error = null;
+      host.onNetwork?.(network);
       draw();
     });
     wrap.append(lab, select);

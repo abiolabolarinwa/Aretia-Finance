@@ -32,7 +32,7 @@ import {
   type EvmCurveState,
   type EvmCurveToken,
 } from './walletCurveEvmCore';
-import { EvmCurveFlow, type EvmCurveOutcome, type EvmCurveProgress, type EvmCurveReview } from './walletCurveEvmFlow';
+import { EvmCurveError, EvmCurveFlow, type EvmCurveOutcome, type EvmCurveProgress, type EvmCurveReview } from './walletCurveEvmFlow';
 
 export interface CurveEvmHost {
   getAccount(): string | null;
@@ -568,7 +568,8 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
       outcome = r.kind === 'create' ? await f.create(r, tick) : r.kind === 'buy' ? await f.buy(r, tick) : r.kind === 'sell' ? await f.sell(r, tick) : r.kind === 'graduate' ? await f.graduate(r, tick) : await f.abort(r, tick);
       stage = 'done';
     } catch (e) {
-      error = friendlyEvmError(e);
+      // The flow's own messages are already plain and complete: show them whole, not shortened.
+      error = e instanceof EvmCurveError ? e.message : friendlyEvmError(e);
       stage = 'review';
     } finally {
       busy = false;

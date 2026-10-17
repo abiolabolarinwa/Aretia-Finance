@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aretia Pool card on devnet (local harness)</title>
+    <link rel="stylesheet" href="/assets/wallet/wallet.css" />
+    <style>
+      body { margin: 0; padding: 16px; max-width: 760px; font-family: system-ui, sans-serif; }
+      .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; font-size: 13px; }
+      .bar code { background: #0001; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    </style>
+  </head>
+  <body class="wapp">
+    <p><b>Local harness. Devnet only.</b> Runs the real Launch-page Aretia Pool card against the devnet program with throwaway test keys held in this page. Nothing here is shipped.</p>
+    <div class="bar" id="bar"></div>
+    <div class="wapp__card"><div data-aretia-pool-root aria-live="polite"></div></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

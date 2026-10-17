@@ -11,7 +11,7 @@
  * no separate transfer to check.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
+import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } from './walletTools';
 import { SYSTEM_PROGRAM_ID } from './walletLaunchTx';
 import { ARETIA_POOL_FEE_ADDRESS, type CreateParams } from './walletAretiaPoolCore';
 
@@ -219,6 +219,14 @@ export function buildLock(web3: typeof Web3, program: string, owner: string, min
   });
 }
 
+/**
+ * The wallet's own token account for the token, created if it is missing (an idempotent create does nothing when it exists). A buyer
+ * or a depositor who has never held the token needs it before the pool can send or take tokens. Paid for and owned by the wallet.
+ */
+export function ensureTokenAccount(web3: typeof Web3, wallet: string, mint: string): Web3.TransactionInstruction {
+  return createAtaIdempotentInstruction(web3, wallet, ataAddress(web3, wallet, mint, TOKEN_2022_PROGRAM_ID), wallet, mint, TOKEN_2022_PROGRAM_ID);
+}
+
 export function assemble(web3: typeof Web3, instructions: Web3.TransactionInstruction[], payer: string, blockhash: string, lastValidBlockHeight: number): Web3.Transaction {
   const tx = new web3.Transaction({ feePayer: new web3.PublicKey(payer), blockhash, lastValidBlockHeight });
   tx.add(...instructions);
@@ -241,14 +249,28 @@ function inspectOne(
   args: (d: Uint8Array) => string[],
   /** Accounts other than the payer that are expected to sign: a position id that signs for itself. */
   allowedSigners: string[] = [],
+  /** When set, one instruction before the pool's is allowed: creating this wallet's own token account, byte for byte. */
+  ownAta?: { owner: string; mint: string; ata: string },
 ): string[] {
   const blockers: string[] = [];
   if (tx.feePayer?.toBase58() !== payer) blockers.push('The fee would be paid by an account other than yours.');
   const signers = new Set<string>();
   for (const ix of tx.instructions) for (const m of ix.keys) if (m.isSigner) signers.add(m.pubkey.toBase58());
   for (const s of signers) if (s !== payer && !allowedSigners.includes(s)) blockers.push(`An unexpected account would have to sign: ${s}.`);
-  if (tx.instructions.length !== 1) return [...blockers, 'The transaction is not the single step that was shown.'];
-  const ix = tx.instructions[0]!;
+  let steps = tx.instructions;
+  if (ownAta && steps.length === 2) {
+    const a = steps[0]!;
+    const want = ownAta.ata;
+    const k = (i: number) => a.keys[i]?.pubkey.toBase58();
+    const okAta =
+      a.programId.toBase58() === ATA_PROGRAM_ID && a.data.length === 1 && a.data[0] === 1 && a.keys.length === 6 &&
+      k(0) === payer && k(1) === want && k(2) === ownAta.owner && k(3) === ownAta.mint && k(4) === SYSTEM_PROGRAM_ID && k(5) === TOKEN_2022_PROGRAM_ID &&
+      a.keys[1]!.isWritable && !a.keys[1]!.isSigner && a.keys[0]!.isSigner;
+    if (!okAta) blockers.push('The first step is not the creation of your own token account.');
+    steps = steps.slice(1);
+  }
+  if (steps.length !== 1) return [...blockers, 'The transaction is not the single step that was shown.'];
+  const ix = steps[0]!;
   if (ix.programId.toBase58() !== program) return [...blockers, 'The step is not made by the pool program that was shown.'];
   const d = Uint8Array.from(ix.data);
   if (d.length !== dataLen || !bytesEqual(d.subarray(0, 8), tag)) return [...blockers, 'The step is not the expected one.'];
@@ -341,7 +363,7 @@ export function inspectSwap(web3: typeof Web3, tx: Web3.Transaction, c: SwapChec
     if (v.getBigUint64(17, true) !== c.minOut) out.push('The minimum you receive is not the one shown.');
     if (c.minOut === 0n) out.push('There is no minimum on what you receive.');
     return out;
-  });
+  }, [], { owner: c.trader, mint: c.mint, ata: associated(web3, c.trader, c.mint) });
 }
 
 export function inspectClaim(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient?: string; positionId?: string }): string[] {
@@ -389,7 +411,7 @@ function inspectLiquidity(web3: typeof Web3, tx: Web3.Transaction, program: stri
     if (v.getBigUint64(16, true) !== l.tokens) out.push(add ? 'The most tokens you would pay is not the one shown.' : 'The least tokens you would accept is not the one shown.');
     if (v.getBigUint64(24, true) !== l.sol) out.push(add ? 'The most SOL you would pay is not the one shown.' : 'The least SOL you would accept is not the one shown.');
     return out;
-  }, add && id !== l.owner ? [id] : []);
+  }, add && id !== l.owner ? [id] : [], add ? { owner: l.owner, mint: l.mint, ata: associated(web3, l.owner, l.mint) } : undefined);
 }
 
 export function inspectAddLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: LiquidityParams & { program: string }): string[] {

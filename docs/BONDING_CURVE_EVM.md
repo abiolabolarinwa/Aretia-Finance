@@ -89,3 +89,11 @@ Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @e
 3. The owner confirms the fee, minimum raise and the 7-day wait.
 4. A watched small real-money rehearsal on Ethereum.
 5. Then, and only then, put the address in the web code and turn the flag on.
+
+## 11. Mainnet deployment (Ethereum, BNB Chain, Polygon)
+
+`website/scripts/curve-mainnet.mjs` never holds a key and never sends anything. `prepare --chain <ethereum|bnb|polygon>` reads the chain, checks that the Aretia token factory, the exchange router, its factory and the wrapped coin are really there and agree with each other, runs the constructor read-only, and writes the unsigned contract-creation data (`deploy-out/curve-<chain>-creation.json`, ignored by git). The owner deploys that from their own wallet or hardware wallet: a creation transaction with no `to`, value 0, that data. `verify --chain <c> --address <new contract>` then checks the code at the address is byte-for-byte what the constructor produces for that chain (so it is the audited build with the right pinned addresses) and reads back factory, fee recipient, router, wrapped coin, fee (58 bps) and `totalOwed` (0).
+
+Order, per chain: prepare, owner deploys, verify, put the address in `EVM_CURVE_ADDRESSES` and update the gate test (by hand), turn `PUBLIC_CURVE_ENABLED=1` on only for a watched small rehearsal, then open it up. Expected runtime keccak at preparation: Ethereum `0x9fdf8361…45c323`, BNB Chain `0x20774ed7…3d40cab`, Polygon `0x83218ff7…e456eeea`.
+
+A wallet (for example one using a smart-account upgrade) may rewrite a transaction before it is sent, so the page's inspection covers the transaction it asked for, not necessarily the one the wallet submits. The page therefore reads the result back from the contract after every send and compares it.

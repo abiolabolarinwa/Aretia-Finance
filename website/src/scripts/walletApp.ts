@@ -1209,7 +1209,14 @@ export function initWalletApp(): void {
       launch.onShow();
       pool.onShow();
       curve.onShow();
-      launchHub ??= initLaunchHub(launch, { curveOn: curve.present });
+      launchHub ??= initLaunchHub(launch, {
+        curveOn: curve.present,
+        resetAll: () => {
+          launch.onWalletChange();
+          pool.onWalletChange();
+          curve.onWalletChange();
+        },
+      });
       launchHub?.onShow();
     }
     if (view === 'send') {

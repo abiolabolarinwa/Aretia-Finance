@@ -413,6 +413,7 @@ const sendTips = [
             <div class="lh__main">
               <section class="wapp__card lh__step" data-step="token" aria-label="Create your token">
                 <div data-launch-root aria-live="polite"></div>
+                <div class="lh-nav" data-hub-token-nav hidden></div>
               </section>
               <section class="wapp__card lh__step" data-step="market" data-ready="0" aria-label="Give it a market">
                 <div class="lh__markethead">
@@ -435,7 +436,9 @@ const sendTips = [
                   )}
                   <div data-evm-curve-root aria-live="polite" hidden></div>
                 </div>
+                <div class="lh-nav lh-nav--split" data-hub-market-nav></div>
               </section>
+              <section class="wapp__card lh__step lh-live" data-step="live" data-hub-live aria-label="Your launch" aria-live="polite"></section>
             </div>
             <aside class="lh__side" aria-label="Summary">
               <div class="wapp__card lh-side" data-hub-preview></div>
@@ -779,6 +782,56 @@ const sendTips = [
   .lh-token__facts dd, .lh-fees dd { margin: 0; font-weight: 600; text-align: right; color: var(--color-strong); overflow-wrap: anywhere; }
   .lh-token__live { margin: 0; padding: 10px 12px; font-size: 13px; font-weight: 600; color: #14532d; background: #e3f6ea; border-radius: 12px; }
 
+
+  /* Staged: only the open stage shows. The page title above is the page's own, so it goes. */
+  .wapp[data-view='launch'] [data-title] { display: none; }
+  .lh { margin-inline: auto; }
+  .lh__head { flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 18px; }
+  .lh__lead { margin-inline: auto; }
+  .lh__net { justify-items: center; }
+  .lh-chips { justify-content: center; }
+  .lh__rail { width: 100%; max-width: 780px; margin-inline: auto; }
+  .lh__grid { width: 100%; max-width: 1020px; margin-inline: auto; }
+  .lh[data-view='token'] [data-step='market'], .lh[data-view='token'] [data-step='live'],
+  .lh[data-view='market'] [data-step='token'], .lh[data-view='market'] [data-step='live'],
+  .lh[data-view='live'] [data-step='token'], .lh[data-view='live'] [data-step='market'] { display: none; }
+  .lh[data-view='live'] .lh__grid { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+  .lh[data-view='live'] .lh__side { display: none; }
+  .lh__step[data-step='market'][data-ready='0'] { opacity: 1; }
+
+  .lh-step { padding: 0; }
+  .lh-step__btn { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 14px 16px; border-radius: 16px; cursor: pointer; }
+  .lh-step__btn:disabled { cursor: not-allowed; opacity: 0.55; }
+  .lh-step__btn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .lh-step.is-here { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(74, 46, 224, 0.12); }
+  .lh-step.is-current:not(.is-here), .lh-step.is-busy:not(.is-here) { border-color: var(--color-border); box-shadow: none; }
+
+  .lh-chip { color: var(--color-muted); }
+  .lh-chip:not(.is-on) .lh-chip__logo { filter: grayscale(1); opacity: 0.65; }
+  .lh-chip:hover:not(:disabled):not(.is-on) .lh-chip__logo { filter: none; opacity: 1; }
+  .lh-chip.is-on { color: #fff; background: var(--color-brand); border-color: var(--color-brand); padding-right: 12px; box-shadow: 0 8px 20px -8px rgba(74, 46, 224, 0.7), 0 0 0 3px rgba(74, 46, 224, 0.2); }
+  .lh-chip__check { display: grid; place-items: center; width: 18px; height: 18px; margin-left: 2px; font-size: 11px; font-weight: 800; color: var(--color-brand); background: #fff; border-radius: 50%; }
+
+  .lh-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding-top: 4px; }
+  .lh-nav[hidden] { display: none; }
+  .lh-nav--split { justify-content: space-between; border-top: 1px solid var(--color-border); padding-top: 16px; }
+  .lh-nav__note { flex: 1 1 220px; margin: 0; font-size: 14px; color: var(--color-muted); }
+  .lh-nav__go { margin-left: auto; }
+  .lh-nav__back { padding: 10px 4px; font: inherit; font-size: 14px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
+  .lh-nav__back:disabled { opacity: 0.5; cursor: not-allowed; }
+  .lh-nav__back:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 6px; }
+
+  .lh-live { justify-items: center; text-align: center; gap: 14px; padding: 34px 26px; }
+  .lh-live__mark { display: grid; place-items: center; width: 64px; height: 64px; font-size: 28px; font-weight: 800; color: #fff; background: #1f7a46; border-radius: 50%; animation: lh-pop 360ms cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  .lh-live__title { margin: 0; font-size: 24px; letter-spacing: -0.01em; color: var(--color-strong); }
+  .lh-live__lead { margin: 0; max-width: 44ch; font-size: 15px; line-height: 1.55; color: var(--color-muted); }
+  .lh-live__rows { margin: 6px 0 0; display: grid; gap: 10px; width: 100%; text-align: left; }
+  .lh-live__rows > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 14px; }
+  .lh-live__rows dt { grid-column: 1 / -1; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
+  .lh-live__rows dd { margin: 0; min-width: 0; font-size: 13px; overflow-wrap: anywhere; color: var(--color-strong); }
+  .lh-live__copy { min-height: 36px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; }
+  .lh-live__copy:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .lh-live .lh-nav__go { margin: 8px 0 0; }
   @media (max-width: 1100px) {
     .lh__grid { grid-template-columns: minmax(0, 1fr); }
     .lh__side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); order: -1; }

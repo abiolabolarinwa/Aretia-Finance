@@ -41,6 +41,8 @@ function world() {
     curveExists: false,
     factoryNonce: 6n,
     estimateOk: true,
+    estimateFailOnce: false,
+    estimateAsked: 0,
     wallet: CREATOR,
     walletChain: 1,
     reject: false,
@@ -58,6 +60,11 @@ function world() {
     if (method === 'eth_getTransactionCount') return hex(state.factoryNonce);
     if (method === 'eth_gasPrice') return hex(20_000_000_000n);
     if (method === 'eth_estimateGas') {
+      state.estimateAsked++;
+      if (state.estimateFailOnce) {
+        state.estimateFailOnce = false;
+        throw new Error('header not found');
+      }
       if (!state.estimateOk) throw new Error('execution reverted');
       return hex(60_000n);
     }
@@ -141,6 +148,22 @@ describe('preparing a creation', () => {
     state.curveCode = '0x6080';
     state.estimateOk = false;
     expect((await flow.prepareCreate(config())).blockers.join(' ')).toMatch(/would not accept the approval/);
+  });
+});
+
+describe('estimating gas', () => {
+  it('tries a failed estimate once more before believing it', async () => {
+    const { flow, state } = world();
+    state.estimateFailOnce = true;
+    const r = await flow.prepareCreate(config());
+    expect(r.blockers).toEqual([]);
+    expect(state.estimateAsked).toBe(2 + 0);
+  });
+  it('says why when the network keeps refusing', async () => {
+    const { flow, state } = world();
+    state.estimateOk = false;
+    const r = await flow.prepareCreate(config());
+    expect(r.blockers.join(' ')).toMatch(/would not accept the approval, so nothing was sent: execution reverted/);
   });
 });
 

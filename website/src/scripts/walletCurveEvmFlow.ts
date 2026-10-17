@@ -200,13 +200,27 @@ export class EvmCurveFlow {
     return true;
   }
 
+  /** The network's reason for the last estimate it would not give, in words (or its own text), for the message shown to the person. */
+  private lastEstimateFailure = '';
+
+  /**
+   * The gas a transaction needs, or null. A public node can briefly answer from an older block than the one the page just read, so one failed
+   * estimate is tried a second time before it is believed; the reason the network gave is kept so the screen can say it.
+   */
   private async estimate(tx: EvmTxRequest): Promise<bigint | null> {
-    try {
-      const g = asBig(await this.d.read('eth_estimateGas', [tx]));
-      return g === null ? null : (g * GAS_MARGIN_NUM) / GAS_MARGIN_DEN;
-    } catch {
-      return null;
+    this.lastEstimateFailure = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const g = asBig(await this.d.read('eth_estimateGas', [tx]));
+        if (g !== null) return (g * GAS_MARGIN_NUM) / GAS_MARGIN_DEN;
+        this.lastEstimateFailure = ': the network did not give a number';
+      } catch (e) {
+        const words = reasonOf(e);
+        this.lastEstimateFailure = words || `: ${(e instanceof Error ? e.message : String(e)).split(String.fromCharCode(10))[0]!.slice(0, 140)}`;
+      }
+      if (attempt === 0) await this.sleep(1500);
     }
+    return null;
   }
 
   // ---------------------------------------------------------------- create
@@ -235,7 +249,7 @@ export class EvmCurveFlow {
         if (tokenBalance < config.totalRaw) blockers.push(`You hold fewer ${config.tokenSymbol} than the amount you want to put in the curve.`);
         const approveGas = await this.estimate(approveTx);
         const price = await this.gasPrice();
-        if (approveGas === null || price === null) blockers.push('The network would not accept the approval, so nothing was sent.');
+        if (approveGas === null || price === null) blockers.push(`The network would not accept the approval, so nothing was sent${this.lastEstimateFailure}.`);
         else {
           gasCostWei = (approveGas + CREATE_GAS_CEILING) * price;
           if (coinBalance < config.firstBuyWei + gasCostWei) blockers.push(`You need more ${chain.symbol}: your first buy (if any) plus the network gas for both transactions.`);
@@ -300,7 +314,7 @@ export class EvmCurveFlow {
         if (quote) {
           const gas = await this.estimate(tx);
           const price = await this.gasPrice();
-          if (gas === null || price === null) blockers.push('The network would not accept this purchase, so nothing was sent.');
+          if (gas === null || price === null) blockers.push(`The network would not accept this purchase, so nothing was sent${this.lastEstimateFailure}.`);
           else {
             gasCostWei = gas * price;
             if (coinBalance < wei + gasCostWei) blockers.push(`You need more ${chain.symbol}: the amount you are paying plus the network gas.`);
@@ -346,7 +360,7 @@ export class EvmCurveFlow {
         if (tokens > tokensBefore) blockers.push('More than your wallet holds of this token.');
         const approveGas = await this.estimate(approveTx);
         const price = await this.gasPrice();
-        if (approveGas === null || price === null) blockers.push('The network would not accept the approval, so nothing was sent.');
+        if (approveGas === null || price === null) blockers.push(`The network would not accept the approval, so nothing was sent${this.lastEstimateFailure}.`);
         else {
           gasCostWei = (approveGas + 150_000n) * price;
           if (coinBalance < gasCostWei) blockers.push(`You need more ${chain.symbol} for the network gas of both transactions.`);

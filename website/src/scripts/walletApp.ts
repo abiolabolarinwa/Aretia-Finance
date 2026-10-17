@@ -13,6 +13,7 @@ import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
 import { initAretiaPool } from './walletAretiaPool';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
+import { initYourPools } from './walletYourPools';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
@@ -389,6 +390,7 @@ export function initWalletApp(): void {
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
   const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   let launchHub: LaunchHub | null = null;
+  const yourPools = initYourPools({ getAddress: () => address, refreshWallet: () => void refresh(), onSolana: () => launch.getNetwork() === 'solana' });
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),
@@ -1065,6 +1067,7 @@ export function initWalletApp(): void {
       curve.onShow();
       launchHub ??= initLaunchHub(launch, {
         curveOn: curve.present,
+        onPools: () => yourPools.onShow(),
         resetAll: () => {
           launch.onWalletChange();
           pool.onWalletChange();
@@ -1156,6 +1159,7 @@ export function initWalletApp(): void {
     swings.onWalletChange();
     shield.onWalletChange();
     launch.onWalletChange();
+    yourPools.onWalletChange();
     pool.onWalletChange();
     curve.onWalletChange();
     renderChrome();

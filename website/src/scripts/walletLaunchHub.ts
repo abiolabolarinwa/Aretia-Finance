@@ -15,7 +15,7 @@ import type { LaunchApi, LaunchNetwork } from './walletLaunch';
 
 type Stage = 'form' | 'review' | 'working' | 'done' | 'off' | '';
 type Tab = 'pool' | 'curve';
-type View = 'token' | 'market' | 'live';
+type View = 'token' | 'market' | 'live' | 'pools';
 type StepState = 'upcoming' | 'current' | 'busy' | 'done';
 
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] => {
@@ -50,7 +50,7 @@ function logo(key: string, cls: string): HTMLImageElement | HTMLSpanElement {
   return img;
 }
 
-const VIEW_ORDER: Record<View, number> = { token: 0, market: 1, live: 2 };
+const VIEW_ORDER: Record<View, number> = { token: 0, market: 1, live: 2, pools: 3 };
 
 const STAGE_STATE: Record<string, StepState> = { form: 'current', review: 'current', working: 'busy', done: 'done' };
 
@@ -58,7 +58,7 @@ export interface LaunchHub {
   onShow(): void;
 }
 
-export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** Clears every form, for launching another token. */ resetAll?: () => void }): LaunchHub | null {
+export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** Clears every form, for launching another token. */ resetAll?: () => void; /** Told when the Your pools stage opens. */ onPools?: () => void }): LaunchHub | null {
   const found = document.querySelector<HTMLElement>('[data-launch-hub]');
   if (!found) return null;
   const hub: HTMLElement = found;
@@ -156,7 +156,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     const working = [r.token, r.pool, r.curve].some((el) => stageOf(el) === 'working');
     if (working) return v === view;
     if (v === 'live') return steps().live === 'done';
-    return true;
+    return true; // the token, market and pools stages are always open (when nothing is being made)
   }
 
   function go(next: View): void {
@@ -435,6 +435,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     lastTokenStage = tokenStage;
     lastMarketDone = marketDone;
     if (view === 'live' && !marketDone) view = 'market';
+    // The Your pools stage is its own place, not a step of the journey: the rail stays as it was and is hidden there by the page's styles.
     applyView();
   }
 
@@ -451,6 +452,12 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
   // Each form announces where it is by changing data-stage; typing in the create form updates the preview.
   new MutationObserver(() => refresh()).observe(hub, { attributes: true, attributeFilter: ['data-stage'], subtree: true });
   // "Open a pool / curve for it" on the created screen: show the tab that holds the card that was just prepared.
+  // The Your pools link in the header, and the back link inside it.
+  $('[data-hub-open-pools]')?.addEventListener('click', () => {
+    go('pools');
+    opts.onPools?.();
+  });
+  hub.addEventListener('lh:back', () => go('token'));
   hub.addEventListener('lh:offer', (e) => {
     const panelEl = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-market-panel]');
     tab = panelEl?.dataset.marketPanel === 'curve' ? 'curve' : 'pool';

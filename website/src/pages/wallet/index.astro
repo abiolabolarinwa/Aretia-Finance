@@ -363,6 +363,7 @@ const sendTips = [
               <div class="lh-chips" role="group" aria-labelledby="lh-net-label" data-hub-networks></div>
             </div>
           </header>
+          <p class="lh__pools-link"><button type="button" class="lh-linkbtn" data-hub-open-pools>Your pools and fees</button></p>
           <ol class="lh__rail" data-hub-rail aria-label="Progress"></ol>
           <div class="lh__bar" data-hub-bar aria-hidden="true"><span></span></div>
           <div class="lh__grid">
@@ -400,6 +401,9 @@ const sendTips = [
                 <div class="lh-nav lh-nav--split" data-hub-market-nav></div>
               </section>
               <section class="wapp__card lh__step lh-live" data-step="live" data-hub-live aria-label="Your launch" aria-live="polite"></section>
+              <section class="wapp__card lh__step" data-step="pools" aria-label="Your pools" aria-live="polite">
+                <div data-pools-root></div>
+              </section>
             </div>
             <aside class="lh__side" aria-label="Summary">
               <div class="wapp__card lh-side" data-hub-preview></div>
@@ -795,6 +799,33 @@ const sendTips = [
     .lh .lh__step.lh-enter, .lh [data-stage] .wapp-ln > *, .lh-live > *, .lh-live__mark, .lh [data-stage='working'] .wapp-ln__steps li::before, .lh [data-stage='working'] .wapp-ln__steps li::after { animation: none; }
     .lh__bar > span { transition: none; }
   }
+
+  /* Your pools: its own place beside the three steps, with the steps, the preview and the fee table out of the way. */
+  .lh__pools-link { margin: -6px 0 0; text-align: center; }
+  .lh-linkbtn { min-height: 44px; padding: 0 12px; font: inherit; font-size: 14px; font-weight: 600; color: var(--color-brand); background: none; border: 0; border-radius: 10px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .lh-linkbtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .lh:not([data-view='pools']) [data-step='pools'] { display: none; }
+  .lh[data-view='pools'] [data-step='token'], .lh[data-view='pools'] [data-step='market'], .lh[data-view='pools'] [data-step='live'] { display: none; }
+  .lh[data-view='pools'] :is(.lh__rail, .lh__bar, .lh__side, .lh__pools-link) { display: none; }
+  .lh[data-view='pools'] .lh__grid { grid-template-columns: minmax(0, 1fr); max-width: 760px; }
+  .lh-yp { display: grid; gap: 14px; }
+  .lh-yp__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  .lh-yp__head h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; color: var(--color-strong); }
+  .lh-yp__none { margin: 0; padding: 18px; font-size: 14.5px; line-height: 1.55; color: var(--color-muted); background: var(--color-bg-alt); border-radius: 14px; }
+  .lh-yp__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .lh-pos { display: grid; gap: 12px; padding: 16px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
+  .lh-pos.has-fees { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(74, 46, 224, 0.1); }
+  .lh-pos__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+  .lh-pos__name { margin: 0; font-size: 17px; font-weight: 700; color: var(--color-strong); }
+  .lh-pos__lock { padding: 3px 10px; font-size: 12px; font-weight: 700; color: #14532d; background: #e3f6ea; border-radius: 999px; }
+  .lh-pos__lock.is-open { color: #6b4300; background: #f4ecda; }
+  .lh-pos__rows { margin: 0; display: grid; }
+  .lh-pos__rows > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 14px; border-top: 1px solid var(--color-border); }
+  .lh-pos__rows dt { color: var(--color-muted); }
+  .lh-pos__rows dd { margin: 0; font-weight: 600; text-align: right; color: var(--color-strong); overflow-wrap: anywhere; }
+  .lh-pos__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .lh-pos__note { margin: 0; font-size: 13px; color: var(--color-muted); }
+  .lh-pos__ok { margin: 0; padding: 10px 12px; font-size: 13.5px; font-weight: 600; color: #14532d; background: #e3f6ea; border-radius: 12px; }
   @media (max-width: 1100px) {
     .lh__grid { grid-template-columns: minmax(0, 1fr); }
     .lh__side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); order: -1; }

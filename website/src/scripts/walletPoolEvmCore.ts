@@ -57,11 +57,10 @@ export interface PoolForm {
   tokenAmount: string;
   /** The network's coin going in, as a decimal ("0.5"). */
   coinAmount: string;
-  lock: boolean;
   feeAsset: FeeAsset;
 }
 
-export const DEFAULT_POOL_FORM: PoolForm = { chain: 'bnb', token: '', tokenAmount: '', coinAmount: '', lock: true, feeAsset: 'USDC' };
+export const DEFAULT_POOL_FORM: PoolForm = { chain: 'bnb', token: '', tokenAmount: '', coinAmount: '', feeAsset: 'USDC' };
 
 export interface PoolConfig {
   dex: PoolDex;
@@ -128,7 +127,7 @@ export function poolDisclosuresOf(c: PoolConfig): { severity: 'info' | 'caution'
   return [
     { severity: 'info', text: `The pool is on ${c.dex.name}. Your tokens and your ${c.dex.symbol} go in together, and the starting price is simply the ratio between them.` },
     c.lock
-      ? { severity: 'caution', text: 'You chose to lock the liquidity for good. Nobody, including you, can ever take the tokens or the coins back out, and the trading fees stay in the pool. This cannot be undone.' }
+      ? { severity: 'caution', text: 'The liquidity is locked for good, as it is for every pool opened on Aretia. Nobody, including you, can ever take the tokens or the coins back out, and the trading fees stay in the pool. The starting price cannot be changed. This cannot be undone.' }
       : { severity: 'caution', text: 'The liquidity is not locked. You hold the pool’s liquidity tokens and could take the pool out at any time, which buyers may treat as a risk.' },
     { severity: 'caution', text: 'Anyone can buy or sell against the pool once it exists. A price set too low or too high can be traded away quickly. Nothing here checks the price against any market.' },
     { severity: 'caution', text: `Aretia’s fee of ${POOL_FEE_UNITS} ${c.fee.asset} is the last transaction, after the pool exists. If you do not pay it, the pool still exists but the fee stays owed, and this page keeps asking for it.` },

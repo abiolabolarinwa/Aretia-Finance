@@ -10,8 +10,9 @@
  *  - Only fixed-supply Token-2022 tokens with no freeze power and none of the other extensions (transfer fee, hook, ...) qualify.
  *    That is exactly what the Launch page makes, so a pool opened here can never hold a token whose supply can grow or whose
  *    holders can be frozen. Anything else is refused with a plain reason.
- *  - Liquidity can be locked for good (the default). A locked position cannot be withdrawn by anyone, the creator included; its
- *    trading fees can still be claimed. An unlocked pool lets the creator take the tokens and the SOL back out.
+ *  - Liquidity is ALWAYS locked for good: there is no option to keep it. A locked position cannot be withdrawn by anyone, the creator
+ *    included; its trading fees can still be claimed. Aretia's promise to buyers is that no pool opened here can be pulled out.
+ *    (The transaction builder and its inspector still handle an unlocked pool, so their tests keep covering both; the form never asks for one.)
  *  - Aretia charges one flat fee, paid in SOL in the same transaction. The pool's own trading fee goes to the creator's position.
  */
 import { isSolanaAddress, toSmallestUnit } from './walletTools';
@@ -37,10 +38,9 @@ export interface PoolForm {
   /** SOL per one whole token, as a plain decimal. */
   price: string;
   tradingFeeBps: string;
-  lockLiquidity: boolean;
 }
 
-export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', tradingFeeBps: '25', lockLiquidity: true };
+export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', tradingFeeBps: '25' };
 
 /** What is known about the token before a pool is opened. */
 export interface PoolToken {
@@ -120,7 +120,7 @@ export function validatePool(form: PoolForm, creator: string, token: PoolToken |
   if (issues.length > 0 || token === null || price === null) return { ok: false, issues };
   return {
     ok: true,
-    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, tradingFeeBps: fee, lockLiquidity: form.lockLiquidity },
+    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, tradingFeeBps: fee, lockLiquidity: true },
   };
 }
 

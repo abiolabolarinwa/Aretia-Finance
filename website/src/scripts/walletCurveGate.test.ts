@@ -94,6 +94,16 @@ describe('the web constants are the program’s constants', () => {
   });
 });
 
+describe('the Solana curve card hides when another network is chosen', () => {
+  it('is told the network by the Launch page and hides its whole card', () => {
+    expect(read('./walletLaunch.ts')).toContain('host.onNetwork?.(network);');
+    expect(read('./walletApp.ts')).toContain("onNetwork: (n) => curve.setActive(n === 'solana')");
+    const card = read('./walletCurve.ts');
+    expect(card).toContain("root.closest<HTMLElement>('.wapp__card')");
+    expect(card).toContain('card.hidden = !active;');
+  });
+});
+
 describe('the Ethereum curve is off, and its web constants are the contract’s', () => {
   const sol = () => read('../../../contracts-evm/AretiaCurve.sol');
   const num = (name: string): bigint => {

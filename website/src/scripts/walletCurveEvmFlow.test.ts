@@ -45,6 +45,7 @@ function world() {
     walletChain: 1,
     reject: false,
     receiptStatus: '0x1',
+    wrapped: null as null | { to: string; type: string },
     callOk: true,
     sent: [] as any[],
     onSend: undefined as undefined | ((tx: any) => void),
@@ -61,6 +62,7 @@ function world() {
       return hex(60_000n);
     }
     if (method === 'eth_getTransactionReceipt') return { status: state.receiptStatus };
+    if (method === 'eth_getTransactionByHash') return state.wrapped;
     if (method === 'eth_call') {
       const tx = p[0] as { from?: string; to: string; data: string };
       if (!state.callOk && tx.from) throw new Error('execution reverted: slippage');
@@ -192,6 +194,23 @@ describe('sending a creation', () => {
       return orig(...a);
     }) as typeof state.sent.push;
     await expect(flow.create(review)).rejects.toThrow(/approval is in place for exactly the tokens you chose/);
+  });
+
+  it('says so when the wallet wrapped the transaction in its smart-account feature and that failed', async () => {
+    const { flow, state } = world();
+    const review = await flow.prepareCreate(config());
+    state.onSend = (tx) => {
+      if (tx.to === TOKEN) state.allowance = 10n ** 27n;
+    };
+    let n = 0;
+    const orig = state.sent.push.bind(state.sent);
+    state.sent.push = ((...a: any[]) => {
+      n++;
+      state.receiptStatus = n === 2 ? '0x0' : '0x1';
+      state.wrapped = n === 2 ? { to: '0xdb9b1e94b5b69df7e401ddbede43491141047db3', type: '0x4' } : null;
+      return orig(...a);
+    }) as typeof state.sent.push;
+    await expect(flow.create(review)).rejects.toThrow(/did not send this as the plain transaction[\s\S]*trying again usually works[\s\S]*approval is in place/);
   });
 
   it('turns a closed wallet into a plain message, a changed account into a refusal, and refuses a review with blockers', async () => {

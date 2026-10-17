@@ -394,6 +394,7 @@ export function initWalletApp(): void {
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),
+    onNetwork: (n) => curve.setActive(n === 'solana'),
     offerPool: (mint) => pool.offer(mint),
     offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined,
     evm: {

@@ -11,6 +11,7 @@ import { initShield } from './walletShield';
 import { initLaunch } from './walletLaunch';
 import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
+import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { checkHash } from '../swings/shield/classify';
 import { guardRecipient } from '../swings/shield/guard';
@@ -391,6 +392,7 @@ export function initWalletApp(): void {
 
   const pool = initPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
+  let launchHub: LaunchHub | null = null;
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),
@@ -1207,6 +1209,8 @@ export function initWalletApp(): void {
       launch.onShow();
       pool.onShow();
       curve.onShow();
+      launchHub ??= initLaunchHub(launch, { curveOn: curve.present });
+      launchHub?.onShow();
     }
     if (view === 'send') {
       void loadWeb3();

@@ -14,10 +14,15 @@ struct Launched {
 }
 
 fn launch_with(x0: u64, y0: u64, l0: u64, fee: u16, lock: bool) -> Launched {
+    launch_ranged(x0, y0, l0, fee, lock, 0)
+}
+
+fn launch_ranged(x0: u64, y0: u64, l0: u64, fee: u16, lock: bool, vx0: u64) -> Launched {
     let mut env = Env::new();
     let creator = env.user(100);
     let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
-    env.send(&[create_pool_ix(&creator.pubkey(), &creator.pubkey(), &mint, x0, y0, l0, fee, lock)], &[&creator]).expect("create_pool");
+    let c = creator.pubkey();
+    env.send(&[create_pool_ix_full(&c, &c, &c, &mint, x0, y0, l0, fee, lock, 0, 0, vx0)], &[&creator]).expect("create_pool");
     Launched { env, creator, mint }
 }
 
@@ -476,7 +481,17 @@ fn settled(p: &pool_math::Pool, mut pos: ModelPos) -> ModelPos {
 /// Operations the model says must fail are sent too and must fail.
 #[test]
 fn a_scripted_random_run_matches_the_model() {
-    let mut l = launch_with(X0, 0, L0, 100, false);
+    random_run(0, 0x00C0_FFEE_1234_5678);
+}
+
+/// The same run on a pool with a price range (a virtual token reserve of a third of the tokens: the top price is 16 times the start).
+#[test]
+fn a_scripted_random_run_on_a_ranged_pool_matches_the_model() {
+    random_run(X0 / 3, 0x0BAD_5EED_9999_1111);
+}
+
+fn random_run(vx0: u64, seed: u64) {
+    let mut l = launch_ranged(X0, 0, L0, 100, false, vx0);
     let names = ["creator", "lp_a", "lp_b", "t1", "t2"];
     let mut keys: Vec<Keypair> = vec![];
     for (i, _) in names.iter().enumerate() {
@@ -491,7 +506,7 @@ fn a_scripted_random_run_matches_the_model() {
     let mut pos: Vec<ModelPos> = vec![ModelPos { shares: L0, locked: 0, checkpoint: 0, pending: 0, exists: true }, ModelPos::default(), ModelPos::default(), ModelPos::default(), ModelPos::default()];
     let (mut donated_sol, mut donated_tok) = (0u64, 0u64);
     let mut fee_wallet_expect = l.env.lamports(&FEE_WALLET);
-    let mut rng = Rng(0x00C0_FFEE_1234_5678);
+    let mut rng = Rng(seed);
     let mint = l.mint;
     let (mut ok_count, mut err_count) = ([0u32; 8], [0u32; 8]);
 
@@ -527,7 +542,7 @@ fn a_scripted_random_run_matches_the_model() {
                     let mut np = p;
                     if !np.exists { np.exists = true; np.checkpoint = model.acc; np.pending = 0; }
                     np.shares += dl;
-                    let rent = if pos[who].exists { 0 } else { l.env.svm.minimum_balance_for_rent_exemption(8 + 32 + 32 + 8 + 8 + 16 + 8 + 32) };
+                    let rent = if pos[who].exists { 0 } else { l.env.svm.minimum_balance_for_rent_exemption(8 + 32 + 32 + 8 + 8 + 16 + 8 + 32 + 32 + 1) };
                     Plan { ix: add_ix(&a, &mint, dl, ad.tokens_in, ad.sol_in), next: Some(n), pos: Some(np), tok: -(ad.tokens_in as i128), lam: -(ad.sol_in as i128) - rent as i128, fee: 0, kind: 2 }
                 }
                 _ => Plan { ix: add_ix(&a, &mint, dl, tok_before.saturating_add(1), 0), next: None, pos: None, tok: 0, lam: 0, fee: 0, kind: 2 },
@@ -615,7 +630,7 @@ fn a_scripted_random_run_matches_the_model() {
 
         // The whole state, every step.
         let p = l.env.pool(&mint);
-        assert_eq!((p.x, p.y, p.l, p.acc, p.fee_reserve), (model.x, model.y, model.l, model.acc, model.fee_reserve), "step {step} pool state");
+        assert_eq!((p.x, p.vx, p.y, p.l, p.acc, p.fee_reserve), (model.x, model.vx, model.y, model.l, model.acc, model.fee_reserve), "step {step} pool state");
         assert_eq!(l.env.lamports(&FEE_WALLET), fee_wallet_expect, "step {step} fee wallet");
         assert_vault_exact(&l, donated_sol, donated_tok);
         let mut total_shares = 0u64;
@@ -636,4 +651,112 @@ fn a_scripted_random_run_matches_the_model() {
     for kind in 0..6 {
         assert!(ok_count[kind] > 0, "kind {kind} never succeeded in the run");
     }
+}
+
+#[test]
+fn a_ranged_pool_trades_inside_its_range_and_refuses_past_the_top() {
+    // A third of the tokens as a virtual reserve: s = 4, so the price can rise to 16 times the start.
+    let vx0 = X0 / 3;
+    let mut l = launch_ranged(X0, 0, L0, 25, true, vx0);
+    let p0 = l.env.pool(&l.mint);
+    assert_eq!((p0.x, p0.vx, p0.l), (X0, vx0, L0));
+    let buyer = trader(&mut l, 1000, 0);
+    let mut model = p0.math();
+    // Buy in steps until the pool refuses: it must refuse by the maths, and must never run its real tokens out of order.
+    let mut bought = 0u64;
+    for i in 0..40u64 {
+        let amt = (i + 1) * SOL / 2;
+        match pool_math::buy(&model, amt) {
+            Some((b, n)) => {
+                l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, amt, b.tokens_out)], &[&buyer]).expect("buy inside the range");
+                model = n;
+                bought += b.tokens_out;
+            }
+            None => {
+                assert_fails_with(l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, amt, 0)], &[&buyer]), "TradeTooSmall");
+                break;
+            }
+        }
+        let p = l.env.pool(&l.mint);
+        assert_eq!((p.x, p.vx, p.y), (model.x, model.vx, model.y));
+        assert!(p.x > 0 || p.vx > 0);
+    }
+    assert!(bought > 0 && model.x < X0);
+    assert_vault_exact(&l, 0, 0);
+    // The raise is bounded by the range: real SOL in the pool never exceeds l * (s - 1) = 3 l, plus rounding.
+    assert!(model.y <= 3 * L0 + 10, "raised {} against a ceiling of {}", model.y, 3 * L0);
+    // Selling it back works and leaves the pool whole.
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, false, bought, 1)], &[&buyer]).expect("sell back");
+    assert_vault_exact(&l, 0, 0);
+}
+
+#[test]
+fn bad_ranges_are_refused() {
+    let mut env = Env::new();
+    let creator = env.user(100);
+    let c = creator.pubkey();
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    for vx in [X0 / 1_001 - 1, X0 * 1_001, u64::MAX] {
+        assert_fails_with(env.send(&[create_pool_ix_full(&c, &c, &c, &mint, X0, 0, L0, 25, true, 0, 0, vx)], &[&creator]), "BadParameters");
+    }
+    env.send(&[create_pool_ix_full(&c, &c, &c, &mint, X0, 0, L0, 25, true, 0, 0, X0 / 1_000)], &[&creator]).expect("the widest range is allowed");
+}
+
+#[test]
+fn a_position_can_be_sold_and_the_buyer_gets_everything_and_the_seller_nothing() {
+    let mut l = launch(100, false);
+    let a = l.creator.pubkey();
+    let b = l.env.user(5);
+    let buyer = trader(&mut l, 1000, 0);
+    for _ in 0..3 {
+        l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 20 * SOL, 0)], &[&buyer]).unwrap();
+    }
+    // Lock half, name a recipient, then hand the position over.
+    l.env.send(&[lock_ix(&a, &l.mint, L0 / 2)], &[&l.creator]).unwrap();
+    l.env.send(&[set_recipient_ix(&a, &l.mint, &Address::new_unique())], &[&l.creator]).unwrap();
+    // Only the owner can transfer.
+    assert!(l.env.send(&[transfer_position_ix(&b.pubkey(), &a, &l.mint, &b.pubkey())], &[&b]).is_err());
+    l.env.send(&[transfer_position_ix(&a, &a, &l.mint, &b.pubkey())], &[&l.creator]).expect("transfer");
+    let pos = l.env.position(&l.mint, &a);
+    assert_eq!((pos.owner, pos.recipient, pos.id, pos.shares, pos.locked), (b.pubkey(), b.pubkey(), a, L0, L0 / 2), "the lock goes with it; the payee resets to the new owner");
+    assert!(pos.pending > 0, "fees settled to the position go with it");
+    // The seller can do nothing with it any more.
+    assert!(l.env.send(&[remove_ix(&a, &l.mint, 1_000, 0, 0)], &[&l.creator]).is_err());
+    assert!(l.env.send(&[claim_ix_id(&a, &a, &l.mint, &a)], &[&l.creator]).is_err());
+    assert!(l.env.send(&[lock_ix_id(&a, &a, &l.mint, 1)], &[&l.creator]).is_err());
+    assert!(l.env.send(&[transfer_position_ix(&a, &a, &l.mint, &a)], &[&l.creator]).is_err());
+    // The buyer can claim to themselves and remove the unlocked half, not the locked half.
+    let owed = l.env.position(&l.mint, &a).pending + pool_math::pending_fee(L0, l.env.pool(&l.mint).acc, l.env.position(&l.mint, &a).checkpoint).unwrap();
+    let before = l.env.lamports(&b.pubkey());
+    l.env.send(&[claim_ix_id(&b.pubkey(), &a, &l.mint, &b.pubkey())], &[&b]).expect("new owner claims");
+    assert_eq!(l.env.lamports(&b.pubkey()) - before, owed);
+    l.env.make_ata(&b.pubkey(), &l.mint);
+    assert!(l.env.send(&[remove_ix_id(&b.pubkey(), &a, &l.mint, L0 / 2 + 1, 0, 0)], &[&b]).is_err(), "the locked half stays");
+    l.env.send(&[remove_ix_id(&b.pubkey(), &a, &l.mint, L0 / 2, 0, 0)], &[&b]).expect("the unlocked half goes");
+    assert_vault_exact(&l, 0, 0);
+}
+
+#[test]
+fn position_ids_cannot_be_taken_in_advance() {
+    let mut l = launch(25, true);
+    let attacker = trader(&mut l, 100, 100_000_000_000_000);
+    let victim = trader(&mut l, 100, 100_000_000_000_000);
+    // Naming someone else's address as the id, without its signature, is refused: the victim's own slot cannot be squatted.
+    let mut squat = add_ix_id(&attacker.pubkey(), &victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX);
+    squat.accounts.last_mut().unwrap().is_signer = false; // the attacker does not hold the victim's key
+    assert_fails_with(l.env.send(&[squat], &[&attacker]), "BadPositionId");
+    l.env.send(&[add_ix(&victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX)], &[&victim]).expect("the victim's own slot is free");
+    // A second position under a fresh key that signs for itself is allowed, and is the owner's own.
+    let extra = Keypair::new();
+    l.env.send(&[add_ix_id(&victim.pubkey(), &extra.pubkey(), &l.mint, 500_000_000, u64::MAX, u64::MAX)], &[&victim, &extra]).expect("a second position under a signing id");
+    let p2 = l.env.position(&l.mint, &extra.pubkey());
+    assert_eq!((p2.owner, p2.id, p2.shares), (victim.pubkey(), extra.pubkey(), 500_000_000));
+    // Someone who does not own an existing position cannot add to it.
+    let mut not_mine = add_ix_id(&attacker.pubkey(), &victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX);
+    not_mine.accounts.last_mut().unwrap().is_signer = false;
+    assert_fails_with(l.env.send(&[not_mine], &[&attacker]), "NotOwner");
+    // After a sale the old owner's default slot is taken, and they open a new position under a signing id.
+    l.env.send(&[transfer_position_ix(&victim.pubkey(), &victim.pubkey(), &l.mint, &attacker.pubkey())], &[&victim]).unwrap();
+    assert_fails_with(l.env.send(&[add_ix(&victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX)], &[&victim]), "NotOwner");
+    assert_vault_exact(&l, 0, 0);
 }

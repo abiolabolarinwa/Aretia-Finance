@@ -114,8 +114,12 @@ fn the_accumulator_may_wrap_without_changing_a_claim() {
 }
 
 fn any_pool() -> impl Strategy<Value = Pool> {
-    (1_000u64..(1u64 << 56), 10_000_000u64..(1u64 << 52), prop_oneof![Just(25u16), Just(100u16)])
-        .prop_map(|(x, l, f)| Pool::open(x, 0, l, f).unwrap())
+    // Half of the pools have a price range (a virtual token reserve between 1/1000 and 1000 times the tokens).
+    (1_000u64..(1u64 << 56), 10_000_000u64..(1u64 << 52), prop_oneof![Just(25u16), Just(100u16)], prop_oneof![Just(0u32), 1u32..=2_000_000u32])
+        .prop_map(|(x, l, f, r)| {
+            let vx = if r == 0 { 0 } else { ((x as u128 * r as u128 / 2_000) as u64).clamp(x / 1_000 + 1, x.saturating_mul(1_000)).min(MAX_AMOUNT) };
+            Pool::open_ranged(x, 0, l, f, vx).unwrap()
+        })
 }
 
 proptest! {
@@ -168,15 +172,15 @@ proptest! {
         if buy_in > 0 { if let Some((_, n)) = buy(&p, buy_in) { p = n; } }
         let dl = (p.l / 100 * dl_frac).max(MIN_LIQUIDITY_DELTA);
         if let Some((_, q)) = add(&p, dl) {
-            let lhs = big(q.x as u128, q.big_y()) * big(p.l as u128, p.l as u128);
-            let rhs = big(p.x as u128, p.big_y()) * big(q.l as u128, q.l as u128);
+            let lhs = big(q.big_x(), q.big_y()) * big(p.l as u128, p.l as u128);
+            let rhs = big(p.big_x(), p.big_y()) * big(q.l as u128, q.l as u128);
             prop_assert!(lhs >= rhs, "add lowered k per share");
             prop_assert!(q.y >= p.y && q.x >= p.x);
         }
         if dl < p.l {
             if let Some((r, q)) = remove(&p, dl) {
-                let lhs = big(q.x as u128, q.big_y()) * big(p.l as u128, p.l as u128);
-                let rhs = big(p.x as u128, p.big_y()) * big(q.l as u128, q.l as u128);
+                let lhs = big(q.big_x(), q.big_y()) * big(p.l as u128, p.l as u128);
+                let rhs = big(p.big_x(), p.big_y()) * big(q.l as u128, q.l as u128);
                 prop_assert!(lhs >= rhs, "remove lowered k per share");
                 prop_assert!(r.tokens_out <= p.x && r.sol_out <= p.y);
             }
@@ -263,4 +267,39 @@ proptest! {
         prop_assert!(fe >= fl);
         prop_assert!(fl >= base && fe <= start.max(base));
     }
+}
+
+#[test]
+fn a_ranged_pool_stops_buying_at_its_top_price() {
+    // 600,000 tokens (6 decimals) with s = 4: vx = x / 3, so the top price is 16 times the start.
+    let x0 = 600_000_000_000u64;
+    let p = Pool::open_ranged(x0, 0, 10_000_000_000, 25, x0 / 3).unwrap();
+    // Start price = l / (x + vx).
+    let start = p.big_y() as f64 / p.big_x() as f64;
+    // Buy almost everything: tokens run out only at the top of the range.
+    let (b, after) = buy(&p, 9_000_000_000).unwrap();
+    assert!(after.x < x0, "{}", after.x);
+    // More SOL than the range can absorb is refused outright rather than silently capped.
+    assert!(buy(&p, 1_000_000_000_000).is_none());
+    // The marginal price after the buy is higher but never above 16x the start.
+    let top = after.big_y() as f64 / after.big_x() as f64;
+    assert!(top > start && top <= start * 16.0 * 1.0001, "{top} {start}");
+    // Selling it all back returns less than was paid and the pool is whole again.
+    let (s, back) = sell(&after, b.tokens_out).unwrap();
+    assert!(s.gross <= b.net);
+    assert!(back.x >= x0 - 1);
+    // An unranged pool with the same start price has no such limit on tokens, only on the real x.
+}
+
+#[test]
+fn ranges_are_bounded_and_scale_with_liquidity() {
+    assert!(Pool::open_ranged(1_000_000, 0, MIN_LIQUIDITY, 25, 999).is_none(), "below a thousandth");
+    assert!(Pool::open_ranged(1_000_000, 0, MIN_LIQUIDITY, 25, 1_000_001_000).is_none(), "above a thousand times");
+    assert!(Pool::open_ranged(1_000_000, 0, MIN_LIQUIDITY, 25, 1_000).is_some());
+    assert!(Pool::open_ranged(1_000_000, 0, MIN_LIQUIDITY, 25, 0).is_some());
+    let p = Pool::open_ranged(1_000_000_000, 0, MIN_LIQUIDITY * 100, 25, 500_000_000).unwrap();
+    let (_, q) = add(&p, MIN_LIQUIDITY * 100).unwrap();
+    assert_eq!((q.x, q.vx, q.l), (2_000_000_000, 1_000_000_000, MIN_LIQUIDITY * 200), "doubling the liquidity doubles both token reserves");
+    let (_, r) = remove(&q, MIN_LIQUIDITY * 100).unwrap();
+    assert_eq!((r.x, r.vx, r.l), (p.x, p.vx, p.l));
 }

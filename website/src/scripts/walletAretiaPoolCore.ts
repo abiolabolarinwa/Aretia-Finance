@@ -45,6 +45,25 @@ export const LAUNCH_PROTECTION = {
   strong: { startBps: 2_500, decaySecs: 900, label: 'Strong: starts at 25%, falls to the trading fee over 15 minutes' },
 } as const;
 export type LaunchProtection = keyof typeof LAUNCH_PROTECTION;
+
+/**
+ * Price ranges. A range is a virtual token reserve `vx0 = x0 / (s - 1)`: the pool's price can rise to s squared times the starting
+ * price and no further, and the most SOL it can raise is its liquidity times (s - 1). Concentrating liquidity into a range makes a
+ * pool deeper near the starting price (less slippage per SOL) for the same tokens. 'none' has no ceiling.
+ */
+export const PRICE_RANGES = {
+  none: { s: 0n, label: 'No ceiling: the price can rise without limit' },
+  wide: { s: 10n, label: 'Wide: the price can rise to 100 times the starting price' },
+  medium: { s: 4n, label: 'Medium: the price can rise to 16 times the starting price' },
+  narrow: { s: 2n, label: 'Narrow: the price can rise to 4 times the starting price, with the deepest liquidity' },
+} as const;
+export type PriceRange = keyof typeof PRICE_RANGES;
+
+/** The virtual token reserve for a range, or 0 for none. */
+export function virtualTokens(x0: bigint, range: PriceRange): bigint {
+  const s = PRICE_RANGES[range]?.s ?? 0n;
+  return s === 0n ? 0n : x0 / (s - 1n);
+}
 /** Rent of the pool account, the position, the SOL vault and the token vault, plus the network fee: a starting estimate, deliberately high. */
 export const ARETIA_POOL_NETWORK_ESTIMATE_LAMPORTS = 10_000_000n;
 export const ARETIA_SLIPPAGE_BPS_DEFAULT = 100;
@@ -56,6 +75,8 @@ const U128_MASK = (1n << 128n) - 1n;
 // ---------------------------------------------------------------- the maths (mirrors pool-math)
 
 export interface PoolMath {
+  /** Virtual token reserve: zero means no upper price. */
+  vx: bigint;
   /** Launch protection, kept with the pool so a quote can use the fee in force. Absent means none. */
   feeStartBps?: number;
   decaySecs?: number;
@@ -72,14 +93,16 @@ const ceilDiv = (a: bigint, b: bigint): bigint => a / b + (a % b === 0n ? 0n : 1
 export const feeUp = (amount: bigint, bps: number): bigint => ceilDiv(amount * BigInt(bps), BPS);
 export const protocolPart = (fee: bigint): bigint => (fee * PROTOCOL_SHARE_BPS) / BPS;
 
-export function openPool(x0: bigint, y0: bigint, l0: bigint, feeBps: number): PoolMath | null {
+export function openPool(x0: bigint, y0: bigint, l0: bigint, feeBps: number, vx0: bigint = 0n): PoolMath | null {
+  if (vx0 !== 0n && (vx0 > MAX_AMOUNT || vx0 * 1000n < x0 || vx0 > x0 * 1000n)) return null;
   if (!ALLOWED_FEE_BPS.includes(feeBps) || x0 < MIN_TOKENS || l0 < MIN_LIQUIDITY) return null;
   if (x0 > MAX_AMOUNT || y0 > MAX_AMOUNT || l0 > MAX_AMOUNT) return null;
-  return { x: x0, y: y0, l: l0, feeBps, acc: 0n, feeReserve: 0n };
+  return { x: x0, vx: vx0, y: y0, l: l0, feeBps, acc: 0n, feeReserve: 0n };
 }
 
 const bigY = (p: PoolMath): bigint => p.y + p.l;
-const inRange = (p: PoolMath): boolean => bigY(p) <= U64_MAX && p.x > 0n && p.l > 0n;
+const bigX = (p: PoolMath): bigint => p.x + p.vx;
+const inRange = (p: PoolMath): boolean => bigY(p) <= U64_MAX && bigX(p) <= U64_MAX && bigX(p) > 0n && p.l > 0n;
 
 function credit(p: PoolMath, fee: bigint): { next: PoolMath; protocol: bigint } {
   const protocol = protocolPart(fee);
@@ -103,10 +126,11 @@ export function buy(p: PoolMath, gross: bigint): { result: BuyResult; next: Pool
   if (net === 0n) return null;
   const newY = bigY(p) + net;
   if (newY > U64_MAX) return null;
-  const newX = ceilDiv(p.x * bigY(p), newY);
-  const out = p.x - newX;
-  if (out <= 0n || newX === 0n) return null;
-  const { next, protocol } = credit({ ...p, x: newX, y: p.y + net }, fee);
+  const newBigX = ceilDiv(bigX(p) * bigY(p), newY);
+  const out = bigX(p) - newBigX;
+  // Buyers can take only real tokens: with a price range this is where the price tops out.
+  if (out <= 0n || newBigX === 0n || out > p.x) return null;
+  const { next, protocol } = credit({ ...p, x: p.x - out, y: p.y + net }, fee);
   return { result: { gross, fee, protocol, net, tokensOut: out }, next };
 }
 
@@ -118,14 +142,14 @@ export interface SellResult {
 }
 export function sell(p: PoolMath, tokensIn: bigint): { result: SellResult; next: PoolMath } | null {
   if (!inRange(p) || tokensIn <= 0n) return null;
-  const newX = p.x + tokensIn;
-  if (newX > U64_MAX) return null;
-  const newY = ceilDiv(p.x * bigY(p), newX);
+  const newBigX = bigX(p) + tokensIn;
+  if (newBigX > U64_MAX) return null;
+  const newY = ceilDiv(bigX(p) * bigY(p), newBigX);
   const gross = bigY(p) - newY;
   if (gross <= 0n || gross > p.y) return null;
   let fee = feeUp(gross, p.feeBps);
   if (fee > gross) fee = gross;
-  const { next, protocol } = credit({ ...p, x: newX, y: p.y - gross }, fee);
+  const { next, protocol } = credit({ ...p, x: p.x + tokensIn, y: p.y - gross }, fee);
   return { result: { gross, fee, protocol, net: gross - fee }, next };
 }
 
@@ -133,8 +157,9 @@ export function addLiquidity(p: PoolMath, dl: bigint): { tokensIn: bigint; solIn
   if (!inRange(p) || dl < MIN_LIQUIDITY_DELTA) return null;
   const dx = ceilDiv(p.x * dl, p.l);
   const dy = ceilDiv(p.y * dl, p.l);
-  const next = { ...p, x: p.x + dx, y: p.y + dy, l: p.l + dl };
-  if (next.x > MAX_AMOUNT || next.y > MAX_AMOUNT || next.l > MAX_AMOUNT || !inRange(next)) return null;
+  const dvx = ceilDiv(p.vx * dl, p.l);
+  const next = { ...p, x: p.x + dx, vx: p.vx + dvx, y: p.y + dy, l: p.l + dl };
+  if (next.x > MAX_AMOUNT || next.vx > MAX_AMOUNT || next.y > MAX_AMOUNT || next.l > MAX_AMOUNT || !inRange(next)) return null;
   return { tokensIn: dx, solIn: dy, next };
 }
 
@@ -142,7 +167,8 @@ export function removeLiquidity(p: PoolMath, dl: bigint): { tokensOut: bigint; s
   if (p.l === 0n || dl <= 0n || dl > p.l || (dl < MIN_LIQUIDITY_DELTA && dl !== p.l)) return null;
   const dx = (p.x * dl) / p.l;
   const dy = (p.y * dl) / p.l;
-  return { tokensOut: dx, solOut: dy, next: { ...p, x: p.x - dx, y: p.y - dy, l: p.l - dl } };
+  const dvx = (p.vx * dl) / p.l;
+  return { tokensOut: dx, solOut: dy, next: { ...p, x: p.x - dx, vx: p.vx - dvx, y: p.y - dy, l: p.l - dl } };
 }
 
 /** `shares * (acc - checkpoint) >> 64`, rounded down, with the difference taken modulo 2^128. Null if it does not fit u64. */
@@ -186,6 +212,8 @@ export interface CreateParams {
   /** Launch protection: the fee starts here and falls to feeBps over decaySecs. Both zero means none. */
   sniperBps: number;
   decaySecs: number;
+  /** Virtual token reserve (a price range). Zero means none. */
+  vx0: bigint;
 }
 
 /**
@@ -202,8 +230,8 @@ export function liquidityForPrice(tokenAmountRaw: bigint, decimals: number, pric
 }
 
 /** The Meteora form plus the lock choice, which this pool offers (the Meteora flow always locks). Locked is the default. */
-export type AretiaPoolForm = PoolForm & { lockLiquidity: boolean; launchProtection: LaunchProtection };
-export const DEFAULT_ARETIA_POOL_FORM: AretiaPoolForm = { ...DEFAULT_POOL_FORM, lockLiquidity: true, launchProtection: 'standard' };
+export type AretiaPoolForm = PoolForm & { lockLiquidity: boolean; launchProtection: LaunchProtection; priceRange: PriceRange };
+export const DEFAULT_ARETIA_POOL_FORM: AretiaPoolForm = { ...DEFAULT_POOL_FORM, lockLiquidity: true, launchProtection: 'standard', priceRange: 'none' };
 
 export type AretiaPoolValidation = { ok: true; config: PoolConfig; params: CreateParams } | { ok: false; issues: PoolIssue[] };
 
@@ -214,14 +242,16 @@ export function validateAretiaPool(form: AretiaPoolForm, creator: string, token:
   // The Meteora form always locks; this pool honours the choice on the form (locked is the default).
   const config = { ...base.config, lockLiquidity: form.lockLiquidity };
   const issues: PoolIssue[] = [];
-  const l0 = liquidityForPrice(config.tokenAmountRaw, config.decimals, config.price);
+  const vx0 = virtualTokens(config.tokenAmountRaw, form.priceRange);
+  // The starting price is liquidity over the effective token reserve, real plus virtual.
+  const l0 = liquidityForPrice(config.tokenAmountRaw + vx0, config.decimals, config.price);
   if (config.tokenAmountRaw < MIN_TOKENS || config.tokenAmountRaw > MAX_AMOUNT) issues.push({ field: 'tokenAmount', message: 'The amount is outside what an Aretia pool can hold.' });
   if (l0 === null || l0 < MIN_LIQUIDITY) issues.push({ field: 'price', message: 'Amount times price must be worth at least 0.01 SOL.' });
   else if (l0 > MAX_AMOUNT) issues.push({ field: 'price', message: 'Amount times price is above what an Aretia pool can hold.' });
   if (issues.length > 0 || l0 === null) return { ok: false, issues };
   const lp = LAUNCH_PROTECTION[form.launchProtection] ?? LAUNCH_PROTECTION.off;
   const sched = config.tradingFeeBps >= lp.startBps ? { startBps: 0, decaySecs: 0 } : lp; // a schedule must start above the trading fee
-  return { ok: true, config, params: { creator, mint: config.mint, x0: config.tokenAmountRaw, y0: 0n, l0, feeBps: config.tradingFeeBps, lock: config.lockLiquidity, sniperBps: sched.startBps, decaySecs: sched.decaySecs } };
+  return { ok: true, config, params: { creator, mint: config.mint, x0: config.tokenAmountRaw, y0: 0n, l0, feeBps: config.tradingFeeBps, lock: config.lockLiquidity, sniperBps: sched.startBps, decaySecs: sched.decaySecs, vx0 } };
 }
 
 export interface AretiaPoolCost {
@@ -245,6 +275,9 @@ export function aretiaPoolDisclosures(params: CreateParams): { severity: 'info' 
     params.sniperBps > 0
       ? { severity: 'info', text: `For the first ${params.decaySecs / 60} minutes after the pool opens the fee starts at ${params.sniperBps / 100}% and falls in a straight line to ${feeText}. Fast bots pay it; Aretia and you split it the same 20% / 80%.` }
       : { severity: 'caution', text: 'There is no launch protection: from the first second, trades pay only the trading fee.' },
+    params.vx0 > 0n
+      ? { severity: 'info', text: 'The price has a ceiling. Once buyers have taken every token in the pool, nobody can buy more; the pool then holds the SOL they paid and your tokens are gone from it. Selling back lowers the price again.' }
+      : { severity: 'info', text: 'The price has no ceiling.' },
     { severity: 'info', text: 'Only your tokens go in. Nobody can sell below the starting price, and buyers pay SOL that builds the other side of the pool.' },
     { severity: 'caution', text: 'The starting price is yours to choose and is not checked against any market. A price set far from what people will pay can leave the pool with no buyers.' },
     { severity: 'caution', text: 'Jupiter and other aggregators do not route to this pool yet. People can trade it on Aretia only.' },
@@ -267,6 +300,7 @@ export interface PoolAccount {
   createdAt: bigint;
   feeStartBps: number;
   decaySecs: number;
+  vx: bigint;
 }
 
 export interface PositionAccount {
@@ -277,13 +311,16 @@ export interface PositionAccount {
   checkpoint: bigint;
   pending: bigint;
   recipient: string;
+  /** The address the position's account is derived from. It never changes, whoever owns the position. */
+  id: string;
+  bump: number;
 }
 
 /** Anchor account tags: sha256("account:Pool")[0..8] and sha256("account:Position")[0..8]. */
 export const POOL_TAG = Uint8Array.from([241, 154, 109, 4, 17, 177, 109, 188]);
 export const POSITION_TAG = Uint8Array.from([170, 188, 143, 228, 122, 64, 247, 208]);
-export const POOL_ACCOUNT_SIZE = 8 + 1 + 1 + 32 + 32 + 2 + 8 + 8 + 8 + 16 + 8 + 8 + 2 + 4;
-export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 8 + 8 + 16 + 8 + 32;
+export const POOL_ACCOUNT_SIZE = 8 + 1 + 1 + 32 + 32 + 2 + 8 + 8 + 8 + 16 + 8 + 8 + 2 + 4 + 8;
+export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 8 + 8 + 16 + 8 + 32 + 32 + 1;
 
 const u64At = (v: DataView, at: number): bigint => v.getBigUint64(at, true);
 const u128At = (v: DataView, at: number): bigint => u64At(v, at) | (u64At(v, at + 8) << 64n);
@@ -307,16 +344,17 @@ export function parsePoolAccount(data: Uint8Array, toBase58: (bytes: Uint8Array)
     createdAt: BigInt.asIntN(64, u64At(v, 124)),
     feeStartBps: v.getUint16(132, true),
     decaySecs: v.getUint32(134, true),
+    vx: u64At(v, 138),
   };
 }
 
 export function parsePositionAccount(data: Uint8Array, toBase58: (bytes: Uint8Array) => string): PositionAccount | null {
   if (data.length !== POSITION_ACCOUNT_SIZE || !sameBytes(data.subarray(0, 8), POSITION_TAG)) return null;
   const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  return { pool: toBase58(data.subarray(8, 40)), owner: toBase58(data.subarray(40, 72)), shares: u64At(v, 72), locked: u64At(v, 80), checkpoint: u128At(v, 88), pending: u64At(v, 104), recipient: toBase58(data.subarray(112, 144)) };
+  return { pool: toBase58(data.subarray(8, 40)), owner: toBase58(data.subarray(40, 72)), shares: u64At(v, 72), locked: u64At(v, 80), checkpoint: u128At(v, 88), pending: u64At(v, 104), recipient: toBase58(data.subarray(112, 144)), id: toBase58(data.subarray(144, 176)), bump: data[176]! };
 }
 
-export const poolMathOf = (p: PoolAccount): PoolMath => ({ x: p.x, y: p.y, l: p.l, feeBps: p.feeBps, acc: p.acc, feeReserve: p.feeReserve, feeStartBps: p.feeStartBps, decaySecs: p.decaySecs, startTs: p.createdAt });
+export const poolMathOf = (p: PoolAccount): PoolMath => ({ x: p.x, vx: p.vx, y: p.y, l: p.l, feeBps: p.feeBps, acc: p.acc, feeReserve: p.feeReserve, feeStartBps: p.feeStartBps, decaySecs: p.decaySecs, startTs: p.createdAt });
 
 /** What a position could claim right now, including fees not yet written to it. */
 export function claimable(pool: PoolAccount, pos: PositionAccount): bigint | null {
@@ -327,7 +365,7 @@ export function claimable(pool: PoolAccount, pos: PositionAccount): bigint | nul
 /** SOL per whole token at the pool's current price, as text with up to 12 places. */
 export function priceText(pool: PoolMath, decimals: number): string {
   // SOL per whole token, times 10^12: Y lamports / x raw units * 10^decimals raw per token / 10^9 lamports per SOL * 10^12.
-  const units = (bigY(pool) * 10n ** BigInt(decimals) * 1000n) / pool.x;
+  const units = (bigY(pool) * 10n ** BigInt(decimals) * 1000n) / bigX(pool);
   return fromSmallestUnit(units, 12);
 }
 

@@ -45,13 +45,16 @@ pub mod aretia_pool {
     /// The position is opened for `owner`, locked in full when `lock`. The creator pays the flat creation fee.
     /// Launch protection: `sniper_bps` and `decay_secs` give a fee that starts at `sniper_bps` and falls in a straight line to `fee_bps`
     /// over `decay_secs` (at most 25% and one hour); both zero means none. Fixed for good at creation.
-    pub fn create_pool(ctx: Context<CreatePool>, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32) -> Result<()> {
+    /// Price range: `vx0` is a virtual token reserve that sets an upper price (zero means none); see pool-math. Fixed at creation.
+    /// The position gets the address derived from `position_id`, which is the owner's own address unless the id itself signs.
+    pub fn create_pool(ctx: Context<CreatePool>, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32, vx0: u64) -> Result<()> {
         let mint_info = ctx.accounts.mint.to_account_info();
         require_keys_eq!(*mint_info.owner, anchor_spl::token_2022::ID, PoolError::MintNotAllowed);
         check_mint(&mint_info.try_borrow_data()?)?;
         require!(ctx.accounts.creator_token.amount >= x0, PoolError::NotEnoughTokens);
 
-        let m = Math::open(x0, y0, l0, fee_bps).ok_or(PoolError::BadParameters)?;
+        let m = Math::open_ranged(x0, y0, l0, fee_bps, vx0).ok_or(PoolError::BadParameters)?;
+        require!(ctx.accounts.position_id.key() == ctx.accounts.owner.key() || ctx.accounts.position_id.is_signer, PoolError::BadPositionId);
         require!(pool_math::schedule_ok(fee_bps, sniper_bps, decay_secs), PoolError::BadParameters);
         let now = Clock::get()?.unix_timestamp;
         let pool = &mut ctx.accounts.pool;
@@ -72,6 +75,8 @@ pub mod aretia_pool {
         pos.checkpoint = 0;
         pos.pending = 0;
         pos.recipient = ctx.accounts.owner.key();
+        pos.id = ctx.accounts.position_id.key();
+        pos.bump = ctx.bumps.position;
 
         let pool_key = pool.key();
         // The creation fee, then the SOL vault: it must hold the rent-exempt minimum to exist, and the creator pays that once.
@@ -177,11 +182,16 @@ pub mod aretia_pool {
         let pool = &mut ctx.accounts.pool;
         let pos = &mut ctx.accounts.position;
         if pos.owner == Pubkey::default() {
+            // A new position: its id is the owner's own address, or an address that signs for itself, so nobody can take an id in advance.
+            require!(ctx.accounts.position_id.key() == ctx.accounts.owner.key() || ctx.accounts.position_id.is_signer, PoolError::BadPositionId);
             pos.pool = pool.key();
+            pos.id = ctx.accounts.position_id.key();
+            pos.bump = ctx.bumps.position;
             pos.owner = ctx.accounts.owner.key();
             pos.checkpoint = pool.acc;
             pos.recipient = ctx.accounts.owner.key();
         }
+        require_keys_eq!(pos.owner, ctx.accounts.owner.key(), PoolError::NotOwner);
         settle(pos, pool)?;
         let (a, next) = pool_math::add(&pool.math(), dl).ok_or(PoolError::BadParameters)?;
         require!(a.tokens_in <= max_tokens && a.sol_in <= max_sol, PoolError::Slippage);
@@ -272,6 +282,19 @@ pub mod aretia_pool {
         Ok(())
     }
 
+    /// Hands the whole position, its locked part included, to `new_owner`. The fee recipient resets to the new owner, so a sold
+    /// position never keeps paying the seller. Fees already settled to the position (`pending`) go with it: claim first if they are yours.
+    pub fn transfer_position(ctx: Context<TransferPosition>, new_owner: Pubkey) -> Result<()> {
+        let pool = &ctx.accounts.pool;
+        let pos = &mut ctx.accounts.position;
+        settle(pos, pool)?;
+        let from = pos.owner;
+        pos.owner = new_owner;
+        pos.recipient = new_owner;
+        emit!(PositionTransferred { pool: pos.pool, id: pos.id, from, to: new_owner, ts: Clock::get()?.unix_timestamp });
+        Ok(())
+    }
+
     /// Names the wallet that `claim_fees` pays. Owner only, any time, even on a locked position: the lock covers the liquidity, not
     /// where the fees go.
     pub fn set_recipient(ctx: Context<SetRecipient>, recipient: Pubkey) -> Result<()> {
@@ -358,14 +381,17 @@ pub struct Pool {
     /// Launch protection: the fee starts here and falls in a line to `fee_bps` over `decay_secs`. Zero means none.
     pub fee_start_bps: u16,
     pub decay_secs: u32,
+    /// Virtual token reserve: zero means no upper price.
+    pub vx: u64,
 }
 
 impl Pool {
     fn math(&self) -> Math {
-        Math { x: self.x, y: self.y, l: self.l, fee_bps: self.fee_bps, acc: self.acc, fee_reserve: self.fee_reserve }
+        Math { x: self.x, vx: self.vx, y: self.y, l: self.l, fee_bps: self.fee_bps, acc: self.acc, fee_reserve: self.fee_reserve }
     }
     fn set_math(&mut self, m: &Math) {
         self.x = m.x;
+        self.vx = m.vx;
         self.y = m.y;
         self.l = m.l;
         self.fee_bps = m.fee_bps;
@@ -385,6 +411,9 @@ pub struct Position {
     pub pending: u64,
     /// Where `claim_fees` pays. The owner until the owner says otherwise.
     pub recipient: Pubkey,
+    /// The address this position's account was derived from. It never changes, whoever owns the position.
+    pub id: Pubkey,
+    pub bump: u8,
 }
 
 // ---------------------------------------------------------------- accounts
@@ -405,7 +434,7 @@ pub struct CreatePool<'info> {
     pub sol_vault: SystemAccount<'info>,
     #[account(init, payer = creator, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
-    #[account(init, payer = creator, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump)]
+    #[account(init, payer = creator, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), position_id.key().as_ref()], bump)]
     pub position: Account<'info, Position>,
     /// CHECK: address-checked; receives the creation fee.
     #[account(mut, address = FEE_WALLET)]
@@ -413,6 +442,8 @@ pub struct CreatePool<'info> {
     pub token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+    /// CHECK: only its address is used, to derive the position. It is the owner's address, or it signs.
+    pub position_id: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -448,10 +479,12 @@ pub struct AddLiquidity<'info> {
     pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, token::mint = mint, token::authority = owner, token::token_program = token_program)]
     pub owner_token: InterfaceAccount<'info, TokenAccount>,
-    #[account(init_if_needed, payer = owner, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump)]
+    #[account(init_if_needed, payer = owner, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), position_id.key().as_ref()], bump)]
     pub position: Account<'info, Position>,
     pub token_program: Program<'info, Token2022>,
     pub system_program: Program<'info, System>,
+    /// CHECK: only its address is used, to derive the position. For a new position it is the owner's address, or it signs.
+    pub position_id: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -467,7 +500,7 @@ pub struct RemoveLiquidity<'info> {
     pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, token::mint = mint, token::authority = owner, token::token_program = token_program)]
     pub owner_token: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
     pub token_program: Program<'info, Token2022>,
     pub system_program: Program<'info, System>,
@@ -481,7 +514,7 @@ pub struct ClaimFees<'info> {
     pub pool: Account<'info, Pool>,
     #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump = pool.sol_bump)]
     pub sol_vault: SystemAccount<'info>,
-    #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
     /// The wallet the position names to receive its fees.
     #[account(mut, address = position.recipient)]
@@ -490,11 +523,20 @@ pub struct ClaimFees<'info> {
 }
 
 #[derive(Accounts)]
+pub struct TransferPosition<'info> {
+    pub owner: Signer<'info>,
+    #[account(seeds = [b"pool", pool.mint.as_ref()], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
+    pub position: Account<'info, Position>,
+}
+
+#[derive(Accounts)]
 pub struct SetRecipient<'info> {
     pub owner: Signer<'info>,
     #[account(seeds = [b"pool", pool.mint.as_ref()], bump = pool.bump)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
 }
 
@@ -503,7 +545,7 @@ pub struct LockLiquidity<'info> {
     pub owner: Signer<'info>,
     #[account(seeds = [b"pool", pool.mint.as_ref()], bump = pool.bump)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
 }
 
@@ -561,6 +603,15 @@ pub struct Claimed {
 }
 
 #[event]
+pub struct PositionTransferred {
+    pub pool: Pubkey,
+    pub id: Pubkey,
+    pub from: Pubkey,
+    pub to: Pubkey,
+    pub ts: i64,
+}
+
+#[event]
 pub struct RecipientSet {
     pub pool: Pubkey,
     pub owner: Pubkey,
@@ -598,6 +649,10 @@ pub enum PoolError {
     Locked,
     #[msg("There are no fees to claim.")]
     NothingToClaim,
+    #[msg("A position's id must be its owner's address, or sign for itself.")]
+    BadPositionId,
+    #[msg("This position belongs to someone else.")]
+    NotOwner,
 }
 
 #[cfg(test)]

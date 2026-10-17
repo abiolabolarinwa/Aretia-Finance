@@ -23,7 +23,7 @@ const fromBase64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) =
 export function mathFromPool(pool: LiquidityPool): PoolMath {
   const e = pool.extra;
   if (!e || e.x === undefined) throw new SwingsError('invalid', 'This is not an Aretia pool.');
-  return { x: BigInt(e.x), y: BigInt(e.y!), l: BigInt(e.l!), feeBps: Number(e.feeBps), acc: BigInt(e.acc!), feeReserve: BigInt(e.feeReserve!), feeStartBps: Number(e.feeStartBps ?? 0), decaySecs: Number(e.decaySecs ?? 0), startTs: BigInt(e.startTs ?? 0) };
+  return { x: BigInt(e.x), vx: BigInt(e.vx ?? 0), y: BigInt(e.y!), l: BigInt(e.l!), feeBps: Number(e.feeBps), acc: BigInt(e.acc!), feeReserve: BigInt(e.feeReserve!), feeStartBps: Number(e.feeStartBps ?? 0), decaySecs: Number(e.decaySecs ?? 0), startTs: BigInt(e.startTs ?? 0) };
 }
 
 /** Exact output of a swap, or 0n when the program would refuse it. `tokenIn` is SOL for a buy, the token for a sell. */
@@ -64,13 +64,13 @@ export class AretiaPoolAdapter {
         token0: { chain: 'solana', address: token.address },
         token1: { chain: 'solana', address: WSOL },
         // The effective reserves the curve prices against: tokens, and real plus virtual SOL.
-        reserve0: m.x,
+        reserve0: m.x + m.vx,
         reserve1: m.y + m.l,
         feePpm: m.feeBps * 100,
         updatedAt: this.now(),
         block: null,
         status: m.x > 0n && m.l > 0n ? 'active' : 'inactive',
-        extra: { mint: token.address, x: String(m.x), y: String(m.y), l: String(m.l), feeBps: String(m.feeBps), acc: String(m.acc), feeReserve: String(m.feeReserve), feeStartBps: String(state.feeStartBps), decaySecs: String(state.decaySecs), startTs: String(state.createdAt) },
+        extra: { mint: token.address, x: String(m.x), vx: String(m.vx), y: String(m.y), l: String(m.l), feeBps: String(m.feeBps), acc: String(m.acc), feeReserve: String(m.feeReserve), feeStartBps: String(state.feeStartBps), decaySecs: String(state.decaySecs), startTs: String(state.createdAt) },
       },
     ];
   }

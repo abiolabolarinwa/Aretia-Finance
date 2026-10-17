@@ -34,7 +34,8 @@ One pool per token, always against SOL. It is a constant-product curve (`X * Y =
 | mint | Pubkey | The token. Quote side is always native SOL. |
 | creator | Pubkey | Who opened it. Informational only; gives no power. |
 | fee_bps | u16 | 25 or 100, fixed at creation. |
-| x | u64 | Token reserve the curve trades against. |
+| x | u64 | Real token reserve: what is actually in the token vault for trading. |
+| vx | u64 | Virtual token reserve. Zero means no upper price; otherwise it sets a price ceiling (section 6d). Scales with liquidity. |
 | y | u64 | Real SOL reserve (lamports). Zero at single-sided creation. |
 | l | u64 | Total liquidity = virtual SOL reserve = total shares. |
 | acc | u128 | Fee per share, cumulative, scaled by 2^64. Wraps; only differences are read. |
@@ -43,20 +44,22 @@ One pool per token, always against SOL. It is a constant-product curve (`X * Y =
 | fee_start_bps | u16 | Launch protection: the fee the pool starts at. Zero means none. Fixed at creation. |
 | decay_secs | u32 | Launch protection: seconds the fee takes to fall in a straight line to `fee_bps`. Fixed at creation. |
 
-The effective reserves the curve prices against are `X = x` and `Y = y + l`. The starting price is `(y0 + l0) / x0`, in lamports per raw token unit.
+The effective reserves the curve prices against are `X = x + vx` and `Y = y + l`. The starting price is `(y0 + l0) / (x0 + vx0)`, in lamports per raw token unit.
 
-### Position (PDA `["position", pool, owner]`)
+### Position (PDA `["position", pool, id]`)
 
 | Field | Type | Meaning |
 |---|---|---|
-| pool, owner | Pubkey | |
+| pool, owner | Pubkey | The owner is whoever can act on the position now. |
+| id | Pubkey | The address the account is derived from. Never changes. |
+| bump | u8 | |
 | shares | u64 | Liquidity this position owns. Sum over all positions equals `pool.l` at all times. |
 | locked | u64 | Shares that can never be removed. Only ever grows. |
 | checkpoint | u128 | `pool.acc` at the last settlement. |
 | pending | u64 | Fees settled and not yet claimed. |
 | recipient | Pubkey | Where `claim_fees` pays. The owner until the owner names another wallet. |
 
-One position per (pool, owner). A position is not transferable: it belongs to the wallet that opened it. This is a deliberate simplification against Meteora's position NFT. If the owner wants a position to change hands before it is locked, they remove and re-add. A locked position cannot move at all, but its fees can be claimed by the owner, and only the owner.
+A position's address comes from its `id`, which is the owner's own address, or an address that signed for itself when the position was opened (so nobody can take an id in advance, and one wallet can hold several positions). `transfer_position` changes the `owner` and resets the fee payee to the new owner; the id, and so the address, stays. Everything goes with it, locked liquidity included, and so do the fees already settled to the position. A locked position can therefore be sold, but never withdrawn by anyone.
 
 ### Vaults
 
@@ -69,11 +72,12 @@ Reserves are numbers in the pool account, never the vault balances. A donation t
 
 All instructions revert with a named error on any failure; nothing is partially applied.
 
-1. **`create_pool(x0, y0, l0, fee_bps, lock, sniper_bps, decay_secs)`**. Creator signs. Checks the mint (section 5). Moves `x0` tokens into the token vault and `y0` lamports (usually zero) into the SOL vault, plus the rent minimum for the SOL vault, pays the 0.05 SOL creation fee to the fee wallet, writes the pool, and opens the owner's position with `shares = l0` (`locked = l0` when `lock`). The `owner` of the position is a separate account passed in, normally the creator, and the curve's graduation sets it to the curve's creator (section 12). Bounds: `x0 >= 1000`, `l0 >= 10,000,000` lamports (0.01 SOL), all amounts at most 2^62.
+1. **`create_pool(x0, y0, l0, fee_bps, lock, sniper_bps, decay_secs, vx0)`**. Creator signs. Checks the mint (section 5). Moves `x0` tokens into the token vault and `y0` lamports (usually zero) into the SOL vault, plus the rent minimum for the SOL vault, pays the 0.05 SOL creation fee to the fee wallet, writes the pool, and opens the owner's position with `shares = l0` (`locked = l0` when `lock`). The `owner` of the position is a separate account passed in, normally the creator, and the curve's graduation sets it to the curve's creator (section 12). Bounds: `x0 >= 1000`, `l0 >= 10,000,000` lamports (0.01 SOL), all amounts at most 2^62.
 2. **`swap(is_buy, amount_in, min_out)`**. Anyone. Buy: pay SOL, get tokens. Sell: give tokens, get SOL. Exact input, with a minimum output. Section 6 for the maths and the fee.
-3. **`add_liquidity(dl, max_tokens, max_sol)`**. Adds `dl` of liquidity at the pool's current price. The depositor pays tokens `ceil(x*dl/l)` and SOL `ceil(y*dl/l)`, both rounded up, and reverts if either exceeds the caps. Opens the owner's position if they have none. Settles pending fees first. `dl >= 1000`.
+3. **`add_liquidity(dl, max_tokens, max_sol)`**. Adds `dl` of liquidity at the pool's current price. The depositor pays tokens `ceil(x*dl/l)` and SOL `ceil(y*dl/l)`, both rounded up, and reverts if either exceeds the caps. Opens the position named by `position_id` if it does not exist (the id is the owner's address, or must sign); refuses if it belongs to someone else. Scales the virtual token reserve with the liquidity. Settles pending fees first. `dl >= 1000`.
 4. **`remove_liquidity(dl, min_tokens, min_sol)`**. Removes `dl` of the position's unlocked shares. Receives `floor(x*dl/l)` tokens and `floor(y*dl/l)` lamports, both rounded down. Settles pending fees first. Cannot touch locked shares.
 5. **`claim_fees()`**. Owner only. Settles and pays the position's pending SOL out of the SOL vault to the position's `recipient`. Works on locked positions.
+5a. **`transfer_position(new_owner)`**. Owner only. Hands the whole position to `new_owner`, resets its fee payee to them, and keeps the lock. The seller can do nothing with it afterwards.
 5b. **`set_recipient(recipient)`**. Owner only, any time, even on a locked position: the lock covers the liquidity, not where the fees go. Lets a creator send their 80% to a treasury, a multisig or a splitter without moving the position.
 6. **`lock_liquidity(amount)`**. Owner only. Adds `amount` shares to `locked`. Irreversible; no instruction lowers `locked`. `amount` is at most the unlocked shares.
 
@@ -110,6 +114,10 @@ All integer, in `pool-math`, and the program calls nothing else to price a trade
 Optional, chosen by the creator at creation, fixed for good. The fee starts at `sniper_bps` (at most 25%) and falls in a straight line to the trading fee over `decay_secs` (at most one hour). `fee_now = base + ceil((start - base) * (decay - elapsed) / decay)`: the part above the base is rounded **up**, so the schedule never undercharges, and it never rises with time (property-tested; the web copy is replayed against Rust vectors at 65 moments). It applies to buys and sells alike, and the same 20% / 80% split applies. The Launch card offers none, standard (10% falling over 5 minutes) and strong (25% falling over 15 minutes), default standard. The stored `fee_bps` is always the base.
 
 The point: a bot that buys in the first seconds pays most of the fee to the creator's position and to Aretia, instead of taking the cheap early tokens for 0.25%. Real buyers who wait a few minutes pay the normal fee. This is also what Meteora's fee scheduler does; the difference here is that the schedule is two numbers on the pool, readable by anyone, quoted exactly by our own router, and paid into the same claimable fees.
+
+### 6d. Price range (concentrated liquidity)
+
+Optional, fixed at creation. A pool made with `vx0 > 0` trades against effective reserves `X = x + vx` and `Y = y + l` instead of bare `x`. Buyers can only ever take real tokens (`out <= x`), so when the real tokens are gone the price has reached its ceiling: with `vx0 = x0 / (s - 1)` the ceiling is `s^2` times the starting price, and the most SOL the pool can raise is `l0 * (s - 1)`. The Launch card offers none, wide (`s = 10`, 100x), medium (`s = 4`, 16x) and narrow (`s = 2`, 4x). The same tokens spread over a band are deeper near the start: buyers move the price less per SOL. This is the shape of a Meteora DAMM v2 pool with a minimum and a maximum price, set pool-wide. What it does not have is a separate price range per position (Meteora's can choose its own ranges per pool too, but not per position, so this is the same). `vx` is bounded between a thousandth and a thousand times the tokens deposited, grows with every add (rounded up) and shrinks with every remove (rounded down), so `X*Y` per share never falls (property-tested on pools with and without ranges).
 
 ### 6c. Where fees go
 
@@ -202,9 +210,9 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 Deployed to **devnet only**. First deployment 2026-10-17, upgraded the same day with launch protection and the fee recipient.
 
 * Program id: `4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc` (its keypair is kept outside the repo; the same id is written into the committed build). Upgrade authority: the devnet test wallet.
-* Current build: `program/aretia-pool/artifacts/aretia_pool.so`, sha-256 `5bedff2f26388c73b93e716e7c65c30946f6bbcd420fb32c8ab5723823c53628`. Upgrade signature `39VrBfQ38Bq2TapaHdZf9aQbwcFP8qSXG46xJsSXuQidJMPka3F2KXfoL8U7oe7TfjQ1K1dKErn7un4jb8QpU2jY`. First deployment signature `416748VZvdwba7A6magNt1PiXhaYcEsE7wKwbK37g8TcjkctVdAHaZT3tGe2Wj5gDsLbouKj3tcxQ6HbSLtV7zYt` (an older build).
+* Current build: `program/aretia-pool/artifacts/aretia_pool.so`, sha-256 `827e0d28b51ceed6f52eeb60bee5416a260bb54112c83ec901e8ff70c369d51a` (price ranges and transferable positions). Upgrade signature `5AwZwLHDq3GKD1Pm9ZMWdFLWadS9YkWoXCGjUwcGz36CP3dvQwkqvuJZUzPbWUpjJL8b28dQhubZ4jReRtGqind3`. The previous build (launch protection and fee recipient) was upgraded with `39VrBfQ3...`. First deployment signature `416748VZvdwba7A6magNt1PiXhaYcEsE7wKwbK37g8TcjkctVdAHaZT3tGe2Wj5gDsLbouKj3tcxQ6HbSLtV7zYt` (an older build).
 * `node scripts/pool-solana-mainnet.mjs verify --program 4EBV... --cluster devnet` passes. The upgrade authority there is not the multisig; that is expected on devnet and would fail the same check on mainnet.
-* **A live run through the web code on devnet** (`website/src/scripts/walletAretiaPool.devnet.ts`, signs with a local devnet key, not a browser wallet): made a fixed-supply Token-2022 token, opened a pool with standard launch protection, bought at the launch fee, sold, added and removed liquidity, claimed, redirected fees to a fresh wallet and claimed to it (that wallet received exactly the quoted amount), then locked. Pool `99GzrVSH7Lt4z2Hc3h72F3xVwmhvJP3598naPAK61dbk`, create signature `2bqjdawQ1cuksDRQRAa5rPCWHNPLGRPoqNwW8yhD7K6iUi1bh8YHUNFbBt5s7yQYpNX6aaqmAhhgMFs6qEjR2iPg`. Not done: a browser session with a real wallet extension.
+* **A live run through the web code on devnet** (`website/src/scripts/walletAretiaPool.devnet.ts`, signs with a local devnet key, not a browser wallet): made a fixed-supply Token-2022 token, opened a pool with standard launch protection, bought at the launch fee, sold, added and removed liquidity, claimed, redirected fees to a fresh wallet and claimed to it (that wallet received exactly the quoted amount), then locked. Pool `99GzrVSH7Lt4z2Hc3h72F3xVwmhvJP3598naPAK61dbk`, create signature `2bqjdawQ1cuksDRQRAa5rPCWHNPLGRPoqNwW8yhD7K6iUi1bh8YHUNFbBt5s7yQYpNX6aaqmAhhgMFs6qEjR2iPg`. A second run on the current build opened a **ranged** pool (`HiDTcNMHVRH4hRkyvdykcrXmMtchKPKizFiRZYNvvxpX`, create `37WNmXGSgV6yCd8oB3CGLxFvSb8QNRFYyuyv2RHzQQqJjkyP7m29MGEaoXVvTddxdfxxWax8gQn9m8pu5XyuR4ct`), traded, locked, **sold the locked position** to a new wallet (`4XnQPSXTVrTNs37yv8Ar2v5j1D5Aj2gornovDcyV4N7wukxA87K7YpXmAzNpSvsWM3EmKWNFvwY4H71WSvJm9yyW`), confirmed the seller can no longer claim, and had the buyer claim the fees (`3MUdjBs9b3cexNLztT1zKLcEh1dxK5ahggqsh87NzuYrdKdCSPP3FjQrQVhCAimx7FSepe9XCvDJzZEXsGq8F2CE`). Opening cost on devnet this time: 0.0051 SOL on top of the fee. Not done: a browser session with a real wallet extension.
 
 Run the checks:
 
@@ -222,20 +230,19 @@ ARETIA_POOL_DEVNET_KEYPAIR=<funded devnet key> npx vitest run --config vitest.de
 Said plainly, because only some of this is measured.
 
 **Measured**
-* Opening cost. Rent for the pool, the position, the token vault and the SOL vault is 0.0049 SOL (4,897,120 lamports in LiteSVM; 4,902,120 including the network fee on devnet), plus the flat 0.05 SOL. There is no position NFT mint, NFT token account or second vault, and no wrapped-SOL account. We did not measure a Meteora pool opening side by side, so there is no "x times cheaper" claim here.
+* Opening cost. Rent for the pool, the position, the token vault and the SOL vault is about 0.005 SOL (LiteSVM and devnet, the position and pool accounts grew a few bytes in this version), plus the flat 0.05 SOL. There is no position NFT mint, NFT token account or second vault, and no wrapped-SOL account. We did not measure a Meteora pool opening side by side, so there is no "x times cheaper" claim here.
 
 **By design** (tested in the program, but a design choice, not a measurement)
 * Aretia keeps 20% of every trading fee, paid at trade time. On a Meteora pool opened from the Launch page Aretia keeps none.
-* Fees can be redirected while liquidity stays locked (6c).
+* Fees can be redirected while liquidity stays locked (6c), and a locked position can be sold as a whole (the new owner gets the fees; nobody gets the liquidity).
 * Launch protection is two readable numbers and is quoted exactly (6b).
 * Locally exact quotes: the Swings router can price this pool from its account alone, with no simulation.
-* The curve can graduate into a pool whose fees the creator can claim (section 12); on the Meteora route the position belongs to a program account and its fees cannot be claimed. Designed, not built.
+* The curve can graduate into a pool whose fees the creator can claim (section 12); on the Meteora route the position belongs to a program account and its fees cannot be claimed.
 
 **Where Meteora is ahead**
 * It is audited and has been live for a long time. This is neither.
 * Jupiter and every aggregator route to it. They do not route here.
-* Concentrated ranges, dynamic fees, alpha vaults and a large set of tools exist there and not here.
-* Positions are transferable NFTs there. Here a position belongs to one wallet; only its fee recipient can change.
+* Dynamic fees, alpha vaults and a large set of tools exist there and not here. Price ranges are pool-wide here, as in DAMM v2; there are no per-position ranges on either.
 
 ## 18. What is unaudited and untested on mainnet
 

@@ -6,18 +6,23 @@ use aretia_pool_it::{ata, pool_pda, position_pda, sol_vault_pda, Address, TOKEN_
 use pool_math::{add, buy, effective_fee_bps, pending_fee, remove, sell, Pool};
 
 fn st(p: &Pool) -> String {
-    format!("{{\"x\":\"{}\",\"y\":\"{}\",\"l\":\"{}\",\"acc\":\"{}\",\"feeReserve\":\"{}\"}}", p.x, p.y, p.l, p.acc, p.fee_reserve)
+    format!("{{\"x\":\"{}\",\"vx\":\"{}\",\"y\":\"{}\",\"l\":\"{}\",\"acc\":\"{}\",\"feeReserve\":\"{}\"}}", p.x, p.vx, p.y, p.l, p.acc, p.fee_reserve)
 }
 
 fn main() {
     const SOL: u64 = 1_000_000_000;
-    let cases: [(u64, u64, u64, u16); 6] = [
-        (600_000_000_000_000, 0, 10 * SOL, 25),
-        (600_000_000_000_000, 0, 10 * SOL, 100),
-        (1_000_000, 0, 10_000_000, 100),
-        (123_456_789_012_345, 3 * SOL, 77 * SOL, 25),
-        (4_000_000_000_000_000_000 / 4, 0, 1_000_000 * SOL, 100),
-        (5_000, 50_000_000, 10_000_000, 25),
+    let cases: [(u64, u64, u64, u16, u64); 10] = [
+        (600_000_000_000_000, 0, 10 * SOL, 25, 0),
+        (600_000_000_000_000, 0, 10 * SOL, 100, 0),
+        (1_000_000, 0, 10_000_000, 100, 0),
+        (123_456_789_012_345, 3 * SOL, 77 * SOL, 25, 0),
+        (4_000_000_000_000_000_000 / 4, 0, 1_000_000 * SOL, 100, 0),
+        (5_000, 50_000_000, 10_000_000, 25, 0),
+        // Price ranges: s = 10, 4 and 2 (a virtual token reserve of x / 9, x / 3 and x), and the two extremes.
+        (600_000_000_000_000, 0, 10 * SOL, 25, 600_000_000_000_000 / 9),
+        (600_000_000_000_000, 0, 10 * SOL, 100, 600_000_000_000_000 / 3),
+        (123_456_789_012_345, 3 * SOL, 77 * SOL, 25, 123_456_789_012_345),
+        (1_000_000_000_000, 0, 20 * SOL, 100, 1_000_000_000),
     ];
     let mut seed: u64 = 0x2468_ACE0_1357_9BDF;
     let mut next = move || {
@@ -27,8 +32,8 @@ fn main() {
         seed
     };
     let mut runs = vec![];
-    for (x0, y0, l0, fee) in cases {
-        let mut p = Pool::open(x0, y0, l0, fee).expect("openable");
+    for (x0, y0, l0, fee, vx0) in cases {
+        let mut p = Pool::open_ranged(x0, y0, l0, fee, vx0).expect("openable");
         let mut steps = vec![];
         for _ in 0..60 {
             match next() % 5 {
@@ -74,7 +79,7 @@ fn main() {
                 }
             }
         }
-        runs.push(format!("{{\"x0\":\"{x0}\",\"y0\":\"{y0}\",\"l0\":\"{l0}\",\"fee\":{fee},\"steps\":[{}]}}", steps.join(",")));
+        runs.push(format!("{{\"x0\":\"{x0}\",\"vx0\":\"{vx0}\",\"y0\":\"{y0}\",\"l0\":\"{l0}\",\"fee\":{fee},\"steps\":[{}]}}", steps.join(",")));
     }
     // Fee claims, including a checkpoint behind a wrapped accumulator.
     let mut claims = vec![];

@@ -104,7 +104,7 @@ describe.skipIf(!keyPath)('the Aretia Pool flow against the devnet program', () 
     const mint = await makeMint(payer, 1_000_000_000_000_000n, 6);
     log.mint = mint;
     const token = (await flow.loadToken(me, mint))!;
-    const v = validateAretiaPool({ ...DEFAULT_ARETIA_POOL_FORM, mint, tokenAmount: '600,000,000', price: '0.0000000001', tradingFeeBps: '100', lockLiquidity: false }, me, token);
+    const v = validateAretiaPool({ ...DEFAULT_ARETIA_POOL_FORM, mint, tokenAmount: '600,000,000', price: '0.0000000001', tradingFeeBps: '100', lockLiquidity: false, priceRange: 'medium' }, me, token);
     if (!v.ok) throw new Error(JSON.stringify(v.issues));
     expect(v.params.sniperBps).toBe(1000);
 
@@ -117,7 +117,7 @@ describe.skipIf(!keyPath)('the Aretia Pool flow against the devnet program', () 
     log.openingCost = { aretiaFee: String(review.cost.aretiaFee), network: String(review.cost.network) };
     expect(created.differences).toEqual([]);
     let view = (await flow.loadPool(mint, me))!;
-    expect(view.pool).toMatchObject({ x: v.params.x0, y: 0n, l: v.params.l0, feeBps: 100, feeStartBps: 1000, decaySecs: 300 });
+    expect(view.pool).toMatchObject({ x: v.params.x0, vx: v.params.x0 / 3n, y: 0n, l: v.params.l0, feeBps: 100, feeStartBps: 1000, decaySecs: 300 });
 
     // 2. Buy at the launch fee (10%, since the pool just opened), then sell half back.
     const buyQ = flow.quote(view.pool, true, 20_000_000n, 100)!;
@@ -156,6 +156,22 @@ describe.skipIf(!keyPath)('the Aretia Pool flow against the devnet program', () 
     log.lockSignature = await flow.lock(me, mint, view.position!.shares);
     view = (await flow.loadPool(mint, me))!;
     expect(view.position!.locked).toBe(view.position!.shares);
+
+    // 5. Sell the (locked) position to another wallet: everything goes with it, the old owner can do nothing, the new one can claim.
+    await flow.trade(me, mint, flow.quote((await flow.loadPool(mint, me))!.pool, true, 60_000_000n, 100)!);
+    const buyer2 = web3.Keypair.generate();
+    await web3.sendAndConfirmTransaction(connection, new web3.Transaction().add(web3.SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: buyer2.publicKey, lamports: 20_000_000 })), [payer], { commitment: 'confirmed' });
+    log.transferSignature = await flow.transferPosition(me, mint, buyer2.publicKey.toBase58());
+    const sold = (await flow.loadPool(mint, me))!.position!;
+    expect(sold).toMatchObject({ owner: buyer2.publicKey.toBase58(), recipient: buyer2.publicKey.toBase58(), id: me });
+    expect(sold.locked).toBe(sold.shares);
+    await expect(flow.claim(me, mint)).rejects.toThrow();
+    const flow2 = new AretiaPoolFlow(deps(buyer2));
+    const owed2 = (await flow2.loadPool(mint, buyer2.publicKey.toBase58(), me))!.claimable;
+    expect(owed2).toBeGreaterThan(890_880n);
+    const b2 = BigInt(await connection.getBalance(buyer2.publicKey));
+    log.newOwnerClaimSignature = await flow2.claim(buyer2.publicKey.toBase58(), mint, buyer2.publicKey.toBase58(), undefined, me);
+    expect(BigInt(await connection.getBalance(buyer2.publicKey)) - b2).toBeGreaterThan(owed2 - 20_000n); // the claim, less the transaction fee
 
     log.endBalance = String(await connection.getBalance(payer.publicKey));
     writeFileSync(process.env.ARETIA_POOL_DEVNET_LOG ?? 'aretia-pool-devnet-run.json', JSON.stringify(log, null, 2));

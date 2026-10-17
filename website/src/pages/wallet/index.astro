@@ -621,7 +621,7 @@ const sendTips = [
   .wapp-ln__steps li.is-done { color: var(--color-strong); }
   .wapp-ln__steps li.is-done::before { content: '✓ '; color: #1c3fa8; }
   .wapp-ln__steps li.is-now { color: var(--color-strong); font-weight: 600; border-color: var(--color-brand); }
-  .wapp-ln__notice { padding: 12px 14px; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); background: rgba(178, 94, 9, 0.12); color: #6b4300; display: grid; gap: 10px; }
+  .wapp-ln__notice { padding: 12px 14px; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); background: rgba(42, 20, 176, 0.08); color: #150681; display: grid; gap: 10px; }
   @media (max-width: 520px) { .wapp-ln__row { grid-template-columns: 1fr; } }
 
   /* Launch page frame: network chips, a three-step journey, the forms, and a side summary. */
@@ -804,7 +804,7 @@ const sendTips = [
   .wapp[data-view='safesend'] [data-refresh], .wapp[data-view='carbon'] [data-refresh], .wapp[data-view='launch'] [data-refresh] { display: none; }
   .wapp__state { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); }
   .wapp__state--on { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
-  .wapp__state--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp__state--warn { color: #150681; background: rgba(42, 20, 176, 0.08); }
   .wapp__state--off { color: var(--color-muted); background: var(--color-bg-alt); }
   .wapp__state--bad { color: #8a1c14; background: rgba(179, 38, 30, 0.12); }
   /* Aretia's rating as a colour. The words stay on the chip, so the colour is never the only signal. */
@@ -905,8 +905,8 @@ const sendTips = [
   .wapp-mp > * { flex: none; }
   .wapp-mp__group { display: grid; gap: 6px; }
   .wapp-mp__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }
-  /* A burn is permanent (green). A time lock ends, so it is amber. */
-  .wapp-mp__lock.is-timed, .wapp-mt__lock.is-timed { color: #b45309; }
+  /* A burn is permanent (green). A time lock ends, so it is in the brand colour. */
+  .wapp-mp__lock.is-timed, .wapp-mt__lock.is-timed { color: #2a14b0; }
   .wapp-mp__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--color-brand); background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
   .wapp-mp__icon:hover { background: var(--wapp-indigo-line); }
   .wapp-mp__icon--link { width: 36px; height: 36px; border-radius: 10px; text-decoration: none; }
@@ -926,7 +926,7 @@ const sendTips = [
   .wapp-mp__checkhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .wapp-mp__headline { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 600; color: var(--color-strong); }
   .wapp-mp__headline--bad { color: #8a1c14; }
-  .wapp-mp__headline--warn { color: #6b4300; }
+  .wapp-mp__headline--warn { color: #150681; }
   .wapp-mp__concerns { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 14px; line-height: 1.5; color: var(--color-strong); }
   .wapp-mp__actions { display: grid; gap: 6px; }
   .wapp-mp__actions .wapp__btn { padding-block: 10px; }
@@ -1230,7 +1230,7 @@ const sendTips = [
   .wapp-rd__addr { display: block; margin-top: 2px; font-size: 11.5px; color: var(--color-muted); overflow-wrap: anywhere; }
   .wapp-rd__title { margin: 0; font-size: 1.3rem; color: var(--color-strong); }
   .wapp-rd__pill { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; white-space: nowrap; }
-  .wapp-rd__pill--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); border-color: transparent; }
+  .wapp-rd__pill--warn { color: #150681; background: rgba(42, 20, 176, 0.08); border-color: transparent; }
   .wapp-rd__pill--bad { color: #8a1c1c; background: rgba(190, 40, 40, 0.12); border-color: transparent; }
   .wapp-rd__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
   .wapp-rd__tile { display: grid; gap: 2px; padding: 10px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
@@ -1241,7 +1241,7 @@ const sendTips = [
   .wapp-rd__kv dt { color: var(--color-muted); }
   .wapp-rd__kv dd { margin: 0; text-align: right; color: var(--color-strong); }
   .wapp-rd__banner { margin: 0; padding: 10px 12px; font-size: 13px; line-height: 1.5; color: #1c3fa8; background: rgba(28, 63, 168, 0.08); border-radius: var(--radius-md); }
-  .wapp-rd__banner--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp-rd__banner--warn { color: #150681; background: rgba(42, 20, 176, 0.08); }
   .wapp-rd__actions { display: grid; gap: 6px; justify-items: start; }
   .wapp-rd__home { display: grid; gap: 8px; }
   .wapp-rd__row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; font: inherit; text-align: left; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
@@ -1257,7 +1257,7 @@ const sendTips = [
   .wapp__result { display: grid; gap: 10px; margin-top: 4px; padding: 16px; background: var(--color-bg-alt); border-radius: var(--radius-lg); }
   .wapp__result code { font-size: 12px; overflow-wrap: anywhere; }
   .wapp__banner { margin: 0; padding: 10px 12px; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); }
-  .wapp__banner--warn { color: #6b4300; background: rgba(178, 94, 9, 0.12); }
+  .wapp__banner--warn { color: #150681; background: rgba(42, 20, 176, 0.08); }
   .wapp__banner--info { color: #1c3fa8; background: rgba(28, 63, 168, 0.08); }
   .wapp__banner--ok { color: #14663a; background: rgba(27, 138, 75, 0.1); }
   .wapp__banner[hidden] { display: none; }
@@ -1383,7 +1383,7 @@ const sendTips = [
   .wapp__picker-bal { margin-left: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
   .wapp__tag { margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; border-radius: var(--radius-pill); }
   .wapp__tag--ok { color: var(--color-ok); background: rgba(27, 138, 75, 0.1); }
-  .wapp__tag--warn { color: var(--color-warn); background: rgba(178, 94, 9, 0.1); }
+  .wapp__tag--warn { color: var(--color-warn); background: rgba(42, 20, 176, 0.07); }
   .wapp__trade-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; min-width: 0; }
 
   .wapp__intro { margin: 0; font-size: 14px; line-height: 1.5; color: var(--color-muted); max-width: 70ch; }
@@ -1672,7 +1672,7 @@ const sendTips = [
   .wapp-asset > div { display: grid; min-width: 0; }
   .wapp-asset strong { color: var(--color-strong); }
   .wapp-avatar { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--color-brand-soft); color: var(--color-brand); font-size: 11px; font-weight: 700; object-fit: cover; }
-  .wapp-flag { margin-left: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; color: var(--color-warn); background: rgba(178, 94, 9, 0.1); border-radius: var(--radius-pill); }
+  .wapp-flag { margin-left: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; color: var(--color-warn); background: rgba(42, 20, 176, 0.07); border-radius: var(--radius-pill); }
   .wapp-unpriced-toggle { margin-top: 14px; }
   .wapp-weight { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
   .wapp-bar { display: inline-block; width: 72px; height: 6px; border-radius: 999px; background: var(--color-brand-soft); overflow: hidden; }

@@ -28,7 +28,7 @@
   --color-mint-soft: #ecebff;
   --color-mint-wash: linear-gradient(180deg, #e6e3ff 0%, #f6f5ff 70%, #ffffff 100%);
   --color-ok: #1b8a4b;
-  --color-warn: #b25e09;
+  --color-warn: #2a14b0;
 
   /* Type: Geist for display and body, with size-specific tracking (tight
      at display sizes, neutral at reading sizes), Geist Mono for addresses. */

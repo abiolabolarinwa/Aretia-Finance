@@ -161,12 +161,9 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     feeWrap.append(feeLabel, select, h('p', 'wapp__fine', 'Taken from each trade and paid to you, the owner of the position. Aretia takes none of it.'));
     f.append(feeWrap);
 
-    const lock = h('label', 'wapp__check');
-    const box = h('input');
-    box.type = 'checkbox';
-    box.checked = form.lockLiquidity;
-    box.addEventListener('change', () => set({ lockLiquidity: box.checked }));
-    lock.append(box, h('span', '', 'Lock the liquidity for good (recommended). Nobody, you included, can take the tokens or the SOL back out of the pool. You can still claim the trading fees.'));
+    // No option: every pool opened on Aretia is locked for good, so buyers can rely on it.
+    const lock = h('ul', 'lh-promises');
+    lock.append(h('li', '', 'The liquidity is locked for good. Every pool opened on Aretia is, so buyers can trust it. Nobody, you included, can take the tokens or the SOL back out. You can still claim the trading fees, so choose the starting price with care: it cannot be changed.'));
     f.append(lock);
 
     const go = h('button', 'wapp__btn wapp__btn--primary', busy ? 'Checking…' : 'Review');

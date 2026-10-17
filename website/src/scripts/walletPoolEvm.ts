@@ -119,12 +119,9 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
     feeSel.addEventListener('change', () => void (form = { ...form, feeAsset: feeSel.value as PoolForm['feeAsset'] }));
     feeWrap.append(feeLab, feeSel);
     f.append(feeWrap);
-    const lock = h('label', 'wapp__check');
-    const box = h('input');
-    box.type = 'checkbox';
-    box.checked = form.lock;
-    box.addEventListener('change', () => void (form = { ...form, lock: box.checked }));
-    lock.append(box, h('span', '', 'Lock the liquidity for good. Nobody, you included, can take the tokens or the coins back out. Leave off if you want to keep that ability.'));
+    // No option: every pool opened on Aretia is locked for good, so buyers can rely on it.
+    const lock = h('ul', 'lh-promises');
+    lock.append(h('li', '', 'The liquidity is locked for good. Every pool opened on Aretia is, so buyers can trust it. Nobody, you included, can take the tokens or the coins back out, and the starting price cannot be changed, so choose it with care.'));
     f.append(lock);
     const go = h('button', 'wapp__btn wapp__btn--primary', busy ? 'Checking…' : host.getAccount() ? 'Review' : 'Connect wallet and review');
     go.type = 'submit';
@@ -265,7 +262,7 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
         issues = [{ field: 'token', message: 'That is not a token this network can read. Check the address and the network.' }];
         return;
       }
-      const config = poolConfigOf(v, creator, form.lock, facts);
+      const config = poolConfigOf(v, creator, true, facts);
       if (!config) {
         issues = [{ field: 'tokenAmount', message: `${facts.symbol} has ${facts.decimals} decimal places; the amount has more.` }];
         return;

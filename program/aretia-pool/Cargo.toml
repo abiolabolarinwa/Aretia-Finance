@@ -1,0 +1,10 @@
+[workspace]
+members = ["pool-math", "programs/*"]
+exclude = ["tests"]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true
+opt-level = "s"
+lto = "fat"
+codegen-units = 1

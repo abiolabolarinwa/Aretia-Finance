@@ -19,7 +19,7 @@ export interface DexEntry {
   id: string;
   name: string;
   chain: ChainId;
-  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'aerodrome-slipstream' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot' | 'raydium-amm' | 'raydium-clmm' | 'uniswap-v4' | 'manifest';
+  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'aerodrome-slipstream' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot' | 'raydium-amm' | 'raydium-clmm' | 'uniswap-v4' | 'manifest' | 'aretia-pool';
   model: PoolModel;
   mechanism: SwapMechanism;
   /** Router (EVM) or program id (Solana). */

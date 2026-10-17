@@ -117,10 +117,10 @@ describe('the Ethereum curve is off, and its web constants are the contract’s'
     return BigInt(v);
   };
 
-  it('has only the verified Ethereum contract, and no way to switch another on without editing the table', async () => {
+  it('has only the verified Ethereum and BNB Chain contracts, and no way to switch another on without editing the table', async () => {
     const core = await import('./walletCurveEvmCore');
-    expect(core.EVM_CURVE_ADDRESSES).toEqual({ ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8', bnb: null, polygon: null });
-    expect(core.evmCurveChain('bnb')).toBeNull();
+    expect(core.EVM_CURVE_ADDRESSES).toEqual({ ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8', bnb: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8', polygon: null });
+    expect(core.evmCurveChain('bnb')?.curve).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(core.evmCurveChain('polygon')).toBeNull();
   });
 

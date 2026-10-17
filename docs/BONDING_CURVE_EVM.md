@@ -103,3 +103,7 @@ A wallet (for example one using a smart-account upgrade) may rewrite a transacti
 The Ethereum curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (creation transaction `0xe6056ceb76a6872f7a6e6152eadf7a56836333a04b6a01c202bd5e7f1a95e942`), from a fresh gas-only wallet that has no power over it. `scripts/curve-mainnet.mjs verify` confirmed the code is byte-for-byte the build for Ethereum (runtime keccak `0x9fdf8361…45c323`), the pinned factory, fee recipient, Uniswap V2 router and WETH, the 0.58% fee, and `totalOwed` of 0. The address is in `EVM_CURVE_ADDRESSES.ethereum`; the page card still needs a build with `PUBLIC_CURVE_ENABLED=1`, which stays off until a watched small rehearsal.
 
 **Audit status, stated plainly:** the owner reports an AI-assisted review (ChatGPT) with no findings. That is not an independent human audit, no report was supplied to the author of this code, and the contract is immutable. BNB Chain and Polygon are not deployed.
+
+## 13. BNB Chain mainnet record
+
+The BNB Chain curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (same deployer and nonce as Ethereum, so the same address; creation transaction `0xb88bd23078242b3b5dfe6785b10b8de6e0b494247f2af3b8ad7352bf793a7786`). `verify` confirmed the code is byte-for-byte the BNB Chain build (runtime keccak `0x20774ed7…3d40cab`), the pinned factory `0xc3eb…0385c`, fee recipient, PancakeSwap V2 router and WBNB, fee 58 bps and `totalOwed` 0. Flag still off; same audit caveat as section 12. Polygon is not deployed.

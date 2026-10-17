@@ -18,7 +18,8 @@ import { keccak256 } from '../swings/core/keccak.js';
 export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
   // Ethereum mainnet, deployed from a fresh gas-only wallet and checked byte for byte by scripts/curve-mainnet.mjs verify. The card stays off unless the build sets PUBLIC_CURVE_ENABLED=1.
   ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
-  bnb: null,
+  // BNB Chain mainnet, same deployer and nonce as Ethereum so the same address; checked by scripts/curve-mainnet.mjs verify.
+  bnb: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
   polygon: null,
 };
 

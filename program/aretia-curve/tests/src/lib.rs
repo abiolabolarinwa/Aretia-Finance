@@ -12,7 +12,7 @@ use solana_signer::Signer;
 use solana_transaction::Transaction;
 use sha2::{Digest, Sha256};
 
-pub const PROGRAM_ID: Address = Address::from_str_const("9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4");
+pub const PROGRAM_ID: Address = Address::from_str_const("CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu");
 pub const TOKEN_2022: Address = Address::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const TOKEN: Address = Address::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const ATA_PROGRAM: Address = Address::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");

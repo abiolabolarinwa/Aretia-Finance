@@ -15,7 +15,12 @@ import { tokenBlockers, type PoolToken } from './walletPoolCore';
 import type * as Web3 from '@solana/web3.js';
 
 export const CURVE_PROGRAM_ID_DEVNET = '9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4';
-/** Empty on purpose: set only after an independent audit and the owner's go-ahead. */
+/**
+ * The id the committed program build is made for (`declare_id!` in the program). It is the owner's own program key, made for mainnet.
+ * It is NOT used for anything until the program is deployed and `scripts/curve-solana-mainnet.mjs verify` passes; then it is copied below.
+ */
+export const CURVE_PROGRAM_ID_MAINNET_PLANNED = 'CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu';
+/** Empty on purpose: set only after the program is deployed to mainnet, verified byte for byte, and the owner says go. */
 export const CURVE_PROGRAM_ID_MAINNET: string | null = null;
 
 /** Fee on every trade, in basis points of the SOL side. The owner set it at 0.58%; it is also a constant in the program. */

@@ -7,6 +7,7 @@ import {
   CURVE_MAX_RENT_BUDGET,
   CURVE_MIN_TARGET_LAMPORTS,
   CURVE_PROGRAM_ID_DEVNET,
+  CURVE_PROGRAM_ID_MAINNET_PLANNED,
   CURVE_PROGRAM_ID_MAINNET,
   MAX_SQRT_PRICE,
   MIN_SQRT_PRICE,
@@ -76,7 +77,10 @@ describe('the web constants are the program’s constants', () => {
 
   it('has the same program id and the same Meteora addresses and price bounds', () => {
     const src = program();
-    expect(/declare_id!\("([^"]+)"\)/.exec(src)![1]).toBe(CURVE_PROGRAM_ID_DEVNET);
+    // The source is built for the mainnet program id; the devnet program is an older build with its own id. Mainnet stays null until deployed and verified.
+    expect(/declare_id!\("([^"]+)"\)/.exec(src)![1]).toBe(CURVE_PROGRAM_ID_MAINNET_PLANNED);
+    expect(CURVE_PROGRAM_ID_DEVNET).not.toBe(CURVE_PROGRAM_ID_MAINNET_PLANNED);
+    expect(CURVE_PROGRAM_ID_MAINNET === null || CURVE_PROGRAM_ID_MAINNET === CURVE_PROGRAM_ID_MAINNET_PLANNED).toBe(true);
     expect(pubkey(src, 'METEORA_PROGRAM')).toBe(METEORA_PROGRAM_ID);
     expect(pubkey(src, 'METEORA_POOL_AUTHORITY')).toBe(METEORA_POOL_AUTHORITY);
     expect(pubkey(src, 'WSOL_MINT')).toBe(WSOL_MINT);

@@ -160,7 +160,7 @@ const strWord = (s: string) => {
 };
 const uintWord = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
 
-function world(script: { feeOnChain?: bigint; recipient?: string; code?: string; balance?: bigint; callFails?: boolean; receipt?: 'ok' | 'fail' | 'none'; tokenName?: string; held?: bigint; sendError?: unknown; account?: string; chainId?: number; twoLogs?: boolean } = {}) {
+function world(script: { feeOnChain?: bigint; recipient?: string; code?: string; balance?: bigint; callFails?: boolean; receipt?: 'ok' | 'fail' | 'none'; tokenName?: string; held?: bigint; sendError?: unknown; account?: string; chainId?: number; twoLogs?: boolean; estimateError?: string } = {}) {
   const sent: unknown[] = [];
   let switched = 0;
   const cfg = config();
@@ -170,7 +170,10 @@ function world(script: { feeOnChain?: bigint; recipient?: string; code?: string;
     if (method === 'eth_getCode') return p[0] === TOKEN ? '0x6080' : (script.code ?? '0x6080');
     if (method === 'eth_getBalance') return '0x' + (script.balance ?? 10n ** 18n).toString(16);
     if (method === 'eth_gasPrice') return '0x3b9aca00';
-    if (method === 'eth_estimateGas') return '0x7a120';
+    if (method === 'eth_estimateGas') {
+      if (script.estimateError) throw new SwingsError('failed', script.estimateError);
+      return '0x7a120';
+    }
     if (method === 'eth_call') {
       const c = p[0] as { to?: string; data?: string };
       if (c.to === FACTORY && c.data === '0xddca3f43') return uintWord(script.feeOnChain ?? FEE);
@@ -232,6 +235,21 @@ describe('EvmLaunchFlow', () => {
   it('blocks when the balance cannot cover the fee and gas, and when the network would refuse', async () => {
     expect((await world({ balance: FEE }).flow.prepare(config())).blockers.join(' ')).toMatch(/need more BNB/);
     expect((await world({ callFails: true }).flow.create(await world().flow.prepare(config())).catch((e: Error) => e.message))).toMatch(/refuse this transaction/);
+  });
+  it('says plainly how much more is needed, with the numbers, instead of the network refusal', async () => {
+    // Below the fee itself: the network cannot price the gas, so the page does not ask it to.
+    const low = (await world({ balance: FEE / 4n }).flow.prepare(config())).blockers.join(' ');
+    expect(low).toMatch(/You need more BNB\. You hold/);
+    expect(low).toMatch(/Add at least/);
+    expect(low).toMatch(/Nothing was sent/);
+    expect(low).not.toMatch(/wei/);
+    // The network itself says there are not enough funds: the same plain message, not its raw text.
+    const raw = (await world({ estimateError: 'insufficient funds for gas * price + value: address 0xabc have 1 want 2' }).flow.prepare(config())).blockers.join(' ');
+    expect(raw).toMatch(/You need more BNB/);
+    expect(raw).not.toMatch(/insufficient funds for gas/);
+    // Enough for the fee but not the gas: the fee, the gas and the total are all named.
+    const gasShort = (await world({ balance: FEE }).flow.prepare(config())).blockers.join(' ');
+    expect(gasShort).toMatch(/the fee \(.+\) plus the network gas \(about .+\) comes to about/);
   });
   it('refuses to prepare a chain that is not enabled', async () => {
     await expect(world().flow.prepare(config({ chain: { ...chain, factory: null } }))).rejects.toThrow(/not available yet/);

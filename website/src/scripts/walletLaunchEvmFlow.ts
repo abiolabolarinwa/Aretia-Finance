@@ -13,6 +13,7 @@ import type { EvmRead } from '../swings/chains/evmSession.js';
 import { decodeAbiString } from '../swings/chains/evmSession.js';
 import type { EvmTxRequest, EvmWalletAdapter } from '../swings/chains/evmWallet.js';
 import { chainEnabled, type EvmLaunchConfig } from './walletLaunchEvmCore';
+import { fromSmallestUnit } from './walletTools';
 import { FEE_RECIPIENT_SELECTOR, FEE_SELECTOR, buildCreateTx, findCreatedToken, inspectCreateTx, toHexQuantity } from './walletLaunchEvmTx';
 
 export interface EvmFlowDeps {
@@ -57,6 +58,19 @@ const asBig = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a
 const word = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a-fA-F]{64}$/.test(v) ? BigInt(v) : null);
 const addressWord = (v: unknown): string | null => (typeof v === 'string' && /^0x0{24}[0-9a-fA-F]{40}$/.test(v) ? '0x' + v.slice(-40).toLowerCase() : null);
 
+/** "You need more ETH", with the numbers a person can act on, instead of the network's raw refusal. */
+export function shortfallMessage(symbol: string, balance: bigint, feeWei: bigint, gasCostWei: bigint | null): string {
+  const have = fromSmallestUnit(balance, 18);
+  const fee = fromSmallestUnit(feeWei, 18);
+  if (gasCostWei === null) {
+    const short = fromSmallestUnit(feeWei - balance, 18);
+    return `You need more ${symbol}. You hold ${have} ${symbol}, and Aretia's fee alone is ${fee} ${symbol}, with the network gas on top. Add at least ${short} ${symbol} plus a little extra for gas, then review again. Nothing was sent.`;
+  }
+  const need = feeWei + gasCostWei;
+  const short = fromSmallestUnit(need - balance, 18);
+  return `You need more ${symbol}. You hold ${have} ${symbol}; the fee (${fee}) plus the network gas (about ${fromSmallestUnit(gasCostWei, 18)}) comes to about ${fromSmallestUnit(need, 18)} ${symbol}. Add at least ${short} ${symbol} and review again. Nothing was sent.`;
+}
+
 export class EvmLaunchFlow {
   constructor(private readonly d: EvmFlowDeps) {}
 
@@ -82,7 +96,10 @@ export class EvmLaunchFlow {
           if (addressWord(recipient) !== chain.feeAddress) blockers.push('The factory on the network pays its fee to a different address from the one this page expects, so nothing was sent.');
         }
         balance = asBig(await read('eth_getBalance', [config.creator, 'latest'])) ?? 0n;
-        if (blockers.length === 0) {
+        if (blockers.length === 0 && balance < chain.feeWei) {
+          // Not even the fee is covered, so the network cannot price the gas either. Say so plainly instead of showing its raw refusal.
+          blockers.push(shortfallMessage(chain.symbol, balance, chain.feeWei, null));
+        } else if (blockers.length === 0) {
           try {
             const gas = asBig(await read('eth_estimateGas', [tx]));
             const price = asBig(await read('eth_gasPrice', []));
@@ -92,10 +109,10 @@ export class EvmLaunchFlow {
             tx = { ...tx, gas: toHexQuantity(limit) };
           } catch (e) {
             const why = e instanceof SwingsError ? e.message : '';
-            blockers.push(`The network would not accept this creation${why ? `: ${why}` : ''}. Nothing was sent.`);
+            blockers.push(/insufficient funds/i.test(why) ? shortfallMessage(chain.symbol, balance, chain.feeWei, null) : `The network would not accept this creation${why ? `: ${why}` : ''}. Nothing was sent.`);
           }
           const need = chain.feeWei + (gasCostWei ?? 0n);
-          if (blockers.length === 0 && balance < need) blockers.push(`You need more ${chain.symbol}: the fee plus the network gas is about ${need.toString()} wei, and you hold ${balance.toString()} wei.`);
+          if (blockers.length === 0 && balance < need) blockers.push(shortfallMessage(chain.symbol, balance, chain.feeWei, gasCostWei));
         }
       }
     } catch {

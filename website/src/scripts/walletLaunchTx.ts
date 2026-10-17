@@ -22,6 +22,8 @@ export const RENT_SYSVAR_ID = 'SysvarRent111111111111111111111111111111111';
 
 /** First eight bytes of every Token Metadata `Initialize` instruction (the interface's own discriminator). */
 const METADATA_INITIALIZE = Uint8Array.from([210, 225, 30, 162, 88, 184, 77, 141]);
+/** First eight bytes of the interface's UpdateAuthority instruction: sha-256("spl_token_metadata_interface:update_the_authority"). */
+const METADATA_UPDATE_AUTHORITY = Uint8Array.from([215, 228, 166, 228, 84, 100, 86, 123]);
 /** Token-2022 instruction numbers used here. */
 const IX = { initializeMint: 0, setAuthority: 6, mintTo: 7, metadataPointer: 39 } as const;
 const AUTHORITY_MINT = 0;
@@ -121,18 +123,22 @@ export function buildStep1(web3: typeof Web3, { config, mint, mintRentLamports }
     concat(Uint8Array.of(IX.initializeMint, config.decimals), payerBytes, Uint8Array.of(0)),
   );
 
-  // Token metadata. The all-zero address as update authority means nobody can ever change it.
+  // Token metadata. It is always written with the creator as update authority: Token-2022 refuses an all-zero update authority at
+  // initialisation (found by running this transaction on mainnet, see walletLaunch.live.ts). A token whose name, symbol and link must
+  // never change then has that authority removed in the next instruction, in the same transaction.
   const metadata = instruction(
     web3,
     TOKEN_2022_PROGRAM_ID,
     [
       keyOf(web3, mint, false, true),
-      keyOf(web3, config.metadataMutable ? payer : SYSTEM_PROGRAM_ID, false, false),
+      keyOf(web3, payer, false, false),
       keyOf(web3, mint, false, false),
       keyOf(web3, payer, true, false),
     ],
     concat(METADATA_INITIALIZE, borshString(config.name), borshString(config.symbol), borshString(config.metadataUri)),
   );
+  // Give up the update authority (the new authority is "none": 32 zero bytes). The creator signs as the current authority.
+  const lockMetadata = instruction(web3, TOKEN_2022_PROGRAM_ID, [keyOf(web3, mint, false, true), keyOf(web3, payer, true, false)], concat(METADATA_UPDATE_AUTHORITY, new Uint8Array(32)));
   // Aretia's flat creation fee: a plain System transfer, first so nothing is created if it cannot be paid.
   const fee = instruction(
     web3,
@@ -140,7 +146,7 @@ export function buildStep1(web3: typeof Web3, { config, mint, mintRentLamports }
     [keyOf(web3, payer, true, true), keyOf(web3, LAUNCH_FEE_ADDRESS, false, true)],
     concat(u32le(2), u64le(LAUNCH_FEE_LAMPORTS)),
   );
-  return [fee, createAccount, pointer, initMint, metadata];
+  return [fee, createAccount, pointer, initMint, metadata, ...(config.metadataMutable ? [] : [lockMetadata])];
 }
 
 /** Transaction 2: create the token accounts, mint the whole supply, and give up the mint authority. */
@@ -197,6 +203,7 @@ export type Decoded =
   | { kind: 'metadata-pointer'; authority: string | null; metadataAddress: string; mint: string }
   | { kind: 'initialize-mint'; mint: string; decimals: number; mintAuthority: string; freezeAuthority: string | null }
   | { kind: 'initialize-metadata'; metadata: string; updateAuthority: string; mint: string; mintAuthority: string; name: string; symbol: string; uri: string }
+  | { kind: 'update-metadata-authority'; metadata: string; current: string; successor: string | null }
   | { kind: 'create-token-account'; payer: string; ata: string; owner: string; mint: string }
   | { kind: 'mint-to'; mint: string; destination: string; authority: string; amount: bigint }
   | { kind: 'set-authority'; account: string; authorityType: number; successor: string | null }
@@ -247,6 +254,8 @@ export function decodeInstruction(web3: typeof Web3, ix: Web3.TransactionInstruc
         if (name && symbol && uri && uri.next === d.length)
           return { kind: 'initialize-metadata', metadata: k[0]!, updateAuthority: k[1]!, mint: k[2]!, mintAuthority: k[3]!, name: name.value, symbol: symbol.value, uri: uri.value };
       }
+      if (d.length === 40 && eq(d.subarray(0, 8), METADATA_UPDATE_AUTHORITY) && k.length === 2)
+        return { kind: 'update-metadata-authority', metadata: k[0]!, current: k[1]!, successor: d.subarray(8, 40).every((b) => b === 0) ? null : new web3.PublicKey(d.subarray(8, 40)).toBase58() };
       if (d[0] === IX.mintTo && d.length === 9 && k.length === 3)
         return { kind: 'mint-to', mint: k[0]!, destination: k[1]!, authority: k[2]!, amount: view(d).getBigUint64(1, true) };
       if (d[0] === IX.setAuthority && k.length === 2 && ((d.length === 3 && d[2] === 0) || (d.length === 35 && d[2] === 1)))
@@ -287,9 +296,15 @@ export function inspectStep(web3: typeof Web3, tx: Web3.Transaction, step: 1 | 2
 
   if (step === 1) {
     const sizes = mintSizes(config);
-    const [f, a, b, c, e] = decoded;
-    if (decoded.length !== 5 || f?.kind !== 'transfer' || a?.kind !== 'create-account' || b?.kind !== 'metadata-pointer' || c?.kind !== 'initialize-mint' || e?.kind !== 'initialize-metadata')
-      return ['The first transaction is not the expected five steps.'];
+    const [f, a, b, c, e, lock] = decoded;
+    // A token whose name, symbol and link can change has five steps; one that can never change has a sixth that gives up the authority.
+    const steps = config.metadataMutable ? 5 : 6;
+    if (decoded.length !== steps || f?.kind !== 'transfer' || a?.kind !== 'create-account' || b?.kind !== 'metadata-pointer' || c?.kind !== 'initialize-mint' || e?.kind !== 'initialize-metadata')
+      return [`The first transaction is not the expected ${config.metadataMutable ? 'five' : 'six'} steps.`];
+    if (config.metadataMutable ? lock !== undefined : lock?.kind !== 'update-metadata-authority')
+      return ['The first transaction does not end as the review said it would (who can change the name, symbol and link).'];
+    if (lock && lock.kind === 'update-metadata-authority' && (lock.metadata !== mint || lock.current !== payer || lock.successor !== null))
+      blockers.push('Who can change the name, symbol and link is not what was shown.');
     if (f.from !== payer || f.to !== LAUNCH_FEE_ADDRESS) blockers.push('The Aretia fee would go to an account other than the one shown.');
     if (f.lamports !== LAUNCH_FEE_LAMPORTS) blockers.push('The Aretia fee is not the amount shown.');
     if (a.from !== payer || a.to !== mint) blockers.push('The new token account is not the one shown.');
@@ -300,7 +315,8 @@ export function inspectStep(web3: typeof Web3, tx: Web3.Transaction, step: 1 | 2
     if (c.mint !== mint || c.decimals !== config.decimals || c.mintAuthority !== payer) blockers.push('The token settings are not the ones shown.');
     if (c.freezeAuthority !== null) blockers.push('A freeze authority would be set. Tokens made here never have one.');
     if (e.metadata !== mint || e.mint !== mint || e.mintAuthority !== payer) blockers.push('The metadata would be written to an unexpected account.');
-    if (e.updateAuthority !== (config.metadataMutable ? payer : SYSTEM_PROGRAM_ID)) blockers.push('Who can change the name, symbol and link is not what was shown.');
+    // The authority is the creator when the metadata is written; when it must never change, the sixth step removes it (checked above).
+    if (e.updateAuthority !== payer) blockers.push('Who can change the name, symbol and link is not what was shown.');
     if (e.name !== config.name || e.symbol !== config.symbol || e.uri !== config.metadataUri) blockers.push('The name, symbol or link differ from what was shown.');
     return blockers;
   }

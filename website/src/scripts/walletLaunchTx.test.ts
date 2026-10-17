@@ -42,8 +42,23 @@ describe('the instructions match what the Aretia Wallet extension builds with th
     expect(mintSizes(c)).toEqual(fx.renouncedImmutable!.sizes);
     expect(mintSizes(config({ metadataUri: '', metadataMutable: true }))).toEqual(fx.keepEverything!.sizes);
   });
-  it('transaction 1, byte for byte, for a token whose metadata can never change', () => {
-    expect(buildStep1(web3, { config: c, mint: MINT, mintRentLamports: RENT }).slice(1).map(shape)).toEqual(fx.renouncedImmutable!.step1); // after the Aretia fee transfer
+  it('transaction 1, byte for byte, for a token whose metadata can never change (except how it is made immutable)', () => {
+    const ours = buildStep1(web3, { config: c, mint: MINT, mintRentLamports: RENT }).map(shape);
+    const theirs = fx.renouncedImmutable!.step1;
+    // After the Aretia fee transfer: the account, the pointer and the mint are identical.
+    expect(ours.slice(1, 4)).toEqual(theirs.slice(0, 3));
+    // The extension writes the metadata with no update authority at all. Token-2022 on mainnet refuses that (InvalidArgument, found by
+    // simulating it, see walletLaunch.live.ts), so this page writes it with the creator as update authority and removes that authority in
+    // the next instruction. Everything else in the metadata instruction is identical.
+    const metadata = ours[4]!;
+    expect(metadata.data).toBe(theirs[3]!.data);
+    expect(metadata.program).toBe(theirs[3]!.program);
+    expect(metadata.accounts.map((a, i) => (i === 1 ? null : a))).toEqual(theirs[3]!.accounts.map((a, i) => (i === 1 ? null : a)));
+    expect(metadata.accounts[1]).toEqual({ address: c.creator, role: 'r' });
+    expect(theirs[3]!.accounts[1]!.address).toBe(SYSTEM_PROGRAM_ID);
+    // And the sixth instruction gives the authority up: the interface's UpdateAuthority with "none".
+    expect(ours).toHaveLength(6);
+    expect(ours[5]).toEqual({ program: TOKEN_2022_PROGRAM_ID, accounts: [{ address: MINT, role: 'w' }, { address: c.creator, role: 'rs' }], data: 'd7e4a6e45464567b' + '00'.repeat(32) });
   });
   it('transaction 2, byte for byte', () => {
     expect(buildStep2(web3, c, MINT).map(shape)).toEqual(fx.renouncedImmutable!.step2);
@@ -162,7 +177,19 @@ describe('inspectStep refuses anything else', () => {
   });
   it('a changed name, symbol, link or update authority', () => {
     expect(inspectStep(web3, tx1(config({ name: 'Other name' })), 1, input()).join(' ')).toMatch(/differ from what was shown/);
-    expect(inspectStep(web3, tx1(config({ metadataMutable: true })), 1, input()).join(' ')).toMatch(/Who can change/);
+    // A creation whose authority handling differs from what was shown is refused: not given up when it must be, or given up when it must not.
+    expect(inspectStep(web3, tx1(config({ metadataMutable: true })), 1, input()).join(' ')).toMatch(/expected six steps/);
+    expect(inspectStep(web3, tx1(), 1, input(config({ metadataMutable: true }))).join(' ')).toMatch(/expected five steps/);
+    const noLock = tx1();
+    noLock.instructions.pop();
+    expect(inspectStep(web3, noLock, 1, input()).join(' ')).toMatch(/expected six steps/);
+    // The last step handing the authority to someone else instead of removing it.
+    const toSomeone = tx1();
+    const last = toSomeone.instructions[5]!;
+    const data = Buffer.from(last.data);
+    new web3.PublicKey(OTHER).toBytes().forEach((b, i) => (data[8 + i] = b));
+    toSomeone.instructions[5] = new web3.TransactionInstruction({ programId: last.programId, keys: last.keys, data });
+    expect(inspectStep(web3, toSomeone, 1, input()).join(' ')).toMatch(/Who can change/);
   });
   it('tokens minted to another wallet, in another amount, or too much in total', () => {
     const c = config();
@@ -202,7 +229,7 @@ describe('inspectStep refuses anything else', () => {
 describe('decodeInstruction', () => {
   it('names what each instruction does, and calls the rest unknown', () => {
     const kinds = [...buildStep1(web3, input()), ...buildStep2(web3, config(), MINT)].map((i) => decodeInstruction(web3, i).kind);
-    expect(kinds).toEqual(['transfer', 'create-account', 'metadata-pointer', 'initialize-mint', 'initialize-metadata', 'create-token-account', 'mint-to', 'create-token-account', 'mint-to', 'set-authority']);
+    expect(kinds).toEqual(['transfer', 'create-account', 'metadata-pointer', 'initialize-mint', 'initialize-metadata', 'update-metadata-authority', 'create-token-account', 'mint-to', 'create-token-account', 'mint-to', 'set-authority']);
     const noise = new web3.TransactionInstruction({ programId: new web3.PublicKey(ATA_PROGRAM_ID), keys: [], data: Buffer.from([0]) });
     expect(decodeInstruction(web3, noise).kind).toBe('unknown');
     const sys = web3.SystemProgram.allocate({ accountPubkey: new web3.PublicKey(PAYER), space: 1 });

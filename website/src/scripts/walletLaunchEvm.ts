@@ -86,7 +86,13 @@ function withAddNetwork(adapter: EvmWalletAdapter, chain: LaunchEvmChain): Pick<
   };
 }
 
-export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, redraw: () => void, chainKey: string): void; reset(): void; isBusy(): boolean } {
+/** Where the pool and the curve are drawn, when they live apart from the create card. */
+export interface EvmMarketRoots {
+  pool: HTMLElement;
+  curve: HTMLElement;
+}
+
+export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, redraw: () => void, chainKey: string, markets?: EvmMarketRoots): void; reset(): void; isBusy(): boolean; stage(): 'form' | 'review' | 'working' | 'done' } {
   type Stage = 'form' | 'review' | 'working' | 'done';
   let stage: Stage = 'form';
   let form: EvmLaunchForm = { ...DEFAULT_EVM_FORM };
@@ -156,7 +162,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
 
   function drawForm(card: HTMLElement, chain: LaunchEvmChain | undefined): void {
     const account = host.getAccount();
-    card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h2', 'wapp__h2', `Create a token on ${chain?.name ?? 'an Ethereum-style network'}`));
+    card.append(h('h2', 'wapp__h2', `Create a token on ${chain?.name ?? 'an Ethereum-style network'}`));
     const enabled = chain !== undefined && chainEnabled(chain);
     if (chain && enabled) {
       card.append(h('p', 'wapp__fine', `Make a token with a fixed supply. Your own wallet signs; Aretia never holds your keys. Creating a token costs a flat Aretia fee of ${coinText(chain.feeWei, chain.symbol)}, sent in the same transaction and shown before you sign, plus the network’s gas.`));
@@ -167,13 +173,20 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
 
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
-    f.append(field('Name', 'name', { placeholder: 'Example Token', hint: 'Up to 32 characters.' }));
-    const row1 = h('div', 'wapp-ln__row');
-    row1.append(field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }), field('Decimals', 'decimals', { inputmode: 'numeric', hint: '18 is usual. 0 to 18.' }));
+    const row1 = h('div', 'wapp-ln__row wapp-ln__row--wide');
+    row1.append(field('Name', 'name', { placeholder: 'Example Token', hint: 'Up to 32 characters.' }), field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }));
     f.append(row1);
     f.append(field('Total supply', 'supply', { inputmode: 'decimal', hint: 'In whole tokens. It can never be increased.' }));
-    f.append(h('p', 'wapp__fine', 'The whole supply is created in your wallet in the same transaction. Nothing locks it, and nothing here sells it.'));
-    f.append(h('p', 'wapp__fine', 'The token has no owner and no mint, pause, freeze or transfer-fee function: nobody, including you and Aretia, can create more or freeze a holder.'));
+    const adv = h('details', 'lh-adv');
+    adv.open = issues.some((i) => i.field === 'decimals');
+    adv.append(h('summary', '', 'Advanced options'));
+    const advBody = h('div', 'lh-adv__body');
+    advBody.append(field('Decimals', 'decimals', { inputmode: 'numeric', hint: '18 is usual. 0 to 18.' }));
+    adv.append(advBody);
+    f.append(adv);
+    const promiseList = h('ul', 'lh-promises');
+    for (const t of ['The whole supply is created in your wallet in the same transaction. Nothing locks it, and nothing here sells it.', 'No owner and no mint, pause, freeze or transfer-fee function: nobody, including you and Aretia, can create more or freeze a holder.']) promiseList.append(h('li', '', t));
+    f.append(promiseList);
 
     const actions = h('div', 'wapp__row-actions');
     if (!account) {
@@ -383,7 +396,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   }
 
   return {
-    draw(card, redraw, chainKey): void {
+    draw(card, redraw, chainKey, markets): void {
       redrawNow = redraw;
       const chain = chainByKey(chainKey);
       // Switching networks starts the form again: nothing reviewed for one network carries over to another.
@@ -401,10 +414,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       else if (stage === 'working') drawWorking(card);
       else drawDone(card);
       // Opening a pool for a token is offered below, on the networks where it is available.
-      pool.draw(card, redraw, form.chain, outcome?.token ?? null);
-      curve?.draw(card, redraw, form.chain, outcome?.token ?? null);
+      pool.draw(markets?.pool ?? card, redraw, form.chain, outcome?.token ?? null);
+      curve?.draw(markets?.curve ?? card, redraw, form.chain, outcome?.token ?? null);
+      if (markets && !curve) markets.curve.dataset.stage = 'off';
     },
     isBusy: () => busy || pool.isBusy() || (curve?.isBusy() ?? false),
+    stage: () => stage,
     reset(): void {
       pool.reset();
       curve?.reset();

@@ -98,8 +98,8 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
 
   function drawForm(card: HTMLElement): void {
     const dex = dexFor(form.chain);
-    card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h3', 'wapp__h2', 'Open a liquidity pool'));
-    card.append(h('p', 'wapp__fine', `Give a token a market on ${dex?.name ?? 'this network'}. Your tokens and some ${dex?.symbol ?? 'coin'} go into a new pool, which sets the starting price. Your own wallet signs three transactions: an approval for exactly the tokens, the pool, then Aretia’s flat fee of 10 USDC or 10 USDT, which is asked for last.`));
+    card.append(h('h3', 'wapp__h2', 'Open a liquidity pool'));
+    card.append(h('p', 'wapp__fine', `Opens on ${dex?.name ?? 'this network'}. Your tokens and some ${dex?.symbol ?? 'coin'} go into a new pool, which sets the starting price. Your own wallet signs three transactions: an approval for exactly the tokens, the pool, then Aretia’s flat fee of 10 USDC or 10 USDT, which is asked for last.`));
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
     f.append(field('Token address', 'token', { mono: true, placeholder: '0x…', hint: 'A token you hold, such as one made on this page.' }));
@@ -321,7 +321,10 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
   return {
     draw(card, redraw, chainKey, suggestToken): void {
       redrawNow = redraw;
-      if (!enabledKeys().includes(chainKey)) return;
+      if (!enabledKeys().includes(chainKey)) {
+        card.dataset.stage = 'off';
+        return;
+      }
       if (form.chain !== chainKey) {
         form = { ...form, chain: chainKey };
         stage = 'form';
@@ -336,6 +339,7 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
         lastSuggest = suggestToken;
         if (form.token.trim() === '') form = { ...form, token: suggestToken };
       }
+      card.dataset.stage = stage;
       const section = h('div', 'wapp-ln');
       if (stage === 'form') drawForm(section);
       else if (stage === 'review') drawReview(section);

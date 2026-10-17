@@ -530,8 +530,9 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
   function draw(): void {
     if (!root) return;
     root.textContent = '';
+    root.dataset.stage = program ? stage : 'off';
     const card = h('div', 'wapp-ln');
-    card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h2', 'wapp__h2', 'Sell on a bonding curve'));
+    card.append(h('h2', 'wapp__h2', 'Sell on a bonding curve'));
     if (!program) {
       card.append(
         h('p', 'wapp__banner wapp__banner--warn', 'Not live on Solana mainnet. The curve program is built and tested, but it has not been independently audited, so it is not deployed to mainnet and this page does not send anything.'),
@@ -699,6 +700,8 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       draw();
     },
     offer(mint: string): void {
+      // Tells the Launch page frame to open the curve tab (walletLaunchHub.ts).
+      root.dispatchEvent(new CustomEvent('lh:offer', { bubbles: true }));
       form = { ...DEFAULT_CURVE_FORM, mint };
       lookup = mint;
       void refreshPreviewToken();

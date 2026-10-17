@@ -397,18 +397,51 @@ const sendTips = [
       </div>
 
       <div data-pane="launch" class="wapp__pane" hidden>
-        <div class="wapp__grid wapp__grid--trade">
-          <div class="wapp__card">
-            <div data-launch-root aria-live="polite"></div>
-          </div>
-          <div class="wapp__card">
-            <div data-pool-root aria-live="polite"></div>
-          </div>
-          {curveOn && (
-            <div class="wapp__card">
-              <div data-curve-root aria-live="polite"></div>
+        <div class="lh" data-launch-hub>
+          <header class="lh__head">
+            <div class="lh__intro">
+              <h1 class="lh__title">Launch a token</h1>
+              <p class="lh__lead">Create it, give it a market, and let people buy it. Your own wallet signs every step; Aretia never holds your keys.</p>
             </div>
-          )}
+            <div class="lh__net">
+              <span class="wapp__eyebrow" id="lh-net-label">Network</span>
+              <div class="lh-chips" role="group" aria-labelledby="lh-net-label" data-hub-networks></div>
+            </div>
+          </header>
+          <ol class="lh__rail" data-hub-rail aria-label="Progress"></ol>
+          <div class="lh__grid">
+            <div class="lh__main">
+              <section class="wapp__card lh__step" data-step="token" aria-label="Create your token">
+                <div data-launch-root aria-live="polite"></div>
+              </section>
+              <section class="wapp__card lh__step" data-step="market" data-ready="0" aria-label="Give it a market">
+                <div class="lh__markethead">
+                  <div>
+                    <h2 class="wapp__h2">Give it a market</h2>
+                    <p class="wapp__fine" data-hub-market-hint>A pool opens a market right away at a starting price you choose.</p>
+                  </div>
+                  <div class="lh-tabs" role="tablist" data-hub-market-tabs></div>
+                </div>
+                <p class="wapp__banner wapp__banner--warn" data-hub-market-off hidden></p>
+                <div data-market-panel="pool">
+                  <div data-pool-root aria-live="polite"></div>
+                  <div data-evm-pool-root aria-live="polite" hidden></div>
+                </div>
+                <div data-market-panel="curve" hidden>
+                  {curveOn && (
+                    <div class="wapp__card lh-nested">
+                      <div data-curve-root aria-live="polite"></div>
+                    </div>
+                  )}
+                  <div data-evm-curve-root aria-live="polite" hidden></div>
+                </div>
+              </section>
+            </div>
+            <aside class="lh__side" aria-label="Summary">
+              <div class="wapp__card lh-side" data-hub-preview></div>
+              <div class="wapp__card lh-side" data-hub-fees></div>
+            </aside>
+          </div>
         </div>
       </div>
 
@@ -664,6 +697,94 @@ const sendTips = [
   .wapp-ln__steps li.is-now { color: var(--color-strong); font-weight: 600; border-color: var(--color-brand); }
   .wapp-ln__notice { padding: 12px 14px; font-size: 13px; line-height: 1.5; border-radius: var(--radius-md); background: rgba(178, 94, 9, 0.12); color: #6b4300; display: grid; gap: 10px; }
   @media (max-width: 520px) { .wapp-ln__row { grid-template-columns: 1fr; } }
+
+  /* Launch page frame: network chips, a three-step journey, the forms, and a side summary. */
+  .lh { display: grid; gap: 22px; width: 100%; max-width: 1180px; }
+  .lh__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
+  .lh__title { margin: 0; font-size: clamp(26px, 3.2vw, 34px); line-height: 1.1; letter-spacing: -0.02em; color: var(--color-strong); }
+  .lh__lead { margin: 8px 0 0; max-width: 58ch; font-size: 15px; line-height: 1.55; color: var(--color-muted); }
+  .lh__net { display: grid; gap: 8px; max-width: 100%; }
+  .lh-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .lh-chips[data-blocked]::after { content: 'Finish or close what is open first.'; font-size: 12.5px; font-weight: 600; color: #8a1c1c; }
+  .lh-chips__sep { padding: 0 2px 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .lh-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; font: inherit; font-size: 14px; font-weight: 600; color: var(--color-strong); background: var(--color-bg); border: 1.5px solid var(--color-border-strong); border-radius: 999px; cursor: pointer; transition: background 140ms ease, border-color 140ms ease, color 140ms ease; }
+  .lh-chip:hover:not(:disabled):not(.is-on) { border-color: var(--color-brand); background: var(--color-brand-soft); }
+  .lh-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .lh-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  .lh-chip__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); }
+  .lh-chip.is-on { color: #fff; background: var(--color-brand); border-color: var(--color-brand); }
+  .lh-chip.is-on .lh-chip__dot { background: #9be7b4; }
+  .lh-chip.is-test:not(.is-on) { border-style: dashed; }
+
+  .lh__rail { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .lh-step { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .lh-step__mark { flex: none; display: grid; place-items: center; width: 32px; height: 32px; font-size: 14px; font-weight: 700; color: var(--color-muted); background: var(--color-bg-alt); border-radius: 50%; }
+  .lh-step__text { display: grid; gap: 2px; min-width: 0; }
+  .lh-step__text strong { font-size: 14px; color: var(--color-strong); }
+  .lh-step__text small { font-size: 12.5px; color: var(--color-muted); }
+  .lh-step.is-current, .lh-step.is-busy { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(74, 46, 224, 0.12); }
+  .lh-step.is-current .lh-step__mark, .lh-step.is-busy .lh-step__mark { color: #fff; background: var(--color-brand); }
+  .lh-step.is-done .lh-step__mark { color: #fff; background: #1f7a46; }
+  .lh-step.is-upcoming { background: transparent; }
+
+  .lh__grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; }
+  .lh__main { display: grid; gap: 18px; min-width: 0; }
+  .lh__side { position: sticky; top: 16px; display: grid; gap: 14px; }
+  .lh__step { gap: 16px; }
+  .lh__step[data-step='market'][data-ready='0'] { opacity: 0.74; transition: opacity 160ms ease; }
+  .lh__step[data-step='market'][data-ready='0']:hover, .lh__step[data-step='market'][data-ready='0']:focus-within { opacity: 1; }
+  .lh__markethead { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 18px; }
+  .lh__markethead .wapp__h2 { margin: 0; }
+  .lh__markethead .wapp__fine { margin: 4px 0 0; }
+  .lh-tabs { display: flex; gap: 4px; padding: 4px; background: var(--wapp-indigo, #e9e6fc); border-radius: 999px; }
+  .lh-tabs[hidden] { display: none; }
+  .lh-tab { min-height: 36px; padding: 0 16px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--color-brand); background: transparent; border: 0; border-radius: 999px; cursor: pointer; }
+  .lh-tab.is-on { color: #fff; background: var(--color-brand); }
+  .lh-tab:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .lh [data-market-panel] [data-stage='form'] .wapp-ln > :is(h2, h3).wapp__h2:first-child { display: none; }
+
+  .lh .wapp-ln__row--wide { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+  .lh .wapp__btn--primary { min-height: 46px; padding-inline: 22px; }
+  .lh-nested { padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+  .lh-adv { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg-alt); }
+  .lh-adv > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; font-size: 14px; font-weight: 600; color: var(--color-strong); cursor: pointer; list-style: none; }
+  .lh-adv > summary::-webkit-details-marker { display: none; }
+  .lh-adv > summary::after { content: '+'; font-size: 18px; color: var(--color-muted); }
+  .lh-adv[open] > summary::after { content: '–'; }
+  .lh-adv > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 14px; }
+  .lh-adv__body { display: grid; gap: 14px; padding: 4px 14px 14px; }
+  .lh-promises { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .lh-promises li { position: relative; padding-left: 24px; font-size: 13px; line-height: 1.5; color: var(--color-muted); }
+  .lh-promises li::before { content: '✓'; position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 16px; height: 16px; margin-top: 2px; font-size: 10px; font-weight: 800; color: #fff; background: #1f7a46; border-radius: 50%; }
+
+  .lh-side { gap: 14px; }
+  .lh-side__h { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .lh-side__fine { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-muted); }
+  .lh-token__top { display: flex; align-items: center; gap: 14px; }
+  .lh-token__avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; font-size: 18px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #4a2ee0 0%, #26168a 100%); border-radius: 50%; }
+  [data-hub-preview][data-empty='1'] .lh-token__avatar { background: var(--wapp-indigo, #e9e6fc); color: var(--color-brand); }
+  [data-hub-preview][data-empty='1'] .lh-token__name { color: var(--color-muted); }
+  .lh-token__head { display: grid; gap: 2px; min-width: 0; }
+  .lh-token__name { font-size: 18px; line-height: 1.2; color: var(--color-strong); overflow-wrap: anywhere; }
+  .lh-token__sym { font-size: 13px; font-weight: 600; color: var(--color-muted); }
+  .lh-token__facts, .lh-fees { margin: 0; display: grid; gap: 0; }
+  .lh-token__facts > div, .lh-fees > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 13.5px; border-top: 1px solid var(--color-border); }
+  .lh-token__facts dt, .lh-fees dt { color: var(--color-muted); }
+  .lh-token__facts dd, .lh-fees dd { margin: 0; font-weight: 600; text-align: right; color: var(--color-strong); overflow-wrap: anywhere; }
+  .lh-token__live { margin: 0; padding: 10px 12px; font-size: 13px; font-weight: 600; color: #14532d; background: #e3f6ea; border-radius: 12px; }
+
+  @media (max-width: 1100px) {
+    .lh__grid { grid-template-columns: minmax(0, 1fr); }
+    .lh__side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); order: -1; }
+  }
+  @media (max-width: 720px) {
+    .lh__rail { gap: 8px; }
+    .lh-step { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+    .lh-step__text small { display: none; }
+    .lh .wapp-ln__row--wide { grid-template-columns: 1fr; }
+    .lh__side { order: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .lh-chip, .lh-step, .lh__step { transition: none; } }
   .wapp[data-connected='false'][data-view='safesend'] .wapp__gate,
   .wapp[data-connected='false'][data-view='universal'] .wapp__gate,
   .wapp[data-connected='false'][data-view='carbon'] .wapp__gate,

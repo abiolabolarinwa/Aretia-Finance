@@ -589,8 +589,9 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     draw(card, redraw, chainKey, suggestToken): void {
       redrawNow = redraw;
       const chain = evmCurveChain(chainKey);
+      card.dataset.stage = chain ? stage : 'off';
       const section = h('div', 'wapp-ln');
-      section.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h3', 'wapp__h2', 'Sell on a bonding curve'));
+      section.append(h('h3', 'wapp__h2', 'Sell on a bonding curve'));
       if (!chain) {
         // No deployed contract on this network: say so and offer nothing. This is every network until the contract is audited and deployed.
         const name = chainByKey(chainKey)?.name ?? 'this network';

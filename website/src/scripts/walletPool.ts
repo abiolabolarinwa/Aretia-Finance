@@ -135,9 +135,9 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
 
   function drawForm(card: HTMLElement): void {
     const address = host.getAddress();
-    card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h2', 'wapp__h2', 'Open a liquidity pool'));
+    card.append(h('h2', 'wapp__h2', 'Open a liquidity pool'));
     card.append(
-      h('p', 'wapp__fine', `Give a token a market. Your tokens go into a pool at a starting price you choose, and buyers pay SOL. Your own wallet signs everything. Opening a pool costs a flat ${sol(POOL_FEE_LAMPORTS)} Aretia fee, shown before you sign.`),
+      h('p', 'wapp__fine', `Your tokens go into a pool at a starting price you choose, and buyers pay SOL. Your own wallet signs everything. Opening a pool costs a flat ${sol(POOL_FEE_LAMPORTS)} Aretia fee, shown before you sign.`),
     );
     if (!address) card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect a Solana wallet to open a pool.'));
     const f = h('form', 'wapp__form wapp-ln__form');
@@ -288,6 +288,7 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
   function draw(): void {
     if (!root) return;
     root.textContent = '';
+    root.dataset.stage = stage;
     const card = h('div', 'wapp-ln');
     if (stage === 'form') drawForm(card);
     else if (stage === 'review') drawReview(card);
@@ -363,6 +364,8 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
       draw();
     },
     offer(mint: string): void {
+      // Tells the Launch page frame to open the pool tab (walletLaunchHub.ts).
+      root?.dispatchEvent(new CustomEvent('lh:offer', { bubbles: true }));
       form = { ...DEFAULT_POOL_FORM, mint };
       stage = 'form';
       review = null;

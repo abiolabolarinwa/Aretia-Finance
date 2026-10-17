@@ -38,6 +38,24 @@ export interface LaunchHost {
 }
 
 type Network = 'solana' | LaunchEvmChainKey;
+
+export interface LaunchNetwork {
+  key: Network;
+  name: string;
+  symbol: string;
+  testnet: boolean;
+  /** False for a network whose token factory is not deployed yet. */
+  enabled: boolean;
+}
+
+export interface LaunchApi {
+  onShow(): void;
+  onWalletChange(): void;
+  networks(): LaunchNetwork[];
+  getNetwork(): Network;
+  /** Switches network. Returns false, and changes nothing, while something is being created. */
+  setNetwork(next: Network): boolean;
+}
 type Stage = 'form' | 'review' | 'working' | 'done';
 
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] => {
@@ -65,7 +83,7 @@ const PROGRESS_STEPS: { id: Progress[]; label: string }[] = [
   { id: ['done'], label: 'Done' },
 ];
 
-export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange(): void } {
+export function initLaunch(host: LaunchHost): LaunchApi {
   const root = document.querySelector<HTMLElement>('[data-launch-root]');
   // If the browser will not store anything, creating still works; only finishing a half-made token after a reload is lost.
   const kept = new Map<string, string>();
@@ -144,18 +162,17 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
 
   function drawForm(card: HTMLElement): void {
     const address = host.getAddress();
-    card.append(h('span', 'wapp__eyebrow', 'Aretia Launch'), h('h2', 'wapp__h2', 'Create a token'));
+    card.append(h('h2', 'wapp__h2', 'Create a token'));
     card.append(
-      h('p', 'wapp__fine', 'Make a token with a fixed supply and a name that is stored on the token itself. Your own wallet signs everything; Aretia never holds your keys. Creating a token costs a flat 0.05 SOL Aretia fee, shown before you sign.'),
+      h('p', 'wapp__fine', 'A fixed-supply token with its name, symbol and link stored on the token itself. Your own wallet signs everything; Aretia never holds your keys. Flat 0.05 SOL Aretia fee, shown again before you sign.'),
     );
     if (!address) {
       card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect a Solana wallet to create a token.'));
     }
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
-    f.append(field('Name', 'name', { placeholder: 'Example Token', hint: `Up to ${LAUNCH_LIMITS.nameMax} characters.` }));
-    const row1 = h('div', 'wapp-ln__row');
-    row1.append(field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }), field('Decimals', 'decimals', { inputmode: 'numeric', hint: '6 is usual. 0 to 9.' }));
+    const row1 = h('div', 'wapp-ln__row wapp-ln__row--wide');
+    row1.append(field('Name', 'name', { placeholder: 'Example Token', hint: `Up to ${LAUNCH_LIMITS.nameMax} characters.` }), field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }));
     f.append(row1);
     f.append(field('Total supply', 'supply', { inputmode: 'decimal', hint: 'In whole tokens. It can never be increased.' }));
     const row2 = h('div', 'wapp-ln__row');
@@ -167,7 +184,12 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     treasuryField = field('Treasury address', 'treasuryAddress', { mono: true, placeholder: 'Solana address', hint: 'Where the treasury share is sent.' });
     f.append(treasuryField);
     syncTreasury();
-    f.append(field('Link to token details (optional)', 'metadataUri', { mono: true, placeholder: 'https://… or ipfs://…', hint: 'A page or file you host that describes the token. Aretia does not upload or check it.' }));
+    const adv = h('details', 'lh-adv');
+    adv.open = issues.some((i) => i.field === 'decimals' || i.field === 'metadataUri') || form.metadataMutable;
+    adv.append(h('summary', '', 'Advanced options'));
+    const advBody = h('div', 'lh-adv__body');
+    advBody.append(field('Decimals', 'decimals', { inputmode: 'numeric', hint: '6 is usual. 0 to 9.' }));
+    advBody.append(field('Link to token details (optional)', 'metadataUri', { mono: true, placeholder: 'https://… or ipfs://…', hint: 'A page or file you host that describes the token. Aretia does not upload or check it.' }));
 
     const mutable = h('label', 'wapp__check');
     const box = h('input');
@@ -175,12 +197,11 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     box.checked = form.metadataMutable;
     box.addEventListener('change', () => set({ metadataMutable: box.checked }));
     mutable.append(box, h('span', '', 'Let me change the name, symbol and link later. Leave this off if you want holders to be sure they never change.'));
-    f.append(mutable);
+    advBody.append(mutable);
+    adv.append(advBody);
+    f.append(adv);
 
-    f.append(
-      h('p', 'wapp__fine', 'The rest of the supply, after your share and the treasury’s, is held back. It is created in your wallet and stays there. Nothing locks it, and nothing here sells it.'),
-    );
-    f.append(h('p', 'wapp__fine', 'The mint and freeze powers are always given up: nobody, including you, can create more of this token or freeze a holder.'));
+    f.append(promises(['Supply is fixed for good. Nobody, you included, can mint more or freeze a holder.', 'The rest of the supply, after your share and the treasury’s, stays in your wallet. Nothing locks it, and nothing here sells it.']));
 
     const go = h('button', 'wapp__btn wapp__btn--primary', busy ? 'Checking…' : 'Review');
     go.type = 'submit';
@@ -192,6 +213,13 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     });
     card.append(f);
     if (error) card.append(errorBox(error));
+  }
+
+  /** A short list of what is guaranteed, shown beside the form instead of paragraphs of small print. */
+  function promises(lines: string[]): HTMLElement {
+    const ul = h('ul', 'lh-promises');
+    for (const t of lines) ul.append(h('li', '', t));
+    return ul;
   }
 
   function errorBox(text: string): HTMLElement {
@@ -372,54 +400,33 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
     card.append(wrap);
   }
 
-  /** The network choice. A network whose token factory is not deployed yet is listed but cannot be chosen. */
-  function drawPicker(): HTMLElement {
-    const wrap = h('div', 'wapp-ln__field');
-    const lab = h('label', 'wapp__eyebrow', 'Network');
-    lab.htmlFor = 'launch-network';
-    const select = h('select', 'wapp__input');
-    select.id = 'launch-network';
-    const option = (value: Network, text: string, enabled: boolean, into: HTMLElement): void => {
-      const o = h('option', '', enabled ? text : `${text} — not available yet`);
-      o.value = value;
-      o.disabled = !enabled;
-      o.selected = value === network;
-      into.append(o);
-    };
-    option('solana', 'Solana', true, select);
-    const group = (label: string, testnet: boolean): void => {
-      if (!evm) return;
-      const g = h('optgroup');
-      g.label = label;
+  /** The networks the page offers, for the chip row: a network whose token factory is not deployed yet is listed but cannot be chosen. */
+  function networks(): LaunchNetwork[] {
+    const out: LaunchNetwork[] = [{ key: 'solana', name: 'Solana', symbol: 'SOL', testnet: false, enabled: true }];
+    if (!evm) return out;
+    for (const c of LAUNCH_EVM_CHAINS) {
       // A test network is listed only once its factory is deployed; until then it would be a dead entry.
-      const chains = LAUNCH_EVM_CHAINS.filter((x) => x.testnet === testnet && (!testnet || chainEnabled(x)));
-      for (const c of chains) option(c.key, c.name, chainEnabled(c), g);
-      if (chains.length > 0) select.append(g);
-    };
-    group('Ethereum-style networks', false);
-    group('Test networks', true);
-    // Never switch networks while something is being created.
-    select.disabled = busy || (evm?.isBusy() ?? false);
-    select.addEventListener('change', () => {
-      network = select.value as Network;
-      error = null;
-      host.onNetwork?.(network);
-      draw();
-    });
-    wrap.append(lab, select);
-    return wrap;
+      if (c.testnet && !chainEnabled(c)) continue;
+      out.push({ key: c.key, name: c.name.replace(/ \(test\)$/, ''), symbol: c.symbol, testnet: c.testnet, enabled: chainEnabled(c) });
+    }
+    return out;
   }
 
   function draw(): void {
     if (!root) return;
     root.textContent = '';
+    const poolRoot = document.querySelector<HTMLElement>('[data-evm-pool-root]');
+    const curveRoot = document.querySelector<HTMLElement>('[data-evm-curve-root]');
+    if (poolRoot) poolRoot.textContent = '';
+    if (curveRoot) curveRoot.textContent = '';
     const card = h('div', 'wapp-ln');
-    card.append(drawPicker());
     if (network !== 'solana' && evm) {
-      evm.draw(card, draw, network);
+      evm.draw(card, draw, network, poolRoot && curveRoot ? { pool: poolRoot, curve: curveRoot } : undefined);
+      root.dataset.stage = evm.stage();
       root.append(card);
       return;
     }
+    root.dataset.stage = stage;
     drawNotice(card);
     if (stage === 'form') drawForm(card);
     else if (stage === 'review') drawReview(card);
@@ -532,6 +539,16 @@ export function initLaunch(host: LaunchHost): { onShow(): void; onWalletChange()
   }
 
   return {
+    networks,
+    getNetwork: () => network,
+    setNetwork(next: Network): boolean {
+      if (busy || (evm?.isBusy() ?? false)) return false;
+      network = next;
+      error = null;
+      host.onNetwork?.(network);
+      draw();
+      return true;
+    },
     onShow(): void {
       draw();
       void checkStored().then(draw);

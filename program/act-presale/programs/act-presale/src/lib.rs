@@ -210,6 +210,12 @@ pub mod act_presale {
             ctx.accounts.config.accepted_mints[idx] == Pubkey::default(),
             PresaleError::CurrencySlotAlreadySet
         );
+        // Caps, allocation and refunds are only consistent if what the buyer sends is exactly what arrives. A payment mint that takes a
+        // transfer fee (any Token-2022 mint can) would break that, so only a plain SPL Token mint (USDC and USDT are) is accepted.
+        require!(
+            ctx.accounts.mint.to_account_info().owner == &anchor_spl::token::ID,
+            PresaleError::UnsupportedPaymentMintProgram
+        );
         for i in 0..NUM_PAYMENT_CURRENCIES {
             if i != idx {
                 require!(
@@ -1452,6 +1458,8 @@ pub enum PresaleError {
     InvalidPrice,
     #[msg("USDC and USDT mints must be different accounts.")]
     DuplicatePaymentMint,
+    #[msg("A payment mint must be a plain SPL Token mint (no transfer fee), as USDC and USDT are.")]
+    UnsupportedPaymentMintProgram,
     #[msg("index must be 0 or 1.")]
     InvalidCurrencyIndex,
     #[msg("This currency slot has already been initialized.")]

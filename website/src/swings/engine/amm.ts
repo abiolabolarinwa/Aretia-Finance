@@ -6,6 +6,7 @@ import { SwingsError } from '../core/types.js';
 import type { LiquidityPool } from './types.js';
 import { sameToken } from '../core/token.js';
 import type { TokenRef } from '../core/types.js';
+import { aretiaPoolQuote } from '../solana/aretiaPool.js';
 
 const PPM = 1_000_000n;
 
@@ -56,6 +57,8 @@ export function getAmountOutCpmm(amountIn: bigint, reserveIn: bigint, reserveOut
 /** Quote against a constant-product pool, using that venue's own formula. */
 export function quoteConstantProduct(pool: LiquidityPool, tokenIn: TokenRef, amountIn: bigint): bigint {
   const { reserveIn, reserveOut } = orient(pool, tokenIn);
+  // Aretia's own pool prices from its stored state (virtual reserve, fee in SOL), not from the reserves above.
+  if (pool.curve === 'aretia-pool') return aretiaPoolQuote(pool, tokenIn, amountIn);
   return pool.curve === 'raydium-cpmm' ? getAmountOutCpmm(amountIn, reserveIn, reserveOut, pool.feePpm) : getAmountOut(amountIn, reserveIn, reserveOut, pool.feePpm);
 }
 

@@ -6,7 +6,7 @@
  * shows a notice and no form until walletAretiaPoolCore.ts has a mainnet program address, which it will not have before an independent
  * audit. Everything typed, and everything read from the chain, is shown with textContent, never as markup.
  */
-import { fromSmallestUnit } from './walletTools';
+import { fromSmallestUnit, toSmallestUnit } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import { POOL_TRADING_FEES_BPS, type PoolIssue, type PoolToken } from './walletPoolCore';
 import {
@@ -16,10 +16,11 @@ import {
   DEFAULT_ARETIA_POOL_FORM,
   type AretiaPoolForm,
   priceText,
+  ARETIA_SLIPPAGE_BPS_DEFAULT,
   poolMathOf,
   validateAretiaPool,
 } from './walletAretiaPoolCore';
-import { AretiaPoolFlow, type AretiaPoolFlowDeps, type AretiaPoolOutcome, type AretiaPoolProgress, type AretiaPoolReview, type PoolView } from './walletAretiaPoolFlow';
+import { AretiaPoolFlow, type AretiaPoolFlowDeps, type AretiaPoolOutcome, type AretiaPoolProgress, type AretiaPoolReview, type LiquidityQuote, type PoolView, type TradeQuote } from './walletAretiaPoolFlow';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateWithBalance, waitForConfirmation } from './walletSend';
 
 export interface AretiaPoolHost {
@@ -83,6 +84,9 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
   let progress: AretiaPoolProgress = 'checking';
   let busy = false;
   let acknowledged = false;
+  let tradeSide: 'buy' | 'sell' = 'buy';
+  let tradeText = '';
+  let liqText = '';
   let flow: AretiaPoolFlow | null = null;
 
   async function flowFor(): Promise<AretiaPoolFlow> {
@@ -226,6 +230,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
         row(dl, 'Fees you can claim', sol(managed.claimable));
       } else row(dl, 'Your position', 'None in this pool');
       box.append(dl);
+      drawTrade(box, managed);
       if (position) {
         const claim = h('button', 'wapp__btn wapp__btn--primary', 'Claim fees');
         claim.type = 'button';
@@ -242,6 +247,65 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
       }
     }
     card.append(box);
+  }
+
+  /** Buy or sell against the pool, and add or remove liquidity. Every amount is quoted from the pool as just read, with a floor or a cap. */
+  function drawTrade(box: HTMLElement, view: PoolView): void {
+    const { pool, position, decimals } = view;
+    const small = (label: string, text: string, onInput: (v: string) => void): HTMLInputElement => {
+      const i = h('input', 'wapp__input');
+      i.value = text;
+      i.placeholder = label;
+      i.inputMode = 'decimal';
+      i.autocomplete = 'off';
+      i.setAttribute('aria-label', label);
+      i.addEventListener('input', () => onInput(i.value.trim().replace(/,/g, '')));
+      return i;
+    };
+    const f = flow;
+    const connected = !!host.getAddress();
+    box.append(h('span', 'wapp__eyebrow', 'Trade'));
+    const sides = h('div', 'wapp__row-actions');
+    for (const sd of ['buy', 'sell'] as const) {
+      const b = h('button', `wapp__btn ${tradeSide === sd ? 'wapp__btn--primary' : 'wapp__btn--ghost'}`, sd === 'buy' ? 'Buy with SOL' : 'Sell for SOL');
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        tradeSide = sd;
+        tradeText = '';
+        draw();
+      });
+      sides.append(b);
+    }
+    box.append(sides, small(tradeSide === 'buy' ? 'SOL to spend' : 'Tokens to sell', tradeText, (v) => (tradeText = v)));
+    const raw = toSmallestUnit(tradeText, tradeSide === 'buy' ? 9 : decimals);
+    const q = f && raw && BigInt(raw) > 0n ? f.quote(pool, tradeSide === 'buy', BigInt(raw), ARETIA_SLIPPAGE_BPS_DEFAULT) : null;
+    const go = h('button', 'wapp__btn wapp__btn--primary', q ? (tradeSide === 'buy' ? `Buy about ${amountText(q.expectedOut, decimals)} tokens` : `Sell for about ${sol(q.expectedOut)}`) : 'Enter an amount first');
+    go.type = 'button';
+    go.disabled = busy || !connected || !q;
+    if (q) box.append(h('p', 'wapp__fine', `At least ${tradeSide === 'buy' ? `${amountText(q.minOut, decimals)} tokens` : sol(q.minOut)} or the whole transaction fails (1% slippage limit). Fee ${sol(q.fee)}, 20% of it to Aretia.`));
+    go.addEventListener('click', () => void act('trade', q));
+    box.querySelectorAll('input').forEach((i) => i.addEventListener('change', () => draw()));
+    box.append(go);
+
+    box.append(h('span', 'wapp__eyebrow', 'Liquidity'));
+    box.append(small('Liquidity, in SOL of depth', liqText, (v) => (liqText = v)));
+    const dlRaw = toSmallestUnit(liqText, 9);
+    const dl = dlRaw ? BigInt(dlRaw) : 0n;
+    const add = f && dl > 0n ? f.quoteAdd(pool, dl, ARETIA_SLIPPAGE_BPS_DEFAULT) : null;
+    const rem = f && dl > 0n && position && dl <= position.shares - position.locked ? f.quoteRemove(pool, dl, ARETIA_SLIPPAGE_BPS_DEFAULT) : null;
+    if (add) box.append(h('p', 'wapp__fine', `Adding this takes about ${amountText(add.tokens, decimals)} tokens and ${sol(add.sol)}.`));
+    if (rem) box.append(h('p', 'wapp__fine', `Removing this returns about ${amountText(rem.tokens, decimals)} tokens and ${sol(rem.sol)}. Locked liquidity cannot be removed.`));
+    const row2 = h('div', 'wapp__row-actions');
+    const addB = h('button', 'wapp__btn wapp__btn--ghost', 'Add liquidity');
+    addB.type = 'button';
+    addB.disabled = busy || !connected || !add;
+    addB.addEventListener('click', () => void act('add', add));
+    const remB = h('button', 'wapp__btn wapp__btn--ghost', 'Remove liquidity');
+    remB.type = 'button';
+    remB.disabled = busy || !connected || !rem;
+    remB.addEventListener('click', () => void act('remove', rem));
+    row2.append(addB, remB);
+    box.append(row2);
   }
 
   function drawReview(card: HTMLElement): void {
@@ -431,18 +495,23 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     }
   }
 
-  async function act(kind: 'claim' | 'lock'): Promise<void> {
+  async function act(kind: 'claim' | 'lock' | 'trade' | 'add' | 'remove', quote: TradeQuote | LiquidityQuote | null = null): Promise<void> {
     const owner = host.getAddress();
     const view = managed;
-    if (!owner || !view?.position) return;
+    if (!owner || !view) return;
+    if ((kind === 'claim' || kind === 'lock' || kind === 'remove') && !view.position) return;
     busy = true;
     note = null;
     draw();
     try {
       const f = await flowFor();
       if (kind === 'claim') await f.claim(owner, managedMint);
-      else await f.lock(owner, managedMint, view.position.shares - view.position.locked);
-      note = kind === 'claim' ? 'Fees claimed.' : 'Locked for good.';
+      else if (kind === 'lock') await f.lock(owner, managedMint, view.position!.shares - view.position!.locked);
+      else if (kind === 'trade' && quote && 'isBuy' in quote) await f.trade(owner, managedMint, quote);
+      else if (kind === 'add' && quote && 'dl' in quote) await f.addLiquidity(owner, managedMint, quote);
+      else if (kind === 'remove' && quote && 'dl' in quote) await f.removeLiquidity(owner, managedMint, quote);
+      else throw new Error('Nothing to send.');
+      note = { claim: 'Fees claimed.', lock: 'Locked for good.', trade: 'Trade sent.', add: 'Liquidity added.', remove: 'Liquidity removed.' }[kind];
       managed = await f.loadPool(managedMint, owner);
       host.refreshWallet();
     } catch (e) {

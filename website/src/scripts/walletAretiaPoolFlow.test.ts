@@ -233,4 +233,17 @@ describe('trading, claiming and locking', () => {
     await expect(flow.trade(CREATOR, MINT, { isBuy: true, amountIn: 1n, expectedOut: 1n, minOut: 0n, fee: 0n })).rejects.toThrow(/no minimum/);
     expect(w.sent).toHaveLength(0);
   });
+  it('quotes and sends adding and removing liquidity with caps and floors', async () => {
+    const { w, flow } = await live();
+    const pool = (await flow.loadPool(MINT, CREATOR))!.pool;
+    const a = flow.quoteAdd(pool, 1_000_000_000n, 100)!;
+    expect(a.limitTokens).toBeGreaterThanOrEqual(a.tokens);
+    expect(a.limitSol).toBeGreaterThanOrEqual(a.sol);
+    const r = flow.quoteRemove(pool, 1_000_000_000n, 100)!;
+    expect(r.limitTokens).toBeLessThanOrEqual(r.tokens);
+    expect(flow.quoteAdd(pool, 10n, 100)).toBeNull();
+    await flow.addLiquidity(CREATOR, MINT, a);
+    await flow.removeLiquidity(CREATOR, MINT, r);
+    expect(w.sent).toHaveLength(2);
+  });
 });

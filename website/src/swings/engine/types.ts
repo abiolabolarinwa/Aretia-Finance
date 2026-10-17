@@ -32,7 +32,7 @@ export interface LiquidityPool {
    * Which constant-product formula prices this pool. Venues round differently, and an exact quote needs the venue's
    * own rounding. Absent means the Uniswap V2 formula.
    */
-  curve?: 'uniswap-v2' | 'raydium-cpmm';
+  curve?: 'uniswap-v2' | 'raydium-cpmm' | 'aretia-pool';
   /** Venue-specific facts needed to build a swap (account addresses and the like). Opaque to the engine. */
   extra?: Readonly<Record<string, string>>;
   /** Ms epoch when the numbers were read, and the block (or slot) they were read at. */

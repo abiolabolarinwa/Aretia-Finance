@@ -23,12 +23,14 @@ import {
   parsePositionAccount,
   poolMathOf,
   sell,
+  addLiquidity,
+  removeLiquidity,
   type AretiaPoolCost,
   type CreateParams,
   type PoolAccount,
   type PositionAccount,
 } from './walletAretiaPoolCore';
-import { assemble, buildClaim, buildCreatePool, buildLock, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
+import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
 
 export interface PoolSimulation {
   ok: boolean;
@@ -84,6 +86,16 @@ export interface TradeQuote {
   expectedOut: bigint;
   minOut: bigint;
   fee: bigint;
+}
+
+export interface LiquidityQuote {
+  dl: bigint;
+  /** What the pool takes or gives, as quoted now. */
+  tokens: bigint;
+  sol: bigint;
+  /** Add: the most the owner will pay. Remove: the least the owner will accept. */
+  limitTokens: bigint;
+  limitSol: bigint;
 }
 
 /** A short extra margin beyond the measured cost, so a small change in rent does not leave the transaction short. */
@@ -224,6 +236,45 @@ export class AretiaPoolFlow {
     const blockers = inspectSwap(web3, tx, { ...s, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, trader, progress);
+    progress('done');
+    return signature;
+  }
+
+  /** A quote for adding `dl` of liquidity, with caps a little above what is needed. Null if the pool cannot take it. */
+  quoteAdd(pool: PoolAccount, dl: bigint, slippageBps: number): LiquidityQuote | null {
+    const q = addLiquidity(poolMathOf(pool), dl);
+    if (!q) return null;
+    const cap = (v: bigint) => (v * BigInt(10_000 + slippageBps) + 9_999n) / 10_000n;
+    return { dl, tokens: q.tokensIn, sol: q.solIn, limitTokens: cap(q.tokensIn), limitSol: cap(q.solIn) };
+  }
+
+  /** A quote for removing `dl`, with floors a little below what is expected. */
+  quoteRemove(pool: PoolAccount, dl: bigint, slippageBps: number): LiquidityQuote | null {
+    const q = removeLiquidity(poolMathOf(pool), dl);
+    if (!q) return null;
+    return { dl, tokens: q.tokensOut, sol: q.solOut, limitTokens: minOut(q.tokensOut, slippageBps), limitSol: minOut(q.solOut, slippageBps) };
+  }
+
+  async addLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+    const { web3, program } = this.d;
+    progress('checking');
+    const l = { owner, mint, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
+    const tx = assemble(web3, [buildAddLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
+    const blockers = inspectAddLiquidity(web3, tx, { ...l, program });
+    if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
+    const signature = await this.submit(tx, owner, progress);
+    progress('done');
+    return signature;
+  }
+
+  async removeLiquidity(owner: string, mint: string, q: LiquidityQuote, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+    const { web3, program } = this.d;
+    progress('checking');
+    const l = { owner, mint, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
+    const tx = assemble(web3, [buildRemoveLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
+    const blockers = inspectRemoveLiquidity(web3, tx, { ...l, program });
+    if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
+    const signature = await this.submit(tx, owner, progress);
     progress('done');
     return signature;
   }

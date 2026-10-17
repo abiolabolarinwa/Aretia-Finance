@@ -40,7 +40,7 @@ const ok = (msg) => console.log(`  ok   ${msg}`);
 const mode = process.argv[2];
 const chainKey = arg('chain');
 const net = CHAINS[chainKey];
-if (!['prepare', 'verify'].includes(mode) || !net) fail(`usage: curve-mainnet.mjs prepare|verify --chain ${Object.keys(CHAINS).join('|')} [--address 0x...] [--rpc url]`);
+if (!['prepare', 'verify', 'send'].includes(mode) || !net) fail(`usage: curve-mainnet.mjs prepare|verify|send --chain ${Object.keys(CHAINS).join('|')} [--address 0x...] [--rpc url]`);
 const rpc = arg('rpc') ?? net.rpc;
 
 const art = JSON.parse(readFileSync(join(root, 'contracts-evm', 'AretiaCurve.artifact.json'), 'utf8'));
@@ -82,6 +82,33 @@ if (mode === 'prepare') {
   console.log(`\nWrote ${out}`);
   console.log('Deploy it as a contract-creation transaction (no "to", value 0, this data) from the owner wallet. Nothing was signed or sent.');
   console.log('Then: node scripts/curve-mainnet.mjs verify --chain', chainKey, '--address <the new contract>');
+  process.exit(0);
+}
+
+if (mode === 'send') {
+  // For the OWNER to run on their own machine. The contract has no owner, so the deploying wallet gets no power over it:
+  // use a fresh wallet holding only enough coin for gas. DEPLOYER_KEY_FILE=<file with one 0x key> node scripts/curve-mainnet.mjs send --chain ethereum --yes-mainnet
+  if (!process.argv.includes('--yes-mainnet')) fail('send puts a real contract on a real network. Add --yes-mainnet to confirm.');
+  const file = process.env.DEPLOYER_KEY_FILE;
+  if (!file) fail('send needs DEPLOYER_KEY_FILE, a file holding one 0x private key (a fresh wallet funded only for gas).');
+  const key = readFileSync(file, 'utf8').trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) fail('the key file must hold one 0x-prefixed 64-digit private key and nothing else.');
+  const { createWalletClient } = require('viem');
+  const { privateKeyToAccount } = require('viem/accounts');
+  const account = privateKeyToAccount(key);
+  const gas = await pub.estimateGas({ account: account.address, data: creation });
+  const price = await pub.getGasPrice();
+  const balance = await pub.getBalance({ address: account.address });
+  const limit = (gas * 12n) / 10n;
+  console.log(`  deployer ${account.address}  balance ${balance} wei`);
+  console.log(`  gas about ${gas} at ${price} wei, so about ${gas * price} wei; worst case with a 20% margin ${limit * price} wei`);
+  if (balance < limit * price) fail('the deployer wallet does not hold enough coin for gas.');
+  const wallet = createWalletClient({ account, transport: http(rpc) });
+  const hash = await wallet.sendTransaction({ data: creation, chain: null, gas: limit });
+  console.log(`  sent ${hash}`);
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success' || !receipt.contractAddress) fail(`the deployment failed (${hash}).`);
+  console.log(`  deployed at ${receipt.contractAddress.toLowerCase()}; run verify on it next`);
   process.exit(0);
 }
 

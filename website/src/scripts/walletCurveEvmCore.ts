@@ -16,7 +16,8 @@ import { keccak256 } from '../swings/core/keccak.js';
 
 /** The deployed AretiaCurve on each chain, lower-case. Null until audited and deployed. Nothing works for a chain whose entry is null. */
 export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
-  ethereum: null,
+  // Ethereum mainnet, deployed from a fresh gas-only wallet and checked byte for byte by scripts/curve-mainnet.mjs verify. The card stays off unless the build sets PUBLIC_CURVE_ENABLED=1.
+  ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
   bnb: null,
   polygon: null,
 };

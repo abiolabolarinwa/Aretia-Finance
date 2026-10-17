@@ -82,7 +82,7 @@ if (mode === 'prepare') {
   const programRent = await conn.getMinimumBalanceForRentExemption(36);
   // Measured on devnet with this exact build: the whole deploy spent 1.6133 SOL. The upload buffer's lamports are handed back to the payer
   // inside the deploy instruction before the program's data account is paid for, so the wallet never needs the rent twice.
-  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, which stays locked in the program's accounts, plus about 0.002 SOL of network fees (a devnet deploy of this build spent 1.6133 SOL in all). Keep the deploying wallet at ${sol(dataRent + programRent + 50_000_000n)} or more.`);
+  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, which stays locked in the program's accounts, plus about 0.002 SOL of network fees (a devnet deploy of this build spent 1.6133 SOL in all). Keep the deploying wallet at ${sol(dataRent + programRent + 50_000_000)} or more.`);
   console.log('Doing this deploys code that holds buyers\' money and is NOT independently audited. It is the owner\'s call, from the owner\'s own wallet.\n');
   console.log(`1. Make the program's own key once, and keep it (it signs only this first deployment). Print its address:
      solana-keygen new --no-bip39-passphrase --outfile <folder>\\aretia-curve-program.json

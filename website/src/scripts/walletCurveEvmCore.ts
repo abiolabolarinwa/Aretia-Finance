@@ -20,7 +20,8 @@ export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, str
   ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
   // BNB Chain mainnet, same deployer and nonce as Ethereum so the same address; checked by scripts/curve-mainnet.mjs verify.
   bnb: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
-  polygon: null,
+  // Polygon mainnet, same deployer and nonce as Ethereum so the same address; checked by scripts/curve-mainnet.mjs verify.
+  polygon: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
 };
 
 export const EVM_MIN_TARGET_WEI = 10n ** 16n;

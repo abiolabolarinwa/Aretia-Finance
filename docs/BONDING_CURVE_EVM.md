@@ -107,3 +107,7 @@ The Ethereum curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (
 ## 13. BNB Chain mainnet record
 
 The BNB Chain curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (same deployer and nonce as Ethereum, so the same address; creation transaction `0xb88bd23078242b3b5dfe6785b10b8de6e0b494247f2af3b8ad7352bf793a7786`). `verify` confirmed the code is byte-for-byte the BNB Chain build (runtime keccak `0x20774ed7…3d40cab`), the pinned factory `0xc3eb…0385c`, fee recipient, PancakeSwap V2 router and WBNB, fee 58 bps and `totalOwed` 0. Flag still off; same audit caveat as section 12. Polygon is not deployed.
+
+## 14. Polygon mainnet record
+
+The Polygon curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (same deployer and nonce, so the same address; creation transaction `0xdb6dd6c93d104e9a730abfa574be818ecb2c01fe1022f78b55d800dffda4f5da`). `verify` confirmed the code is byte-for-byte the Polygon build (runtime keccak `0x83218ff7…e456eeea`), the pinned factory `0xca1a…f0c`, fee recipient, QuickSwap router and WPOL, fee 58 bps and `totalOwed` 0. Flag still off; same audit caveat as section 12. All three curves are now deployed and none has had a real trade yet.

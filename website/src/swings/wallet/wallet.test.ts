@@ -328,7 +328,9 @@ describe('transactionProblems', () => {
   it('checks a Solana transaction\'s fee payer and the programs it calls', () => {
     const s = session({ chainType: 'solana', chain: 'solana', networkId: null, address: USER });
     const tx = { kind: 'solana' as const, transaction: transferTx(USER) };
-    expect(transactionProblems(tx, s, { address: USER, chain: 'solana', allowedDestinations: ['11111111111111111111111111111111'] })).toEqual([]);
+    // Even with the System program allowed, a transfer is refused by what it does: the real burn needs none (see the gateway test).
+    expect(transactionProblems(tx, s, { address: USER, chain: 'solana', allowedDestinations: ['11111111111111111111111111111111'] }).join(' ')).toMatch(/sends SOL to another account/);
+    expect(transactionProblems(tx, s, { address: USER, chain: 'solana' })).toEqual([]);
     expect(transactionProblems(tx, s, { address: USER, chain: 'solana', allowedDestinations: ['SomeOtherProgram'] }).join(' ')).toMatch(/does not recognise/);
     expect(transactionProblems({ kind: 'solana', transaction: transferTx(OTHER) }, s, { address: USER, chain: 'solana' }).join(' ')).toMatch(/different account/);
     expect(transactionProblems(tx, s, { address: USER, chain: 'base' }).join(' ')).toMatch(/not on Solana/);

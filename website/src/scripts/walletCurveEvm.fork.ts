@@ -1,12 +1,12 @@
 /**
- * Runs the compiled curve against the REAL Ethereum mainnet contracts, locally: a copy of mainnet state (read lazily over a public RPC,
+ * Runs the compiled curve against the REAL mainnet contracts of Ethereum, BNB Chain and Polygon, one chain at a time, locally: a copy of mainnet state (read lazily over a public RPC,
  * read-only) is loaded into an in-process EVM, and the curve is deployed INTO that copy. It uses Aretia's real, deployed token factory
- * and the real Uniswap V2 router, factory and pair code. Nothing is sent to the network, nothing is spent, no key is involved.
+ * and the real Uniswap V2 / PancakeSwap V2 / QuickSwap router, factory and pair code. Nothing is sent to the network, nothing is spent, no key is involved.
  *
  * Not part of `npm test` (it needs the network). Run it with
  *   npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @ethereumjs/block @ethereumjs/statemanager
  *   npm run test:curve-fork
- * Set FORK_RPC to use another read-only Ethereum RPC address.
+ * Set FORK_RPC_ETHEREUM, FORK_RPC_BNB or FORK_RPC_POLYGON to use another read-only RPC address, and FORK_CHAINS (for example `bnb,polygon`) to run only some.
  */
 import { describe, expect, it } from 'vitest';
 import { keccak_256 } from '@noble/hashes/sha3.js';
@@ -16,22 +16,24 @@ import { LAUNCH_EVM_CHAINS } from './walletLaunchEvmCore';
 import { POOL_DEXES } from './walletPoolEvmCore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const RPC = process.env.FORK_RPC ?? 'https://ethereum-rpc.publicnode.com';
+const RPCS: Record<string, string> = { ethereum: 'https://ethereum-rpc.publicnode.com', bnb: 'https://bsc-rpc.publicnode.com', polygon: 'https://polygon-bor-rpc.publicnode.com' };
+const CHAINS = (process.env.FORK_CHAINS ?? 'ethereum,bnb,polygon').split(',').map((c) => c.trim());
 const ETH = 10n ** 18n;
 const CREATOR = '0x00000000000000000000000000000000000c0de1';
 const BUYER = '0x00000000000000000000000000000000000b0b01';
 const OTHER = '0x00000000000000000000000000000000000b0b02';
 const DEAD = '0x000000000000000000000000000000000000dead';
 const SUPPLY = 10n ** 27n;
-const eth = LAUNCH_EVM_CHAINS.find((c) => c.key === 'ethereum')!;
-const dex = POOL_DEXES.find((d) => d.key === 'ethereum')!;
 
 const sel = (sig: string): string => Buffer.from(keccak_256(Buffer.from(sig))).toString('hex').slice(0, 8);
 const word = (v: bigint | string): string => (typeof v === 'string' ? v.replace(/^0x/, '').toLowerCase().padStart(64, '0') : v.toString(16).padStart(64, '0'));
 const call = (sig: string, ...args: (bigint | string)[]): string => '0x' + sel(sig) + args.map(word).join('');
 
-describe('the compiled curve against real Ethereum mainnet contracts (a local copy)', () => {
-  it('graduates into the real Uniswap V2, and refuses a pool someone made at another price', { timeout: 600_000 }, async () => {
+describe.each(CHAINS)('the compiled curve against the real %s mainnet contracts (a local copy)', (key) => {
+  const eth = LAUNCH_EVM_CHAINS.find((c) => c.key === key)!;
+  const dex = POOL_DEXES.find((d) => d.key === key)!;
+  const RPC = process.env[`FORK_RPC_${key.toUpperCase()}`] ?? RPCS[key]!;
+  it('graduates into the real V2 exchange, and refuses a pool someone made at another price', { timeout: 900_000 }, async () => {
     const mod = (name: string): Promise<any> => import(/* @vite-ignore */ name);
     const [vmLib, commonLib, util, blockLib, smLib] = await Promise.all([mod('@ethereumjs/vm'), mod('@ethereumjs/common'), mod('@ethereumjs/util'), mod('@ethereumjs/block'), mod('@ethereumjs/statemanager')]);
     const rpc = async (method: string, params: unknown[]): Promise<any> => {
@@ -40,8 +42,10 @@ describe('the compiled curve against real Ethereum mainnet contracts (a local co
       if (j.error) throw new Error(`${method}: ${j.error.message}`);
       return j.result;
     };
-    const pinned = await rpc('eth_blockNumber', []);
-    const stamp = BigInt((await rpc('eth_getBlockByNumber', [pinned, false])).timestamp);
+    // Pin to the newest block the node can describe (a load-balanced node may not yet know the very latest number it just reported).
+    const head = await rpc('eth_getBlockByNumber', ['latest', false]);
+    const pinned: string = head.number;
+    const stamp = BigInt(head.timestamp);
     // Public nodes do not serve eth_getProof, which the stock RPC state manager uses for accounts: read the three plain fields instead.
     class Fork extends smLib.RPCStateManager {
       async getAccountFromProvider(address: any) {
@@ -150,7 +154,8 @@ describe('the compiled curve against real Ethereum mainnet contracts (a local co
     await send(OTHER, dex.router, '0xf305d719' + word(b.token) + word(give2) + word(give2) + word(ETH / 100n) + word(OTHER) + word(now + 3600n), ETH / 100n);
     expect(await getPair(b.token)).not.toBe('0x0000000000000000000000000000000000000000');
     const why = await fails(OTHER, curve, call('graduate(address)', b.token));
-    expect(['UniswapV2Router: INSUFFICIENT_A_AMOUNT', 'UniswapV2Router: INSUFFICIENT_B_AMOUNT', 'pool price']).toContain(why);
+    // Each exchange words its own refusal (Uniswap, PancakeSwap, QuickSwap); all of them name the minimum that was not met.
+    expect(why).toMatch(/INSUFFICIENT_[AB]_AMOUNT|pool price/);
     // What happens after that refusal (the curve stays sold out, then after a week holders sell back) is tested in walletCurveEvmContract.test.ts,
     // where a failed call rolls back as the EVM specifies. The lazy mainnet-copy state manager used here does not undo storage writes of a
     // reverted call, so the state after a revert is not checked here.

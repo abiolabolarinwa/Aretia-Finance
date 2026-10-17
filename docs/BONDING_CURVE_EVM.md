@@ -50,14 +50,14 @@ The curve maths (`v_sol × v_tok = k`, the 6 : 17 virtual reserve, the split tha
 | 9 | Fee recipient that rejects coin | A rejecting recipient would make every trade revert. The recipient is fixed at deployment, so it must be an address that accepts coin (a plain account does). | Check it before deploying. |
 | 10 | Creator dumps | Fixed supply, no mint, no pause. | A creator holding tokens outside the curve can sell them into it, up to what was sold. |
 | 11 | Squatting | One curve per token; anyone holding the token can open its curve first. | Same as Solana: the page shows who opened a curve. A stricter rule (only the factory's `TokenCreated` creator) is not possible without an on-chain record the factory does not keep. |
-| 12 | Gas | Measured in the test EVM (execution gas, before the 21,000 base cost): the first buy on a curve about 123,000, later buys about 42,000, a sell about 56,000. **Graduating into the real Uniswap V2 with a new pool cost about 2.8 million gas**, mostly the exchange creating the pair. | Real gas money to whoever calls `graduate` (anyone). At 20 gwei that is about 0.055 ETH, so the web flow must say who pays and how much before it is signed. |
+| 12 | Gas | Measured in the test EVM (execution gas, before the 21,000 base cost): the first buy on a curve about 123,000, later buys about 42,000, a sell about 56,000. **Graduating into the real exchange with a new pool cost about 2.8 million gas on Ethereum and Polygon and 3.5 million on BNB Chain**, mostly the exchange creating the pair. | Real gas money to whoever calls `graduate` (anyone). At 20 gwei that is about 0.055 ETH, so the web flow must say who pays and how much before it is signed. |
 
 ## 6. Tests
 
 | What | Result |
 |---|---|
 | In-process EVM with the real compiled contract and the real token factory code, and a stand-in exchange | 17 tests, 4 of them driving the page's own flow code against the contract (open a curve with a first buy, buy, sell, sell out, graduate, unwind, and a tampered transaction refused). The 13 contract tests: the maths against the model, the factory-only rule at every nonce size, fees to the wei, every refusal, an oversized buy, a 60-step random run, reentrancy (with a mutation check), graduation, a pool at another price and the 7-day unwind, immutability (no owner, setter, upgrade or withdraw in the ABI). |
-| A local copy of Ethereum mainnet (read-only RPC), Aretia's **real deployed factory**, the **real Uniswap V2** router, factory and pair code | A curve opened with a token made by the real factory, bought out, and graduated: pair created, tokens and coin in at the right ratio, liquidity tokens held by the dead address, nothing owed. A pool created first at another price makes graduation revert with the exchange's own message. |
+| A local copy of each of Ethereum, BNB Chain and Polygon mainnet (read-only RPC), Aretia's **real deployed factory** on each, and the **real Uniswap V2 / PancakeSwap V2 / QuickSwap** router, factory and pair code | A curve opened with a token made by the real factory, bought out, and graduated: pair created, tokens and coin in at the right ratio, liquidity tokens held by the dead address, nothing owed. A pool created first at another price makes graduation revert with the exchange's own message. All three chains pass. |
 
 Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @ethereumjs/block @ethereumjs/statemanager` in `website`, then `npx vitest run src/scripts/walletCurveEvmContract.test.ts` and `npm run test:curve-fork`. They are skipped or separate in CI, as the factory's test is, because the EVM library is not a website dependency.
 
@@ -66,7 +66,7 @@ Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @e
 - **No audit, no deployment, not even on a testnet.** The first real-network step is a testnet deployment (Sepolia), which needs test ETH and the owner's go-ahead for the deployer key.
 - The fork test does not check what happens after a revert (the lazy state manager does not roll back storage); that is covered by the in-process tests.
 - The solc build is not yet reproduced by a second person. The compiler input is committed so anyone can.
-- The web flow exists (section 8) but has only been run against the contract in a local EVM, never in a browser with a real wallet. BNB Chain (PancakeSwap V2) and Polygon (QuickSwap) need only different constructor arguments but each needs its own fork test.
+- The web flow exists (section 8) but has only been run against the contract in a local EVM, never in a browser with a real wallet. BNB Chain (PancakeSwap V2) and Polygon (QuickSwap) pass the same mainnet-copy test; they still need their own testnet deployments and the owner's go-ahead.
 - Fee-on-transfer or rebasing tokens are not supported and cannot occur: only factory tokens are accepted.
 
 ## 8. The web flow
@@ -78,7 +78,11 @@ Run them: `npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @e
 - **Flow:** prepares, inspects, simulates, switches the wallet to the right network, sends, waits for the receipt, then reads the curve back and compares. If the second transaction of a pair cannot go ahead it says the approval stays for exactly the tokens and nothing else happened.
 - **Off twice:** the card exists only on a build with `PUBLIC_CURVE_ENABLED=1`, and `EVM_CURVE_ADDRESSES` is `null` for every network, which makes the card show "not live" and nothing else. A test pins both, and pins every shared constant and every function selector to the contract's source and compiled ABI.
 
-## 9. Before mainnet
+## 9. Putting it on a test network
+
+`website/scripts/deploy-curve-testnet.mjs` deploys the token factory and the curve to Sepolia, BNB Chain testnet or Polygon Amoy and nothing else (it refuses every mainnet by name). It does a dry run unless `--send` is given and reads the key from a file you name. It prints the factory and curve addresses; putting them in `LAUNCH_EVM_CHAINS` and `EVM_CURVE_ADDRESSES` is a deliberate human step. The Sepolia dry run was checked against the real network (router answers, both constructors run). It has not been sent: that needs test coins.
+
+## 10. Before mainnet
 
 1. Independent audit of `AretiaCurve.sol`.
 2. A Sepolia deployment, exercised with the real wallet flow.

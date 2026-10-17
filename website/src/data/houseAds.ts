@@ -9,7 +9,7 @@
  *
  * `bg` is the flat page colour and `art` the colour of the framed picture beside the words (#rrggbb). `layout` is 'wide' (a
  * landscape frame with the words under it), 'tall' (a portrait frame with the words beside it) or 'duo' (two frames, one above the
- * other, with the words beside them).
+ * other, with the words beside them) or 'poster' (one picture that fills the whole canvas, with the words over its empty left side).
  */
 import type { ProductKey } from '../lib/logos';
 
@@ -22,7 +22,7 @@ export interface HouseAd {
   href: string;
   bg: string;
   art: string;
-  layout: 'wide' | 'tall' | 'duo';
+  layout: 'wide' | 'tall' | 'duo' | 'poster';
   chart?: { seed: number; style: 'candles' | 'line'; up: boolean };
   /** A round mark on the picture: a symbol, or a logo file. */
   mark?: { text?: string; logo?: string; label: string; bg: string; fg?: string };
@@ -30,6 +30,7 @@ export interface HouseAd {
 }
 
 export const HOUSE_ADS: readonly HouseAd[] = [
+  { id: 'treasury', product: null, headline: 'Aretia Treasury', body: 'Managing climate needs financing: weather forecasting, flood alerting and earthquake detection, funded by every ACT transfer.', cta: 'Explore the Treasury', href: '/details', bg: '#c4d7e6', art: '#c4d7e6', layout: 'poster', image: { src: '/images/hero/treasury.webp', alt: 'A firefighting helicopter dropping water, a warning siren and a weathervane, in rounded frames' } },
   { id: 'charts', product: null, headline: 'Read the chart before you trade.', body: 'Every token in Markets opens with its chart and its Aretia rating, side by side.', cta: 'Open Markets', href: '/wallet#/swings', bg: '#e4e7fb', art: '#26168a', layout: 'wide', chart: { seed: 21, style: 'candles', up: true } },
   { id: 'bitcoin', product: null, headline: 'Bitcoin, on the chains you already use.', body: 'Find wrapped Bitcoin markets on Solana, Ethereum and more, and check each token before you trade it.', cta: 'Find a market', href: '/wallet#/swings', bg: '#fbe9d0', art: '#2b1a05', layout: 'tall', chart: { seed: 8, style: 'line', up: true }, mark: { text: '₿', label: 'Bitcoin symbol', bg: '#f7931a', fg: '#ffffff' } },
   { id: 'solana', product: null, headline: 'Solana moves fast. Check before you sign.', body: 'Trade Solana tokens with the rating, the liquidity and the safety check beside every one.', cta: 'Open Markets', href: '/wallet#/swings', bg: '#e6e3fb', art: '#14102e', layout: 'duo', chart: { seed: 33, style: 'line', up: true }, mark: { logo: '/assets/chains/solana.png', label: 'Solana', bg: '#ffffff' } },

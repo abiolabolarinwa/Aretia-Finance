@@ -37,7 +37,7 @@ const services: Service[] = [
    is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
 const sponsored = SPONSORS.filter((s) => s.slots.includes('home-canvas') && problemWith(s) === null).map((s, i) => ({
   id: `sponsor-${s.id}`, kind: 'sponsor' as const, label: 'Ad', by: s.advertiser, product: null as ProductKey | null, headline: s.headline, body: s.body, cta: s.cta, href: s.href,
-  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
+  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo' | 'poster', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
 }));
 const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, bg: a.bg, art: a.art, layout: a.layout, image: a.image ?? null, chart: a.chart ? chartArt(a.chart.seed, a.chart.style, a.chart.up).inner : null, mark: a.mark ?? null, from: '', to: '' }));
 const slides = [...sponsored, ...house];
@@ -107,7 +107,7 @@ const slides = [...sponsored, ...house];
           slides.map((a, i) => (
             <section class={`ad ad--${a.layout}${i === sponsored.length ? ' is-active' : ''}`} data-ad data-kind={a.kind} data-from={a.from} data-to={a.to} style={`--bg:${a.bg};--art:${a.art}`} aria-label={`${a.label}: ${a.headline}`}>
               <figure class="ad__frame" aria-hidden="true">
-                {a.image ? <img src={a.image.src} alt={a.image.alt} loading="lazy" /> : (
+                {a.image ? <img src={a.image.src} alt={a.image.alt} loading={i === sponsored.length ? undefined : 'lazy'} width={a.layout === 'poster' ? 1920 : undefined} height={a.layout === 'poster' ? 1080 : undefined} /> : (
                   <span class="ad__art">
                     {a.chart && <svg class="ad__chart" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid meet" set:html={a.chart} />}
                     {a.layout !== 'duo' && a.mark && <span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span>}
@@ -281,6 +281,13 @@ const slides = [...sponsored, ...house];
   .ad__tag { position: absolute; z-index: 2; padding: 2px 8px; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.55); border-radius: 6px; }
 
   /* Wide: a landscape frame, the words under it, the badge on its corner. */
+  /* Poster: one picture fills the canvas; its left side is empty, so the words sit there. */
+  .ad--poster .ad__frame { inset: 0; background: var(--bg); }
+  .ad--poster .ad__frame img { object-position: 50% 50%; }
+  .ad--poster .ad__copy { position: absolute; left: clamp(1.5rem, 4vw, 4rem); top: 104px; width: min(40%, 520px); display: grid; gap: 1rem; }
+  .ad--poster .ad__title { font-size: clamp(2.4rem, min(4.6vw, 8vh), 4.4rem); }
+  .ad--poster .ad__tag { right: 14px; top: 88px; }
+  .ad--poster .ad__badge { right: clamp(1rem, 3vw, 2.25rem); bottom: 72px; }
   .ad--wide .ad__frame { left: max(520px, 40%); right: clamp(1rem, 3vw, 2.25rem); top: 88px; bottom: 190px; }
   .ad--wide .ad__tag { left: calc(max(520px, 40%) + 12px); top: 100px; }
   .ad--wide .ad__copy { position: absolute; left: calc(max(520px, 40%) + 72px); right: clamp(1rem, 3vw, 2.25rem); bottom: 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: end; gap: 1rem 2rem; }
@@ -323,6 +330,13 @@ const slides = [...sponsored, ...house];
     .stage { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; padding: 0 1rem 1.5rem; }
     .canvas { position: relative; inset: auto; order: -1; height: 340px; border-radius: 22px; margin-top: 0; }
     .ad__frame { display: none; }
+    .ad--poster .ad__frame { display: block; }
+    .ad--poster .ad__frame img { object-fit: contain; object-position: 50% 100%; }
+    .ad--poster .ad__copy { inset: 2.2rem 1.25rem auto 1.25rem; width: auto; gap: 0.4rem; }
+    .ad--poster .ad__title { font-size: 1.8rem; }
+    .ad--poster .ad__body { display: none; }
+    .ad--poster .ad__badge { top: auto; left: auto; right: 12px; bottom: 12px; width: 72px; height: 72px; font-size: 0.7rem; }
+    .ad--poster .ad__tag { left: auto; right: 12px; top: 12px; color: #fff; background: rgba(14, 11, 43, 0.55); }
     .ad--wide .ad__copy, .ad--tall .ad__copy, .ad--duo .ad__copy { position: absolute; inset: 2.6rem 1.25rem auto 1.25rem; transform: none; display: grid; grid-template-columns: 1fr; gap: 0.7rem; max-width: none; }
     .ad__title { font-size: 1.8rem; }
     .ad__body { font-size: 0.95rem; }

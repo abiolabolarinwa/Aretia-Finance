@@ -23,6 +23,7 @@ export const DISC = {
   removeLiquidity: Uint8Array.from([80, 85, 209, 72, 24, 206, 177, 108]),
   claimFees: Uint8Array.from([82, 251, 233, 156, 12, 52, 184, 202]),
   lockLiquidity: Uint8Array.from([179, 201, 236, 158, 212, 98, 70, 182]),
+  setRecipient: Uint8Array.from([133, 1, 115, 69, 206, 190, 17, 18]),
 } as const;
 
 const view = (d: Uint8Array) => new DataView(d.buffer, d.byteOffset, d.byteLength);
@@ -42,8 +43,8 @@ export function positionAddress(web3: typeof Web3, program: string, pool: string
 
 // ---------------------------------------------------------------- building
 
-function data(tag: Uint8Array, parts: ({ u64: bigint } | { u16: number } | { bool: boolean })[]): Buffer {
-  const size = parts.reduce((n, p) => n + ('u64' in p ? 8 : 'u16' in p ? 2 : 1), 8);
+function data(tag: Uint8Array, parts: ({ u64: bigint } | { u32: number } | { u16: number } | { bool: boolean } | { key: Uint8Array })[]): Buffer {
+  const size = parts.reduce((n, p) => n + ('u64' in p ? 8 : 'u32' in p ? 4 : 'u16' in p ? 2 : 'key' in p ? 32 : 1), 8);
   const out = Buffer.alloc(size);
   out.set(tag, 0);
   const v = new DataView(out.buffer, out.byteOffset, out.byteLength);
@@ -52,9 +53,15 @@ function data(tag: Uint8Array, parts: ({ u64: bigint } | { u16: number } | { boo
     if ('u64' in p) {
       v.setBigUint64(at, p.u64, true);
       at += 8;
+    } else if ('u32' in p) {
+      v.setUint32(at, p.u32, true);
+      at += 4;
     } else if ('u16' in p) {
       v.setUint16(at, p.u16, true);
       at += 2;
+    } else if ('key' in p) {
+      out.set(p.key, at);
+      at += 32;
     } else {
       out[at++] = p.bool ? 1 : 0;
     }
@@ -94,7 +101,7 @@ export function buildCreatePool(web3: typeof Web3, program: string, p: CreatePar
       key(web3, ATA_PROGRAM_ID, false, false),
       key(web3, SYSTEM_PROGRAM_ID, false, false),
     ],
-    data: data(DISC.createPool, [{ u64: p.x0 }, { u64: p.y0 }, { u64: p.l0 }, { u16: p.feeBps }, { bool: p.lock }]),
+    data: data(DISC.createPool, [{ u64: p.x0 }, { u64: p.y0 }, { u64: p.l0 }, { u16: p.feeBps }, { bool: p.lock }, { u16: p.sniperBps }, { u32: p.decaySecs }]),
   });
   return { instructions: [ix], pool, position, vault, solVault };
 }
@@ -159,7 +166,8 @@ export function buildRemoveLiquidity(web3: typeof Web3, program: string, l: Liqu
   return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint), data: data(DISC.removeLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
 }
 
-export function buildClaim(web3: typeof Web3, program: string, owner: string, mint: string): Web3.TransactionInstruction {
+/** `recipient` is the wallet the position names to receive its fees (the owner unless changed). */
+export function buildClaim(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string = owner): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, mint);
   return new web3.TransactionInstruction({
     programId: new web3.PublicKey(program),
@@ -168,9 +176,19 @@ export function buildClaim(web3: typeof Web3, program: string, owner: string, mi
       key(web3, pool, false, true),
       key(web3, solVaultAddress(web3, program, pool), false, true),
       key(web3, positionAddress(web3, program, pool, owner), false, true),
+      key(web3, recipient, false, true),
       key(web3, SYSTEM_PROGRAM_ID, false, false),
     ],
     data: data(DISC.claimFees, []),
+  });
+}
+
+export function buildSetRecipient(web3: typeof Web3, program: string, owner: string, mint: string, recipient: string): Web3.TransactionInstruction {
+  const pool = poolAddress(web3, program, mint);
+  return new web3.TransactionInstruction({
+    programId: new web3.PublicKey(program),
+    keys: [key(web3, owner, true, false), key(web3, pool, false, false), key(web3, positionAddress(web3, program, pool, owner), false, true)],
+    data: data(DISC.setRecipient, [{ key: new web3.PublicKey(recipient).toBytes() }]),
   });
 }
 
@@ -259,7 +277,7 @@ export function inspectCreate(web3: typeof Web3, tx: Web3.Transaction, c: Create
   ];
   return [
     ...blockers,
-    ...inspectOne(tx, p.creator, program, DISC.createPool, 8 + 8 + 8 + 8 + 2 + 1, accounts, (d) => {
+    ...inspectOne(tx, p.creator, program, DISC.createPool, 8 + 8 + 8 + 8 + 2 + 1 + 2 + 4, accounts, (d) => {
       const v = view(d);
       const out: string[] = [];
       if (v.getBigUint64(8, true) !== p.x0) out.push('The amount of tokens going in is not the one shown.');
@@ -267,6 +285,7 @@ export function inspectCreate(web3: typeof Web3, tx: Web3.Transaction, c: Create
       if (v.getBigUint64(24, true) !== p.l0) out.push('The starting price is not the one shown.');
       if (v.getUint16(32, true) !== p.feeBps) out.push('The trading fee is not the one shown.');
       if (d[34] !== (p.lock ? 1 : 0)) out.push(p.lock ? 'The liquidity would not be locked.' : 'The liquidity would be locked, which was not chosen.');
+      if (v.getUint16(35, true) !== p.sniperBps || v.getUint32(37, true) !== p.decaySecs) out.push('The launch protection is not the one shown.');
       return out;
     }),
   ];
@@ -300,13 +319,14 @@ export function inspectSwap(web3: typeof Web3, tx: Web3.Transaction, c: SwapChec
   });
 }
 
-export function inspectClaim(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string }): string[] {
+export function inspectClaim(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient?: string }): string[] {
   const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
   const accounts: Want[] = [
     [c.owner, 'SW'],
     [pool, 'W'],
     [pda(web3, c.program, [text('sol_vault'), pk(web3, pool)]), 'W'],
     [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
+    [c.recipient ?? c.owner, 'W'],
     [SYSTEM_PROGRAM_ID, ''],
   ];
   return inspectOne(tx, c.owner, c.program, DISC.claimFees, 8, accounts, () => []);
@@ -351,4 +371,14 @@ export function inspectAddLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: 
 
 export function inspectRemoveLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: LiquidityParams & { program: string }): string[] {
   return inspectLiquidity(web3, tx, c.program, DISC.removeLiquidity, c, false);
+}
+
+export function inspectSetRecipient(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; recipient: string }): string[] {
+  const pool = pda(web3, c.program, [text('pool'), pk(web3, c.mint)]);
+  const accounts: Want[] = [
+    [c.owner, 'S'],
+    [pool, ''],
+    [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
+  ];
+  return inspectOne(tx, c.owner, c.program, DISC.setRecipient, 8 + 32, accounts, (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.recipient)) ? [] : ['The wallet that would receive the fees is not the one shown.']));
 }

@@ -6,7 +6,7 @@
  * shows a notice and no form until walletAretiaPoolCore.ts has a mainnet program address, which it will not have before an independent
  * audit. Everything typed, and everything read from the chain, is shown with textContent, never as markup.
  */
-import { fromSmallestUnit, toSmallestUnit } from './walletTools';
+import { fromSmallestUnit, isSolanaAddress, toSmallestUnit } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import { POOL_TRADING_FEES_BPS, type PoolIssue, type PoolToken } from './walletPoolCore';
 import {
@@ -14,6 +14,8 @@ import {
   aretiaPoolDisclosures,
   aretiaPoolProgramFor,
   DEFAULT_ARETIA_POOL_FORM,
+  LAUNCH_PROTECTION,
+  type LaunchProtection,
   type AretiaPoolForm,
   priceText,
   ARETIA_SLIPPAGE_BPS_DEFAULT,
@@ -87,6 +89,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
   let tradeSide: 'buy' | 'sell' = 'buy';
   let tradeText = '';
   let liqText = '';
+  let recipientText = '';
   let flow: AretiaPoolFlow | null = null;
 
   async function flowFor(): Promise<AretiaPoolFlow> {
@@ -178,6 +181,23 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     feeWrap.append(feeLabel, select, h('p', 'wapp__fine', 'Taken from the SOL side of each trade. 20% goes to Aretia and 80% to you.'));
     f.append(feeWrap);
 
+    const lpWrap = h('div', 'wapp-ln__field');
+    const lpLabel = h('label', 'wapp__eyebrow', 'Launch protection');
+    lpLabel.htmlFor = 'ap-launch';
+    const lpSelect = h('select', 'wapp__input');
+    lpSelect.id = 'ap-launch';
+    for (const key of Object.keys(LAUNCH_PROTECTION) as LaunchProtection[]) {
+      const o = h('option', '', LAUNCH_PROTECTION[key].label);
+      o.value = key;
+      o.selected = key === form.launchProtection;
+      lpSelect.append(o);
+    }
+    lpSelect.addEventListener('change', () => {
+      form = { ...form, launchProtection: lpSelect.value as LaunchProtection };
+    });
+    lpWrap.append(lpLabel, lpSelect, h('p', 'wapp__fine', 'A higher fee right after the pool opens makes sniping bots pay for being first. It falls in a straight line to the trading fee, is shared 20% Aretia and 80% you, and cannot be changed afterwards.'));
+    f.append(lpWrap);
+
     const lockWrap = h('label', 'wapp__check');
     const lockBox = h('input');
     lockBox.type = 'checkbox';
@@ -228,6 +248,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
       if (position) {
         row(dl, 'Your liquidity', `${grouped(position.shares.toString())} (${position.locked === position.shares ? 'locked' : `${grouped(position.locked.toString())} locked`})`);
         row(dl, 'Fees you can claim', sol(managed.claimable));
+        row(dl, 'Fees are paid to', position.recipient === position.owner ? 'You' : short(position.recipient));
       } else row(dl, 'Your position', 'None in this pool');
       box.append(dl);
       drawTrade(box, managed);
@@ -237,6 +258,18 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
         claim.disabled = busy || managed.claimable === 0n;
         claim.addEventListener('click', () => void act('claim'));
         box.append(claim);
+        const to = h('input', 'wapp__input wapp__input--mono');
+        to.placeholder = 'Send my fees to this wallet (optional)';
+        to.value = recipientText;
+        to.autocomplete = 'off';
+        to.spellcheck = false;
+        to.setAttribute('aria-label', 'Wallet to send fees to');
+        to.addEventListener('input', () => (recipientText = to.value.trim()));
+        const setTo = h('button', 'wapp__btn wapp__btn--ghost', 'Change where fees go');
+        setTo.type = 'button';
+        setTo.disabled = busy;
+        setTo.addEventListener('click', () => void act('recipient'));
+        box.append(to, setTo);
         if (position.locked < position.shares) {
           const lock = h('button', 'wapp__btn wapp__btn--ghost', 'Lock the rest for good');
           lock.type = 'button';
@@ -319,6 +352,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     row(dl, 'Starting price', `${config.price} SOL per token`);
     row(dl, 'Trading fee', `${config.tradingFeeBps / 100}% (Aretia keeps 20% of it)`);
     row(dl, 'Liquidity', params.lock ? 'Locked for good' : 'Not locked: you can remove it');
+    row(dl, 'Launch protection', params.sniperBps > 0 ? `${params.sniperBps / 100}% falling over ${params.decaySecs / 60} minutes` : 'None');
     row(dl, 'Pool address', short(built.pool));
     card.append(dl);
     card.append(h('span', 'wapp__eyebrow', 'What it costs, in SOL'));
@@ -495,23 +529,27 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     }
   }
 
-  async function act(kind: 'claim' | 'lock' | 'trade' | 'add' | 'remove', quote: TradeQuote | LiquidityQuote | null = null): Promise<void> {
+  async function act(kind: 'claim' | 'lock' | 'trade' | 'add' | 'remove' | 'recipient', quote: TradeQuote | LiquidityQuote | null = null): Promise<void> {
     const owner = host.getAddress();
     const view = managed;
     if (!owner || !view) return;
-    if ((kind === 'claim' || kind === 'lock' || kind === 'remove') && !view.position) return;
+    if ((kind === 'claim' || kind === 'lock' || kind === 'remove' || kind === 'recipient') && !view.position) return;
     busy = true;
     note = null;
     draw();
     try {
       const f = await flowFor();
-      if (kind === 'claim') await f.claim(owner, managedMint);
+      if (kind === 'claim') await f.claim(owner, managedMint, view.position!.recipient);
+      else if (kind === 'recipient') {
+        if (!isSolanaAddress(recipientText)) throw new Error('That is not a valid wallet address.');
+        await f.setRecipient(owner, managedMint, recipientText);
+      }
       else if (kind === 'lock') await f.lock(owner, managedMint, view.position!.shares - view.position!.locked);
       else if (kind === 'trade' && quote && 'isBuy' in quote) await f.trade(owner, managedMint, quote);
       else if (kind === 'add' && quote && 'dl' in quote) await f.addLiquidity(owner, managedMint, quote);
       else if (kind === 'remove' && quote && 'dl' in quote) await f.removeLiquidity(owner, managedMint, quote);
       else throw new Error('Nothing to send.');
-      note = { claim: 'Fees claimed.', lock: 'Locked for good.', trade: 'Trade sent.', add: 'Liquidity added.', remove: 'Liquidity removed.' }[kind];
+      note = { recipient: 'Fees will now be paid to the wallet you named.', claim: 'Fees claimed.', lock: 'Locked for good.', trade: 'Trade sent.', add: 'Liquidity added.', remove: 'Liquidity removed.' }[kind];
       managed = await f.loadPool(managedMint, owner);
       host.refreshWallet();
     } catch (e) {

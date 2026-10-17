@@ -43,13 +43,16 @@ pub mod aretia_pool {
     /// Opens the pool for `mint`. `x0` tokens leave the creator's account for the pool's vault, `y0` lamports (usually
     /// none) go into the SOL vault, and `l0` is the opening liquidity: the virtual SOL reserve that sets the price.
     /// The position is opened for `owner`, locked in full when `lock`. The creator pays the flat creation fee.
-    pub fn create_pool(ctx: Context<CreatePool>, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool) -> Result<()> {
+    /// Launch protection: `sniper_bps` and `decay_secs` give a fee that starts at `sniper_bps` and falls in a straight line to `fee_bps`
+    /// over `decay_secs` (at most 25% and one hour); both zero means none. Fixed for good at creation.
+    pub fn create_pool(ctx: Context<CreatePool>, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32) -> Result<()> {
         let mint_info = ctx.accounts.mint.to_account_info();
         require_keys_eq!(*mint_info.owner, anchor_spl::token_2022::ID, PoolError::MintNotAllowed);
         check_mint(&mint_info.try_borrow_data()?)?;
         require!(ctx.accounts.creator_token.amount >= x0, PoolError::NotEnoughTokens);
 
         let m = Math::open(x0, y0, l0, fee_bps).ok_or(PoolError::BadParameters)?;
+        require!(pool_math::schedule_ok(fee_bps, sniper_bps, decay_secs), PoolError::BadParameters);
         let now = Clock::get()?.unix_timestamp;
         let pool = &mut ctx.accounts.pool;
         pool.bump = ctx.bumps.pool;
@@ -58,6 +61,8 @@ pub mod aretia_pool {
         pool.creator = ctx.accounts.creator.key();
         pool.set_math(&m);
         pool.created_at = now;
+        pool.fee_start_bps = sniper_bps;
+        pool.decay_secs = decay_secs;
 
         let pos = &mut ctx.accounts.position;
         pos.pool = pool.key();
@@ -66,6 +71,7 @@ pub mod aretia_pool {
         pos.locked = if lock { l0 } else { 0 };
         pos.checkpoint = 0;
         pos.pending = 0;
+        pos.recipient = ctx.accounts.owner.key();
 
         let pool_key = pool.key();
         // The creation fee, then the SOL vault: it must hold the rent-exempt minimum to exist, and the creator pays that once.
@@ -103,8 +109,12 @@ pub mod aretia_pool {
     /// least `min_out` comes back (tokens on a buy; lamports after the fee on a sell).
     pub fn swap(ctx: Context<Swap>, is_buy: bool, amount_in: u64, min_out: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
-        let m = pool.math();
-        let (out, fee, protocol, next) = if is_buy {
+        let now = Clock::get()?.unix_timestamp;
+        // The fee in force now: the creator's launch schedule while it lasts, then the base fee.
+        let base_fee = pool.fee_bps;
+        let mut m = pool.math();
+        m.fee_bps = pool_math::effective_fee_bps(base_fee, pool.fee_start_bps, pool.decay_secs, pool.created_at, now);
+        let (out, fee, protocol, mut next) = if is_buy {
             let (b, n) = pool_math::buy(&m, amount_in).ok_or(PoolError::TradeTooSmall)?;
             (b.tokens_out, b.fee, b.protocol, n)
         } else {
@@ -113,10 +123,10 @@ pub mod aretia_pool {
         };
         require!(out >= min_out, PoolError::Slippage);
 
-        // Effects first.
+        // Effects first. The stored fee stays the base fee.
+        next.fee_bps = base_fee;
         pool.set_math(&next);
         let (pool_key, mint_key, bump, sol_bump) = (pool.key(), pool.mint, pool.bump, pool.sol_bump);
-        let now = Clock::get()?.unix_timestamp;
         let sys = ctx.accounts.system_program.to_account_info();
         let before = ctx.accounts.vault.amount;
 
@@ -170,6 +180,7 @@ pub mod aretia_pool {
             pos.pool = pool.key();
             pos.owner = ctx.accounts.owner.key();
             pos.checkpoint = pool.acc;
+            pos.recipient = ctx.accounts.owner.key();
         }
         settle(pos, pool)?;
         let (a, next) = pool_math::add(&pool.math(), dl).ok_or(PoolError::BadParameters)?;
@@ -239,7 +250,8 @@ pub mod aretia_pool {
         Ok(())
     }
 
-    /// Pays the position owner the fees it has earned. Works on locked positions.
+    /// Pays the position's fees to its recipient (the owner unless the owner has named another wallet). Only the owner may call it.
+    /// Works on locked positions. The recipient must be able to hold the amount: a wallet with no SOL needs at least the rent minimum.
     pub fn claim_fees(ctx: Context<ClaimFees>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let pos = &mut ctx.accounts.position;
@@ -252,11 +264,20 @@ pub mod aretia_pool {
 
         let sol_seeds: &[&[u8]] = &[b"sol_vault", pool_key.as_ref(), &[sol_bump]];
         system_program::transfer(
-            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.owner.to_account_info() }, &[sol_seeds]),
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.recipient.to_account_info() }, &[sol_seeds]),
             amount,
         )?;
         require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
         emit!(Claimed { pool: pool_key, owner: ctx.accounts.owner.key(), amount, ts: Clock::get()?.unix_timestamp });
+        Ok(())
+    }
+
+    /// Names the wallet that `claim_fees` pays. Owner only, any time, even on a locked position: the lock covers the liquidity, not
+    /// where the fees go.
+    pub fn set_recipient(ctx: Context<SetRecipient>, recipient: Pubkey) -> Result<()> {
+        let pos = &mut ctx.accounts.position;
+        pos.recipient = recipient;
+        emit!(RecipientSet { pool: pos.pool, owner: pos.owner, recipient, ts: Clock::get()?.unix_timestamp });
         Ok(())
     }
 
@@ -334,6 +355,9 @@ pub struct Pool {
     pub acc: u128,
     pub fee_reserve: u64,
     pub created_at: i64,
+    /// Launch protection: the fee starts here and falls in a line to `fee_bps` over `decay_secs`. Zero means none.
+    pub fee_start_bps: u16,
+    pub decay_secs: u32,
 }
 
 impl Pool {
@@ -359,6 +383,8 @@ pub struct Position {
     pub locked: u64,
     pub checkpoint: u128,
     pub pending: u64,
+    /// Where `claim_fees` pays. The owner until the owner says otherwise.
+    pub recipient: Pubkey,
 }
 
 // ---------------------------------------------------------------- accounts
@@ -457,7 +483,19 @@ pub struct ClaimFees<'info> {
     pub sol_vault: SystemAccount<'info>,
     #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
+    /// The wallet the position names to receive its fees.
+    #[account(mut, address = position.recipient)]
+    pub recipient: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SetRecipient<'info> {
+    pub owner: Signer<'info>,
+    #[account(seeds = [b"pool", pool.mint.as_ref()], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut, seeds = [b"position", pool.key().as_ref(), owner.key().as_ref()], bump, has_one = pool, has_one = owner)]
+    pub position: Account<'info, Position>,
 }
 
 #[derive(Accounts)]
@@ -519,6 +557,14 @@ pub struct Claimed {
     pub pool: Pubkey,
     pub owner: Pubkey,
     pub amount: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct RecipientSet {
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub recipient: Pubkey,
     pub ts: i64,
 }
 

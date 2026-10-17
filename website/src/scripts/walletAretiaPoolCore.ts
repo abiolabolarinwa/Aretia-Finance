@@ -35,6 +35,16 @@ export const MIN_LIQUIDITY = 10_000_000n;
 export const MIN_LIQUIDITY_DELTA = 1_000n;
 export const MAX_AMOUNT = 1n << 62n;
 export const ALLOWED_FEE_BPS: readonly number[] = [25, 100];
+export const MAX_SNIPER_BPS = 2_500;
+export const MAX_DECAY_SECS = 3_600;
+
+/** The launch-protection choices the page offers: the fee a pool starts at (basis points) and how long it takes to fall to the base fee. */
+export const LAUNCH_PROTECTION = {
+  off: { startBps: 0, decaySecs: 0, label: 'None' },
+  standard: { startBps: 1_000, decaySecs: 300, label: 'Standard: starts at 10%, falls to the trading fee over 5 minutes' },
+  strong: { startBps: 2_500, decaySecs: 900, label: 'Strong: starts at 25%, falls to the trading fee over 15 minutes' },
+} as const;
+export type LaunchProtection = keyof typeof LAUNCH_PROTECTION;
 /** Rent of the pool account, the position, the SOL vault and the token vault, plus the network fee: a starting estimate, deliberately high. */
 export const ARETIA_POOL_NETWORK_ESTIMATE_LAMPORTS = 10_000_000n;
 export const ARETIA_SLIPPAGE_BPS_DEFAULT = 100;
@@ -46,6 +56,10 @@ const U128_MASK = (1n << 128n) - 1n;
 // ---------------------------------------------------------------- the maths (mirrors pool-math)
 
 export interface PoolMath {
+  /** Launch protection, kept with the pool so a quote can use the fee in force. Absent means none. */
+  feeStartBps?: number;
+  decaySecs?: number;
+  startTs?: bigint;
   x: bigint;
   y: bigint;
   l: bigint;
@@ -138,6 +152,26 @@ export function pendingFee(shares: bigint, acc: bigint, checkpoint: bigint): big
   return v > U64_MAX ? null : v;
 }
 
+/** The fee in force `now` (unix seconds): the launch schedule falls in a line to the base fee; the part above the base is rounded up. */
+export function effectiveFeeBps(baseBps: number, startBps: number, decaySecs: number, startTs: bigint, now: bigint): number {
+  if (decaySecs === 0 || startBps <= baseBps) return baseBps;
+  const elapsed = now > startTs ? now - startTs : 0n;
+  if (elapsed >= BigInt(decaySecs)) return baseBps;
+  const left = BigInt(decaySecs) - elapsed;
+  const extra = ceilDiv(BigInt(startBps - baseBps) * left, BigInt(decaySecs));
+  return baseBps + Number(extra);
+}
+
+/** The pool as a trade would find it at `now`: its fee is the one in force. */
+export function atTime(p: PoolMath, now: bigint): PoolMath {
+  return { ...p, feeBps: effectiveFeeBps(p.feeBps, p.feeStartBps ?? 0, p.decaySecs ?? 0, p.startTs ?? 0n, now) };
+}
+
+export function scheduleOk(baseBps: number, startBps: number, decaySecs: number): boolean {
+  if (startBps === 0 && decaySecs === 0) return true;
+  return decaySecs > 0 && decaySecs <= MAX_DECAY_SECS && startBps > baseBps && startBps <= MAX_SNIPER_BPS;
+}
+
 // ---------------------------------------------------------------- creating a pool
 
 /** What `create_pool` is called with, worked out from what the creator chose. */
@@ -149,6 +183,9 @@ export interface CreateParams {
   l0: bigint;
   feeBps: number;
   lock: boolean;
+  /** Launch protection: the fee starts here and falls to feeBps over decaySecs. Both zero means none. */
+  sniperBps: number;
+  decaySecs: number;
 }
 
 /**
@@ -165,8 +202,8 @@ export function liquidityForPrice(tokenAmountRaw: bigint, decimals: number, pric
 }
 
 /** The Meteora form plus the lock choice, which this pool offers (the Meteora flow always locks). Locked is the default. */
-export type AretiaPoolForm = PoolForm & { lockLiquidity: boolean };
-export const DEFAULT_ARETIA_POOL_FORM: AretiaPoolForm = { ...DEFAULT_POOL_FORM, lockLiquidity: true };
+export type AretiaPoolForm = PoolForm & { lockLiquidity: boolean; launchProtection: LaunchProtection };
+export const DEFAULT_ARETIA_POOL_FORM: AretiaPoolForm = { ...DEFAULT_POOL_FORM, lockLiquidity: true, launchProtection: 'standard' };
 
 export type AretiaPoolValidation = { ok: true; config: PoolConfig; params: CreateParams } | { ok: false; issues: PoolIssue[] };
 
@@ -182,7 +219,9 @@ export function validateAretiaPool(form: AretiaPoolForm, creator: string, token:
   if (l0 === null || l0 < MIN_LIQUIDITY) issues.push({ field: 'price', message: 'Amount times price must be worth at least 0.01 SOL.' });
   else if (l0 > MAX_AMOUNT) issues.push({ field: 'price', message: 'Amount times price is above what an Aretia pool can hold.' });
   if (issues.length > 0 || l0 === null) return { ok: false, issues };
-  return { ok: true, config, params: { creator, mint: config.mint, x0: config.tokenAmountRaw, y0: 0n, l0, feeBps: config.tradingFeeBps, lock: config.lockLiquidity } };
+  const lp = LAUNCH_PROTECTION[form.launchProtection] ?? LAUNCH_PROTECTION.off;
+  const sched = config.tradingFeeBps >= lp.startBps ? { startBps: 0, decaySecs: 0 } : lp; // a schedule must start above the trading fee
+  return { ok: true, config, params: { creator, mint: config.mint, x0: config.tokenAmountRaw, y0: 0n, l0, feeBps: config.tradingFeeBps, lock: config.lockLiquidity, sniperBps: sched.startBps, decaySecs: sched.decaySecs } };
 }
 
 export interface AretiaPoolCost {
@@ -203,6 +242,9 @@ export function aretiaPoolDisclosures(params: CreateParams): { severity: 'info' 
       ? { severity: 'info', text: 'The liquidity is locked for good. Nobody, you included, can take the tokens or the SOL back out of the pool. You can still claim your share of its trading fees.' }
       : { severity: 'caution', text: 'The liquidity is not locked. You can remove it at any time, which would leave holders with no market.' },
     { severity: 'info', text: `Every trade pays ${feeText} in SOL. Aretia keeps 20% of that fee and you keep the other 80%, which you claim from the pool.` },
+    params.sniperBps > 0
+      ? { severity: 'info', text: `For the first ${params.decaySecs / 60} minutes after the pool opens the fee starts at ${params.sniperBps / 100}% and falls in a straight line to ${feeText}. Fast bots pay it; Aretia and you split it the same 20% / 80%.` }
+      : { severity: 'caution', text: 'There is no launch protection: from the first second, trades pay only the trading fee.' },
     { severity: 'info', text: 'Only your tokens go in. Nobody can sell below the starting price, and buyers pay SOL that builds the other side of the pool.' },
     { severity: 'caution', text: 'The starting price is yours to choose and is not checked against any market. A price set far from what people will pay can leave the pool with no buyers.' },
     { severity: 'caution', text: 'Jupiter and other aggregators do not route to this pool yet. People can trade it on Aretia only.' },
@@ -223,6 +265,8 @@ export interface PoolAccount {
   acc: bigint;
   feeReserve: bigint;
   createdAt: bigint;
+  feeStartBps: number;
+  decaySecs: number;
 }
 
 export interface PositionAccount {
@@ -232,13 +276,14 @@ export interface PositionAccount {
   locked: bigint;
   checkpoint: bigint;
   pending: bigint;
+  recipient: string;
 }
 
 /** Anchor account tags: sha256("account:Pool")[0..8] and sha256("account:Position")[0..8]. */
 export const POOL_TAG = Uint8Array.from([241, 154, 109, 4, 17, 177, 109, 188]);
 export const POSITION_TAG = Uint8Array.from([170, 188, 143, 228, 122, 64, 247, 208]);
-export const POOL_ACCOUNT_SIZE = 8 + 1 + 1 + 32 + 32 + 2 + 8 + 8 + 8 + 16 + 8 + 8;
-export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 8 + 8 + 16 + 8;
+export const POOL_ACCOUNT_SIZE = 8 + 1 + 1 + 32 + 32 + 2 + 8 + 8 + 8 + 16 + 8 + 8 + 2 + 4;
+export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 8 + 8 + 16 + 8 + 32;
 
 const u64At = (v: DataView, at: number): bigint => v.getBigUint64(at, true);
 const u128At = (v: DataView, at: number): bigint => u64At(v, at) | (u64At(v, at + 8) << 64n);
@@ -260,16 +305,18 @@ export function parsePoolAccount(data: Uint8Array, toBase58: (bytes: Uint8Array)
     acc: u128At(v, 100),
     feeReserve: u64At(v, 116),
     createdAt: BigInt.asIntN(64, u64At(v, 124)),
+    feeStartBps: v.getUint16(132, true),
+    decaySecs: v.getUint32(134, true),
   };
 }
 
 export function parsePositionAccount(data: Uint8Array, toBase58: (bytes: Uint8Array) => string): PositionAccount | null {
   if (data.length !== POSITION_ACCOUNT_SIZE || !sameBytes(data.subarray(0, 8), POSITION_TAG)) return null;
   const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  return { pool: toBase58(data.subarray(8, 40)), owner: toBase58(data.subarray(40, 72)), shares: u64At(v, 72), locked: u64At(v, 80), checkpoint: u128At(v, 88), pending: u64At(v, 104) };
+  return { pool: toBase58(data.subarray(8, 40)), owner: toBase58(data.subarray(40, 72)), shares: u64At(v, 72), locked: u64At(v, 80), checkpoint: u128At(v, 88), pending: u64At(v, 104), recipient: toBase58(data.subarray(112, 144)) };
 }
 
-export const poolMathOf = (p: PoolAccount): PoolMath => ({ x: p.x, y: p.y, l: p.l, feeBps: p.feeBps, acc: p.acc, feeReserve: p.feeReserve });
+export const poolMathOf = (p: PoolAccount): PoolMath => ({ x: p.x, y: p.y, l: p.l, feeBps: p.feeBps, acc: p.acc, feeReserve: p.feeReserve, feeStartBps: p.feeStartBps, decaySecs: p.decaySecs, startTs: p.createdAt });
 
 /** What a position could claim right now, including fees not yet written to it. */
 export function claimable(pool: PoolAccount, pos: PositionAccount): bigint | null {

@@ -3,7 +3,7 @@
 //!
 //!   cargo run --example vectors > ../../../website/src/scripts/__fixtures__/aretiaPoolVectors.json
 use aretia_pool_it::{ata, pool_pda, position_pda, sol_vault_pda, Address, TOKEN_2022};
-use pool_math::{add, buy, pending_fee, remove, sell, Pool};
+use pool_math::{add, buy, effective_fee_bps, pending_fee, remove, sell, Pool};
 
 fn st(p: &Pool) -> String {
     format!("{{\"x\":\"{}\",\"y\":\"{}\",\"l\":\"{}\",\"acc\":\"{}\",\"feeReserve\":\"{}\"}}", p.x, p.y, p.l, p.acc, p.fee_reserve)
@@ -82,6 +82,13 @@ fn main() {
         let r = pending_fee(shares, acc, cp);
         claims.push(format!("{{\"shares\":\"{shares}\",\"acc\":\"{acc}\",\"checkpoint\":\"{cp}\",\"out\":{}}}", r.map(|v| format!("\"{v}\"")).unwrap_or("null".into())));
     }
+    // The launch fee schedule at many moments.
+    let mut schedule = vec![];
+    for (base, start, decay, t0) in [(100u16, 2_000u16, 600u32, 1_000i64), (25, 1_000, 300, 0), (25, 2_500, 3_600, 1_700_000_000), (100, 0, 0, 5), (100, 100, 600, 5)] {
+        for dt in [-50i64, 0, 1, 59, 150, 299, 300, 301, 599, 600, 3_599, 3_600, 100_000] {
+            schedule.push(format!("{{\"base\":{base},\"start\":{start},\"decay\":{decay},\"t0\":\"{t0}\",\"now\":\"{}\",\"fee\":{}}}", t0 + dt, effective_fee_bps(base, start, decay, t0, t0 + dt)));
+        }
+    }
     // Addresses the program derives, for two fixed mints and owners.
     let mut addrs = vec![];
     for (mint, owner) in [("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG", "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX"), ("4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX", "3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg")] {
@@ -95,5 +102,5 @@ fn main() {
             position_pda(&pool, &owner),
         ));
     }
-    println!("{{\"program\":\"{}\",\"runs\":[{}],\"claims\":[{}],\"addresses\":[{}]}}", aretia_pool_it::PROGRAM_ID, runs.join(","), claims.join(","), addrs.join(","));
+    println!("{{\"program\":\"{}\",\"runs\":[{}],\"claims\":[{}],\"schedule\":[{}],\"addresses\":[{}]}}", aretia_pool_it::PROGRAM_ID, runs.join(","), claims.join(","), schedule.join(","), addrs.join(","));
 }

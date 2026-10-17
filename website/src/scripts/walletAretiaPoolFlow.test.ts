@@ -20,7 +20,7 @@ const tokenAccount = (amount: bigint): Uint8Array => {
   return data;
 };
 
-function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: bigint; feeReserve?: bigint; creator?: string; mint?: string }): Uint8Array {
+function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: bigint; feeReserve?: bigint; creator?: string; mint?: string; feeStartBps?: number; decaySecs?: number }): Uint8Array {
   const d = new Uint8Array(POOL_ACCOUNT_SIZE);
   d.set(POOL_TAG, 0);
   d.set(new web3.PublicKey(p.mint ?? MINT).toBytes(), 10);
@@ -33,6 +33,8 @@ function poolBytes(p: { x: bigint; y: bigint; l: bigint; feeBps: number; acc?: b
   v.setBigUint64(100, (p.acc ?? 0n) & ((1n << 64n) - 1n), true);
   v.setBigUint64(108, (p.acc ?? 0n) >> 64n, true);
   v.setBigUint64(116, p.feeReserve ?? 0n, true);
+  v.setUint16(132, p.feeStartBps ?? 0, true);
+  v.setUint32(134, p.decaySecs ?? 0, true);
   return d;
 }
 function positionBytes(pool: string, owner: string, shares: bigint, locked: bigint, pending = 0n): Uint8Array {
@@ -44,6 +46,7 @@ function positionBytes(pool: string, owner: string, shares: bigint, locked: bigi
   v.setBigUint64(72, shares, true);
   v.setBigUint64(80, locked, true);
   v.setBigUint64(104, pending, true);
+  d.set(new web3.PublicKey(owner).toBytes(), 112);
   return d;
 }
 
@@ -70,11 +73,12 @@ function world(): World {
       if (w.script.reject) throw new Error('User rejected the request.');
       w.sent.push(tx);
       const ix = tx.instructions[0]!;
-      if (w.script.poolAppears !== false && ix.data.length === 35) {
+      if (w.script.poolAppears !== false && ix.data.length === 41) {
         const v = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
         const [x, y, l, fee, lock] = [v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), ix.data[34] === 1];
+        const [sniper, decay] = [v.getUint16(35, true), v.getUint32(37, true)];
         const pool = ix.keys[4]!.pubkey.toBase58();
-        w.accounts.set(pool, { owner: PROGRAM, data: poolBytes({ x: w.script.wrongAmount ? x - 1n : x, y, l, feeBps: fee }) });
+        w.accounts.set(pool, { owner: PROGRAM, data: poolBytes({ x: w.script.wrongAmount ? x - 1n : x, y, l, feeBps: fee, feeStartBps: sniper, decaySecs: decay }) });
         w.accounts.set(ix.keys[7]!.pubkey.toBase58(), { owner: PROGRAM, data: positionBytes(pool, CREATOR, l, lock ? l : 0n) });
       }
       return 'sig1';

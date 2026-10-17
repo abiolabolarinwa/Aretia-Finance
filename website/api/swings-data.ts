@@ -21,6 +21,7 @@ import { handleTrades } from './_swingsTrades.js';
 import { handlePools } from './_swingsPools.js';
 import { handleRadar } from './_radarProxy.js';
 import { requestOrigin } from './_rpcProxy.js';
+import { clientIp } from './_clientIp.js';
 
 interface Req {
   method?: string;
@@ -37,7 +38,6 @@ interface Res {
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 export default async function handler(req: Req, res: Res): Promise<void> {
-  const forwarded = one(req.headers['x-forwarded-for']);
   const query: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(req.query ?? {})) query[k] = one(v) ?? undefined;
   const route = query.route;
@@ -46,7 +46,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     method: req.method ?? 'GET',
     origin: requestOrigin(req.headers),
     authorization: one(req.headers.authorization),
-    ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
+    ip: clientIp(req.headers),
     env: process.env,
     fetchImpl: fetch,
     now: Date.now(),

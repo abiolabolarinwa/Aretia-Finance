@@ -61,8 +61,43 @@ export function transactionProblems(tx: UnsignedTransaction, session: WalletSess
     const programIds = 'version' in t ? t.message.compiledInstructions.map((i) => keys[i.programIdIndex]!) : t.instructions.map((i) => i.programId.toBase58());
     const unknown = programIds.filter((p) => !expect.allowedDestinations!.includes(p));
     if (unknown.length > 0) problems.push('The transaction calls a program Aretia does not recognise.');
+    // An approved program id is not enough: the System and Token programs can also move coins or hand over control. The settlement flows
+    // never need those instructions (the burn itself runs inside the bridge program), so they are refused by what they do, not by who runs them.
+    const instructions = 'version' in t ? t.message.compiledInstructions.map((i) => ({ program: keys[i.programIdIndex]!, data: i.data })) : t.instructions.map((i) => ({ program: i.programId.toBase58(), data: i.data }));
+    problems.push(...solanaInstructionProblems(instructions));
   }
   return problems;
+}
+
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const TOKEN_PROGRAMS = ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'];
+/** System instructions that send coins or change who owns an account: Assign, Transfer, WithdrawNonceAccount, AuthorizeNonceAccount, AssignWithSeed, TransferWithSeed. */
+const SYSTEM_REFUSED = new Map<number, string>([[1, 'assigns an account to another program'], [2, 'sends SOL to another account'], [5, 'withdraws from a nonce account'], [7, 'hands over a nonce account'], [10, 'assigns an account to another program'], [11, 'sends SOL to another account']]);
+/** Token instructions that move, burn, approve, close or hand over control: Transfer, Approve, SetAuthority, Burn, CloseAccount, TransferChecked, ApproveChecked, BurnChecked. */
+const TOKEN_REFUSED = new Map<number, string>([[3, 'transfers tokens'], [4, 'lets another account spend your tokens'], [6, 'hands over control of an account'], [8, 'burns tokens directly'], [9, 'closes an account'], [12, 'transfers tokens'], [13, 'lets another account spend your tokens'], [15, 'burns tokens directly']]);
+
+/** What is wrong with these Solana instructions, by what they do. Empty means none of the refused kinds is present. Pure. */
+export function solanaInstructionProblems(instructions: readonly { program: string; data: Uint8Array }[]): string[] {
+  const out: string[] = [];
+  for (const ix of instructions) {
+    if (ix.program === SYSTEM_PROGRAM) {
+      if (ix.data.length < 4) {
+        out.push('The transaction has a System instruction that cannot be read.');
+        continue;
+      }
+      const kind = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength).getUint32(0, true);
+      const why = SYSTEM_REFUSED.get(kind);
+      if (why) out.push(`The transaction ${why}, which this action never does.`);
+    } else if (TOKEN_PROGRAMS.includes(ix.program)) {
+      if (ix.data.length < 1) {
+        out.push('The transaction has a Token instruction that cannot be read.');
+        continue;
+      }
+      const why = TOKEN_REFUSED.get(ix.data[0]!);
+      if (why) out.push(`The transaction ${why}, which this action never does.`);
+    }
+  }
+  return [...new Set(out)];
 }
 
 /**

@@ -167,13 +167,16 @@ describe('what a creator may type', () => {
     }
   };
 
-  it('has no deployed curve anywhere today', () => {
-    for (const v of Object.values(EVM_CURVE_ADDRESSES)) expect(v).toBeNull();
-    expect(evmCurveChain('ethereum')).toBeNull();
+  it('has the verified Ethereum curve and none anywhere else', () => {
+    expect(EVM_CURVE_ADDRESSES.ethereum).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
+    expect(EVM_CURVE_ADDRESSES.bnb).toBeNull();
+    expect(EVM_CURVE_ADDRESSES.polygon).toBeNull();
+    expect(evmCurveChain('ethereum')?.curve).toBe('0x4e85bc5bd6f08fa87ceb749372e34226556837e8');
     expect(evmCurveChain('bnb')).toBeNull();
     expect(evmCurveChain('polygon')).toBeNull();
     expect(evmCurveChain('nowhere')).toBeNull();
-    const v = ok();
+    // A network with no deployed curve is still refused, with the plain message.
+    const v = ok({ chain: 'bnb' });
     expect(v.ok).toBe(false);
     expect(v.ok ? '' : v.issues.map((i) => i.message).join(' ')).toMatch(/not available on this network yet/);
   });

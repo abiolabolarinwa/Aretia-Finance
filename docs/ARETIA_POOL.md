@@ -171,7 +171,7 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 
 `website/src/swings/dex/entries.ts` has an `aretia-pool` entry on Solana with `status: 'DISABLED'`, so `registry.routable('solana')` never returns it and no venue code runs. When enabled it needs:
 
-* a venue adapter next to `meteoraDamm.ts` that lists the pool for a pair from the PDA `["pool", mint]`, reads `x`, `y`, `l`, `fee_bps` from the account (the layout is fixed in `walletAretiaPoolCore.ts` and tested against the program), and quotes **locally and exactly** with the same integer maths (the venue interface already supports a `localQuote`);
+* a venue adapter (BUILT, disabled: `website/src/swings/solana/aretiaPool.ts`, wired in `venues.ts` behind the registry entry, tested against the Rust vectors) that lists the pool for a pair from the PDA `["pool", mint]`, reads `x`, `y`, `l`, `fee_bps` from the account (the layout is fixed in `walletAretiaPoolCore.ts` and tested against the program), and quotes **locally and exactly** with the same integer maths (the venue interface already supports a `localQuote`);
 * a `swapInstruction` builder (already in `walletAretiaPoolTx.ts`), with native SOL in or out handled by the program, not by a wrapped account;
 * the flip from `DISABLED` to `ACTIVE` only after the audit, a mainnet deployment and `npm run test:live` coverage.
 
@@ -180,7 +180,7 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 * No mainnet program id and no mainnet deployment. The mainnet slot in `walletAretiaPoolCore.ts` is `null` and the card shows a notice on mainnet.
 * No audit.
 * No transferable positions, no wrapped-SOL pool, no multiple fee tiers beyond two, no dynamic fee, no ranges.
-* Web UI covers create (with optional lock), claim and lock; add/remove liquidity exist in the program and the transaction builders but have no screen yet.
+* The card covers create (with optional lock), claim, lock, trade (buy and sell, with a slippage floor) and add/remove liquidity, all built from a quote of the pool as just read and each checked by the byte-level inspector. None of it has been run in a browser against devnet.
 * Curve graduation into a pool is designed, not built.
 
 ## 16. Devnet

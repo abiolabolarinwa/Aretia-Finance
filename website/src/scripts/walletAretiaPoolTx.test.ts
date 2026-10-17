@@ -6,6 +6,10 @@ import { ARETIA_POOL_FEE_ADDRESS, ARETIA_POOL_PROGRAM_ID_DEVNET, type CreatePara
 import {
   DISC,
   assemble,
+  buildAddLiquidity,
+  buildRemoveLiquidity,
+  inspectAddLiquidity,
+  inspectRemoveLiquidity,
   buildClaim,
   buildCreatePool,
   buildLock,
@@ -229,5 +233,27 @@ describe('claim and lock', () => {
     const l = buildLock(web3, PROGRAM, CREATOR, MINT, 77n);
     expect(inspectLock(web3, assemble(web3, [l], CREATOR, BLOCKHASH, 1), { program: PROGRAM, owner: CREATOR, mint: MINT, amount: 78n }).join(' ')).toMatch(/amount being locked/);
     expect(TOKEN_PROGRAM_ID).toBeTruthy();
+  });
+});
+
+describe('add and remove liquidity', () => {
+  const l = { owner: CREATOR, mint: MINT, dl: 2_000_000_000n, tokens: 111n, sol: 222n };
+  const tx = (ix: web3.TransactionInstruction) => assemble(web3, [ix], CREATOR, BLOCKHASH, 1);
+  it('are accepted when they are what was shown', () => {
+    expect(inspectAddLiquidity(web3, tx(buildAddLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM })).toEqual([]);
+    expect(inspectRemoveLiquidity(web3, tx(buildRemoveLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM })).toEqual([]);
+  });
+  it('are not interchangeable: an add is refused where a remove was shown', () => {
+    expect(inspectRemoveLiquidity(web3, tx(buildAddLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM }).join(' ')).toMatch(/not the expected one/);
+  });
+  it('refuse a changed amount, cap or floor, and any swapped account', () => {
+    const edit = (at: number) => inspectAddLiquidity(web3, tx(tamper(buildAddLiquidity(web3, PROGRAM, l), { data: (d) => new DataView(d.buffer, d.byteOffset).setBigUint64(at, 1n, true) })), { ...l, program: PROGRAM }).join(' ');
+    expect(edit(8)).toMatch(/amount of liquidity/);
+    expect(edit(16)).toMatch(/most tokens/);
+    expect(edit(24)).toMatch(/most SOL/);
+    for (let i = 0; i < 9; i++) {
+      const bad = tx(tamper(buildRemoveLiquidity(web3, PROGRAM, l), { keys: { [i]: { pubkey: other } } }));
+      expect(inspectRemoveLiquidity(web3, bad, { ...l, program: PROGRAM }).length, `account ${i}`).toBeGreaterThan(0);
+    }
   });
 });

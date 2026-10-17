@@ -22,6 +22,8 @@ import { ClmmAdapter, clmmSwapInstruction } from './raydiumClmm.js';
 import { ManifestAdapter, manifestSwapInstruction } from './manifest.js';
 import { dlmmSwapInstruction, MeteoraDlmmAdapter } from './meteoraDlmm.js';
 import { cpmmSwapInstruction } from './builder.js';
+import { AretiaPoolAdapter, aretiaPoolSwapInstruction } from './aretiaPool.js';
+import { TOKEN_2022_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { RaydiumCpmmAdapter, type SolRpc } from './raydiumCpmm.js';
 import { TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 
@@ -51,7 +53,20 @@ export function createSolanaVenues(web3: typeof Web3, rpc: SolRpc, registry: Are
   const venues: SolanaVenue[] = [];
   for (const entry of registry.routable('solana')) {
     if (entry.mechanism !== 'solana-program') continue;
-    if (entry.id === 'raydium-cpmm') {
+    if (entry.id === 'aretia-pool') {
+      // Disabled in the registry today, so this branch is not reached. It exists so enabling the entry is the only step left.
+      const program = entry.router!;
+      const adapter = new AretiaPoolAdapter(web3, rpc, program, now);
+      venues.push({
+        id: entry.id,
+        name: entry.name,
+        getPools: (a, b) => adapter.getPools(a, b),
+        localQuote: (pool, tokenIn, amountIn) => quoteConstantProduct(pool, tokenIn, amountIn),
+        programFor: (_pool, mint) => (mint === 'So11111111111111111111111111111111111111112' ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID),
+        swapInstruction: async (user, pool, tokenIn, _tokenOut, _i, _o, amountIn, minOut) => aretiaPoolSwapInstruction(web3, program, user, pool, tokenIn, amountIn, minOut),
+        label: (pool, amountIn, minOut) => exact(entry.name, pool, amountIn, minOut),
+      });
+    } else if (entry.id === 'raydium-cpmm') {
       const adapter = new RaydiumCpmmAdapter(web3, rpc, now);
       venues.push({
         id: entry.id,

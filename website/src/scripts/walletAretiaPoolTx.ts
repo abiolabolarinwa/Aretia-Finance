@@ -126,6 +126,39 @@ export function buildSwap(web3: typeof Web3, program: string, s: SwapParams): We
   });
 }
 
+export interface LiquidityParams {
+  owner: string;
+  mint: string;
+  /** Liquidity to add or remove. */
+  dl: bigint;
+  /** Add: the most tokens and SOL the owner will pay. Remove: the least tokens and SOL the owner will accept. */
+  tokens: bigint;
+  sol: bigint;
+}
+
+function liquidityKeys(web3: typeof Web3, program: string, owner: string, mint: string): Web3.AccountMeta[] {
+  const pool = poolAddress(web3, program, mint);
+  return [
+    key(web3, owner, true, true),
+    key(web3, pool, false, true),
+    key(web3, solVaultAddress(web3, program, pool), false, true),
+    key(web3, mint, false, false),
+    key(web3, ataAddress(web3, pool, mint, TOKEN_2022_PROGRAM_ID), false, true),
+    key(web3, ataAddress(web3, owner, mint, TOKEN_2022_PROGRAM_ID), false, true),
+    key(web3, positionAddress(web3, program, pool, owner), false, true),
+    key(web3, TOKEN_2022_PROGRAM_ID, false, false),
+    key(web3, SYSTEM_PROGRAM_ID, false, false),
+  ];
+}
+
+export function buildAddLiquidity(web3: typeof Web3, program: string, l: LiquidityParams): Web3.TransactionInstruction {
+  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint), data: data(DISC.addLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
+}
+
+export function buildRemoveLiquidity(web3: typeof Web3, program: string, l: LiquidityParams): Web3.TransactionInstruction {
+  return new web3.TransactionInstruction({ programId: new web3.PublicKey(program), keys: liquidityKeys(web3, program, l.owner, l.mint), data: data(DISC.removeLiquidity, [{ u64: l.dl }, { u64: l.tokens }, { u64: l.sol }]) });
+}
+
 export function buildClaim(web3: typeof Web3, program: string, owner: string, mint: string): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, mint);
   return new web3.TransactionInstruction({
@@ -287,4 +320,35 @@ export function inspectLock(web3: typeof Web3, tx: Web3.Transaction, c: { progra
     [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.owner)]), 'W'],
   ];
   return inspectOne(tx, c.owner, c.program, DISC.lockLiquidity, 16, accounts, (d) => (view(d).getBigUint64(8, true) === c.amount ? [] : ['The amount being locked is not the one shown.']));
+}
+
+function inspectLiquidity(web3: typeof Web3, tx: Web3.Transaction, program: string, tag: Uint8Array, l: LiquidityParams, add: boolean): string[] {
+  const pool = pda(web3, program, [text('pool'), pk(web3, l.mint)]);
+  const accounts: Want[] = [
+    [l.owner, 'SW'],
+    [pool, 'W'],
+    [pda(web3, program, [text('sol_vault'), pk(web3, pool)]), 'W'],
+    [l.mint, ''],
+    [pda(web3, ATA_PROGRAM_ID, [pk(web3, pool), pk(web3, TOKEN_2022_PROGRAM_ID), pk(web3, l.mint)]), 'W'],
+    [associated(web3, l.owner, l.mint), 'W'],
+    [pda(web3, program, [text('position'), pk(web3, pool), pk(web3, l.owner)]), 'W'],
+    [TOKEN_2022_PROGRAM_ID, ''],
+    [SYSTEM_PROGRAM_ID, ''],
+  ];
+  return inspectOne(tx, l.owner, program, tag, 8 + 24, accounts, (d) => {
+    const v = view(d);
+    const out: string[] = [];
+    if (v.getBigUint64(8, true) !== l.dl) out.push('The amount of liquidity is not the one shown.');
+    if (v.getBigUint64(16, true) !== l.tokens) out.push(add ? 'The most tokens you would pay is not the one shown.' : 'The least tokens you would accept is not the one shown.');
+    if (v.getBigUint64(24, true) !== l.sol) out.push(add ? 'The most SOL you would pay is not the one shown.' : 'The least SOL you would accept is not the one shown.');
+    return out;
+  });
+}
+
+export function inspectAddLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: LiquidityParams & { program: string }): string[] {
+  return inspectLiquidity(web3, tx, c.program, DISC.addLiquidity, c, true);
+}
+
+export function inspectRemoveLiquidity(web3: typeof Web3, tx: Web3.Transaction, c: LiquidityParams & { program: string }): string[] {
+  return inspectLiquidity(web3, tx, c.program, DISC.removeLiquidity, c, false);
 }

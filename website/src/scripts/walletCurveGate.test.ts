@@ -101,7 +101,8 @@ describe('the web constants are the program’s constants', () => {
 describe('the Solana curve card hides when another network is chosen', () => {
   it('is told the network by the Launch page and hides its whole card', () => {
     expect(read('./walletLaunch.ts')).toContain('host.onNetwork?.(network);');
-    expect(read('./walletApp.ts')).toContain("onNetwork: (n) => curve.setActive(n === 'solana')");
+    // (The Aretia Pool card is told the same thing in the same handler, so the handler is a block now.)
+    expect(read('./walletApp.ts')).toMatch(/onNetwork: \(n\) => \{\s*curve\.setActive\(n === 'solana'\);/);
     const card = read('./walletCurve.ts');
     expect(card).toContain("root.closest<HTMLElement>('.wapp__card')");
     expect(card).toContain('card.hidden = !active;');

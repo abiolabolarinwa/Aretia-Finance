@@ -11,7 +11,7 @@ import type * as Web3 from '@solana/web3.js';
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type TokenRef } from '../core/types.js';
 import type { LiquidityPool } from '../engine/types.js';
-import { parsePoolAccount, poolMathOf, buy, sell, type PoolMath } from '../../scripts/walletAretiaPoolCore.js';
+import { atTime, parsePoolAccount, poolMathOf, buy, sell, type PoolMath } from '../../scripts/walletAretiaPoolCore.js';
 import { buildSwap, poolAddress } from '../../scripts/walletAretiaPoolTx.js';
 import type { SolRpc } from './raydiumCpmm.js';
 
@@ -23,12 +23,13 @@ const fromBase64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) =
 export function mathFromPool(pool: LiquidityPool): PoolMath {
   const e = pool.extra;
   if (!e || e.x === undefined) throw new SwingsError('invalid', 'This is not an Aretia pool.');
-  return { x: BigInt(e.x), y: BigInt(e.y!), l: BigInt(e.l!), feeBps: Number(e.feeBps), acc: BigInt(e.acc!), feeReserve: BigInt(e.feeReserve!) };
+  return { x: BigInt(e.x), y: BigInt(e.y!), l: BigInt(e.l!), feeBps: Number(e.feeBps), acc: BigInt(e.acc!), feeReserve: BigInt(e.feeReserve!), feeStartBps: Number(e.feeStartBps ?? 0), decaySecs: Number(e.decaySecs ?? 0), startTs: BigInt(e.startTs ?? 0) };
 }
 
 /** Exact output of a swap, or 0n when the program would refuse it. `tokenIn` is SOL for a buy, the token for a sell. */
-export function aretiaPoolQuote(pool: LiquidityPool, tokenIn: TokenRef, amountIn: bigint): bigint {
-  const m = mathFromPool(pool);
+export function aretiaPoolQuote(pool: LiquidityPool, tokenIn: TokenRef, amountIn: bigint, nowSecs: bigint = BigInt(Math.floor(Date.now() / 1000))): bigint {
+  // The fee in force now, which includes the creator's launch schedule while it lasts.
+  const m = atTime(mathFromPool(pool), nowSecs);
   if (tokenIn.address === WSOL) return buy(m, amountIn)?.result.tokensOut ?? 0n;
   return sell(m, amountIn)?.result.net ?? 0n;
 }
@@ -69,7 +70,7 @@ export class AretiaPoolAdapter {
         updatedAt: this.now(),
         block: null,
         status: m.x > 0n && m.l > 0n ? 'active' : 'inactive',
-        extra: { mint: token.address, x: String(m.x), y: String(m.y), l: String(m.l), feeBps: String(m.feeBps), acc: String(m.acc), feeReserve: String(m.feeReserve) },
+        extra: { mint: token.address, x: String(m.x), y: String(m.y), l: String(m.l), feeBps: String(m.feeBps), acc: String(m.acc), feeReserve: String(m.feeReserve), feeStartBps: String(state.feeStartBps), decaySecs: String(state.decaySecs), startTs: String(state.createdAt) },
       },
     ];
   }

@@ -119,6 +119,8 @@ pub struct PoolState {
     pub acc: u128,
     pub fee_reserve: u64,
     pub created_at: i64,
+    pub fee_start_bps: u16,
+    pub decay_secs: u32,
 }
 
 impl PoolState {
@@ -135,7 +137,9 @@ impl PoolState {
         at += 16;
         let fee_reserve = u64_(&mut at);
         let created_at = u64_(&mut at) as i64;
-        PoolState { mint, creator, fee_bps, x, y, l, acc, fee_reserve, created_at }
+        let fee_start_bps = u16::from_le_bytes(d[at..at + 2].try_into().unwrap());
+        let decay_secs = u32::from_le_bytes(d[at + 2..at + 6].try_into().unwrap());
+        PoolState { mint, creator, fee_bps, x, y, l, acc, fee_reserve, created_at, fee_start_bps, decay_secs }
     }
     pub fn math(&self) -> pool_math::Pool {
         pool_math::Pool { x: self.x, y: self.y, l: self.l, fee_bps: self.fee_bps, acc: self.acc, fee_reserve: self.fee_reserve }
@@ -150,6 +154,7 @@ pub struct PositionState {
     pub locked: u64,
     pub checkpoint: u128,
     pub pending: u64,
+    pub recipient: Address,
 }
 
 impl PositionState {
@@ -160,7 +165,8 @@ impl PositionState {
         let locked = u64::from_le_bytes(d[80..88].try_into().unwrap());
         let checkpoint = u128::from_le_bytes(d[88..104].try_into().unwrap());
         let pending = u64::from_le_bytes(d[104..112].try_into().unwrap());
-        PositionState { pool, owner, shares, locked, checkpoint, pending }
+        let recipient = Address::new_from_array(d[112..144].try_into().unwrap());
+        PositionState { pool, owner, shares, locked, checkpoint, pending, recipient }
     }
 }
 
@@ -271,6 +277,11 @@ impl Env {
 // ---------------------------------------------------------------- the program's instructions
 
 pub fn create_pool_ix(creator: &Address, owner: &Address, mint: &Address, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool) -> Instruction {
+    create_pool_ix_sched(creator, owner, mint, x0, y0, l0, fee_bps, lock, 0, 0)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_pool_ix_sched(creator: &Address, owner: &Address, mint: &Address, x0: u64, y0: u64, l0: u64, fee_bps: u16, lock: bool, sniper_bps: u16, decay_secs: u32) -> Instruction {
     let pool = pool_pda(mint);
     let mut d = disc("create_pool").to_vec();
     d.extend_from_slice(&x0.to_le_bytes());
@@ -278,6 +289,8 @@ pub fn create_pool_ix(creator: &Address, owner: &Address, mint: &Address, x0: u6
     d.extend_from_slice(&l0.to_le_bytes());
     d.extend_from_slice(&fee_bps.to_le_bytes());
     d.push(lock as u8);
+    d.extend_from_slice(&sniper_bps.to_le_bytes());
+    d.extend_from_slice(&decay_secs.to_le_bytes());
     Instruction::new_with_bytes(
         PROGRAM_ID,
         &d,
@@ -360,11 +373,15 @@ pub fn claim_ix(owner: &Address, mint: &Address) -> Instruction {
 }
 /// `signer` signs; `position_owner` names whose position is claimed.
 pub fn claim_ix_for(signer: &Address, mint: &Address, position_owner: &Address) -> Instruction {
+    claim_ix_to(signer, mint, position_owner, position_owner)
+}
+/// `recipient` is the account named as the payee.
+pub fn claim_ix_to(signer: &Address, mint: &Address, position_owner: &Address, recipient: &Address) -> Instruction {
     let pool = pool_pda(mint);
     Instruction::new_with_bytes(
         PROGRAM_ID,
         &disc("claim_fees"),
-        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, position_owner), true, false), m(SYSTEM, false, false)],
+        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, position_owner), true, false), m(*recipient, true, false), m(SYSTEM, false, false)],
     )
 }
 
@@ -373,4 +390,19 @@ pub fn lock_ix(owner: &Address, mint: &Address, amount: u64) -> Instruction {
     let mut d = disc("lock_liquidity").to_vec();
     d.extend_from_slice(&amount.to_le_bytes());
     Instruction::new_with_bytes(PROGRAM_ID, &d, vec![m(*owner, false, true), m(pool, false, false), m(position_pda(&pool, owner), true, false)])
+}
+
+pub fn set_recipient_ix(owner: &Address, mint: &Address, recipient: &Address) -> Instruction {
+    let pool = pool_pda(mint);
+    let mut d = disc("set_recipient").to_vec();
+    d.extend_from_slice(recipient.as_ref());
+    Instruction::new_with_bytes(PROGRAM_ID, &d, vec![m(*owner, false, true), m(pool, false, false), m(position_pda(&pool, owner), true, false)])
+}
+
+impl Env {
+    pub fn set_time(&mut self, unix: i64) {
+        let mut c: solana_clock::Clock = self.svm.get_sysvar();
+        c.unix_timestamp = unix;
+        self.svm.set_sysvar(&c);
+    }
 }

@@ -18,6 +18,10 @@ pub const BPS: u128 = 10_000;
 pub const PROTOCOL_SHARE_BPS: u128 = 2_000;
 /// The trading fees a creator may pick, in basis points of the SOL leg.
 pub const ALLOWED_FEE_BPS: [u16; 2] = [25, 100];
+/// The highest fee a launch-protection schedule may start at: 25%, in basis points.
+pub const MAX_SNIPER_BPS: u16 = 2_500;
+/// The longest a launch-protection schedule may last: one hour.
+pub const MAX_DECAY_SECS: u32 = 3_600;
 /// Smallest token deposit a pool may be created with, in raw units.
 pub const MIN_TOKENS: u64 = 1_000;
 /// Smallest liquidity a pool may be created with: 0.01 SOL of virtual reserve.
@@ -55,6 +59,29 @@ pub fn fee_up(amount: u64, bps: u16) -> u64 {
 /// Protocol part of a fee (rounded down); the rest belongs to the liquidity providers.
 pub fn protocol_part(fee: u64) -> u64 {
     (fee as u128 * PROTOCOL_SHARE_BPS / BPS) as u64
+}
+
+/// The fee in force `now`, for a pool whose fee starts at `start_bps` at `start_ts` and falls in a straight line to `base_bps` over
+/// `decay_secs`. The part above the base is rounded UP, so the schedule never undercharges. With no schedule it is the base.
+pub fn effective_fee_bps(base_bps: u16, start_bps: u16, decay_secs: u32, start_ts: i64, now: i64) -> u16 {
+    if decay_secs == 0 || start_bps <= base_bps {
+        return base_bps;
+    }
+    let elapsed = now.saturating_sub(start_ts).max(0) as u64;
+    if elapsed >= decay_secs as u64 {
+        return base_bps;
+    }
+    let left = decay_secs as u64 - elapsed;
+    let extra = ceil_div((start_bps - base_bps) as u128 * left as u128, decay_secs as u128) as u16;
+    base_bps + extra
+}
+
+/// True when a launch-protection schedule is inside what the program allows. `(0, 0)` means no schedule.
+pub fn schedule_ok(base_bps: u16, start_bps: u16, decay_secs: u32) -> bool {
+    if start_bps == 0 && decay_secs == 0 {
+        return true;
+    }
+    decay_secs > 0 && decay_secs <= MAX_DECAY_SECS && start_bps > base_bps && start_bps <= MAX_SNIPER_BPS
 }
 
 impl Pool {

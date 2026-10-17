@@ -225,3 +225,42 @@ proptest! {
         prop_assert_eq!(protocol + (fee - protocol), fee);
     }
 }
+
+#[test]
+fn the_launch_fee_falls_in_a_line_and_never_undercharges() {
+    // 20% falling to 1% over 600 seconds, starting at t = 1000.
+    let f = |now| effective_fee_bps(100, 2_000, 600, 1_000, now);
+    assert_eq!(f(900), 2_000, "before the start counts as the start");
+    assert_eq!(f(1_000), 2_000);
+    assert_eq!(f(1_300), 100 + 950, "halfway: 1% + half of 19%");
+    assert_eq!(f(1_599), 100 + 4, "ceil of 1900 * 1 / 600 is 4: rounded up");
+    assert_eq!(f(1_600), 100);
+    assert_eq!(f(9_999_999), 100);
+    // No schedule, or one that does not exceed the base, is the base.
+    assert_eq!(effective_fee_bps(100, 0, 0, 0, 5), 100);
+    assert_eq!(effective_fee_bps(100, 100, 600, 0, 5), 100);
+    assert_eq!(effective_fee_bps(100, 50, 600, 0, 5), 100);
+}
+
+#[test]
+fn schedules_are_bounded() {
+    assert!(schedule_ok(25, 0, 0));
+    assert!(schedule_ok(25, 2_500, 3_600));
+    assert!(!schedule_ok(25, 2_501, 600));
+    assert!(!schedule_ok(25, 2_000, 3_601));
+    assert!(!schedule_ok(25, 25, 600), "a schedule must start above the base");
+    assert!(!schedule_ok(25, 2_000, 0));
+    assert!(!schedule_ok(25, 0, 600));
+}
+
+proptest! {
+    /// The launch fee is never below the base, never above its start, and never rises with time.
+    #[test]
+    fn the_launch_fee_is_monotone_and_bounded(base in prop_oneof![Just(25u16), Just(100u16)], start in 101u16..=2_500, decay in 1u32..=3_600, t0 in 0i64..1_000_000, a in 0i64..8_000, b in 0i64..8_000) {
+        let (early, late) = (a.min(b), a.max(b));
+        let fe = effective_fee_bps(base, start, decay, t0, t0 + early);
+        let fl = effective_fee_bps(base, start, decay, t0, t0 + late);
+        prop_assert!(fe >= fl);
+        prop_assert!(fl >= base && fe <= start.max(base));
+    }
+}

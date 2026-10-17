@@ -17,6 +17,8 @@ import {
   inspectClaim,
   inspectCreate,
   inspectLock,
+  buildSetRecipient,
+  inspectSetRecipient,
   inspectSwap,
   poolAddress,
   positionAddress,
@@ -31,7 +33,7 @@ const OTHER = '3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg';
 const MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const BLOCKHASH = 'EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k';
 const other = new web3.PublicKey(OTHER);
-const params = (over: Partial<CreateParams> = {}): CreateParams => ({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, ...over });
+const params = (over: Partial<CreateParams> = {}): CreateParams => ({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300, ...over });
 
 const tamper = (ix: web3.TransactionInstruction, over: { keys?: Record<number, Partial<web3.AccountMeta>>; data?: (d: Buffer) => void; programId?: web3.PublicKey }) => {
   const keys = ix.keys.map((k, i) => ({ ...k, ...(over.keys?.[i] ?? {}) }));
@@ -108,9 +110,9 @@ describe('create pool', () => {
 
   it('encodes the arguments little-endian after the tag', () => {
     const d = make().b.instructions[0]!.data;
-    expect(d.length).toBe(35);
+    expect(d.length).toBe(41);
     const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
-    expect([v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), d[34]]).toEqual([600_000_000_000_000n, 0n, 10_000_200_000n, 25, 1]);
+    expect([v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), d[34], v.getUint16(35, true), v.getUint32(37, true)]).toEqual([600_000_000_000_000n, 0n, 10_000_200_000n, 25, 1, 1000, 300]);
   });
 
   it('refuses a different fee payer or an extra signer', () => {
@@ -162,6 +164,8 @@ describe('create pool', () => {
     expect(edit((v) => v.setBigUint64(24, 1n, true))).toMatch(/starting price/);
     expect(edit((v) => v.setUint16(32, 100, true))).toMatch(/trading fee/);
     expect(edit((_v, d) => (d[34] = 0))).toMatch(/would not be locked/);
+    expect(edit((v) => v.setUint16(35, 2500, true))).toMatch(/launch protection/);
+    expect(edit((v) => v.setUint32(37, 3600, true))).toMatch(/launch protection/);
     expect(after((ix) => tamper(ix, { data: (d) => (d[34] = 1) }), params({ lock: false }))).toMatch(/would be locked, which was not chosen/);
   });
 
@@ -255,5 +259,26 @@ describe('add and remove liquidity', () => {
       const bad = tx(tamper(buildRemoveLiquidity(web3, PROGRAM, l), { keys: { [i]: { pubkey: other } } }));
       expect(inspectRemoveLiquidity(web3, bad, { ...l, program: PROGRAM }).length, `account ${i}`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('claim to another wallet, and naming it', () => {
+  const tx = (ix: web3.TransactionInstruction) => assemble(web3, [ix], CREATOR, BLOCKHASH, 1);
+  it('claim names the recipient and the inspector holds it to the one shown', () => {
+    const c = buildClaim(web3, PROGRAM, CREATOR, MINT, OTHER);
+    expect(c.keys[4]!.pubkey.toBase58()).toBe(OTHER);
+    expect(inspectClaim(web3, tx(c), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: OTHER })).toEqual([]);
+    expect(inspectClaim(web3, tx(c), { program: PROGRAM, owner: CREATOR, mint: MINT }).join(' ')).toMatch(/position 5/);
+    expect(inspectClaim(web3, tx(buildClaim(web3, PROGRAM, CREATOR, MINT)), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: OTHER }).join(' ')).toMatch(/position 5/);
+  });
+  it('setting the recipient is checked byte for byte', () => {
+    const s = buildSetRecipient(web3, PROGRAM, CREATOR, MINT, OTHER);
+    expect(inspectSetRecipient(web3, tx(s), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: OTHER })).toEqual([]);
+    expect(inspectSetRecipient(web3, tx(s), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: CREATOR }).join(' ')).toMatch(/would receive the fees/);
+    const bad = tamper(s, { keys: { 2: { pubkey: other } } });
+    expect(inspectSetRecipient(web3, tx(bad), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: OTHER }).join(' ')).toMatch(/position 3/);
+  });
+  it('the tag is sha256("global:set_recipient")', () => {
+    expect(DISC.setRecipient).toEqual(Uint8Array.from(createHash('sha256').update('global:set_recipient').digest().subarray(0, 8)));
   });
 });

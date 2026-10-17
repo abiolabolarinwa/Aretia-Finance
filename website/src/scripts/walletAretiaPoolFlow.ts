@@ -19,6 +19,7 @@ import {
   buy,
   claimable,
   minOut,
+  atTime,
   parsePoolAccount,
   parsePositionAccount,
   poolMathOf,
@@ -30,7 +31,7 @@ import {
   type PoolAccount,
   type PositionAccount,
 } from './walletAretiaPoolCore';
-import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
+import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
 
 export interface PoolSimulation {
   ok: boolean;
@@ -49,6 +50,8 @@ export interface AretiaPoolFlowDeps {
   signAndSubmit(tx: Web3.Transaction, extraSigners: readonly Web3.Signer[]): Promise<string>;
   confirm(signature: string): Promise<Confirmation>;
   sleep?(ms: number): Promise<void>;
+  /** Unix seconds; defaults to the clock. Quotes use the fee in force at this moment. */
+  nowSecs?(): number;
 }
 
 export interface AretiaPoolReview {
@@ -218,7 +221,8 @@ export class AretiaPoolFlow {
 
   /** A quote for a trade against the pool as it is now, with a floor for the amount received. */
   quote(pool: PoolAccount, isBuy: boolean, amountIn: bigint, slippageBps: number): TradeQuote | null {
-    const m = poolMathOf(pool);
+    // The fee in force now, including any launch schedule. The program charges the fee at the time it runs, which is never higher.
+    const m = atTime(poolMathOf(pool), BigInt((this.d.nowSecs ?? (() => Math.floor(Date.now() / 1000)))()));
     if (isBuy) {
       const q = buy(m, amountIn);
       return q ? { isBuy, amountIn, expectedOut: q.result.tokensOut, minOut: minOut(q.result.tokensOut, slippageBps), fee: q.result.fee } : null;
@@ -279,11 +283,22 @@ export class AretiaPoolFlow {
     return signature;
   }
 
-  async claim(owner: string, mint: string, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+  async claim(owner: string, mint: string, recipient: string = owner, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const tx = assemble(web3, [buildClaim(web3, program, owner, mint)], owner, ...(await this.blockhash()));
-    const blockers = inspectClaim(web3, tx, { program, owner, mint });
+    const tx = assemble(web3, [buildClaim(web3, program, owner, mint, recipient)], owner, ...(await this.blockhash()));
+    const blockers = inspectClaim(web3, tx, { program, owner, mint, recipient });
+    if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
+    const signature = await this.submit(tx, owner, progress);
+    progress('done');
+    return signature;
+  }
+
+  async setRecipient(owner: string, mint: string, recipient: string, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<string> {
+    const { web3, program } = this.d;
+    progress('checking');
+    const tx = assemble(web3, [buildSetRecipient(web3, program, owner, mint, recipient)], owner, ...(await this.blockhash()));
+    const blockers = inspectSetRecipient(web3, tx, { program, owner, mint, recipient });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
     progress('done');

@@ -8,6 +8,10 @@ import {
   POOL_ACCOUNT_SIZE,
   POSITION_ACCOUNT_SIZE,
   addLiquidity,
+  atTime,
+  effectiveFeeBps,
+  scheduleOk,
+  LAUNCH_PROTECTION,
   aretiaPoolCost,
   aretiaPoolDisclosures,
   aretiaPoolFlagOn,
@@ -84,6 +88,24 @@ describe('the maths matches the Rust pool-math, step by step', () => {
   });
 });
 
+describe('the launch fee schedule matches the Rust', () => {
+  it('at every moment in the vectors', () => {
+    expect(vectors.schedule.length).toBeGreaterThan(50);
+    for (const c of vectors.schedule) expect(effectiveFeeBps(c.base, c.start, c.decay, BigInt(c.t0), BigInt(c.now)), JSON.stringify(c)).toBe(c.fee);
+  });
+  it('bounds a schedule as the program does', () => {
+    expect(scheduleOk(25, 0, 0)).toBe(true);
+    expect(scheduleOk(25, 2_500, 3_600)).toBe(true);
+    for (const [s, d] of [[2_501, 600], [2_000, 3_601], [25, 600], [2_000, 0], [0, 600]] as const) expect(scheduleOk(25, s, d)).toBe(false);
+    for (const p of Object.values(LAUNCH_PROTECTION)) expect(scheduleOk(25, p.startBps, p.decaySecs) && scheduleOk(100, p.startBps, p.decaySecs)).toBe(true);
+  });
+  it('a quote at launch uses the high fee and one later uses the base fee', () => {
+    const p = { ...openPool(600_000_000_000_000n, 0n, 10_000_000_000n, 100)!, feeStartBps: 2_000, decaySecs: 600, startTs: 1_000n };
+    expect(buy(atTime(p, 1_000n), 1_000_000_000n)!.result.fee).toBe(200_000_000n);
+    expect(buy(atTime(p, 1_600n), 1_000_000_000n)!.result.fee).toBe(10_000_000n);
+  });
+});
+
 describe('the rules', () => {
   it('open refuses what the program refuses', () => {
     expect(openPool(999n, 0n, 10_000_000n, 25)).toBeNull();
@@ -132,7 +154,7 @@ describe('validateAretiaPool', () => {
     expect(v.ok).toBe(true);
     if (!v.ok) return;
     const p: CreateParams = v.params;
-    expect(p).toEqual({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true });
+    expect(p).toEqual({ creator: CREATOR, mint: MINT, x0: 600_000_000_000_000n, y0: 0n, l0: 10_000_200_000n, feeBps: 25, lock: true, sniperBps: 1000, decaySecs: 300 });
   });
   it('keeps the Meteora form’s refusals', () => {
     for (const t of [token({ mintAuthority: CREATOR }), token({ freezeAuthority: CREATOR }), token({ extensions: [18, 19, 1] }), token({ extensions: [14] }), token({ extensions: [12] })]) {
@@ -147,6 +169,12 @@ describe('validateAretiaPool', () => {
     expect(tiny.ok).toBe(false);
     if (!tiny.ok) expect(tiny.issues.map((i) => i.field)).toContain('price');
     expect(validateAretiaPool(form({ tokenAmount: '0.0005', price: '1' }), CREATOR, token()).ok).toBe(false);
+  });
+  it('asks for the launch protection chosen, and drops it when the trading fee is as high', () => {
+    for (const [choice, start, decay] of [['off', 0, 0], ['standard', 1000, 300], ['strong', 2500, 900]] as const) {
+      const v = validateAretiaPool(form({ launchProtection: choice }), CREATOR, token());
+      expect(v.ok && [v.params.sniperBps, v.params.decaySecs]).toEqual([start, decay]);
+    }
   });
   it('can lock or not lock', () => {
     const v = validateAretiaPool(form({ lockLiquidity: false }), CREATOR, token());
@@ -167,7 +195,7 @@ describe('the flag, the program and the words', () => {
     expect(c).toEqual({ aretiaFee: ARETIA_POOL_FEE_LAMPORTS, network: 7_000_000n, total: 57_000_000n });
   });
   it('never calls a pool safe, says it is unaudited, and says what the lock and the split mean', () => {
-    const params: CreateParams = { creator: CREATOR, mint: MINT, x0: 1n, y0: 0n, l0: 1n, feeBps: 100, lock: true };
+    const params: CreateParams = { creator: CREATOR, mint: MINT, x0: 1n, y0: 0n, l0: 1n, feeBps: 100, lock: true, sniperBps: 2500, decaySecs: 900 };
     const text = aretiaPoolDisclosures(params).map((d) => d.text).join(' ');
     expect(text).toMatch(/not been independently audited/);
     expect(text).toMatch(/locked for good/);
@@ -196,11 +224,13 @@ describe('reading the program’s accounts', () => {
     v.setBigUint64(108, 1n, true);
     v.setBigUint64(116, 42n, true);
     v.setBigInt64(124, 1_700_000_000n, true);
+    v.setUint16(132, 2_000, true);
+    v.setUint32(134, 600, true);
     return d;
   };
   it('reads the pool', () => {
     const p = parsePoolAccount(poolBytes(), b58)!;
-    expect(p).toMatchObject({ bump: 254, solBump: 253, mint: MINT, creator: CREATOR, feeBps: 100, x: 5000n, y: 6000n, l: 7000n, feeReserve: 42n, createdAt: 1_700_000_000n });
+    expect(p).toMatchObject({ bump: 254, solBump: 253, mint: MINT, creator: CREATOR, feeBps: 100, x: 5000n, y: 6000n, l: 7000n, feeReserve: 42n, createdAt: 1_700_000_000n, feeStartBps: 2000, decaySecs: 600 });
     expect(p.acc).toBe(9n + (1n << 64n));
   });
   it('refuses data that is the wrong size or the wrong account type', () => {
@@ -211,7 +241,7 @@ describe('reading the program’s accounts', () => {
   });
   it('knows what a position can claim, including fees not yet written to it', () => {
     const p = parsePoolAccount(poolBytes(), b58)!;
-    const pos = { pool: '', owner: CREATOR, shares: 1_000n, locked: 1_000n, checkpoint: 0n, pending: 5n };
+    const pos = { pool: '', owner: CREATOR, shares: 1_000n, locked: 1_000n, checkpoint: 0n, pending: 5n, recipient: CREATOR };
     // acc = 9 + 2^64; shares * acc >> 64 = 1000 + (9000 >> 64 = 0)
     expect(claimable(p, pos)).toBe(1_005n);
   });

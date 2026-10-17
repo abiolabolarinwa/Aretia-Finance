@@ -1,7 +1,6 @@
 use aretia_pool_it::*;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
-use std::collections::HashMap;
 
 const DECIMALS: u8 = 6;
 const SUPPLY: u64 = 1_000_000_000_000_000; // 1,000,000,000 tokens
@@ -327,6 +326,115 @@ fn the_fee_wallet_receives_exactly_the_protocol_share_over_many_trades() {
     assert_vault_exact(&l, 0, 0);
 }
 
+#[test]
+fn the_launch_fee_falls_with_time_and_the_stored_fee_stays_the_base() {
+    let mut env = Env::new();
+    let creator = env.user(100);
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    let c = creator.pubkey();
+    env.set_time(10_000);
+    // 20% falling to 1% over 600 seconds.
+    env.send(&[create_pool_ix_sched(&c, &c, &mint, X0, 0, L0, 100, true, 2_000, 600)], &[&creator]).expect("create");
+    let p0 = env.pool(&mint);
+    assert_eq!((p0.fee_bps, p0.fee_start_bps, p0.decay_secs, p0.created_at), (100, 2_000, 600, 10_000));
+    let buyer = env.user(1000);
+    env.make_ata(&buyer.pubkey(), &mint);
+    let mut model = p0.math();
+    let mut fees = vec![];
+    for (t, expect_bps) in [(10_000i64, 2_000u16), (10_300, 1_050), (10_599, 104), (10_600, 100), (50_000, 100)] {
+        env.set_time(t);
+        assert_eq!(pool_math::effective_fee_bps(100, 2_000, 600, 10_000, t), expect_bps);
+        let mut m = model;
+        m.fee_bps = expect_bps;
+        let (b, mut n) = pool_math::buy(&m, SOL).unwrap();
+        n.fee_bps = 100;
+        let before = env.lamports(&FEE_WALLET);
+        env.send(&[swap_ix(&buyer.pubkey(), &mint, true, SOL, b.tokens_out)], &[&buyer]).expect("buy");
+        let p = env.pool(&mint);
+        assert_eq!((p.x, p.y, p.acc, p.fee_reserve, p.fee_bps), (n.x, n.y, n.acc, n.fee_reserve, 100), "t = {t}");
+        assert_eq!(env.lamports(&FEE_WALLET) - before, b.protocol);
+        fees.push(b.fee);
+        model = n;
+    }
+    assert_eq!(fees[0], SOL / 5, "20% of the first buy");
+    assert!(fees.windows(2).all(|w| w[0] >= w[1]), "the fee never rises");
+    assert_eq!(fees[3], SOL / 100);
+    // A seller pays the schedule too.
+    env.set_time(10_000);
+    let mint2 = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    env.send(&[create_pool_ix_sched(&c, &c, &mint2, X0, 0, L0, 100, true, 2_000, 600)], &[&creator]).expect("create 2");
+    env.make_ata(&buyer.pubkey(), &mint2);
+    env.send(&[swap_ix(&buyer.pubkey(), &mint2, true, 5 * SOL, 0)], &[&buyer]).unwrap();
+    let held = env.token_amount(&ata(&buyer.pubkey(), &mint2, &TOKEN_2022));
+    let mut m = env.pool(&mint2).math();
+    m.fee_bps = 2_000;
+    let (s, _) = pool_math::sell(&m, held / 2).unwrap();
+    let got_before = env.lamports(&buyer.pubkey());
+    env.send(&[swap_ix(&buyer.pubkey(), &mint2, false, held / 2, s.net)], &[&buyer]).expect("sell at the launch fee");
+    assert_eq!(env.lamports(&buyer.pubkey()) - got_before, s.net);
+    assert_eq!(s.fee, pool_math::fee_up(s.gross, 2_000));
+}
+
+#[test]
+fn bad_launch_schedules_are_refused() {
+    let mut env = Env::new();
+    let creator = env.user(100);
+    let c = creator.pubkey();
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    for (start, decay) in [(2_501u16, 600u32), (2_000, 3_601), (100, 600), (50, 600), (2_000, 0), (0, 600)] {
+        assert_fails_with(env.send(&[create_pool_ix_sched(&c, &c, &mint, X0, 0, L0, 100, true, start, decay)], &[&creator]), "BadParameters");
+    }
+    env.send(&[create_pool_ix_sched(&c, &c, &mint, X0, 0, L0, 25, true, 2_500, 3_600)], &[&creator]).expect("the widest schedule is allowed");
+}
+
+#[test]
+fn fees_can_be_sent_to_another_wallet_even_when_locked() {
+    let mut l = launch(100, true);
+    let c = l.creator.pubkey();
+    let treasury = Address::new_unique();
+    let buyer = trader(&mut l, 1000, 0);
+    for _ in 0..3 {
+        l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 20 * SOL, 0)], &[&buyer]).unwrap();
+    }
+    assert_eq!(l.env.position(&l.mint, &c).recipient, c, "the owner until told otherwise");
+    // Only the owner may name a recipient.
+    let stranger = l.env.user(2);
+    assert!(l.env.send(&[set_recipient_ix(&stranger.pubkey(), &l.mint, &treasury)], &[&stranger]).is_err());
+    l.env.send(&[set_recipient_ix(&c, &l.mint, &treasury)], &[&l.creator]).expect("set recipient on a locked position");
+    assert_eq!(l.env.position(&l.mint, &c).recipient, treasury);
+    let p = l.env.pool(&l.mint);
+    let want = pool_math::pending_fee(L0, p.acc, 0).unwrap();
+    // The old payee, or any other account, is refused.
+    assert!(l.env.send(&[claim_ix_to(&c, &l.mint, &c, &c)], &[&l.creator]).is_err());
+    assert!(l.env.send(&[claim_ix_to(&c, &l.mint, &c, &Address::new_unique())], &[&l.creator]).is_err());
+    // Only the owner can call claim, whoever the recipient is.
+    assert!(l.env.send(&[claim_ix_to(&stranger.pubkey(), &l.mint, &c, &treasury)], &[&stranger]).is_err());
+    let (own_before, t_before) = (l.env.lamports(&c), l.env.lamports(&treasury));
+    l.env.send(&[claim_ix_to(&c, &l.mint, &c, &treasury)], &[&l.creator]).expect("claim to the treasury");
+    assert_eq!(l.env.lamports(&treasury) - t_before, want);
+    assert_eq!(l.env.lamports(&c), own_before, "the owner gets nothing");
+    assert_vault_exact(&l, 0, 0);
+    // The locked liquidity is still locked.
+    assert_fails_with(l.env.send(&[remove_ix(&c, &l.mint, 1_000, 0, 0)], &[&l.creator]), "Locked");
+}
+
+#[test]
+fn opening_a_pool_costs_the_fee_and_the_deposits_and_nothing_hidden() {
+    let mut env = Env::new();
+    let creator = env.user(100);
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    let c = creator.pubkey();
+    let before = env.lamports(&c);
+    env.send(&[create_pool_ix(&c, &c, &mint, X0, 0, L0, 25, true)], &[&creator]).unwrap();
+    let spent = before - env.lamports(&c);
+    let pool = pool_pda(&mint);
+    // The creator's whole outlay: the 0.05 SOL fee plus the rent of the four accounts the pool needs.
+    let rents: u64 = [env.lamports(&pool), env.lamports(&position_pda(&pool, &c)), env.lamports(&ata(&pool, &mint, &TOKEN_2022)), env.lamports(&sol_vault_pda(&pool))].iter().sum();
+    assert_eq!(spent, CREATE_FEE + rents);
+    eprintln!("opening cost: fee {} + rent {} = {} lamports", CREATE_FEE, rents, spent);
+    assert!(rents < 8_000_000, "rent for the whole pool stays under 0.008 SOL, was {rents}");
+}
+
 // ---------------------------------------------------------------- the scripted random run
 
 struct Rng(u64);
@@ -419,7 +527,7 @@ fn a_scripted_random_run_matches_the_model() {
                     let mut np = p;
                     if !np.exists { np.exists = true; np.checkpoint = model.acc; np.pending = 0; }
                     np.shares += dl;
-                    let rent = if pos[who].exists { 0 } else { l.env.svm.minimum_balance_for_rent_exemption(8 + 32 + 32 + 8 + 8 + 16 + 8) };
+                    let rent = if pos[who].exists { 0 } else { l.env.svm.minimum_balance_for_rent_exemption(8 + 32 + 32 + 8 + 8 + 16 + 8 + 32) };
                     Plan { ix: add_ix(&a, &mint, dl, ad.tokens_in, ad.sol_in), next: Some(n), pos: Some(np), tok: -(ad.tokens_in as i128), lam: -(ad.sol_in as i128) - rent as i128, fee: 0, kind: 2 }
                 }
                 _ => Plan { ix: add_ix(&a, &mint, dl, tok_before.saturating_add(1), 0), next: None, pos: None, tok: 0, lam: 0, fee: 0, kind: 2 },

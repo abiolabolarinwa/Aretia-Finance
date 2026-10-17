@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ALLOWED_FEE_BPS, ARETIA_POOL_FEE_ADDRESS, ARETIA_POOL_FEE_LAMPORTS, ARETIA_POOL_PROGRAM_ID_DEVNET, ARETIA_POOL_PROGRAM_ID_MAINNET, MAX_AMOUNT, MIN_LIQUIDITY, MIN_LIQUIDITY_DELTA, MIN_TOKENS, PROTOCOL_SHARE_BPS } from './walletAretiaPoolCore';
+import { ALLOWED_FEE_BPS, ARETIA_POOL_FEE_ADDRESS, ARETIA_POOL_FEE_LAMPORTS, ARETIA_POOL_PROGRAM_ID_DEVNET, ARETIA_POOL_PROGRAM_ID_MAINNET, MAX_AMOUNT, MAX_DECAY_SECS, MAX_SNIPER_BPS, MIN_LIQUIDITY, MIN_LIQUIDITY_DELTA, MIN_TOKENS, PROTOCOL_SHARE_BPS } from './walletAretiaPoolCore';
 import { POOL_TRADING_FEES_BPS } from './walletPoolCore';
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
@@ -60,6 +60,8 @@ describe('the web constants equal the program’s', () => {
     expect(num(constant(m, 'MIN_TOKENS'))).toBe(MIN_TOKENS);
     expect(num(constant(m, 'MIN_LIQUIDITY'))).toBe(MIN_LIQUIDITY);
     expect(num(constant(m, 'MIN_LIQUIDITY_DELTA'))).toBe(MIN_LIQUIDITY_DELTA);
+    expect(num(constant(m, 'MAX_SNIPER_BPS'))).toBe(BigInt(MAX_SNIPER_BPS));
+    expect(num(constant(m, 'MAX_DECAY_SECS'))).toBe(BigInt(MAX_DECAY_SECS));
     expect(MAX_AMOUNT).toBe(1n << 62n);
     expect(constant(m, 'MAX_AMOUNT')).toBe('1 << 62');
     expect(/ALLOWED_FEE_BPS[^=]*=\s*\[([^\]]+)\]/.exec(m)![1]!.split(',').map((x) => Number(x.trim()))).toEqual([...ALLOWED_FEE_BPS]);
@@ -71,7 +73,7 @@ describe('the web constants equal the program’s', () => {
   it('the program has no instruction that could change a fee, a share or a lock downward', () => {
     const src = program();
     const names = [...src.matchAll(/pub fn (\w+)\(ctx: Context/g)].map((m) => m[1]);
-    expect(names).toEqual(['create_pool', 'swap', 'add_liquidity', 'remove_liquidity', 'claim_fees', 'lock_liquidity']);
+    expect(names).toEqual(['create_pool', 'swap', 'add_liquidity', 'remove_liquidity', 'claim_fees', 'set_recipient', 'lock_liquidity']);
     // `locked` is only ever assigned in create_pool and lock_liquidity, and only upward.
     const assigns = [...src.matchAll(/\.locked\s*=\s*([^;]+);/g)].map((m) => m[1]!.trim());
     expect(assigns).toEqual(['if lock { l0 } else { 0 }', 'locked']);

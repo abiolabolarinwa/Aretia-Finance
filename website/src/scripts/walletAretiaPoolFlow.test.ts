@@ -232,8 +232,9 @@ describe('trading, claiming and locking', () => {
     await flow.trade(CREATOR, MINT, q);
     await flow.claim(CREATOR, MINT);
     await flow.lock(CREATOR, MINT, 5n);
-    expect(w.sent.map((t) => t.instructions.length)).toEqual([1, 1, 1]);
-    expect(w.sent.every((t) => t.instructions[0]!.programId.toBase58() === PROGRAM)).toBe(true);
+    // The buy carries a create-my-token-account step first; a claim and a lock are one step each.
+    expect(w.sent.map((t) => t.instructions.length)).toEqual([2, 1, 1]);
+    expect(w.sent.every((t) => t.instructions[t.instructions.length - 1]!.programId.toBase58() === PROGRAM)).toBe(true);
   });
   it('will not send a trade without a floor', async () => {
     const { w, flow } = await live();

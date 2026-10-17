@@ -31,7 +31,7 @@ import {
   type PoolAccount,
   type PositionAccount,
 } from './walletAretiaPoolCore';
-import { assemble, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildTransferPosition, inspectTransferPosition, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
+import { assemble, ensureTokenAccount, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildTransferPosition, inspectTransferPosition, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
 
 export interface PoolSimulation {
   ok: boolean;
@@ -238,7 +238,7 @@ export class AretiaPoolFlow {
     if (q.minOut <= 0n) throw new LaunchError('The trade has no minimum on what you receive, so it was not built.', true);
     progress('checking');
     const s = { trader, mint, isBuy: q.isBuy, amountIn: q.amountIn, minOut: q.minOut };
-    const tx = assemble(web3, [buildSwap(web3, program, s)], trader, ...(await this.blockhash()));
+    const tx = assemble(web3, [...(q.isBuy ? [ensureTokenAccount(web3, trader, mint)] : []), buildSwap(web3, program, s)], trader, ...(await this.blockhash()));
     const blockers = inspectSwap(web3, tx, { ...s, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, trader, progress);
@@ -265,7 +265,7 @@ export class AretiaPoolFlow {
     const { web3, program } = this.d;
     progress('checking');
     const l = { owner, mint, positionId, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
-    const tx = assemble(web3, [buildAddLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
+    const tx = assemble(web3, [ensureTokenAccount(web3, owner, mint), buildAddLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
     const blockers = inspectAddLiquidity(web3, tx, { ...l, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);

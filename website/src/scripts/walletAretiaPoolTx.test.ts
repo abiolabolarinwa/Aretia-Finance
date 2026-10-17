@@ -11,6 +11,7 @@ import {
   inspectAddLiquidity,
   inspectRemoveLiquidity,
   buildClaim,
+  ensureTokenAccount,
   buildCreatePool,
   buildLock,
   buildSwap,
@@ -320,5 +321,32 @@ describe('position ids and transfers', () => {
     const bad = tamper(t, { keys: { 2: { pubkey: other } } });
     expect(inspectTransferPosition(web3, tx(bad), { program: PROGRAM, owner: CREATOR, mint: MINT, newOwner: OTHER }).join(' ')).toMatch(/position 3/);
     expect(DISC.transferPosition).toEqual(Uint8Array.from(createHash('sha256').update('global:transfer_position').digest().subarray(0, 8)));
+  });
+});
+
+describe('the buyer’s own token account', () => {
+  const s = { trader: CREATOR, mint: MINT, isBuy: true, amountIn: 1_000_000_000n, minOut: 5n };
+  const ata = ensureTokenAccount(web3, CREATOR, MINT);
+  const swap = buildSwap(web3, PROGRAM, s);
+  const tx = (...ixs: web3.TransactionInstruction[]) => assemble(web3, ixs, CREATOR, BLOCKHASH, 1);
+  it('may come first, byte for byte, and is optional', () => {
+    expect(inspectSwap(web3, tx(ata, swap), { ...s, program: PROGRAM })).toEqual([]);
+    expect(inspectSwap(web3, tx(swap), { ...s, program: PROGRAM })).toEqual([]);
+  });
+  it('is refused if it creates an account for anyone else, or does anything else', () => {
+    const forOther = tamper(ata, { keys: { 2: { pubkey: other } } });
+    expect(inspectSwap(web3, tx(forOther, swap), { ...s, program: PROGRAM }).join(' ')).toMatch(/creation of your own token account/);
+    const wrongAccount = tamper(ata, { keys: { 1: { pubkey: other } } });
+    expect(inspectSwap(web3, tx(wrongAccount, swap), { ...s, program: PROGRAM }).join(' ')).toMatch(/creation of your own token account/);
+    const notCreate = tamper(ata, { data: (d) => (d[0] = 0) });
+    expect(inspectSwap(web3, tx(notCreate, swap), { ...s, program: PROGRAM }).join(' ')).toMatch(/creation of your own token account/);
+    const steal = web3.SystemProgram.transfer({ fromPubkey: new web3.PublicKey(CREATOR), toPubkey: other, lamports: 1 });
+    expect(inspectSwap(web3, tx(steal, swap), { ...s, program: PROGRAM }).join(' ')).toMatch(/creation of your own token account/);
+    expect(inspectSwap(web3, tx(ata, swap, steal), { ...s, program: PROGRAM }).join(' ')).toMatch(/not the single step/);
+  });
+  it('is allowed before adding liquidity but not before a claim', () => {
+    const l = { owner: CREATOR, mint: MINT, dl: 5_000n, tokens: 1n, sol: 2n };
+    expect(inspectAddLiquidity(web3, tx(ata, buildAddLiquidity(web3, PROGRAM, l)), { ...l, program: PROGRAM })).toEqual([]);
+    expect(inspectClaim(web3, tx(ata, buildClaim(web3, PROGRAM, CREATOR, MINT)), { program: PROGRAM, owner: CREATOR, mint: MINT }).join(' ')).toMatch(/not the single step/);
   });
 });

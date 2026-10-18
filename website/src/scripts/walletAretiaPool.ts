@@ -158,7 +158,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     const address = host.getAddress();
     card.append(h('span', 'wapp__eyebrow', 'Aretia Pool'), h('h2', 'wapp__h2', 'Open an Aretia pool'));
     card.append(
-      h('p', 'wapp__banner wapp__banner--warn', 'Unaudited. Aretia’s own pool program has not been independently checked and is live on a test network only. Aggregators such as Jupiter do not route to it yet.'),
+      h('p', 'wapp__banner wapp__banner--warn', 'Unaudited. Aretia’s own pool program has not been independently checked and is live on a test network only. Aggregators such as Jupiter do not route to it yet, so an Aretia Pool is traded on Aretia only. For a token that must trade outside Aretia too, open the Meteora liquidity pool above.'),
       h('p', 'wapp__fine', `Your tokens go into a pool at a starting price you choose, and buyers pay SOL. Aretia keeps 20% of each trading fee and you keep the rest. Opening a pool costs a flat ${sol(ARETIA_POOL_FEE_LAMPORTS)} Aretia fee, shown before you sign.`),
     );
     if (!address) card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect a Solana wallet to open a pool.'));

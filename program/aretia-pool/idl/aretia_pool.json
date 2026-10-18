@@ -1,0 +1,796 @@
+{
+  "version": "0.3.0",
+  "name": "aretia_pool",
+  "docs": [
+    "Aretia Pool: constant-product swap pool with virtual reserves (price range), launch-fee schedule, locked and transferable positions. UNAUDITED. Devnet only. docs/ARETIA_POOL.md"
+  ],
+  "instructions": [
+    {
+      "name": "createPool",
+      "accounts": [
+        {
+          "name": "creator",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "creatorToken",
+          "isMut": true
+        },
+        {
+          "name": "pool",
+          "isMut": true
+        },
+        {
+          "name": "solVault",
+          "isMut": true
+        },
+        {
+          "name": "vault",
+          "isMut": true
+        },
+        {
+          "name": "position",
+          "isMut": true
+        },
+        {
+          "name": "feeWallet",
+          "isMut": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram"
+        },
+        {
+          "name": "systemProgram"
+        },
+        {
+          "name": "positionId"
+        }
+      ],
+      "args": [
+        {
+          "name": "x0",
+          "type": "u64"
+        },
+        {
+          "name": "y0",
+          "type": "u64"
+        },
+        {
+          "name": "l0",
+          "type": "u64"
+        },
+        {
+          "name": "feeBps",
+          "type": "u16"
+        },
+        {
+          "name": "lock",
+          "type": "bool"
+        },
+        {
+          "name": "sniperBps",
+          "type": "u16"
+        },
+        {
+          "name": "decaySecs",
+          "type": "u32"
+        },
+        {
+          "name": "vx0",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        233,
+        146,
+        209,
+        142,
+        207,
+        104,
+        64,
+        188
+      ]
+    },
+    {
+      "name": "swap",
+      "accounts": [
+        {
+          "name": "trader",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "pool",
+          "isMut": true
+        },
+        {
+          "name": "solVault",
+          "isMut": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault",
+          "isMut": true
+        },
+        {
+          "name": "traderToken",
+          "isMut": true
+        },
+        {
+          "name": "feeWallet",
+          "isMut": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "isBuy",
+          "type": "bool"
+        },
+        {
+          "name": "amountIn",
+          "type": "u64"
+        },
+        {
+          "name": "minOut",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
+      ]
+    },
+    {
+      "name": "addLiquidity",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "pool",
+          "isMut": true
+        },
+        {
+          "name": "solVault",
+          "isMut": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault",
+          "isMut": true
+        },
+        {
+          "name": "ownerToken",
+          "isMut": true
+        },
+        {
+          "name": "position",
+          "isMut": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "systemProgram"
+        },
+        {
+          "name": "positionId"
+        }
+      ],
+      "args": [
+        {
+          "name": "dl",
+          "type": "u64"
+        },
+        {
+          "name": "maxTokens",
+          "type": "u64"
+        },
+        {
+          "name": "maxSol",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        181,
+        157,
+        89,
+        67,
+        143,
+        182,
+        52,
+        72
+      ]
+    },
+    {
+      "name": "removeLiquidity",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "pool",
+          "isMut": true
+        },
+        {
+          "name": "solVault",
+          "isMut": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault",
+          "isMut": true
+        },
+        {
+          "name": "ownerToken",
+          "isMut": true
+        },
+        {
+          "name": "position",
+          "isMut": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "dl",
+          "type": "u64"
+        },
+        {
+          "name": "minTokens",
+          "type": "u64"
+        },
+        {
+          "name": "minSol",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        80,
+        85,
+        209,
+        72,
+        24,
+        206,
+        177,
+        108
+      ]
+    },
+    {
+      "name": "claimFees",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "pool",
+          "isMut": true
+        },
+        {
+          "name": "solVault",
+          "isMut": true
+        },
+        {
+          "name": "position",
+          "isMut": true
+        },
+        {
+          "name": "recipient",
+          "isMut": true
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": [],
+      "discriminator": [
+        82,
+        251,
+        233,
+        156,
+        12,
+        52,
+        184,
+        202
+      ]
+    },
+    {
+      "name": "transferPosition",
+      "accounts": [
+        {
+          "name": "owner",
+          "isSigner": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "position",
+          "isMut": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newOwner",
+          "type": "publicKey"
+        }
+      ],
+      "discriminator": [
+        139,
+        130,
+        102,
+        147,
+        135,
+        77,
+        113,
+        222
+      ]
+    },
+    {
+      "name": "setRecipient",
+      "accounts": [
+        {
+          "name": "owner",
+          "isSigner": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "position",
+          "isMut": true
+        }
+      ],
+      "args": [
+        {
+          "name": "recipient",
+          "type": "publicKey"
+        }
+      ],
+      "discriminator": [
+        133,
+        1,
+        115,
+        69,
+        206,
+        190,
+        17,
+        18
+      ]
+    },
+    {
+      "name": "lockLiquidity",
+      "accounts": [
+        {
+          "name": "owner",
+          "isSigner": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "position",
+          "isMut": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ],
+      "discriminator": [
+        179,
+        201,
+        236,
+        158,
+        212,
+        98,
+        70,
+        182
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Pool",
+      "discriminator": [
+        241,
+        154,
+        109,
+        4,
+        17,
+        177,
+        109,
+        188
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "solBump",
+            "type": "u8"
+          },
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "creator",
+            "type": "publicKey"
+          },
+          {
+            "name": "feeBps",
+            "type": "u16"
+          },
+          {
+            "name": "x",
+            "type": "u64"
+          },
+          {
+            "name": "y",
+            "type": "u64"
+          },
+          {
+            "name": "l",
+            "type": "u64"
+          },
+          {
+            "name": "acc",
+            "type": "u128"
+          },
+          {
+            "name": "feeReserve",
+            "type": "u64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "feeStartBps",
+            "type": "u16"
+          },
+          {
+            "name": "decaySecs",
+            "type": "u32"
+          },
+          {
+            "name": "vx",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "publicKey"
+          },
+          {
+            "name": "owner",
+            "type": "publicKey"
+          },
+          {
+            "name": "shares",
+            "type": "u64"
+          },
+          {
+            "name": "locked",
+            "type": "u64"
+          },
+          {
+            "name": "checkpoint",
+            "type": "u128"
+          },
+          {
+            "name": "pending",
+            "type": "u64"
+          },
+          {
+            "name": "recipient",
+            "type": "publicKey"
+          },
+          {
+            "name": "id",
+            "type": "publicKey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "Created",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "mint",
+          "type": "publicKey"
+        },
+        {
+          "name": "creator",
+          "type": "publicKey"
+        },
+        {
+          "name": "owner",
+          "type": "publicKey"
+        },
+        {
+          "name": "x",
+          "type": "u64"
+        },
+        {
+          "name": "y",
+          "type": "u64"
+        },
+        {
+          "name": "l",
+          "type": "u64"
+        },
+        {
+          "name": "feeBps",
+          "type": "u16"
+        },
+        {
+          "name": "locked",
+          "type": "bool"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "Swapped",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "trader",
+          "type": "publicKey"
+        },
+        {
+          "name": "isBuy",
+          "type": "bool"
+        },
+        {
+          "name": "amountIn",
+          "type": "u64"
+        },
+        {
+          "name": "amountOut",
+          "type": "u64"
+        },
+        {
+          "name": "fee",
+          "type": "u64"
+        },
+        {
+          "name": "protocol",
+          "type": "u64"
+        },
+        {
+          "name": "x",
+          "type": "u64"
+        },
+        {
+          "name": "y",
+          "type": "u64"
+        },
+        {
+          "name": "l",
+          "type": "u64"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "LiquidityChanged",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "owner",
+          "type": "publicKey"
+        },
+        {
+          "name": "added",
+          "type": "bool"
+        },
+        {
+          "name": "dl",
+          "type": "u64"
+        },
+        {
+          "name": "tokens",
+          "type": "u64"
+        },
+        {
+          "name": "sol",
+          "type": "u64"
+        },
+        {
+          "name": "x",
+          "type": "u64"
+        },
+        {
+          "name": "y",
+          "type": "u64"
+        },
+        {
+          "name": "l",
+          "type": "u64"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "Claimed",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "owner",
+          "type": "publicKey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "Locked",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "owner",
+          "type": "publicKey"
+        },
+        {
+          "name": "locked",
+          "type": "u64"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "RecipientSet",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "owner",
+          "type": "publicKey"
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "PositionTransferred",
+      "fields": [
+        {
+          "name": "pool",
+          "type": "publicKey"
+        },
+        {
+          "name": "id",
+          "type": "publicKey"
+        },
+        {
+          "name": "from",
+          "type": "publicKey"
+        },
+        {
+          "name": "to",
+          "type": "publicKey"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "address": "4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc",
+    "note": "devnet test program; mainnet has none"
+  }
+}

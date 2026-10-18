@@ -1,0 +1,7 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[programs.devnet]
+aretia_curve_grad = "Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm"
+
+# DEVNET ONLY. A copy of program/aretia-curve whose migrate opens an Aretia Pool. Not deployed to mainnet; unaudited.

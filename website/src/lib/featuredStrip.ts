@@ -83,7 +83,7 @@ export function featuredCard(i: FeaturedItem, verified: readonly VerifiedEntry[]
  * Fills `box` with the strip, or hides it and leaves it empty when nothing is running. `stack` lays the cards in a column on wide
  * screens (for a narrow home-page column); otherwise they stay in a scrolling row. Returns how many items are showing.
  */
-export function renderFeatured(box: HTMLElement | null, opts: { stack?: boolean; list?: readonly FeaturedItem[]; verified?: readonly VerifiedEntry[]; now?: number } = {}): number {
+export function renderFeatured(box: HTMLElement | null, opts: { stack?: boolean; onGetFeatured?: () => void; list?: readonly FeaturedItem[]; verified?: readonly VerifiedEntry[]; now?: number } = {}): number {
   if (!box) return 0;
   const now = opts.now ?? Date.now();
   const items = featuredNow(opts.list ?? FEATURED, now);
@@ -101,6 +101,15 @@ export function renderFeatured(box: HTMLElement | null, opts: { stack?: boolean;
   get.href = '/featured#request';
   get.target = '_blank';
   get.rel = 'noopener';
+  const open = opts.onGetFeatured;
+  if (open) {
+    // Inside the wallet the request form opens on the spot instead of leaving it.
+    get.removeAttribute('target');
+    get.addEventListener('click', (e) => {
+      e.preventDefault();
+      open();
+    });
+  }
   head.append(get);
   const list = el('ul', 'aft__list');
   for (const i of items) list.append(featuredCard(i, opts.verified ?? VERIFIED, now));

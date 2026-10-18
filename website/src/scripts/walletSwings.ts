@@ -49,6 +49,7 @@ import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/acco
 import { createToaster } from './walletToast.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { featuredForMarkets } from './walletFeatured';
+import { promoteButton } from './walletPromote';
 import { searchTokens as searchEverywhere, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -1862,6 +1863,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
         main.append(sponsorBlock('market-footer', { seed: `${m.kind}:${m.chain}` }));
+        main.append(el('p', { class: 'wapp__fine' }, [promoteButton('Promote your token'), document.createTextNode(' · Featured places and the Verified by Aretia badge are by request, and neither is a rating or an endorsement.')]));
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);

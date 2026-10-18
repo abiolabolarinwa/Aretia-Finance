@@ -9,6 +9,8 @@ Web: `website/src/scripts/walletAretiaPoolEvm{Core,Tx,Flow}.ts`, the card in `wa
 
 ## 1. Decisions for the owner
 
+**Confirmed by the owner on 2026-10-18:** the 20% protocol share, the 0.25% / 1% fee tiers, the creation fees (0.0042 ETH, 0.014 BNB, 105 POL; testnets 0.0001, 0.0001, 0.1) and the native-coin pair, all as in the table below. Still open: an audit before any mainnet deployment, and curve graduation (section 9).
+
 All are constants or constructor arguments. None can change after deployment (there is no admin function). Each is a one-line change before a mainnet build.
 
 | Decision | Value now | Notes |

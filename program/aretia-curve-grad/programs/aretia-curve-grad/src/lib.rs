@@ -25,7 +25,7 @@ use anchor_lang::solana_program::{
     pubkey,
 };
 use anchor_lang::system_program::{self, Transfer};
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::associated_token::{self, AssociatedToken};
 use anchor_spl::token::{self, Token};
 use anchor_spl::token_2022::Token2022;
 use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked};
@@ -262,7 +262,13 @@ pub mod aretia_curve_grad {
 
         // 2. The pool tokens go to the migrator's token account, and the SOL raised to the migrator itself (the pool takes SOL from its creator).
         //    Balances before are remembered so a donation can neither block the migration nor hide a shortfall.
-        let tok_pre = ctx.accounts.migrator_token.amount;
+        // The migrator's accounts are opened here rather than in the account list, which keeps account loading inside the stack limit.
+        let migrator_token = ctx.accounts.migrator_token.to_account_info();
+        let migrator_wsol = ctx.accounts.migrator_wsol.to_account_info();
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.payer, &migrator_token, &migrator, &ctx.accounts.mint.to_account_info(), &ctx.accounts.system_program, &ctx.accounts.token_program_2022.to_account_info())?;
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.payer, &migrator_wsol, &migrator, &ctx.accounts.wsol_mint.to_account_info(), &ctx.accounts.system_program, &ctx.accounts.sol_token_program.to_account_info())?;
+        let migrator_key = migrator.key();
+        let tok_pre = token_amount(&migrator_token, &mint_key, &migrator_key, &anchor_spl::token_2022::ID)?;
         transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program_2022.to_account_info(),
@@ -274,17 +280,15 @@ pub mod aretia_curve_grad {
         )?;
         let sol_seeds: &[&[u8]] = &[b"sol_vault", curve_key.as_ref(), &[sol_bump]];
         // The pool's SOL side is wrapped SOL: put the raised lamports into the migrator's wrapped-SOL account and sync it.
-        let wsol_pre = ctx.accounts.migrator_wsol.amount;
+        let wsol_pre = token_amount(&migrator_wsol, &WSOL, &migrator_key, &token::ID)?;
         system_program::transfer(
             CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.migrator_wsol.to_account_info() }, &[sol_seeds]),
             sol_to_move,
         )?;
         token::sync_native(CpiContext::new(ctx.accounts.sol_token_program.to_account_info(), token::SyncNative { account: ctx.accounts.migrator_wsol.to_account_info() }))?;
-        ctx.accounts.migrator_wsol.reload()?;
-        require!(ctx.accounts.migrator_wsol.amount == wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
+        require!(token_amount(&migrator_wsol, &WSOL, &migrator_key, &token::ID)? == wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
         require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0)?;
-        ctx.accounts.migrator_token.reload()?;
-        require!(ctx.accounts.migrator_token.amount == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
+        require!(token_amount(&migrator_token, &mint_key, &migrator_key, &anchor_spl::token_2022::ID)? == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
 
         // 3. Open the pool. The migrator is the creator and pays the pool's fee and rent; the position belongs to the curve's creator and is locked.
         let init = create_pool_ix(&ctx.accounts, migrator.key(), owner, tokens_to_move, sol_to_move);
@@ -309,10 +313,8 @@ pub mod aretia_curve_grad {
         invoke_signed(&init, &infos, &[migrator_seeds])?;
 
         // 4. The pool must have taken every token and every lamport, at exactly the amounts sent.
-        ctx.accounts.migrator_token.reload()?;
-        require!(ctx.accounts.migrator_token.amount == tok_pre, CurveError::PoolPriceMismatch);
-        ctx.accounts.migrator_wsol.reload()?;
-        require!(ctx.accounts.migrator_wsol.amount == wsol_pre, CurveError::PoolPriceMismatch);
+        require!(token_amount(&migrator_token, &mint_key, &migrator_key, &anchor_spl::token_2022::ID)? == tok_pre, CurveError::PoolPriceMismatch);
+        require!(token_amount(&migrator_wsol, &WSOL, &migrator_key, &token::ID)? == wsol_pre, CurveError::PoolPriceMismatch);
         {
             let data = ctx.accounts.pool.try_borrow_data()?;
             require!(*ctx.accounts.pool.owner == ARETIA_POOL_PROGRAM && data.len() >= 100, CurveError::PoolPriceMismatch);
@@ -363,6 +365,30 @@ pub mod aretia_curve_grad {
 }
 
 // ---------------------------------------------------------------- helpers
+
+fn open_ata<'info>(ata_program: &Program<'info, AssociatedToken>, payer: &Signer<'info>, ata: &AccountInfo<'info>, authority: &AccountInfo<'info>, mint: &AccountInfo<'info>, system_program: &Program<'info, System>, token_program: &AccountInfo<'info>) -> Result<()> {
+    associated_token::create_idempotent(CpiContext::new(
+        ata_program.to_account_info(),
+        associated_token::Create {
+            payer: payer.to_account_info(),
+            associated_token: ata.clone(),
+            authority: authority.clone(),
+            mint: mint.clone(),
+            system_program: system_program.to_account_info(),
+            token_program: token_program.clone(),
+        },
+    ))
+}
+
+/// The balance of a token account, read from its raw bytes after checking it belongs to `program` and is `owner`'s account for `mint`.
+/// The first 165 bytes are laid out the same in both token programs.
+fn token_amount(info: &AccountInfo, mint: &Pubkey, owner: &Pubkey, program: &Pubkey) -> Result<u64> {
+    require_keys_eq!(*info.owner, *program, CurveError::WrongAccount);
+    let data = info.try_borrow_data()?;
+    require!(data.len() >= 165, CurveError::WrongAccount);
+    require!(&data[0..32] == mint.as_ref() && &data[32..64] == owner.as_ref(), CurveError::WrongAccount);
+    Ok(u64::from_le_bytes(data[64..72].try_into().unwrap()))
+}
 
 /// The SOL vault must always hold the rent-exempt minimum plus every lamport the curve owes holders.
 fn require_solvent(sol_vault: &AccountInfo, real_sol: u64) -> Result<()> {
@@ -589,8 +615,9 @@ pub struct Migrate<'info> {
     /// CHECK: a program-derived system account that creates the pool and holds the money in transit.
     #[account(mut, seeds = [b"migrator", curve.key().as_ref()], bump)]
     pub migrator: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = payer, associated_token::mint = mint, associated_token::authority = migrator, associated_token::token_program = token_program_2022)]
-    pub migrator_token: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: the migrator's token account; opened and checked in the handler.
+    #[account(mut)]
+    pub migrator_token: UncheckedAccount<'info>,
     /// CHECK: must equal the pool address for this token (checked in the handler); created by the pool program.
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -614,8 +641,9 @@ pub struct Migrate<'info> {
     /// CHECK: the native mint, by address.
     #[account(address = WSOL)]
     pub wsol_mint: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = payer, associated_token::mint = wsol_mint, associated_token::authority = migrator, associated_token::token_program = sol_token_program)]
-    pub migrator_wsol: Box<Account<'info, token::TokenAccount>>,
+    /// CHECK: the migrator's wrapped-SOL account; opened and checked in the handler.
+    #[account(mut)]
+    pub migrator_wsol: UncheckedAccount<'info>,
     pub sol_token_program: Program<'info, Token>,
     pub token_program_2022: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,

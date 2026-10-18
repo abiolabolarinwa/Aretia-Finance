@@ -314,14 +314,14 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
       buy.type = 'button';
       buy.disabled = busy;
       buy.addEventListener('click', () => void startTrade('buy'));
-      card.append(field(`Buy with (${sym})`, 'curve-evm-buy', buyText, (v) => (buyText = v), { inputmode: 'decimal', placeholder: '0.1' }), buy);
+      card.append(field(`Buy: ${sym} to spend`, 'curve-evm-buy', buyText, (v) => (buyText = v), { inputmode: 'decimal', placeholder: '0.1' }), buy);
     }
     if (side === 'sell' && canSell) {
       const sell = h('button', 'wapp__btn wapp__btn--primary', 'Review sell');
       sell.type = 'button';
       sell.disabled = busy;
       sell.addEventListener('click', () => void startTrade('sell'));
-      card.append(field('Sell (tokens)', 'curve-evm-sell', sellText, (v) => (sellText = v), { inputmode: 'decimal', placeholder: '1,000' }), sell);
+      card.append(field('Sell: tokens to sell', 'curve-evm-sell', sellText, (v) => (sellText = v), { inputmode: 'decimal', placeholder: '1,000' }), sell);
     }
     const actions = h('div', 'wapp__row-actions');
     if (evmCanGraduate(c)) {

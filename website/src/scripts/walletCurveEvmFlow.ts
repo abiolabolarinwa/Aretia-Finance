@@ -562,6 +562,7 @@ const REASONS: [RegExp, string][] = [
   [/not from the factory/i, ': the token was not made by Aretia’s factory'],
   [/exists/i, ': a curve for this token already exists'],
   [/allowance/i, ': the approval is missing'],
+  [/OutOfFunds|insufficient funds|exceeds balance/i, ': your wallet holds less than the amount plus the network fee'],
 ];
 function reasonOf(e: unknown): string {
   const text = e instanceof Error ? e.message : String(e);

@@ -40,6 +40,7 @@ function world() {
     allowance: 0n,
     curveExists: false,
     factoryNonce: 6n,
+    estimateError: 'execution reverted',
     estimateOk: true,
     estimateFailOnce: false,
     estimateAsked: 0,
@@ -65,7 +66,7 @@ function world() {
         state.estimateFailOnce = false;
         throw new Error('header not found');
       }
-      if (!state.estimateOk) throw new Error('execution reverted');
+      if (!state.estimateOk) throw new Error(state.estimateError);
       return hex(60_000n);
     }
     if (method === 'eth_getTransactionReceipt') return { status: state.receiptStatus };
@@ -164,6 +165,13 @@ describe('estimating gas', () => {
     state.estimateOk = false;
     const r = await flow.prepareCreate(config());
     expect(r.blockers.join(' ')).toMatch(/would not accept the approval, so nothing was sent: execution reverted/);
+  });
+  it('says plainly when the wallet holds less than the amount plus the fee', async () => {
+    const { flow, state } = world();
+    state.estimateOk = false;
+    state.estimateError = 'EVM error: OutOfFunds';
+    const r = await flow.prepareCreate(config());
+    expect(r.blockers.join(' ')).toMatch(/your wallet holds less than the amount plus the network fee/);
   });
 });
 

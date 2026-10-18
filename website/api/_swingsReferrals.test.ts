@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PUBLIC_EVM_RPC } from '../src/swings/chains/evmSession.js';
 import { SWAP_FEE_WALLET } from '../src/scripts/walletTools.js';

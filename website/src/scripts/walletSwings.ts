@@ -1792,6 +1792,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
+          // The ★ list has its own sidebar page, and the other lists live on Markets, so the title and the marked sidebar entry follow the choice.
+          if (k === 'favourites' && !favPage && location.hash === '#/swings') {
+            location.hash = '#/favourites';
+            return;
+          }
+          if (k !== 'favourites' && favPage) {
+            favPage = false;
+            location.hash = '#/swings';
+          }
           m.kind = k;
           // New opens on the last 24 hours, so tokens detected days ago do not fill it; the other lists are not limited by age.
           if (k === 'new' && f.age === '0') {
@@ -1851,7 +1860,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        tableEl = marketTable({ rows: shown, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
+        tableEl = marketTable({ rows: shown, rankStart: m.kind === 'new' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;

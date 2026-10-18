@@ -499,6 +499,7 @@ export function initWalletApp(): void {
   window.addEventListener(EVM_ACCOUNT_EVENT, (e) => {
     const account = (e as CustomEvent<string | null>).detail;
     if (account !== evmAccount) void loadEvm(account);
+    if (currentView() === 'referrals') referrals?.onShow();
   });
 
   /** The side card and the count on the dashboard: wallet name, token count and the Ethereum-style account when one is connected. */
@@ -1180,6 +1181,8 @@ export function initWalletApp(): void {
     pool.onWalletChange();
     curve.onWalletChange();
     renderChrome();
+    // The Referrals page shows the connected wallet's own link and numbers, so it is drawn again for the new one.
+    if (currentView() === 'referrals') referrals?.onShow();
     void refresh();
   }
   const wire = () => {

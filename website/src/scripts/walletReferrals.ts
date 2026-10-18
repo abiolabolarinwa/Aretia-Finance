@@ -134,8 +134,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: stri
 /** Draws the Referrals page into `root`. `getAddress` is the connected wallet (for the link); the numbers need the sign-in. */
 export function initReferrals(root: HTMLElement): { onShow(): void } {
   let mine: Mine | null = null;
+  /** Whose numbers and message are on the page; they are never shown beside another wallet's link. */
+  let shownFor: string | null = null;
   let message = '';
   let busy = false;
+  const who = (sg: Signer | null): string | null => (sg ? `${sg.family}:${sg.address}` : null);
 
   async function load(): Promise<void> {
     const sg = signerNow();
@@ -145,18 +148,28 @@ export function initReferrals(root: HTMLElement): { onShow(): void } {
     draw();
     try {
       const session: Session = account.session(sg.family, sg.address) ?? (await account.signIn(sg));
-      mine = await account.call<Mine>(session, { op: 'mine' }, API);
+      const got = await account.call<Mine>(session, { op: 'mine' }, API);
+      // The wallet changed while this was loading: the answer belongs to the last one.
+      if (who(signerNow()) !== who(sg)) return;
+      mine = got;
       void flushReferrals();
     } catch (e) {
+      if (who(signerNow()) !== who(sg)) return;
       message = e instanceof Error ? (/reject|declin|denied/i.test(e.message) ? 'The sign-in was declined, so nothing was loaded.' : e.message) : 'Your numbers could not be loaded.';
+    } finally {
+      busy = false;
+      draw();
     }
-    busy = false;
-    draw();
   }
 
   function draw(): void {
     root.textContent = '';
     const sg = signerNow();
+    if (who(sg) !== shownFor) {
+      mine = null;
+      message = '';
+      shownFor = who(sg);
+    }
     const card = el('div', 'wapp__card');
     card.append(el('h2', '', 'Referrals'));
     card.append(el('p', 'wapp__fine', `Share your link. When someone arrives through it and swaps in this wallet, you earn 20% of the Aretia swap fee they pay, about ${referrerPercentOfVolume()} of what they swap, for ${REFERRAL_CONFIG.windowDays} days from their first swap. They pay exactly the same 0.58% as anyone else: your share comes out of Aretia's fee, not on top of it.`));

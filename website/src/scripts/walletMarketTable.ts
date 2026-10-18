@@ -28,6 +28,8 @@ export interface TableOptions {
   selectedKey?: string | null;
   /** A star on each row, to keep a token in the person's favourites. */
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
+  /** The rank of the first row, when the table is one page of a longer list. */
+  rankStart?: number;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
@@ -186,7 +188,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       cell.append(star);
       tr.append(cell);
     }
-    tr.append(el('td', 'wapp-mt__rank', String(i + 1)));
+    tr.append(el('td', 'wapp-mt__rank', String((o.rankStart ?? 1) + i)));
     const tok = el('td', 'wapp-mt__token');
     const chain = el('img', 'wapp-mt__chain');
     chain.alt = CHAINS[r.chain].name;

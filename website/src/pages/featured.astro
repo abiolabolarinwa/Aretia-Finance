@@ -1,0 +1,35 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import RequestForm from '../components/ui/RequestForm.astro';
+import { FEATURED_NOTE, FEATURED_PRICE_NOTE } from '../lib/featured';
+---
+
+<Base title="Get featured" description="Ask for a clearly labelled Featured place for your token inside Aretia Wallet (Markets and Launch). Featured is a placement, not a rating or an endorsement.">
+  <PageHero eyebrow="Featured launches" title="Get your launch in front of people." lead="A small card inside Aretia Wallet, on the Markets list and the Launch page, marked Featured, for dates we agree. Promotion starts from $100, paid in USDC on Solana or USDT on an Ethereum-style network; no payment is taken on this page." />
+
+  <section class="section" aria-labelledby="how-title">
+    <div class="container">
+      <h2 id="how-title" class="heading">How it works</h2>
+      <ol class="list">
+        <li>Send the request below: the token, a title, one line about it, your project link and your email.</li>
+        <li>We read the project and reply. We can say no, and we do not feature anything we could not stand behind if someone asked us about it.</li>
+        <li>If we agree, the dates and the price are set in writing before anything goes live. Nothing is charged automatically.</li>
+      </ol>
+      <p class="muted"><strong>{FEATURED_PRICE_NOTE}</strong></p>
+      <p class="muted">{FEATURED_NOTE} A token can also ask for the <a href="/verified">Verified by Aretia</a> badge, which is a separate set of checks.</p>
+    </div>
+  </section>
+
+  <section class="section section--alt" id="request" aria-labelledby="request-title">
+    <div class="container">
+      <h2 id="request-title" class="heading">Get featured</h2>
+      <RequestForm kind="featured" />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .list { display: grid; gap: 0.75rem; margin: 0.75rem 0 1.5rem; padding-left: 1.2rem; max-width: 44rem; }
+  .muted { color: var(--color-muted); max-width: 44rem; }
+</style>

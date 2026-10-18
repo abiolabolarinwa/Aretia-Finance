@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/typography/PageHero.astro';
+import RequestForm from '../components/ui/RequestForm.astro';
+import { VERIFIED } from '../data/verified';
+import { CHECKS, DEFINITION, dateText, problemWith } from '../lib/verified';
+
+const shown = VERIFIED.filter((e) => problemWith(e) === null);
+const chainName: Record<string, string> = { solana: 'Solana', bnb: 'BNB Chain', ethereum: 'Ethereum', polygon: 'Polygon' };
+---
+
+<Base title="Verified by Aretia" description="What the Verified by Aretia badge means and does not mean, which tokens carry it, and how to request it. It is not an audit or an endorsement.">
+  <PageHero eyebrow="Verified by Aretia" title="Four checks, on one day." lead={`${DEFINITION.does} It is a record of what we looked at, nothing more.`} />
+
+  <section class="section" aria-labelledby="checks-title">
+    <div class="container">
+      <h2 id="checks-title" class="heading">What we check</h2>
+      <ol class="list">
+        {CHECKS.map((c) => (
+          <li><strong>{c.label}</strong><span>{c.how}</span></li>
+        ))}
+      </ol>
+      <h2 class="heading">What it is not</h2>
+      <ul class="list">
+        {DEFINITION.doesNot.map((t) => <li>{t}</li>)}
+        <li>{DEFINITION.paid}</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--alt" aria-labelledby="list-title">
+    <div class="container">
+      <h2 id="list-title" class="heading">Tokens with the badge</h2>
+      {
+        shown.length === 0 ? (
+          <p class="muted">None yet. Aretia has not verified any token so far, and no token is listed here until all four checks have been run and the evidence is published.</p>
+        ) : (
+          <ul class="list">
+            {shown.map((e) => (
+              <li>
+                <strong>{e.label ?? e.token}</strong>
+                <span>{chainName[e.chain]} · checked {dateText(e.date)} · <code>{e.token}</code> · <a href={e.evidence} rel="noopener noreferrer">evidence</a></span>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </div>
+  </section>
+
+  <section class="section" id="request" aria-labelledby="request-title">
+    <div class="container">
+      <h2 id="request-title" class="heading">Request verification</h2>
+      <p class="muted">Tell us which token and where to read about the project. We run the checks and reply by email. Asking does not get the badge, and no payment is taken here.</p>
+      <RequestForm kind="verify" />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .list { display: grid; gap: 0.9rem; margin: 0.75rem 0 2rem; padding-left: 1.2rem; max-width: 44rem; }
+  .list strong { display: block; }
+  .list span { display: block; color: var(--color-muted); font-size: var(--text-small); overflow-wrap: anywhere; }
+  .muted { color: var(--color-muted); max-width: 44rem; }
+</style>

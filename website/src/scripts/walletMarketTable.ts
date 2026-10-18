@@ -8,6 +8,7 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
+import { verifiedBadge } from '../lib/verifiedBadge';
 
 export interface TableState {
   key: SortKey | null;
@@ -196,6 +197,8 @@ export function marketTable(o: TableOptions): HTMLElement {
     const names = el('span', 'wapp-mt__names');
     const line = el('span', 'wapp-mt__line');
     line.append(el('strong', '', r.symbol), el('small', '', r.quoteSymbol ? `/ ${r.quoteSymbol}` : ''));
+    const verified = verifiedBadge(r.chain, r.address, { plain: true });
+    if (verified) line.append(verified);
     names.append(line, el('small', 'wapp-mt__fullname', r.name || 'No name given'));
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);

@@ -48,6 +48,8 @@ import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { sponsorBlock } from './walletSponsor.js';
+import { featuredForMarkets } from './walletFeatured';
+import { promoteButton } from './walletPromote';
 import { searchTokens as searchEverywhere, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { viewStatus } from '../swings/crosschain/view.js';
 import { connectWalletConnect, hasSavedSession, isProjectId, restoreWalletConnect } from '../swings/wallet/walletConnect.js';
@@ -1850,7 +1852,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
         tableEl = marketTable({ rows: shown, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
-        const main = el('div', { class: 'wapp-mt__main' }, [tableEl]);
+        const featured = featuredForMarkets();
+        const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;
         card.append(main);
         const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : m.kind === 'favourites' ? 1 : GECKO_PAGES;
@@ -1860,6 +1863,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
         main.append(sponsorBlock('market-footer', { seed: `${m.kind}:${m.chain}` }));
+        main.append(el('p', { class: 'wapp__fine' }, [promoteButton('Promote your token'), document.createTextNode(' · Featured places and the Verified by Aretia badge are by request, and neither is a rating or an endorsement.')]));
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);

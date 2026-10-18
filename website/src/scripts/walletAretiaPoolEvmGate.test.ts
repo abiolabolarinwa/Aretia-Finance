@@ -33,8 +33,8 @@ describe('the page keeps the EVM Aretia Pool off', () => {
     expect(launch).toContain("import.meta.env.PUBLIC_ARETIA_POOL_EVM_ENABLED === '1' ? createEvmAretiaPool(");
     expect(launch.match(/createEvmAretiaPool\(/g)).toHaveLength(1);
   });
-  it('has no deployed address on any chain, and draws nothing that could send without one', () => {
-    expect(Object.values(EVM_POOL_ADDRESSES).filter((a) => a !== null)).toEqual([]);
+  it('has no deployed address on any mainnet, and draws nothing that could send without one', () => {
+    expect([EVM_POOL_ADDRESSES.ethereum, EVM_POOL_ADDRESSES.bnb, EVM_POOL_ADDRESSES.polygon]).toEqual([null, null, null]);
     const card = read('./walletAretiaPoolEvm.ts');
     const at = card.indexOf('if (!chain) {', card.indexOf('draw(card, redraw, chainKey'));
     expect(at).toBeGreaterThan(-1);
@@ -45,7 +45,7 @@ describe('the page keeps the EVM Aretia Pool off', () => {
     expect(read('./walletYourPoolsEvmFlow.ts')).toContain('evmPoolChain(key, this.addresses, this.factories)');
     expect(read('./walletYourPoolsEvm.ts')).toContain('engine().chainOf(net)');
     const { EVM_POOL_DEPLOY_BLOCKS } = await import('./walletAretiaPoolEvmCore');
-    expect(Object.values(EVM_POOL_DEPLOY_BLOCKS).filter((b) => b !== null)).toEqual([]);
+    expect([EVM_POOL_DEPLOY_BLOCKS.ethereum, EVM_POOL_DEPLOY_BLOCKS.bnb, EVM_POOL_DEPLOY_BLOCKS.polygon]).toEqual([null, null, null]);
   });
 });
 

@@ -421,7 +421,13 @@ export class EvmPoolFlow {
       }
       hashes.push(hash);
       if (step.allowance) {
-        const allowance = wordOf(await this.call(step.allowance.token, POOL_SEL.allowance + pad(account) + pad(chain.pool)));
+        // A public node can answer from a block just before the approval: read a few times before believing a mismatch.
+        let allowance: bigint | null = null;
+        for (let i = 0; i < 8; i++) {
+          allowance = wordOf(await this.call(step.allowance.token, POOL_SEL.allowance + pad(account) + pad(chain.pool)).catch(() => null));
+          if (allowance === step.allowance.amount) break;
+          await this.sleep(1500);
+        }
         if (allowance !== step.allowance.amount) throw new EvmPoolError(`The approval confirmed but the allowance is not exactly what you approved, so nothing more was sent. Your tokens did not move. (${hash})`);
       }
     }

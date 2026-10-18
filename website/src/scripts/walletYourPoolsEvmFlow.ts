@@ -6,7 +6,7 @@
  */
 import { decodeAbiString } from '../swings/chains/evmSession.js';
 import type { EvmRead } from '../swings/chains/evmSession.js';
-import { EVM_POOL_DEPLOY_BLOCKS, EVM_POOL_ADDRESSES, evmPoolChain, type EvmPoolChain } from './walletAretiaPoolEvmCore';
+import { EVM_POOL_DEPLOY_BLOCKS, EVM_POOL_ADDRESSES, EVM_POOL_TEST_FACTORIES, evmPoolChain, type EvmPoolChain } from './walletAretiaPoolEvmCore';
 import { EvmPoolFlow, type EvmPoolFlowDeps, type EvmPoolOutcome, type EvmPoolProgress } from './walletAretiaPoolEvmFlow';
 import { ownerLogFilters, rowFrom, sortRows, tokensFromLogs, type EvmPoolRow } from './walletYourPoolsEvmCore';
 import type { LaunchEvmChainKey } from './walletLaunchEvmCore';
@@ -33,7 +33,7 @@ export class YourEvmPools {
     private readonly readerFor: (key: LaunchEvmChainKey) => EvmRead,
     private readonly addresses: typeof EVM_POOL_ADDRESSES = EVM_POOL_ADDRESSES,
     private readonly deployBlocks: typeof EVM_POOL_DEPLOY_BLOCKS = EVM_POOL_DEPLOY_BLOCKS,
-    private readonly factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = {},
+    private readonly factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = EVM_POOL_TEST_FACTORIES,
   ) {}
 
   chainOf(key: string): EvmPoolChain | null {

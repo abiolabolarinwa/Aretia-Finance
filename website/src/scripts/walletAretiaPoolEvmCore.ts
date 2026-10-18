@@ -19,7 +19,7 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
   ethereum: null,
   polygon: null,
   bscTestnet: null,
-  sepolia: null,
+  sepolia: '0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421',
   polygonAmoy: null,
 };
 
@@ -32,8 +32,16 @@ export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, 
   ethereum: null,
   polygon: null,
   bscTestnet: null,
-  sepolia: null,
+  sepolia: 11939451,
   polygonAmoy: null,
+};
+
+/**
+ * Token factories on test networks that LAUNCH_EVM_CHAINS does not list yet, deployed by scripts/pool-evm.mjs deploy with the test fee. Same
+ * bytecode as the mainnet factories. The pool accepts tokens only from the factory named here.
+ */
+export const EVM_POOL_TEST_FACTORIES: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = {
+  sepolia: '0xac1b5010eab26f6d5e53e0ee9c246376a914891e',
 };
 
 export const POOL_PROTOCOL_SHARE_BPS = 2000n;
@@ -73,7 +81,7 @@ export interface EvmPoolChain {
 export function evmPoolChain(
   key: string,
   addresses: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = EVM_POOL_ADDRESSES,
-  factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = {},
+  factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = EVM_POOL_TEST_FACTORIES,
 ): EvmPoolChain | null {
   const k = key as LaunchEvmChainKey;
   const chain = chainByKey(k);
@@ -294,7 +302,7 @@ export type EvmPoolValidation = { ok: true; config: EvmPoolConfig } | { ok: fals
 /** The virtual coin reserve for a starting price: floor(x0 * priceWei / 10^decimals), exact. */
 export const startL = (x0: bigint, priceWei: bigint, decimals: number): bigint => (x0 * priceWei) / 10n ** BigInt(decimals);
 
-export function validateEvmPool(form: EvmPoolForm, creator: string, token: EvmPoolToken | null, existingPool: boolean, addresses = EVM_POOL_ADDRESSES, factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = {}): EvmPoolValidation {
+export function validateEvmPool(form: EvmPoolForm, creator: string, token: EvmPoolToken | null, existingPool: boolean, addresses = EVM_POOL_ADDRESSES, factories: Readonly<Partial<Record<LaunchEvmChainKey, string>>> = EVM_POOL_TEST_FACTORIES): EvmPoolValidation {
   const issues: EvmPoolIssue[] = [];
   const add = (field: EvmPoolIssue['field'], message: string) => issues.push({ field, message });
   const chain = evmPoolChain(form.chain, addresses, factories);

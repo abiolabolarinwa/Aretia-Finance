@@ -2,7 +2,7 @@
 
 Aretia's own constant-product swap pool for Ethereum-style chains: the EVM version of the Solana Aretia Pool (`docs/ARETIA_POOL.md`). It exists for the same two reasons: Aretia keeps a protocol share of the trading fees only on pools it owns, and a creator can lock liquidity for good and still earn **claimable** fees. Today's EVM pools (Uniswap V2 and PancakeSwap V2, which `walletPoolEvm*.ts` opens) cannot do either: their locked LP tokens earn nothing that anyone can claim, and Aretia gets nothing.
 
-**Status: UNAUDITED. Not deployed on any mainnet. Testnets only (section 11). The Launch card is behind a build flag that is off. Aggregators and routers do not know this contract and will not route to it.**
+**Status: UNAUDITED. Not deployed on any mainnet. Deployed on Sepolia only (section 11). The Launch card is behind a build flag that is off. Aggregators and routers do not know this contract and will not route to it.**
 
 Contract: `contracts-evm/AretiaPool.sol` (solc 0.8.26, optimizer 200, EVM paris, so one build runs on every chain below). Committed artifact: `AretiaPool.artifact.json`, rebuilt by `compile-pool.mjs`.
 Web: `website/src/scripts/walletAretiaPoolEvm{Core,Tx,Flow}.ts`, the card in `walletAretiaPoolEvm.ts`, and `walletYourPoolsEvm*.ts` for the Your pools page.
@@ -118,18 +118,20 @@ That is a **new curve contract**, because the deployed one is immutable, and it 
 
 ## 11. Deployment and what has actually been run
 
-**Public testnets (Sepolia, BSC testnet, Amoy): NOT deployed.** The deploy script is ready and dry-runs against the real Sepolia node, but deploying needs a funded testnet key, and test coins come from faucets that need a human (captchas, accounts). A throwaway deployer key was generated and kept outside the repo; its address is `0x5B708eC0393c7799D985CCa3D331c4C6202E2421`. Fund it from each faucet, then for each network:
+**Sepolia: DEPLOYED AND VERIFIED (2026-10-18).** Test token factory `0xac1b5010eab26f6d5e53e0ee9c246376a914891e`, pool `0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421` (block 11939451), deployed by the throwaway test key `0x5B708eC0393c7799D985CCa3D331c4C6202E2421`. `pool-evm.mjs verify` passed every check against the live network, and `walletAretiaPoolEvm.devnet.ts` ran the real web flow against Sepolia end to end (token made by the factory, pool with a first buy, buy, sell, add, remove, locked liquidity refused, claim while locked, fees redirected and claimed to a fresh wallet, position handed over). The pool address, deploy block and test factory are written into `walletAretiaPoolEvmCore.ts`. The run found one real-network problem, now fixed: a public node can answer an allowance read from a block just before the approval, so the flow re-reads a few times before treating a mismatch as real.
+
+**BSC testnet and Amoy: NOT deployed yet.** They need tBNB and test POL on the same deployer address, then:
 
 ```
 cd website
 npm i --no-save viem
-DEPLOYER_KEY_FILE=<that key file> node scripts/pool-evm.mjs deploy --chain sepolia --send        # also deploys a test token factory, there is none yet
-node scripts/pool-evm.mjs verify --chain sepolia --address <pool> --factory <factory>
+DEPLOYER_KEY_FILE=<that key file> node scripts/pool-evm.mjs deploy --chain bscTestnet --send     # also deploys a test token factory
+node scripts/pool-evm.mjs verify --chain bscTestnet --address <pool> --factory <factory>
 ```
 
-Repeat with `bscTestnet` and `polygonAmoy`. Then write the printed addresses (and the deployment block) into `EVM_POOL_ADDRESSES`, `EVM_POOL_DEPLOY_BLOCKS` and, for the factory, `LAUNCH_EVM_CHAINS`. The deploy script refuses every mainnet chain id and has no mainnet `send`.
+Same for `polygonAmoy`. Then write the printed addresses and deploy block into `EVM_POOL_ADDRESSES`, `EVM_POOL_DEPLOY_BLOCKS` and `EVM_POOL_TEST_FACTORIES`. The deploy script refuses every mainnet chain id and has no mainnet `send`.
 
-**What was run instead:** the same deploy and verify scripts, unchanged, against a local test node (ganache, chain id set to Sepolia's, throwaway key). The factory and the pool deployed, `verify` passed every check (byte-for-byte code, `factory()`, `feeRecipient()`, `creationFee()` equal to the factory's fee, the constants, solvency) and failed correctly when pointed at the wrong contract. Then `walletAretiaPoolEvm.devnet.ts` drove the real web flow (with its inspector) against that node over JSON-RPC: made a token with the real factory, created a pool with a first buy, bought, sold, added and removed liquidity, refused to remove locked liquidity, claimed fees while locked, redirected the fees to a fresh wallet and claimed to it (exact amount), and handed the position over. A local node is not a public testnet: it proves the scripts, the flow and the contract work together over RPC, not that anything works on those networks.
+**Also run, on a local node first:** the same deploy and verify scripts, unchanged, against a local test node (ganache, chain id set to Sepolia's, throwaway key). The factory and the pool deployed, `verify` passed every check (byte-for-byte code, `factory()`, `feeRecipient()`, `creationFee()` equal to the factory's fee, the constants, solvency) and failed correctly when pointed at the wrong contract. Then `walletAretiaPoolEvm.devnet.ts` drove the real web flow (with its inspector) against that node over JSON-RPC: made a token with the real factory, created a pool with a first buy, bought, sold, added and removed liquidity, refused to remove locked liquidity, claimed fees while locked, redirected the fees to a fresh wallet and claimed to it (exact amount), and handed the position over. A local node is not a public testnet: it proves the scripts, the flow and the contract work together over RPC, not that anything works on those networks.
 
 **Mainnet read-only checks:** `pool-evm.mjs prepare` was run for Ethereum, BNB Chain and Polygon. It only reads: it confirmed each chain's token factory exists, pays the Aretia fee address and charges exactly the creation fee used here (0.0042 ETH, 0.014 BNB, 105 POL), and that the fee address is an ordinary account. Nothing was signed or sent to any mainnet. Runtime keccak of the committed build with each chain's constructor arguments: Ethereum `0x7df9e3dd…a529`, BNB `0xc458a218…f0f3`, Polygon `0xb975df74…af8c`.
 

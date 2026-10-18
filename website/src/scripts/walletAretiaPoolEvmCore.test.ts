@@ -39,8 +39,11 @@ const form = (over: Partial<EvmPoolForm> = {}): EvmPoolForm => ({ ...DEFAULT_EVM
 const w32 = (n: bigint) => n.toString(16).padStart(64, '0');
 
 describe('the chain table', () => {
-  it('has no pool address on any chain until a deployment is written in', () => {
-    expect(Object.values(EVM_POOL_ADDRESSES).every((a) => a === null)).toBe(true);
+  it('has no pool address on any mainnet until a deployment is written in, and only the verified Sepolia test deployment', () => {
+    const { ethereum, bnb, polygon, sepolia, ...others } = EVM_POOL_ADDRESSES;
+    expect([ethereum, bnb, polygon]).toEqual([null, null, null]);
+    expect(Object.values(others).every((a) => a === null)).toBe(true);
+    expect(sepolia).toBe('0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421');
     expect(evmPoolChain('ethereum')).toBeNull();
   });
   it('takes each chain’s creation fee from the token-creation fee and the fee address from the same table', () => {
@@ -52,7 +55,7 @@ describe('the chain table', () => {
     }
   });
   it('is off for a chain without a factory or with a malformed address', () => {
-    expect(evmPoolChain('sepolia', { sepolia: POOL })).toBeNull(); // no factory written for the testnet yet
+    expect(evmPoolChain('bscTestnet', { bscTestnet: POOL })).toBeNull(); // no factory written for that testnet yet
     expect(evmPoolChain('sepolia', { sepolia: POOL }, { sepolia: '0x3333333333333333333333333333333333333333' })).not.toBeNull();
     expect(evmPoolChain('ethereum', { ethereum: '0x12' })).toBeNull();
     expect(evmPoolChain('base', addresses)).toBeNull();

@@ -11,7 +11,7 @@ import { compactUsd, formatAge, formatChange, formatPrice } from '../swings/mark
 import { searchTokens } from '../swings/tokens/globalSearch.js';
 import { publicRead, readErc20 } from '../swings/chains/evmSession.js';
 import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
-import { mountTvChart, type TvChart } from './walletTvChart';
+import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { fetchAccount, loadWeb3 } from './walletSend';
 import { parseMintAccount } from './walletLaunchChain';
 import { curveAddress } from './walletCurveTx';
@@ -300,6 +300,7 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
     .catch(() => undefined);
 
   // ---- market: the pool, the numbers, the chart
+  preloadChartingLibrary();
   const finder = new DexScreenerPoolFinder();
   void (async () => {
     try {
@@ -323,7 +324,7 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
       }
       const poolLine = el('p', 'tkp-fine', `Trades on ${detail?.dex ?? 'a pool'} (${detail ? `${detail.baseSymbol} / ${detail.quoteSymbol}` : 'pair not named'}) on ${info.name}. Pool: ${shortAddress(found.pool)}. Whether this pool’s liquidity is locked cannot be read here; check the pool itself.`);
       market.body.replaceChildren(stats, plot, poolLine);
-      chart = mountTvChart(plot, { chain, pool: found.pool, symbol: symbol || detail?.baseSymbol || 'Token', ...(detail?.quoteSymbol ? { quoteSymbol: detail.quoteSymbol } : {}), priceHint: detail?.priceUsd ?? null, interval: '15', toolbar: false, fallbackUrl: embedUrl({ network: GECKO_NETWORK[chain], pool: found.pool }), title: `${symbol || 'Token'} price chart` });
+      chart = mountTvChart(plot, { chain, pool: found.pool, symbol: symbol || detail?.baseSymbol || 'Token', ...(detail?.quoteSymbol ? { quoteSymbol: detail.quoteSymbol } : {}), priceHint: detail?.priceUsd ?? null, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[chain], pool: found.pool }), title: `${symbol || 'Token'} price chart` });
     } catch {
       if (!alive) return;
       market.body.replaceChildren(el('p', 'tkp-fine', curveShown ? 'No chart yet. While the curve is open this token has no pool to chart; it will appear here once it moves to one.' : 'No trading pool was found for this token yet, so there is no price or chart to show. Brand-new tokens can take a few minutes to appear.'));

@@ -12,6 +12,7 @@ import { POOL_FEE_LAMPORTS } from './walletPoolCore';
 import { CURVE_FEE_BPS } from './walletCurveCore';
 import { LAUNCH_EVM_CHAINS } from './walletLaunchEvmCore';
 import type { LaunchApi, LaunchNetwork } from './walletLaunch';
+import { appendTokenShare } from './walletTokenLinks';
 
 type Stage = 'form' | 'review' | 'working' | 'done' | 'off' | '';
 type Tab = 'pool' | 'curve';
@@ -296,6 +297,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     add('Token address', made.token);
     add('Market address', made.pool);
     el.append(dl);
+    if (made.token) appendTokenShare(el, launch.getNetwork(), made.token);
     const again = h('button', 'wapp__btn wapp__btn--primary lh-nav__go', 'Launch another token');
     again.type = 'button';
     again.addEventListener('click', () => {

@@ -16,7 +16,7 @@ export type TokenOpenMode = 'swap-page' | 'markets-dialog' | 'go-to-swap';
  * page the wallet goes to the Swap page.
  */
 export function tokenOpenMode(hash: string): TokenOpenMode {
-  if (hash === '#/swap') return 'swap-page';
+  if (hash === '#/swap' || hash.startsWith('#/swap/')) return 'swap-page';
   if (hash === '#/swings' || hash === '#/favourites') return 'markets-dialog';
   return 'go-to-swap';
 }

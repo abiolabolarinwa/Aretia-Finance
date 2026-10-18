@@ -22,7 +22,9 @@ const facts = [
 ];
 ---
 
-<Base title="ACT Token" description="ACT: Aretia's ecosystem token on Solana. Fixed 1,000,000,000 supply, 1.5% on-chain transfer fee funding the Climate Treasury, verified mint details.">
+<Base title="Token" description="Token pages on Aretia: price, chart, supply and the facts that can be read from the chain for a token on Solana, BNB Chain, Ethereum or Polygon, with a buy in the Aretia wallet. Also ACT, Aretia's own token: fixed 1,000,000,000 supply, 1.5% transfer fee funding the Climate Treasury.">
+  <section class="section tkp-section" id="tkp-section" hidden aria-live="polite"><div class="container"><div id="tkp-root" class="tkp"></div></div></section>
+  <div id="act-page">
   <PageHero
     eyebrow="Token"
     title="ACT"
@@ -70,6 +72,7 @@ const facts = [
         </dl>
         <div class="contract__actions">
           <Button href={LINKS.explorerMint} variant="secondary" external arrow>View on Solscan</Button>
+          <Button href={`/wallet#/swap/solana/${ACT.mint}`} variant="secondary">Swap in the Aretia wallet</Button>
           <Button href="/verify" variant="ghost">Verify on-chain</Button>
         </div>
       </div>
@@ -83,6 +86,7 @@ const facts = [
       <p>ACT is a utility token for the Aretia ecosystem. Nothing on this page is an offer, investment advice or a promise of value, returns or price. Digital assets are volatile and you can lose everything you put in. Read the <a href="/terms#risk">risk disclosure</a>.</p>
     </div>
   </section>
+  </div>
 </Base>
 
 <style>
@@ -134,4 +138,81 @@ const facts = [
       }
     });
   });
+</script>
+
+<style is:global>
+  .tkp-section[hidden] { display: none; }
+  .tkp { --tkp-line: var(--color-border, #e3e0d8); display: grid; gap: 16px; max-width: 760px; margin-inline: auto; padding-block: clamp(1rem, 4vw, 2.5rem); }
+  .tkp-head { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 14px; align-items: center; }
+  .tkp-logohost { grid-row: 1; }
+  .tkp-avatar { width: 56px; height: 56px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--color-surface-2, #efece4); font-weight: 600; color: var(--color-strong, #1a1a1a); object-fit: cover; }
+  .tkp-name { margin: 0; font-size: clamp(1.5rem, 6vw, 2.25rem); line-height: 1.1; overflow-wrap: anywhere; }
+  .tkp-sub { margin: 2px 0 0; color: var(--color-muted, #666); font-size: 15px; }
+  .tkp-addr, .tkp-actions, .tkp-head > .tkp-fine { grid-column: 1 / -1; }
+  .tkp-addr { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--tkp-line); border-radius: 12px; }
+  .tkp-code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; }
+  .tkp-copy, .tkp-btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--tkp-line); background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+  .tkp-copy { min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .tkp-actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 6px; }
+  .tkp-btn--primary { background: var(--color-brand, #1f6f4a); border-color: transparent; color: #fff; }
+  .tkp-btn[aria-disabled='true'] { opacity: 0.55; pointer-events: none; }
+  .tkp-card { border: 1px solid var(--tkp-line); border-radius: 16px; padding: 16px; display: grid; gap: 10px; }
+  .tkp-h { margin: 0; font-size: 1.05rem; }
+  .tkp-body { display: grid; gap: 12px; }
+  .tkp-fine { margin: 0; font-size: 13px; color: var(--color-muted, #666); }
+  .tkp-warn { padding: 0 2px; }
+  .tkp-facts { margin: 0; display: grid; }
+  .tkp-fact { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid var(--tkp-line); }
+  .tkp-fact:first-child { border-top: 0; }
+  .tkp-fact dt { font-size: 13px; color: var(--color-muted, #666); }
+  .tkp-fact dd { margin: 0; overflow-wrap: anywhere; }
+  .tkp-fact--good dd::before { content: '✓ '; color: #1f7a45; font-weight: 700; }
+  .tkp-fact--warn dd::before { content: '! '; color: #b3541e; font-weight: 700; }
+  .tkp-fact--unknown dd { color: var(--color-muted, #666); }
+  .tkp-fact--unknown dd::before { content: '? '; font-weight: 700; }
+  .tkp-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tkp-stat { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--color-surface-2, #f4f1ea); }
+  .tkp-k { font-size: 12px; color: var(--color-muted, #666); }
+  .tkp-v { font-size: 15px; overflow-wrap: anywhere; }
+  .tkp-chart { height: 340px; border-radius: 12px; overflow: hidden; border: 1px solid var(--tkp-line); }
+  .tkp-chart iframe { width: 100%; height: 100%; border: 0; }
+  .tkp-bar { height: 12px; border-radius: 999px; background: var(--color-surface-2, #ece8de); overflow: hidden; }
+  .tkp-bar-fill { display: block; height: 100%; background: var(--color-brand, #1f6f4a); }
+  .tkp-status { margin: 0; font-weight: 600; }
+  .tkp-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+  @media (min-width: 720px) { .tkp-grid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tkp-actions { grid-template-columns: auto auto; justify-content: start; } .tkp-chart { height: 420px; } }
+</style>
+
+<script>
+  import { parseTokenPageHash } from '../scripts/tokenPageCore';
+  import { mountPublicTokenPage, type TokenPageHandle } from '../scripts/walletTokenPublic';
+
+  const act = document.getElementById('act-page');
+  const section = document.getElementById('tkp-section');
+  const root = document.getElementById('tkp-root');
+  let handle: TokenPageHandle | null = null;
+  let shown = '';
+
+  function route(): void {
+    if (!act || !section || !root) return;
+    const ref = parseTokenPageHash(location.hash);
+    if (!ref) {
+      handle?.dispose();
+      handle = null;
+      shown = '';
+      section.hidden = true;
+      act.hidden = false;
+      return;
+    }
+    const key = `${ref.chain}:${ref.address}`;
+    if (key === shown) return;
+    handle?.dispose();
+    shown = key;
+    act.hidden = true;
+    section.hidden = false;
+    handle = mountPublicTokenPage(root, ref);
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', route);
+  route();
 </script>

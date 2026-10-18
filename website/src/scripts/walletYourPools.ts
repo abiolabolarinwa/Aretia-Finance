@@ -9,6 +9,7 @@
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import { RPC_URL, fetchAccount, loadWeb3, rpcFetch, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
 import { claimableText, hasClaimable, headlineExplain, headlineShareText, headlineText, lockText, NATIVE_MINT, pairName, rewardsFor, shareLink, shareText, SHARE_ORIGIN, type PoolPosition } from './walletYourPoolsCore';
+import { tokenPagePath } from './tokenPageCore';
 import { readPositions } from './walletYourPoolsChain';
 import { YourPoolsFlow, type ClaimOutcome, type ClaimProgress } from './walletYourPoolsFlow';
 import { createYourPoolsEvm, type YourPoolsEvmHost } from './walletYourPoolsEvm';
@@ -153,6 +154,11 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     row('Pool', a);
+    // The token's own page (price, chart, facts) and its swap in the Aretia wallet come before any outside site.
+    const other = p.a.mint === NATIVE_MINT ? p.b : p.a;
+    const tp = h('a', '', 'Open the token page');
+    tp.href = tokenPagePath('solana', other.mint);
+    row('Token', tp);
 
     const actions = h('div', 'lh-pos__actions');
     const busy = working.get(p.position);

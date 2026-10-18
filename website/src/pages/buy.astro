@@ -22,6 +22,7 @@ import { ACT, LINKS, POOLS } from '../data/site';
         <p class="buy__status">ACT’s two liquidity pools opened on 2 October 2026. Jupiter finds the best route across them.</p>
         <p class="buy__notice"><b>Keep a little SOL for fees.</b> Every swap pays a small network fee in SOL, and your first ACT purchase also opens your ACT token account (about 0.002 SOL). Paying with USDC or another token? Keep about 0.003 SOL in the same wallet, or the swap will fail.</p>
         <div id="jupiter-terminal" class="buy__terminal"><span class="buy__loading">Loading swap widget…</span></div>
+        <p class="buy__status"><a href={`/wallet#/swap/solana/${ACT.mint}`}>Prefer to swap inside the Aretia wallet? Open ACT there ›</a></p>
         <a class="buy__listed" href={LINKS.dexscreener} target="_blank" rel="noopener noreferrer"><img src="/assets/logos/dexscreener.png" alt="" width="20" height="20" loading="lazy" />Listed on DexScreener · live price and trades ↗</a>
       </div>
 

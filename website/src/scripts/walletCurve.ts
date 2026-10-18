@@ -33,6 +33,7 @@ import {
 import { CurveFlow, type CurveFlowDeps, type CurveOutcome, type CurveProgress, type CurveReview } from './walletCurveFlow';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateWithBalance, waitForConfirmation } from './walletSend';
 import type { PoolToken } from './walletPoolCore';
+import { appendTokenShare } from './walletTokenLinks';
 
 export interface CurveHost {
   getAddress(): string | null;
@@ -525,6 +526,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       // A creator's next step is to tell people. The link opens the curve for anyone, on the Launch page.
       card.append(h('p', 'wapp__fine', 'Your curve is open. Share this link so people can buy from it.'));
       card.append(copyButton('Copy link to your curve', shareLink(form.mint.trim())));
+      appendTokenShare(card, 'solana', form.mint.trim());
       const view = h('button', 'wapp__btn wapp__btn--primary', 'View your curve');
       view.type = 'button';
       view.addEventListener('click', () => {

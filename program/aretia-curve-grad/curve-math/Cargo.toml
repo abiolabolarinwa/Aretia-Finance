@@ -1,0 +1,10 @@
+[package]
+name = "curve-math"
+version = "0.1.0"
+edition = "2021"
+description = "Aretia bonding curve: the integer maths, with no Solana dependency so it can be tested on its own."
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

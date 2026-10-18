@@ -172,13 +172,19 @@ What is not defended: price manipulation as such (this is an AMM, anyone can mov
 
 ## 12. How the Aretia Curve graduates into an Aretia Pool
 
-The shipped curve (`program/aretia-curve`, mainnet id `CCBr6...`) migrates into a Meteora pool. A pool-based graduation is a **new curve build** and needs its own audit pass; nothing here changes the shipped program.
+**Built and tested; devnet only.** The shipped curve (`program/aretia-curve`, mainnet id `CCBr6...`) is untouched and still graduates into a Meteora pool. Graduation into an Aretia Pool is a **separate copy**, `program/aretia-curve-grad`, with its own program id (`Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm`, devnet), so the audited-bound mainnet build does not change. It needs its own audit and a mainnet pool program id (the pool id is a constant in the copy).
 
-1. A `migrate_aretia` instruction would replace the Meteora CPI with one CPI to `create_pool`, signed by the curve's `migrator` PDA as `creator`: `x0 = lp_tokens`, `y0 = real_sol`, and `l0` chosen so the opening price is where the curve ended: `l0 = lp_tokens * (v_sol_end) / v_tok_end - real_sol` (a single integer expression, checked in the curve's own maths crate).
-2. `owner` is the **curve creator's wallet**, not the migrator, and `lock = true`. This fixes a limitation of the Meteora route, where the position is held by a PDA and nobody can claim its fees. With the pool, the creator claims their share directly.
-3. Graduation consumes all of `lp_tokens` and `real_sol`. There is no leftover to return and no price-mismatch window, so the 0.1% dust check disappears.
-4. The creation fee (0.05 SOL) is the owner's decision; it can be waived by funding it from the curve's own fee income, or charged to the caller of `migrate`.
-5. The abort path stays as it is.
+`migrate(rent_budget)`, callable by anyone once the curve has sold out:
+1. The caller lends the migrator PDA up to 0.2 SOL for the pool's creation fee (0.05 SOL, to the fee wallet) and rent; what is left comes back.
+2. The curve's vault hands the migrator the tokens set aside for the pool and all the SOL raised.
+3. One CPI to the pool's `create_pool`, signed by the migrator as creator: `x0 = lp_tokens`, `y0 = SOL raised`, `l0 = 0.01 SOL` (the pool's smallest liquidity), 0.25% fee, **locked**, no launch schedule, no range. The position's **owner is the curve's creator**, who can therefore claim and redirect its fees. On the Meteora route the position belongs to a program account and its fees cannot be claimed.
+4. Checks: the migrator's token account is back to where it started, and the pool's stored `x`, `y`, `l` equal exactly what was sent. Either all of it happens or none.
+
+Price: the pool opens at `(SOL raised + 0.01) / tokens` against the curve's last price `SOL raised / tokens`: a premium of 0.01 SOL over the raise, 0.012% on an 85 SOL raise but 10% on the smallest 0.1 SOL raise (the 0.01 SOL virtual liquidity is the pool's floor; the alternative of withholding 0.01 SOL from holders was rejected). The test asserts within 0.1% on a 20 SOL curve.
+
+Tests (`program/aretia-curve-grad/tests`, LiteSVM, against both compiled programs): the old curve tests, plus: migrate refused until sold out, refused for wrong owner / pool / creator accounts and an oversized or too-small budget (nothing moves), a locked pool opens with the creator as owner and the exact amounts, a holder then sells into the graduated pool through the pool program, a second migration is refused, and curves of 0.1, 1, 3 and 85 SOL all graduate. Devnet deployment: see section 16.
+
+Not done: a web flow for the new curve (the Launch card's curve still talks to the shipped curve), the abort path's interplay with a pool opened first by a stranger (unchanged: after seven days anyone may unwind), and a mainnet build.
 
 ## 13. Upgrade authority and key plan
 
@@ -247,3 +253,7 @@ Said plainly, because only some of this is measured.
 ## 18. What is unaudited and untested on mainnet
 
 Everything. No independent review of the program, the maths or the web code has happened. Nothing has run on mainnet. Mainnet has no program id, the card shows a notice there, and the build flag is off. The 20% protocol share, the 0.05 SOL creation fee, the launch-protection presets and the no-transferable-position design are the owner's to confirm (section 1).
+
+## 19. Graduation program on devnet
+
+`program/aretia-curve-grad`, id `Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm`, build sha-256 `7b40ab1ead99474d41e9144e1722748eaf0d73a4ac40e2e6ad3035354d318e48`, deployed to devnet only, signature `65MtiFGPnF5eU8zDPbn2N26rZCn9AMRTCsj2yAEXwmBAtr4gWgTbRzSQTLcNGs7FDwX1j75XkWtbQEP6kKvFy267`. Upgrade authority: the devnet test wallet. A live devnet graduation has **not** been run (the LiteSVM tests run the same bytes); trading outside Aretia is in `docs/ARETIA_POOL_INTEGRATION.md`.

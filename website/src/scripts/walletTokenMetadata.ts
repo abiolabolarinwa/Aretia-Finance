@@ -35,6 +35,8 @@ export interface MetadataJson {
   properties: { files: { uri: string; type: string }[]; category: 'image' };
 }
 
+// Control characters are exactly what this check refuses, so the range in the pattern is intended.
+// eslint-disable-next-line no-control-regex
 const hasControl = (s: string): boolean => /[\u0000-\u001f\u007f]/.test(s);
 
 /** An https or ipfs link, within the length the Launch form allows, with no control characters. */

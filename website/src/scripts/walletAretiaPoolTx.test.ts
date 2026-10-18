@@ -8,7 +8,6 @@ import {
   assemble,
   buildAddLiquidity,
   buildAddSteps,
-  buildClaim,
   buildClaimSteps,
   buildCreatePool,
   buildLock,

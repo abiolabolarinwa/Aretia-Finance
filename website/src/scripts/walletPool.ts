@@ -10,6 +10,8 @@ import { fromSmallestUnit, toSmallestUnit } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import {
   DEFAULT_POOL_FORM,
+  LAUNCH_PROTECTION_MINUTES,
+  LAUNCH_PROTECTION_START_BPS,
   POOL_FEE_LAMPORTS,
   POOL_TRADING_FEES_BPS,
   poolDisclosures,
@@ -161,6 +163,37 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     feeWrap.append(feeLabel, select, h('p', 'wapp__fine', 'Taken from each trade and paid to you, the owner of the position. Aretia takes none of it.'));
     f.append(feeWrap);
 
+    const protWrap = h('div', 'wapp-ln__field');
+    const protLabel = h('label', 'wapp__check');
+    const protBox = h('input');
+    protBox.type = 'checkbox';
+    protBox.id = 'pool-protection';
+    protBox.checked = form.protection;
+    protLabel.append(protBox, h('span', '', 'Launch protection (recommended)'));
+    const winLabel = h('label', 'wapp__eyebrow', 'Protection window');
+    winLabel.htmlFor = 'pool-protection-minutes';
+    const win = h('select', 'wapp__input');
+    win.id = 'pool-protection-minutes';
+    for (const m of LAUNCH_PROTECTION_MINUTES) {
+      const o = h('option', '', `${m} minutes`);
+      o.value = String(m);
+      o.selected = String(m) === form.protectionMinutes;
+      win.append(o);
+    }
+    win.disabled = !form.protection;
+    win.addEventListener('change', () => set({ protectionMinutes: win.value }));
+    protBox.addEventListener('change', () => {
+      set({ protection: protBox.checked });
+      win.disabled = !protBox.checked;
+    });
+    protWrap.append(
+      protLabel,
+      h('p', 'wapp__fine', `The fee starts at ${LAUNCH_PROTECTION_START_BPS / 100}% and falls in a straight line to the fee above over the window, so a bot that buys the moment the pool opens pays far more than a person who arrives later. The first buyers pay the higher fee, and it is paid to you. Turn it off for a flat fee from the first trade.`),
+      winLabel,
+      win,
+    );
+    f.append(protWrap);
+
     // No option: every pool opened on Aretia is locked for good, so buyers can rely on it.
     const lock = h('ul', 'lh-promises');
     lock.append(h('li', '', 'The liquidity is locked for good. Every pool opened on Aretia is, so buyers can trust it. Nobody, you included, can take the tokens or the SOL back out. You can still claim the trading fees, so choose the starting price with care: it cannot be changed.'));
@@ -192,6 +225,13 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     const marketCap = (priceE12 * token.supply) / (1000n * 10n ** BigInt(config.decimals));
     row(dl, 'Worth at the starting price', `about ${fromSmallestUnit(marketCap, 9)} SOL for the whole supply`);
     row(dl, 'Trading fee', `${config.tradingFeeBps / 100}%, paid to you`);
+    row(
+      dl,
+      'Launch protection',
+      config.launchProtection
+        ? `On: starts at ${config.launchProtection.startBps / 100}%, falls to ${config.tradingFeeBps / 100}% over ${config.launchProtection.minutes} minutes`
+        : 'Off: the fee is flat from the first trade',
+    );
     row(dl, 'Liquidity', config.lockLiquidity ? 'Locked for good' : 'Not locked: you can remove it');
     row(dl, 'Pool address', short(built.pool));
     card.append(dl);

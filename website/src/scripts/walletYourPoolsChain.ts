@@ -26,6 +26,8 @@ export interface RawPosition {
   unlocked: bigint;
   locked: bigint;
   vesting: bigint;
+  claimedA?: bigint;
+  claimedB?: bigint;
 }
 
 export interface MintLook {
@@ -49,6 +51,7 @@ export function positionFromChain(raw: RawPosition, a: MintLook, b: MintLook): P
     unlocked: raw.unlocked,
     locked: raw.locked,
     vesting: raw.vesting,
+    ...(raw.claimedA !== undefined && raw.claimedB !== undefined ? { claimedA: raw.claimedA, claimedB: raw.claimedB } : {}),
   };
 }
 
@@ -117,6 +120,8 @@ export async function readPositions(web3: typeof Web3, libs: PoolLibs, connectio
         unlocked: big(state.unlockedLiquidity),
         locked: big(state.permanentLockedLiquidity),
         vesting: big(state.vestedLiquidity),
+        // The pool program's own lifetime counters of fees claimed; left out if this state does not carry them.
+        ...(state.metrics ? { claimedA: big(state.metrics.totalClaimedAFee), claimedB: big(state.metrics.totalClaimedBFee) } : {}),
       };
       out.push(positionFromChain(raw, await look(raw.tokenAMint), await look(raw.tokenBMint)));
     } catch {

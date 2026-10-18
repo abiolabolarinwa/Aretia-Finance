@@ -20,7 +20,7 @@ import type * as MeteoraSdk from '@meteora-ag/cp-amm-sdk';
 import type BN from 'bn.js';
 import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress } from './walletTools';
 import { SYSTEM_PROGRAM_ID } from './walletLaunchTx';
-import { POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, type PoolConfig } from './walletPoolCore';
+import { POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, protectionSchedule, type PoolConfig } from './walletPoolCore';
 
 export const METEORA_PROGRAM_ID = 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG';
 /** Meteora's fixed pool authority (an address written into the program, the same for every pool). */
@@ -44,8 +44,40 @@ export interface PoolMath {
   minSqrtPrice: BN;
   maxSqrtPrice: BN;
   liquidity: BN;
-  /** Meteora's 27-byte base-fee block for a flat fee of `tradingFeeBps`. */
+  /** Meteora's 27-byte base-fee block: a flat fee, or the launch-protection schedule when the config asks for it. */
   baseFee: Uint8Array;
+}
+
+const view = (d: Uint8Array) => new DataView(d.buffer, d.byteOffset, d.byteLength);
+
+/** The SDK's fee-scheduler call for a config: flat, or a straight line from the protection fee down to the creator's fee. */
+function baseFeeFor(libs: PoolLibs, config: PoolConfig) {
+  const { sdk } = libs;
+  const p = config.launchProtection;
+  const sched = p ? protectionSchedule(config.tradingFeeBps, p) : null;
+  return sdk.getBaseFeeParams({
+    baseFeeMode: sdk.BaseFeeMode.FeeTimeSchedulerLinear,
+    feeTimeSchedulerParam: p && sched
+      ? { startingFeeBps: p.startBps, endingFeeBps: config.tradingFeeBps, numberOfPeriod: sched.periods, totalDuration: p.minutes * 60 }
+      : { startingFeeBps: config.tradingFeeBps, endingFeeBps: config.tradingFeeBps, numberOfPeriod: 0, totalDuration: 0 },
+  });
+}
+
+/**
+ * The same 27-byte block written by hand (Borsh: u64 starting fee, u16 periods, u64 period length, u64 drop per period, u8 mode 0 =
+ * linear), with no SDK. The inspector compares the built transaction with this, so a wrong block from the builder is caught.
+ */
+export function expectedBaseFee(config: PoolConfig): Uint8Array {
+  const p = config.launchProtection;
+  const out = new Uint8Array(27);
+  const v = view(out);
+  const s = p ? protectionSchedule(config.tradingFeeBps, p) : { cliff: BigInt(config.tradingFeeBps) * 100_000n, periods: 0, frequency: 0n, reduction: 0n };
+  v.setBigUint64(0, s.cliff, true);
+  v.setUint16(8, s.periods, true);
+  v.setBigUint64(10, s.frequency, true);
+  v.setBigUint64(18, s.reduction, true);
+  out[26] = 0;
+  return out;
 }
 
 export function poolMath(web3: typeof Web3, libs: PoolLibs, config: PoolConfig): PoolMath {
@@ -70,10 +102,7 @@ export function poolMath(web3: typeof Web3, libs: PoolLibs, config: PoolConfig):
     tokenAInfo: { mint: mint as never, currentEpoch: 0 },
     collectFeeMode: sdk.CollectFeeMode.BothToken,
   });
-  const base = sdk.getBaseFeeParams({
-    baseFeeMode: sdk.BaseFeeMode.FeeTimeSchedulerLinear,
-    feeTimeSchedulerParam: { startingFeeBps: config.tradingFeeBps, endingFeeBps: config.tradingFeeBps, numberOfPeriod: 0, totalDuration: 0 },
-  });
+  const base = baseFeeFor(libs, config);
   return { minSqrtPrice, maxSqrtPrice, liquidity, baseFee: Uint8Array.from(base.data as ArrayLike<number>) };
 }
 
@@ -102,10 +131,7 @@ export async function buildPool(web3: typeof Web3, libs: PoolLibs, config: PoolC
     liquidityDelta: math.liquidity,
     initSqrtPrice: math.minSqrtPrice,
     poolFees: {
-      baseFee: sdk.getBaseFeeParams({
-        baseFeeMode: sdk.BaseFeeMode.FeeTimeSchedulerLinear,
-        feeTimeSchedulerParam: { startingFeeBps: config.tradingFeeBps, endingFeeBps: config.tradingFeeBps, numberOfPeriod: 0, totalDuration: 0 },
-      }),
+      baseFee: baseFeeFor(libs, config),
       compoundingFeeBps: 0,
       padding: 0,
       dynamicFee: null,
@@ -142,7 +168,6 @@ export interface PoolCheckInput {
   math: PoolMath;
 }
 
-const view = (d: Uint8Array) => new DataView(d.buffer, d.byteOffset, d.byteLength);
 const bytesEqual = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 function u128(d: Uint8Array, at: number): bigint {
@@ -244,7 +269,9 @@ export function inspectPool(web3: typeof Web3, tx: Web3.Transaction, input: Pool
   for (const i of [2, 6, 9, 10]) if (flags(init, i) !== 'W') blockers.push('The pool step marks an account the wrong way.');
 
   // Arguments, byte by byte: fee block, price range, liquidity, activation.
-  if (!bytesEqual(d.subarray(8, 35), math.baseFee)) blockers.push('The trading fee is not the one shown.');
+  // The fee block is checked against one written by hand from the config (not the builder's own copy), and against the builder's.
+  if (!bytesEqual(d.subarray(8, 35), expectedBaseFee(config)) || !bytesEqual(d.subarray(8, 35), math.baseFee))
+    blockers.push(config.launchProtection ? 'The trading fee is not the launch-protection schedule shown.' : 'The trading fee is not the one shown.');
   if (view(d).getUint16(35, true) !== 0 || d[37] !== 0 || d[38] !== 0) blockers.push('The pool would use fee options this page does not offer.');
   if (u128(d, 39).toString() !== math.minSqrtPrice.toString()) blockers.push('The starting price is not the one shown.');
   if (u128(d, 55).toString() !== math.maxSqrtPrice.toString()) blockers.push('The top of the price range is not the expected one.');

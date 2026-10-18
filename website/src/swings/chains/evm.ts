@@ -3,6 +3,7 @@
  * so adding another EVM network is a CHAINS entry, not new code. It never holds keys; the user's wallet
  * signs and broadcasts.
  */
+import { noteFeeTx } from '../referrals/feeTxLog.js';
 import { RECEIPT_TIMEOUT_MS } from '../router/budget.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type ChainAdapter, type ChainId, type PreparedSwap, type TokenRef, type TransactionStatus, type WalletAccount } from '../core/types.js';
 import type { EvmTxRequest, EvmWalletAdapter } from './evmWallet.js';
@@ -157,6 +158,7 @@ export class EvmChainAdapter implements ChainAdapter {
     if (p.fee && !this.feePaid.has(quoteId)) {
       // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
       const hash = await this.wallet.sendTransaction(p.fee.tx);
+      noteFeeTx(this.chain, hash);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The fee transaction failed. The swap was not sent.' : 'The fee transaction is still pending. The swap was not sent; check your wallet, then get a new quote.');
       this.feePaid.add(quoteId);

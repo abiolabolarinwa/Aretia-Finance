@@ -7,6 +7,7 @@ import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types
 import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
+import { initReferrals } from './walletReferrals';
 import { initShield } from './walletShield';
 import { initLaunch } from './walletLaunch';
 import { initPool } from './walletPool';
@@ -315,9 +316,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend' | 'referrals';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend', 'referrals'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend', referrals: 'Referrals' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -377,6 +378,7 @@ export function initWalletApp(): void {
   let showUnpriced = readShowUnpriced();
   let loadToken = 0;
   initRadar();
+  let referrals: ReturnType<typeof initReferrals> | null = null;
   const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
   const shield = initShield({
     getAddress: () => address,
@@ -1064,6 +1066,7 @@ export function initWalletApp(): void {
     renderChrome();
     const view = currentView();
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
+    if (view === 'referrals') referrals?.onShow();
     if (view === 'activity') swings.onActivityShow();
     if (view === 'shield') shield.onShow(location.hash);
     if (view === 'launch') {
@@ -1142,6 +1145,8 @@ export function initWalletApp(): void {
     },
   });
   initNotifications();
+  const referralsRoot = document.querySelector<HTMLElement>('[data-referrals]');
+  referrals = referralsRoot ? initReferrals(referralsRoot) : null;
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();

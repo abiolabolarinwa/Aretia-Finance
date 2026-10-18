@@ -1,5 +1,5 @@
 /**
- * One function behind ten public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind eleven public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-trades   recent trades of a pool for the Transactions table, shared and cached (GET)
@@ -7,6 +7,7 @@
  *   /api/swings-market   the shared Marketplace lists (GET)
  *   /api/swings-account  favourites and saved swaps   (POST)
  *   /api/swings-radar    the Aretia Radar server       (GET, POST)
+ *   /api/swings-referrals referral credits and a referrer's own numbers (POST)
  *   /api/swings-notify   alerts to a phone: Telegram and browser push (GET, POST)
  *   /api/swings-telegram the Telegram bot's webhook    (POST)
  *   /api/swings-alerts-run the scheduled alert check   (GET, with the cron secret)
@@ -15,6 +16,7 @@
 import { handleAccount } from './_swingsAccount.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
+import { handleReferrals } from './_swingsReferrals.js';
 import { handleMarket } from './_swingsMarket.js';
 import { handleOhlcv } from './_swingsOhlcv.js';
 import { handleTrades } from './_swingsTrades.js';
@@ -61,6 +63,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     }
   }
   if (route === 'account') out = await handleAccount({ ...common, body });
+  else if (route === 'referrals') out = await handleReferrals({ ...common, body });
   else if (route === 'radar') out = await handleRadar({ ...common, query, body });
   else if (route === 'notify') out = await handleNotify({ ...common, query, body });
   else if (route === 'telegram') out = await handleTelegramWebhook({ ...common, query, body, telegramSecret: one(req.headers['x-telegram-bot-api-secret-token']) });

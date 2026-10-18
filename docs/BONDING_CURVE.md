@@ -150,6 +150,8 @@ The owner deploys from their own wallet, then hands the upgrade authority to the
 
 Still true on mainnet: **no independent audit**. The program holds buyers' SOL.
 
+**2026-10-18:** the committed build predates two fixes to the source (see `AUDIT_2026-10-18.md`). It is marked `aretia_curve.so.STALE` and the deploy script refuses it until it is rebuilt and retested.
+
 ## 12. Devnet
 
 Program id: `9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4`, upgradeable, upgrade authority `DWkwVbRZ3WUPSxLdmLdnNeq3rAkrev5vusjkpwrjU4fw` (the devnet deployer key; **a single key, so devnet only**). The program keypair is not in the repo.

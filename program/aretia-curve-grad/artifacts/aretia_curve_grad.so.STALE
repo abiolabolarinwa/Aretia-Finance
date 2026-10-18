@@ -1,0 +1,10 @@
+This build was made BEFORE the 2026-10-18 audit fixes to programs/aretia-curve-grad/src/lib.rs. Do not deploy it.
+
+What changed in the source: the curve token vault is opened with init_if_needed (a stranger could open it first and block create_curve for good), and abort_migration lets holders unwind at once when the Aretia Pool for the token was opened by someone else.
+
+To clear this marker:
+  1. Rebuild with the same toolchain as before: `cargo build-sbf` in program/aretia-curve-grad (release profile opt-level "s").
+  2. Run the program's tests against the new build: in program/aretia-curve-grad/tests,
+       ARETIA_CURVE_GRAD_SO=<path to the new .so> cargo test
+     Every test must pass (add the two regression tests from program/aretia-curve/tests/tests/curve.rs to this suite first).
+  3. Copy the new .so over this one, write its sha-256 into the .sha256 file beside it, and delete this file.

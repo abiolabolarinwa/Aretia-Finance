@@ -234,12 +234,18 @@ describe('Solana holder concentration excludes program-controlled accounts', () 
   });
 });
 
+/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
+const execData = (token: string, amount: bigint | string): string => {
+  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
+  return '0x2213bc0b' + w('0'.repeat(40)) + w(token) + w(BigInt(amount).toString(16)) + w('0'.repeat(40)) + w('a0') + w('0');
+};
+
 describe('0x trusted contracts and token taxes', () => {
   const user = '0x' + '1'.repeat(40);
   const request: SwapRequest = { chain: 'base', from: { chain: 'base', address: TOKEN }, to: { chain: 'base', address: '0x' + '3'.repeat(40) }, amountIn: 1_000_000n, slippageBps: 100, account: { chain: 'base', address: user } };
   const response = (tax?: { buyTaxBps?: string; sellTaxBps?: string }, to = ZEROX_ALLOWANCE_HOLDER) => ({
     buyAmount: '5000', minBuyAmount: '4950', liquidityAvailable: true, route: { fills: [] }, issues: { allowance: null, balance: null },
-    transaction: { to, data: '0xdead', value: '0', gas: '100000' }, ...(tax ? { tokenMetadata: { buyToken: tax } } : {}),
+    transaction: { to, data: execData(TOKEN, 1_000_000n), value: '0', gas: '100000' }, ...(tax ? { tokenMetadata: { buyToken: tax } } : {}),
   });
   const provider = (body: unknown) => new Evm0xProvider({ quote: async () => body, rpc: async () => '0x', now: () => 1 });
 

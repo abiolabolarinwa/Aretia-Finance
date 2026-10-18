@@ -16,7 +16,7 @@ import {
   type CurveStatus,
 } from './walletCurveCore';
 import { CurveFlow, type CurveFlowDeps, type CurveProgress } from './walletCurveFlow';
-import { curveAddress, tokenVaultAddress } from './walletCurveTx';
+import { curveAddress, meteoraPoolAddress, tokenVaultAddress } from './walletCurveTx';
 import { LaunchError } from './walletLaunchFlow';
 import { METEORA_PROGRAM_ID } from './walletPoolTx';
 import { TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
@@ -396,5 +396,25 @@ describe('graduation', () => {
     w.accounts.set(curveAddress(web3, PROGRAM, MINT), { owner: PROGRAM, data: curveBytes(soldOutState()) });
     w.script.onSend = () => undefined;
     expect((await flow.abort(review)).differences.join(' ')).toMatch(/does not show as unwound/);
+  });
+
+  it('allows an unwind at once when someone else has already opened the pool, and names that pool in the transaction', async () => {
+    const w = tradingWorld(soldOutState());
+    const flow = new CurveFlow(w.deps);
+    const curve = (await flow.loadCurve(MINT))!;
+    w.now = Number(curve.soldOutAt) + 60;
+    expect((await flow.prepareAbort(BUYER, curve)).blockers.join(' ')).toMatch(/seven days/);
+    const pool = meteoraPoolAddress(web3, MINT);
+    // An account at the pool address that the pool program does not own changes nothing.
+    w.accounts.set(pool, { owner: '11111111111111111111111111111111', data: new Uint8Array(8) });
+    expect((await flow.prepareAbort(BUYER, curve)).blockers.join(' ')).toMatch(/seven days/);
+    w.accounts.set(pool, { owner: METEORA_PROGRAM_ID, data: new Uint8Array(64) });
+    const review = await flow.prepareAbort(BUYER, curve);
+    expect(review.blockers).toEqual([]);
+    expect(review.instructions[0]!.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable])).toEqual([
+      [BUYER, true, false],
+      [curveAddress(web3, PROGRAM, MINT), false, true],
+      [pool, false, false],
+    ]);
   });
 });

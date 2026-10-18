@@ -768,3 +768,20 @@ fn position_ids_cannot_be_taken_in_advance() {
     assert_fails_with(l.env.send(&[add_ix(&victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX)], &[&victim]), "NotOwner");
     assert_vault_exact(&l, 0, 0);
 }
+
+#[test]
+fn a_stranger_cannot_block_a_pool_by_opening_its_vaults_first() {
+    // Both vaults are associated accounts of the pool address, and anyone may open an associated account for any owner. Opening
+    // them (and even putting wrapped SOL in one) before the creator does must neither stop the pool nor change its reserves.
+    let mut env = Env::new();
+    let creator = env.user(100);
+    env.make_wsol(&creator.pubkey(), 0);
+    let stranger = env.user(5);
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    let pool = pool_pda(&mint);
+    env.send(&[ata_ix(&stranger.pubkey(), &pool, &mint, &TOKEN_2022), ata_ix(&stranger.pubkey(), &pool, &WSOL, &TOKEN)], &[&stranger]).expect("anyone can open the vault accounts");
+    let c = creator.pubkey();
+    let r = env.send(&[create_pool_ix_full(&c, &c, &c, &mint, X0, 0, L0, 25, true, 0, 0, 0)], &[&creator]);
+    assert!(r.is_ok(), "create_pool was blocked by pre-opened vaults: {:?}", r.err().map(|e| e.meta.logs.join(" | ")));
+    assert_eq!(env.token_amount(&ata(&pool, &mint, &TOKEN_2022)), X0);
+}

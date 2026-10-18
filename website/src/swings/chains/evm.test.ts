@@ -22,6 +22,12 @@ const request: SwapRequest = {
   account: { chain: 'ethereum', address: USER },
 };
 
+/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
+const execData = (token: string, amount: bigint): string => {
+  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
+  return '0x2213bc0b' + w(ROUTER) + w(token) + w(amount.toString(16)) + w(ROUTER) + w('a0') + w('0');
+};
+
 const zeroXResponse = (over: Record<string, unknown> = {}) => ({
   buyAmount: '500000000000000',
   minBuyAmount: '495000000000000',
@@ -29,7 +35,7 @@ const zeroXResponse = (over: Record<string, unknown> = {}) => ({
   totalNetworkFee: '2100000000000000',
   route: { fills: [{ source: 'Uniswap_V3', from: USDC, to: WETH, proportionBps: '10000' }] },
   issues: { allowance: null, balance: null },
-  transaction: { to: ROUTER, data: '0xdeadbeef', value: '0', gas: '210000', gasPrice: '1' },
+  transaction: { to: ROUTER, data: execData(USDC, 1_000_000n), value: '0', gas: '210000', gasPrice: '1' },
   ...over,
 });
 
@@ -70,6 +76,16 @@ describe('Evm0xProvider', () => {
   it('blocks attached native value when not selling the native coin', async () => {
     const p = make(zeroXResponse({ transaction: { to: ROUTER, data: '0x00', value: '1' } }));
     await expect(p.buildTransaction(await p.getQuote(request))).rejects.toMatchObject({ code: 'invalid' });
+  });
+
+  it('blocks a swap whose exec call would pull another token, or more than entered, from the wallet', async () => {
+    // A standing allowance the wallet once gave AllowanceHolder for another token must never be spendable by a quote.
+    const other = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(WETH, 1_000_000n), value: '0' } }));
+    await expect(other.buildTransaction(await other.getQuote(request))).rejects.toThrow(/different token/);
+    const more = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_001n), value: '0' } }));
+    await expect(more.buildTransaction(await more.getQuote(request))).rejects.toThrow(/more from your wallet/);
+    const notExec = make(zeroXResponse({ transaction: { to: ROUTER, data: '0xdeadbeef', value: '0' } }));
+    await expect(notExec.buildTransaction(await notExec.getQuote(request))).rejects.toThrow(/kind of call/);
   });
 
   it('builds an exact-amount approval and rejects unknown spenders', async () => {

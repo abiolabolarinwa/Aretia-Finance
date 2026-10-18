@@ -79,6 +79,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   let truncated = false;
   let loaded = false;
   let loading = false;
+  /** Each read of the list; an answer from an older read (another wallet) is dropped. */
+  let loadSeq = 0;
   let error: string | null = null;
   let solUsd: number | null = null;
   const working = new Map<string, ClaimProgress>();
@@ -252,23 +254,29 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
       draw();
       return;
     }
+    const mine = ++loadSeq;
     loading = true;
     error = null;
     draw();
     try {
       const r = await (await flowFor()).list(owner);
+      // The wallet changed while this was being read: these are someone else's pools, and the new wallet's read draws its own.
+      if (mine !== loadSeq || host.getAddress() !== owner) return;
       positions = r.positions;
       truncated = r.truncated;
       loaded = true;
       void fetchSolUsd().then((price) => {
+        if (mine !== loadSeq) return;
         solUsd = price;
         draw();
       });
     } catch (e) {
-      error = `Could not read your pools from the network: ${friendlyError(e)}`;
+      if (mine === loadSeq) error = `Could not read your pools from the network: ${friendlyError(e)}`;
     } finally {
-      loading = false;
-      draw();
+      if (mine === loadSeq) {
+        loading = false;
+        draw();
+      }
     }
   }
 
@@ -302,6 +310,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     },
     onWalletChange(): void {
       // A different wallet is a different person: nothing read or approved for the last one carries over.
+      loadSeq++;
+      loading = false;
       positions = [];
       loaded = false;
       error = null;
@@ -311,6 +321,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
       results.clear();
       problems.clear();
       draw();
+      // While the list is on screen, the new wallet's pools are read at once instead of leaving it blank until Refresh.
+      if (root && root.offsetParent !== null) void load();
     },
   };
 }

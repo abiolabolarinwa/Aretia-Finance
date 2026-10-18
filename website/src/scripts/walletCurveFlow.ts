@@ -45,6 +45,7 @@ import {
   inspectCreate,
   inspectMigrate,
   inspectSell,
+  meteoraPoolAddress,
   migrateAddresses,
   type MigrateArgs,
 } from './walletCurveTx';
@@ -353,7 +354,11 @@ export class CurveFlow {
   async prepareAbort(caller: string, curve: CurveState): Promise<AbortReview> {
     const { web3, program } = this.d;
     const blockers = curveProblems(curve);
-    if (!canAbort(curve, this.d.nowSecs())) blockers.push('This curve cannot be unwound yet: it must have sold out and waited seven days without moving into a pool.');
+    if (!canAbort(curve, this.d.nowSecs())) {
+      // A curve whose pool someone else has already opened can never move into it, so it may be unwound at once.
+      const pool = curve.status === 'soldOut' ? await this.d.fetchAccount(meteoraPoolAddress(web3, curve.mint)).catch(() => null) : null;
+      if (!(pool && pool.owner === METEORA_PROGRAM_ID)) blockers.push('This curve cannot be unwound yet: it must have sold out and waited seven days without moving into a pool.');
+    }
     const balance = await this.d.balanceOf(caller);
     const instructions = buildAbort(web3, program, caller, curve.mint);
     const network = await this.price(instructions, caller, balance, 0n, 10_000n, blockers);

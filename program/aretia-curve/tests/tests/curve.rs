@@ -413,3 +413,39 @@ fn curves_of_every_size_migrate() {
         assert!(m.is_ok(), "total {total} target {target}: lp {} raised {}: migrate failed: {}", c.lp_tokens, c.real_sol, err_text(&m));
     }
 }
+
+#[test]
+fn a_stranger_cannot_block_a_curve_by_opening_its_vault_first() {
+    // The curve's token vault is the associated account of the curve address for the mint, and anyone may open an associated
+    // account for any owner. Opening it before the creator does must not stop the curve from being created.
+    let mut env = Env::new();
+    let creator = env.user(10);
+    let stranger = env.user(1);
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    let curve = curve_pda(&mint);
+    env.send(&[ata_ix(&stranger.pubkey(), &curve, &mint, &TOKEN_2022)], &[&stranger]).expect("anyone can open the vault account");
+    let r = env.send(&[create_curve_ix(&creator.pubkey(), &mint, SUPPLY, 10 * SOL)], &[&creator]);
+    assert!(r.is_ok(), "create_curve was blocked by a pre-opened vault: {}", err_text(&r));
+    assert_eq!(env.token_amount(&ata(&curve, &mint, &TOKEN_2022)), SUPPLY);
+}
+
+#[test]
+fn a_pool_someone_else_opened_first_lets_holders_unwind_at_once() {
+    // Anyone holding one token can open the token's Meteora pool before the curve migrates, and its address is fixed by the token,
+    // so `migrate` can then never succeed. Holders must not be frozen for the whole delay when that is plain to see.
+    let (mut l, buyer) = sold_out_curve(10 * SOL);
+    let caller = l.env.user(1);
+    let pool = meteora_pool(&l.mint);
+    // Without the pool account the delay applies, as before.
+    assert_fails_with(l.env.send(&[abort_ix(&caller.pubkey(), &l.mint)], &[&caller]), "TooEarly");
+    // A pool that is not there (or not Meteora's) changes nothing.
+    let mut with_pool = abort_ix(&caller.pubkey(), &l.mint);
+    with_pool.accounts.push(solana_instruction::AccountMeta::new_readonly(pool, false));
+    assert_fails_with(l.env.send(&[with_pool.clone()], &[&caller]), "TooEarly");
+    // Once Meteora holds an account at that address, the curve can be unwound straight away and selling reopens.
+    l.env.svm.set_account(pool, solana_account::Account { lamports: 10_000_000, data: vec![1u8; 64], owner: METEORA, executable: false, rent_epoch: 0 }).unwrap();
+    l.env.send(&[with_pool], &[&caller]).expect("abort at once when the pool is taken");
+    assert_eq!(l.env.curve(&l.mint).status, ABORTED);
+    let held = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
+    l.env.send(&[sell_ix(&buyer.pubkey(), &l.mint, held / 2, 0)], &[&buyer]).expect("holders can sell back");
+}

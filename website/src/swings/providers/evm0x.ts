@@ -71,6 +71,18 @@ const isHexData = (v: unknown): v is string => typeof v === 'string' && /^0x([0-
 const rec = (v: unknown): Record<string, unknown> | null => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const hexQty = (n: bigint): string => '0x' + n.toString(16);
 
+/** keccak256("exec(address,address,uint256,address,bytes)") */
+const EXEC_SELECTOR = '0x2213bc0b';
+
+/** The token and amount an AllowanceHolder `exec(operator, token, amount, target, data)` call may pull, or null when the data is not one. */
+export function decodeAllowanceHolderExec(data: string): { token: string; amount: bigint } | null {
+  if (data.slice(0, 10).toLowerCase() !== EXEC_SELECTOR || data.length < 10 + 64 * 5) return null;
+  const word = (i: number): string => data.slice(10 + i * 64, 10 + (i + 1) * 64);
+  const tokenWord = word(1);
+  if (!/^0{24}[0-9a-fA-F]{40}$/.test(tokenWord)) return null;
+  return { token: '0x' + tokenWord.slice(24).toLowerCase(), amount: BigInt('0x' + word(2)) };
+}
+
 /** Strictly parses a 0x response; anything unexpected is an error, never a guess. */
 export function parseZeroXQuote(json: unknown): ZeroXQuoteRaw {
   const o = rec(json);
@@ -172,6 +184,17 @@ export class Evm0xProvider implements DexProvider {
     if (!inList(trusted.swapTargets, raw.tx.to)) throw new SwingsError('invalid', 'The swap targets a contract Aretia does not recognise. It was blocked.');
 
     const sellNative = request.from.address === EVM_NATIVE_ADDRESS;
+    // AllowanceHolder.exec names the token and amount it may pull from the wallet. Any allowance the wallet has ever given AllowanceHolder
+    // (for another app, possibly unlimited) can be spent by it, so the call is accepted only when it pulls the token being sold, and no
+    // more than the amount entered. Selling a token any other way through it is refused.
+    const exec = decodeAllowanceHolderExec(raw.tx.data);
+    if (!sellNative) {
+      if (!exec) throw new SwingsError('invalid', 'The swap is not the kind of call Aretia expects for this contract. It was blocked.');
+      if (exec.token.toLowerCase() !== request.from.address.toLowerCase()) throw new SwingsError('invalid', 'The swap would take a different token from your wallet than the one you are selling. It was blocked.');
+      if (exec.amount > quote.inAmount) throw new SwingsError('invalid', 'The swap would take more from your wallet than you entered. It was blocked.');
+    } else if (exec && exec.amount > quote.inAmount) {
+      throw new SwingsError('invalid', 'The swap would take more from your wallet than you entered. It was blocked.');
+    }
     const value = BigInt(raw.tx.value);
     // A swap may attach native coin only when selling it, and then exactly the amount entered.
     if (sellNative ? value !== quote.inAmount : value !== 0n) throw new SwingsError('invalid', 'The swap would move a different amount of native coin than you entered. It was blocked.');

@@ -213,7 +213,6 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   let failed = false;
   let loading = false;
   let timer: number | null = null;
-  let fetchedAt = 0;
   let verified: ReturnType<typeof verifiedChecker> | undefined;
 
   async function load(): Promise<void> {
@@ -224,12 +223,13 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       if (!res.ok) throw new Error(String(res.status));
       data = (await res.json()) as LaunchBoxData;
       failed = false;
-      fetchedAt = Date.now();
     } catch {
       failed = true;
     } finally {
       loading = false;
-      render();
+      // Only the numbers are redrawn: rebuilding the controls would take the cursor out of the search box every minute.
+      if (root!.contains(listHost)) refreshData();
+      else render();
     }
   }
 
@@ -316,6 +316,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
         sortSel.append(opt);
       }
     }
+    sortSelect = sortSel;
     sortSel.addEventListener('change', () => {
       const [key, dir] = sortSel.value.split(':') as [SortKey, 'asc' | 'desc'];
       sort = { key, dir };
@@ -326,9 +327,18 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   }
 
   const listHost = el('div', 'wapp-lb__list');
+  const countHost = el('span', 'wapp-lb__count');
+  const statusHost = el('div');
+  const footHost = el('div');
+  let sortSelect: HTMLSelectElement | null = null;
 
   function renderList(): void {
     listHost.textContent = '';
+    // A sort chosen from a column header shows in the sort menu too.
+    if (sortSelect) {
+      const cur = sort ?? defaultSort(filter.tab);
+      sortSelect.value = `${cur.key}:${cur.dir}`;
+    }
     if (!data) {
       listHost.append(failed ? empty('Launch Box could not be loaded', 'Check your connection and try again in a moment.', false) : el('p', 'wapp__fine', 'Loading…'));
       return;
@@ -367,16 +377,21 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     const head = el('div', 'wapp-lb__head');
     const h = el('div');
     h.append(el('h2', 'wapp__h2', 'Launch Box'), el('p', 'wapp__fine', 'Every token created with Aretia Launch, on every network. Open one to see its page. Prices come from the market, not from Aretia, and a new token may have none yet.'));
-    head.append(h);
-    if (data?.setup === 'ok') head.append(el('span', 'wapp-lb__count', `${data.launches.length} token${data.launches.length === 1 ? '' : 's'}`));
-    root!.append(head, controls());
-    const s = status();
-    if (s) root!.append(s);
-    root!.append(listHost);
+    head.append(h, countHost);
+    root!.append(head, controls(), statusHost, listHost, footHost);
+    refreshData();
+  }
+
+  /** Everything that comes from the server: the count, the notes, the list and the time it was made. The controls are left alone. */
+  function refreshData(): void {
+    countHost.textContent = data?.setup === 'ok' ? `${data.launches.length} token${data.launches.length === 1 ? '' : 's'}` : '';
+    countHost.hidden = data?.setup !== 'ok';
+    statusHost.replaceChildren(...[status()].filter((n): n is HTMLElement => n !== null));
     renderList();
+    footHost.textContent = '';
     if (data?.setup === 'ok') {
-      const foot = el('p', 'wapp-lb__foot', `Updated ${ago(fetchedAt || data.generatedAt, Date.now())}. Not advice: a listing here does not mean a token is safe, and anyone can create one.`);
-      root!.append(foot);
+      // The time the server made the list, not when this page fetched it: a cached or stale answer must not read as fresh.
+      footHost.append(el('p', 'wapp-lb__foot', `Updated ${ago(data.generatedAt, Date.now())}. Not advice: a listing here does not mean a token is safe, and anyone can create one.`));
     }
   }
 

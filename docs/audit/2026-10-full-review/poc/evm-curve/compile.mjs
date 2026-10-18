@@ -1,0 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const solc = require('solc');
+const src = readFileSync('../../../../../contracts-evm/AretiaCurve.sol','utf8').replace(/\r\n/g,'\n');
+const input = { language:'Solidity', sources:{'AretiaCurve.sol':{content:src}}, settings:{optimizer:{enabled:true,runs:200},evmVersion:'paris',outputSelection:{'*':{'*':['evm.bytecode.object']}}}};
+const out = JSON.parse(solc.compile(JSON.stringify(input)));
+const bc = out.contracts['AretiaCurve.sol'].AretiaCurve.evm.bytecode.object;
+const art = JSON.parse(readFileSync('../../../../../contracts-evm/AretiaCurve.artifact.json','utf8'));
+console.log('curve bytecode matches artifact:', bc === art.curve.bytecode.replace(/^0x/,''));
+const fs2 = readFileSync('../../../../../contracts-evm/AretiaTokenFactory.sol','utf8').replace(/\r\n/g,'\n');
+const in2 = { language:'Solidity', sources:{'AretiaTokenFactory.sol':{content:fs2}}, settings:{optimizer:{enabled:true,runs:200},evmVersion:'paris',outputSelection:{'*':{'*':['evm.bytecode.object']}}}};
+const o2 = JSON.parse(solc.compile(JSON.stringify(in2)));
+const a2 = JSON.parse(readFileSync('../../../../../contracts-evm/AretiaTokenFactory.artifact.json','utf8'));
+console.log('factory matches:', o2.contracts['AretiaTokenFactory.sol'].AretiaTokenFactory.evm.bytecode.object === a2.factory.bytecode.replace(/^0x/,''));
+for (const e of (out.errors||[]).concat(o2.errors||[])) console.log(e.severity, e.message);

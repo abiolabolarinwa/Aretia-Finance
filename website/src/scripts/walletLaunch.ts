@@ -7,6 +7,7 @@
  * person's own wallet signs. What it does not do: start a sale or lock anything (pools are opened by walletPool.ts). It charges one flat creation fee, shown before signing.
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.
  */
+import { verifiedBadge } from '../lib/verifiedBadge';
 import { browserStorage } from '../swings/history.js';
 import { fromSmallestUnit } from './walletTools';
 import {
@@ -349,6 +350,11 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     if (outcome.step2) row(dl, 'Second transaction', link(short(outcome.step2), solscan('tx', outcome.step2)));
     row(dl, 'View the token', link('Open on Solscan', solscan('token', outcome.mint)));
     card.append(dl);
+    const badge = verifiedBadge('solana', outcome.mint);
+    if (badge) card.append(badge);
+    const ask = h('p', 'wapp__fine', 'Want a “Verified by Aretia” badge? It records four checks on one day. It is not an audit or an endorsement. ');
+    ask.append(link('Request verification', '/verified#request'));
+    card.append(ask);
     const copy = h('button', 'wapp__btn wapp__btn--ghost', 'Copy token address');
     copy.type = 'button';
     copy.addEventListener('click', () => {

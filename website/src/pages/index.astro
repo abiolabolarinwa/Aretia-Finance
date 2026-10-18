@@ -9,6 +9,12 @@ import { HOUSE_ADS } from '../data/houseAds';
 import { SPONSORS } from '../data/sponsors';
 import { problemWith } from '../lib/sponsors';
 import { chartArt } from '../lib/adArt';
+import { FEATURED } from '../data/featured';
+import { notOver, problemWith as featuredProblem } from '../lib/featured';
+
+/* Featured launches: the strip is only in the page while some valid item has not finished (checked again in the browser, by date, so an
+   item stops showing on its own after its last day). With nothing to show there is no markup at all. */
+const hasFeatured = FEATURED.some((i) => featuredProblem(i) === null && notOver(i, Date.now()));
 
 /* Aretia Finance home: the whole product map on one screen, no scrolling.
    Each card links to the live page for its service. Radar has no page yet, so
@@ -142,8 +148,14 @@ const slides = [...sponsored, ...house];
         <a class="card__btn card__btn--primary" href="/wallet">Start Trading</a>
         <a class="card__btn" href={LINKS.walletWaitlist}>Download Aretia Wallet</a>
       </section>
+      {hasFeatured && <section class="feat" data-featured hidden aria-label="Featured launches"></section>}
 
     </main>
+
+    <script>
+      import { renderFeatured } from '../lib/featuredStrip';
+      renderFeatured(document.querySelector<HTMLElement>('[data-featured]'), { stack: true });
+    </script>
 
     <script>
       /* Rotate the adverts, every 5 to 7 seconds. A sponsor outside its dates is dropped; with none left, Aretia's own adverts show. Paused on hover and
@@ -318,6 +330,13 @@ const slides = [...sponsored, ...house];
   .card__btn--primary { color: #fff; background: var(--color-brand); }
   .card__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
   @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #ebebf0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
+
+  /* Featured launches: under the card, in the same column. */
+  .stage:has(.feat:not([hidden])) { align-content: center; }
+  .feat { position: relative; z-index: 3; width: min(280px, 100%); margin-top: 12px; padding: 12px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  @media (max-width: 899px) {
+    .feat { width: 100%; margin-top: 0; box-shadow: none; border: 1px solid var(--c-line); }
+  }
 
   @media (max-width: 899px) {
     body.console { --rail: 0px; }

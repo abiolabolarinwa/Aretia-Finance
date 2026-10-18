@@ -1,0 +1,146 @@
+---
+/* The request forms for "Verified by Aretia" and "Featured launches". They post to the site's Formspree form, check the answers first
+   (src/lib/requests.ts), and take no payment: a request is a message, and a price is agreed in writing afterwards. */
+import { LINKS } from '../../data/site';
+import { REQUEST_LIMITS } from '../../lib/requests';
+
+interface Props {
+  kind: 'verify' | 'featured';
+}
+const { kind } = Astro.props;
+const subject = kind === 'verify' ? 'Request: Verified by Aretia' : 'Request: Featured launch';
+const send = kind === 'verify' ? 'Send verification request' : 'Send featured request';
+---
+
+<form class="rq" action={LINKS.contactForm} method="POST" novalidate data-request={kind}>
+  <input type="hidden" name="_subject" value={subject} />
+  <input type="hidden" name="category" value={kind === 'verify' ? 'Verification request' : 'Featured request'} />
+  <input type="text" name="_gotcha" class="rq__hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+  <div class="rq__field">
+    <label for={`${kind}-chain`}>Network</label>
+    <select id={`${kind}-chain`} name="chain" required aria-describedby={`${kind}-chain-err`}>
+      <option value="">Choose one</option>
+      <option value="solana">Solana</option>
+      <option value="bnb">BNB Chain</option>
+      <option value="ethereum">Ethereum</option>
+      <option value="polygon">Polygon</option>
+    </select>
+    <p class="rq__err" id={`${kind}-chain-err`} data-err="chain"></p>
+  </div>
+  <div class="rq__field">
+    <label for={`${kind}-token`}>Token address</label>
+    <input id={`${kind}-token`} name="token" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-describedby={`${kind}-token-err`} />
+    <p class="rq__err" id={`${kind}-token-err`} data-err="token"></p>
+  </div>
+  {
+    kind === 'featured' && (
+      <>
+        <div class="rq__field">
+          <label for="featured-title">Title <small>(up to {REQUEST_LIMITS.title} characters)</small></label>
+          <input id="featured-title" name="title" type="text" required maxlength={REQUEST_LIMITS.title} aria-describedby="featured-title-err" />
+          <p class="rq__err" id="featured-title-err" data-err="title" />
+        </div>
+        <div class="rq__field">
+          <label for="featured-blurb">One line about it <small>(up to {REQUEST_LIMITS.blurb} characters)</small></label>
+          <input id="featured-blurb" name="blurb" type="text" required maxlength={REQUEST_LIMITS.blurb} aria-describedby="featured-blurb-err" />
+          <p class="rq__err" id="featured-blurb-err" data-err="blurb" />
+        </div>
+        <div class="rq__row">
+          <div class="rq__field">
+            <label for="featured-from">First day you would like <small>(optional)</small></label>
+            <input id="featured-from" name="from" type="date" aria-describedby="featured-from-err" />
+            <p class="rq__err" id="featured-from-err" data-err="from" />
+          </div>
+          <div class="rq__field">
+            <label for="featured-to">Last day <small>(optional)</small></label>
+            <input id="featured-to" name="to" type="date" aria-describedby="featured-to-err" />
+            <p class="rq__err" id="featured-to-err" data-err="to" />
+          </div>
+        </div>
+      </>
+    )
+  }
+  <div class="rq__field">
+    <label for={`${kind}-project`}>Project link</label>
+    <input id={`${kind}-project`} name="project" type="url" required placeholder="https://" autocomplete="url" aria-describedby={`${kind}-project-err`} />
+    <p class="rq__err" id={`${kind}-project-err`} data-err="project"></p>
+  </div>
+  <div class="rq__field">
+    <label for={`${kind}-contact`}>Your email</label>
+    <input id={`${kind}-contact`} name="contact" type="email" required autocomplete="email" maxlength={REQUEST_LIMITS.contact} aria-describedby={`${kind}-contact-err`} />
+    <p class="rq__err" id={`${kind}-contact-err`} data-err="contact"></p>
+  </div>
+
+  <p class="rq__fine">
+    This form takes no payment. {kind === 'verify' ? 'We read the request, run the checks and tell you what we found, including when a check fails.' : 'We read the request and reply. If we agree, the price and the dates are set in writing first.'} Never include a recovery phrase or private key. Aretia will never ask for one.
+  </p>
+  <button type="submit" class="rq__submit" data-submit>{send}</button>
+  <p class="rq__status" role="status" aria-live="polite" data-status></p>
+</form>
+
+<style>
+  .rq { display: grid; gap: var(--space-md); max-width: 36rem; }
+  .rq__hp { position: absolute; left: -9999px; }
+  .rq__row { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+  .rq__field { display: grid; gap: 8px; min-width: 0; }
+  .rq__field label { font-size: var(--text-small); font-weight: 600; color: var(--color-text); }
+  .rq__field label small { font-weight: 400; color: var(--color-muted); }
+  .rq__field input, .rq__field select { width: 100%; min-height: 48px; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: rgba(0, 0, 0, 0.02); color: var(--color-strong); font-size: 1rem; font-family: inherit; }
+  .rq__field input:focus, .rq__field select:focus { outline: none; border-color: var(--color-gold); box-shadow: 0 0 0 4px rgba(160, 122, 44, 0.12); }
+  .rq__field [aria-invalid='true'] { border-color: #b42318; }
+  .rq__err { margin: 0; min-height: 1em; font-size: var(--text-micro); color: #b42318; }
+  .rq__fine { margin: 0; font-size: var(--text-small); color: var(--color-muted); }
+  .rq__submit { justify-self: start; min-height: 52px; padding: 0 1.75rem; border-radius: var(--radius-pill); background: var(--color-strong); color: var(--color-bg); font-weight: 600; }
+  .rq__submit[disabled] { opacity: 0.6; cursor: default; }
+  .rq__status { margin: 0; min-height: 1.2em; font-size: var(--text-small); }
+  .rq__status.is-ok { color: var(--color-ok); }
+  .rq__status.is-err { color: #b42318; }
+  @media (min-width: 640px) { .rq__row { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<script>
+  import { hasErrors, validateRequest, type RequestFields, type RequestKind } from '../../lib/requests';
+
+  for (const form of document.querySelectorAll<HTMLFormElement>('[data-request]')) {
+    const kind = form.dataset.request as RequestKind;
+    const status = form.querySelector<HTMLElement>('[data-status]')!;
+    const submit = form.querySelector<HTMLButtonElement>('[data-submit]')!;
+    const value = (name: string): string => (form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? '';
+    const fields = (): RequestFields => ({ token: value('token'), chain: value('chain'), project: value('project'), contact: value('contact'), title: value('title'), blurb: value('blurb'), from: value('from'), to: value('to') });
+
+    const show = (errors: Partial<Record<string, string>>): void => {
+      for (const p of form.querySelectorAll<HTMLElement>('[data-err]')) {
+        const name = p.dataset.err!;
+        p.textContent = errors[name] ?? '';
+        (form.elements.namedItem(name) as HTMLElement | null)?.setAttribute('aria-invalid', String(Boolean(errors[name])));
+      }
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errors = validateRequest(kind, fields());
+      show(errors);
+      if (hasErrors(errors)) {
+        const first = Object.keys(errors)[0]!;
+        (form.elements.namedItem(first) as HTMLElement | null)?.focus();
+        return;
+      }
+      submit.disabled = true;
+      status.className = 'rq__status';
+      status.textContent = 'Sending…';
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error(String(res.status));
+        form.reset();
+        status.classList.add('is-ok');
+        status.textContent = 'Thanks. Your request has been sent. We will reply by email. Nothing has been charged.';
+      } catch {
+        status.classList.add('is-err');
+        status.textContent = 'Something went wrong sending your request. Please try again, or reach us on Telegram.';
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+</script>

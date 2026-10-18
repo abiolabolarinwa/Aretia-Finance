@@ -7,6 +7,7 @@
  */
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { verifiedBadge } from '../lib/verifiedBadge';
 
 const ENDPOINT = '/api/swings-radar';
 const RECENT_KEY = 'aretia.radar.recent';
@@ -223,6 +224,11 @@ const shortId = (assetId: string): string => {
 
 // ---- rendering ----------------------------------------------------------------------------------------------------
 
+const verifiedFor2 = (assetId: string, plain: boolean): HTMLElement | null => {
+  const i = assetId.indexOf(':');
+  return i < 0 ? null : verifiedBadge(assetId.slice(0, i), assetId.slice(i + 1), { plain });
+};
+
 function tile(label: string, value: string, note?: string): HTMLElement {
   return el('div', { class: 'wapp-rd__tile' }, [el('span', { class: 'wapp-rd__tile-label', text: label }), el('strong', { text: value }), note ? el('span', { class: 'wapp-rd__tile-note', text: note }) : null]);
 }
@@ -237,6 +243,8 @@ export function renderAsset(answer: AssetAnswer, assetId: string): HTMLElement {
     pill(classificationLabel(o.classification), o.classification === 'AVOID' ? 'bad' : o.classification === 'INSUFFICIENT_EVIDENCE' ? 'warn' : 'plain'),
   ]);
   card.append(title);
+  const verified = verifiedFor2(assetId, false);
+  if (verified) card.append(verified);
   card.append(
     el('div', { class: 'wapp-rd__tiles' }, [
       tile('Opportunity', scoreText(o.opportunityScore), o.opportunityScore == null ? 'Not enough data to score' : 'out of 100'),
@@ -315,6 +323,8 @@ function homeRow(a: RadarAsset, open: (assetId: string) => void): HTMLElement {
     el('span', { class: 'wapp-rd__row-nums' }, [el('span', { text: `Opportunity ${scoreText(a.opportunityScore)}` }), el('span', { text: `Risk ${scoreText(a.riskScore)}` })]),
     pill(classificationLabel(a.classification)),
   ]);
+  const verified = a.assetId ? verifiedFor2(a.assetId, true) : null;
+  if (verified) btn.querySelector('.wapp-rd__row-main')?.append(verified);
   if (a.assetId) btn.addEventListener('click', () => open(a.assetId!));
   return btn;
 }
@@ -347,6 +357,8 @@ export function renderSearchResults(hits: SearchHit[], query: string, pick: (h: 
       el('span', { class: 'wapp-rd__row-nums' }, [el('span', { text: h.liquidityUsd === null ? 'Liquidity unknown' : `Liquidity ${usdText(h.liquidityUsd)}` }), same ? el('span', { text: `${same} tokens use this symbol` }) : null]),
       h.fresh ? pill('New') : null,
     ]);
+    const verified = verifiedBadge(h.chain, h.address, { plain: true });
+    if (verified) row.querySelector('.wapp-rd__row-main')?.append(verified);
     row.addEventListener('click', () => pick(h));
     box.append(row);
   }

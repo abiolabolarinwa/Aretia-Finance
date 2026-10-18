@@ -13,6 +13,7 @@ import { tokenPagePath } from './tokenPageCore';
 import { readPositions } from './walletYourPoolsChain';
 import { YourPoolsFlow, type ClaimOutcome, type ClaimProgress } from './walletYourPoolsFlow';
 import { createYourPoolsEvm, type YourPoolsEvmHost } from './walletYourPoolsEvm';
+import { createCreatorStats, drawSolanaCreatorNote } from './walletCreatorStats';
 
 export interface YourPoolsHost {
   /** The connected Solana wallet, or null. */
@@ -85,6 +86,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   const problems = new Map<string, string>();
   let flow: YourPoolsFlow | null = null;
   const evmPools = host.evm ? createYourPoolsEvm(host.evm, () => draw()) : null;
+  // Read-only analytics for the tokens this wallet created on the Aretia Curve (Ethereum-style networks).
+  const creatorStats = host.evm ? createCreatorStats({ network: () => host.evm!.network(), getAccount: () => host.evm!.getAccount() }, () => draw()) : null;
 
   async function flowFor(): Promise<YourPoolsFlow> {
     if (flow) return flow;
@@ -201,12 +204,14 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     if (!host.onSolana()) {
       if (evmPools) evmPools.draw(wrap);
       else wrap.append(h('p', 'lh-yp__none', 'This list is for Solana pools. Pools on BNB Chain, Ethereum and Polygon keep their trading fees inside the pool, so there is nothing to claim there. Switch the network to Solana to see yours.'));
+      creatorStats?.draw(wrap);
       root.append(wrap);
       return;
     }
     const address = host.getAddress();
     if (!address) {
       wrap.append(h('p', 'lh-yp__none', 'Connect a Solana wallet to see the pools you own and the fees they have earned.'));
+      drawSolanaCreatorNote(wrap);
       root.append(wrap);
       return;
     }
@@ -230,6 +235,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     refresh.disabled = loading;
     refresh.addEventListener('click', () => void load());
     wrap.append(refresh);
+    drawSolanaCreatorNote(wrap);
     root.append(wrap);
   }
 
@@ -237,7 +243,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
 
   async function load(): Promise<void> {
     if (!host.onSolana()) {
-      if (evmPools) await evmPools.load();
+      if (evmPools) await Promise.all([evmPools.load(), creatorStats?.load()]);
       else draw();
       return;
     }
@@ -300,6 +306,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
       loaded = false;
       error = null;
       evmPools?.reset();
+      creatorStats?.reset();
       working.clear();
       results.clear();
       problems.clear();

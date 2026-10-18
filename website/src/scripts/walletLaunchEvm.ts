@@ -4,6 +4,7 @@
  * events in walletLaunchEvmFlow.ts. This file only draws and connects them to the wallet the page already uses for Swap and Pay.
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.
  */
+import { verifiedBadge } from '../lib/verifiedBadge';
 import type { ChainId } from '../swings/core/types.js';
 import { publicRead, type EvmRead } from '../swings/chains/evmSession.js';
 import { SwingsError } from '../swings/core/types.js';
@@ -311,6 +312,11 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     row(dl, 'Transaction', link(short(outcome.txHash), `${chain.explorer}/tx/${outcome.txHash}`));
     row(dl, 'View the token', link('Open on the explorer', `${chain.explorer}/token/${outcome.token}`));
     card.append(dl);
+    const badge = verifiedBadge(chain.key, outcome.token);
+    if (badge) card.append(badge);
+    const ask = h('p', 'wapp__fine', 'Want a “Verified by Aretia” badge? It records four checks on one day. It is not an audit or an endorsement. ');
+    ask.append(link('Request verification', '/verified#request'));
+    card.append(ask);
     const copy = h('button', 'wapp__btn wapp__btn--ghost', 'Copy token address');
     copy.type = 'button';
     copy.addEventListener('click', () => {

@@ -22,7 +22,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey;
 use anchor_lang::system_program::{self, Transfer};
-use anchor_spl::associated_token::{get_associated_token_address_with_program_id, AssociatedToken};
+use anchor_spl::associated_token::{self, get_associated_token_address_with_program_id, AssociatedToken};
 use anchor_spl::token::{self, Token};
 use anchor_spl::token_2022::Token2022;
 use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked};
@@ -94,7 +94,15 @@ pub mod aretia_pool {
         pos.bump = ctx.bumps.position;
 
         let pool_key = pool.key();
-        let sol_before = ctx.accounts.sol_vault.amount;
+        // Both vaults are opened here (idempotently), not by the accounts struct: anyone may open an associated account for any owner,
+        // so a plain `init` let a stranger block the pool, and opening them in the struct made its frame larger than the 4 KB stack.
+        let pool_info = ctx.accounts.pool.to_account_info();
+        let sol_vault = ctx.accounts.sol_vault.to_account_info();
+        let vault = ctx.accounts.vault.to_account_info();
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.creator, &sol_vault, &pool_info, &ctx.accounts.wsol_mint.to_account_info(), &ctx.accounts.system_program, &ctx.accounts.sol_token_program.to_account_info())?;
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.creator, &vault, &pool_info, &ctx.accounts.mint.to_account_info(), &ctx.accounts.system_program, &ctx.accounts.token_program.to_account_info())?;
+        let mint_key = ctx.accounts.mint.key();
+        let sol_before = token_amount(&sol_vault, &WSOL, &pool_key, &token::ID)?;
         // The creation fee, in plain lamports to the fee wallet. Then the wrapped SOL the creator brings, if any (a pool opened from tokens alone brings none).
         system_program::transfer(
             CpiContext::new(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.creator.to_account_info(), to: ctx.accounts.fee_wallet.to_account_info() }),
@@ -104,30 +112,30 @@ pub mod aretia_pool {
             token::transfer(
                 CpiContext::new(
                     ctx.accounts.sol_token_program.to_account_info(),
-                    token::Transfer { from: ctx.accounts.creator_wsol.to_account_info(), to: ctx.accounts.sol_vault.to_account_info(), authority: ctx.accounts.creator.to_account_info() },
+                    token::Transfer { from: ctx.accounts.creator_wsol.to_account_info(), to: sol_vault.clone(), authority: ctx.accounts.creator.to_account_info() },
                 ),
                 y0,
             )?;
         }
-        let before = ctx.accounts.vault.amount;
+        let before = token_amount(&vault, &mint_key, &pool_key, &anchor_spl::token_2022::ID)?;
         transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 TransferChecked {
                     from: ctx.accounts.creator_token.to_account_info(),
                     mint: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.vault.to_account_info(),
+                    to: vault.clone(),
                     authority: ctx.accounts.creator.to_account_info(),
                 },
             ),
             x0,
             ctx.accounts.mint.decimals,
         )?;
-        ctx.accounts.vault.reload()?;
-        require!(ctx.accounts.vault.amount == before + x0, PoolError::UnexpectedBalance);
-        ctx.accounts.sol_vault.reload()?;
-        require!(ctx.accounts.sol_vault.amount == sol_before.checked_add(y0).ok_or(PoolError::BadParameters)?, PoolError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
+        require!(token_amount(&vault, &mint_key, &pool_key, &anchor_spl::token_2022::ID)? == before + x0, PoolError::UnexpectedBalance);
+        let sol_now = token_amount(&sol_vault, &WSOL, &pool_key, &token::ID)?;
+        require!(sol_now == sol_before.checked_add(y0).ok_or(PoolError::BadParameters)?, PoolError::UnexpectedBalance);
+        let p = &ctx.accounts.pool;
+        require!(sol_now as u128 >= p.y as u128 + p.fee_reserve as u128, PoolError::Insolvent);
 
         emit!(Created { pool: pool_key, mint: ctx.accounts.mint.key(), creator: ctx.accounts.creator.key(), owner: ctx.accounts.owner.key(), x: x0, y: y0, l: l0, fee_bps, locked: lock, ts: now });
         Ok(())
@@ -353,6 +361,31 @@ fn settle(pos: &mut Position, pool: &Pool) -> Result<()> {
     Ok(())
 }
 
+/// Opens `ata` (the associated account of `authority` for `mint`) if it is not there yet. The associated-token program refuses any
+/// address that is not that account, so this also proves the address.
+fn open_ata<'info>(ata_program: &Program<'info, AssociatedToken>, payer: &Signer<'info>, ata: &AccountInfo<'info>, authority: &AccountInfo<'info>, mint: &AccountInfo<'info>, system_program: &Program<'info, System>, token_program: &AccountInfo<'info>) -> Result<()> {
+    associated_token::create_idempotent(CpiContext::new(
+        ata_program.to_account_info(),
+        associated_token::Create {
+            payer: payer.to_account_info(),
+            associated_token: ata.clone(),
+            authority: authority.clone(),
+            mint: mint.clone(),
+            system_program: system_program.to_account_info(),
+            token_program: token_program.clone(),
+        },
+    ))
+}
+
+/// The balance of a token account, read from its raw bytes after checking it belongs to `program` and is `owner`'s account for `mint`.
+fn token_amount(info: &AccountInfo, mint: &Pubkey, owner: &Pubkey, program: &Pubkey) -> Result<u64> {
+    require_keys_eq!(*info.owner, *program, PoolError::WrongAccount);
+    let data = info.try_borrow_data()?;
+    require!(data.len() >= 165, PoolError::WrongAccount);
+    require!(&data[0..32] == mint.as_ref() && &data[32..64] == owner.as_ref(), PoolError::WrongAccount);
+    Ok(u64::from_le_bytes(data[64..72].try_into().unwrap()))
+}
+
 /// The wrapped-SOL vault must always hold the real SOL reserve plus every unclaimed fee. Donations only add to it.
 fn require_solvent(sol_vault: &token::TokenAccount, pool: &Pool) -> Result<()> {
     let owed = (pool.y as u128) + (pool.fee_reserve as u128);
@@ -455,13 +488,14 @@ pub struct CreatePool<'info> {
     pub creator_token: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(init, payer = creator, space = 8 + Pool::INIT_SPACE, seeds = [b"pool", mint.key().as_ref()], bump)]
     pub pool: Box<Account<'info, Pool>>,
-    /// The pool's wrapped-SOL vault: its associated account for the native mint, made here if it is not there yet. Anyone may open an
-    /// associated account for any owner, so with a plain `init` a stranger could open this one (or the token vault below) first and
-    /// block the pool for good. Whatever is already in either is left out of every check and of the reserves.
-    #[account(init_if_needed, payer = creator, associated_token::mint = wsol_mint, associated_token::authority = pool, associated_token::token_program = sol_token_program)]
-    pub sol_vault: Box<Account<'info, token::TokenAccount>>,
-    #[account(init_if_needed, payer = creator, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
-    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: the pool's wrapped-SOL vault (its associated account for the native mint). Opened in the handler if it is not there yet;
+    /// anyone may open an associated account for any owner, so a stranger opening it first must not block the pool. Whatever is
+    /// already in it is left out of every check and of the reserves.
+    #[account(mut)]
+    pub sol_vault: UncheckedAccount<'info>,
+    /// CHECK: the pool's token vault (its associated account for the mint), opened in the handler like the SOL vault.
+    #[account(mut)]
+    pub vault: UncheckedAccount<'info>,
     #[account(init, payer = creator, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), position_id.key().as_ref()], bump)]
     pub position: Box<Account<'info, Position>>,
     /// CHECK: address-checked; receives the creation fee.

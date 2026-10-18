@@ -26,6 +26,7 @@ const DISC = {
   sell: Uint8Array.from([51, 230, 133, 164, 1, 127, 131, 173]),
   migrate: Uint8Array.from([155, 234, 231, 146, 236, 158, 162, 30]),
   abort: Uint8Array.from([115, 185, 103, 70, 138, 202, 43, 40]),
+  claimPoolFees: Uint8Array.from([33, 187, 125, 186, 41, 247, 236, 89]),
 };
 export const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget111111111111111111111111111111';
 /** Compute units asked for by a migration. The test VM measured about 207,000; this leaves room for Meteora to cost more. */
@@ -224,6 +225,61 @@ export const buildMigrate = (web3: typeof Web3, program: string, payer: string, 
   computeLimitInstruction(web3, MIGRATE_COMPUTE_UNITS),
   migrateInstruction(web3, program, payer, mint, nft, args),
 ];
+/** Aretia's fee wallet's wrapped-SOL account: where a graduated pool's fees are paid. */
+export const feeWsolAddress = (web3: typeof Web3): string => ataAddress(web3, CURVE_FEE_ADDRESS, WSOL_MINT, TOKEN_PROGRAM_ID);
+
+/** The accounts of `claim_pool_fees`, in the program's order. `nft` is the graduated position's NFT mint. */
+function claimFeesMetas(web3: typeof Web3, program: string, caller: string, mint: string, nft: string): [string, '' | 'W' | 'S' | 'SW', string][] {
+  const curve = curveAddress(web3, program, mint);
+  const migrator = migratorAddress(web3, program, curve);
+  const m = migrateAddresses(web3, mint, nft);
+  return [
+    [caller, 'SW', 'the caller'],
+    [curve, '', 'the curve'],
+    [mint, '', 'the token'],
+    [migrator, '', 'the migrator'],
+    [ataAddress(web3, migrator, mint, TOKEN_2022_PROGRAM_ID), 'W', 'the migrator’s token account'],
+    [ataAddress(web3, migrator, WSOL_MINT, TOKEN_PROGRAM_ID), 'W', 'the migrator’s wrapped-SOL account'],
+    [WSOL_MINT, '', 'wrapped SOL'],
+    [CURVE_FEE_ADDRESS, '', 'the Aretia fee wallet'],
+    [feeWsolAddress(web3), 'W', 'the Aretia fee wallet’s wrapped-SOL account'],
+    [m.pool, 'W', 'the pool'],
+    [m.position, 'W', 'the position'],
+    [m.vaultA, 'W', 'the pool’s token vault'],
+    [m.vaultB, 'W', 'the pool’s SOL vault'],
+    [m.nftAccount, '', 'the position’s token account'],
+    [METEORA_POOL_AUTHORITY, '', 'the pool authority'],
+    [meteoraEventAuthority(web3), '', 'the pool event authority'],
+    [METEORA_PROGRAM_ID, '', 'the pool program'],
+    [TOKEN_2022_PROGRAM_ID, '', 'the token program'],
+    [TOKEN_PROGRAM_ID, '', 'the wrapped-SOL token program'],
+    [ATA_PROGRAM_ID, '', 'the token-account program'],
+    [SYSTEM_PROGRAM_ID, '', 'the system program'],
+  ];
+}
+
+/** Claims a graduated pool's fees for Aretia. Anyone may send it; the program pays only Aretia's fee wallet. */
+export function claimFeesInstruction(web3: typeof Web3, program: string, caller: string, mint: string, nft: string): Web3.TransactionInstruction {
+  return ix(web3, program, claimFeesMetas(web3, program, caller, mint, nft).map(([a, f]) => [a, f]), DISC.claimPoolFees);
+}
+export const buildClaimFees = (web3: typeof Web3, program: string, caller: string, mint: string, nft: string): Web3.TransactionInstruction[] => [claimFeesInstruction(web3, program, caller, mint, nft)];
+
+export interface ClaimFeesCheck {
+  program: string;
+  caller: string;
+  mint: string;
+  nft: string;
+}
+
+export function inspectClaimFees(web3: typeof Web3, tx: Web3.Transaction, c: ClaimFeesCheck): string[] {
+  const blockers = checkEnvelope(tx, { program: c.program, payer: c.caller });
+  if (tx.instructions.length !== 1) return [...blockers, 'The transaction is not the expected set of steps.'];
+  const a = tx.instructions[0]!;
+  if (a.programId.toBase58() !== c.program || !bytesEqual(Uint8Array.from(a.data), DISC.claimPoolFees)) return [...blockers, 'The step is not the expected one.'];
+  blockers.push(...checkAccounts(a, claimFeesMetas(web3, c.program, c.caller, c.mint, c.nft), 'fee claim'));
+  return blockers;
+}
+
 export const buildAbort = (web3: typeof Web3, program: string, caller: string, mint: string): Web3.TransactionInstruction[] => [abortInstruction(web3, program, caller, mint)];
 
 export function assembleCurve(web3: typeof Web3, instructions: Web3.TransactionInstruction[], payer: string, blockhash: string, lastValidBlockHeight: number): Web3.Transaction {

@@ -1,4 +1,5 @@
 [package]
+rust-version = "1.79"
 name = "aretia-pool"
 version = "0.1.0"
 description = "Aretia Finance: constant-product swap pool for tokens made on the Launch page. Devnet only until audited."

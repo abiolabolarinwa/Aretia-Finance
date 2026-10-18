@@ -6,7 +6,7 @@
  * shows a notice and no form until walletCurveCore.ts has a mainnet program address, which it will not have before an independent
  * audit. Everything typed, and everything read from the chain, is shown with textContent, never as markup.
  */
-import { SLIPPAGE_PRESETS_BPS, fromSmallestUnit, isSolanaAddress } from './walletTools';
+import { SLIPPAGE_PRESETS_BPS, TOKEN_2022_PROGRAM_ID, fromSmallestUnit, isSolanaAddress } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import {
   CURVE_FEE_BPS,
@@ -132,6 +132,12 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       signAndSubmit: (tx, extra) => signAndSubmitTransaction(tx, extra),
       confirm: (signature) => waitForConfirmation(signature),
       nowSecs: () => Math.floor(Date.now() / 1000),
+      // The graduated position's NFT: the one Token-2022 account the migrator holds with exactly one token of another mint.
+      positionNft: async (owner, exceptMint) => {
+        const r = await rpcCall<{ value: { account: { data: { parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { programId: TOKEN_2022_PROGRAM_ID }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+        const nfts = r.value.map((a) => a.account.data.parsed?.info).filter((i) => i && i.mint && i.mint !== exceptMint && i.tokenAmount?.amount === '1');
+        return nfts.length === 1 ? nfts[0]!.mint! : null;
+      },
     });
     return flow;
   }
@@ -399,6 +405,14 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       a.addEventListener('click', () => void startAbort());
       actions.append(a);
     }
+    if (c.status === 'migrated') {
+      const fees = h('button', 'wapp__btn wapp__btn--ghost', 'Send pool fees to Aretia');
+      fees.type = 'button';
+      fees.title = 'Claims the trading fees the graduated pool has earned and pays them to Aretia. The liquidity stays locked.';
+      fees.disabled = busy || !host.getAddress();
+      fees.addEventListener('click', () => void startClaimFees());
+      actions.append(fees);
+    }
     if (actions.childNodes.length) card.append(actions);
   }
 
@@ -453,8 +467,9 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       row(dl, 'Pool address', short(r.pool));
       row(dl, 'Lent for the pool’s accounts', sol(r.args.rentBudget));
       row(costs, 'What it costs you, about', sol(r.network));
-    } else if (r.kind === 'abort') {
+    } else if (r.kind === 'abort' || r.kind === 'claim-fees') {
       row(dl, 'Token', short(r.mint));
+      if (r.kind === 'claim-fees') row(dl, 'Paid to', 'Aretia’s fee wallet (wrapped SOL)');
       row(costs, 'Network fee', sol(r.network));
     }
     row(costs, 'Your balance', sol(r.balance));
@@ -669,6 +684,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
     });
   const startMigrate = (): Promise<void> => prepare((f, who, c) => f.prepareMigrate(who, c));
   const startAbort = (): Promise<void> => prepare((f, who, c) => f.prepareAbort(who, c));
+  const startClaimFees = (): Promise<void> => prepare((f, who, c) => f.prepareClaimFees(who, c));
 
   async function run(): Promise<void> {
     const r = review;
@@ -684,7 +700,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
         progress = p;
         draw();
       };
-      outcome = r.kind === 'create' ? await f.create(r, tick) : r.kind === 'buy' ? await f.buy(r, tick) : r.kind === 'sell' ? await f.sell(r, tick) : r.kind === 'migrate' ? await f.migrate(r, tick) : await f.abort(r, tick);
+      outcome = r.kind === 'create' ? await f.create(r, tick) : r.kind === 'buy' ? await f.buy(r, tick) : r.kind === 'sell' ? await f.sell(r, tick) : r.kind === 'migrate' ? await f.migrate(r, tick) : r.kind === 'claim-fees' ? await f.claimFees(r, tick) : await f.abort(r, tick);
       stage = 'done';
       host.refreshWallet();
     } catch (e) {

@@ -150,7 +150,7 @@ The owner deploys from their own wallet, then hands the upgrade authority to the
 
 Still true on mainnet: **no independent audit**. The program holds buyers' SOL.
 
-**2026-10-18:** the committed build predates two fixes to the source (see `AUDIT_2026-10-18.md`). It is marked `aretia_curve.so.STALE` and the deploy script refuses it until it is rebuilt and retested.
+**2026-10-18:** rebuilt from the fixed source (see `AUDIT_2026-10-18.md`) with `cargo-build-sbf` 3.1.4 (platform-tools v1.52, Rust 1.89; the older tools cannot read this `Cargo.lock`), release profile unchanged: 344,144 bytes, sha-256 `96be447fd7ba00bfbe0a9cee9e5104c909dedbe951a9ff8fd29c011b0c98e7f5`, built on Linux, so it is not byte-identical to the earlier Windows build. All 16 LiteSVM tests pass against it, including the two regression tests. **The four migration tests were not exercised** in that run (Meteora's binary was not available there; they return early without it): run `cargo test` in `program/aretia-curve/tests` with `ARETIA_CURVE_SO` and `METEORA_CP_AMM_SO` set before deploying. Deploy rent for this size is about 2.40 SOL (`prepare` prints the exact figure).
 
 ## 12. Devnet
 

@@ -49,6 +49,29 @@ describe('the page keeps Aretia Pool off', () => {
   });
 });
 
+describe('the card keeps what is typed and what is sent the same', () => {
+  it('redraws when any amount box is left, so the quote and the button never describe an older amount', () => {
+    const card = read('./walletAretiaPool.ts');
+    const at = card.indexOf('const small = (');
+    expect(at).toBeGreaterThan(-1);
+    const body = card.slice(at, card.indexOf('return i;', at));
+    expect(body).toContain("addEventListener('input'");
+    expect(body).toContain("addEventListener('change', () => draw())");
+    // Found in a browser run: a change listener attached to the boxes that existed at that moment missed the ones made after it.
+    expect(card).not.toMatch(/box\.querySelectorAll\('input'\)\.forEach/);
+  });
+});
+
+describe('the card does not offer a sold position to its old owner', () => {
+  it('shows the owner and draws no action unless the viewer owns the position', () => {
+    const card = read('./walletAretiaPool.ts');
+    expect(card).toContain('position.owner === host.getAddress()');
+    expect(card).toContain('if (position && mine) {');
+    expect(card).toContain('(not you)');
+    expect(card).toContain('view.position.owner !== owner');
+  });
+});
+
 describe('the web constants equal the program’s', () => {
   it('program id, fee wallet, creation fee, share, limits and fee tiers', () => {
     const src = program();

@@ -273,15 +273,18 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
       row(dl, 'Price now', `${priceText(poolMathOf(pool), managed.decimals)} SOL per token`);
       row(dl, 'Trading fee', `${pool.feeBps / 100}%`);
       row(dl, 'SOL in the pool', sol(pool.y));
-      if (position) {
+      // A position is shown as the viewer's own only while they are its owner: after a transfer the old owner's lookup shows whose it is, with no actions.
+      const mine = position !== null && position.owner === host.getAddress();
+      if (position && mine) {
         row(dl, 'Your liquidity', `${grouped(position.shares.toString())} (${position.locked === position.shares ? 'locked' : `${grouped(position.locked.toString())} locked`})`);
         row(dl, 'Fees you can claim', sol(managed.claimable));
         if (position.id !== position.owner) row(dl, 'Position id', short(position.id));
         row(dl, 'Fees are paid to', position.recipient === position.owner ? 'You' : short(position.recipient));
-      } else row(dl, 'Your position', 'None in this pool');
+      } else if (position) row(dl, 'Position owner', `${short(position.owner)} (not you)`);
+      else row(dl, 'Your position', 'None in this pool');
       box.append(dl);
       drawTrade(box, managed);
-      if (position) {
+      if (position && mine) {
         const claim = h('button', 'wapp__btn wapp__btn--primary', 'Claim fees');
         claim.type = 'button';
         claim.disabled = busy || managed.claimable === 0n;
@@ -334,6 +337,8 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
       i.autocomplete = 'off';
       i.setAttribute('aria-label', label);
       i.addEventListener('input', () => onInput(i.value.trim().replace(/,/g, '')));
+      // Redraw when the box is left, so the quote and the button always describe the amount that is typed.
+      i.addEventListener('change', () => draw());
       return i;
     };
     const f = flow;
@@ -358,7 +363,6 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     go.disabled = busy || !connected || !q;
     if (q) box.append(h('p', 'wapp__fine', `At least ${tradeSide === 'buy' ? `${amountText(q.minOut, decimals)} tokens` : sol(q.minOut)} or the whole transaction fails (1% slippage limit). Fee ${sol(q.fee)}, 20% of it to Aretia.`));
     go.addEventListener('click', () => void act('trade', q));
-    box.querySelectorAll('input').forEach((i) => i.addEventListener('change', () => draw()));
     box.append(go);
 
     box.append(h('span', 'wapp__eyebrow', 'Liquidity'));
@@ -576,7 +580,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     const owner = host.getAddress();
     const view = managed;
     if (!owner || !view) return;
-    if ((kind === 'claim' || kind === 'lock' || kind === 'remove' || kind === 'recipient' || kind === 'transfer') && !view.position) return;
+    if ((kind === 'claim' || kind === 'lock' || kind === 'remove' || kind === 'recipient' || kind === 'transfer') && (!view.position || view.position.owner !== owner)) return;
     busy = true;
     note = null;
     draw();

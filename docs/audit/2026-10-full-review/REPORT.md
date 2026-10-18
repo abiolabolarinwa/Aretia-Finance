@@ -1,8 +1,10 @@
 # Aretia Finance — Full Security Review
 
-**Version:** 1.0, 18 October 2026
-**Commit reviewed:** `5e7fb2375926e544e6c7bbebaa119873c61419f4` (`main`, after PR #213)
-**Prepared by:** Claude Code (AI-assisted review), at the request of the Aretia Finance owner
+| | |
+|---|---|
+| **Version** | 1.0, 18 October 2026 |
+| **Commit reviewed** | `5e7fb2375926e544e6c7bbebaa119873c61419f4` (`main`, after PR #213) |
+| **Prepared by** | Claude Code (AI-assisted review), at the request of the Aretia Finance owner |
 
 > **Read this first.** This is an AI-assisted security review, written in the structure of a professional audit report so that it can be compared with one. It was **not** produced by ChainSecurity or by any audit firm. It does not replace an independent audit, and it gives no guarantee that the code is free of vulnerabilities. The review ran on 18 October 2026 with eight parallel reviewers, each covering one area. Every High and Medium finding was then re-checked against the code, and where a test exists, by running it. The proof-of-concept tests are in `poc/`, next to this file.
 

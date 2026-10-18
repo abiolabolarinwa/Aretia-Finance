@@ -11,7 +11,6 @@ import {
   evmPoolPreview,
   evmPoolShareHash,
   lockTextOf,
-  openingMath,
   parseEvmPoolHash,
   parsePoolReturn,
   parsePositionReturn,

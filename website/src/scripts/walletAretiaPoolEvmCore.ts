@@ -23,6 +23,19 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
   polygonAmoy: null,
 };
 
+/**
+ * The block each pool was deployed in (a number), set together with its address, or null. "Your pools" reads the contract's event logs from
+ * here, so it never has to scan a whole chain. A chain with an address and no block is not listed.
+ */
+export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, number | null>>> = {
+  bnb: null,
+  ethereum: null,
+  polygon: null,
+  bscTestnet: null,
+  sepolia: null,
+  polygonAmoy: null,
+};
+
 export const POOL_PROTOCOL_SHARE_BPS = 2000n;
 export const POOL_FEE_TIERS = [25, 100] as const;
 export type PoolFeeTier = (typeof POOL_FEE_TIERS)[number];

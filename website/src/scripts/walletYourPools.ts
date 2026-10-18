@@ -11,6 +11,7 @@ import { RPC_URL, fetchAccount, loadWeb3, rpcFetch, signAndSubmitTransaction, si
 import { claimableText, hasClaimable, lockText, pairName, type PoolPosition } from './walletYourPoolsCore';
 import { readPositions } from './walletYourPoolsChain';
 import { YourPoolsFlow, type ClaimOutcome, type ClaimProgress } from './walletYourPoolsFlow';
+import { createYourPoolsEvm, type YourPoolsEvmHost } from './walletYourPoolsEvm';
 
 export interface YourPoolsHost {
   /** The connected Solana wallet, or null. */
@@ -19,6 +20,8 @@ export interface YourPoolsHost {
   refreshWallet(): void;
   /** Whether the Launch page is on Solana. The list is for Solana pools. */
   onSolana(): boolean;
+  /** The Ethereum-style side: the chosen network and wallet, for Aretia Pool positions. Without it the list is Solana only. */
+  evm?: YourPoolsEvmHost;
 }
 
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] => {
@@ -48,6 +51,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   const results = new Map<string, ClaimOutcome>();
   const problems = new Map<string, string>();
   let flow: YourPoolsFlow | null = null;
+  const evmPools = host.evm ? createYourPoolsEvm(host.evm, () => draw()) : null;
 
   async function flowFor(): Promise<YourPoolsFlow> {
     if (flow) return flow;
@@ -131,9 +135,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     wrap.append(head);
 
     if (!host.onSolana()) {
-      wrap.append(
-        h('p', 'lh-yp__none', 'This list is for Solana pools. Pools on BNB Chain, Ethereum and Polygon keep their trading fees inside the pool, so there is nothing to claim there. Switch the network to Solana to see yours.'),
-      );
+      if (evmPools) evmPools.draw(wrap);
+      else wrap.append(h('p', 'lh-yp__none', 'This list is for Solana pools. Pools on BNB Chain, Ethereum and Polygon keep their trading fees inside the pool, so there is nothing to claim there. Switch the network to Solana to see yours.'));
       root.append(wrap);
       return;
     }
@@ -168,8 +171,13 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   // ---------------------------------------------------------------- actions
 
   async function load(): Promise<void> {
+    if (!host.onSolana()) {
+      if (evmPools) await evmPools.load();
+      else draw();
+      return;
+    }
     const owner = host.getAddress();
-    if (!owner || !host.onSolana()) {
+    if (!owner) {
       draw();
       return;
     }
@@ -222,6 +230,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
       positions = [];
       loaded = false;
       error = null;
+      evmPools?.reset();
       working.clear();
       results.clear();
       problems.clear();

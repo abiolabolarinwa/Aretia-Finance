@@ -390,7 +390,12 @@ export function initWalletApp(): void {
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
   const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   let launchHub: LaunchHub | null = null;
-  const yourPools = initYourPools({ getAddress: () => address, refreshWallet: () => void refresh(), onSolana: () => launch.getNetwork() === 'solana' });
+  const yourPools = initYourPools({
+    getAddress: () => address,
+    refreshWallet: () => void refresh(),
+    onSolana: () => launch.getNetwork() === 'solana',
+    evm: { network: () => launch.getNetwork(), getAccount: () => evmSession.account ?? evmAccount, connect: async () => ({ adapter: await ensureEvmWallet() }) },
+  });
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),

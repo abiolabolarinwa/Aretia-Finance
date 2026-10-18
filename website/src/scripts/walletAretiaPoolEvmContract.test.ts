@@ -675,10 +675,10 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     const give = (await w.tokenBalance(t.token, OTHER)) / 2n;
     await w.send(OTHER, t.token, '0xa9059cbb' + word(attacker) + word(give));
     await w.send(OTHER, attacker, mcall('Attacker', 'approveToken(address,address,uint256)', t.token, w.pool, 1n << 255n));
-    await w.send(OTHER, attacker, mcall('Attacker', 'arm(address,bytes)', w.pool, '0x' + '40'.padStart(64, '0') + encBytes(call('sell(address,uint256,uint256)', t.token, 1n, 0n))));
+    await w.send(OTHER, attacker, mcall('Attacker', 'arm(address,bytes)', w.pool, '0x' + '40'.padStart(64, '0') + encBytes(call('sell(address,uint256,uint256)', t.token, give / 4n, 0n))));
     const pBefore = await w.readPool(t.token);
-    const s = mSell(toModel(pBefore), give)!;
-    const sellData = call('sell(address,uint256,uint256)', t.token, give, s.net);
+    const s = mSell(toModel(pBefore), give / 2n)!;
+    const sellData = call('sell(address,uint256,uint256)', t.token, give / 2n, s.net);
     const balBefore = await w.balance(attacker);
     const ret = await w.send(OTHER, attacker, mcall('Attacker', 'exec(address,bytes)', w.pool, '0x' + '40'.padStart(64, '0') + encBytes(sellData)));
     expect(ret.execResult.exceptionError).toBeUndefined();

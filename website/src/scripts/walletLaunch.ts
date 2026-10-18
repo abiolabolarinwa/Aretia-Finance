@@ -419,9 +419,11 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     const curveRoot = document.querySelector<HTMLElement>('[data-evm-curve-root]');
     if (poolRoot) poolRoot.textContent = '';
     if (curveRoot) curveRoot.textContent = '';
+    const aretiaPoolRoot = document.querySelector<HTMLElement>('[data-evm-aretia-pool-root]');
+    if (aretiaPoolRoot) aretiaPoolRoot.textContent = '';
     const card = h('div', 'wapp-ln');
     if (network !== 'solana' && evm) {
-      evm.draw(card, draw, network, poolRoot && curveRoot ? { pool: poolRoot, curve: curveRoot } : undefined);
+      evm.draw(card, draw, network, poolRoot && curveRoot ? { pool: poolRoot, curve: curveRoot, aretiaPool: aretiaPoolRoot } : undefined);
       root.dataset.stage = evm.stage();
       root.append(card);
       return;

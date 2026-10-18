@@ -116,9 +116,40 @@ That is a **new curve contract**, because the deployed one is immutable, and it 
 * Curve graduation into Aretia Pool (section 9).
 * No wallet-extension run of the card; the flow is tested with injected dependencies and, on testnets, with a script that signs with a test key (section 11).
 
-## 11. Testnets
+## 11. Deployment and what has actually been run
 
-Filled in after deployment (see the end of this file).
+**Public testnets (Sepolia, BSC testnet, Amoy): NOT deployed.** The deploy script is ready and dry-runs against the real Sepolia node, but deploying needs a funded testnet key, and test coins come from faucets that need a human (captchas, accounts). A throwaway deployer key was generated and kept outside the repo; its address is `0x5B708eC0393c7799D985CCa3D331c4C6202E2421`. Fund it from each faucet, then for each network:
+
+```
+cd website
+npm i --no-save viem
+DEPLOYER_KEY_FILE=<that key file> node scripts/pool-evm.mjs deploy --chain sepolia --send        # also deploys a test token factory, there is none yet
+node scripts/pool-evm.mjs verify --chain sepolia --address <pool> --factory <factory>
+```
+
+Repeat with `bscTestnet` and `polygonAmoy`. Then write the printed addresses (and the deployment block) into `EVM_POOL_ADDRESSES`, `EVM_POOL_DEPLOY_BLOCKS` and, for the factory, `LAUNCH_EVM_CHAINS`. The deploy script refuses every mainnet chain id and has no mainnet `send`.
+
+**What was run instead:** the same deploy and verify scripts, unchanged, against a local test node (ganache, chain id set to Sepolia's, throwaway key). The factory and the pool deployed, `verify` passed every check (byte-for-byte code, `factory()`, `feeRecipient()`, `creationFee()` equal to the factory's fee, the constants, solvency) and failed correctly when pointed at the wrong contract. Then `walletAretiaPoolEvm.devnet.ts` drove the real web flow (with its inspector) against that node over JSON-RPC: made a token with the real factory, created a pool with a first buy, bought, sold, added and removed liquidity, refused to remove locked liquidity, claimed fees while locked, redirected the fees to a fresh wallet and claimed to it (exact amount), and handed the position over. A local node is not a public testnet: it proves the scripts, the flow and the contract work together over RPC, not that anything works on those networks.
+
+**Mainnet read-only checks:** `pool-evm.mjs prepare` was run for Ethereum, BNB Chain and Polygon. It only reads: it confirmed each chain's token factory exists, pays the Aretia fee address and charges exactly the creation fee used here (0.0042 ETH, 0.014 BNB, 105 POL), and that the fee address is an ordinary account. Nothing was signed or sent to any mainnet. Runtime keccak of the committed build with each chain's constructor arguments: Ethereum `0x7df9e3dd…a529`, BNB `0xc458a218…f0f3`, Polygon `0xb975df74…af8c`.
+
+Re-run the live flow any time with:
+
+```
+POOL_EVM_KEY_FILE=<key> POOL_EVM_CHAIN=sepolia POOL_EVM_RPC=<node> POOL_EVM_POOL=0x… POOL_EVM_FACTORY=0x…   npx vitest run --config vitest.devnet.config.ts src/scripts/walletAretiaPoolEvm.devnet.ts
+```
+
+Run the rest:
+
+```
+cd website
+npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util @ethereumjs/block solc@0.8.26
+NODE_PATH=$PWD/node_modules node ../contracts-evm/compile-pool.mjs ../contracts-evm            # rebuild the artifact; it must not change
+NODE_PATH=$PWD/node_modules node ../contracts-evm/test-mocks/compile-pool-mocks.mjs ../contracts-evm
+npx vitest run src/scripts/walletAretiaPoolEvm src/scripts/walletYourPoolsEvm
+```
+
+On Windows build and test outside OneDrive.
 
 ## 12. What is unaudited and untested on mainnet
 

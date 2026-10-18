@@ -11,6 +11,9 @@
  * Not verified against a real swap yet: see docs/referrals.md.
  */
 import { SWAP_FEE_WALLET } from '../src/scripts/walletTools.js';
+import { POOL_DEXES, POOL_FEE_ADDRESS, POOL_FEE_UNITS } from '../src/scripts/walletPoolEvmCore.js';
+import { CURVE_PROGRAM_ID_DEVNET, CURVE_PROGRAM_ID_MAINNET, CURVE_PROGRAM_ID_MAINNET_PLANNED } from '../src/scripts/walletCurveCore.js';
+import { ARETIA_POOL_PROGRAM_ID_DEVNET, ARETIA_POOL_PROGRAM_ID_MAINNET } from '../src/scripts/walletAretiaPoolCore.js';
 import { isFeeAsset } from '../src/swings/core/feeAssets.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, type ChainId } from '../src/swings/core/types.js';
 
@@ -42,7 +45,25 @@ export interface FeePayment {
   amount: bigint;
 }
 
-export type Verified = { ok: true; payments: FeePayment[]; at: number } | { ok: false; reason: 'pending' | 'failed' | 'not-trader' | 'no-fee' | 'unreadable' };
+export type Verified = { ok: true; payments: FeePayment[]; at: number } | { ok: false; reason: 'pending' | 'failed' | 'not-trader' | 'no-fee' | 'not-swap' | 'unreadable' };
+
+/**
+ * The fee wallets also receive Aretia's flat fees for creating a token, opening a pool and the curve's own trading fee. Those are not swap
+ * fees, so a referrer earns nothing from them:
+ *  - Solana: a transaction that creates a token mint (a launch, or a pool's position NFT) or runs Aretia's own curve or pool program;
+ *  - EVM: the flat pool fee, exactly 10 USDC or USDT to the fee address (a launch fee is paid through the factory, so it is never a payment
+ *    from the trader to the fee address and is not counted anyway).
+ */
+const ARETIA_PROGRAMS = new Set([CURVE_PROGRAM_ID_DEVNET, CURVE_PROGRAM_ID_MAINNET_PLANNED, CURVE_PROGRAM_ID_MAINNET, ARETIA_POOL_PROGRAM_ID_DEVNET, ARETIA_POOL_PROGRAM_ID_MAINNET].filter((p): p is string => typeof p === 'string'));
+const TOKEN_PROGRAMS = new Set(['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb']);
+
+/** The flat EVM pool fee on this chain: each stablecoin it may be paid in (lower-case) and its exact raw amount. */
+function flatPoolFees(chain: ChainId): Map<string, bigint> {
+  const dex = POOL_DEXES.find((d) => d.key === chain);
+  const out = new Map<string, bigint>();
+  if (dex) for (const s of Object.values(dex.stables)) out.set(s.address.toLowerCase(), POOL_FEE_UNITS * 10n ** BigInt(s.decimals));
+  return out;
+}
 
 export function evmFeeAddress(env: VerifyEnv): string {
   const v = env.PUBLIC_ARETIA_EVM_FEE_ADDRESS?.trim();
@@ -77,14 +98,21 @@ export async function verifyEvmFee(input: { chain: ChainId; hash: string; trader
     if (!block?.timestamp) return { ok: false, reason: 'unreadable' };
     const at = Number(word(block.timestamp)) * 1000;
     const payments: FeePayment[] = [];
+    const poolFees = treasury === POOL_FEE_ADDRESS.toLowerCase() ? flatPoolFees(input.chain) : new Map<string, bigint>();
+    let flatFee = false;
     if (tx.from?.toLowerCase() === trader && tx.to?.toLowerCase() === treasury && word(tx.value ?? '0x0') > 0n && isFeeAsset(input.chain, EVM_NATIVE_ADDRESS)) payments.push({ asset: EVM_NATIVE_ADDRESS, amount: word(tx.value!) });
     for (const log of receipt.logs ?? []) {
       if (log.topics?.[0] !== TRANSFER_TOPIC || log.topics.length !== 3 || !log.address) continue;
       if (topicAddress(log.topics[1]) !== trader || topicAddress(log.topics[2]) !== treasury) continue;
       const asset = log.address.toLowerCase();
       const amount = word(log.data ?? '0x0');
+      if (poolFees.get(asset) === amount) {
+        flatFee = true;
+        continue;
+      }
       if (amount > 0n && isFeeAsset(input.chain, asset)) payments.push({ asset, amount });
     }
+    if (payments.length === 0 && flatFee) return { ok: false, reason: 'not-swap' };
     return payments.length > 0 ? { ok: true, payments, at } : { ok: false, reason: 'no-fee' };
   } catch {
     return { ok: false, reason: 'unreadable' };
@@ -92,10 +120,11 @@ export async function verifyEvmFee(input: { chain: ChainId; hash: string; trader
 }
 
 interface SolTokenBalance { accountIndex?: number; mint?: string; owner?: string; uiTokenAmount?: { amount?: string } }
+interface SolIx { programId?: string; parsed?: { type?: string } | string }
 interface SolTx {
   blockTime?: number | null;
-  meta?: { err?: unknown; preBalances?: number[]; postBalances?: number[]; preTokenBalances?: SolTokenBalance[]; postTokenBalances?: SolTokenBalance[] } | null;
-  transaction?: { message?: { accountKeys?: ({ pubkey?: string; signer?: boolean } | string)[] } };
+  meta?: { err?: unknown; innerInstructions?: { instructions?: SolIx[] }[]; preBalances?: number[]; postBalances?: number[]; preTokenBalances?: SolTokenBalance[]; postTokenBalances?: SolTokenBalance[] } | null;
+  transaction?: { message?: { accountKeys?: ({ pubkey?: string; signer?: boolean } | string)[]; instructions?: SolIx[] } };
 }
 
 export async function verifySolanaFee(input: { signature: string; trader: string; env: VerifyEnv; fetchImpl: typeof fetch }): Promise<Verified> {
@@ -108,6 +137,15 @@ export async function verifySolanaFee(input: { signature: string; trader: string
     const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) => (typeof k === 'string' ? { pubkey: k, signer: false } : { pubkey: k.pubkey ?? '', signer: k.signer === true }));
     if (!keys.some((k) => k.signer && k.pubkey === input.trader)) return { ok: false, reason: 'not-trader' };
     if (typeof tx.blockTime !== 'number') return { ok: false, reason: 'unreadable' };
+    // A swap never creates a token mint and never runs Aretia's own curve or pool: those transactions pay a flat fee, not a swap fee.
+    const all = [...(tx.transaction?.message?.instructions ?? []), ...(tx.meta.innerInstructions ?? []).flatMap((g) => g.instructions ?? [])];
+    const notSwap = all.some((ix) => {
+      const program = ix.programId ?? '';
+      if (ARETIA_PROGRAMS.has(program)) return true;
+      const type = typeof ix.parsed === 'object' && ix.parsed ? ix.parsed.type : undefined;
+      return TOKEN_PROGRAMS.has(program) && (type === 'initializeMint' || type === 'initializeMint2');
+    });
+    if (notSwap) return { ok: false, reason: 'not-swap' };
     const payments: FeePayment[] = [];
     const i = keys.findIndex((k) => k.pubkey === SWAP_FEE_WALLET);
     if (i >= 0) {

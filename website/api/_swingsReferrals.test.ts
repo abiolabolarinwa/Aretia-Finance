@@ -247,6 +247,41 @@ describe('recording a swap on Solana', () => {
   });
 });
 
+describe('flat Aretia fees are not swap fees', () => {
+  const LAUNCH_FEE = 50_000_000;
+  const solTx = (instructions: unknown[], inner: unknown[] = []) => ({
+    blockTime: Math.floor((NOW - 30_000) / 1000),
+    meta: { err: null, preBalances: [10e9, 1e9], postBalances: [9.9e9, 1e9 + LAUNCH_FEE], preTokenBalances: [], postTokenBalances: [], innerInstructions: inner.length ? [{ instructions: inner }] : [] },
+    transaction: { message: { accountKeys: [{ pubkey: SOL_TRADER, signer: true }, { pubkey: SWAP_FEE_WALLET, signer: false }], instructions } },
+  });
+  const transferIx = { programId: '11111111111111111111111111111111', parsed: { type: 'transfer', info: {} } };
+  const record = (w: ReturnType<typeof fakeWorld>) => call(w, { op: 'record', ref: SOL_REF, chain: 'solana', txs: [SIG] }, { as: `solana:${SOL_TRADER}` });
+
+  it('does not credit a token launch on Solana (it creates a mint)', async () => {
+    const w = fakeWorld({ solTx: { [SIG]: solTx([transferIx, { programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', parsed: { type: 'initializeMint', info: {} } }]) } });
+    expect((await record(w)).data.results[0].result).toBe('not-swap');
+    expect(w.credits).toHaveLength(0);
+  });
+  it('does not credit a pool opening on Solana (its position NFT mint is made inside the pool program)', async () => {
+    const w = fakeWorld({ solTx: { [SIG]: solTx([transferIx], [{ programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', parsed: { type: 'initializeMint2', info: {} } }]) } });
+    expect((await record(w)).data.results[0].result).toBe('not-swap');
+  });
+  it("does not credit a trade on Aretia's own curve", async () => {
+    const w = fakeWorld({ solTx: { [SIG]: solTx([{ programId: 'CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu' }]) } });
+    expect((await record(w)).data.results[0].result).toBe('not-swap');
+  });
+  it('still credits a plain swap whose fee happens to be a round number', async () => {
+    const w = fakeWorld({ solTx: { [SIG]: solTx([transferIx, { programId: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG' }]) } });
+    expect((await record(w)).data.credited).toBe(1);
+  });
+  it('does not credit the flat 10 USDC pool fee on an EVM chain', async () => {
+    const w = fakeWorld({ evmTx: { [HASH(7)]: { from: TRADER, to: USDC_ETH, logs: [feeLog(USDC_ETH, TRADER, 10_000_000n)], blockTime: NOW - 1000 } } });
+    const r = await call(w, { op: 'record', ref: REFERRER, chain: 'ethereum', txs: [HASH(7)] });
+    expect(r.data.results[0].result).toBe('not-swap');
+    expect(w.credits).toHaveLength(0);
+  });
+});
+
 describe('a referrer reading their own numbers', () => {
   it('shows only their rows, with totals per chain and coin, and counts what earned nothing', async () => {
     const w = fakeWorld();

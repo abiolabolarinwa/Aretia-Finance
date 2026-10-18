@@ -54,14 +54,14 @@ async function fetchSolUsd(): Promise<number | null> {
 }
 
 /** Shares through the browser's share sheet when there is one, otherwise copies the text and link. */
-async function shareOut(text: string, url: string): Promise<'shared' | 'copied' | 'failed'> {
+async function shareOut(text: string, url: string): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
   try {
     if (typeof navigator.share === 'function') {
       await navigator.share({ text, url });
       return 'shared';
     }
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return 'failed';
+    if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
   }
   try {
     await navigator.clipboard.writeText(`${text} ${url}`);
@@ -80,7 +80,6 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   let loading = false;
   let error: string | null = null;
   let solUsd: number | null = null;
-  let shareNote: string | null = null;
   const working = new Map<string, ClaimProgress>();
   const results = new Map<string, ClaimOutcome>();
   const problems = new Map<string, string>();
@@ -116,8 +115,12 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     b.type = 'button';
     b.addEventListener('click', () => {
       void shareOut(text, url).then((r) => {
-        shareNote = r === 'copied' ? 'Copied. Paste it anywhere to share.' : r === 'failed' ? 'Could not share from this browser.' : null;
-        draw();
+        // Said on the button itself, so it is clear which share it was and nothing else on the page is redrawn.
+        if (r === 'cancelled' || r === 'shared') return;
+        b.textContent = r === 'copied' ? 'Copied' : 'Could not share';
+        setTimeout(() => {
+          if (b.isConnected) b.textContent = label;
+        }, 2500);
       });
     });
     return b;
@@ -130,7 +133,6 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     if (r.other.length > 0) box.append(h('p', 'wapp__fine', `Also waiting, in other tokens (not converted to SOL): ${r.other.join(', ')}.`));
     const best = [...positions].sort((x, y) => Number(rewardsFor([y]).earned - rewardsFor([x]).earned))[0];
     box.append(shareButton(headlineShareText(r), best ? shareLink(best) : `${SHARE_ORIGIN}/wallet`, 'Share'));
-    if (shareNote) box.append(h('p', 'wapp__fine', shareNote));
     wrap.append(box);
   }
 

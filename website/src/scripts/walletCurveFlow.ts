@@ -36,17 +36,20 @@ import {
   assembleCurve,
   buildAbort,
   buildBuy,
+  buildClaimFees,
   buildCreate,
   buildMigrate,
   buildSell,
   curveAddress,
   inspectAbort,
   inspectBuy,
+  inspectClaimFees,
   inspectCreate,
   inspectMigrate,
   inspectSell,
   meteoraPoolAddress,
   migrateAddresses,
+  migratorAddress,
   type MigrateArgs,
 } from './walletCurveTx';
 
@@ -69,6 +72,8 @@ export interface CurveFlowDeps {
   confirm(signature: string): Promise<Confirmation>;
   /** Seconds since 1970, from the network's own clock when it has one. */
   nowSecs(): number;
+  /** The mint of the position NFT an owner holds (a Token-2022 account with exactly one token of a mint other than `exceptMint`), or null. */
+  positionNft?(owner: string, exceptMint: string): Promise<string | null>;
   sleep?(ms: number): Promise<void>;
 }
 
@@ -127,7 +132,15 @@ export interface AbortReview extends ReviewBase {
   mint: string;
   curve: CurveState;
 }
-export type CurveReview = CreateReview | BuyReview | SellReview | MigrateReview | AbortReview;
+export interface ClaimFeesReview extends ReviewBase {
+  kind: 'claim-fees';
+  caller: string;
+  mint: string;
+  curve: CurveState;
+  /** The graduated position's NFT mint, found from what the migrator holds. */
+  nft: string;
+}
+export type CurveReview = CreateReview | BuyReview | SellReview | MigrateReview | AbortReview | ClaimFeesReview;
 
 export interface CurveOutcome {
   signature: string;
@@ -375,6 +388,30 @@ export class CurveFlow {
     if (!state || state.status !== 'aborted') differences.push('The curve does not show as unwound.');
     progress('done');
     return { signature, curve: curveAddress(web3, program, review.mint), differences };
+  }
+
+  /** Sends a graduated pool's trading fees to Aretia. Anyone may do it; the fees can only go to Aretia's fee wallet. */
+  async prepareClaimFees(caller: string, curve: CurveState): Promise<ClaimFeesReview> {
+    const { web3, program } = this.d;
+    // The reserve checks describe a curve that is trading; once it has moved into its pool its SOL is gone from it by design.
+    const blockers: string[] = [];
+    if (curve.status !== 'migrated' || !curve.pool) blockers.push('This curve has not moved into its pool, so there are no pool fees yet.');
+    const migrator = migratorAddress(web3, program, curveAddress(web3, program, curve.mint));
+    const nft = curve.status === 'migrated' && this.d.positionNft ? await this.d.positionNft(migrator, curve.mint).catch(() => null) : null;
+    if (curve.status === 'migrated' && !nft) blockers.push('The pool’s position could not be found from the network just now. Try again in a moment.');
+    if (nft && curve.pool && migrateAddresses(web3, curve.mint, nft).pool !== curve.pool) blockers.push('The position found does not belong to this curve’s pool.');
+    const balance = await this.d.balanceOf(caller);
+    const instructions = nft ? buildClaimFees(web3, program, caller, curve.mint, nft) : [];
+    const network = nft && blockers.length === 0 ? await this.price(instructions, caller, balance, 0n, 10_000n, blockers) : 0n;
+    this.checkFunds(balance, network, blockers);
+    return { kind: 'claim-fees', caller, mint: curve.mint, curve, nft: nft ?? '', instructions, network, balance, blockers };
+  }
+
+  async claimFees(review: ClaimFeesReview, progress: (p: CurveProgress) => void = () => undefined): Promise<CurveOutcome> {
+    const { web3, program } = this.d;
+    const signature = await this.send(review, review.caller, [], progress, (tx) => inspectClaimFees(web3, tx, { program, caller: review.caller, mint: review.mint, nft: review.nft }));
+    progress('done');
+    return { signature, curve: curveAddress(web3, program, review.mint), differences: [] };
   }
 
   // ---------------------------------------------------------------- shared

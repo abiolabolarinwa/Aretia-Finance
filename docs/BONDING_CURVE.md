@@ -12,7 +12,7 @@ What it is: for a fixed-supply token made on the Launch page, the creator can se
 |---|---|---|
 | Fee on each trade | **0.58% (58 bps)** of the SOL side, paid to `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. Confirmed by the owner on 2026-10-16. | `FEE_BPS` in `lib.rs`, `CURVE_FEE_BPS` in `walletCurveCore.ts` (a test keeps them equal). A change is a redeploy; it does not touch curves already open (each stores its own rate). |
 | Smallest raise a creator may target | 0.1 SOL | `MIN_TARGET_LAMPORTS` |
-| Pool trading fee after graduation | 0.25%, paid to the locked position. **Nobody can claim it in v1** (see section 9). | `POOL_BASE_FEE_NUMERATOR` |
+| Pool trading fee after graduation | 0.25%, collected **in SOL only** (Meteora's `OnlyB` fee mode, token B being wrapped SOL) and paid to the locked position. `claim_pool_fees` (anyone may call it) sends the position's share to Aretia's fee wallet as wrapped SOL; the liquidity stays locked. Decided by the owner on 2026-10-18. | `POOL_BASE_FEE_NUMERATOR`, `claim_pool_fees` |
 | Wait before an unfinished migration can be unwound | 7 days | `ABORT_AFTER_SECS` |
 
 ## 2. The curve
@@ -113,7 +113,7 @@ Only a Token-2022 mint with all of: no mint authority (fixed supply), no freeze 
 - **No audit.** Nobody but the author has read this code adversarially.
 - **Not on mainnet.** Never run with real SOL. Devnet and a local VM only.
 - Tested against Meteora's mainnet program binary in the local VM, and against the live Meteora program on devnet (a different build from the mainnet one: the binaries' hashes differ). Meteora's mainnet behaviour was not exercised with a real transaction.
-- The pool's trading fee accrues to the locked position and **cannot be claimed** in v1. The money is not lost, it just sits.
+- The pool's trading fee is claimable only to Aretia's fee wallet (`claim_pool_fees`); nobody else can receive it, and no instruction removes liquidity.
 - No fuzzing beyond the property tests, no formal verification, no load test.
 - A curve that is never fully bought just stays open. There is no refund path for a curve nobody finishes, other than selling back.
 - The 7-day wait and the 0.1% tolerance are judgement calls.
@@ -150,7 +150,7 @@ The owner deploys from their own wallet, then hands the upgrade authority to the
 
 Still true on mainnet: **no independent audit**. The program holds buyers' SOL.
 
-**2026-10-18:** rebuilt from the fixed source (see `AUDIT_2026-10-18.md`) with `cargo-build-sbf` 3.1.4 (platform-tools v1.52, Rust 1.89; the older tools cannot read this `Cargo.lock`), release profile unchanged: 344,144 bytes, sha-256 `96be447fd7ba00bfbe0a9cee9e5104c909dedbe951a9ff8fd29c011b0c98e7f5`, built on Linux, so it is not byte-identical to the earlier Windows build. All 16 LiteSVM tests pass against it, including the two regression tests. **The four migration tests were not exercised** in that run (Meteora's binary was not available there; they return early without it): run `cargo test` in `program/aretia-curve/tests` with `ARETIA_CURVE_SO` and `METEORA_CP_AMM_SO` set before deploying. Deploy rent for this size is about 2.40 SOL (`prepare` prints the exact figure).
+**2026-10-18:** rebuilt from the fixed source (see `AUDIT_2026-10-18.md`), now with `claim_pool_fees` and SOL-only pool fees. Built with `cargo-build-sbf` 2.1.21 (platform-tools v1.43, Rust 1.79) against the committed `program/aretia-curve/Cargo.lock`. The lockfile used to be git-ignored, and a build resolved against the newest crates came out with `migrate`'s account-loading frame over the 4 KB stack limit and crashed at runtime. **After any rebuild, the build log must contain no "Stack offset ... exceeded" line.** `migrate` now opens the migrator's two token accounts in its handler, which keeps that frame well inside the limit. Build: sha-256 `698b499a04f3ecefaafb383e1d4cb4e3d9e34dc587b40fb21fef47bbf98dd81e`. All 17 LiteSVM tests pass without Meteora's binary; the migration and fee tests need it (`METEORA_CP_AMM_SO`) and must pass on the owner's machine before deploying. Deploy rent for this size is about 2.75 SOL (`prepare` prints the exact figure).
 
 ## 12. Devnet
 

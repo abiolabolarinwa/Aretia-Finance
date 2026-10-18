@@ -438,3 +438,83 @@ pub fn pool_args(sol: u64, tokens: u64) -> (u128, u128) {
     // One unit of margin so rounding up inside Meteora cannot ask for more than is there.
     (l.to_u128().expect("liquidity fits") - 1, p.to_u128().expect("price fits"))
 }
+
+// ---------------------------------------------------------------- graduated-pool fees
+
+/// Wraps `lamports` of `owner`'s SOL into their wrapped-SOL account (opened if needed).
+pub fn wrap_sol_ixs(owner: &Address, lamports: u64) -> Vec<Instruction> {
+    let wsol = ata(owner, &WSOL, &TOKEN);
+    let mut create = ata_ix(owner, owner, &WSOL, &TOKEN);
+    create.data = vec![1]; // CreateIdempotent
+    let mut t = vec![2u8, 0, 0, 0];
+    t.extend_from_slice(&lamports.to_le_bytes());
+    vec![
+        create,
+        Instruction::new_with_bytes(SYSTEM, &t, vec![m(*owner, true, true), m(wsol, true, false)]),
+        Instruction::new_with_bytes(TOKEN, &[17], vec![m(wsol, true, false)]),
+    ]
+}
+
+/// Meteora's `swap` on the graduated pool: `input` and `output` are the trader's own token accounts.
+pub fn meteora_swap_ix(trader: &Address, mint: &Address, a: &MigrateAccounts, input: &Address, output: &Address, amount_in: u64, min_out: u64) -> Instruction {
+    let mut d = vec![248u8, 198, 158, 145, 225, 117, 135, 200];
+    d.extend_from_slice(&amount_in.to_le_bytes());
+    d.extend_from_slice(&min_out.to_le_bytes());
+    Instruction::new_with_bytes(
+        METEORA,
+        &d,
+        vec![
+            m(METEORA_POOL_AUTHORITY, false, false),
+            m(a.pool, true, false),
+            m(*input, true, false),
+            m(*output, true, false),
+            m(a.vault_a, true, false),
+            m(a.vault_b, true, false),
+            m(*mint, false, false),
+            m(WSOL, false, false),
+            m(*trader, false, true),
+            m(TOKEN_2022, false, false),
+            m(TOKEN, false, false),
+            m(METEORA, false, false), // no referral account
+            m(pda(&[b"__event_authority"], &METEORA), false, false),
+            m(METEORA, false, false),
+        ],
+    )
+}
+
+/// The fee wallet's wrapped-SOL account, where `claim_pool_fees` pays.
+pub fn fee_wsol() -> Address {
+    ata(&FEE_WALLET, &WSOL, &TOKEN)
+}
+
+pub fn claim_pool_fees_ix(caller: &Address, mint: &Address, a: &MigrateAccounts) -> Instruction {
+    let curve = curve_pda(mint);
+    let migrator = migrator_pda(&curve);
+    Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &disc("claim_pool_fees"),
+        vec![
+            m(*caller, true, true),
+            m(curve, false, false),
+            m(*mint, false, false),
+            m(migrator, false, false),
+            m(ata(&migrator, mint, &TOKEN_2022), true, false),
+            m(ata(&migrator, &WSOL, &TOKEN), true, false),
+            m(WSOL, false, false),
+            m(FEE_WALLET, false, false),
+            m(fee_wsol(), true, false),
+            m(a.pool, true, false),
+            m(a.position, true, false),
+            m(a.vault_a, true, false),
+            m(a.vault_b, true, false),
+            m(a.nft_account, false, false),
+            m(METEORA_POOL_AUTHORITY, false, false),
+            m(pda(&[b"__event_authority"], &METEORA), false, false),
+            m(METEORA, false, false),
+            m(TOKEN_2022, false, false),
+            m(TOKEN, false, false),
+            m(ATA_PROGRAM, false, false),
+            m(SYSTEM, false, false),
+        ],
+    )
+}

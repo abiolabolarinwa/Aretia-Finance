@@ -24,7 +24,7 @@ use anchor_lang::solana_program::{
     pubkey,
 };
 use anchor_lang::system_program::{self, Transfer};
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::associated_token::{self, get_associated_token_address_with_program_id, AssociatedToken};
 use anchor_spl::token::{self, Token};
 use anchor_spl::token_2022::Token2022;
 use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked};
@@ -52,10 +52,12 @@ pub const WSOL_MINT: Pubkey = pubkey!("So111111111111111111111111111111111111111
 
 const INIT_POOL_DISCRIMINATOR: [u8; 8] = [20, 161, 241, 24, 189, 221, 180, 2];
 const LOCK_DISCRIMINATOR: [u8; 8] = [165, 176, 125, 6, 231, 171, 186, 213];
+const CLAIM_FEE_DISCRIMINATOR: [u8; 8] = [180, 38, 154, 17, 133, 33, 162, 211];
 /// Meteora's price bounds, as written in its program.
 pub const MIN_SQRT_PRICE: u128 = 4_295_048_016;
 pub const MAX_SQRT_PRICE: u128 = 79_226_673_521_066_979_257_578_248_091;
-/// The pool's flat trading fee: 0.25% (2,500,000 of Meteora's 1,000,000,000 denominator), in its 27-byte fee block.
+/// The pool's flat trading fee: 0.25% (2,500,000 of Meteora's 1,000,000,000 denominator), in its 27-byte fee block. The pool collects
+/// it in wrapped SOL only (Meteora's `OnlyB`, token B being wrapped SOL), and `claim_pool_fees` pays it to Aretia's fee wallet.
 const POOL_BASE_FEE_NUMERATOR: u64 = 2_500_000;
 
 /// Token-2022 extension types a curve token may carry: metadata pointer (18) and token metadata (19).
@@ -262,18 +264,27 @@ pub mod aretia_curve {
             )?;
         }
 
+        // The migrator's two token accounts are opened here (idempotently) rather than by the accounts struct: letting Anchor open
+        // them made its account-loading frame larger than the 4 KB the runtime allows, which crashes the call.
+        let mint_info = ctx.accounts.mint.to_account_info();
+        let wsol_info = ctx.accounts.wsol_mint.to_account_info();
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.payer, &ctx.accounts.migrator_token, &migrator, &mint_info, &ctx.accounts.system_program, &ctx.accounts.token_program_2022.to_account_info())?;
+        open_ata(&ctx.accounts.associated_token_program, &ctx.accounts.payer, &ctx.accounts.migrator_wsol, &migrator, &wsol_info, &ctx.accounts.system_program, &ctx.accounts.token_program.to_account_info())?;
+        let migrator_token = ctx.accounts.migrator_token.to_account_info();
+        let migrator_wsol = ctx.accounts.migrator_wsol.to_account_info();
+
         // 2. The pool tokens go from the curve's vault to the migrator's token account. Anything someone sent to
         //    those accounts beforehand is left out of every check below, so a donation can neither block the
         //    migration nor hide a shortfall.
-        let tok_pre = ctx.accounts.migrator_token.amount;
-        let wsol_pre = ctx.accounts.migrator_wsol.amount;
+        let tok_pre = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?;
+        let wsol_pre = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?;
         transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program_2022.to_account_info(),
                 TransferChecked {
                     from: ctx.accounts.vault.to_account_info(),
                     mint: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.migrator_token.to_account_info(),
+                    to: migrator_token.clone(),
                     authority: ctx.accounts.curve.to_account_info(),
                 },
                 &[curve_seeds],
@@ -285,21 +296,18 @@ pub mod aretia_curve {
         // 3. The SOL raised goes into the migrator's wrapped-SOL account.
         let sol_seeds: &[&[u8]] = &[b"sol_vault", curve_key.as_ref(), &[sol_bump]];
         system_program::transfer(
-            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.migrator_wsol.to_account_info() }, &[sol_seeds]),
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: migrator_wsol.clone() }, &[sol_seeds]),
             sol_to_move,
         )?;
-        token::sync_native(CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            token::SyncNative { account: ctx.accounts.migrator_wsol.to_account_info() },
-        ))?;
+        token::sync_native(CpiContext::new(ctx.accounts.token_program.to_account_info(), token::SyncNative { account: migrator_wsol.clone() }))?;
         require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0)?;
-        ctx.accounts.migrator_token.reload()?;
-        ctx.accounts.migrator_wsol.reload()?;
-        require!(ctx.accounts.migrator_token.amount == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
-        require!(ctx.accounts.migrator_wsol.amount >= wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
+        let tok_now = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?;
+        let wsol_now = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?;
+        require!(tok_now == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
+        require!(wsol_now >= wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
         // What the two accounts held before the pool took anything, less what this migration put in.
-        let tok_base = ctx.accounts.migrator_token.amount - tokens_to_move;
-        let sol_base = ctx.accounts.migrator_wsol.amount - sol_to_move;
+        let tok_base = tok_now - tokens_to_move;
+        let sol_base = wsol_now - sol_to_move;
 
         // 4. Create the pool. The migrator is the creator and payer, so the position NFT lands in an account only
         //    the migrator can sign for; this program has no instruction that removes liquidity.
@@ -330,10 +338,8 @@ pub mod aretia_curve {
         invoke_signed(&lock, &infos, &[migrator_seeds])?;
 
         // 6. The pool must have taken (nearly) all of both sides, or it was opened at the wrong price.
-        ctx.accounts.migrator_token.reload()?;
-        ctx.accounts.migrator_wsol.reload()?;
-        let tok_left = ctx.accounts.migrator_token.amount.saturating_sub(tok_base);
-        let sol_left = ctx.accounts.migrator_wsol.amount.saturating_sub(sol_base);
+        let tok_left = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?.saturating_sub(tok_base);
+        let sol_left = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?.saturating_sub(sol_base);
         require!(curve_math::migration_consumed_enough(tokens_to_move, tok_left), CurveError::PoolPriceMismatch);
         require!(curve_math::migration_consumed_enough(sol_to_move, sol_left), CurveError::PoolPriceMismatch);
 
@@ -368,9 +374,110 @@ pub mod aretia_curve {
         emit!(Aborted { curve: c.key(), ts: now });
         Ok(())
     }
+
+    /// Claims the trading fees the graduated pool's locked position has earned and pays them to Aretia's fee wallet. Anyone may
+    /// call it; the money can only go to the fee wallet's wrapped-SOL account. The liquidity stays locked: Meteora pays a locked
+    /// position its fees without touching the liquidity. The pool collects fees in wrapped SOL only, so that is what is paid.
+    pub fn claim_pool_fees(ctx: Context<ClaimPoolFees>) -> Result<()> {
+        let curve = &ctx.accounts.curve;
+        require!(curve.status == Status::Migrated, CurveError::NotMigrated);
+        require_keys_eq!(ctx.accounts.pool.key(), curve.pool, CurveError::WrongAccount);
+        let (curve_key, mint_key) = (curve.key(), curve.mint);
+        let migrator = ctx.accounts.migrator.to_account_info();
+        let migrator_token = ctx.accounts.migrator_token.to_account_info();
+        let migrator_wsol = ctx.accounts.migrator_wsol.to_account_info();
+        require_keys_eq!(migrator_token.key(), get_associated_token_address_with_program_id(&migrator.key(), &mint_key, &anchor_spl::token_2022::ID), CurveError::WrongAccount);
+        require_keys_eq!(migrator_wsol.key(), get_associated_token_address_with_program_id(&migrator.key(), &WSOL_MINT, &token::ID), CurveError::WrongAccount);
+        let migrator_bump = ctx.bumps.migrator;
+        let migrator_seeds: &[&[u8]] = &[b"migrator", curve_key.as_ref(), &[migrator_bump]];
+
+        // Meteora pays to the migrator's own accounts (it checks the position belongs to the pool and that the migrator holds its
+        // NFT); what arrived in wrapped SOL is then passed on to the fee wallet.
+        let before = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?;
+        let a = &ctx.accounts;
+        let ix = Instruction {
+            program_id: METEORA_PROGRAM,
+            accounts: vec![
+                meta(METEORA_POOL_AUTHORITY, false, false),
+                meta(a.pool.key(), true, false),
+                meta(a.position.key(), true, false),
+                meta(migrator_token.key(), true, false),
+                meta(migrator_wsol.key(), true, false),
+                meta(a.token_a_vault.key(), true, false),
+                meta(a.token_b_vault.key(), true, false),
+                meta(mint_key, false, false),
+                meta(WSOL_MINT, false, false),
+                meta(a.position_nft_account.key(), false, false),
+                meta(migrator.key(), false, true),
+                meta(anchor_spl::token_2022::ID, false, false),
+                meta(token::ID, false, false),
+                meta(meteora_event_authority(), false, false),
+                meta(METEORA_PROGRAM, false, false),
+            ],
+            data: CLAIM_FEE_DISCRIMINATOR.to_vec(),
+        };
+        let infos = [
+            a.pool_authority.to_account_info(),
+            a.pool.to_account_info(),
+            a.position.to_account_info(),
+            migrator_token.clone(),
+            migrator_wsol.clone(),
+            a.token_a_vault.to_account_info(),
+            a.token_b_vault.to_account_info(),
+            a.mint.to_account_info(),
+            a.wsol_mint.to_account_info(),
+            a.position_nft_account.to_account_info(),
+            migrator.clone(),
+            a.token_program_2022.to_account_info(),
+            a.token_program.to_account_info(),
+            a.event_authority.to_account_info(),
+            a.meteora_program.to_account_info(),
+        ];
+        invoke_signed(&ix, &infos, &[migrator_seeds])?;
+        let claimed = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?.checked_sub(before).ok_or(CurveError::UnexpectedBalance)?;
+        require!(claimed > 0, CurveError::NothingToClaim);
+
+        token::transfer(
+            CpiContext::new_with_signer(a.token_program.to_account_info(), token::Transfer { from: migrator_wsol.clone(), to: a.fee_wsol.to_account_info(), authority: migrator.clone() }, &[migrator_seeds]),
+            claimed,
+        )?;
+        emit!(FeesClaimed { curve: curve_key, pool: curve.pool, lamports: claimed, ts: Clock::get()?.unix_timestamp });
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- helpers
+
+/// Opens `ata` (the associated account of `authority` for `mint`) if it is not there yet. The associated-token program refuses any
+/// address that is not that account, so this also proves the address.
+fn open_ata<'info>(ata_program: &Program<'info, AssociatedToken>, payer: &Signer<'info>, ata: &UncheckedAccount<'info>, authority: &AccountInfo<'info>, mint: &AccountInfo<'info>, system_program: &Program<'info, System>, token_program: &AccountInfo<'info>) -> Result<()> {
+    associated_token::create_idempotent(CpiContext::new(
+        ata_program.to_account_info(),
+        associated_token::Create {
+            payer: payer.to_account_info(),
+            associated_token: ata.to_account_info(),
+            authority: authority.clone(),
+            mint: mint.clone(),
+            system_program: system_program.to_account_info(),
+            token_program: token_program.clone(),
+        },
+    ))
+}
+
+/// The balance of a token account, read from its raw bytes after checking it belongs to `program` and is `owner`'s account for `mint`.
+/// The first 165 bytes are laid out the same in both token programs.
+fn token_amount(info: &AccountInfo, mint: &Pubkey, owner: &Pubkey, program: &Pubkey) -> Result<u64> {
+    require_keys_eq!(*info.owner, *program, CurveError::WrongAccount);
+    let data = info.try_borrow_data()?;
+    require!(data.len() >= 165, CurveError::WrongAccount);
+    require!(&data[0..32] == mint.as_ref() && &data[32..64] == owner.as_ref(), CurveError::WrongAccount);
+    Ok(u64::from_le_bytes(data[64..72].try_into().unwrap()))
+}
+
+/// Aretia's fee wallet's wrapped-SOL account, where graduated pools' fees are paid.
+pub fn fee_wsol_address() -> Pubkey {
+    get_associated_token_address_with_program_id(&FEE_WALLET, &WSOL_MINT, &token::ID)
+}
 
 /// The SOL vault must always hold the rent-exempt minimum plus every lamport the curve owes holders.
 fn require_solvent(sol_vault: &AccountInfo, real_sol: u64) -> Result<()> {
@@ -436,7 +543,7 @@ fn init_pool_ix(a: &Migrate<'_>, migrator: Pubkey, args: &MigrateArgs) -> Instru
     data.extend_from_slice(&args.liquidity.to_le_bytes());
     data.extend_from_slice(&args.sqrt_price.to_le_bytes());
     data.push(1); // activation type: timestamp
-    data.push(0); // collect fee mode: both tokens
+    data.push(1); // collect fee mode: OnlyB, so every fee is taken in wrapped SOL (token B)
     data.push(0); // activation point: None, opens at once
     debug_assert_eq!(data.len(), 107);
     Instruction {
@@ -633,12 +740,14 @@ pub struct Migrate<'info> {
     /// CHECK: a program-derived system account that owns the pool, its position, and the money in transit.
     #[account(mut, seeds = [b"migrator", curve.key().as_ref()], bump)]
     pub migrator: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = payer, associated_token::mint = mint, associated_token::authority = migrator, associated_token::token_program = token_program_2022)]
-    pub migrator_token: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: the migrator's associated account for the curve token; opened in the handler, which checks it.
+    #[account(mut)]
+    pub migrator_token: UncheckedAccount<'info>,
     #[account(address = WSOL_MINT)]
     pub wsol_mint: Box<InterfaceAccount<'info, Mint>>,
-    #[account(init_if_needed, payer = payer, associated_token::mint = wsol_mint, associated_token::authority = migrator, associated_token::token_program = token_program)]
-    pub migrator_wsol: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: the migrator's associated wrapped-SOL account; opened in the handler, which checks it.
+    #[account(mut)]
+    pub migrator_wsol: UncheckedAccount<'info>,
     /// CHECK: a fresh keypair's public key; Meteora creates the position NFT mint here and it signs the transaction.
     #[account(mut, signer)]
     pub position_nft_mint: UncheckedAccount<'info>,
@@ -657,6 +766,59 @@ pub struct Migrate<'info> {
     /// CHECK: created by Meteora.
     #[account(mut)]
     pub token_b_vault: UncheckedAccount<'info>,
+    /// CHECK: Meteora's fixed pool authority.
+    #[account(address = METEORA_POOL_AUTHORITY)]
+    pub pool_authority: UncheckedAccount<'info>,
+    /// CHECK: Meteora's event authority, derived from its program id.
+    #[account(address = meteora_event_authority())]
+    pub event_authority: UncheckedAccount<'info>,
+    /// CHECK: the Meteora program, by address.
+    #[account(address = METEORA_PROGRAM)]
+    pub meteora_program: UncheckedAccount<'info>,
+    pub token_program_2022: Program<'info, Token2022>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimPoolFees<'info> {
+    #[account(mut)]
+    pub caller: Signer<'info>,
+    #[account(seeds = [b"curve", mint.key().as_ref()], bump = curve.bump, has_one = mint)]
+    pub curve: Box<Account<'info, Curve>>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
+    /// CHECK: the program-derived account that holds the graduated position.
+    #[account(seeds = [b"migrator", curve.key().as_ref()], bump)]
+    pub migrator: UncheckedAccount<'info>,
+    /// CHECK: the migrator's associated account for the curve token (checked in the handler).
+    #[account(mut)]
+    pub migrator_token: UncheckedAccount<'info>,
+    /// CHECK: the migrator's associated wrapped-SOL account (checked in the handler).
+    #[account(mut)]
+    pub migrator_wsol: UncheckedAccount<'info>,
+    #[account(address = WSOL_MINT)]
+    pub wsol_mint: Box<InterfaceAccount<'info, Mint>>,
+    /// CHECK: Aretia's fee wallet, by address.
+    #[account(address = FEE_WALLET)]
+    pub fee_wallet: UncheckedAccount<'info>,
+    /// The fee wallet's wrapped-SOL account, opened (by the caller) if it is not there yet.
+    #[account(init_if_needed, payer = caller, associated_token::mint = wsol_mint, associated_token::authority = fee_wallet, associated_token::token_program = token_program)]
+    pub fee_wsol: Box<Account<'info, token::TokenAccount>>,
+    /// CHECK: must be the pool the curve graduated into (checked in the handler against the curve).
+    #[account(mut)]
+    pub pool: UncheckedAccount<'info>,
+    /// CHECK: the graduated position; Meteora checks it belongs to the pool and to the migrator's NFT.
+    #[account(mut)]
+    pub position: UncheckedAccount<'info>,
+    /// CHECK: Meteora checks it against the pool.
+    #[account(mut)]
+    pub token_a_vault: UncheckedAccount<'info>,
+    /// CHECK: Meteora checks it against the pool.
+    #[account(mut)]
+    pub token_b_vault: UncheckedAccount<'info>,
+    /// CHECK: Meteora checks it holds the position's NFT and that the migrator owns it.
+    pub position_nft_account: UncheckedAccount<'info>,
     /// CHECK: Meteora's fixed pool authority.
     #[account(address = METEORA_POOL_AUTHORITY)]
     pub pool_authority: UncheckedAccount<'info>,
@@ -713,6 +875,15 @@ pub struct Migrated {
 }
 
 #[event]
+pub struct FeesClaimed {
+    pub curve: Pubkey,
+    pub pool: Pubkey,
+    /// Wrapped lamports paid to the fee wallet.
+    pub lamports: u64,
+    pub ts: i64,
+}
+
+#[event]
 pub struct Aborted {
     pub curve: Pubkey,
     pub ts: i64,
@@ -746,6 +917,10 @@ pub enum CurveError {
     WrongAccount,
     #[msg("The pool did not take nearly all of both sides, so it was opened at the wrong price.")]
     PoolPriceMismatch,
+    #[msg("The curve has not moved into its pool yet.")]
+    NotMigrated,
+    #[msg("The pool has no fees to claim yet.")]
+    NothingToClaim,
 }
 
 #[cfg(test)]

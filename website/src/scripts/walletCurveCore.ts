@@ -408,9 +408,10 @@ export interface CurveCost {
   network: bigint;
 }
 
-export function curveDisclosures(kind: 'create' | 'buy' | 'sell' | 'migrate' | 'abort'): { severity: 'info' | 'caution'; text: string }[] {
+export function curveDisclosures(kind: 'create' | 'buy' | 'sell' | 'migrate' | 'abort' | 'claim-fees'): { severity: 'info' | 'caution'; text: string }[] {
   const unaudited = { severity: 'caution' as const, text: 'The curve program is new and has not been independently audited. Do not put in more than you can lose entirely.' };
-  const fee = { severity: 'info' as const, text: `Aretia takes ${CURVE_FEE_BPS / 100}% of the SOL side of every trade, paid in the same transaction. Nothing else is taken.` };
+  const fee = { severity: 'info' as const, text: `Aretia takes ${CURVE_FEE_BPS / 100}% of the SOL side of every trade on the curve, paid in the same transaction.` };
+  const poolFee = { severity: 'info' as const, text: 'Once the curve moves into its pool, that pool charges 0.25% on every trade, taken in SOL. The locked position\'s share of those fees is paid to Aretia, not to the creator or to holders. The liquidity itself stays locked for good.' };
   switch (kind) {
     case 'create':
       return [
@@ -418,6 +419,7 @@ export function curveDisclosures(kind: 'create' | 'buy' | 'sell' | 'migrate' | '
         { severity: 'info', text: 'When every token on the curve is sold, the SOL raised and the tokens set aside for it open a liquidity pool, and the pool’s liquidity is locked for good.' },
         { severity: 'caution', text: 'If nobody buys, the curve stays open. Anyone who bought can sell back to it, at the price of the curve, minus the fee each way.' },
         fee,
+        poolFee,
         unaudited,
       ];
     case 'buy':
@@ -432,11 +434,18 @@ export function curveDisclosures(kind: 'create' | 'buy' | 'sell' | 'migrate' | '
     case 'migrate':
       return [
         { severity: 'info', text: 'Anyone can do this once the curve has sold out. It moves the raised SOL and the pool tokens into a new liquidity pool and locks it. You lend a small amount for the pool’s accounts; what is not used comes straight back.' },
-        { severity: 'caution', text: 'If a pool for this token and SOL already exists, this will fail. After seven days anyone can unwind the curve so holders can sell back.' },
+        { severity: 'caution', text: 'If a pool for this token and SOL already exists, this will fail. Anyone can then unwind the curve at once so holders can sell back.' },
+        poolFee,
         unaudited,
       ];
     case 'abort':
       return [{ severity: 'info', text: 'The curve sold out but never moved into a pool. This reopens selling (not buying), so holders can sell back along the curve.' }, unaudited];
+    case 'claim-fees':
+      return [
+        { severity: 'info', text: 'This sends the trading fees the graduated pool has earned to Aretia\'s fee wallet, in wrapped SOL. Anyone can press it; the fees can go nowhere else, and you only pay the network fee.' },
+        { severity: 'info', text: 'The pool\'s liquidity is not touched: it stays locked for good.' },
+        unaudited,
+      ];
   }
 }
 

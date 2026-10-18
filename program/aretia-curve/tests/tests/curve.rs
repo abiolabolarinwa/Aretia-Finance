@@ -449,3 +449,53 @@ fn a_pool_someone_else_opened_first_lets_holders_unwind_at_once() {
     let held = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
     l.env.send(&[sell_ix(&buyer.pubkey(), &l.mint, held / 2, 0)], &[&buyer]).expect("holders can sell back");
 }
+
+#[test]
+fn graduated_pool_fees_are_taken_in_sol_and_paid_to_aretia() {
+    let (mut l, buyer) = sold_out_curve(10 * SOL);
+    // Before graduation there is nothing to claim.
+    let early = MigrateAccounts::new(&l.mint);
+    let caller = l.env.user(2);
+    assert_fails_with(l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &early)], &[&caller]), "NotMigrated");
+    if !l.env.has_meteora {
+        eprintln!("skipped: no Meteora binary");
+        return;
+    }
+    let c = l.env.curve(&l.mint);
+    let (liquidity, sqrt_price) = pool_args(c.real_sol, c.lp_tokens);
+    let a = MigrateAccounts::new(&l.mint);
+    try_migrate(&mut l, &a, liquidity, sqrt_price).unwrap_or_else(|e| panic!("migrate failed: {}", err_text(&Err(e))));
+
+    // Straight after graduation the position has earned nothing.
+    assert_fails_with(l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &a)], &[&caller]), "NothingToClaim");
+
+    // People trade in the pool, both ways.
+    let trader = l.env.user(50);
+    let t = trader.pubkey();
+    l.env.make_ata(&t, &l.mint);
+    let mut ixs = wrap_sol_ixs(&t, 20 * SOL);
+    ixs.push(meteora_swap_ix(&t, &l.mint, &a, &ata(&t, &WSOL, &TOKEN), &ata(&t, &l.mint, &TOKEN_2022), 5 * SOL, 0));
+    l.env.send(&ixs, &[&trader]).unwrap_or_else(|e| panic!("buy in the pool failed: {}", err_text(&Err(e))));
+    let held = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
+    l.env.send(&wrap_sol_ixs(&buyer.pubkey(), 1), &[&buyer]).unwrap();
+    l.env
+        .send(&[meteora_swap_ix(&buyer.pubkey(), &l.mint, &a, &ata(&buyer.pubkey(), &l.mint, &TOKEN_2022), &ata(&buyer.pubkey(), &WSOL, &TOKEN), held / 4, 0)], &[&buyer])
+        .unwrap_or_else(|e| panic!("sell in the pool failed: {}", err_text(&Err(e))));
+
+    // Anyone may claim; the fees reach Aretia's wrapped-SOL account, and no fee is taken in the token.
+    let migrator = migrator_pda(&curve_pda(&l.mint));
+    let tok_before = l.env.token_amount(&ata(&migrator, &l.mint, &TOKEN_2022));
+    let pos_before = l.env.svm.get_account(&a.position).unwrap().data;
+    l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &a)], &[&caller]).unwrap_or_else(|e| panic!("claim failed: {}", err_text(&Err(e))));
+    let paid = l.env.token_amount(&fee_wsol());
+    // 0.25% of a 5 SOL buy is 0.0125 SOL; Meteora keeps its protocol share, so Aretia gets most but not all of it, plus the sale's fee.
+    assert!(paid > 5 * SOL / 1_000 && paid < 5 * SOL * 25 / 10_000 * 2, "fees paid {paid}");
+    assert_eq!(l.env.token_amount(&ata(&migrator, &l.mint, &TOKEN_2022)), tok_before, "no fee is taken in the token");
+    // The liquidity is still all permanently locked.
+    let pos = l.env.svm.get_account(&a.position).unwrap().data;
+    assert_eq!(pos[184..200], pos_before[184..200], "locked liquidity unchanged");
+    assert_eq!(u128::from_le_bytes(pos[152..168].try_into().unwrap()), 0, "still nothing unlocked");
+    // A second claim straight away has nothing left to pay.
+    l.env.warp_seconds(1);
+    assert_fails_with(l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &a)], &[&caller]), "NothingToClaim");
+}

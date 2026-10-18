@@ -16,9 +16,9 @@ import {
   type CurveStatus,
 } from './walletCurveCore';
 import { CurveFlow, type CurveFlowDeps, type CurveProgress } from './walletCurveFlow';
-import { curveAddress, meteoraPoolAddress, tokenVaultAddress } from './walletCurveTx';
+import { curveAddress, feeWsolAddress, meteoraPoolAddress, migrateAddresses, migratorAddress, tokenVaultAddress } from './walletCurveTx';
 import { LaunchError } from './walletLaunchFlow';
-import { METEORA_PROGRAM_ID } from './walletPoolTx';
+import { METEORA_POOL_AUTHORITY as METEORA_POOL_AUTHORITY_ID, METEORA_PROGRAM_ID } from './walletPoolTx';
 import { TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
 
 const PROGRAM = CURVE_PROGRAM_ID_DEVNET;
@@ -416,5 +416,70 @@ describe('graduation', () => {
       [curveAddress(web3, PROGRAM, MINT), false, true],
       [pool, false, false],
     ]);
+  });
+});
+
+describe('sending a graduated pool’s fees to Aretia', () => {
+  const NFT = web3.Keypair.generate().publicKey.toBase58();
+  const soldOutState = () => ({ ...fresh(), ...quoteBuy(startOf(derived), 1_000n * SOL, 58)!.next, status: 'soldOut' as CurveStatus, soldOutAt: 1_700_000_100n });
+  const migrated = () => ({ ...soldOutState(), status: 'migrated' as const, realSol: 0n, pool: meteoraPoolAddress(web3, MINT) });
+
+  it('names the program’s accounts in order, pays only Aretia’s fee wallet, and finds the position from the migrator', async () => {
+    const w = tradingWorld(migrated());
+    const asked: [string, string][] = [];
+    w.deps.positionNft = async (owner, except) => {
+      asked.push([owner, except]);
+      return NFT;
+    };
+    const flow = new CurveFlow(w.deps);
+    const curve = (await flow.loadCurve(MINT))!;
+    const review = await flow.prepareClaimFees(BUYER, curve);
+    expect(review.blockers).toEqual([]);
+    const migrator = migratorAddress(web3, PROGRAM, curveAddress(web3, PROGRAM, MINT));
+    expect(asked).toEqual([[migrator, MINT]]);
+    const m = migrateAddresses(web3, MINT, NFT);
+    const keys = review.instructions[0]!.keys.map((k) => k.pubkey.toBase58());
+    // The same order as ClaimPoolFees in program/aretia-curve.
+    expect(keys).toEqual([
+      BUYER,
+      curveAddress(web3, PROGRAM, MINT),
+      MINT,
+      migrator,
+      ataAddress(web3, migrator, MINT, TOKEN_2022_PROGRAM_ID),
+      ataAddress(web3, migrator, 'So11111111111111111111111111111111111111112', 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+      'So11111111111111111111111111111111111111112',
+      '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2',
+      feeWsolAddress(web3),
+      m.pool,
+      m.position,
+      m.vaultA,
+      m.vaultB,
+      m.nftAccount,
+      METEORA_POOL_AUTHORITY_ID,
+      web3.PublicKey.findProgramAddressSync([new TextEncoder().encode('__event_authority')], new web3.PublicKey(METEORA_PROGRAM_ID))[0].toBase58(),
+      METEORA_PROGRAM_ID,
+      TOKEN_2022_PROGRAM_ID,
+      'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+      '11111111111111111111111111111111',
+    ]);
+    await flow.claimFees(review);
+    expect(w.sent).toHaveLength(1);
+  });
+
+  it('refuses before graduation, without a position, or with a position from another pool', async () => {
+    const before = tradingWorld(soldOutState());
+    before.deps.positionNft = async () => NFT;
+    const f1 = new CurveFlow(before.deps);
+    expect((await f1.prepareClaimFees(BUYER, (await f1.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/not moved into its pool/);
+    const none = tradingWorld(migrated());
+    none.deps.positionNft = async () => null;
+    const f2 = new CurveFlow(none.deps);
+    expect((await f2.prepareClaimFees(BUYER, (await f2.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/could not be found/);
+    const other = tradingWorld(migrated());
+    other.accounts.set(curveAddress(web3, PROGRAM, MINT), { owner: PROGRAM, data: curveBytes({ ...migrated(), pool: web3.Keypair.generate().publicKey.toBase58() }) });
+    other.deps.positionNft = async () => NFT;
+    const f3 = new CurveFlow(other.deps);
+    expect((await f3.prepareClaimFees(BUYER, (await f3.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/does not belong/);
   });
 });

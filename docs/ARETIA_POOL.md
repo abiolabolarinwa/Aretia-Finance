@@ -12,12 +12,14 @@ Web: `website/src/scripts/walletAretiaPool*.ts`.
 
 These are set as constants in the program. Each is a one-line change before a mainnet build, and none can change after deployment (there is no admin instruction).
 
+**Decided by the owner, 2026-10-18** (confirmed as built, no program change needed): 20% protocol share; 0.05 SOL creation fee, also paid when a curve graduates (by whoever calls `migrate`, from its rent budget); the launch-protection presets as they are (none, standard 10% over 5 minutes, strong 25% over 15 minutes, standard the default); Meteora is the default pool for a new token until Jupiter routes the Aretia Pool, then the default flips; token logos and metadata are hosted on an IPFS pinning service.
+
 | Decision | Value now | Notes |
 |---|---|---|
 | Protocol share of the trading fee | 20% (2000 of 10,000) | Meteora's own default protocol share is the same figure, so a creator sees no worse deal. Paid to the fee wallet on every trade, no claim step. |
 | Creator-chosen trading fee | 0.25% or 1% | The only two values the program accepts. |
 | Flat creation fee | 0.05 SOL | Taken by the program inside `create_pool`, to `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. |
-| Fee when a Curve graduates into a pool | Not set | Section 12. The curve program already took its own 0.58% on every trade; the owner decides whether graduation also pays the 0.05 SOL. |
+| Fee when a Curve graduates into a pool | 0.05 SOL (decided) | Section 12. Paid by whoever calls `migrate`, from the rent budget it lends, not from holders' SOL. The curve program also takes its own 0.58% on every trade. |
 | Quote asset | Wrapped SOL (v4) | The pool's SOL side is a wrapped-SOL token vault, so routers and trackers read it like any other pool; a wallet wraps and unwraps SOL around each transaction. Section 11. |
 
 ## 2. The pool in one paragraph

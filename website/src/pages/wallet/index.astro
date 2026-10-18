@@ -370,6 +370,7 @@ const sendTips = [
               <div class="lh-chips" role="group" aria-labelledby="lh-net-label" data-hub-networks></div>
             </div>
           </header>
+          <div class="wapp-feat" data-featured-launch hidden></div>
           <p class="lh__pools-link"><button type="button" class="lh-linkbtn" data-hub-open-pools>Your pools and fees</button></p>
           <ol class="lh__rail" data-hub-rail aria-label="Progress"></ol>
           <div class="lh__bar" data-hub-bar aria-hidden="true"><span></span></div>
@@ -548,6 +549,8 @@ const sendTips = [
 
   .wapp__main { min-width: 0; padding: calc(var(--nav-height) + 16px) 36px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
   .wapp__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .wapp-feat { margin: 0 0 var(--space-md, 1rem); padding: 0.75rem; background: #fff; border: 1px solid rgba(14, 11, 43, 0.1); border-radius: var(--radius-lg, 16px); }
+  .wapp-feat[hidden] { display: none; }
   .wapp[data-view='dashboard'] .wapp__top h1 { display: none; }
   .wapp__chips { margin-left: auto; }
   .wapp__top h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; color: var(--color-strong); }

@@ -1,5 +1,6 @@
 /**
- * Draws the "Featured launches" strip into a container. Used by the home page; any other page can call it the same way:
+ * Draws the "Featured launches" strip into a container. It lives inside the Aretia web wallet (Markets and Launch), never on the
+ * public home page; see src/scripts/walletFeatured.ts for how it is mounted there. Anything else can call it the same way:
  *
  *   import { renderFeatured } from '../lib/featuredStrip';
  *   renderFeatured(document.querySelector('[data-featured]'));
@@ -98,6 +99,8 @@ export function renderFeatured(box: HTMLElement | null, opts: { stack?: boolean;
   head.append(el('h2', '', 'Featured launches'));
   const get = el('a', '', 'Get featured');
   get.href = '/featured#request';
+  get.target = '_blank';
+  get.rel = 'noopener';
   head.append(get);
   const list = el('ul', 'aft__list');
   for (const i of items) list.append(featuredCard(i, opts.verified ?? VERIFIED, now));

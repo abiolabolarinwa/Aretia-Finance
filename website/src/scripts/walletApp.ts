@@ -15,6 +15,7 @@ import { initCurve } from './walletCurve';
 import { initAretiaPool } from './walletAretiaPool';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
 import { initYourPools } from './walletYourPools';
+import { mountLaunchFeatured } from './walletFeatured';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
 import { sidebarItemFor } from './walletNav';
@@ -392,6 +393,8 @@ export function initWalletApp(): void {
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
   const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   let launchHub: LaunchHub | null = null;
+  // Featured launches on the Launch page (drawn only while something is featured today).
+  mountLaunchFeatured();
   const yourPools = initYourPools({
     getAddress: () => address,
     refreshWallet: () => void refresh(),

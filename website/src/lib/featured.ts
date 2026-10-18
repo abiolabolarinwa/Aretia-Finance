@@ -1,5 +1,5 @@
 /**
- * Featured launches: a hand-agreed list of tokens shown in a clearly labelled strip on the home page (and the Launch page). Pure.
+ * Featured launches: a hand-agreed list of tokens shown in a clearly labelled strip inside the Aretia web wallet (the Markets list and the Launch page). Pure.
  * The list is src/data/featured.ts. An entry is shown only inside its dates, and only if it passes every rule here; a list with nothing
  * to show draws nothing at all.
  *

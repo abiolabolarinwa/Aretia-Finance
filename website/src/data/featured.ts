@@ -1,5 +1,5 @@
 /**
- * The featured launches showing on the home page (and the Launch page) right now. Edited by hand when a placement is agreed.
+ * The featured launches showing inside the Aretia web wallet (the Markets list and the Launch page) right now. Edited by hand when a placement is agreed.
  * The list is empty until one is: while it is, the strip is not drawn at all. An item stops showing on its own after its last day
  * (and can be deleted later). It also needs to pass the rules in src/lib/featured.ts, or it is skipped, never shown half-formed.
  *

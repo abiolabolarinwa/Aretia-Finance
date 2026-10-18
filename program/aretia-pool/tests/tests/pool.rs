@@ -20,6 +20,7 @@ fn launch_with(x0: u64, y0: u64, l0: u64, fee: u16, lock: bool) -> Launched {
 fn launch_ranged(x0: u64, y0: u64, l0: u64, fee: u16, lock: bool, vx0: u64) -> Launched {
     let mut env = Env::new();
     let creator = env.user(100);
+    env.make_wsol(&creator.pubkey(), 0);
     let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
     let c = creator.pubkey();
     env.send(&[create_pool_ix_full(&c, &c, &c, &mint, x0, y0, l0, fee, lock, 0, 0, vx0)], &[&creator]).expect("create_pool");
@@ -32,6 +33,7 @@ fn launch(fee: u16, lock: bool) -> Launched {
 
 fn trader(l: &mut Launched, sol: u64, tokens: u64) -> Keypair {
     let b = l.env.user(sol);
+    l.env.make_wsol(&b.pubkey(), sol * SOL);
     if tokens > 0 {
         l.env.give_tokens(&l.mint, DECIMALS, &l.creator, &b.pubkey(), tokens);
     } else {
@@ -58,7 +60,7 @@ fn rent0(env: &Env) -> u64 {
 fn assert_vault_exact(l: &Launched, donated_sol: u64, donated_tok: u64) {
     let p = l.env.pool(&l.mint);
     let pool = pool_pda(&l.mint);
-    assert_eq!(l.env.lamports(&sol_vault_pda(&pool)), rent0(&l.env) + p.y + p.fee_reserve + donated_sol, "SOL vault must hold exactly rent + y + fee reserve");
+    assert_eq!(l.env.wsol_account(&sol_vault_pda(&pool)), p.y + p.fee_reserve + donated_sol, "the wrapped-SOL vault must hold exactly y + fee reserve (+ donations)");
     assert_eq!(l.env.token_amount(&ata(&pool, &l.mint, &TOKEN_2022)), p.x + donated_tok, "token vault must hold exactly x");
 }
 
@@ -85,6 +87,7 @@ fn an_unlocked_pool_can_be_opened_and_the_owner_can_differ_from_the_creator() {
     let mut env = Env::new();
     let creator = env.user(100);
     let owner = env.user(1);
+    env.make_wsol(&creator.pubkey(), 5 * SOL);
     let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
     env.send(&[create_pool_ix(&creator.pubkey(), &owner.pubkey(), &mint, X0, 3 * SOL, L0, 100, false)], &[&creator]).expect("create");
     let pos = env.position(&mint, &owner.pubkey());
@@ -131,17 +134,17 @@ fn a_buy_matches_the_maths_to_the_lamport_and_pays_aretia_its_share() {
     let buyer = trader(&mut l, 100, 0);
     let before = l.env.pool(&l.mint);
     let (q, next) = pool_math::buy(&before.math(), 2 * SOL).unwrap();
-    let (fee_before, buyer_before) = (l.env.lamports(&FEE_WALLET), l.env.lamports(&buyer.pubkey()));
+    let (fee_before, buyer_before) = (l.env.wsol(&FEE_WALLET), l.env.wsol(&buyer.pubkey()));
 
     l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 2 * SOL, q.tokens_out)], &[&buyer]).expect("buy");
 
     let p = l.env.pool(&l.mint);
     assert_eq!((p.x, p.y, p.l, p.acc, p.fee_reserve), (next.x, next.y, next.l, next.acc, next.fee_reserve));
     assert_eq!(l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022)), q.tokens_out);
-    assert_eq!(l.env.lamports(&FEE_WALLET) - fee_before, q.protocol);
+    assert_eq!(l.env.wsol(&FEE_WALLET) - fee_before, q.protocol);
     assert_eq!(q.fee, 5_000_000, "0.25% of 2 SOL");
     assert_eq!(q.protocol, 1_000_000, "20% of that");
-    assert_eq!(buyer_before - l.env.lamports(&buyer.pubkey()), 2 * SOL, "the buyer pays the offer and nothing else");
+    assert_eq!(buyer_before - l.env.wsol(&buyer.pubkey()), 2 * SOL, "the buyer pays the offer and nothing else");
     assert_vault_exact(&l, 0, 0);
 }
 
@@ -157,12 +160,12 @@ fn a_sell_matches_the_maths_and_cannot_go_below_the_start() {
 
     let before = l.env.pool(&l.mint);
     let (s, next) = pool_math::sell(&before.math(), bought).unwrap();
-    let (fee_before, seller_before) = (l.env.lamports(&FEE_WALLET), l.env.lamports(&buyer.pubkey()));
+    let (fee_before, seller_before) = (l.env.wsol(&FEE_WALLET), l.env.wsol(&buyer.pubkey()));
     l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, false, bought, s.net)], &[&buyer]).expect("sell");
     let p = l.env.pool(&l.mint);
     assert_eq!((p.x, p.y, p.acc, p.fee_reserve), (next.x, next.y, next.acc, next.fee_reserve));
-    assert_eq!(l.env.lamports(&buyer.pubkey()) - seller_before, s.net);
-    assert_eq!(l.env.lamports(&FEE_WALLET) - fee_before, s.protocol);
+    assert_eq!(l.env.wsol(&buyer.pubkey()) - seller_before, s.net);
+    assert_eq!(l.env.wsol(&FEE_WALLET) - fee_before, s.protocol);
     assert!(s.gross < 4 * SOL, "a round trip loses to the fee and the rounding");
     assert_vault_exact(&l, 0, 0);
     // Selling a lot more than the pool can pay for is refused.
@@ -204,9 +207,9 @@ fn locked_liquidity_stays_and_its_fees_can_be_claimed() {
     let p = l.env.pool(&l.mint);
     let want = pool_math::pending_fee(L0, p.acc, 0).unwrap();
     assert!(want > 0 && want <= p.fee_reserve);
-    let before = l.env.lamports(&creator);
+    let before = l.env.wsol(&creator);
     l.env.send(&[claim_ix(&creator, &l.mint)], &[&l.creator]).expect("claim");
-    assert_eq!(l.env.lamports(&creator) - before, want);
+    assert_eq!(l.env.wsol(&creator) - before, want);
     assert_eq!(l.env.pool(&l.mint).fee_reserve, p.fee_reserve - want);
     assert_eq!(l.env.position(&l.mint, &creator).pending, 0);
     assert_fails_with(l.env.send(&[claim_ix(&creator, &l.mint)], &[&l.creator]), "NothingToClaim");
@@ -254,14 +257,14 @@ fn a_second_provider_adds_and_removes_in_proportion() {
     assert_fails_with(l.env.send(&[add_ix(&lp.pubkey(), &l.mint, dl, a.tokens_in - 1, a.sol_in)], &[&lp]), "Slippage");
     assert_fails_with(l.env.send(&[add_ix(&lp.pubkey(), &l.mint, dl, a.tokens_in, a.sol_in - 1)], &[&lp]), "Slippage");
     assert_fails_with(l.env.send(&[add_ix(&lp.pubkey(), &l.mint, 999, u64::MAX, u64::MAX)], &[&lp]), "BadParameters");
-    let (tok0, sol0) = (l.env.token_amount(&ata(&lp.pubkey(), &l.mint, &TOKEN_2022)), l.env.lamports(&lp.pubkey()));
+    let (tok0, sol0) = (l.env.token_amount(&ata(&lp.pubkey(), &l.mint, &TOKEN_2022)), l.env.wsol(&lp.pubkey()));
     l.env.send(&[add_ix(&lp.pubkey(), &l.mint, dl, a.tokens_in, a.sol_in)], &[&lp]).expect("add");
     let p = l.env.pool(&l.mint);
     assert_eq!((p.x, p.y, p.l), (next.x, next.y, next.l));
     let pos = l.env.position(&l.mint, &lp.pubkey());
     assert_eq!((pos.shares, pos.locked, pos.checkpoint), (dl, 0, p0.acc), "new provider earns nothing from earlier trades");
     assert_eq!(tok0 - l.env.token_amount(&ata(&lp.pubkey(), &l.mint, &TOKEN_2022)), a.tokens_in);
-    assert!(sol0 - l.env.lamports(&lp.pubkey()) >= a.sol_in);
+    assert!(sol0 - l.env.wsol(&lp.pubkey()) >= a.sol_in);
     assert_vault_exact(&l, 0, 0);
 
     // Trades now share fees by liquidity.
@@ -278,9 +281,9 @@ fn a_second_provider_adds_and_removes_in_proportion() {
     let (r, _) = pool_math::remove(&p1.math(), dl).unwrap();
     l.env.send(&[remove_ix(&lp.pubkey(), &l.mint, dl, r.tokens_out, r.sol_out)], &[&lp]).expect("remove");
     assert_eq!(l.env.position(&l.mint, &lp.pubkey()).pending, mine, "fees were settled, not lost");
-    let before = l.env.lamports(&lp.pubkey());
+    let before = l.env.wsol(&lp.pubkey());
     l.env.send(&[claim_ix(&lp.pubkey(), &l.mint)], &[&lp]).expect("claim after leaving");
-    assert_eq!(l.env.lamports(&lp.pubkey()) - before, mine);
+    assert_eq!(l.env.wsol(&lp.pubkey()) - before, mine);
     assert_vault_exact(&l, 0, 0);
     // Min amounts are enforced on the way out.
     l.env.send(&[add_ix(&lp.pubkey(), &l.mint, dl, u64::MAX, u64::MAX)], &[&lp]).expect("add again");
@@ -297,7 +300,7 @@ fn donations_to_the_vaults_change_nothing() {
     let (q, next) = pool_math::buy(&l.env.pool(&l.mint).math(), SOL).unwrap();
     // Tokens and SOL sent straight to the vaults.
     l.env.give_tokens(&l.mint, DECIMALS, &donor, &pool, 5_000_000_000_000);
-    l.env.svm.airdrop(&sol_vault_pda(&pool), 7 * SOL).unwrap();
+    l.env.donate_wsol(&donor, &pool, 7 * SOL);
     l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, SOL, q.tokens_out)], &[&buyer]).expect("the same quote still holds");
     let p = l.env.pool(&l.mint);
     assert_eq!((p.x, p.y, p.acc), (next.x, next.y, next.acc));
@@ -308,7 +311,7 @@ fn donations_to_the_vaults_change_nothing() {
 fn the_fee_wallet_receives_exactly_the_protocol_share_over_many_trades() {
     let mut l = launch(100, true);
     let a = trader(&mut l, 1000, 100_000_000_000_000);
-    let start = l.env.lamports(&FEE_WALLET);
+    let start = l.env.wsol(&FEE_WALLET);
     let mut model = l.env.pool(&l.mint).math();
     let mut expect = 0u64;
     for i in 0..30u64 {
@@ -325,7 +328,7 @@ fn the_fee_wallet_receives_exactly_the_protocol_share_over_many_trades() {
             l.env.send(&[swap_ix(&a.pubkey(), &l.mint, false, tok, 0)], &[&a]).unwrap();
         }
     }
-    assert_eq!(l.env.lamports(&FEE_WALLET) - start, expect);
+    assert_eq!(l.env.wsol(&FEE_WALLET) - start, expect);
     let p = l.env.pool(&l.mint);
     assert_eq!((p.x, p.y, p.acc, p.fee_reserve), (model.x, model.y, model.acc, model.fee_reserve));
     assert_vault_exact(&l, 0, 0);
@@ -343,6 +346,7 @@ fn the_launch_fee_falls_with_time_and_the_stored_fee_stays_the_base() {
     let p0 = env.pool(&mint);
     assert_eq!((p0.fee_bps, p0.fee_start_bps, p0.decay_secs, p0.created_at), (100, 2_000, 600, 10_000));
     let buyer = env.user(1000);
+    env.make_wsol(&buyer.pubkey(), 1000 * SOL);
     env.make_ata(&buyer.pubkey(), &mint);
     let mut model = p0.math();
     let mut fees = vec![];
@@ -353,11 +357,11 @@ fn the_launch_fee_falls_with_time_and_the_stored_fee_stays_the_base() {
         m.fee_bps = expect_bps;
         let (b, mut n) = pool_math::buy(&m, SOL).unwrap();
         n.fee_bps = 100;
-        let before = env.lamports(&FEE_WALLET);
+        let before = env.wsol(&FEE_WALLET);
         env.send(&[swap_ix(&buyer.pubkey(), &mint, true, SOL, b.tokens_out)], &[&buyer]).expect("buy");
         let p = env.pool(&mint);
         assert_eq!((p.x, p.y, p.acc, p.fee_reserve, p.fee_bps), (n.x, n.y, n.acc, n.fee_reserve, 100), "t = {t}");
-        assert_eq!(env.lamports(&FEE_WALLET) - before, b.protocol);
+        assert_eq!(env.wsol(&FEE_WALLET) - before, b.protocol);
         fees.push(b.fee);
         model = n;
     }
@@ -374,9 +378,9 @@ fn the_launch_fee_falls_with_time_and_the_stored_fee_stays_the_base() {
     let mut m = env.pool(&mint2).math();
     m.fee_bps = 2_000;
     let (s, _) = pool_math::sell(&m, held / 2).unwrap();
-    let got_before = env.lamports(&buyer.pubkey());
+    let got_before = env.wsol(&buyer.pubkey());
     env.send(&[swap_ix(&buyer.pubkey(), &mint2, false, held / 2, s.net)], &[&buyer]).expect("sell at the launch fee");
-    assert_eq!(env.lamports(&buyer.pubkey()) - got_before, s.net);
+    assert_eq!(env.wsol(&buyer.pubkey()) - got_before, s.net);
     assert_eq!(s.fee, pool_math::fee_up(s.gross, 2_000));
 }
 
@@ -397,6 +401,7 @@ fn fees_can_be_sent_to_another_wallet_even_when_locked() {
     let mut l = launch(100, true);
     let c = l.creator.pubkey();
     let treasury = Address::new_unique();
+    l.env.make_wsol(&treasury, 0);
     let buyer = trader(&mut l, 1000, 0);
     for _ in 0..3 {
         l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 20 * SOL, 0)], &[&buyer]).unwrap();
@@ -414,10 +419,10 @@ fn fees_can_be_sent_to_another_wallet_even_when_locked() {
     assert!(l.env.send(&[claim_ix_to(&c, &l.mint, &c, &Address::new_unique())], &[&l.creator]).is_err());
     // Only the owner can call claim, whoever the recipient is.
     assert!(l.env.send(&[claim_ix_to(&stranger.pubkey(), &l.mint, &c, &treasury)], &[&stranger]).is_err());
-    let (own_before, t_before) = (l.env.lamports(&c), l.env.lamports(&treasury));
+    let (own_before, t_before) = (l.env.wsol(&c), l.env.wsol(&treasury));
     l.env.send(&[claim_ix_to(&c, &l.mint, &c, &treasury)], &[&l.creator]).expect("claim to the treasury");
-    assert_eq!(l.env.lamports(&treasury) - t_before, want);
-    assert_eq!(l.env.lamports(&c), own_before, "the owner gets nothing");
+    assert_eq!(l.env.wsol(&treasury) - t_before, want);
+    assert_eq!(l.env.wsol(&c), own_before, "the owner gets nothing");
     assert_vault_exact(&l, 0, 0);
     // The locked liquidity is still locked.
     assert_fails_with(l.env.send(&[remove_ix(&c, &l.mint, 1_000, 0, 0)], &[&l.creator]), "Locked");
@@ -492,6 +497,7 @@ fn a_scripted_random_run_on_a_ranged_pool_matches_the_model() {
 
 fn random_run(vx0: u64, seed: u64) {
     let mut l = launch_ranged(X0, 0, L0, 100, false, vx0);
+    l.env.make_wsol(&l.creator.pubkey(), 4_000 * SOL);
     let names = ["creator", "lp_a", "lp_b", "t1", "t2"];
     let mut keys: Vec<Keypair> = vec![];
     for (i, _) in names.iter().enumerate() {
@@ -505,7 +511,7 @@ fn random_run(vx0: u64, seed: u64) {
     let mut model = l.env.pool(&l.mint).math();
     let mut pos: Vec<ModelPos> = vec![ModelPos { shares: L0, locked: 0, checkpoint: 0, pending: 0, exists: true }, ModelPos::default(), ModelPos::default(), ModelPos::default(), ModelPos::default()];
     let (mut donated_sol, mut donated_tok) = (0u64, 0u64);
-    let mut fee_wallet_expect = l.env.lamports(&FEE_WALLET);
+    let mut fee_wallet_expect = l.env.wsol(&FEE_WALLET);
     let mut rng = Rng(seed);
     let mint = l.mint;
     let (mut ok_count, mut err_count) = ([0u32; 8], [0u32; 8]);
@@ -515,7 +521,7 @@ fn random_run(vx0: u64, seed: u64) {
         let actor = &keys[who];
         let a = actor.pubkey();
         let tok_before = l.env.token_amount(&ata_of(actor, &mint));
-        let lam_before = l.env.lamports(&a);
+        let lam_before = l.env.wsol(&a);
         let op = rng.below(100);
         // (instruction, model after, position after, expected actor token delta, expected actor lamport delta, expected fee wallet delta, label)
         struct Plan { ix: solana_instruction::Instruction, next: Option<pool_math::Pool>, pos: Option<ModelPos>, tok: i128, lam: i128, fee: u64, kind: usize }
@@ -543,7 +549,7 @@ fn random_run(vx0: u64, seed: u64) {
                     if !np.exists { np.exists = true; np.checkpoint = model.acc; np.pending = 0; }
                     np.shares += dl;
                     let rent = if pos[who].exists { 0 } else { l.env.svm.minimum_balance_for_rent_exemption(8 + 32 + 32 + 8 + 8 + 16 + 8 + 32 + 32 + 1) };
-                    Plan { ix: add_ix(&a, &mint, dl, ad.tokens_in, ad.sol_in), next: Some(n), pos: Some(np), tok: -(ad.tokens_in as i128), lam: -(ad.sol_in as i128) - rent as i128, fee: 0, kind: 2 }
+                    Plan { ix: add_ix(&a, &mint, dl, ad.tokens_in, ad.sol_in), next: Some(n), pos: Some(np), tok: -(ad.tokens_in as i128), lam: -(ad.sol_in as i128), fee: 0, kind: 2 }
                 }
                 _ => Plan { ix: add_ix(&a, &mint, dl, tok_before.saturating_add(1), 0), next: None, pos: None, tok: 0, lam: 0, fee: 0, kind: 2 },
             }
@@ -599,7 +605,8 @@ fn random_run(vx0: u64, seed: u64) {
             let pool = pool_pda(&mint);
             if rng.below(2) == 0 {
                 let amt = rng.log(1, 5 * SOL);
-                l.env.svm.airdrop(&sol_vault_pda(&pool), amt).unwrap();
+                let amt = amt.min(l.env.wsol(&a));
+                if amt > 0 { l.env.donate_wsol(actor, &pool, amt); }
                 donated_sol += amt;
             } else {
                 let amt = rng.log(1, (tok_before / 4).max(2)).min(tok_before);
@@ -621,7 +628,7 @@ fn random_run(vx0: u64, seed: u64) {
                 // actor deltas: the transaction fee is paid by the test payer, so these are exact
                 let tok_after = l.env.token_amount(&ata_of(actor, &mint));
                 assert_eq!(tok_after as i128 - tok_before as i128, plan.tok, "step {step} kind {} token delta", plan.kind);
-                assert_eq!(l.env.lamports(&a) as i128 - lam_before as i128, plan.lam, "step {step} kind {} lamport delta", plan.kind);
+                assert_eq!(l.env.wsol(&a) as i128 - lam_before as i128, plan.lam, "step {step} kind {} lamport delta", plan.kind);
             }
             (None, Err(_)) => err_count[plan.kind] += 1,
             (Some(_), Err(e)) => panic!("step {step} kind {}: the model says it succeeds, but it failed: {:?} {}", plan.kind, e.err, e.meta.logs.join(" | ")),
@@ -631,7 +638,7 @@ fn random_run(vx0: u64, seed: u64) {
         // The whole state, every step.
         let p = l.env.pool(&mint);
         assert_eq!((p.x, p.vx, p.y, p.l, p.acc, p.fee_reserve), (model.x, model.vx, model.y, model.l, model.acc, model.fee_reserve), "step {step} pool state");
-        assert_eq!(l.env.lamports(&FEE_WALLET), fee_wallet_expect, "step {step} fee wallet");
+        assert_eq!(l.env.wsol(&FEE_WALLET), fee_wallet_expect, "step {step} fee wallet");
         assert_vault_exact(&l, donated_sol, donated_tok);
         let mut total_shares = 0u64;
         for (i, k) in keys.iter().enumerate() {
@@ -707,6 +714,7 @@ fn a_position_can_be_sold_and_the_buyer_gets_everything_and_the_seller_nothing()
     let mut l = launch(100, false);
     let a = l.creator.pubkey();
     let b = l.env.user(5);
+    l.env.make_wsol(&b.pubkey(), 0);
     let buyer = trader(&mut l, 1000, 0);
     for _ in 0..3 {
         l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 20 * SOL, 0)], &[&buyer]).unwrap();
@@ -727,9 +735,9 @@ fn a_position_can_be_sold_and_the_buyer_gets_everything_and_the_seller_nothing()
     assert!(l.env.send(&[transfer_position_ix(&a, &a, &l.mint, &a)], &[&l.creator]).is_err());
     // The buyer can claim to themselves and remove the unlocked half, not the locked half.
     let owed = l.env.position(&l.mint, &a).pending + pool_math::pending_fee(L0, l.env.pool(&l.mint).acc, l.env.position(&l.mint, &a).checkpoint).unwrap();
-    let before = l.env.lamports(&b.pubkey());
+    let before = l.env.wsol(&b.pubkey());
     l.env.send(&[claim_ix_id(&b.pubkey(), &a, &l.mint, &b.pubkey())], &[&b]).expect("new owner claims");
-    assert_eq!(l.env.lamports(&b.pubkey()) - before, owed);
+    assert_eq!(l.env.wsol(&b.pubkey()) - before, owed);
     l.env.make_ata(&b.pubkey(), &l.mint);
     assert!(l.env.send(&[remove_ix_id(&b.pubkey(), &a, &l.mint, L0 / 2 + 1, 0, 0)], &[&b]).is_err(), "the locked half stays");
     l.env.send(&[remove_ix_id(&b.pubkey(), &a, &l.mint, L0 / 2, 0, 0)], &[&b]).expect("the unlocked half goes");
@@ -743,7 +751,7 @@ fn position_ids_cannot_be_taken_in_advance() {
     let victim = trader(&mut l, 100, 100_000_000_000_000);
     // Naming someone else's address as the id, without its signature, is refused: the victim's own slot cannot be squatted.
     let mut squat = add_ix_id(&attacker.pubkey(), &victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX);
-    squat.accounts.last_mut().unwrap().is_signer = false; // the attacker does not hold the victim's key
+    squat.accounts[9].is_signer = false; // the attacker does not hold the victim's key
     assert_fails_with(l.env.send(&[squat], &[&attacker]), "BadPositionId");
     l.env.send(&[add_ix(&victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX)], &[&victim]).expect("the victim's own slot is free");
     // A second position under a fresh key that signs for itself is allowed, and is the owner's own.
@@ -753,7 +761,7 @@ fn position_ids_cannot_be_taken_in_advance() {
     assert_eq!((p2.owner, p2.id, p2.shares), (victim.pubkey(), extra.pubkey(), 500_000_000));
     // Someone who does not own an existing position cannot add to it.
     let mut not_mine = add_ix_id(&attacker.pubkey(), &victim.pubkey(), &l.mint, 1_000_000_000, u64::MAX, u64::MAX);
-    not_mine.accounts.last_mut().unwrap().is_signer = false;
+    not_mine.accounts[9].is_signer = false;
     assert_fails_with(l.env.send(&[not_mine], &[&attacker]), "NotOwner");
     // After a sale the old owner's default slot is taken, and they open a new position under a signing id.
     l.env.send(&[transfer_position_ix(&victim.pubkey(), &victim.pubkey(), &l.mint, &attacker.pubkey())], &[&victim]).unwrap();

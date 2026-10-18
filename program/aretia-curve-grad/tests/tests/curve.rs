@@ -339,8 +339,12 @@ fn graduation_opens_a_locked_pool_owned_by_the_creator_at_the_curves_price() {
     // And it works: a holder sells some tokens into it through the pool program.
     let held = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
     let sol_before = l.env.lamports(&buyer.pubkey());
+    // Wrapped-SOL accounts for the seller and for Aretia (on a real cluster Aretia's already exists).
+    let payer_key = l.env.payer.pubkey();
+    l.env.send(&[ata_ix(&payer_key, &buyer.pubkey(), &WSOL, &TOKEN), ata_ix(&payer_key, &FEE_WALLET, &WSOL, &TOKEN)], &[]).expect("wrapped-SOL accounts");
     l.env.send(&[pool_swap_ix(&buyer.pubkey(), &l.mint, false, held / 2, 1)], &[&buyer]).expect("sell into the graduated pool");
-    assert!(l.env.lamports(&buyer.pubkey()) > sol_before);
+    assert!(l.env.token_amount(&ata(&buyer.pubkey(), &WSOL, &TOKEN)) > 0, "the seller was paid in wrapped SOL");
+    let _ = sol_before;
     // A second migration is refused.
     assert!(migrate(&mut l).is_err());
 }
@@ -376,7 +380,7 @@ fn curves_of_every_size_graduate() {
     }
 }
 
-/// The pool program's `swap`, built by hand.
+/// The pool program's `swap`, built by hand (the pool's SOL side is wrapped SOL: the trader and Aretia both need a wrapped-SOL account).
 fn pool_swap_ix(trader: &Address, mint: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> solana_instruction::Instruction {
     use solana_instruction::AccountMeta;
     let pool = pool_pda(mint);
@@ -389,6 +393,17 @@ fn pool_swap_ix(trader: &Address, mint: &Address, is_buy: bool, amount_in: u64, 
     solana_instruction::Instruction::new_with_bytes(
         POOL_PROGRAM,
         &d,
-        vec![w(*trader, true), w(pool, false), w(pda(&[b"sol_vault", pool.as_ref()], &POOL_PROGRAM), false), r(*mint), w(ata(&pool, mint, &TOKEN_2022), false), w(ata(trader, mint, &TOKEN_2022), false), w(FEE_WALLET, false), r(TOKEN_2022), r(SYSTEM)],
+        vec![
+            w(*trader, true),
+            w(pool, false),
+            w(ata(&pool, &WSOL, &TOKEN), false),
+            r(*mint),
+            w(ata(&pool, mint, &TOKEN_2022), false),
+            w(ata(trader, mint, &TOKEN_2022), false),
+            w(ata(trader, &WSOL, &TOKEN), false),
+            w(ata(&FEE_WALLET, &WSOL, &TOKEN), false),
+            r(TOKEN_2022),
+            r(TOKEN),
+        ],
     )
 }

@@ -51,6 +51,8 @@ pub const MAX_RENT_BUDGET: u64 = 200_000_000;
 pub const ARETIA_POOL_PROGRAM: Pubkey = pubkey!("4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc");
 /// The pool's trading fee when it graduates: 0.25%, the same as the Meteora route.
 pub const POOL_FEE_BPS: u16 = 25;
+/// The wrapped-SOL (native) mint: the pool's SOL side is a wrapped-SOL token account.
+pub const WSOL: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 /// The virtual SOL the pool opens with (its smallest allowed liquidity, 0.01 SOL). The pool opens at (SOL raised + this) / tokens, a premium
 /// over the curve's last price of this / SOL raised: 0.01 SOL on an 85 SOL raise is 0.012%, on the smallest 0.1 SOL raise it is 10%.
 pub const POOL_VIRTUAL_SOL: u64 = 10_000_000;
@@ -271,10 +273,15 @@ pub mod aretia_curve_grad {
             ctx.accounts.mint.decimals,
         )?;
         let sol_seeds: &[&[u8]] = &[b"sol_vault", curve_key.as_ref(), &[sol_bump]];
+        // The pool's SOL side is wrapped SOL: put the raised lamports into the migrator's wrapped-SOL account and sync it.
+        let wsol_pre = ctx.accounts.migrator_wsol.amount;
         system_program::transfer(
-            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: migrator.clone() }, &[sol_seeds]),
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.migrator_wsol.to_account_info() }, &[sol_seeds]),
             sol_to_move,
         )?;
+        token::sync_native(CpiContext::new(ctx.accounts.sol_token_program.to_account_info(), token::SyncNative { account: ctx.accounts.migrator_wsol.to_account_info() }))?;
+        ctx.accounts.migrator_wsol.reload()?;
+        require!(ctx.accounts.migrator_wsol.amount == wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
         require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0)?;
         ctx.accounts.migrator_token.reload()?;
         require!(ctx.accounts.migrator_token.amount == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
@@ -294,6 +301,9 @@ pub mod aretia_curve_grad {
             ctx.accounts.token_program_2022.to_account_info(),
             ctx.accounts.associated_token_program.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
+            ctx.accounts.wsol_mint.to_account_info(),
+            ctx.accounts.migrator_wsol.to_account_info(),
+            ctx.accounts.sol_token_program.to_account_info(),
             ctx.accounts.pool_program.to_account_info(),
         ];
         invoke_signed(&init, &infos, &[migrator_seeds])?;
@@ -301,6 +311,8 @@ pub mod aretia_curve_grad {
         // 4. The pool must have taken every token and every lamport, at exactly the amounts sent.
         ctx.accounts.migrator_token.reload()?;
         require!(ctx.accounts.migrator_token.amount == tok_pre, CurveError::PoolPriceMismatch);
+        ctx.accounts.migrator_wsol.reload()?;
+        require!(ctx.accounts.migrator_wsol.amount == wsol_pre, CurveError::PoolPriceMismatch);
         {
             let data = ctx.accounts.pool.try_borrow_data()?;
             require!(*ctx.accounts.pool.owner == ARETIA_POOL_PROGRAM && data.len() >= 100, CurveError::PoolPriceMismatch);
@@ -311,7 +323,13 @@ pub mod aretia_curve_grad {
             require!(x == tokens_to_move && y == sol_to_move && l == POOL_VIRTUAL_SOL, CurveError::PoolPriceMismatch);
         }
 
-        // 5. Send back what is left of the rent budget.
+        // 5. Close the migrator's wrapped-SOL account (empty now) so its rent goes back to the caller, then send back what is left of the rent budget.
+        token::close_account(CpiContext::new_with_signer(
+            ctx.accounts.sol_token_program.to_account_info(),
+            token::CloseAccount { account: ctx.accounts.migrator_wsol.to_account_info(), destination: ctx.accounts.payer.to_account_info(), authority: migrator.clone() },
+            &[migrator_seeds],
+        ))?;
+
         let remaining = migrator.lamports();
         if remaining > 0 {
             invoke_signed(
@@ -418,6 +436,9 @@ fn create_pool_ix(a: &Migrate<'_>, migrator: Pubkey, owner: Pubkey, tokens: u64,
             meta(anchor_spl::associated_token::ID, false, false),
             meta(system_program::ID, false, false),
             meta(owner, false, false),                     // position id: the owner's address, no signature needed
+            meta(WSOL, false, false),
+            meta(a.migrator_wsol.key(), true, false),      // the creator's wrapped-SOL account: the migrator's
+            meta(anchor_spl::token::ID, false, false),
         ],
         data,
     }
@@ -565,7 +586,7 @@ pub struct Migrate<'info> {
     /// CHECK: must equal the pool address for this token (checked in the handler); created by the pool program.
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
-    /// CHECK: the pool's SOL vault; derived and created by the pool program.
+    /// CHECK: the pool's wrapped-SOL vault (its associated account for the native mint); derived and created by the pool program.
     #[account(mut)]
     pub pool_sol_vault: UncheckedAccount<'info>,
     /// CHECK: the pool's token vault; derived and created by the pool program.
@@ -582,6 +603,12 @@ pub struct Migrate<'info> {
     /// CHECK: the Aretia Pool program, by address.
     #[account(address = ARETIA_POOL_PROGRAM)]
     pub pool_program: UncheckedAccount<'info>,
+    /// CHECK: the native mint, by address.
+    #[account(address = WSOL)]
+    pub wsol_mint: UncheckedAccount<'info>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = wsol_mint, associated_token::authority = migrator, associated_token::token_program = sol_token_program)]
+    pub migrator_wsol: Box<Account<'info, token::TokenAccount>>,
+    pub sol_token_program: Program<'info, Token>,
     pub token_program_2022: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,

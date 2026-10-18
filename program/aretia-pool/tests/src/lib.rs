@@ -12,6 +12,8 @@ use solana_transaction::Transaction;
 use sha2::{Digest, Sha256};
 
 pub const PROGRAM_ID: Address = Address::from_str_const("4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc");
+pub const TOKEN: Address = Address::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+pub const WSOL: Address = Address::from_str_const("So11111111111111111111111111111111111111112");
 pub const TOKEN_2022: Address = Address::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const ATA_PROGRAM: Address = Address::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 pub const SYSTEM: Address = Address::from_str_const("11111111111111111111111111111111");
@@ -41,8 +43,13 @@ pub fn ata(owner: &Address, mint: &Address, token_program: &Address) -> Address 
 pub fn pool_pda(mint: &Address) -> Address {
     pda(&[b"pool", mint.as_ref()], &PROGRAM_ID)
 }
+/// The pool's SOL vault: its associated account for wrapped SOL.
 pub fn sol_vault_pda(pool: &Address) -> Address {
-    pda(&[b"sol_vault", pool.as_ref()], &PROGRAM_ID)
+    ata(pool, &WSOL, &TOKEN)
+}
+/// Anyone's wrapped-SOL associated account.
+pub fn wsol_ata(owner: &Address) -> Address {
+    ata(owner, &WSOL, &TOKEN)
 }
 pub fn position_pda(pool: &Address, owner: &Address) -> Address {
     pda(&[b"position", pool.as_ref(), owner.as_ref()], &PROGRAM_ID)
@@ -61,11 +68,52 @@ impl Env {
     pub fn new() -> Self {
         let mut svm = LiteSVM::new();
         svm.add_program_from_file(PROGRAM_ID, program_so()).expect("build the program first: cargo build-sbf");
+        // The native mint exists on every real cluster; a bare LiteSVM has to be given it.
+        let mut native = vec![0u8; 82];
+        native[44] = 9; // decimals
+        native[45] = 1; // initialised
+        svm.set_account(WSOL, solana_account::Account { lamports: 1_461_600, data: native, owner: TOKEN, executable: false, rent_epoch: 0 }).unwrap();
         let payer = Keypair::new();
-        svm.airdrop(&payer.pubkey(), 10_000 * SOL).unwrap();
+        svm.airdrop(&payer.pubkey(), 100_000 * SOL).unwrap();
         // The fee wallet exists on mainnet; give it a balance so a small fee does not trip the rent rule.
         svm.airdrop(&FEE_WALLET, SOL).unwrap();
-        Env { svm, payer }
+        let mut env = Env { svm, payer };
+        // Aretia's wrapped-SOL account exists on a real cluster too (the pool also makes it if missing).
+        env.make_wsol(&FEE_WALLET, 0);
+        env
+    }
+
+    /// Creates `owner`'s wrapped-SOL associated account if needed and puts `lamports` of the test payer's SOL into it (wrapped).
+    pub fn make_wsol(&mut self, owner: &Address, lamports: u64) -> Address {
+        let payer = self.payer.pubkey();
+        let acc = wsol_ata(owner);
+        let mut ixs = vec![ata_ix(&payer, owner, &WSOL, &TOKEN)];
+        if lamports > 0 {
+            let mut t = vec![2, 0, 0, 0];
+            t.extend_from_slice(&lamports.to_le_bytes());
+            ixs.push(Instruction::new_with_bytes(SYSTEM, &t, vec![m(payer, true, true), m(acc, true, false)]));
+            ixs.push(Instruction::new_with_bytes(TOKEN, &[17], vec![m(acc, true, false)])); // SyncNative
+        }
+        self.send(&ixs, &[]).expect("wrapped SOL account");
+        acc
+    }
+
+    /// The wrapped-SOL balance of a token account at this address (a pool's SOL vault).
+    pub fn wsol_account(&self, account: &Address) -> u64 {
+        self.token_amount(account)
+    }
+
+    /// Wrapped SOL held by `owner`'s associated account (zero if there is none).
+    pub fn wsol(&self, owner: &Address) -> u64 {
+        self.token_amount(&wsol_ata(owner))
+    }
+
+    /// Sends `amount` of `from`'s wrapped SOL straight into a pool's SOL vault: a donation the pool must ignore.
+    pub fn donate_wsol(&mut self, from: &Keypair, pool: &Address, amount: u64) {
+        let mut d = vec![3];
+        d.extend_from_slice(&amount.to_le_bytes());
+        let ix = Instruction::new_with_bytes(TOKEN, &d, vec![m(wsol_ata(&from.pubkey()), true, false), m(sol_vault_pda(pool), true, false), m(from.pubkey(), false, true)]);
+        self.send(&[ix], &[from]).expect("donate wrapped SOL");
     }
 
     pub fn send(&mut self, ixs: &[Instruction], extra: &[&Keypair]) -> Sent {
@@ -319,6 +367,9 @@ pub fn create_pool_ix_full(creator: &Address, owner: &Address, position_id: &Add
             m(ATA_PROGRAM, false, false),
             m(SYSTEM, false, false),
             m(*position_id, false, position_id != owner && position_id != creator),
+            m(WSOL, false, false),
+            m(wsol_ata(creator), true, false),
+            m(TOKEN, false, false),
         ],
     )
 }
@@ -326,6 +377,7 @@ pub fn create_pool_ix_full(creator: &Address, owner: &Address, position_id: &Add
 pub fn swap_ix(trader: &Address, mint: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> Instruction {
     swap_ix_with(trader, mint, &ata(trader, mint, &TOKEN_2022), &FEE_WALLET, is_buy, amount_in, min_out)
 }
+/// `fee_wallet` is the OWNER of the fee's wrapped-SOL account (so a wrong one is refused).
 pub fn swap_ix_with(trader: &Address, mint: &Address, trader_token: &Address, fee_wallet: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> Instruction {
     let pool = pool_pda(mint);
     let mut d = disc("swap").to_vec();
@@ -342,9 +394,10 @@ pub fn swap_ix_with(trader: &Address, mint: &Address, trader_token: &Address, fe
             m(*mint, false, false),
             m(ata(&pool, mint, &TOKEN_2022), true, false),
             m(*trader_token, true, false),
-            m(*fee_wallet, true, false),
+            m(wsol_ata(trader), true, false),
+            m(wsol_ata(fee_wallet), true, false),
             m(TOKEN_2022, false, false),
-            m(SYSTEM, false, false),
+            m(TOKEN, false, false),
         ],
     )
 }
@@ -366,6 +419,8 @@ fn lp_accounts_id(owner: &Address, id: &Address, mint: &Address) -> Vec<AccountM
         m(TOKEN_2022, false, false),
         m(SYSTEM, false, false),
         m(*id, false, id != owner),
+        m(wsol_ata(owner), true, false),
+        m(TOKEN, false, false),
     ]
 }
 
@@ -390,7 +445,8 @@ pub fn remove_ix_id(owner: &Address, id: &Address, mint: &Address, dl: u64, min_
     d.extend_from_slice(&min_tokens.to_le_bytes());
     d.extend_from_slice(&min_sol.to_le_bytes());
     let mut accounts = lp_accounts_id(owner, id, mint);
-    accounts.pop(); // removing takes no position id: the position is found from its own stored id
+    // removing takes no position id (the position is found from its own stored id): drop it, keep the wrapped-SOL tail
+    accounts.remove(9);
     Instruction::new_with_bytes(PROGRAM_ID, &d, accounts)
 }
 
@@ -407,7 +463,7 @@ pub fn claim_ix_to(signer: &Address, mint: &Address, position_owner: &Address, r
     Instruction::new_with_bytes(
         PROGRAM_ID,
         &disc("claim_fees"),
-        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, position_owner), true, false), m(*recipient, true, false), m(SYSTEM, false, false)],
+        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, position_owner), true, false), m(wsol_ata(recipient), true, false), m(TOKEN, false, false)],
     )
 }
 
@@ -439,7 +495,7 @@ pub fn claim_ix_id(signer: &Address, id: &Address, mint: &Address, recipient: &A
     Instruction::new_with_bytes(
         PROGRAM_ID,
         &disc("claim_fees"),
-        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, id), true, false), m(*recipient, true, false), m(SYSTEM, false, false)],
+        vec![m(*signer, true, true), m(pool, true, false), m(sol_vault_pda(&pool), true, false), m(position_pda(&pool, id), true, false), m(wsol_ata(recipient), true, false), m(TOKEN, false, false)],
     )
 }
 

@@ -1,6 +1,6 @@
 [workspace]
 members = ["pool-math", "programs/*"]
-exclude = ["tests"]
+exclude = ["tests", "jupiter-amm"]
 resolver = "2"
 
 [profile.release]

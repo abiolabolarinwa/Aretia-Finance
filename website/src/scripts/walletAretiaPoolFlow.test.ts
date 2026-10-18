@@ -74,7 +74,7 @@ function world(): World {
     signAndSubmit: async (tx) => {
       if (w.script.reject) throw new Error('User rejected the request.');
       w.sent.push(tx);
-      const ix = tx.instructions[0]!;
+      const ix = tx.instructions.find((i) => i.programId.toBase58() === PROGRAM)!;
       if (w.script.poolAppears !== false && ix.data.length === 49) {
         const v = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
         const [x, y, l, fee, lock] = [v.getBigUint64(8, true), v.getBigUint64(16, true), v.getBigUint64(24, true), v.getUint16(32, true), ix.data[34] === 1];
@@ -141,6 +141,16 @@ describe('prepare', () => {
   });
 });
 
+describe('token notes', () => {
+  it('warns when the token has no logo link or no name, and says nothing when the link is usable', async () => {
+    const { flow, config, params, token } = await setup();
+    const r = await flow.prepare(config, params, { ...token, metadata: { name: 'A', symbol: 'A', uri: '' } });
+    expect(r.notes.join(' ')).toMatch(/no metadata link/);
+    expect((await flow.prepare(config, params, { ...token, metadata: null })).notes.join(' ')).toMatch(/no name or symbol/);
+    expect((await flow.prepare(config, params, { ...token, metadata: { name: 'A', symbol: 'A', uri: 'https://example.com/m.json' } })).notes).toEqual([]);
+  });
+});
+
 describe('create', () => {
   it('goes through the steps in order, sends one transaction and reads the pool back', async () => {
     const { w, flow, config, params, token } = await setup();
@@ -149,7 +159,7 @@ describe('create', () => {
     const out = await flow.create(review, (p) => seen.push(p));
     expect(seen).toEqual(['checking', 'signing', 'confirming', 'verifying', 'done']);
     expect(w.sent).toHaveLength(1);
-    expect(w.sent[0]!.instructions).toHaveLength(1);
+    expect(w.sent[0]!.instructions).toHaveLength(2); // Aretia's wrapped-SOL account if missing, then the pool
     expect(out.differences).toEqual([]);
     expect(out.pool).toBe(poolAddress(web3, PROGRAM, MINT));
     expect(out.position).toBe(positionAddress(web3, PROGRAM, out.pool, CREATOR));
@@ -232,9 +242,9 @@ describe('trading, claiming and locking', () => {
     await flow.trade(CREATOR, MINT, q);
     await flow.claim(CREATOR, MINT);
     await flow.lock(CREATOR, MINT, 5n);
-    // The buy carries a create-my-token-account step first; a claim and a lock are one step each.
-    expect(w.sent.map((t) => t.instructions.length)).toEqual([2, 1, 1]);
-    expect(w.sent.every((t) => t.instructions[t.instructions.length - 1]!.programId.toBase58() === PROGRAM)).toBe(true);
+    // A buy wraps SOL around the swap (6 steps), a claim makes the wrapped-SOL account and unwraps (3), a lock is one step.
+    expect(w.sent.map((t) => t.instructions.length)).toEqual([6, 3, 1]);
+    expect(w.sent.every((t) => t.instructions.some((i) => i.programId.toBase58() === PROGRAM))).toBe(true);
   });
   it('will not send a trade without a floor', async () => {
     const { w, flow } = await live();
@@ -267,6 +277,6 @@ describe('trading, claiming and locking', () => {
     await flow.claim(NEW_OWNER, MINT, NEW_OWNER, undefined, CREATOR);
     await flow.transferPosition(NEW_OWNER, MINT, CREATOR, undefined, CREATOR);
     const sent = w.sent.slice(-2);
-    expect(sent.map((t) => t.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === positionAddress(web3, PROGRAM, pool, CREATOR)))).toEqual([true, true]);
+    expect(sent.map((t) => t.instructions.find((i) => i.programId.toBase58() === PROGRAM)!.keys.some((k) => k.pubkey.toBase58() === positionAddress(web3, PROGRAM, pool, CREATOR)))).toEqual([true, true]);
   });
 });

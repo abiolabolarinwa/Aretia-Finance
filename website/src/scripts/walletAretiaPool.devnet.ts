@@ -12,6 +12,7 @@ import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { ARETIA_POOL_PROGRAM_ID_DEVNET, DEFAULT_ARETIA_POOL_FORM, validateAretiaPool } from './walletAretiaPoolCore';
 import { AretiaPoolFlow, type AretiaPoolFlowDeps } from './walletAretiaPoolFlow';
+import { wsolAccount } from './walletAretiaPoolTx';
 import { TOKEN_2022_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } from './walletTools';
 
 const RPC = 'https://api.devnet.solana.com';
@@ -150,9 +151,10 @@ describe.skipIf(!keyPath)('the Aretia Pool flow against the devnet program', () 
     view = (await flow.loadPool(mint, me))!;
     expect(view.position!.recipient).toBe(other);
     const owed = view.claimable;
-    expect(owed).toBeGreaterThan(890_880n); // enough to open the empty recipient account
+    expect(owed).toBeGreaterThan(0n);
     log.claimToOtherSignature = await flow.claim(me, mint, other);
-    expect(BigInt(await connection.getBalance(new web3.PublicKey(other)))).toBe(owed);
+    // Paid in wrapped SOL, to the other wallet's own wrapped-SOL account.
+    expect(BigInt((await connection.getTokenAccountBalance(new web3.PublicKey(wsolAccount(web3, other)))).value.amount)).toBe(owed);
     log.lockSignature = await flow.lock(me, mint, view.position!.shares);
     view = (await flow.loadPool(mint, me))!;
     expect(view.position!.locked).toBe(view.position!.shares);
@@ -168,7 +170,7 @@ describe.skipIf(!keyPath)('the Aretia Pool flow against the devnet program', () 
     await expect(flow.claim(me, mint)).rejects.toThrow();
     const flow2 = new AretiaPoolFlow(deps(buyer2));
     const owed2 = (await flow2.loadPool(mint, buyer2.publicKey.toBase58(), me))!.claimable;
-    expect(owed2).toBeGreaterThan(890_880n);
+    expect(owed2).toBeGreaterThan(0n);
     const b2 = BigInt(await connection.getBalance(buyer2.publicKey));
     log.newOwnerClaimSignature = await flow2.claim(buyer2.publicKey.toBase58(), mint, buyer2.publicKey.toBase58(), undefined, me);
     expect(BigInt(await connection.getBalance(buyer2.publicKey)) - b2).toBeGreaterThan(owed2 - 20_000n); // the claim, less the transaction fee

@@ -24,7 +24,7 @@ describe('the IDL that integrators read matches the program and the web builders
   it('has the same number of accounts as each builder makes', () => {
     const p = { creator: A, mint: M, x0: 1n, y0: 0n, l0: 1n, feeBps: 25, lock: true, sniperBps: 0, decaySecs: 0, vx0: 0n };
     const l = { owner: A, mint: M, dl: 1n, tokens: 1n, sol: 1n };
-    expect(ix('createPool').accounts).toHaveLength(buildCreatePool(web3, P, p).instructions[0]!.keys.length);
+    expect(ix('createPool').accounts).toHaveLength(buildCreatePool(web3, P, p).instructions.find((i) => i.programId.toBase58() === P)!.keys.length);
     expect(ix('swap').accounts).toHaveLength(buildSwap(web3, P, { trader: A, mint: M, isBuy: true, amountIn: 1n, minOut: 1n }).keys.length);
     expect(ix('addLiquidity').accounts).toHaveLength(buildAddLiquidity(web3, P, l).keys.length);
     expect(ix('removeLiquidity').accounts).toHaveLength(buildRemoveLiquidity(web3, P, l).keys.length);

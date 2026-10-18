@@ -2,7 +2,7 @@
   "version": "0.3.0",
   "name": "aretia_pool",
   "docs": [
-    "Aretia Pool: constant-product swap pool with virtual reserves (price range), launch-fee schedule, locked and transferable positions. UNAUDITED. Devnet only. docs/ARETIA_POOL.md"
+    "Aretia Pool: constant-product swap pool against WRAPPED SOL (the SOL vault is the pool associated wrapped-SOL token account), with virtual reserves (price range), a launch-fee schedule, locked and transferable positions. Price = (y + l) / (x + vx). UNAUDITED. Devnet only. docs/ARETIA_POOL.md"
   ],
   "instructions": [
     {
@@ -54,6 +54,16 @@
         },
         {
           "name": "positionId"
+        },
+        {
+          "name": "wsolMint"
+        },
+        {
+          "name": "creatorWsol",
+          "isMut": true
+        },
+        {
+          "name": "solTokenProgram"
         }
       ],
       "args": [
@@ -129,14 +139,18 @@
           "isMut": true
         },
         {
-          "name": "feeWallet",
+          "name": "traderWsol",
+          "isMut": true
+        },
+        {
+          "name": "feeWsol",
           "isMut": true
         },
         {
           "name": "tokenProgram"
         },
         {
-          "name": "systemProgram"
+          "name": "solTokenProgram"
         }
       ],
       "args": [
@@ -203,6 +217,13 @@
         },
         {
           "name": "positionId"
+        },
+        {
+          "name": "ownerWsol",
+          "isMut": true
+        },
+        {
+          "name": "solTokenProgram"
         }
       ],
       "args": [
@@ -266,6 +287,13 @@
         },
         {
           "name": "systemProgram"
+        },
+        {
+          "name": "ownerWsol",
+          "isMut": true
+        },
+        {
+          "name": "solTokenProgram"
         }
       ],
       "args": [
@@ -314,11 +342,11 @@
           "isMut": true
         },
         {
-          "name": "recipient",
+          "name": "recipientWsol",
           "isMut": true
         },
         {
-          "name": "systemProgram"
+          "name": "solTokenProgram"
         }
       ],
       "args": [],

@@ -90,6 +90,28 @@ describe('sending the fee before the swap', () => {
     expect(failsOnFee.sends.map((s) => s.data?.slice(0, 10))).toEqual(['0xapprove', '0xa9059cbb']);
   });
 
+  it('checks the swap on the node before the fee, and sends neither when the swap would now fail', async () => {
+    const w = wallet();
+    const calls: string[] = [];
+    const read = async (method: string, params: unknown[]) => {
+      if (method === 'eth_getTransactionReceipt') return { status: '0x1' };
+      if (method === 'eth_call') {
+        calls.push((params[0] as { data: string }).data);
+        throw new Error('execution reverted: INSUFFICIENT_OUTPUT_AMOUNT');
+      }
+      return '0x';
+    };
+    await expect(new EvmChainAdapter('ethereum', w, { pollMs: 1, read }).signAndSubmit(prepared())).rejects.toMatchObject({ code: 'simulation-failed' });
+    // The approval went out; the fee and the swap did not.
+    expect(w.sends.map((s) => s.data?.slice(0, 10))).toEqual(['0xapprove']);
+    expect(calls).toEqual(['0xswap', '0xswap', '0xswap']);
+
+    const ok = wallet();
+    const fine = async (method: string) => (method === 'eth_getTransactionReceipt' ? { status: '0x1' } : '0x');
+    await new EvmChainAdapter('ethereum', ok, { pollMs: 1, read: fine }).signAndSubmit(prepared());
+    expect(ok.sends.map((s) => s.data?.slice(0, 10))).toEqual(['0xapprove', '0xa9059cbb', '0xswap']);
+  });
+
   it('never pays the fee twice for one quote, even when the swap was declined and tried again', async () => {
     let declined = true;
     const w = wallet();
@@ -195,15 +217,21 @@ describe('the Aretia fee in the Aretia EVM router', () => {
   });
 });
 
+/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
+const execData = (token: string, amount: bigint | string): string => {
+  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
+  return '0x2213bc0b' + w('0'.repeat(40)) + w(token) + w(BigInt(amount).toString(16)) + w('0'.repeat(40)) + w('a0') + w('0');
+};
+
 describe('the Aretia fee in the 0x route', () => {
-  const quoteJson = (buy: string) => ({ buyAmount: buy, minBuyAmount: buy, transaction: { to: '0x0000000000001fF3684f28c67538d4D072C22734', data: '0xdead', value: '0', gas: '100000' }, route: { fills: [] }, issues: {} });
+  const quoteJson = (buy: string, asked: Record<string, unknown> = { sellToken: USDC, sellAmount: '0' }) => ({ buyAmount: buy, minBuyAmount: buy, transaction: { to: '0x0000000000001fF3684f28c67538d4D072C22734', data: execData(String(asked.sellToken), String(asked.sellAmount)), value: '0', gas: '100000' }, route: { fills: [] }, issues: {} });
   const provider = (sold: { value?: bigint[] } = {}) => {
     const asked: Record<string, unknown>[] = [];
     const p = new Evm0xProvider({
       fee: liveFeeConfig(FEE_ADDRESS),
       quote: async (body) => {
         asked.push(body);
-        return quoteJson('1000');
+        return quoteJson('1000', body);
       },
       rpc: async (_c, method) => (method === 'eth_call' ? '0x' + (10n ** 30n).toString(16) : '0x'),
       now: () => 1_000_000,

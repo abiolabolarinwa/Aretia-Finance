@@ -156,6 +156,9 @@ export class EvmChainAdapter implements ChainAdapter {
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
     if (p.fee && !this.feePaid.has(quoteId)) {
+      // Paid on its own, the fee cannot be taken back if the swap then fails. So the swap is tried on the node first, as it stands now
+      // (after any approval above, and however long the person took to confirm): if it would fail, nothing more is sent, fee included.
+      await this.swapWouldSucceed(p.swap);
       // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
       const hash = await this.wallet.sendTransaction(p.fee.tx);
       noteFeeTx(this.chain, hash);
@@ -192,6 +195,27 @@ export class EvmChainAdapter implements ChainAdapter {
     if (receipt === null || receipt === undefined) return 'submitted';
     const status = (receipt as { status?: string }).status;
     return status === '0x1' ? 'confirmed' : 'failed';
+  }
+
+  /**
+   * Throws when the swap would revert right now. A node a block behind can still miss an approval that was just mined, so a refusal is
+   * asked again a few times before it counts. Without a read-only node (tests, older callers) the check is skipped.
+   */
+  private async swapWouldSucceed(swap: EvmTxRequest): Promise<void> {
+    const read = this.options.read;
+    if (!read) return;
+    let last: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await read('eth_call', [{ from: swap.from, to: swap.to, data: swap.data, value: swap.value ?? '0x0' }, 'latest']);
+        return;
+      } catch (e) {
+        last = e;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, this.options.pollMs ?? 2_000));
+      }
+    }
+    const why = last instanceof Error ? ` (${last.message.slice(0, 160)})` : '';
+    throw new SwingsError('simulation-failed', `The swap would fail on the network right now${why}, so neither the Aretia fee nor the swap was sent. Get a new quote and try again.`);
   }
 
   private async waitForReceipt(hash: string): Promise<'confirmed' | 'failed' | 'pending'> {

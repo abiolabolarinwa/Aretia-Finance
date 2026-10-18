@@ -10,8 +10,8 @@ describe('the owner export', () => {
       [row('evm:0xaa', 'ethereum', USDC, '1160000'), row('evm:0xaa', 'ethereum', USDC, '1160000'), row('evm:0xaa', 'ethereum', USDC, '500', { status: 'capped' }), row('evm:0xaa', 'ethereum', USDC, '700000', { paid_at: 5 }), row('evm:0xbb', 'bnb', '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', '2000000000000000'), row('evm:0xcc', 'ethereum', USDC, '9000000')],
       ['evm:0xcc'],
     );
-    expect(g.find((x: any) => x.referrer === 'evm:0xaa')).toMatchObject({ swaps: 3, owed: 2_320_000n, paid: 700_000n, void: 0n });
-    expect(g.find((x: any) => x.referrer === 'evm:0xcc')).toMatchObject({ owed: 0n, void: 9_000_000n });
+    expect(g.find((x: { referrer: string }) => x.referrer === 'evm:0xaa')).toMatchObject({ swaps: 3, owed: 2_320_000n, paid: 700_000n, void: 0n });
+    expect(g.find((x: { referrer: string }) => x.referrer === 'evm:0xcc')).toMatchObject({ owed: 0n, void: 9_000_000n });
     const text = renderExport(g, new Date('2026-10-18T00:00:00Z'));
     expect(text).toContain('0xaa  [ethereum]  owed 2.32 USDC');
     expect(text).toContain('0xbb  [bnb]  owed 0.002 BNB');

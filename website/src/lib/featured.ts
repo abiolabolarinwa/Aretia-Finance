@@ -26,6 +26,8 @@ export const FEATURED_LIMITS = { title: 60, blurb: 140, max: 6 } as const;
 
 /** The words that sit on every featured item. */
 export const FEATURED_LABEL = 'Featured';
+/** Promotion starts from this price, paid in USDT or USDC. Said wherever a creator can ask; nothing is charged by the request forms. */
+export const FEATURED_PRICE_NOTE = 'Promoting a token starts from $100, paid in USDT or USDC. Nothing is charged by this form: we reply, agree the dates and the price in writing, and only then send payment details.';
 export const FEATURED_NOTE = 'Featured places are agreed with the project. They are not a rating, a check or an endorsement.';
 
 const DAY_MS = 86_400_000;

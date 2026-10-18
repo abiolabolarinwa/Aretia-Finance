@@ -4,6 +4,7 @@
  * It takes no payment: a request is a message, and any price is agreed in writing afterwards. Everything typed is shown with textContent.
  */
 import { LINKS } from '../data/site';
+import { FEATURED_PRICE_NOTE } from '../lib/featured';
 import { REQUEST_LIMITS, hasErrors, validateRequest, type RequestFields, type RequestKind } from '../lib/requests';
 
 const STYLE_ID = 'aretia-promote-style';
@@ -28,6 +29,7 @@ const CSS = `
 .apr__cancel{color:#0e0b2b;background:#fff}
 .apr__status{min-height:1.2em;font-weight:600}
 .apr__status.is-ok{color:#0f5c3a}.apr__status.is-err{color:#b42318}
+  .apr__price{font-weight:600;color:#0e0b2b}
 @media(min-width:520px){.apr__row{grid-template-columns:1fr 1fr}}
 `;
 
@@ -92,6 +94,7 @@ export function openPromote(start: RequestKind = 'featured'): void {
       tabs.append(b);
     }
     body.append(tabs, h('p', '', COPY[kind].lead));
+    if (kind === 'featured') body.append(h('p', 'apr__price', FEATURED_PRICE_NOTE));
 
     const form = h('form');
     form.noValidate = true;
@@ -115,7 +118,7 @@ export function openPromote(start: RequestKind = 'featured'): void {
       form.append(row);
     }
     form.append(field('project', 'Project link', { type: 'url', placeholder: 'https://', autocomplete: 'url' }), field('contact', 'Your email', { type: 'email', max: REQUEST_LIMITS.contact, autocomplete: 'email' }));
-    form.append(h('p', '', 'This takes no payment. Never include a recovery phrase or private key; Aretia will never ask for one.'));
+    form.append(h('p', '', 'Never include a recovery phrase or private key; Aretia will never ask for one.'));
     const status = h('p', 'apr__status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');

@@ -11,6 +11,7 @@ import { chainByKey, chainEnabled, type LaunchEvmChainKey } from './walletLaunch
 import { friendlyEvmError } from './walletLaunchEvmFlow';
 import { DEFAULT_POOL_FORM, POOL_DEXES, POOL_FEE_UNITS, dexFor, poolConfigOf, poolDisclosuresOf, validatePoolForm, type PoolForm, type PoolIssue } from './walletPoolEvmCore';
 import { PoolFlow, type PoolOutcome, type PoolProgress, type PoolReview } from './walletPoolEvmFlow';
+import { appendTokenShare } from './walletTokenLinks';
 
 export interface PoolEvmHost {
   getAccount(): string | null;
@@ -227,6 +228,7 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
     a.rel = 'noopener noreferrer';
     row(dl, 'Pool transaction', a);
     card.append(dl);
+    if (ok) appendTokenShare(card, review.config.dex.key, review.config.token);
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Open another');
     again.type = 'button';
     again.addEventListener('click', () => {

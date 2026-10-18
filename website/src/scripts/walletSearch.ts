@@ -5,6 +5,7 @@
 import { SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { CHAINS } from '../swings/core/types.js';
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
+import { lookupAddress } from './walletAddressLookup.js';
 
 export const OPEN_TOKEN_EVENT = 'aretia:open-token';
 
@@ -105,7 +106,9 @@ export function mountTokenSearch(): void {
     const mine = ++seq;
     paint('Searching…');
     try {
-      const found = await searchTokens(q, undefined, controller.signal);
+      let found = await searchTokens(q, undefined, controller.signal);
+      // A token made a minute ago is on the chain but in no index yet: a pasted address is read from the chain itself.
+      if (found.length === 0) found = await lookupAddress(q, controller.signal);
       if (mine !== seq) return;
       hits = found;
       active = hits.length > 0 ? 0 : -1;

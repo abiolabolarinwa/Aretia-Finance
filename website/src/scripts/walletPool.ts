@@ -22,6 +22,7 @@ import {
 } from './walletPoolCore';
 import { PoolFlow, type PoolOutcome, type PoolProgress, type PoolReview } from './walletPoolFlow';
 import { RPC_URL, fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateWithBalance, waitForConfirmation } from './walletSend';
+import { appendTokenShare } from './walletTokenLinks';
 
 export interface PoolHost {
   getAddress(): string | null;
@@ -308,6 +309,7 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     row(dl, 'Transaction', link(short(outcome.signature), `https://solscan.io/tx/${encodeURIComponent(outcome.signature)}`));
     row(dl, 'View the pool', link('Open on Meteora', `https://app.meteora.ag/dammv2/${encodeURIComponent(outcome.pool)}`));
     card.append(dl);
+    if (ok && form.mint.trim()) appendTokenShare(card, 'solana', form.mint.trim());
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Open another');
     again.type = 'button';
     again.addEventListener('click', () => {

@@ -21,6 +21,7 @@ import { LaunchError, LaunchFlow, friendlyError, type Outcome, type Progress, ty
 import { createEvmLaunch, type LaunchEvmHost } from './walletLaunchEvm';
 import { LAUNCH_EVM_CHAINS, chainEnabled, type LaunchEvmChainKey } from './walletLaunchEvmCore';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
+import { appendTokenShare } from './walletTokenLinks';
 
 export interface LaunchHost {
   /** The connected Solana wallet, or null. */
@@ -354,6 +355,7 @@ export function initLaunch(host: LaunchHost): LaunchApi {
       void navigator.clipboard?.writeText(outcome!.mint).then(() => (copy.textContent = 'Copied'));
     });
     card.append(copy);
+    appendTokenShare(card, 'solana', outcome.mint);
     card.append(h('p', 'wapp__fine', 'Nobody can buy this token yet. A token has no market until a sale or a liquidity pool exists. You can open a pool for it below. The tokens you hold are in your wallet now.'));
     if (host.offerPool) {
       const pool = h('button', 'wapp__btn wapp__btn--primary', 'Open a liquidity pool for it');

@@ -33,6 +33,7 @@ import {
   type EvmCurveToken,
 } from './walletCurveEvmCore';
 import { EvmCurveError, EvmCurveFlow, type EvmCurveOutcome, type EvmCurveProgress, type EvmCurveReview } from './walletCurveEvmFlow';
+import { appendTokenShare } from './walletTokenLinks';
 
 export interface CurveEvmHost {
   getAccount(): string | null;
@@ -456,6 +457,7 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     if (tab === 'create' && ok) {
       card.append(h('p', 'wapp__fine', 'Your curve is open. Share this link so people can buy from it.'));
       card.append(copyButton('Copy link to your curve', shareLink(outcome.token)));
+      appendTokenShare(card, form.chain, outcome.token);
       const view = h('button', 'wapp__btn wapp__btn--primary', 'View your curve');
       view.type = 'button';
       view.addEventListener('click', () => {

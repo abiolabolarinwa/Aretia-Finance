@@ -15,6 +15,8 @@ import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { lookupAddress } from './walletAddressLookup.js';
+import { parseSwapHash } from './tokenPageCore.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
@@ -479,7 +481,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   }
 
   async function searchFor(query: string): Promise<TokenInfo[]> {
-    if (!isEvm(s.chain)) return searchTokens(query);
+    if (!isEvm(s.chain)) {
+      const found = await searchTokens(query).catch(() => [] as TokenInfo[]);
+      if (found.length > 0) return found;
+      // Jupiter has not indexed a brand-new token yet: a pasted mint is read from the chain instead.
+      const onChain = (await lookupAddress(query)).filter((h) => h.chain === 'solana' && h.decimals !== null);
+      return onChain.map((h) => ({ mint: h.address, symbol: h.symbol, name: h.name, decimals: h.decimals!, icon: null, verified: null }));
+    }
     const ref = normalizeTokenRef(s.chain, query.trim());
     if (ref) {
       const facts = await readErc20(publicRead(s.chain), ref.address);
@@ -2229,9 +2237,28 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     markets.draw();
   });
 
+  let linkHandled = '';
+  /** Opens the swap for a token named only by chain and address: name and symbol from the search indexes, else from the chain. */
+  async function openLinkedToken(chain: ChainId, address: string): Promise<void> {
+    if (!runtime.loaded) await loadRuntime();
+    const same = (a: string): boolean => (chain === 'solana' ? a === address : a.toLowerCase() === address);
+    let hit: SearchHit | undefined = (await searchEverywhere(address, undefined, undefined, { accept: (h) => h.chain === chain && same(h.address), limit: 1 }).catch(() => []))[0];
+    hit ??= (await lookupAddress(address)).find((h) => h.chain === chain);
+    const fallback = `${address.slice(0, 4)}…${address.slice(-4)}`;
+    const detail: SearchHit = hit ?? { chain, address, symbol: fallback, name: '', icon: null, decimals: null, liquidityUsd: null, priceUsd: null, fresh: false, risk: null };
+    window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail }));
+  }
+
   return {
     onShow(view) {
       closeSwapDialog();
+      // "#/swap/<chain>/<address>" (the Buy button on a public token page) opens the swap with that token to receive.
+      const link = view === 'swap' ? parseSwapHash(location.hash) : null;
+      if (!link) linkHandled = '';
+      else if (linkHandled !== `${link.chain}:${link.address}`) {
+        linkHandled = `${link.chain}:${link.address}`;
+        void openLinkedToken(link.chain, link.address);
+      }
       railView = view === 'swap' ? 'swap' : 'markets';
       renderRail();
       showTab(view === 'swap' ? 'swap' : 'markets');

@@ -14,6 +14,7 @@
     { "source": "/api/swings-market", "destination": "/api/swings-data?route=market" },
     { "source": "/api/swings-account", "destination": "/api/swings-data?route=account" },
     { "source": "/api/swings-radar", "destination": "/api/swings-data?route=radar" },
+    { "source": "/api/swings-referrals", "destination": "/api/swings-data?route=referrals" },
     { "source": "/api/swings-notify", "destination": "/api/swings-data?route=notify" },
     { "source": "/api/swings-telegram", "destination": "/api/swings-data?route=telegram" },
     { "source": "/api/swings-alerts-run", "destination": "/api/swings-data?route=alerts-run" }

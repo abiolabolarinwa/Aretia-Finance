@@ -10,6 +10,7 @@
  * Aretia's RPC proxy. EVM quotes go to Aretia's /api/swings-0x (which calls 0x); EVM reads go to the
  * chain's public node. Token lists call Aretia's /api/swings-tokens. History stays in this browser.
  */
+import { flushReferrals, registerReferralSigner, swapConfirmed } from './walletReferrals';
 import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
@@ -272,6 +273,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (!address || !signMessage) return null;
     return { family: 'solana', address, sign: async (m) => btoa(String.fromCharCode(...(await signMessage(new TextEncoder().encode(m))))) };
   }
+  registerReferralSigner(signerNow);
   const sessionNow = (): Session | null => {
     const sg = signerNow();
     return sg ? account.session(sg.family, sg.address) : null;
@@ -298,6 +300,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     redrawAccount();
     try {
       const session = await account.signIn(sg);
+      void flushReferrals();
       await syncAccount(session);
       pushOrders();
       accountMessage = 'Saved. Your favourites and swaps now follow this wallet.';
@@ -815,6 +818,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       s.execution = execution;
       record(execution, quote);
       s.phase = 'done';
+      if (execution.status === 'confirmed') swapConfirmed(quote.request.chain, execution.txId);
       if (execution.status === 'confirmed' && swapPressedAt) {
         const total = Date.now() - swapPressedAt;
         timingNote = `Whole swap ${seconds(total)}, of which ${seconds(walletMs)} in your wallet.`;

@@ -62,6 +62,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <script>
       import { initMotion } from '../scripts/motion';
       initMotion();
+      // A referral link (?ref=<address>) is remembered for the visitor; pages without one load nothing extra.
+      if (location.search.includes('ref=')) void import('../scripts/walletReferrals').then((m) => m.captureReferrer()).catch(() => undefined);
     </script>
   </body>
 </html>

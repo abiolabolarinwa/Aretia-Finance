@@ -70,11 +70,21 @@ function fakeWorld(opts: { evmTx?: Record<string, { from: string; to: string; va
   return { bindings, credits, revocations, calls, fetchImpl };
 }
 
+interface Reply {
+  credited?: number;
+  reason?: string;
+  results: { tx: string; result: string }[];
+  revoked?: boolean;
+  traders?: number;
+  notCounted: { capped: number };
+  totals: unknown[];
+}
+
 const session = (owner: string, now = NOW) => `Bearer ${issueSession(KEY, owner, now).token}`;
 const feeLog = (token: string, from: string, amount: bigint) => ({ address: token, topics: [TRANSFER, pad(from), pad(FEE)], data: '0x' + amount.toString(16).padStart(64, '0') });
 
 function call(world: ReturnType<typeof fakeWorld>, body: unknown, over: Partial<ReferralsInput> & { as?: string } = {}) {
-  return handleReferrals({ method: 'POST', origin: ORIGIN, authorization: session(over.as ?? `evm:${TRADER}`), ip: '1.1.1.1', body, env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: KEY }, fetchImpl: world.fetchImpl, now: NOW, ...over }).then((r) => ({ status: r.status, data: JSON.parse(r.body || '{}') as Record<string, any> }));
+  return handleReferrals({ method: 'POST', origin: ORIGIN, authorization: session(over.as ?? `evm:${TRADER}`), ip: '1.1.1.1', body, env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: KEY }, fetchImpl: world.fetchImpl, now: NOW, ...over }).then((r) => ({ status: r.status, data: JSON.parse(r.body || '{}') as Reply }));
 }
 
 beforeEach(() => resetRateLimit());

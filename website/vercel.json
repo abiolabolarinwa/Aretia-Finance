@@ -4,6 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": { "api/swings-discover.ts": { "maxDuration": 60 }, "api/swings-data.ts": { "maxDuration": 60 } },
+  "crons": [{ "path": "/api/launchbox-run", "schedule": "0 4 * * *" }],
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
@@ -17,7 +18,9 @@
     { "source": "/api/swings-referrals", "destination": "/api/swings-data?route=referrals" },
     { "source": "/api/swings-notify", "destination": "/api/swings-data?route=notify" },
     { "source": "/api/swings-telegram", "destination": "/api/swings-data?route=telegram" },
-    { "source": "/api/swings-alerts-run", "destination": "/api/swings-data?route=alerts-run" }
+    { "source": "/api/swings-alerts-run", "destination": "/api/swings-data?route=alerts-run" },
+    { "source": "/api/launchbox", "destination": "/api/swings-data?route=launchbox" },
+    { "source": "/api/launchbox-run", "destination": "/api/swings-data?route=launchbox-run" }
   ],
   "redirects": [
     {

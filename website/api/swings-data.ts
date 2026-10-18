@@ -1,5 +1,5 @@
 /**
- * One function behind eleven public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind thirteen public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-trades   recent trades of a pool for the Transactions table, shared and cached (GET)
@@ -11,12 +11,15 @@
  *   /api/swings-notify   alerts to a phone: Telegram and browser push (GET, POST)
  *   /api/swings-telegram the Telegram bot's webhook    (POST)
  *   /api/swings-alerts-run the scheduled alert check   (GET, with the cron secret)
+ *   /api/launchbox       Launch Box: tokens made through Aretia Launch, with market data (GET)
+ *   /api/launchbox-run   the Launch Box indexer (GET, with the cron secret)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
  */
 import { handleAccount } from './_swingsAccount.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleReferrals } from './_swingsReferrals.js';
+import { handleLaunchbox, handleLaunchboxRun } from './_launchbox.js';
 import { handleMarket } from './_swingsMarket.js';
 import { handleOhlcv } from './_swingsOhlcv.js';
 import { handleTrades } from './_swingsTrades.js';
@@ -73,6 +76,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'market') out = await handleMarket({ ...common, query });
   else if (route === 'ohlcv') out = await handleOhlcv({ ...common, query });
   else if (route === 'trades') out = await handleTrades({ ...common, query });
+  else if (route === 'launchbox') out = await handleLaunchbox(common);
+  else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };
   for (const [name, value] of Object.entries(out.headers)) res.setHeader(name, value);
   res.status(out.status).send(out.body);

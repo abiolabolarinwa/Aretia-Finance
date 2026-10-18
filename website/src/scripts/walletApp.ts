@@ -14,6 +14,7 @@ import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
 import { initAretiaPool } from './walletAretiaPool';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
+import { initLaunchBox } from './walletLaunchBox';
 import { initYourPools } from './walletYourPools';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
@@ -316,9 +317,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend' | 'referrals';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend', 'referrals'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend', referrals: 'Referrals' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'launchbox' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend' | 'referrals';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend', 'referrals'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', launchbox: 'Launch Box', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend', referrals: 'Referrals' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -415,6 +416,8 @@ export function initWalletApp(): void {
       },
     },
   });
+
+  const launchBox = initLaunchBox({ goLaunch: () => (location.hash = '#/launch') });
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.
@@ -1068,6 +1071,7 @@ export function initWalletApp(): void {
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'referrals') referrals?.onShow();
     if (view === 'activity') swings.onActivityShow();
+    if (view === 'launchbox') launchBox.onShow();
     if (view === 'shield') shield.onShow(location.hash);
     if (view === 'launch') {
       launch.onShow();

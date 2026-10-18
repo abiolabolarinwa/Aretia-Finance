@@ -342,13 +342,14 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     }
     const hint = $('[data-hub-market-hint]');
     if (hint) {
-      hint.hidden = available.length < 2;
+      const protection = ' Launch protection is on by default: the fee starts at 5% and falls in a straight line to yours over 10, 30 or 60 minutes, so buying the instant a pool opens costs a bot more. The first buyers pay the higher fee, and it goes to you.';
+      hint.hidden = available.length < 2 && !(tab === 'pool' && onSolana());
       hint.textContent =
         tab === 'pool' && available.includes('curve')
-          ? 'A pool opens a market right away at a starting price you choose.'
+          ? 'A pool opens a market right away at a starting price you choose.' + (onSolana() ? protection : '')
           : tab === 'curve'
             ? 'A curve sells your token along a rising price, and opens a locked pool when it sells out.'
-            : 'A pool opens a market right away at a starting price you choose.';
+            : 'A pool opens a market right away at a starting price you choose.' + (tab === 'pool' && onSolana() ? protection : '');
     }
   }
 

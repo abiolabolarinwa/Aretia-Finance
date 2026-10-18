@@ -3,8 +3,8 @@ import * as sdk from '@meteora-ag/cp-amm-sdk';
 import BN from 'bn.js';
 import { describe, expect, it } from 'vitest';
 import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore';
-import { POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, type PoolConfig } from './walletPoolCore';
-import { assemblePool, buildPool, inspectPool, poolMath, tokenBadge, type PoolLibs } from './walletPoolTx';
+import { LAUNCH_PROTECTION_MINUTES, LAUNCH_PROTECTION_START_BPS, POOL_TRADING_FEES_BPS, poolDisclosures, protectionSchedule, POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, type PoolConfig } from './walletPoolCore';
+import { assemblePool, buildPool, expectedBaseFee, inspectPool, poolMath, tokenBadge, type PoolLibs } from './walletPoolTx';
 
 const CREATOR = '4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX';
 const OTHER = '3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg';
@@ -125,5 +125,62 @@ describe('inspectPool refuses anything else', () => {
     const x = await built(config({ lockLiquidity: false }));
     x.tx.add((await built()).tx.instructions[6]!);
     expect(inspectPool(web3, x.tx, x.input).join(' ')).toMatch(/not the expected set of steps/);
+  });
+});
+
+describe('launch protection', () => {
+  const protectedConfig = (minutes: number, tradingFeeBps: number) => config({ tradingFeeBps, launchProtection: { startBps: LAUNCH_PROTECTION_START_BPS, minutes } });
+
+  it('writes the same 27 bytes as the real SDK, for every fee and window, and the by-hand encoder agrees', () => {
+    for (const fee of POOL_TRADING_FEES_BPS) {
+      for (const minutes of LAUNCH_PROTECTION_MINUTES) {
+        const c = protectedConfig(minutes, fee);
+        const sdkBytes = poolMath(web3, libs, c).baseFee;
+        expect(sdkBytes).toHaveLength(27);
+        expect(Array.from(expectedBaseFee(c))).toEqual(Array.from(sdkBytes));
+        // And it differs from the flat block.
+        expect(Array.from(sdkBytes)).not.toEqual(Array.from(poolMath(web3, libs, config({ tradingFeeBps: fee })).baseFee));
+      }
+    }
+    // The flat block is still what it was.
+    expect(Array.from(expectedBaseFee(config()))).toEqual(Array.from(poolMath(web3, libs, config()).baseFee));
+  });
+  it('starts at 5%, falls in a straight line, and ends exactly on the creator’s fee', () => {
+    for (const fee of POOL_TRADING_FEES_BPS) {
+      for (const minutes of LAUNCH_PROTECTION_MINUTES) {
+        const s = protectionSchedule(fee, { startBps: LAUNCH_PROTECTION_START_BPS, minutes });
+        expect(s.cliff).toBe(50_000_000n);
+        expect(s.frequency * BigInt(s.periods)).toBe(BigInt(minutes * 60));
+        expect(s.cliff - s.reduction * BigInt(s.periods)).toBe(BigInt(fee) * 100_000n);
+        // Read through the SDK's own fee-over-time function.
+        const at = (period: number) => sdk.getFeeTimeBaseFeeNumeratorByPeriod(new BN(s.cliff.toString()), s.periods, new BN(period), new BN(s.reduction.toString()), sdk.BaseFeeMode.FeeTimeSchedulerLinear).toString();
+        expect(at(0)).toBe('50000000');
+        expect(at(s.periods)).toBe((BigInt(fee) * 100_000n).toString());
+        expect(BigInt(at(s.periods / 2))).toBe((s.cliff + BigInt(fee) * 100_000n) / 2n);
+        expect(sdk.validateFeeTimeScheduler(s.periods, new BN(s.frequency.toString()), new BN(s.reduction.toString()), new BN(s.cliff.toString()), sdk.BaseFeeMode.FeeTimeSchedulerLinear, 1)).toBe(true);
+      }
+    }
+    expect(LAUNCH_PROTECTION_START_BPS).toBeLessThanOrEqual(sdk.MAX_FEE_BPS_V1);
+  });
+  it('the inspector accepts the scheduled pool and refuses a flat block, a different window or a different start', async () => {
+    for (const minutes of LAUNCH_PROTECTION_MINUTES) {
+      const c = protectedConfig(minutes, 25);
+      const { tx, input } = await built(c);
+      expect(inspectPool(web3, tx, input)).toEqual([]);
+    }
+    const c = protectedConfig(30, 25);
+    const edit = (f: (d: Buffer) => void) => (t: web3.Transaction) => void (t.instructions[5] = withData(t.instructions[5]!, f));
+    expect(await after(edit((d) => void d.set(Buffer.from(poolMath(web3, libs, config()).baseFee), 8)), c)).toMatch(/launch-protection schedule/);
+    expect(await after(edit((d) => void (d[10]! ^= 1)), c)).toMatch(/launch-protection schedule/);
+    expect(await after(edit((d) => void (d[0 + 8]! ^= 1)), c)).toMatch(/launch-protection schedule/);
+    // A pool built flat is refused when protection was shown.
+    const x = await built(config());
+    expect(inspectPool(web3, x.tx, { ...x.input, config: c }).join(' ')).toMatch(/launch-protection schedule/);
+  });
+  it('says plainly what it does and what it costs the first buyers', () => {
+    const on = poolDisclosures(protectedConfig(30, 25)).map((d) => d.text).join(' ');
+    expect(on).toMatch(/starts at 5% and falls in a straight line to 0.25%/);
+    expect(on).toMatch(/first buyers pay more/);
+    expect(poolDisclosures(config()).map((d) => d.text).join(' ')).toMatch(/Launch protection is off/);
   });
 });

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from './walletTools';
 import { SYSTEM_PROGRAM_ID } from './walletLaunchTx';
 import type { PoolLibs } from './walletPoolTx';
-import { amountText, claimableText, hasClaimable, lockText, NATIVE_MINT, pairName, sortPositions, type PoolPosition } from './walletYourPoolsCore';
+import { headlineExplain, headlineShareText, headlineText, rewardsFor, shareLink, shareText, solText, usdText, amountText, claimableText, hasClaimable, lockText, NATIVE_MINT, pairName, sortPositions, type PoolPosition } from './walletYourPoolsCore';
 import { assembleClaim, buildClaim, inspectClaim } from './walletYourPoolsTx';
 
 const libs: PoolLibs = { sdk, BN, cpAmm: new sdk.CpAmm(new web3.Connection('http://127.0.0.1:1')) };
@@ -221,5 +221,51 @@ describe('YourPoolsFlow', () => {
     stale.script.stale = true;
     const out = await stale.flow.claim(OWNER, p);
     expect(out.differences.join(' ')).toMatch(/does not show the fees as claimed/);
+  });
+});
+
+describe('the creator rewards headline', () => {
+  const sol = (lamports: bigint) => lamports;
+  it('adds SOL waiting and SOL already claimed, and lists other tokens separately without converting them', () => {
+    const p1 = position({ feeB: sol(250_000_000n), claimedB: sol(100_000_000n), claimedA: 5n });
+    const p2 = position({ feeA: 0n, feeB: sol(50_000_000n), claimedB: sol(0n), claimedA: 0n });
+    const r = rewardsFor([p1, p2]);
+    expect(r.waiting).toBe(300_000_000n);
+    expect(r.claimed).toBe(100_000_000n);
+    expect(r.earned).toBe(400_000_000n);
+    expect(r.other).toEqual(['1,500 ALC (ALC / SOL)']);
+    expect(headlineText(r, null)).toBe('You earned 0.4 SOL');
+    expect(headlineText(r, 200)).toBe('You earned 0.4 SOL (about $80.00)');
+    expect(headlineExplain(r)).toBe('0.3 SOL waiting to be claimed, plus 0.1 SOL you have already claimed, from the pools listed below.');
+  });
+  it('shows only what is waiting, and says so, when claimed history cannot be read', () => {
+    const r = rewardsFor([position({ feeB: 250_000_000n }), position({ feeB: 50_000_000n, claimedA: 0n, claimedB: 0n })]);
+    expect(r.claimed).toBe(null);
+    expect(r.earned).toBe(300_000_000n);
+    expect(headlineExplain(r)).toMatch(/only the 0.3 SOL waiting to be claimed.*not counted/);
+  });
+  it('does not count a pool with no SOL side as SOL', () => {
+    const usdcPool = position({ b: { mint: pk(), program: TOKEN_PROGRAM_ID, decimals: 6, symbol: 'USDC', vault: pk() }, feeA: 0n, feeB: 3_000_000n, claimedA: 0n, claimedB: 0n });
+    const r = rewardsFor([usdcPool]);
+    expect(r.earned).toBe(0n);
+    expect(r.other).toEqual(['3 USDC (ALC / USDC)']);
+  });
+  it('rounds for people and shows no dollars without a price', () => {
+    expect(solText(0n)).toBe('0');
+    expect(solText(5_000n)).toBe('under 0.0001');
+    expect(usdText(1_000_000_000n, null)).toBe(null);
+    expect(usdText(1_000_000_000n, 0)).toBe(null);
+    expect(usdText(1_000n, 150)).toBe('under $0.01');
+  });
+  it('builds a share text and a public-address-only link', () => {
+    const p = position({ feeB: 250_000_000n, claimedB: 100_000_000n, claimedA: 0n });
+    expect(shareText(p)).toBe('I launched $ALC on Aretia and it has earned 0.35 SOL in fees');
+    expect(shareLink(p)).toBe(`https://aretiafinance.org/token#/solana/${p.a.mint}`);
+    expect(shareText(position({ feeB: 250_000_000n }))).toBe('I launched $ALC on Aretia and it has 0.25 SOL in fees waiting for me');
+    expect(shareText(position({ a: { ...position().a, symbol: '<b>x</b>' }, feeB: 1n }))).toMatch(/my token/);
+    // SOL as the first token: the link is still about the other token.
+    const flipped = position({ a: position().b, b: position().a, feeA: 12n, feeB: 0n });
+    expect(shareLink(flipped)).toBe(`https://aretiafinance.org/token#/solana/${flipped.b.mint}`);
+    expect(headlineShareText(rewardsFor([p]))).toBe('I have earned 0.35 SOL in trading fees from the tokens I launched on Aretia');
   });
 });

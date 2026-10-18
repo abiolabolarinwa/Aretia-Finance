@@ -8,7 +8,7 @@
  */
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import { RPC_URL, fetchAccount, loadWeb3, rpcFetch, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
-import { claimableText, hasClaimable, lockText, pairName, type PoolPosition } from './walletYourPoolsCore';
+import { claimableText, hasClaimable, headlineExplain, headlineShareText, headlineText, lockText, NATIVE_MINT, pairName, rewardsFor, shareLink, shareText, SHARE_ORIGIN, type PoolPosition } from './walletYourPoolsCore';
 import { readPositions } from './walletYourPoolsChain';
 import { YourPoolsFlow, type ClaimOutcome, type ClaimProgress } from './walletYourPoolsFlow';
 import { createYourPoolsEvm, type YourPoolsEvmHost } from './walletYourPoolsEvm';
@@ -39,6 +39,37 @@ const STEP_TEXT: Record<ClaimProgress, string> = {
   done: 'Done',
 };
 
+/** The SOL price in dollars from Jupiter, or null when it cannot be read (then no dollar amount is shown). */
+async function fetchSolUsd(): Promise<number | null> {
+  try {
+    const r = await fetch(`https://lite-api.jup.ag/tokens/v2/search?query=${NATIVE_MINT}`);
+    if (!r.ok) return null;
+    const list = (await r.json()) as { id?: string; usdPrice?: number }[];
+    const price = list.find((t) => t.id === NATIVE_MINT)?.usdPrice;
+    return typeof price === 'number' && price > 0 ? price : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Shares through the browser's share sheet when there is one, otherwise copies the text and link. */
+async function shareOut(text: string, url: string): Promise<'shared' | 'copied' | 'failed'> {
+  try {
+    if (typeof navigator.share === 'function') {
+      await navigator.share({ text, url });
+      return 'shared';
+    }
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return 'failed';
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
+}
+
 export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletChange(): void } {
   const root = document.querySelector<HTMLElement>('[data-pools-root]');
 
@@ -47,6 +78,8 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
   let loaded = false;
   let loading = false;
   let error: string | null = null;
+  let solUsd: number | null = null;
+  let shareNote: string | null = null;
   const working = new Map<string, ClaimProgress>();
   const results = new Map<string, ClaimOutcome>();
   const problems = new Map<string, string>();
@@ -77,6 +110,29 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
 
   // ---------------------------------------------------------------- drawing
 
+  function shareButton(text: string, url: string, label: string): HTMLButtonElement {
+    const b = h('button', 'wapp__btn wapp__btn--ghost', label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      void shareOut(text, url).then((r) => {
+        shareNote = r === 'copied' ? 'Copied. Paste it anywhere to share.' : r === 'failed' ? 'Could not share from this browser.' : null;
+        draw();
+      });
+    });
+    return b;
+  }
+
+  function drawHeadline(wrap: HTMLElement): void {
+    const r = rewardsFor(positions);
+    const box = h('div', 'lh-yp__rewards');
+    box.append(h('h3', 'lh-yp__earned', headlineText(r, solUsd)), h('p', 'wapp__fine', headlineExplain(r)));
+    if (r.other.length > 0) box.append(h('p', 'wapp__fine', `Also waiting, in other tokens (not converted to SOL): ${r.other.join(', ')}.`));
+    const best = [...positions].sort((x, y) => Number(rewardsFor([y]).earned - rewardsFor([x]).earned))[0];
+    box.append(shareButton(headlineShareText(r), best ? shareLink(best) : `${SHARE_ORIGIN}/wallet`, 'Share'));
+    if (shareNote) box.append(h('p', 'wapp__fine', shareNote));
+    wrap.append(box);
+  }
+
   function drawPosition(p: PoolPosition): HTMLElement {
     const li = h('li', `lh-pos${hasClaimable(p) ? ' has-fees' : ''}`);
     const top = h('div', 'lh-pos__top');
@@ -104,7 +160,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     claim.type = 'button';
     claim.disabled = busy !== undefined || !hasClaimable(p);
     claim.addEventListener('click', () => void doClaim(p));
-    actions.append(claim);
+    actions.append(claim, shareButton(shareText(p), shareLink(p), 'Share'));
     if (!hasClaimable(p)) actions.append(h('p', 'lh-pos__note', 'Fees appear here as people trade.'));
     li.append(top, rows, actions);
 
@@ -155,6 +211,7 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
     if (loading && !loaded) wrap.append(h('p', 'lh-yp__none', 'Looking for your pools…'));
     else if (loaded && positions.length === 0 && !error) wrap.append(h('p', 'lh-yp__none', 'No pools yet. When you open a pool from the Launch page it appears here, with the fees it earns.'));
     if (positions.length > 0) {
+      drawHeadline(wrap);
       const list = h('ul', 'lh-yp__list');
       for (const p of positions) list.append(drawPosition(p));
       wrap.append(list);
@@ -189,6 +246,10 @@ export function initYourPools(host: YourPoolsHost): { onShow(): void; onWalletCh
       positions = r.positions;
       truncated = r.truncated;
       loaded = true;
+      void fetchSolUsd().then((price) => {
+        solUsd = price;
+        draw();
+      });
     } catch (e) {
       error = `Could not read your pools from the network: ${friendlyError(e)}`;
     } finally {

@@ -31,6 +31,25 @@ export const POOL_TRADING_FEES_BPS = [25, 100] as const;
 /** Token-2022 extension types a poolable token may carry: the metadata pointer (18) and the token metadata (19), which hold its name, symbol and link. */
 export const ALLOWED_EXTENSIONS: readonly number[] = [18, 19];
 
+/** Launch protection: the fee starts at 5% and falls in a straight line to the creator's fee over 10, 30 or 60 minutes. */
+export const LAUNCH_PROTECTION_START_BPS = 500;
+export const LAUNCH_PROTECTION_MINUTES = [10, 30, 60] as const;
+/** Fifty equal steps: the window (600, 1800 or 3600 s) and the fee drop (475 or 400 bps) both divide by 50 exactly, so the fee ends exactly on the creator's fee. */
+export const LAUNCH_PROTECTION_PERIODS = 50;
+
+export interface LaunchProtection {
+  startBps: number;
+  minutes: number;
+}
+
+/** The fee-scheduler numbers (Meteora's units: fee numerators out of 1,000,000,000, seconds), worked out with no SDK. */
+export function protectionSchedule(endBps: number, p: LaunchProtection): { cliff: bigint; periods: number; frequency: bigint; reduction: bigint } {
+  const cliff = BigInt(p.startBps) * 100_000n;
+  const end = BigInt(endBps) * 100_000n;
+  const periods = LAUNCH_PROTECTION_PERIODS;
+  return { cliff, periods, frequency: BigInt((p.minutes * 60) / periods), reduction: (cliff - end) / BigInt(periods) };
+}
+
 export interface PoolForm {
   mint: string;
   /** Whole tokens, commas allowed. */
@@ -38,9 +57,12 @@ export interface PoolForm {
   /** SOL per one whole token, as a plain decimal. */
   price: string;
   tradingFeeBps: string;
+  /** Launch protection on (the default) or off. */
+  protection: boolean;
+  protectionMinutes: string;
 }
 
-export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', tradingFeeBps: '25' };
+export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', tradingFeeBps: '25', protection: true, protectionMinutes: '30' };
 
 /** What is known about the token before a pool is opened. */
 export interface PoolToken {
@@ -61,8 +83,11 @@ export interface PoolConfig {
   tokenAmountRaw: bigint;
   /** Normalised decimal text, SOL per token. */
   price: string;
+  /** The fee the pool settles on (and, without launch protection, the fee from the first trade). */
   tradingFeeBps: number;
   lockLiquidity: boolean;
+  /** Absent or null: a flat fee from the first trade. */
+  launchProtection?: LaunchProtection | null;
 }
 
 export interface PoolIssue {
@@ -117,10 +142,13 @@ export function validatePool(form: PoolForm, creator: string, token: PoolToken |
   const fee = Number(form.tradingFeeBps);
   if (!(POOL_TRADING_FEES_BPS as readonly number[]).includes(fee)) add('tradingFeeBps', 'Choose one of the listed trading fees.');
 
+  const minutes = Number(form.protectionMinutes);
+  if (form.protection && !(LAUNCH_PROTECTION_MINUTES as readonly number[]).includes(minutes)) add('protectionMinutes', 'Choose one of the listed windows.');
+
   if (issues.length > 0 || token === null || price === null) return { ok: false, issues };
   return {
     ok: true,
-    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, tradingFeeBps: fee, lockLiquidity: true },
+    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, tradingFeeBps: fee, lockLiquidity: true, launchProtection: form.protection ? { startBps: LAUNCH_PROTECTION_START_BPS, minutes } : null },
   };
 }
 
@@ -149,6 +177,14 @@ export function poolDisclosures(config: PoolConfig): { severity: 'info' | 'cauti
       ? { severity: 'info', text: 'The liquidity is locked for good. Nobody, you included, can take the tokens or the SOL back out of the pool. You can still claim its trading fees.' }
       : { severity: 'caution', text: 'The liquidity is not locked. You can remove it at any time, which would leave holders with no market.' },
     { severity: 'info', text: 'Only your tokens go in. Nobody can buy below the starting price, and buyers pay SOL that builds the other side of the pool.' },
+    ...(config.launchProtection
+      ? [
+          {
+            severity: 'info' as const,
+            text: `Launch protection is on. For the first ${config.launchProtection.minutes} minutes the trading fee starts at ${config.launchProtection.startBps / 100}% and falls in a straight line to ${config.tradingFeeBps / 100}%. That makes sniping the first block expensive, but it also means the first buyers pay more: a trade at the very start costs ${config.launchProtection.startBps / 100}% in fees instead of ${config.tradingFeeBps / 100}%. Those fees are paid to you, the owner of the position. After the window the fee stays at ${config.tradingFeeBps / 100}%.`,
+          },
+        ]
+      : [{ severity: 'caution' as const, text: `Launch protection is off. The fee is ${config.tradingFeeBps / 100}% from the first trade, so a bot that buys the moment the pool opens pays no extra.` }]),
     { severity: 'caution', text: 'The starting price is yours to choose and is not checked against any market. A price set far from what people will pay can leave the pool with no buyers.' },
     { severity: 'caution', text: 'This is on Solana mainnet. The transaction is real, the fees and deposits are paid in your SOL, and a pool cannot be deleted.' },
   ];

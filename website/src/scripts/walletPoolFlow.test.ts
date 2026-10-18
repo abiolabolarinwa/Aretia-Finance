@@ -160,3 +160,18 @@ describe('validatePool', () => {
     if (!bad.ok) expect(bad.issues.map((i) => i.field).sort()).toEqual(['price', 'tokenAmount', 'tradingFeeBps']);
   });
 });
+
+describe('launch protection in the form', () => {
+  it('is on by default with a 30-minute window, and can be turned off', () => {
+    expect(DEFAULT_POOL_FORM.protection).toBe(true);
+    expect(DEFAULT_POOL_FORM.protectionMinutes).toBe('30');
+    const base = { ...DEFAULT_POOL_FORM, mint: MINT, tokenAmount: '1,000', price: '0.000001' };
+    const token = { mint: MINT, decimals: 6, supply: 10n ** 15n, mintAuthority: null, freezeAuthority: null, extensions: [], held: 10n ** 15n };
+    const on = validatePool(base, CREATOR, token);
+    expect(on.ok && on.config.launchProtection).toEqual({ startBps: 500, minutes: 30 });
+    const off = validatePool({ ...base, protection: false }, CREATOR, token);
+    expect(off.ok && off.config.launchProtection).toBe(null);
+    const bad = validatePool({ ...base, protectionMinutes: '7' }, CREATOR, token);
+    expect(bad.ok).toBe(false);
+  });
+});

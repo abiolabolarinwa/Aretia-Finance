@@ -13,6 +13,7 @@ import { TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
 import { accountAmount, parseMintAccount, type AccountReader } from './walletLaunchChain';
 import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlow';
 import { tokenBlockers, type PoolConfig, type PoolToken } from './walletPoolCore';
+import { metadataNotes, type MintMetadata } from './walletTokenMetadata';
 import {
   ARETIA_POOL_NETWORK_ESTIMATE_LAMPORTS,
   aretiaPoolCost,
@@ -31,7 +32,7 @@ import {
   type PoolAccount,
   type PositionAccount,
 } from './walletAretiaPoolCore';
-import { assemble, ensureTokenAccount, buildAddLiquidity, buildRemoveLiquidity, inspectAddLiquidity, inspectRemoveLiquidity, buildClaim, buildCreatePool, buildLock, buildSetRecipient, buildTransferPosition, inspectTransferPosition, buildSwap, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
+import { assemble, buildAddSteps, buildRemoveSteps, buildClaimSteps, buildSwapSteps, inspectAddLiquidity, inspectRemoveLiquidity, buildCreatePool, buildLock, buildSetRecipient, buildTransferPosition, inspectTransferPosition, inspectClaim, inspectCreate, inspectLock, inspectSetRecipient, inspectSwap, poolAddress, positionAddress, type BuiltCreate } from './walletAretiaPoolTx';
 
 export interface PoolSimulation {
   ok: boolean;
@@ -62,6 +63,8 @@ export interface AretiaPoolReview {
   balance: bigint;
   /** Reasons the pool cannot be opened. Empty means it can. */
   blockers: string[];
+  /** Things that do not stop the pool but will make the token look unfinished outside Aretia: no logo link, for one. */
+  notes: string[];
 }
 
 export type AretiaPoolProgress = 'checking' | 'signing' | 'confirming' | 'verifying' | 'done';
@@ -117,13 +120,14 @@ export class AretiaPoolFlow {
   private toBase58 = (bytes: Uint8Array): string => new this.d.web3.PublicKey(bytes).toBase58();
 
   /** The token and how much of it the creator holds. Null if it is not a readable Token-2022 token. */
-  async loadToken(creator: string, mint: string): Promise<PoolToken | null> {
+  async loadToken(creator: string, mint: string): Promise<(PoolToken & { metadata: MintMetadata | null }) | null> {
     const { web3, fetchAccount } = this.d;
     const acc = await fetchAccount(mint);
     const facts = acc ? parseMintAccount(web3, acc.owner, acc.data) : null;
     if (!facts) return null;
     const held = accountAmount((await fetchAccount(ataAddress(web3, creator, mint, TOKEN_2022_PROGRAM_ID)))?.data ?? null) ?? 0n;
-    return { mint, decimals: facts.decimals, supply: facts.supply, mintAuthority: facts.mintAuthority, freezeAuthority: facts.freezeAuthority, extensions: facts.extensions, held };
+    const metadata = facts.metadata ? { name: facts.metadata.name, symbol: facts.metadata.symbol, uri: facts.metadata.uri } : null;
+    return { metadata, mint, decimals: facts.decimals, supply: facts.supply, mintAuthority: facts.mintAuthority, freezeAuthority: facts.freezeAuthority, extensions: facts.extensions, held };
   }
 
   /** The pool for a token and, if the wallet has one, its position. Null when no pool exists or it is not the program's. */
@@ -146,7 +150,7 @@ export class AretiaPoolFlow {
     return { pool, position, decimals, claimable: position ? (claimable(pool, position) ?? 0n) : 0n };
   }
 
-  async prepare(config: PoolConfig, params: CreateParams, token: PoolToken): Promise<AretiaPoolReview> {
+  async prepare(config: PoolConfig, params: CreateParams, token: PoolToken & { metadata?: MintMetadata | null }): Promise<AretiaPoolReview> {
     const { web3, program } = this.d;
     const blockers = tokenBlockers(token);
     const built = buildCreatePool(web3, program, params);
@@ -164,7 +168,7 @@ export class AretiaPoolFlow {
 
     const cost = aretiaPoolCost(network);
     if (balance < cost.total + SAFETY_MARGIN_LAMPORTS) blockers.push('Your wallet does not hold enough SOL to cover the fees and the deposits shown, with a small margin.');
-    return { config, params, built, cost, balance, blockers };
+    return { config, params, built, cost, balance, blockers, notes: metadataNotes(token.metadata ?? null) };
   }
 
   async create(review: AretiaPoolReview, progress: (p: AretiaPoolProgress) => void = () => undefined): Promise<AretiaPoolOutcome> {
@@ -238,7 +242,7 @@ export class AretiaPoolFlow {
     if (q.minOut <= 0n) throw new LaunchError('The trade has no minimum on what you receive, so it was not built.', true);
     progress('checking');
     const s = { trader, mint, isBuy: q.isBuy, amountIn: q.amountIn, minOut: q.minOut };
-    const tx = assemble(web3, [...(q.isBuy ? [ensureTokenAccount(web3, trader, mint)] : []), buildSwap(web3, program, s)], trader, ...(await this.blockhash()));
+    const tx = assemble(web3, buildSwapSteps(web3, program, s), trader, ...(await this.blockhash()));
     const blockers = inspectSwap(web3, tx, { ...s, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, trader, progress);
@@ -265,7 +269,7 @@ export class AretiaPoolFlow {
     const { web3, program } = this.d;
     progress('checking');
     const l = { owner, mint, positionId, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
-    const tx = assemble(web3, [ensureTokenAccount(web3, owner, mint), buildAddLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
+    const tx = assemble(web3, buildAddSteps(web3, program, l), owner, ...(await this.blockhash()));
     const blockers = inspectAddLiquidity(web3, tx, { ...l, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
@@ -277,7 +281,7 @@ export class AretiaPoolFlow {
     const { web3, program } = this.d;
     progress('checking');
     const l = { owner, mint, positionId, dl: q.dl, tokens: q.limitTokens, sol: q.limitSol };
-    const tx = assemble(web3, [buildRemoveLiquidity(web3, program, l)], owner, ...(await this.blockhash()));
+    const tx = assemble(web3, buildRemoveSteps(web3, program, l), owner, ...(await this.blockhash()));
     const blockers = inspectRemoveLiquidity(web3, tx, { ...l, program });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);
@@ -288,7 +292,7 @@ export class AretiaPoolFlow {
   async claim(owner: string, mint: string, recipient: string = owner, progress: (p: AretiaPoolProgress) => void = () => undefined, positionId: string = owner): Promise<string> {
     const { web3, program } = this.d;
     progress('checking');
-    const tx = assemble(web3, [buildClaim(web3, program, owner, mint, recipient, positionId)], owner, ...(await this.blockhash()));
+    const tx = assemble(web3, buildClaimSteps(web3, program, owner, mint, recipient, positionId), owner, ...(await this.blockhash()));
     const blockers = inspectClaim(web3, tx, { program, owner, mint, recipient, positionId });
     if (blockers.length > 0) throw new LaunchError(`Not signing: ${blockers.join(' ')}`, true);
     const signature = await this.submit(tx, owner, progress);

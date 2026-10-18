@@ -1,6 +1,8 @@
 //! Aretia Finance -- constant-product swap pool for tokens made on the Launch page.
 //! ---------------------------------------------------------------------------------
-//! One pool per token, always against SOL. The creator can open it with tokens alone: a virtual SOL reserve sets the
+//! One pool per token, always against wrapped SOL: the pool's SOL side is a wrapped-SOL token vault (the pool's associated account
+//! for the native mint), so routers and trackers read the reserves like any other pool and a router can swap in and out of ordinary
+//! wrapped-SOL token accounts. The creator can open it with tokens alone: a virtual SOL reserve sets the
 //! starting price, and nobody can sell more SOL out of the pool than buyers paid in. Liquidity providers hold shares
 //! equal to the pool's liquidity, trading fees accrue apart from the reserves and are claimed, and a position can be
 //! locked for good. Aretia keeps a share of every trading fee.
@@ -12,14 +14,16 @@
 //!  * No admin instruction exists. Every parameter is a constant below or fixed per pool at creation. The only key with
 //!    power is the program upgrade authority (see the design doc).
 //!  * All pricing and splitting arithmetic is in the `pool-math` crate, which is property-tested. This file only moves money.
-//!  * State is written before any CPI. The only CPIs go to the System program and Token-2022, each checked by address.
+//!  * State is written before any CPI. The only CPIs go to the System program, the legacy Token program (wrapped SOL), Token-2022 and the
+//!    associated-token program, each checked by address.
 //!    Mints with a transfer hook are refused, so no third-party code ever runs in the middle of a trade.
 //!  * Reserves are numbers in the pool account. Donations to the vaults are ignored.
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey;
 use anchor_lang::system_program::{self, Transfer};
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::associated_token::{get_associated_token_address_with_program_id, AssociatedToken};
+use anchor_spl::token::{self, Token};
 use anchor_spl::token_2022::Token2022;
 use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked};
 
@@ -30,8 +34,19 @@ declare_id!("4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc");
 
 /// Aretia's management-fee wallet (the same one the Launch page, the swap fee and the curve use).
 pub const FEE_WALLET: Pubkey = pubkey!("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2");
+/// The wrapped-SOL (native) mint.
+pub const WSOL: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 /// The flat fee for opening a pool: 0.05 SOL, taken inside `create_pool`.
 pub const CREATE_FEE_LAMPORTS: u64 = 50_000_000;
+
+/// The wrapped-SOL account the pool keeps its SOL in: its associated account for the native mint.
+pub fn sol_vault_address(pool: &Pubkey) -> Pubkey {
+    get_associated_token_address_with_program_id(pool, &WSOL, &token::ID)
+}
+/// Where Aretia's share of every fee is paid: the fee wallet's wrapped-SOL account.
+pub fn fee_wsol_address() -> Pubkey {
+    get_associated_token_address_with_program_id(&FEE_WALLET, &WSOL, &token::ID)
+}
 
 /// Token-2022 extension types a pool token may carry: metadata pointer (18) and token metadata (19).
 const ALLOWED_EXTENSIONS: [u16; 2] = [18, 19];
@@ -40,8 +55,8 @@ const ALLOWED_EXTENSIONS: [u16; 2] = [18, 19];
 pub mod aretia_pool {
     use super::*;
 
-    /// Opens the pool for `mint`. `x0` tokens leave the creator's account for the pool's vault, `y0` lamports (usually
-    /// none) go into the SOL vault, and `l0` is the opening liquidity: the virtual SOL reserve that sets the price.
+    /// Opens the pool for `mint`. `x0` tokens leave the creator's account for the pool's vault, `y0` wrapped lamports (usually
+    /// none, taken from the creator's wrapped-SOL account) go into the SOL vault, and `l0` is the opening liquidity: the virtual SOL reserve that sets the price.
     /// The position is opened for `owner`, locked in full when `lock`. The creator pays the flat creation fee.
     /// Launch protection: `sniper_bps` and `decay_secs` give a fee that starts at `sniper_bps` and falls in a straight line to `fee_bps`
     /// over `decay_secs` (at most 25% and one hour); both zero means none. Fixed for good at creation.
@@ -59,7 +74,7 @@ pub mod aretia_pool {
         let now = Clock::get()?.unix_timestamp;
         let pool = &mut ctx.accounts.pool;
         pool.bump = ctx.bumps.pool;
-        pool.sol_bump = ctx.bumps.sol_vault;
+        pool.sol_bump = 0; // unused since v4: the SOL vault is the pool's associated wrapped-SOL account, not a PDA of its own
         pool.mint = ctx.accounts.mint.key();
         pool.creator = ctx.accounts.creator.key();
         pool.set_math(&m);
@@ -79,15 +94,20 @@ pub mod aretia_pool {
         pos.bump = ctx.bumps.position;
 
         let pool_key = pool.key();
-        // The creation fee, then the SOL vault: it must hold the rent-exempt minimum to exist, and the creator pays that once.
+        // The creation fee, in plain lamports to the fee wallet. Then the wrapped SOL the creator brings, if any (a pool opened from tokens alone brings none).
         system_program::transfer(
             CpiContext::new(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.creator.to_account_info(), to: ctx.accounts.fee_wallet.to_account_info() }),
             CREATE_FEE_LAMPORTS,
         )?;
-        system_program::transfer(
-            CpiContext::new(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.creator.to_account_info(), to: ctx.accounts.sol_vault.to_account_info() }),
-            Rent::get()?.minimum_balance(0).checked_add(y0).ok_or(PoolError::BadParameters)?,
-        )?;
+        if y0 > 0 {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.sol_token_program.to_account_info(),
+                    token::Transfer { from: ctx.accounts.creator_wsol.to_account_info(), to: ctx.accounts.sol_vault.to_account_info(), authority: ctx.accounts.creator.to_account_info() },
+                ),
+                y0,
+            )?;
+        }
         let before = ctx.accounts.vault.amount;
         transfer_checked(
             CpiContext::new(
@@ -104,13 +124,15 @@ pub mod aretia_pool {
         )?;
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before + x0, PoolError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
+        ctx.accounts.sol_vault.reload()?;
+        require!(ctx.accounts.sol_vault.amount == y0, PoolError::UnexpectedBalance);
+        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
 
         emit!(Created { pool: pool_key, mint: ctx.accounts.mint.key(), creator: ctx.accounts.creator.key(), owner: ctx.accounts.owner.key(), x: x0, y: y0, l: l0, fee_bps, locked: lock, ts: now });
         Ok(())
     }
 
-    /// Exact-input swap. Buy: `amount_in` lamports for tokens. Sell: `amount_in` tokens for lamports. Reverts unless at
+    /// Exact-input swap. Buy: `amount_in` wrapped lamports (from `trader_wsol`) for tokens. Sell: `amount_in` tokens for wrapped lamports (to `trader_wsol`). Reverts unless at
     /// least `min_out` comes back (tokens on a buy; lamports after the fee on a sell).
     pub fn swap(ctx: Context<Swap>, is_buy: bool, amount_in: u64, min_out: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
@@ -131,16 +153,18 @@ pub mod aretia_pool {
         // Effects first. The stored fee stays the base fee.
         next.fee_bps = base_fee;
         pool.set_math(&next);
-        let (pool_key, mint_key, bump, sol_bump) = (pool.key(), pool.mint, pool.bump, pool.sol_bump);
-        let sys = ctx.accounts.system_program.to_account_info();
+        let (pool_key, mint_key, bump) = (pool.key(), pool.mint, pool.bump);
         let before = ctx.accounts.vault.amount;
+        let seeds: &[&[u8]] = &[b"pool", mint_key.as_ref(), &[bump]];
+        let sol_prog = ctx.accounts.sol_token_program.to_account_info();
 
         // Interactions.
         if is_buy {
+            // The trader pays in wrapped SOL: the pool's part into its vault, Aretia's part to the fee wallet's wrapped-SOL account.
             if protocol > 0 {
-                system_program::transfer(CpiContext::new(sys.clone(), Transfer { from: ctx.accounts.trader.to_account_info(), to: ctx.accounts.fee_wallet.to_account_info() }), protocol)?;
+                token::transfer(CpiContext::new(sol_prog.clone(), token::Transfer { from: ctx.accounts.trader_wsol.to_account_info(), to: ctx.accounts.fee_wsol.to_account_info(), authority: ctx.accounts.trader.to_account_info() }), protocol)?;
             }
-            system_program::transfer(CpiContext::new(sys, Transfer { from: ctx.accounts.trader.to_account_info(), to: ctx.accounts.sol_vault.to_account_info() }), amount_in - protocol)?;
+            token::transfer(CpiContext::new(sol_prog, token::Transfer { from: ctx.accounts.trader_wsol.to_account_info(), to: ctx.accounts.sol_vault.to_account_info(), authority: ctx.accounts.trader.to_account_info() }), amount_in - protocol)?;
             let seeds: &[&[u8]] = &[b"pool", mint_key.as_ref(), &[bump]];
             transfer_checked(
                 CpiContext::new_with_signer(
@@ -164,13 +188,13 @@ pub mod aretia_pool {
             )?;
             ctx.accounts.vault.reload()?;
             require!(ctx.accounts.vault.amount == before + amount_in, PoolError::UnexpectedBalance);
-            let sol_seeds: &[&[u8]] = &[b"sol_vault", pool_key.as_ref(), &[sol_bump]];
-            system_program::transfer(CpiContext::new_with_signer(sys.clone(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.trader.to_account_info() }, &[sol_seeds]), out)?;
+            token::transfer(CpiContext::new_with_signer(sol_prog.clone(), token::Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.trader_wsol.to_account_info(), authority: ctx.accounts.pool.to_account_info() }, &[seeds]), out)?;
             if protocol > 0 {
-                system_program::transfer(CpiContext::new_with_signer(sys, Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.fee_wallet.to_account_info() }, &[sol_seeds]), protocol)?;
+                token::transfer(CpiContext::new_with_signer(sol_prog, token::Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.fee_wsol.to_account_info(), authority: ctx.accounts.pool.to_account_info() }, &[seeds]), protocol)?;
             }
         }
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
+        ctx.accounts.sol_vault.reload()?;
+        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
 
         emit!(Swapped { pool: pool_key, trader: ctx.accounts.trader.key(), is_buy, amount_in, amount_out: out, fee, protocol, x: next.x, y: next.y, l: next.l, ts: now });
         Ok(())
@@ -200,8 +224,8 @@ pub mod aretia_pool {
         let (pool_key, now) = (pool.key(), Clock::get()?.unix_timestamp);
 
         if a.sol_in > 0 {
-            system_program::transfer(
-                CpiContext::new(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.owner.to_account_info(), to: ctx.accounts.sol_vault.to_account_info() }),
+            token::transfer(
+                CpiContext::new(ctx.accounts.sol_token_program.to_account_info(), token::Transfer { from: ctx.accounts.owner_wsol.to_account_info(), to: ctx.accounts.sol_vault.to_account_info(), authority: ctx.accounts.owner.to_account_info() }),
                 a.sol_in,
             )?;
         }
@@ -216,7 +240,8 @@ pub mod aretia_pool {
         )?;
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before + a.tokens_in, PoolError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
+        ctx.accounts.sol_vault.reload()?;
+        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
 
         emit!(LiquidityChanged { pool: pool_key, owner: ctx.accounts.owner.key(), added: true, dl, tokens: a.tokens_in, sol: a.sol_in, x: next.x, y: next.y, l: next.l, ts: now });
         Ok(())
@@ -232,7 +257,7 @@ pub mod aretia_pool {
         require!(r.tokens_out >= min_tokens && r.sol_out >= min_sol, PoolError::Slippage);
         pool.set_math(&next);
         pos.shares -= dl;
-        let (pool_key, mint_key, bump, sol_bump, now) = (pool.key(), pool.mint, pool.bump, pool.sol_bump, Clock::get()?.unix_timestamp);
+        let (pool_key, mint_key, bump, now) = (pool.key(), pool.mint, pool.bump, Clock::get()?.unix_timestamp);
 
         let before = ctx.accounts.vault.amount;
         let seeds: &[&[u8]] = &[b"pool", mint_key.as_ref(), &[bump]];
@@ -248,20 +273,20 @@ pub mod aretia_pool {
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before - r.tokens_out, PoolError::UnexpectedBalance);
         if r.sol_out > 0 {
-            let sol_seeds: &[&[u8]] = &[b"sol_vault", pool_key.as_ref(), &[sol_bump]];
-            system_program::transfer(
-                CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.owner.to_account_info() }, &[sol_seeds]),
+            token::transfer(
+                CpiContext::new_with_signer(ctx.accounts.sol_token_program.to_account_info(), token::Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.owner_wsol.to_account_info(), authority: ctx.accounts.pool.to_account_info() }, &[seeds]),
                 r.sol_out,
             )?;
         }
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
+        ctx.accounts.sol_vault.reload()?;
+        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
 
         emit!(LiquidityChanged { pool: pool_key, owner: ctx.accounts.owner.key(), added: false, dl, tokens: r.tokens_out, sol: r.sol_out, x: next.x, y: next.y, l: next.l, ts: now });
         Ok(())
     }
 
     /// Pays the position's fees to its recipient (the owner unless the owner has named another wallet). Only the owner may call it.
-    /// Works on locked positions. The recipient must be able to hold the amount: a wallet with no SOL needs at least the rent minimum.
+    /// Works on locked positions. Paid in wrapped SOL, to a wrapped-SOL account owned by the recipient (the wallet unwraps it).
     pub fn claim_fees(ctx: Context<ClaimFees>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let pos = &mut ctx.accounts.position;
@@ -270,14 +295,15 @@ pub mod aretia_pool {
         require!(amount > 0, PoolError::NothingToClaim);
         pos.pending = 0;
         pool.fee_reserve = pool.fee_reserve.checked_sub(amount).ok_or(PoolError::Insolvent)?;
-        let (pool_key, sol_bump) = (pool.key(), pool.sol_bump);
+        let (pool_key, mint_key, bump) = (pool.key(), pool.mint, pool.bump);
 
-        let sol_seeds: &[&[u8]] = &[b"sol_vault", pool_key.as_ref(), &[sol_bump]];
-        system_program::transfer(
-            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.recipient.to_account_info() }, &[sol_seeds]),
+        let seeds: &[&[u8]] = &[b"pool", mint_key.as_ref(), &[bump]];
+        token::transfer(
+            CpiContext::new_with_signer(ctx.accounts.sol_token_program.to_account_info(), token::Transfer { from: ctx.accounts.sol_vault.to_account_info(), to: ctx.accounts.recipient_wsol.to_account_info(), authority: ctx.accounts.pool.to_account_info() }, &[seeds]),
             amount,
         )?;
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), &ctx.accounts.pool)?;
+        ctx.accounts.sol_vault.reload()?;
+        require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
         emit!(Claimed { pool: pool_key, owner: ctx.accounts.owner.key(), amount, ts: Clock::get()?.unix_timestamp });
         Ok(())
     }
@@ -326,11 +352,10 @@ fn settle(pos: &mut Position, pool: &Pool) -> Result<()> {
     Ok(())
 }
 
-/// The SOL vault must always hold the rent-exempt minimum plus the real SOL reserve plus every unclaimed fee.
-fn require_solvent(sol_vault: &AccountInfo, pool: &Pool) -> Result<()> {
-    let min = Rent::get()?.minimum_balance(0);
-    let owed = (pool.y as u128) + (pool.fee_reserve as u128) + (min as u128);
-    require!(sol_vault.lamports() as u128 >= owed, PoolError::Insolvent);
+/// The wrapped-SOL vault must always hold the real SOL reserve plus every unclaimed fee. Donations only add to it.
+fn require_solvent(sol_vault: &token::TokenAccount, pool: &Pool) -> Result<()> {
+    let owed = (pool.y as u128) + (pool.fee_reserve as u128);
+    require!(sol_vault.amount as u128 >= owed, PoolError::Insolvent);
     Ok(())
 }
 
@@ -367,7 +392,7 @@ pub fn check_mint(data: &[u8]) -> Result<()> {
 #[derive(InitSpace)]
 pub struct Pool {
     pub bump: u8,
-    /// Bump of the SOL vault, a system-owned account at ["sol_vault", pool] that holds every lamport the pool owes.
+    /// Unused since v4 (always 0): the SOL vault is the pool's associated wrapped-SOL account. Kept so the account layout did not move.
     pub sol_bump: u8,
     pub mint: Pubkey,
     pub creator: Pubkey,
@@ -424,18 +449,18 @@ pub struct CreatePool<'info> {
     pub creator: Signer<'info>,
     /// CHECK: whoever will own the position. Any address; it gets no power over anything but its own position.
     pub owner: UncheckedAccount<'info>,
-    pub mint: InterfaceAccount<'info, Mint>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut, token::mint = mint, token::authority = creator, token::token_program = token_program)]
-    pub creator_token: InterfaceAccount<'info, TokenAccount>,
+    pub creator_token: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(init, payer = creator, space = 8 + Pool::INIT_SPACE, seeds = [b"pool", mint.key().as_ref()], bump)]
-    pub pool: Account<'info, Pool>,
-    /// The system account that holds the pool's SOL.
-    #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump)]
-    pub sol_vault: SystemAccount<'info>,
+    pub pool: Box<Account<'info, Pool>>,
+    /// The pool's wrapped-SOL vault: its associated account for the native mint, made here.
+    #[account(init, payer = creator, associated_token::mint = wsol_mint, associated_token::authority = pool, associated_token::token_program = sol_token_program)]
+    pub sol_vault: Box<Account<'info, token::TokenAccount>>,
     #[account(init, payer = creator, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(init, payer = creator, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), position_id.key().as_ref()], bump)]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
     /// CHECK: address-checked; receives the creation fee.
     #[account(mut, address = FEE_WALLET)]
     pub fee_wallet: UncheckedAccount<'info>,
@@ -444,6 +469,13 @@ pub struct CreatePool<'info> {
     pub system_program: Program<'info, System>,
     /// CHECK: only its address is used, to derive the position. It is the owner's address, or it signs.
     pub position_id: UncheckedAccount<'info>,
+    /// CHECK: the native mint, by address.
+    #[account(address = WSOL)]
+    pub wsol_mint: UncheckedAccount<'info>,
+    /// CHECK: the creator's wrapped-SOL account, read only when `y0 > 0` (the token program checks it then). Any account otherwise.
+    #[account(mut)]
+    pub creator_wsol: UncheckedAccount<'info>,
+    pub sol_token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -452,18 +484,21 @@ pub struct Swap<'info> {
     pub trader: Signer<'info>,
     #[account(mut, seeds = [b"pool", mint.key().as_ref()], bump = pool.bump, has_one = mint)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump = pool.sol_bump)]
-    pub sol_vault: SystemAccount<'info>,
+    #[account(mut, address = sol_vault_address(&pool.key()))]
+    pub sol_vault: Account<'info, token::TokenAccount>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, token::mint = mint, token::authority = trader, token::token_program = token_program)]
     pub trader_token: InterfaceAccount<'info, TokenAccount>,
-    /// CHECK: address-checked; receives Aretia's share of the fee.
-    #[account(mut, address = FEE_WALLET)]
-    pub fee_wallet: UncheckedAccount<'info>,
+    /// The trader's wrapped-SOL account: pays on a buy, is paid on a sell.
+    #[account(mut, constraint = trader_wsol.mint == WSOL && trader_wsol.owner == trader.key() @ PoolError::WrongAccount)]
+    pub trader_wsol: Account<'info, token::TokenAccount>,
+    /// Aretia's wrapped-SOL account: its share of the fee is paid here.
+    #[account(mut, address = fee_wsol_address())]
+    pub fee_wsol: Account<'info, token::TokenAccount>,
     pub token_program: Program<'info, Token2022>,
-    pub system_program: Program<'info, System>,
+    pub sol_token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -472,8 +507,8 @@ pub struct AddLiquidity<'info> {
     pub owner: Signer<'info>,
     #[account(mut, seeds = [b"pool", mint.key().as_ref()], bump = pool.bump, has_one = mint)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump = pool.sol_bump)]
-    pub sol_vault: SystemAccount<'info>,
+    #[account(mut, address = sol_vault_address(&pool.key()))]
+    pub sol_vault: Account<'info, token::TokenAccount>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
@@ -485,6 +520,10 @@ pub struct AddLiquidity<'info> {
     pub system_program: Program<'info, System>,
     /// CHECK: only its address is used, to derive the position. For a new position it is the owner's address, or it signs.
     pub position_id: UncheckedAccount<'info>,
+    /// The owner's wrapped-SOL account: pays the SOL side of a deposit.
+    #[account(mut, constraint = owner_wsol.mint == WSOL && owner_wsol.owner == owner.key() @ PoolError::WrongAccount)]
+    pub owner_wsol: Account<'info, token::TokenAccount>,
+    pub sol_token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -493,8 +532,8 @@ pub struct RemoveLiquidity<'info> {
     pub owner: Signer<'info>,
     #[account(mut, seeds = [b"pool", mint.key().as_ref()], bump = pool.bump, has_one = mint)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump = pool.sol_bump)]
-    pub sol_vault: SystemAccount<'info>,
+    #[account(mut, address = sol_vault_address(&pool.key()))]
+    pub sol_vault: Account<'info, token::TokenAccount>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
@@ -504,6 +543,10 @@ pub struct RemoveLiquidity<'info> {
     pub position: Account<'info, Position>,
     pub token_program: Program<'info, Token2022>,
     pub system_program: Program<'info, System>,
+    /// The owner's wrapped-SOL account: receives the SOL side of a withdrawal.
+    #[account(mut, constraint = owner_wsol.mint == WSOL && owner_wsol.owner == owner.key() @ PoolError::WrongAccount)]
+    pub owner_wsol: Account<'info, token::TokenAccount>,
+    pub sol_token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -512,14 +555,14 @@ pub struct ClaimFees<'info> {
     pub owner: Signer<'info>,
     #[account(mut, seeds = [b"pool", pool.mint.as_ref()], bump = pool.bump)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, seeds = [b"sol_vault", pool.key().as_ref()], bump = pool.sol_bump)]
-    pub sol_vault: SystemAccount<'info>,
+    #[account(mut, address = sol_vault_address(&pool.key()))]
+    pub sol_vault: Account<'info, token::TokenAccount>,
     #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
-    /// The wallet the position names to receive its fees.
-    #[account(mut, address = position.recipient)]
-    pub recipient: SystemAccount<'info>,
-    pub system_program: Program<'info, System>,
+    /// A wrapped-SOL account owned by the wallet the position names to receive its fees.
+    #[account(mut, constraint = recipient_wsol.mint == WSOL && recipient_wsol.owner == position.recipient @ PoolError::WrongAccount)]
+    pub recipient_wsol: Account<'info, token::TokenAccount>,
+    pub sol_token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -653,6 +696,8 @@ pub enum PoolError {
     BadPositionId,
     #[msg("This position belongs to someone else.")]
     NotOwner,
+    #[msg("A wrapped-SOL account is not the one expected.")]
+    WrongAccount,
 }
 
 #[cfg(test)]

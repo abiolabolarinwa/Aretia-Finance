@@ -1,8 +1,7 @@
 /**
  * Aretia's own pool program (docs/ARETIA_POOL.md) as a Swings venue. DISABLED in the registry (dex/entries.ts), so nothing here runs until the
- * owner enables it, which needs an audit and a mainnet program first. The pair is always (token, SOL); SOL is native lamports inside the
- * program, so the swap instruction takes no wrapped-SOL account. When the router wraps SOL for a route anyway, the wrapped lamports are simply
- * not used and are closed by the router afterwards.
+ * owner enables it, which needs an audit and a mainnet program first. The pair is (token, wrapped SOL): since v4 the pool's SOL side is a
+ * wrapped-SOL token account, so the router's ordinary wrap and unwrap of SOL works and the swap takes the trader's wrapped-SOL account.
  *
  * Pricing is local and exact: the same integer maths as the program (walletAretiaPoolCore, replayed against the Rust crate in its tests), so no
  * simulation is needed to quote it.
@@ -76,7 +75,7 @@ export class AretiaPoolAdapter {
   }
 }
 
-/** The one swap instruction. Native SOL is handled by the program, so the in and out accounts the router passes are not used. */
+/** The one swap instruction. The router supplies the trader's wrapped-SOL and token accounts by their standard addresses. */
 export function aretiaPoolSwapInstruction(web3: typeof Web3, program: string, user: string, pool: LiquidityPool, tokenIn: TokenRef, amountIn: bigint, minOut: bigint): Web3.TransactionInstruction {
   if (minOut <= 0n) throw new SwingsError('invalid', 'A swap needs a minimum output above zero.');
   return buildSwap(web3, program, { trader: user, mint: pool.extra!.mint!, isBuy: tokenIn.address === WSOL, amountIn, minOut });

@@ -1,0 +1,18 @@
+[package]
+name = "aretia-pool-jupiter-amm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Aretia Pool as a Jupiter AMM (jupiter-amm-interface). Ready to hand to Jupiter; they own the Swap variant and the routing. UNAUDITED, devnet program only."
+
+# Its own workspace: Jupiter's interface uses the new Solana crates, a different major version from the ones the on-chain program builds with.
+[workspace]
+
+[dependencies]
+anyhow = "1"
+jupiter-amm-interface = "1.0.0-beta.0"
+pool-math = { path = "../pool-math" }
+rust_decimal = "1"
+solana-pubkey = "3"
+solana-account = "3.4"
+solana-instruction = "3.4"

@@ -18,11 +18,11 @@ These are set as constants in the program. Each is a one-line change before a ma
 | Creator-chosen trading fee | 0.25% or 1% | The only two values the program accepts. |
 | Flat creation fee | 0.05 SOL | Taken by the program inside `create_pool`, to `2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. |
 | Fee when a Curve graduates into a pool | Not set | Section 12. The curve program already took its own 0.58% on every trade; the owner decides whether graduation also pays the 0.05 SOL. |
-| Who may be a pool's quote asset | Native SOL only | Keeps the program small. Section 11 says what this costs in aggregator terms. |
+| Quote asset | Wrapped SOL (v4) | The pool's SOL side is a wrapped-SOL token vault, so routers and trackers read it like any other pool; a wallet wraps and unwraps SOL around each transaction. Section 11. |
 
 ## 2. The pool in one paragraph
 
-One pool per token, always against SOL. It is a constant-product curve (`X * Y = k`) with a virtual SOL reserve, which is what makes single-sided creation possible: the creator deposits only tokens, the virtual reserve sets the starting price, and the pool holds no real SOL until people buy. Nobody can sell tokens into the pool for more SOL than buyers have paid in, so the price can never fall below the starting price, which is the same behaviour as our Meteora single-sided pools (a Meteora position whose minimum price equals its starting price and whose maximum price is unbounded). Liquidity is a single number, `L`, measured in lamports of virtual SOL. Liquidity providers hold shares equal to `L`, fees accrue separately from the reserves, and a position can be locked permanently.
+One pool per token, always against wrapped SOL (a token, held in the pool's own associated account). It is a constant-product curve (`X * Y = k`) with a virtual SOL reserve, which is what makes single-sided creation possible: the creator deposits only tokens, the virtual reserve sets the starting price, and the pool holds no real SOL until people buy. Nobody can sell tokens into the pool for more SOL than buyers have paid in, so the price can never fall below the starting price, which is the same behaviour as our Meteora single-sided pools (a Meteora position whose minimum price equals its starting price and whose maximum price is unbounded). Liquidity is a single number, `L`, measured in lamports of virtual SOL. Liquidity providers hold shares equal to `L`, fees accrue separately from the reserves, and a position can be locked permanently.
 
 ## 3. State
 
@@ -30,13 +30,13 @@ One pool per token, always against SOL. It is a constant-product curve (`X * Y =
 
 | Field | Type | Meaning |
 |---|---|---|
-| bump, sol_bump | u8, u8 | PDA bumps (pool, and its SOL vault). |
-| mint | Pubkey | The token. Quote side is always native SOL. |
+| bump, sol_bump | u8, u8 | The pool's bump. `sol_bump` is unused since v4 (always 0): the SOL vault is the pool's associated wrapped-SOL account, not a PDA of its own. Kept so the layout did not move. |
+| mint | Pubkey | The token. The quote side is always wrapped SOL. |
 | creator | Pubkey | Who opened it. Informational only; gives no power. |
 | fee_bps | u16 | 25 or 100, fixed at creation. |
 | x | u64 | Real token reserve: what is actually in the token vault for trading. |
 | vx | u64 | Virtual token reserve. Zero means no upper price; otherwise it sets a price ceiling (section 6d). Scales with liquidity. |
-| y | u64 | Real SOL reserve (lamports). Zero at single-sided creation. |
+| y | u64 | Real SOL reserve (lamports of wrapped SOL). Zero at single-sided creation. |
 | l | u64 | Total liquidity = virtual SOL reserve = total shares. |
 | acc | u128 | Fee per share, cumulative, scaled by 2^64. Wraps; only differences are read. |
 | fee_reserve | u64 | LP fees accrued and not yet claimed, held in the SOL vault outside `y`. |
@@ -64,7 +64,7 @@ A position's address comes from its `id`, which is the owner's own address, or a
 ### Vaults
 
 * **Token vault**: the pool's associated token account for the mint (Token-2022), authority = the pool PDA.
-* **SOL vault**: a system-owned PDA `["sol_vault", pool]` holding the lamports the pool owes: `rent_min + y + fee_reserve`. The same arrangement as the curve's SOL vault.
+* **SOL vault**: the pool's associated token account for the native (wrapped-SOL) mint, authority the pool PDA. It holds `y + fee_reserve` (plus anything strangers donate, which is ignored). A tracker reads it as an ordinary token balance.
 
 Reserves are numbers in the pool account, never the vault balances. A donation to either vault changes nothing.
 
@@ -72,11 +72,11 @@ Reserves are numbers in the pool account, never the vault balances. A donation t
 
 All instructions revert with a named error on any failure; nothing is partially applied.
 
-1. **`create_pool(x0, y0, l0, fee_bps, lock, sniper_bps, decay_secs, vx0)`**. Creator signs. Checks the mint (section 5). Moves `x0` tokens into the token vault and `y0` lamports (usually zero) into the SOL vault, plus the rent minimum for the SOL vault, pays the 0.05 SOL creation fee to the fee wallet, writes the pool, and opens the owner's position with `shares = l0` (`locked = l0` when `lock`). The `owner` of the position is a separate account passed in, normally the creator, and the curve's graduation sets it to the curve's creator (section 12). Bounds: `x0 >= 1000`, `l0 >= 10,000,000` lamports (0.01 SOL), all amounts at most 2^62.
+1. **`create_pool(x0, y0, l0, fee_bps, lock, sniper_bps, decay_secs, vx0)`**. Creator signs. Checks the mint (section 5). Moves `x0` tokens into the token vault and `y0` wrapped lamports (usually zero, taken from the creator's wrapped-SOL account) into the SOL vault (made here), plus the rent minimum for the SOL vault, pays the 0.05 SOL creation fee to the fee wallet, writes the pool, and opens the owner's position with `shares = l0` (`locked = l0` when `lock`). The `owner` of the position is a separate account passed in, normally the creator, and the curve's graduation sets it to the curve's creator (section 12). Bounds: `x0 >= 1000`, `l0 >= 10,000,000` lamports (0.01 SOL), all amounts at most 2^62.
 2. **`swap(is_buy, amount_in, min_out)`**. Anyone. Buy: pay SOL, get tokens. Sell: give tokens, get SOL. Exact input, with a minimum output. Section 6 for the maths and the fee.
 3. **`add_liquidity(dl, max_tokens, max_sol)`**. Adds `dl` of liquidity at the pool's current price. The depositor pays tokens `ceil(x*dl/l)` and SOL `ceil(y*dl/l)`, both rounded up, and reverts if either exceeds the caps. Opens the position named by `position_id` if it does not exist (the id is the owner's address, or must sign); refuses if it belongs to someone else. Scales the virtual token reserve with the liquidity. Settles pending fees first. `dl >= 1000`.
-4. **`remove_liquidity(dl, min_tokens, min_sol)`**. Removes `dl` of the position's unlocked shares. Receives `floor(x*dl/l)` tokens and `floor(y*dl/l)` lamports, both rounded down. Settles pending fees first. Cannot touch locked shares.
-5. **`claim_fees()`**. Owner only. Settles and pays the position's pending SOL out of the SOL vault to the position's `recipient`. Works on locked positions.
+4. **`remove_liquidity(dl, min_tokens, min_sol)`**. Removes `dl` of the position's unlocked shares. Receives `floor(x*dl/l)` tokens and `floor(y*dl/l)` wrapped lamports, both rounded down. Settles pending fees first. Cannot touch locked shares.
+5. **`claim_fees()`**. Owner only. Settles and pays the position's pending SOL, in wrapped SOL, out of the SOL vault to a wrapped-SOL account owned by the position's `recipient` (the claim transaction makes it if missing, and unwraps it when the recipient is the owner). Works on locked positions.
 5a. **`transfer_position(new_owner)`**. Owner only. Hands the whole position to `new_owner`, resets its fee payee to them, and keeps the lock. The seller can do nothing with it afterwards.
 5b. **`set_recipient(recipient)`**. Owner only, any time, even on a locked position: the lock covers the liquidity, not where the fees go. Lets a creator send their 80% to a treasury, a multisig or a splitter without moving the position.
 6. **`lock_liquidity(amount)`**. Owner only. Adds `amount` shares to `locked`. Irreversible; no instruction lowers `locked`. `amount` is at most the unlocked shares.
@@ -144,9 +144,9 @@ The starting price is the creator's choice and is not checked against any market
 | 5 | Donation to move the price | Reserves are stored numbers. Vault donations are ignored, and cannot block anything. A donation of tokens or SOL to the vaults is simply lost to the donor. |
 | 6 | Sandwich of another user's trade | Every swap has an exact-input minimum output. The program cannot stop sandwiching on a public mempool, but the Launch card sets the minimum from a quote with a stated slippage and refuses to submit without one. |
 | 7 | Reentrancy-style CPI | State is written before any transfer. The only CPIs go to System, Token-2022, and the ATA program, each by address. Token-2022 mints with hooks are refused, so no foreign code runs mid-swap. Balances are re-read after token transfers. |
-| 8 | Fake accounts (wrong vault, wrong mint, wrong fee wallet) | Pool, SOL vault and position are PDAs with stored bumps; the token vault is the pool's associated account; the fee wallet is checked by address; trader token accounts are checked for mint and authority. |
-| 9 | Fee wallet griefing (an empty fee wallet below rent) | The fee wallet exists with a balance on mainnet. The verify script checks it before any deployment (same as the curve). |
-| 10 | Draining the SOL vault through pending/fee accounting | `fee_reserve` is incremented by the full LP fee and decremented only by what a claim pays; credits to `acc` are rounded down, so `sum(claims) <= fee_reserve`. A solvency check (`vault lamports >= rent + y + fee_reserve`) runs after every instruction that moves SOL. |
+| 8 | Fake accounts (wrong vault, wrong mint, wrong fee account) | Pool and position are PDAs with stored bumps; the token vault and the SOL vault are the pool's associated accounts, checked by address; Aretia's fee account is the fee wallet's wrapped-SOL account, checked by address; trader accounts are checked for mint and owner. |
+| 9 | Aretia's fee account missing | A swap pays Aretia's share into the fee wallet's wrapped-SOL account, which must exist. The pool-creation transaction makes it (idempotently) before the pool; until it exists no swap can run. The verify script checks the fee wallet. |
+| 10 | Draining the SOL vault through pending/fee accounting | `fee_reserve` is incremented by the full LP fee and decremented only by what a claim pays; credits to `acc` are rounded down, so `sum(claims) <= fee_reserve`. A solvency check (`vault token amount >= y + fee_reserve`) runs after every instruction that moves SOL. |
 | 11 | Removing locked liquidity | `remove_liquidity` allows at most `shares - locked`. `locked` has no decrement path. Tested against a scripted attacker. |
 | 12 | Pool created first by a stranger at a bad price | One pool per mint, so any holder of the token could open it before the creator. Only a holder of tokens can; the Launch card checks for an existing pool before it builds anything, and the curve's abort path (section 12) is the recovery. Accepted risk, same as the Meteora flow. |
 | 13 | Arithmetic overflow | All reserves and the sum `y + l` are checked to fit u64 on every mutation; products are u128 or, for fee settlement, split into two u128 multiplications. `overflow-checks = true` in the release profile. |
@@ -166,7 +166,7 @@ What is not defended: price manipulation as such (this is an AMM, anyone can mov
 ## 11. What aggregators and the rest of Aretia can and cannot do
 
 * Jupiter and similar routers will not route here until they add this program. We do not ask them to yet, and nothing on the site claims they do.
-* The pair is native SOL, not wrapped SOL. An aggregator integration would want either a wrapped-SOL variant or an adaptor; neither is built.
+* The pair is (token, wrapped SOL), the same as Meteora and Raydium pools, so a router's ordinary wrap and unwrap of SOL works. This was native SOL in v1 to v3 and changed in v4 for exactly this reason. A Jupiter AMM adapter exists (`program/aretia-pool/jupiter-amm`); Jupiter's own integration is theirs to do.
 * Aretia's own Radar charting reads pools by address and the Swings swap routes through a registry (section 14). Both can use this pool once enabled.
 * Events (`Created`, `Swapped`, `LiquidityChanged`, `Claimed`, `Locked`) are emitted for indexing.
 
@@ -176,7 +176,7 @@ What is not defended: price manipulation as such (this is an AMM, anyone can mov
 
 `migrate(rent_budget)`, callable by anyone once the curve has sold out:
 1. The caller lends the migrator PDA up to 0.2 SOL for the pool's creation fee (0.05 SOL, to the fee wallet) and rent; what is left comes back.
-2. The curve's vault hands the migrator the tokens set aside for the pool and all the SOL raised.
+2. The curve's vault hands the migrator the tokens set aside for the pool and all the SOL raised, wrapped (lamports into the migrator's wrapped-SOL account, then synced). The empty wrapped-SOL account is closed afterwards and its rent goes back to the caller.
 3. One CPI to the pool's `create_pool`, signed by the migrator as creator: `x0 = lp_tokens`, `y0 = SOL raised`, `l0 = 0.01 SOL` (the pool's smallest liquidity), 0.25% fee, **locked**, no launch schedule, no range. The position's **owner is the curve's creator**, who can therefore claim and redirect its fees. On the Meteora route the position belongs to a program account and its fees cannot be claimed.
 4. Checks: the migrator's token account is back to where it started, and the pool's stored `x`, `y`, `l` equal exactly what was sent. Either all of it happens or none.
 
@@ -200,7 +200,7 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 `website/src/swings/dex/entries.ts` has an `aretia-pool` entry on Solana with `status: 'DISABLED'`, so `registry.routable('solana')` never returns it and no venue code runs. When enabled it needs:
 
 * a venue adapter (BUILT, disabled: `website/src/swings/solana/aretiaPool.ts`, wired in `venues.ts` behind the registry entry, tested against the Rust vectors) that lists the pool for a pair from the PDA `["pool", mint]`, reads `x`, `y`, `l`, `fee_bps` from the account (the layout is fixed in `walletAretiaPoolCore.ts` and tested against the program), and quotes **locally and exactly** with the same integer maths (the venue interface already supports a `localQuote`);
-* a `swapInstruction` builder (already in `walletAretiaPoolTx.ts`), with native SOL in or out handled by the program, not by a wrapped account;
+* a `swapInstruction` builder (already in `walletAretiaPoolTx.ts`), with the SOL side as ordinary wrapped-SOL token accounts (the adapter is built and tested, `website/src/swings/solana/aretiaPool.ts`, and still disabled);
 * the flip from `DISABLED` to `ACTIVE` only after the audit, a mainnet deployment and `npm run test:live` coverage.
 
 ## 15. Not done, on purpose
@@ -216,9 +216,9 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 Deployed to **devnet only**. First deployment 2026-10-17, upgraded the same day with launch protection and the fee recipient.
 
 * Program id: `4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc` (its keypair is kept outside the repo; the same id is written into the committed build). Upgrade authority: the devnet test wallet.
-* Current build: `program/aretia-pool/artifacts/aretia_pool.so`, sha-256 `827e0d28b51ceed6f52eeb60bee5416a260bb54112c83ec901e8ff70c369d51a` (price ranges and transferable positions). Upgrade signature `5AwZwLHDq3GKD1Pm9ZMWdFLWadS9YkWoXCGjUwcGz36CP3dvQwkqvuJZUzPbWUpjJL8b28dQhubZ4jReRtGqind3`. The previous build (launch protection and fee recipient) was upgraded with `39VrBfQ3...`. First deployment signature `416748VZvdwba7A6magNt1PiXhaYcEsE7wKwbK37g8TcjkctVdAHaZT3tGe2Wj5gDsLbouKj3tcxQ6HbSLtV7zYt` (an older build).
+* Current build (v4: wrapped-SOL vault): `program/aretia-pool/artifacts/aretia_pool.so`, sha-256 `04324868051f80ffafe99ca336905e35f97fdc4891d26da6472251aee5e81c02`, upgrade signature `2Wg1WwBttZcucFt8Hq9g76xD1p6LmmcfCczDSZp2mxTnFbnnvZnQPtKPRRqudHMbs7MGT36WK9NoV5NGms8cfPJW`. Earlier builds (v1 to v3, native-SOL vault) were upgraded over the same id; pools made by them are not readable by this layout (none exist outside tests). The previous build (launch protection and fee recipient) was upgraded with `39VrBfQ3...`. First deployment signature `416748VZvdwba7A6magNt1PiXhaYcEsE7wKwbK37g8TcjkctVdAHaZT3tGe2Wj5gDsLbouKj3tcxQ6HbSLtV7zYt` (an older build).
 * `node scripts/pool-solana-mainnet.mjs verify --program 4EBV... --cluster devnet` passes. The upgrade authority there is not the multisig; that is expected on devnet and would fail the same check on mainnet.
-* **A live run through the web code on devnet** (`website/src/scripts/walletAretiaPool.devnet.ts`, signs with a local devnet key, not a browser wallet): made a fixed-supply Token-2022 token, opened a pool with standard launch protection, bought at the launch fee, sold, added and removed liquidity, claimed, redirected fees to a fresh wallet and claimed to it (that wallet received exactly the quoted amount), then locked. Pool `99GzrVSH7Lt4z2Hc3h72F3xVwmhvJP3598naPAK61dbk`, create signature `2bqjdawQ1cuksDRQRAa5rPCWHNPLGRPoqNwW8yhD7K6iUi1bh8YHUNFbBt5s7yQYpNX6aaqmAhhgMFs6qEjR2iPg`. A second run on the current build opened a **ranged** pool (`HiDTcNMHVRH4hRkyvdykcrXmMtchKPKizFiRZYNvvxpX`, create `37WNmXGSgV6yCd8oB3CGLxFvSb8QNRFYyuyv2RHzQQqJjkyP7m29MGEaoXVvTddxdfxxWax8gQn9m8pu5XyuR4ct`), traded, locked, **sold the locked position** to a new wallet (`4XnQPSXTVrTNs37yv8Ar2v5j1D5Aj2gornovDcyV4N7wukxA87K7YpXmAzNpSvsWM3EmKWNFvwY4H71WSvJm9yyW`), confirmed the seller can no longer claim, and had the buyer claim the fees (`3MUdjBs9b3cexNLztT1zKLcEh1dxK5ahggqsh87NzuYrdKdCSPP3FjQrQVhCAimx7FSepe9XCvDJzZEXsGq8F2CE`). Opening cost on devnet this time: 0.0051 SOL on top of the fee. **Browser run** (`website/dev/aretia-pool-harness`, the real card in a browser against devnet with throwaway in-page keys, not a wallet extension): opened a ranged pool, then a second wallet with no token account bought through the card, sold, and the creator claimed. The first attempt found a bug (a buyer with no token account for the token was refused in the trial run); the buy and add-liquidity transactions now first create the wallet's own token account (idempotent), and the inspector accepts that one extra step, byte for byte, and nothing else. Not done: a real wallet extension, and transfer, lock, remove-liquidity and recipient clicks in the browser.
+* **A live run through the web code on devnet** (`website/src/scripts/walletAretiaPool.devnet.ts`, signs with a local devnet key, not a browser wallet): made a fixed-supply Token-2022 token, opened a pool with standard launch protection, bought at the launch fee, sold, added and removed liquidity, claimed, redirected fees to a fresh wallet and claimed to it (that wallet received exactly the quoted amount), then locked. Pool `99GzrVSH7Lt4z2Hc3h72F3xVwmhvJP3598naPAK61dbk`, create signature `2bqjdawQ1cuksDRQRAa5rPCWHNPLGRPoqNwW8yhD7K6iUi1bh8YHUNFbBt5s7yQYpNX6aaqmAhhgMFs6qEjR2iPg`. A second run on the current build opened a **ranged** pool (`HiDTcNMHVRH4hRkyvdykcrXmMtchKPKizFiRZYNvvxpX`, create `37WNmXGSgV6yCd8oB3CGLxFvSb8QNRFYyuyv2RHzQQqJjkyP7m29MGEaoXVvTddxdfxxWax8gQn9m8pu5XyuR4ct`), traded, locked, **sold the locked position** to a new wallet (`4XnQPSXTVrTNs37yv8Ar2v5j1D5Aj2gornovDcyV4N7wukxA87K7YpXmAzNpSvsWM3EmKWNFvwY4H71WSvJm9yyW`), confirmed the seller can no longer claim, and had the buyer claim the fees (`3MUdjBs9b3cexNLztT1zKLcEh1dxK5ahggqsh87NzuYrdKdCSPP3FjQrQVhCAimx7FSepe9XCvDJzZEXsGq8F2CE`). A third run on the **v4** build (wrapped-SOL vault) opened a ranged pool (`5NN2r2vqyNASC6Sh4okktZbeaB5wykeapuV7Lzif5P19`, create `2ph2H1mc4P4FQsFs91pu4kM4877ie4jhLoSWt8AixRywWn2yexEgBr9Tfj85W7AW2gkT9BvaoUVBYYMYP8C3iFq1`), bought and sold with the SOL wrapped and unwrapped inside each transaction, added and removed liquidity, claimed to another wallet's wrapped-SOL account, locked, sold the locked position and had the buyer claim. Opening cost on devnet: 0.0074 SOL on top of the fee (rent for the pool, position, two vaults, and Aretia's wrapped-SOL account the first time). **Browser run** (`website/dev/aretia-pool-harness`, the real card in a browser against devnet with throwaway in-page keys, not a wallet extension): opened a ranged pool, then a second wallet with no token account bought through the card, sold, and the creator claimed. The first attempt found a bug (a buyer with no token account for the token was refused in the trial run); the buy and add-liquidity transactions now first create the wallet's own token account (idempotent), and the inspector accepts that one extra step, byte for byte, and nothing else. Not done: a real wallet extension, and transfer, lock, remove-liquidity and recipient clicks in the browser.
 
 Run the checks:
 
@@ -236,7 +236,7 @@ ARETIA_POOL_DEVNET_KEYPAIR=<funded devnet key> npx vitest run --config vitest.de
 Said plainly, because only some of this is measured.
 
 **Measured**
-* Opening cost. Rent for the pool, the position, the token vault and the SOL vault is about 0.005 SOL (LiteSVM and devnet, the position and pool accounts grew a few bytes in this version), plus the flat 0.05 SOL. There is no position NFT mint, NFT token account or second vault, and no wrapped-SOL account. We did not measure a Meteora pool opening side by side, so there is no "x times cheaper" claim here.
+* Opening cost. Rent for the pool, the position, the token vault and the wrapped-SOL vault, plus Aretia's own wrapped-SOL account the first time, measured on devnet at about 0.0074 SOL (network fee included), plus the flat 0.05 SOL. There is no position NFT mint, NFT token account or second pool vault. We did not measure a Meteora pool opening side by side, so there is no "x times cheaper" claim here.
 
 **By design** (tested in the program, but a design choice, not a measurement)
 * Aretia keeps 20% of every trading fee, paid at trade time. On a Meteora pool opened from the Launch page Aretia keeps none.
@@ -256,4 +256,4 @@ Everything. No independent review of the program, the maths or the web code has 
 
 ## 19. Graduation program on devnet
 
-`program/aretia-curve-grad`, id `Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm`, build sha-256 `7b40ab1ead99474d41e9144e1722748eaf0d73a4ac40e2e6ad3035354d318e48`, deployed to devnet only, signature `65MtiFGPnF5eU8zDPbn2N26rZCn9AMRTCsj2yAEXwmBAtr4gWgTbRzSQTLcNGs7FDwX1j75XkWtbQEP6kKvFy267`. Upgrade authority: the devnet test wallet. A live devnet graduation has **not** been run (the LiteSVM tests run the same bytes); trading outside Aretia is in `docs/ARETIA_POOL_INTEGRATION.md`.
+`program/aretia-curve-grad`, id `Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm`, build sha-256 `fb539435d376b9ea727a8c1cc207d412d27b8e1d8af4ada02b3a3dd42cf293d5` (v4: the raised SOL is wrapped before it goes into the pool), deployed to devnet only, upgrade signature `3xptuGsjbFrWNV2PgBcX9FA4N113GMesrbTP6tjat8SJMroLLxDuH2wHqGr51a2zPjoQVxi1CYpJMmAJUBqdbuhT`. Upgrade authority: the devnet test wallet. A live devnet graduation has **not** been run (the LiteSVM tests run the same bytes); trading outside Aretia is in `docs/ARETIA_POOL_INTEGRATION.md`.

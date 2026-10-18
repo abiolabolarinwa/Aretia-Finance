@@ -404,6 +404,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     row(costs, 'Total, about', sol(cost.total));
     row(costs, 'Your balance', sol(balance));
     card.append(costs);
+    for (const n of review.notes) card.append(h('p', 'wapp__banner wapp__banner--warn', `Token: ${n}`));
     card.append(h('span', 'wapp__eyebrow', 'What this means'));
     const list = h('ul', 'wapp__list');
     for (const d of aretiaPoolDisclosures(params)) {

@@ -820,6 +820,6 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     router: '4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc',
     feePpm: 2500,
     status: 'DISABLED',
-    notes: 'Pool is PDA ["pool", mint], quote side is native SOL, fee 0.25% or 1% in the pool account. Can be priced locally and exactly (walletAretiaPoolCore). Not built as a venue adapter yet.',
+    notes: 'Pool is PDA ["pool", mint], quote side is wrapped SOL (v4), fee 0.25% or 1% plus an optional launch schedule in the pool account. Priced locally and exactly (walletAretiaPoolCore); adapter in swings/solana/aretiaPool.ts, disabled.',
   },
 ];

@@ -352,7 +352,7 @@ impl MigrateAccounts {
     pub fn new(mint: &Address, creator: &Address) -> Self {
         let pool = pool_pda(mint);
         MigrateAccounts {
-            pool_sol_vault: pda(&[b"sol_vault", pool.as_ref()], &POOL_PROGRAM),
+            pool_sol_vault: ata(&pool, &WSOL, &TOKEN),
             pool_vault: ata(&pool, mint, &TOKEN_2022),
             position: pda(&[b"position", pool.as_ref(), creator.as_ref()], &POOL_PROGRAM),
             pool,
@@ -383,6 +383,9 @@ pub fn migrate_ix(payer: &Address, mint: &Address, creator: &Address, a: &Migrat
             m(*creator, false, false),
             m(FEE_WALLET, true, false),
             m(POOL_PROGRAM, false, false),
+            m(WSOL, false, false),
+            m(ata(&migrator, &WSOL, &TOKEN), true, false),
+            m(TOKEN, false, false),
             m(TOKEN_2022, false, false),
             m(ATA_PROGRAM, false, false),
             m(SYSTEM, false, false),

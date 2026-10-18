@@ -391,7 +391,8 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       m.addEventListener('click', () => void startMigrate());
       actions.append(m);
     }
-    if (canAbort(c, Math.floor(Date.now() / 1000))) {
+    // A sold-out curve may be unwound after the wait, or at once if someone else has opened its pool; the review says which.
+    if (canAbort(c, Math.floor(Date.now() / 1000)) || c.status === 'soldOut') {
       const a = h('button', 'wapp__btn wapp__btn--ghost', 'Unwind this curve');
       a.type = 'button';
       a.disabled = busy || !host.getAddress();

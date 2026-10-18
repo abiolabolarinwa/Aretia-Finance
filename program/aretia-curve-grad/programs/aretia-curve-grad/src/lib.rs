@@ -349,7 +349,13 @@ pub mod aretia_curve_grad {
         let c = &mut ctx.accounts.curve;
         require!(c.status == Status::SoldOut, CurveError::NotSoldOut);
         let now = Clock::get()?.unix_timestamp;
-        require!(now >= c.sold_out_at.checked_add(ABORT_AFTER_SECS).ok_or(CurveError::BadParameters)?, CurveError::TooEarly);
+        // If someone else has already opened the pool this curve graduates into, `migrate` can never succeed (the pool's address
+        // is fixed by the token). Holders may then leave at once instead of waiting out the delay. The pool account is optional
+        // (the first remaining account); without it, or if it is not that pool, the wait applies as before.
+        let pool_taken = ctx.remaining_accounts.first().is_some_and(|p| p.key() == pool_address(&c.mint) && *p.owner == ARETIA_POOL_PROGRAM && !p.data_is_empty());
+        if !pool_taken {
+            require!(now >= c.sold_out_at.checked_add(ABORT_AFTER_SECS).ok_or(CurveError::BadParameters)?, CurveError::TooEarly);
+        }
         c.status = Status::Aborted;
         emit!(Aborted { curve: c.key(), ts: now });
         Ok(())
@@ -510,7 +516,9 @@ pub struct CreateCurve<'info> {
     /// The system account that holds the curve SOL.
     #[account(mut, seeds = [b"sol_vault", curve.key().as_ref()], bump)]
     pub sol_vault: SystemAccount<'info>,
-    #[account(init, payer = creator, associated_token::mint = mint, associated_token::authority = curve, associated_token::token_program = token_program)]
+    /// Opened here if it is not there yet. Anyone may open an associated account for any owner, so with a plain `init` a
+    /// stranger could open this one first and block the curve for good. Tokens already in it are left out of every check.
+    #[account(init_if_needed, payer = creator, associated_token::mint = mint, associated_token::authority = curve, associated_token::token_program = token_program)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,

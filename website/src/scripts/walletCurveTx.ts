@@ -144,7 +144,8 @@ export function createCurveInstruction(web3: typeof Web3, program: string, creat
 }
 
 export function abortInstruction(web3: typeof Web3, program: string, caller: string, mint: string): Web3.TransactionInstruction {
-  return ix(web3, program, [[caller, 'S'], [curveAddress(web3, program, mint), 'W']], DISC.abort);
+  // The token's Meteora pool rides along, read-only: if someone else has already opened it, the program lets holders unwind at once.
+  return ix(web3, program, [[caller, 'S'], [curveAddress(web3, program, mint), 'W'], [meteoraPoolAddress(web3, mint), '']], DISC.abort);
 }
 
 export interface MigrateArgs {
@@ -453,6 +454,7 @@ export function inspectAbort(web3: typeof Web3, tx: Web3.Transaction, c: AbortCh
       [
         [c.caller, 'S', 'the caller'],
         [curveAddress(web3, c.program, c.mint), 'W', 'the curve'],
+        [meteoraPoolAddress(web3, c.mint), '', 'the pool the curve would move into'],
       ],
       'unwind',
     ),

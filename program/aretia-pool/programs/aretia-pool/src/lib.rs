@@ -94,6 +94,7 @@ pub mod aretia_pool {
         pos.bump = ctx.bumps.position;
 
         let pool_key = pool.key();
+        let sol_before = ctx.accounts.sol_vault.amount;
         // The creation fee, in plain lamports to the fee wallet. Then the wrapped SOL the creator brings, if any (a pool opened from tokens alone brings none).
         system_program::transfer(
             CpiContext::new(ctx.accounts.system_program.to_account_info(), Transfer { from: ctx.accounts.creator.to_account_info(), to: ctx.accounts.fee_wallet.to_account_info() }),
@@ -125,7 +126,7 @@ pub mod aretia_pool {
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before + x0, PoolError::UnexpectedBalance);
         ctx.accounts.sol_vault.reload()?;
-        require!(ctx.accounts.sol_vault.amount == y0, PoolError::UnexpectedBalance);
+        require!(ctx.accounts.sol_vault.amount == sol_before.checked_add(y0).ok_or(PoolError::BadParameters)?, PoolError::UnexpectedBalance);
         require_solvent(&ctx.accounts.sol_vault, &ctx.accounts.pool)?;
 
         emit!(Created { pool: pool_key, mint: ctx.accounts.mint.key(), creator: ctx.accounts.creator.key(), owner: ctx.accounts.owner.key(), x: x0, y: y0, l: l0, fee_bps, locked: lock, ts: now });
@@ -454,10 +455,12 @@ pub struct CreatePool<'info> {
     pub creator_token: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(init, payer = creator, space = 8 + Pool::INIT_SPACE, seeds = [b"pool", mint.key().as_ref()], bump)]
     pub pool: Box<Account<'info, Pool>>,
-    /// The pool's wrapped-SOL vault: its associated account for the native mint, made here.
-    #[account(init, payer = creator, associated_token::mint = wsol_mint, associated_token::authority = pool, associated_token::token_program = sol_token_program)]
+    /// The pool's wrapped-SOL vault: its associated account for the native mint, made here if it is not there yet. Anyone may open an
+    /// associated account for any owner, so with a plain `init` a stranger could open this one (or the token vault below) first and
+    /// block the pool for good. Whatever is already in either is left out of every check and of the reserves.
+    #[account(init_if_needed, payer = creator, associated_token::mint = wsol_mint, associated_token::authority = pool, associated_token::token_program = sol_token_program)]
     pub sol_vault: Box<Account<'info, token::TokenAccount>>,
-    #[account(init, payer = creator, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
+    #[account(init_if_needed, payer = creator, associated_token::mint = mint, associated_token::authority = pool, associated_token::token_program = token_program)]
     pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(init, payer = creator, space = 8 + Position::INIT_SPACE, seeds = [b"position", pool.key().as_ref(), position_id.key().as_ref()], bump)]
     pub position: Box<Account<'info, Position>>,

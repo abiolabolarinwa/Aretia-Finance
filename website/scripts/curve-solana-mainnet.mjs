@@ -16,7 +16,7 @@
 //     wallet below it fails; see docs/BONDING_CURVE.md section 6, risk 16).
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Connection, PublicKey } from '@solana/web3.js';
@@ -60,6 +60,8 @@ const so = readFileSync(artifactPath);
 const soSha = sha256(so);
 const pinned = readFileSync(`${artifactPath}.sha256`, 'utf8').trim().split(/\s+/)[0];
 if (pinned !== soSha) fail(`${artifactPath} does not match its recorded sha-256 (${pinned}). Do not deploy it.`);
+// A build made before a fix to the program source is marked stale next to it; it must be rebuilt and retested, never deployed.
+if (existsSync(`${artifactPath}.STALE`)) fail(`${artifactPath} was built before a fix to the program source (see ${artifactPath}.STALE). Rebuild it and run the program tests before deploying.`);
 
 console.log(`cluster ${cluster.name}, build ${artifactPath}`);
 ok(`build is ${so.length} bytes, sha-256 ${soSha}`);

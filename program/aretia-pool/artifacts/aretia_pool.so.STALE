@@ -1,0 +1,10 @@
+This build was made BEFORE the 2026-10-18 audit fixes to programs/aretia-pool/src/lib.rs. Do not deploy it.
+
+What changed in the source: both pool vaults are opened with init_if_needed (a stranger could open them first and block create_pool for good), and the wrapped-SOL deposit check ignores anything already in the vault.
+
+To clear this marker:
+  1. Rebuild with the same toolchain as before: `cargo build-sbf` in program/aretia-pool (release profile opt-level "s").
+  2. Run the program's tests against the new build: in program/aretia-pool/tests,
+       ARETIA_POOL_SO=<path to the new .so> cargo test
+     Every test must pass, including a_stranger_cannot_block_a_pool_by_opening_its_vaults_first.
+  3. Copy the new .so over this one, write its sha-256 into the .sha256 file beside it, and delete this file.

@@ -478,9 +478,12 @@ fn graduated_pool_fees_are_taken_in_sol_and_paid_to_aretia() {
     l.env.send(&ixs, &[&trader]).unwrap_or_else(|e| panic!("buy in the pool failed: {}", err_text(&Err(e))));
     let held = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
     l.env.send(&wrap_sol_ixs(&buyer.pubkey(), 1), &[&buyer]).unwrap();
+    let sol_before_sale = l.env.token_amount(&ata(&buyer.pubkey(), &WSOL, &TOKEN));
     l.env
         .send(&[meteora_swap_ix(&buyer.pubkey(), &l.mint, &a, &ata(&buyer.pubkey(), &l.mint, &TOKEN_2022), &ata(&buyer.pubkey(), &WSOL, &TOKEN), held / 4, 0)], &[&buyer])
         .unwrap_or_else(|e| panic!("sell in the pool failed: {}", err_text(&Err(e))));
+    // The sale's SOL as the pool paid it out, after its fee; the fee was taken on top of this.
+    let sale_out = l.env.token_amount(&ata(&buyer.pubkey(), &WSOL, &TOKEN)) - sol_before_sale;
 
     // Anyone may claim; the fees reach Aretia's wrapped-SOL account, and no fee is taken in the token.
     let migrator = migrator_pda(&curve_pda(&l.mint));
@@ -488,8 +491,11 @@ fn graduated_pool_fees_are_taken_in_sol_and_paid_to_aretia() {
     let pos_before = l.env.svm.get_account(&a.position).unwrap().data;
     l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &a)], &[&caller]).unwrap_or_else(|e| panic!("claim failed: {}", err_text(&Err(e))));
     let paid = l.env.token_amount(&fee_wsol());
-    // 0.25% of a 5 SOL buy is 0.0125 SOL; Meteora keeps its protocol share, so Aretia gets most but not all of it, plus the sale's fee.
-    assert!(paid > 5 * SOL / 1_000 && paid < 5 * SOL * 25 / 10_000 * 2, "fees paid {paid}");
+    // The pool takes 0.25% of the SOL side of each trade (the 5 SOL paid in, and the sale's SOL before its fee). Aretia receives all of
+    // it, or less if Meteora keeps a protocol share: never more, and never under 80% of it.
+    let sale_gross = sale_out as u128 * 10_000 / 9_975;
+    let pool_fees = (5 * SOL as u128 + sale_gross) * 25 / 10_000;
+    assert!(paid as u128 <= pool_fees + 2 && paid as u128 * 10 >= pool_fees * 8, "fees paid {paid}, the pool's fees about {pool_fees} (sale out {sale_out})");
     assert_eq!(l.env.token_amount(&ata(&migrator, &l.mint, &TOKEN_2022)), tok_before, "no fee is taken in the token");
     // The liquidity is still all permanently locked.
     let pos = l.env.svm.get_account(&a.position).unwrap().data;

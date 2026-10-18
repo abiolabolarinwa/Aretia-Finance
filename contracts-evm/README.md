@@ -23,3 +23,7 @@ Fees (set by the owner): Ethereum 0.0042 ETH, BNB Chain 0.014 BNB, Polygon 105 P
 ## Bonding curve (UNAUDITED, not deployed)
 
 `AretiaCurve.sol` is the EVM version of Aretia's bonding curve. See `docs/BONDING_CURVE_EVM.md`. Rebuild its artifact with `compile-curve.mjs` (needs `solc@0.8.26`); test stand-ins and their build script are in `test-mocks/`.
+
+## Aretia Pool (UNAUDITED, not deployed on any mainnet)
+
+`AretiaPool.sol` is Aretia's own constant-product swap pool for these chains: single-sided creation, 0.25% or 1% fee, 20% of every fee paid to Aretia inside the trade, the rest claimable by liquidity positions even while locked for good. See `docs/ARETIA_POOL_EVM.md`. Rebuild with `compile-pool.mjs`; hostile test stand-ins are `test-mocks/PoolMocks.sol` (built by `test-mocks/compile-pool-mocks.mjs`); deploy and verify with `website/scripts/pool-evm.mjs`.

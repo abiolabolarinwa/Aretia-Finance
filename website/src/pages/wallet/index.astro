@@ -51,6 +51,9 @@ const curveOn = import.meta.env.PUBLIC_CURVE_ENABLED === '1';
 // nothing on mainnet even then: it has no mainnet program and is unaudited.
 const aretiaPoolOn = import.meta.env.PUBLIC_ARETIA_POOL_ENABLED === '1';
 
+// The Ethereum-style version of Aretia's pool (docs/ARETIA_POOL_EVM.md): same rule, its own flag, and nothing on any network without a deployed contract.
+const aretiaPoolEvmOn = import.meta.env.PUBLIC_ARETIA_POOL_EVM_ENABLED === '1';
+
 // Sending from an Ethereum-style account stays out of the page until the site is built with PUBLIC_PAY_EVM_SEND=1.
 const evmSendOn = import.meta.env.PUBLIC_PAY_EVM_SEND === '1';
 const evmSendNetworks = (Object.values(CHAINS) as { id: string; name: string; kind: string }[]).filter((c) => c.kind === 'evm');
@@ -384,6 +387,9 @@ const sendTips = [
                 <div data-market-panel="pool">
                   <div data-pool-root aria-live="polite"></div>
                   <div data-evm-pool-root aria-live="polite" hidden></div>
+                  {aretiaPoolEvmOn && (
+                    <div class="wapp__card lh-nested" data-evm-aretia-pool-root aria-live="polite" hidden></div>
+                  )}
                   {aretiaPoolOn && (
                     <div class="wapp__card lh-nested">
                       <div data-aretia-pool-root aria-live="polite"></div>

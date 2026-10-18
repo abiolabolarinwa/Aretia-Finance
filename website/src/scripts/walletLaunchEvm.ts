@@ -21,6 +21,7 @@ import {
 } from './walletLaunchEvmCore';
 import { createEvmPool } from './walletPoolEvm';
 import { createEvmCurve } from './walletCurveEvm';
+import { createEvmAretiaPool } from './walletAretiaPoolEvm';
 import { EvmLaunchFlow, friendlyEvmError, type EvmOutcome, type EvmProgress, type EvmReview } from './walletLaunchEvmFlow';
 
 export interface LaunchEvmHost {
@@ -90,6 +91,8 @@ function withAddNetwork(adapter: EvmWalletAdapter, chain: LaunchEvmChain): Pick<
 export interface EvmMarketRoots {
   pool: HTMLElement;
   curve: HTMLElement;
+  /** Where Aretia's own pool is drawn, when the build has it. */
+  aretiaPool?: HTMLElement | null;
 }
 
 export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, redraw: () => void, chainKey: string, markets?: EvmMarketRoots): void; reset(): void; isBusy(): boolean; stage(): 'form' | 'review' | 'working' | 'done' } {
@@ -107,6 +110,8 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   let redrawNow: () => void = () => undefined;
   const pool = createEvmPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) });
   // Aretia's own bonding curve: off unless the site is built with PUBLIC_CURVE_ENABLED=1, and even then it does nothing on a network without a deployed contract.
+  // Aretia's own pool (docs/ARETIA_POOL_EVM.md): off unless the site is built with PUBLIC_ARETIA_POOL_EVM_ENABLED=1, and even then it does nothing on a network without a deployed contract.
+  const aretiaPool = import.meta.env.PUBLIC_ARETIA_POOL_EVM_ENABLED === '1' ? createEvmAretiaPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
   const curve = import.meta.env.PUBLIC_CURVE_ENABLED === '1' ? createEvmCurve({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
 
   const set = (f: Partial<EvmLaunchForm>): void => {
@@ -415,13 +420,15 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       else drawDone(card);
       // Opening a pool for a token is offered below, on the networks where it is available.
       pool.draw(markets?.pool ?? card, redraw, form.chain, outcome?.token ?? null);
+      aretiaPool?.draw(markets?.aretiaPool ?? markets?.pool ?? card, redraw, form.chain, outcome?.token ?? null);
       curve?.draw(markets?.curve ?? card, redraw, form.chain, outcome?.token ?? null);
       if (markets && !curve) markets.curve.dataset.stage = 'off';
     },
-    isBusy: () => busy || pool.isBusy() || (curve?.isBusy() ?? false),
+    isBusy: () => busy || pool.isBusy() || (aretiaPool?.isBusy() ?? false) || (curve?.isBusy() ?? false),
     stage: () => stage,
     reset(): void {
       pool.reset();
+      aretiaPool?.reset();
       curve?.reset();
       stage = 'form';
       review = null;

@@ -11,10 +11,10 @@
  * the same way any wrapped-SOL swap does. Every step in that sequence is on the inspector's list, byte for byte.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } from './walletTools';
-import { SYSTEM_PROGRAM_ID } from './walletLaunchTx';
-import { WSOL_MINT } from './walletPoolCore';
-import { ARETIA_POOL_FEE_ADDRESS, type CreateParams } from './walletAretiaPoolCore';
+import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } from './walletTools.js';
+import { SYSTEM_PROGRAM_ID } from './walletLaunchTx.js';
+import { WSOL_MINT } from './walletPoolCore.js';
+import { ARETIA_POOL_FEE_ADDRESS, type CreateParams } from './walletAretiaPoolCore.js';
 
 /** Anchor instruction tags: the first 8 bytes of sha256("global:<name>"). The tests recompute them. */
 export const DISC = {

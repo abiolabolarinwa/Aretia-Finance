@@ -15,8 +15,8 @@
  *  - Aretia's fee for opening a pool is a flat 10 USDC or 10 USDT (the person's choice), sent from their wallet to the Aretia fee address as the LAST
  *    transaction, once the pool exists and has been read back. If it is not paid then, the result screen keeps asking for it. The stablecoin contracts and their decimals below were read from each chain; the flow reads the decimals again before signing.
  */
-import { toSmallestUnit } from './walletTools';
-import { FEE_ADDRESS, isEvmAddress, type LaunchEvmChainKey } from './walletLaunchEvmCore';
+import { toSmallestUnit } from './walletTools.js';
+import { FEE_ADDRESS, isEvmAddress, type LaunchEvmChainKey } from './walletLaunchEvmCore.js';
 
 export interface PoolDex {
   key: LaunchEvmChainKey;

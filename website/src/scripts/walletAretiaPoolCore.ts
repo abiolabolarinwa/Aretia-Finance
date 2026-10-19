@@ -8,8 +8,8 @@
  * Two things keep this off mainnet: the build flag PUBLIC_ARETIA_POOL_ENABLED, and the mainnet program address below, which is
  * deliberately empty. The form, the token rules and the disclosures are the same as for the Meteora pool (walletPoolCore.ts).
  */
-import { fromSmallestUnit } from './walletTools';
-import { DEFAULT_POOL_FORM, POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, validatePool, type PoolConfig, type PoolForm, type PoolIssue, type PoolToken } from './walletPoolCore';
+import { fromSmallestUnit } from './walletTools.js';
+import { DEFAULT_POOL_FORM, POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, validatePool, type PoolConfig, type PoolForm, type PoolIssue, type PoolToken } from './walletPoolCore.js';
 
 export const ARETIA_POOL_PROGRAM_ID_DEVNET = '4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc';
 /** Empty on purpose: set only after the program is deployed to mainnet under its own id, verified byte for byte, and the owner says go. */

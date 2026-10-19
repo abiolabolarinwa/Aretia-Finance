@@ -9,7 +9,7 @@
  * shows it as not available yet. The fee amount is fixed in code and is also fixed inside each deployed factory; the checks before signing
  * refuse a factory whose on-chain fee or recipient differs from this table.
  */
-import { toSmallestUnit } from './walletTools';
+import { toSmallestUnit } from './walletTools.js';
 
 export type LaunchEvmChainKey = 'bnb' | 'ethereum' | 'polygon' | 'bscTestnet' | 'sepolia' | 'polygonAmoy';
 

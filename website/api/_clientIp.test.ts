@@ -19,3 +19,13 @@ describe('clientIp', () => {
     expect(clientIp({})).toBe('unknown');
   });
 });
+
+describe('L-14: every public endpoint keys its rate limit on clientIp', () => {
+  it('no handler takes the caller-chosen first x-forwarded-for entry', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const dir = new URL('.', import.meta.url);
+    const handlers = readdirSync(dir).filter((f) => /^[a-z].*\.ts$/.test(f) && !f.endsWith('.test.ts'));
+    for (const f of handlers) expect(readFileSync(new URL(f, dir), 'utf8'), f).not.toMatch(/x-forwarded-for[^\n]*\n?[^\n]*split\(','\)\[0\]|forwarded\?\.split\(','\)\[0\]/);
+    for (const f of ['swings-quote.ts', 'swings-records.ts', 'swings-tokens.ts']) expect(readFileSync(new URL(f, dir), 'utf8'), f).toMatch(/ip: clientIp\(req\.headers\)/);
+  });
+});

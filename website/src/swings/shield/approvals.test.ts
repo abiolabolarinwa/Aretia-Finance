@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decodeAggregate3, describeApprovals, encodeAggregate3, MULTICALL3, PERMIT2, readApprovals, revokeCall, spendersFor, tokensFor, UNLIMITED } from './approvals.js';
+import { decodeAggregate3, describeApprovals, encodeAggregate3, MULTICALL3, permit2SpendersFor, PERMIT2, readApprovals, revokeCall, revokeTx, spendersFor, tokensFor, UNLIMITED } from './approvals.js';
+import { ZEROX_ALLOWANCE_HOLDER } from '../providers/evm0x.js';
 
 const OWNER = '0xd366cf21ca17487fab4734a32a53c7a155d7ec2a';
 
@@ -80,5 +81,36 @@ describe('Multicall3 by hand', () => {
     expect(c.startsWith('0x095ea7b3')).toBe(true);
     expect(c.length).toBe(2 + 8 + 64 + 64);
     expect(c.endsWith('0'.repeat(64))).toBe(true);
+  });
+});
+
+describe('L-26: the spenders Aretia\'s own swaps create are all scanned', () => {
+  it('includes 0x AllowanceHolder, the curated Curve pools and the Balancer Vault', () => {
+    const eth = spendersFor('ethereum').map((x) => x.address);
+    expect(eth).toContain(ZEROX_ALLOWANCE_HOLDER.toLowerCase());
+    expect(eth).toContain('0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7'); // Curve 3pool
+    expect(eth).toContain('0xba12222222228d8ba445958a75a0704d566bf2c8'); // Balancer V2 Vault
+    expect(spendersFor('base').map((x) => x.address)).toContain('0xf6c5f01c7f3148891ad0e19df78743d31e390d1f'); // Curve 4pool
+  });
+  it('reads the allowances held inside Permit2 for the routers that spend through it, and takes them back through Permit2', async () => {
+    const via = permit2SpendersFor('ethereum');
+    expect(via.length).toBeGreaterThan(0);
+    const token = { address: '0x' + 'aa'.repeat(20), symbol: 'AAA', decimals: 6 };
+    const w = (n: bigint): string => n.toString(16).padStart(64, '0');
+    const body = w(1n) + w(0x40n) + w(96n) + w((1n << 160n) - 1n) + w(1_900_000_000n) + w(0n);
+    const reply = '0x' + w(0x20n) + w(1n) + w(0x20n) + body;
+    let data = '';
+    const read = (async (_m: string, p: unknown[]) => ((data = (p[0] as { data: string }).data), reply)) as Parameters<typeof readApprovals>[2];
+    const found = await readApprovals('ethereum', OWNER, read, [token], [], [via[0]!]);
+    // allowance(address,address,address) on Permit2, for (owner, token, router)
+    expect(data).toContain('927da105');
+    expect(data).toContain(PERMIT2.slice(2));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ via: 'permit2', unlimited: true });
+    expect(describeApprovals(found)[0]!.title).toMatch(/through Permit2 can spend unlimited AAA/);
+    const undo = revokeTx(token.address, via[0]!.address, 'permit2');
+    expect(undo.to).toBe(PERMIT2);
+    expect(undo.data.startsWith('0x87517c45')).toBe(true); // approve(address,address,uint160,uint48)
+    expect(revokeTx(token.address, via[0]!.address)).toEqual({ to: token.address, data: revokeCall(via[0]!.address) });
   });
 });

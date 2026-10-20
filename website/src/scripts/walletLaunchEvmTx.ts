@@ -89,10 +89,12 @@ export function buildCreateTx(config: EvmLaunchConfig): EvmTxRequest {
     to: factory,
     data: encodeCreate({ name: config.name, symbol: config.symbol, decimals: config.decimals, supply: config.totalSupplyRaw }),
     value: toHexQuantity(config.chain.feeWei),
+    // Bound to the network: a wallet on another one refuses it rather than sending the fee there.
+    chainId: toHexQuantity(BigInt(config.chain.chainId)),
   };
 }
 
-const ALLOWED_FIELDS = new Set(['from', 'to', 'data', 'value', 'gas']);
+const ALLOWED_FIELDS = new Set(['from', 'to', 'data', 'value', 'gas', 'chainId']);
 
 /**
  * Everything wrong with `tx` as the creation of `config`, in plain words. Empty means it is exactly the approved creation.
@@ -103,6 +105,7 @@ export function inspectCreateTx(tx: EvmTxRequest, config: EvmLaunchConfig, walle
   const { chain } = config;
   if (walletChainId !== chain.chainId) problems.push(`The wallet is on network ${walletChainId}, not ${chain.name} (${chain.chainId}).`);
   for (const k of Object.keys(tx)) if (!ALLOWED_FIELDS.has(k)) problems.push(`The transaction has an unexpected field (${k}).`);
+  if (tx.chainId !== toHexQuantity(BigInt(chain.chainId))) problems.push(`The transaction is not bound to ${chain.name} (chain id ${chain.chainId}).`);
   if (!chain.factory || !chain.feeAddress) problems.push('This network has no factory set up yet.');
   if (typeof tx.from !== 'string' || tx.from.toLowerCase() !== config.creator) problems.push('The transaction is not from the account you approved.');
   if (!chain.factory || typeof tx.to !== 'string' || tx.to.toLowerCase() !== chain.factory) problems.push('The transaction is not sent to Aretia’s token factory for this network.');

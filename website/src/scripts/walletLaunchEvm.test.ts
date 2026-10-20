@@ -111,6 +111,11 @@ describe('inspectCreateTx', () => {
   it('refuses the wrong network', () => {
     expect(check(good(), {}, 1).join(' ')).toMatch(/network 1, not BNB Chain/);
   });
+  it('L-1: is bound to the network by its chain id, and refuses one without it or with another', () => {
+    expect(good().chainId).toBe('0x38');
+    expect(check({ ...good(), chainId: undefined }).join(' ')).toMatch(/not bound to BNB Chain/);
+    expect(check({ ...good(), chainId: '0x1' }).join(' ')).toMatch(/not bound to BNB Chain/);
+  });
   it('refuses a different target, sender, fee amount, or a changed field', () => {
     expect(check({ ...good(), to: TOKEN }).join(' ')).toMatch(/not sent to Aretia/);
     expect(check({ ...good(), from: TOKEN }).join(' ')).toMatch(/not from the account/);

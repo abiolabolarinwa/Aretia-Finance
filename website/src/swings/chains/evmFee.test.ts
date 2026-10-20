@@ -4,14 +4,15 @@ import { encodeTransfer, evmFeeTransfer } from './evmFee.js';
 import type { EvmWalletAdapter } from './evmWallet.js';
 import { DirectEvmProvider } from '../dex/directEvm.js';
 import { EVM_V2_DEXES } from '../dex/entries.js';
-import { Evm0xProvider } from '../providers/evm0x.js';
+import { Evm0xProvider, ZEROX_SETTLER_REGISTRY } from '../providers/evm0x.js';
+import { TEST_SETTLER, registryAnswer, zeroXSwapData } from '../providers/__fixtures__/zeroX.js';
 import { AretiaRouter } from '../router/router.js';
 import { DEFAULT_FEE_CONFIG, liveFeeConfig } from '../core/fee.js';
 import { AretiaDexRegistry } from '../engine/registry.js';
 import { selector, decodeUintArray } from '../engine/abi.js';
 import { inspectV2Swap } from '../execution/evmV2Builder.js';
 import { getAmountOut } from '../engine/amm.js';
-import { EVM_NATIVE_ADDRESS, type PreparedSwap, type SwapRequest } from '../core/types.js';
+import { EVM_NATIVE_ADDRESS, SwingsError, type PreparedSwap, type SwapRequest } from '../core/types.js';
 
 const USER = '0x' + '1'.repeat(40);
 const FEE_ADDRESS = '0x' + '9'.repeat(40);
@@ -130,6 +131,76 @@ describe('sending the fee before the swap', () => {
   });
 });
 
+describe('L-2: a fee paid on its own is not charged again, and the swap is checked after it', () => {
+  const wallet = (sends: { to: string; data?: string }[], declineSwap: () => boolean): EvmWalletAdapter =>
+    ({
+      connect: async () => [USER],
+      disconnect: async () => {},
+      getAccounts: async () => [USER],
+      getChainId: async () => 1,
+      switchChain: async () => {},
+      signTransaction: async () => '0x',
+      sendTransaction: async (tx: { to: string; data?: string }) => {
+        if (tx.data === '0xswap' && declineSwap()) throw new SwingsError('rejected', 'declined');
+        sends.push(tx);
+        return HASH;
+      },
+      signMessage: async () => '0x',
+      request: async (m: string) => (m === 'eth_getTransactionReceipt' ? { status: '0x1' } : '0x'),
+    }) as never;
+  const prepared = (quoteId: string, amount = 29n): PreparedSwap => ({
+    quoteId,
+    chain: 'ethereum',
+    simulation: { ok: true, blockers: [], warnings: [] },
+    preparedAt: 0,
+    payload: { chainId: 1, taker: USER, approval: null, fee: evmFeeTransfer(USER, USDC, amount, FEE_ADDRESS), swap: { from: USER, to: '0x' + '3'.repeat(40), data: '0xswap', value: '0x0' } },
+  });
+  const memory = () => {
+    const m = new Map<string, string>();
+    return { get: (k: string) => m.get(k) ?? null, set: (k: string, v: string) => void m.set(k, v) };
+  };
+  const fees = (sends: { data?: string }[]) => sends.filter((x) => x.data?.startsWith('0xa9059cbb')).length;
+
+  it('a retry with a new quote, even from a new page, does not pay the same fee again within the window', async () => {
+    const store = memory();
+    let clock = 1_000;
+    const sends: { to: string; data?: string }[] = [];
+    let decline = true;
+    const make = () => new EvmChainAdapter('ethereum', wallet(sends, () => decline), { pollMs: 1, feeStore: store, now: () => clock });
+    await expect(make().signAndSubmit(prepared('q1'))).rejects.toMatchObject({ code: 'rejected' });
+    decline = false;
+    await make().signAndSubmit(prepared('q2'));
+    expect(fees(sends)).toBe(1);
+    // Used by that swap: the next swap pays its own fee.
+    await make().signAndSubmit(prepared('q3'));
+    expect(fees(sends)).toBe(2);
+    // A different amount is a different fee; and after the window an unused one no longer counts.
+    decline = true;
+    await make().signAndSubmit(prepared('q4', 30n)).catch(() => undefined);
+    clock += 11 * 60_000;
+    decline = false;
+    await make().signAndSubmit(prepared('q5', 30n));
+    expect(fees(sends)).toBe(4);
+  });
+
+  it('simulates the swap again after the fee is confirmed, and keeps the fee recorded when the swap would now fail', async () => {
+    const store = memory();
+    const sends: { to: string; data?: string }[] = [];
+    let n = 0;
+    // The first check (before the fee) passes; the one after the fee fails three times.
+    const read = async (method: string) => {
+      if (method === 'eth_getTransactionReceipt') return { status: '0x1' };
+      if (method === 'eth_call' && ++n > 1 && n <= 4) throw new Error('execution reverted');
+      return '0x';
+    };
+    const a = new EvmChainAdapter('ethereum', wallet(sends, () => false), { pollMs: 1, read, feeStore: store });
+    await expect(a.signAndSubmit(prepared('q1'))).rejects.toMatchObject({ code: 'simulation-failed' });
+    expect(sends.map((x) => x.data?.slice(0, 10))).toEqual(['0xa9059cbb']);
+    await new EvmChainAdapter('ethereum', wallet(sends, () => false), { pollMs: 1, read, feeStore: store }).signAndSubmit(prepared('q2'));
+    expect(sends.map((x) => x.data?.slice(0, 10))).toEqual(['0xa9059cbb', '0xswap']);
+  });
+});
+
 describe('the Aretia fee in the Aretia EVM router', () => {
   const entry = EVM_V2_DEXES.find((e) => e.id === 'uniswap-v2-base')!;
   const WETH = entry.wrappedNative!;
@@ -217,14 +288,11 @@ describe('the Aretia fee in the Aretia EVM router', () => {
   });
 });
 
-/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
-const execData = (token: string, amount: bigint | string): string => {
-  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
-  return '0x2213bc0b' + w('0'.repeat(40)) + w(token) + w(BigInt(amount).toString(16)) + w('0'.repeat(40)) + w('a0') + w('0');
-};
+/** AllowanceHolder.exec(Settler, token, amount, Settler, Settler.execute(...)) calldata, as 0x builds it, paying USER. */
+const execData = (token: string, amount: bigint | string, buyToken: string, minAmountOut: string): string => zeroXSwapData({ token, amount: BigInt(amount), recipient: USER, buyToken, minAmountOut: BigInt(minAmountOut) });
 
 describe('the Aretia fee in the 0x route', () => {
-  const quoteJson = (buy: string, asked: Record<string, unknown> = { sellToken: USDC, sellAmount: '0' }) => ({ buyAmount: buy, minBuyAmount: buy, transaction: { to: '0x0000000000001fF3684f28c67538d4D072C22734', data: execData(String(asked.sellToken), String(asked.sellAmount)), value: '0', gas: '100000' }, route: { fills: [] }, issues: {} });
+  const quoteJson = (buy: string, asked: Record<string, unknown> = { sellToken: USDC, sellAmount: '0', buyToken: EVM_NATIVE_ADDRESS }) => ({ buyAmount: buy, minBuyAmount: buy, transaction: { to: '0x0000000000001fF3684f28c67538d4D072C22734', data: execData(String(asked.sellToken), String(asked.sellAmount), String(asked.buyToken), buy), value: '0', gas: '100000' }, route: { fills: [] }, issues: {} });
   const provider = (sold: { value?: bigint[] } = {}) => {
     const asked: Record<string, unknown>[] = [];
     const p = new Evm0xProvider({
@@ -233,7 +301,7 @@ describe('the Aretia fee in the 0x route', () => {
         asked.push(body);
         return quoteJson('1000', body);
       },
-      rpc: async (_c, method) => (method === 'eth_call' ? '0x' + (10n ** 30n).toString(16) : '0x'),
+      rpc: async (_c, method, params) => (method !== 'eth_call' ? '0x' : (params[0] as { to?: string }).to === ZEROX_SETTLER_REGISTRY ? registryAnswer(TEST_SETTLER) : '0x' + (10n ** 30n).toString(16)),
       now: () => 1_000_000,
     });
     void sold;

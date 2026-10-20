@@ -5,6 +5,7 @@ import { Evm0xProvider, parseZeroXQuote } from '../providers/evm0x.js';
 import { MockDexProvider } from '../providers/mock.js';
 import { AretiaRouter } from '../router/router.js';
 import { EVM_NATIVE_ADDRESS, type PreparedSwap, type SwapRequest } from '../core/types.js';
+import { TEST_SETTLER, zeroXSwapData } from '../providers/__fixtures__/zeroX.js';
 
 const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 const WETH = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
@@ -22,11 +23,9 @@ const request: SwapRequest = {
   account: { chain: 'ethereum', address: USER },
 };
 
-/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
-const execData = (token: string, amount: bigint): string => {
-  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
-  return '0x2213bc0b' + w(ROUTER) + w(token) + w(amount.toString(16)) + w(ROUTER) + w('a0') + w('0');
-};
+/** AllowanceHolder.exec(Settler, token, amount, Settler, Settler.execute(...)) calldata, as 0x builds it, paying the user. */
+const execData = (token: string, amount: bigint, over: { recipient?: string; buyToken?: string; minAmountOut?: bigint; operator?: string; target?: string } = {}): string =>
+  zeroXSwapData({ token, amount, recipient: over.recipient ?? USER, buyToken: over.buyToken ?? WETH, minAmountOut: over.minAmountOut ?? 495000000000000n, ...(over.operator ? { operator: over.operator } : {}), ...(over.target ? { target: over.target } : {}) });
 
 const zeroXResponse = (over: Record<string, unknown> = {}) => ({
   buyAmount: '500000000000000',
@@ -39,7 +38,7 @@ const zeroXResponse = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const trusted = { ethereum: { swapTargets: [ROUTER], spenders: [SPENDER] } };
+const trusted = { ethereum: { swapTargets: [ROUTER], spenders: [SPENDER], settlers: [TEST_SETTLER] } };
 const make = (json: unknown, rpc = vi.fn(async () => '0x'), t: typeof trusted | Record<string, never> = trusted) =>
   new Evm0xProvider({ quote: async () => json, rpc, trusted: t, now: () => 1000 });
 
@@ -69,23 +68,107 @@ describe('Evm0xProvider', () => {
   });
 
   it('blocks a transaction aimed at an unrecognised contract', async () => {
-    const p = make(zeroXResponse({ transaction: { to: '0x9999999999999999999999999999999999999999', data: '0x00', value: '0' } }));
+    const p = make(zeroXResponse({ transaction: { to: '0x9999999999999999999999999999999999999999', data: execData(USDC, 1_000_000n), value: '0' } }));
     await expect(p.buildTransaction(await p.getQuote(request))).rejects.toMatchObject({ code: 'invalid' });
   });
 
   it('blocks attached native value when not selling the native coin', async () => {
-    const p = make(zeroXResponse({ transaction: { to: ROUTER, data: '0x00', value: '1' } }));
+    const p = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n), value: '1' } }));
     await expect(p.buildTransaction(await p.getQuote(request))).rejects.toMatchObject({ code: 'invalid' });
   });
 
   it('blocks a swap whose exec call would pull another token, or more than entered, from the wallet', async () => {
     // A standing allowance the wallet once gave AllowanceHolder for another token must never be spendable by a quote.
     const other = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(WETH, 1_000_000n), value: '0' } }));
-    await expect(other.buildTransaction(await other.getQuote(request))).rejects.toThrow(/different token/);
+    await expect(other.getQuote(request)).rejects.toThrow(/different token/);
     const more = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_001n), value: '0' } }));
-    await expect(more.buildTransaction(await more.getQuote(request))).rejects.toThrow(/more from your wallet/);
+    await expect(more.getQuote(request)).rejects.toThrow(/more from your wallet/);
     const notExec = make(zeroXResponse({ transaction: { to: ROUTER, data: '0xdeadbeef', value: '0' } }));
-    await expect(notExec.buildTransaction(await notExec.getQuote(request))).rejects.toThrow(/kind of call/);
+    await expect(notExec.getQuote(request)).rejects.toThrow(/kind of call/);
+  });
+
+  describe('H-1: the AllowanceHolder exec and the Settler call inside it', () => {
+    const ATTACKER = '0xbadbadbadbadbadbadbadbadbadbadbadbadbad0';
+    const w = (h: string) => h.replace(/^0x/, '').padStart(64, '0');
+    // The audit's proof of concept: exec(operator = attacker, USDC, amount, target = attacker, <empty>).
+    const pocExec = (token: string, amount: bigint) => '0x2213bc0b' + w(ATTACKER) + w(token) + w(amount.toString(16)) + w(ATTACKER) + w('a0') + w('0');
+
+    it('refuses the proof-of-concept exec that hands the allowance to an attacker contract', async () => {
+      const p = make(zeroXResponse({ issues: { allowance: { actual: '0', spender: SPENDER }, balance: null }, transaction: { to: ROUTER, data: pocExec(USDC, 1_000_000n), value: '0' } }));
+      await expect(p.getQuote(request)).rejects.toMatchObject({ code: 'invalid' });
+    });
+
+    it('refuses a native sale whose value would go to an attacker target', async () => {
+      const native: SwapRequest = { ...request, from: { chain: 'ethereum', address: EVM_NATIVE_ADDRESS }, to: { chain: 'ethereum', address: USDC } };
+      const p = make(zeroXResponse({ transaction: { to: ROUTER, data: pocExec(EVM_NATIVE_ADDRESS, 0n), value: '1000000' } }));
+      await expect(p.getQuote(native)).rejects.toMatchObject({ code: 'invalid' });
+    });
+
+    it('refuses an operator that differs from the target, a different recipient, or a different buy token', async () => {
+      const split = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { operator: ATTACKER }), value: '0' } }));
+      await expect(split.getQuote(request)).rejects.toThrow(/different contract spend/);
+      const payee = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { recipient: ATTACKER }), value: '0' } }));
+      await expect(payee.getQuote(request)).rejects.toThrow(/different wallet/);
+      const token = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { buyToken: ATTACKER }), value: '0' } }));
+      await expect(token.getQuote(request)).rejects.toThrow(/different token than the one you are buying/);
+    });
+
+    it('blocks a well-formed exec whose operator and target are not a genuine Settler', async () => {
+      const p = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { operator: ATTACKER, target: ATTACKER }), value: '0' } }));
+      const prepared = await p.buildTransaction(await p.getQuote(request));
+      expect(prepared.simulation.ok).toBe(false);
+      expect(prepared.simulation.blockers.join(' ')).toMatch(/not a genuine 0x Settler/);
+    });
+
+    it('judges slippage on the minimum in the calldata, not the JSON field', async () => {
+      // The JSON claims a fair minimum, the calldata accepts 1 wei: the answer is inconsistent and dropped.
+      const lying = make(zeroXResponse({ transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { minAmountOut: 1n }), value: '0' } }));
+      await expect(lying.getQuote(request)).rejects.toMatchObject({ code: 'provider-failed' });
+      // Both say 1 wei: the router sees the calldata minimum and refuses the slippage.
+      const loose = make(zeroXResponse({ minBuyAmount: '1', transaction: { to: ROUTER, data: execData(USDC, 1_000_000n, { minAmountOut: 1n }), value: '0' } }));
+      const q = await loose.getQuote(request);
+      expect(q.minOut).toBe(1n);
+      const router = new AretiaRouter({ providers: [loose], adapters: [], isChainEnabled: () => true, now: () => 1000 });
+      expect(router.executabilityProblems(q, request)).toContain('The quote accepts more slippage than you chose.');
+      await expect(loose.buildTransaction(q)).rejects.toThrow(/less than the minimum/);
+    });
+
+    it('rejects malformed Settler calldata rather than guessing', async () => {
+      const truncated = execData(USDC, 1_000_000n).slice(0, -64);
+      const p = make(zeroXResponse({ transaction: { to: ROUTER, data: truncated, value: '0' } }));
+      await expect(p.getQuote(request)).rejects.toMatchObject({ code: 'invalid' });
+    });
+
+    it('asks the 0x registry for the current (or previous) Settler, and blocks anything else or a paused feature', async () => {
+      const reg = (answer: (data: string) => unknown) =>
+        vi.fn(async (_c: unknown, method: string, params: unknown[]) => {
+          const call = (params as { to?: string; data?: string }[])[0]!;
+          if (method === 'eth_call' && call.to === '0x00000000000004533Fe15556B1E086BB1A72cEae') return answer(call.data!);
+          return '0x';
+        });
+      const word = '0x' + w(TEST_SETTLER);
+      const build = async (rpc: ReturnType<typeof reg>) => {
+        const p = new Evm0xProvider({ quote: async () => zeroXResponse(), rpc: rpc as never, trusted: { ethereum: { ...trusted.ethereum, settlers: 'registry' } }, now: () => 1000 });
+        return (await p.buildTransaction(await p.getQuote(request))).simulation;
+      };
+      expect((await build(reg((d) => (d.startsWith('0x6352211e') ? word : '0x' + w(ATTACKER))))).ok).toBe(true);
+      expect((await build(reg((d) => (d.startsWith('0xe2603dc2') ? word : '0x' + w(ATTACKER))))).ok).toBe(true);
+      expect((await build(reg(() => '0x' + w(ATTACKER)))).blockers.join(' ')).toMatch(/not a genuine 0x Settler/);
+      expect((await build(reg(() => Promise.reject(new Error('execution reverted'))))).blockers.join(' ')).toMatch(/could not be confirmed/);
+    });
+
+    it('simulates the swap and blocks it when the wallet receives less than the minimum', async () => {
+      const sim = (received: bigint) =>
+        vi.fn(async (_c: unknown, method: string) =>
+          method === 'eth_simulateV1' ? [{ calls: [{ status: '0x1', returnData: '0x' + w('64') }, { status: '0x1', returnData: '0x' }, { status: '0x1', returnData: '0x' + w((100n + received).toString(16)) }] }] : '0x',
+        );
+      const short = make(zeroXResponse(), sim(495000000000000n - 1n) as never);
+      const blocked = (await short.buildTransaction(await short.getQuote(request))).simulation;
+      expect(blocked.ok).toBe(false);
+      expect(blocked.blockers.join(' ')).toMatch(/less than your minimum/);
+      const fine = make(zeroXResponse(), sim(495000000000000n) as never);
+      expect((await fine.buildTransaction(await fine.getQuote(request))).simulation.ok).toBe(true);
+    });
   });
 
   it('builds an exact-amount approval and rejects unknown spenders', async () => {
@@ -269,9 +352,50 @@ describe('EvmChainAdapter', () => {
   });
 
   it('asks the wallet to switch network when it is on another chain', async () => {
-    const w = wallet({ getChainId: async () => 56 });
+    let chain = 56;
+    const w = wallet({ getChainId: async () => chain, switchChain: vi.fn(async (id: number) => void (chain = id)) });
     await new EvmChainAdapter('ethereum', w).signAndSubmit(prepared(false));
     expect(w.switchChain).toHaveBeenCalledWith(1);
+  });
+
+  it('L-1: binds every transaction to the chain, and stops when the wallet switches network or account mid-swap', async () => {
+    const w = wallet();
+    await new EvmChainAdapter('ethereum', w, { pollMs: 1 }).signAndSubmit(prepared(true));
+    expect(w.sends).toHaveLength(2);
+    for (const tx of w.sends) expect((tx as { chainId?: string }).chainId).toBe('0x1');
+
+    // The approval is mined, then the wallet moves to BNB Chain: the swap is not sent there.
+    let chain = 1;
+    const moved = wallet({
+      getChainId: async () => chain,
+      sendTransaction: async (tx: unknown) => {
+        moved.sends.push(tx);
+        chain = 56;
+        return HASH;
+      },
+    });
+    await expect(new EvmChainAdapter('ethereum', moved, { pollMs: 1 }).signAndSubmit(prepared(true))).rejects.toThrow(/switched away/);
+    expect(moved.sends).toHaveLength(1);
+
+    let who = USER;
+    const swapped = wallet({
+      getAccounts: async () => [who],
+      sendTransaction: async (tx: unknown) => {
+        swapped.sends.push(tx);
+        who = '0x4444444444444444444444444444444444444444';
+        return HASH;
+      },
+    });
+    await expect(new EvmChainAdapter('ethereum', swapped, { pollMs: 1 }).signAndSubmit(prepared(true))).rejects.toThrow(/account changed/);
+    expect(swapped.sends).toHaveLength(1);
+  });
+
+  it('L-1: the EIP-1193 adapter refuses to send a transaction for a chain the wallet is not on', async () => {
+    const sent: string[] = [];
+    const w = new Eip1193WalletAdapter({ request: async ({ method }) => (method === 'eth_chainId' ? '0x38' : (sent.push(method), HASH)) });
+    await expect(w.sendTransaction({ from: USER, to: ROUTER, chainId: '0x1' })).rejects.toThrow(/different network/);
+    expect(sent).toEqual([]);
+    await expect(w.sendTransaction({ from: USER, to: ROUTER, chainId: '0x38' })).resolves.toBe(HASH);
   });
 
   it('allows retry after a declined swap signature but not after other failures', async () => {

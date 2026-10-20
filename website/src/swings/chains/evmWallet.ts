@@ -35,6 +35,11 @@ export interface EvmTxRequest {
   /** Hex quantity, as the wallet expects. */
   value?: string;
   gas?: string;
+  /**
+   * Hex chain id the transaction is for. Wallets refuse to send a transaction whose chainId is not the network they are on, so a
+   * switch between building and sending can never put it on another chain. Every send through EvmChainAdapter carries it.
+   */
+  chainId?: string;
 }
 
 export interface EvmWalletAdapter {
@@ -186,6 +191,8 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
   }
 
   async sendTransaction(tx: EvmTxRequest): Promise<string> {
+    // Not every wallet checks the chainId it is given, so it is checked here too, just before the request.
+    if (tx.chainId !== undefined && hex(await this.getChainId()) !== tx.chainId.toLowerCase()) throw new SwingsError('invalid', 'Your wallet is on a different network than this transaction was built for. Nothing was sent.');
     try {
       const hash = this.str(await this.request('eth_sendTransaction', [tx]));
       if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new SwingsError('invalid', 'The wallet returned an invalid transaction hash.');

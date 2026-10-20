@@ -44,23 +44,26 @@ export const POOL_SEL = {
 
 // ---------------------------------------------------------------- builders
 
-export const buildApproveTx = (from: string, token: string, pool: string, amount: bigint): EvmTxRequest => ({ from, to: token, data: encodeApprove(pool, amount), value: '0x0' });
+/** Hex chain id: every transaction names the one network it is for, so a wallet on another network refuses it. */
+const chainHex = (id: number): string => '0x' + id.toString(16);
+
+export const buildApproveTx = (from: string, token: string, pool: string, amount: bigint, chainId: number): EvmTxRequest => ({ from, to: token, data: encodeApprove(pool, amount), value: '0x0', chainId: chainHex(chainId) });
 
 export function buildCreateTx(c: EvmPoolConfig, minFirstBuyOut: bigint): EvmTxRequest {
   const data =
     POOL_SEL.createPool +
     addrWord(c.token) + word(c.factoryNonce) + word(c.x0) + word(c.l0) + word(c.y0) + word(BigInt(c.feeBps)) + word(c.lock ? 1n : 0n) + addrWord(c.creator) + word(c.firstBuyWei) + word(c.firstBuyWei > 0n ? minFirstBuyOut : 0n);
-  return { from: c.creator, to: c.chain.pool, data, value: toHexQuantity(c.chain.creationFee + c.y0 + c.firstBuyWei) };
+  return { from: c.creator, to: c.chain.pool, data, value: toHexQuantity(c.chain.creationFee + c.y0 + c.firstBuyWei), chainId: chainHex(c.chain.chainId) };
 }
 
-export const buildBuyTx = (from: string, chain: EvmPoolChain, token: string, minOut: bigint, wei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.buy + addrWord(token) + word(minOut), value: toHexQuantity(wei) });
-export const buildSellTx = (from: string, chain: EvmPoolChain, token: string, tokens: bigint, minCoinOut: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.sell + addrWord(token) + word(tokens) + word(minCoinOut), value: '0x0' });
-export const buildAddTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, maxTokens: bigint, coinWei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.addLiquidity + addrWord(token) + word(dl) + word(maxTokens), value: toHexQuantity(coinWei) });
-export const buildRemoveTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, minTokens: bigint, minCoin: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.removeLiquidity + addrWord(token) + word(dl) + word(minTokens) + word(minCoin), value: '0x0' });
-export const buildClaimTx = (from: string, chain: EvmPoolChain, token: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.claimFees + addrWord(token), value: '0x0' });
-export const buildLockTx = (from: string, chain: EvmPoolChain, token: string, amount: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.lockLiquidity + addrWord(token) + word(amount), value: '0x0' });
-export const buildTransferTx = (from: string, chain: EvmPoolChain, token: string, to: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.transferPosition + addrWord(token) + addrWord(to), value: '0x0' });
-export const buildRecipientTx = (from: string, chain: EvmPoolChain, token: string, recipient: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.setRecipient + addrWord(token) + addrWord(recipient), value: '0x0' });
+export const buildBuyTx = (from: string, chain: EvmPoolChain, token: string, minOut: bigint, wei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.buy + addrWord(token) + word(minOut), value: toHexQuantity(wei), chainId: chainHex(chain.chainId) });
+export const buildSellTx = (from: string, chain: EvmPoolChain, token: string, tokens: bigint, minCoinOut: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.sell + addrWord(token) + word(tokens) + word(minCoinOut), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildAddTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, maxTokens: bigint, coinWei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.addLiquidity + addrWord(token) + word(dl) + word(maxTokens), value: toHexQuantity(coinWei), chainId: chainHex(chain.chainId) });
+export const buildRemoveTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, minTokens: bigint, minCoin: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.removeLiquidity + addrWord(token) + word(dl) + word(minTokens) + word(minCoin), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildClaimTx = (from: string, chain: EvmPoolChain, token: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.claimFees + addrWord(token), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildLockTx = (from: string, chain: EvmPoolChain, token: string, amount: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.lockLiquidity + addrWord(token) + word(amount), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildTransferTx = (from: string, chain: EvmPoolChain, token: string, to: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.transferPosition + addrWord(token) + addrWord(to), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildRecipientTx = (from: string, chain: EvmPoolChain, token: string, recipient: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.setRecipient + addrWord(token) + addrWord(recipient), value: '0x0', chainId: chainHex(chain.chainId) });
 
 /** The read calls for a pool's stored numbers and a position. */
 export const poolReadData = (token: string): string => POOL_SEL.pools + addrWord(token);
@@ -134,12 +137,13 @@ export const decodeTokenAddress = (data: string, selector: string): { token: str
 
 // ---------------------------------------------------------------- the check before signing
 
-const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas']);
+const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas', 'chainId']);
 const valueOf = (tx: EvmTxRequest): bigint | null => (typeof tx.value === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.value) ? BigInt(tx.value) : null);
 
 function common(tx: EvmTxRequest, chain: EvmPoolChain, from: string, walletChainId: number): string[] {
   const p: string[] = [];
   if (walletChainId !== chain.chainId) p.push(`The wallet is on network ${walletChainId}, not ${chain.name} (${chain.chainId}).`);
+  if (tx.chainId !== chainHex(chain.chainId)) p.push(`The transaction is not bound to ${chain.name} (chain id ${chain.chainId}).`);
   for (const k of Object.keys(tx)) if (!ALLOWED.has(k)) p.push(`The transaction has an unexpected field (${k}).`);
   if (typeof tx.from !== 'string' || tx.from.toLowerCase() !== from.toLowerCase()) p.push('The transaction is not from the account you approved.');
   if (tx.gas !== undefined && !(typeof tx.gas === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.gas) && BigInt(tx.gas) > 0n)) p.push('The gas limit is not a number.');

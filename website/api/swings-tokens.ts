@@ -3,6 +3,7 @@
  * See _swingsTokens.ts for the rules and docs/aretia-swings/token-discovery.md for setup.
  */
 import { handleTokens } from './_swingsTokens.js';
+import { clientIp } from './_clientIp.js';
 import { requestOrigin } from './_rpcProxy.js';
 
 interface Req {
@@ -19,14 +20,13 @@ interface Res {
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 export default async function handler(req: Req, res: Res): Promise<void> {
-  const forwarded = one(req.headers['x-forwarded-for']);
   const query: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(req.query ?? {})) query[k] = one(v) ?? undefined;
   const out = await handleTokens({
     method: req.method ?? 'GET',
     origin: requestOrigin(req.headers),
     authorization: null,
-    ip: forwarded?.split(',')[0]?.trim() || one(req.headers['x-real-ip']) || 'unknown',
+    ip: clientIp(req.headers),
     query,
     env: process.env,
     fetchImpl: fetch,

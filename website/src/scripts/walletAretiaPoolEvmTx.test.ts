@@ -45,7 +45,7 @@ interface Case {
 }
 
 const cases: Case[] = [
-  { name: 'approve', tx: buildApproveTx(CREATOR, TOKEN, POOL, 10n ** 27n), inspect: (tx, id) => inspectApprove(tx, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, id), value: 0n },
+  { name: 'approve', tx: buildApproveTx(CREATOR, TOKEN, POOL, 10n ** 27n, 1), inspect: (tx, id) => inspectApprove(tx, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, id), value: 0n },
   { name: 'create', tx: buildCreateTx(config(), 0n), inspect: (tx, id) => inspectCreate(tx, { config: config(), minFirstBuyOut: 0n }, id), value: chain.creationFee },
   { name: 'create with first buy', tx: buildCreateTx(config(ETH), MIN_FIRST), inspect: (tx, id) => inspectCreate(tx, { config: config(ETH), minFirstBuyOut: MIN_FIRST }, id), value: chain.creationFee + ETH },
   { name: 'buy', tx: buildBuyTx(CREATOR, chain, TOKEN, 5n, ETH), inspect: (tx, id) => inspectBuy(tx, { chain, from: CREATOR, token: TOKEN, wei: ETH, minOut: 5n }, id), value: ETH },
@@ -107,6 +107,11 @@ describe('the inspector refuses anything that is not exactly what was approved',
         expect(c.inspect({ ...c.tx, value: '0x' + (c.value + 1n).toString(16) }, 1).length).toBeGreaterThan(0);
         expect(c.inspect({ ...c.tx, value: undefined } as unknown as EvmTxRequest, 1).length).toBeGreaterThan(0);
       });
+      it('L-1: a missing or different chain id', () => {
+        expect(c.tx.chainId).toBe('0x1');
+        expect(c.inspect({ ...c.tx, chainId: undefined } as unknown as EvmTxRequest, 1).join(' ')).toMatch(/not bound/);
+        expect(c.inspect({ ...c.tx, chainId: '0x38' }, 1).join(' ')).toMatch(/not bound/);
+      });
       it('changing any single hex digit of the data', () => {
         const data = c.tx.data as string;
         for (let i = 2; i < data.length; i++) {
@@ -126,9 +131,9 @@ describe('the inspector refuses anything that is not exactly what was approved',
   }
   it('an approval to anyone but the pool, for more than approved, or unlimited', () => {
     const ok = { chain, from: CREATOR, token: TOKEN, amount: 5n };
-    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, OTHER, 5n), ok, 1).join(' ')).toMatch(/someone other/);
-    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, POOL, 6n), ok, 1).join(' ')).toMatch(/different amount/);
-    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, POOL, (1n << 256n) - 1n), ok, 1).join(' ')).toMatch(/different amount/);
+    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, OTHER, 5n, 1), ok, 1).join(' ')).toMatch(/someone other/);
+    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, POOL, 6n, 1), ok, 1).join(' ')).toMatch(/different amount/);
+    expect(inspectApprove(buildApproveTx(CREATOR, TOKEN, POOL, (1n << 256n) - 1n, 1), ok, 1).join(' ')).toMatch(/different amount/);
   });
   it('a creation whose owner, lock, fee tier or price differs from what was shown', () => {
     const base = buildCreateTx(config(), 0n);

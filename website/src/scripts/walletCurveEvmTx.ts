@@ -35,7 +35,10 @@ export const CURVE_SEL = {
 
 // ---------------------------------------------------------------- builders
 
-export const buildApproveTx = (from: string, token: string, curve: string, amount: bigint): EvmTxRequest => ({ from, to: token, data: encodeApprove(curve, amount), value: '0x0' });
+/** Hex chain id: every transaction names the one network it is for, so a wallet on another network refuses it. */
+const chainHex = (id: number): string => '0x' + id.toString(16);
+
+export const buildApproveTx = (from: string, token: string, curve: string, amount: bigint, chainId: number): EvmTxRequest => ({ from, to: token, data: encodeApprove(curve, amount), value: '0x0', chainId: chainHex(chainId) });
 
 export function buildCreateTx(c: EvmCurveConfig, minFirstBuyOut: bigint): EvmTxRequest {
   return {
@@ -43,6 +46,7 @@ export function buildCreateTx(c: EvmCurveConfig, minFirstBuyOut: bigint): EvmTxR
     to: c.chain.curve,
     data: CURVE_SEL.createCurve + addrWord(c.token) + word(c.factoryNonce) + word(c.totalRaw) + word(c.targetWei) + word(c.firstBuyWei > 0n ? minFirstBuyOut : 0n),
     value: toHexQuantity(c.firstBuyWei),
+    chainId: chainHex(c.chain.chainId),
   };
 }
 
@@ -51,6 +55,7 @@ export const buildBuyTx = (from: string, chain: EvmCurveChain, token: string, mi
   to: chain.curve,
   data: CURVE_SEL.buy + addrWord(token) + word(minOut),
   value: toHexQuantity(wei),
+  chainId: chainHex(chain.chainId),
 });
 
 export const buildSellTx = (from: string, chain: EvmCurveChain, token: string, tokens: bigint, minCoinOut: bigint): EvmTxRequest => ({
@@ -58,10 +63,11 @@ export const buildSellTx = (from: string, chain: EvmCurveChain, token: string, t
   to: chain.curve,
   data: CURVE_SEL.sell + addrWord(token) + word(tokens) + word(minCoinOut),
   value: '0x0',
+  chainId: chainHex(chain.chainId),
 });
 
-export const buildGraduateTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.graduate + addrWord(token), value: '0x0' });
-export const buildAbortTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.abort + addrWord(token), value: '0x0' });
+export const buildGraduateTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.graduate + addrWord(token), value: '0x0', chainId: chainHex(chain.chainId) });
+export const buildAbortTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.abort + addrWord(token), value: '0x0', chainId: chainHex(chain.chainId) });
 
 /** The read call for a curve's stored numbers. */
 export const curveReadData = (token: string): string => CURVE_SEL.curves + addrWord(token);
@@ -97,12 +103,13 @@ export const decodeTokenOnly = (data: string, selector: string): string | null =
 
 // ---------------------------------------------------------------- the check before signing
 
-const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas']);
+const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas', 'chainId']);
 const valueOf = (tx: EvmTxRequest): bigint | null => (typeof tx.value === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.value) ? BigInt(tx.value) : null);
 
 function common(tx: EvmTxRequest, chain: EvmCurveChain, from: string, walletChainId: number): string[] {
   const p: string[] = [];
   if (walletChainId !== chain.chainId) p.push(`The wallet is on network ${walletChainId}, not ${chain.name} (${chain.chainId}).`);
+  if (tx.chainId !== chainHex(chain.chainId)) p.push(`The transaction is not bound to ${chain.name} (chain id ${chain.chainId}).`);
   for (const k of Object.keys(tx)) if (!ALLOWED.has(k)) p.push(`The transaction has an unexpected field (${k}).`);
   if (typeof tx.from !== 'string' || tx.from.toLowerCase() !== from.toLowerCase()) p.push('The transaction is not from the account you approved.');
   if (tx.gas !== undefined && !(typeof tx.gas === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.gas) && BigInt(tx.gas) > 0n)) p.push('The gas limit is not a number.');

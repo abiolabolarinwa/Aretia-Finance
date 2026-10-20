@@ -40,6 +40,25 @@ export function encodeApprove(spender: string, amount: bigint): string {
   return APPROVE_SELECTOR + pad32(spender.slice(2).toLowerCase()) + pad32(amount.toString(16));
 }
 
+/** How long a fee paid for a swap that was then not sent still counts for a retry of the same swap. */
+export const FEE_PAID_WINDOW_MS = 10 * 60_000;
+const FEE_PAID_STORAGE_KEY = 'aretia.swings.evmFeePaid';
+
+/** Where "fee already paid" is remembered: sessionStorage in the browser, so a reload or a new quote does not charge again. */
+export interface FeePaidStore {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+}
+
+const sessionStore = (): FeePaidStore | null => {
+  try {
+    const st = (globalThis as { sessionStorage?: Storage }).sessionStorage;
+    return st ? { get: (k) => st.getItem(k), set: (k, v) => st.setItem(k, v) } : null;
+  } catch {
+    return null;
+  }
+};
+
 export interface EvmAdapterOptions {
   /** How long to wait for an approval to be mined before giving up (the swap is then not sent). */
   approvalTimeoutMs?: number;
@@ -49,14 +68,20 @@ export interface EvmAdapterOptions {
    * network the wallet is currently on and never prompt a network switch. Writes always go through the wallet.
    */
   read?: (method: string, params: unknown[]) => Promise<unknown>;
+  /** Defaults to sessionStorage when there is one. */
+  feeStore?: FeePaidStore | null;
+  now?: () => number;
 }
 
 export class EvmChainAdapter implements ChainAdapter {
   readonly chain: ChainId;
   private readonly chainId: number;
   private readonly sent = new Set<string>();
-  /** Quotes whose fee has been paid, so a retried swap never pays it twice. */
-  private readonly feePaid = new Set<string>();
+  /**
+   * Fees paid on their own whose swap was then not sent, keyed by what was paid (taker, chain, token, amount) rather than by quote:
+   * a retry always comes with a new quote, and must not pay again. Kept for FEE_PAID_WINDOW_MS, in sessionStorage when there is one.
+   */
+  private readonly feePaid = new Map<string, number>();
 
   constructor(
     chain: ChainId,
@@ -69,8 +94,67 @@ export class EvmChainAdapter implements ChainAdapter {
     this.chainId = info.evmChainId;
   }
 
+  private feeKey(p: EvmSwapPayload): string | null {
+    return p.fee ? `${this.chainId}:${p.taker.toLowerCase()}:${p.fee.token.toLowerCase()}:${p.fee.amount}` : null;
+  }
+
+  private feeLedger(): Record<string, number> {
+    const now = (this.options.now ?? Date.now)();
+    const out: Record<string, number> = {};
+    const store = this.options.feeStore === undefined ? sessionStore() : this.options.feeStore;
+    let saved: unknown;
+    try {
+      saved = JSON.parse(store?.get(FEE_PAID_STORAGE_KEY) ?? 'null');
+    } catch {
+      saved = null;
+    }
+    for (const [k, at] of [...Object.entries(typeof saved === 'object' && saved !== null ? saved : {}), ...this.feePaid.entries()]) {
+      if (typeof at === 'number' && now - at < FEE_PAID_WINDOW_MS) out[k] = at;
+    }
+    return out;
+  }
+
+  private setFeePaid(key: string, paid: boolean): void {
+    const ledger = this.feeLedger();
+    if (paid) {
+      ledger[key] = (this.options.now ?? Date.now)();
+      this.feePaid.set(key, ledger[key]);
+    } else {
+      delete ledger[key];
+      this.feePaid.delete(key);
+    }
+    try {
+      (this.options.feeStore === undefined ? sessionStore() : this.options.feeStore)?.set(FEE_PAID_STORAGE_KEY, JSON.stringify(ledger));
+    } catch {
+      // Storage full or blocked: the in-memory record still covers this page.
+    }
+  }
+
+  private feeAlreadyPaid(p: EvmSwapPayload): boolean {
+    const key = this.feeKey(p);
+    return key !== null && key in this.feeLedger();
+  }
+
   private async onRightChain(): Promise<void> {
     if ((await this.wallet.getChainId()) !== this.chainId) await this.wallet.switchChain(this.chainId);
+  }
+
+  /**
+   * Every transaction goes through here: it is bound to this chain by its chainId, and the wallet's network and account are
+   * read again right before it is sent, so a switch in the wallet halfway through a swap (between the approval, the fee and the
+   * swap, or the steps of a route) stops the swap instead of sending the rest somewhere else.
+   */
+  private async send(tx: EvmTxRequest, taker: string): Promise<string> {
+    const chainId = '0x' + this.chainId.toString(16);
+    if (tx.chainId !== undefined && tx.chainId.toLowerCase() !== chainId) throw new SwingsError('invalid', 'The transaction was built for a different network.');
+    await this.stillSame(taker);
+    return this.wallet.sendTransaction({ ...tx, chainId });
+  }
+
+  private async stillSame(taker: string): Promise<void> {
+    if ((await this.wallet.getChainId()) !== this.chainId) throw new SwingsError('invalid', `Your wallet switched away from ${CHAINS[this.chain].name}. Nothing more was sent; check your wallet activity, then review the swap again.`);
+    const accounts = await this.wallet.getAccounts();
+    if (accounts[0]?.toLowerCase() !== taker.toLowerCase()) throw new SwingsError('invalid', 'The connected account changed. Nothing more was sent; review the swap again.');
   }
 
   async getBalance(account: WalletAccount, token: TokenRef): Promise<bigint> {
@@ -124,14 +208,17 @@ export class EvmChainAdapter implements ChainAdapter {
     const calls: EvmTxRequest[] = [];
     if (p.approval) calls.push(p.approval.tx);
     if (p.permit2) calls.push(p.permit2.tx);
-    const feeDue = !!p.fee && !this.feePaid.has(quoteId);
+    const feeDue = !!p.fee && !this.feeAlreadyPaid(p);
+    const feeKey = this.feeKey(p);
     if (p.fee && feeDue) calls.push(p.fee.tx);
     calls.push(p.swap);
     if (calls.length > 1 && this.wallet.sendBatch && this.wallet.supportsBatch && (await this.wallet.supportsBatch(this.chainId, p.taker).catch(() => false))) {
+      await this.stillSame(p.taker);
       this.sent.add(quoteId);
       try {
         const hash = await this.wallet.sendBatch(this.chainId, p.taker, calls);
-        if (feeDue) this.feePaid.add(quoteId);
+        // The swap went with the fee, so a fee paid earlier on its own for it has now been used.
+        if (feeKey) this.setFeePaid(feeKey, false);
         return hash;
       } catch (e) {
         // Declined, or failed after it was sent: no fallback (it would ask again, or repeat a failed swap).
@@ -146,29 +233,34 @@ export class EvmChainAdapter implements ChainAdapter {
     }
     if (p.approval) {
       // Approval first, exact amount, and only continue once it is mined: the swap is never sent on a guess.
-      const hash = await this.wallet.sendTransaction(p.approval.tx);
+      const hash = await this.send(p.approval.tx, p.taker);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The approval transaction failed. The swap was not sent.' : 'The approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
     if (p.permit2) {
-      const hash = await this.wallet.sendTransaction(p.permit2.tx);
+      const hash = await this.send(p.permit2.tx, p.taker);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The second approval transaction failed. The swap was not sent.' : 'The second approval is still pending. The swap was not sent; check your wallet, then get a new quote.');
     }
-    if (p.fee && !this.feePaid.has(quoteId)) {
+    if (p.fee && feeKey && feeDue) {
       // Paid on its own, the fee cannot be taken back if the swap then fails. So the swap is tried on the node first, as it stands now
       // (after any approval above, and however long the person took to confirm): if it would fail, nothing more is sent, fee included.
       await this.swapWouldSucceed(p.swap);
       // The fee is its own transaction, confirmed before the swap is sent, and never sent twice for one quote.
-      const hash = await this.wallet.sendTransaction(p.fee.tx);
+      const hash = await this.send(p.fee.tx, p.taker);
       noteFeeTx(this.chain, hash);
       const status = await this.waitForReceipt(hash);
       if (status !== 'confirmed') throw new SwingsError('failed', status === 'failed' ? 'The fee transaction failed. The swap was not sent.' : 'The fee transaction is still pending. The swap was not sent; check your wallet, then get a new quote.');
-      this.feePaid.add(quoteId);
+      this.setFeePaid(feeKey, true);
+      // Time has passed while the fee was confirmed: the swap is tried again before the wallet is asked for it. If it would now fail,
+      // the fee stays recorded as paid, so trying the same swap again does not charge it twice.
+      await this.swapWouldSucceed(p.swap);
     }
     this.sent.add(quoteId);
     try {
-      return await this.wallet.sendTransaction(p.swap);
+      const hash = await this.send(p.swap, p.taker);
+      if (feeKey) this.setFeePaid(feeKey, false);
+      return hash;
     } catch (e) {
       if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
       throw e;

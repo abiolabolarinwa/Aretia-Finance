@@ -260,7 +260,7 @@ export class EvmPoolFlow {
   private approveStep(chain: EvmPoolChain, account: string, token: string, amount: bigint): PoolStep {
     return {
       what: 'approval',
-      tx: buildApproveTx(account, token, chain.pool, amount),
+      tx: buildApproveTx(account, token, chain.pool, amount, chain.chainId),
       inspect: (tx, id) => inspectApprove(tx, { chain, from: account, token, amount }, id),
       progress: ['approving', 'confirming-approve'],
       allowance: { token, amount },

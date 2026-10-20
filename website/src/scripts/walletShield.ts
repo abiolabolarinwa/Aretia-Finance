@@ -42,7 +42,7 @@ export interface ShieldHost {
   /** The connected Ethereum-style account, or null. */
   evmAccount(): string | null;
   /** Takes back a token permission through the connected Ethereum-style wallet. Resolves to the transaction hash. */
-  revokeEvm(chain: ChainId, token: string, spender: string): Promise<string>;
+  revokeEvm(chain: ChainId, token: string, spender: string, via?: 'permit2'): Promise<string>;
   refreshWallet(): void;
 }
 
@@ -785,7 +785,7 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
             fix.disabled = true;
             fix.textContent = 'Waiting for your wallet…';
             try {
-              await host.revokeEvm(f.approval.chain, f.approval.token.address, f.approval.spender.address);
+              await host.revokeEvm(f.approval.chain, f.approval.token.address, f.approval.spender.address, f.approval.via);
               evmScan = { ...evmScan!, findings: evmScan!.findings.filter((x) => x !== f) };
               walletMessage = { tone: 'ok', text: 'The permission was taken back. It may take a moment to show as removed.' };
             } catch (e) {

@@ -122,6 +122,9 @@ const withTimeout = <T>(work: (signal: AbortSignal) => Promise<T>, ms: number): 
   return Promise.race([work(controller.signal), timeout]).finally(() => clearTimeout(timer));
 };
 
+/** How far a silently refreshed quote may fall below the one on screen before the person must look again (0.3%). */
+export const REFRESH_TOLERANCE_BPS = 30;
+
 export class AretiaRouter {
   private readonly providers: DexProvider[];
   private readonly adapters = new Map<ChainId, ChainAdapter>();
@@ -329,6 +332,19 @@ export class AretiaRouter {
   static degradationBps(shown: Quote, fallback: Quote): number {
     if (shown.expectedOut <= 0n || fallback.expectedOut >= shown.expectedOut) return 0;
     return Number(((shown.expectedOut - fallback.expectedOut) * 10_000n) / shown.expectedOut);
+  }
+
+  /**
+   * Why a quote fetched again just before signing must not be signed without the person seeing it, or null when it may be: a
+   * different provider, or an expected output or minimum that fell by more than `toleranceBps` from the one on screen. The
+   * minimum is recomputed from every new quote, so without this a slow click could sign a worse price the slippage never covered.
+   */
+  static refreshDrift(shown: Quote, fresh: Quote, toleranceBps = REFRESH_TOLERANCE_BPS): string | null {
+    if (fresh.providerId !== shown.providerId) return 'The best route changed while the price was refreshed.';
+    const fell = (was: bigint, now: bigint): boolean => now * 10_000n < was * BigInt(10_000 - toleranceBps);
+    if (fell(shown.expectedOut, fresh.expectedOut)) return 'The price fell while it was refreshed.';
+    if (fell(shown.minOut, fresh.minOut)) return 'The minimum you would receive fell while the price was refreshed.';
+    return null;
   }
 
   /** The four-part summary to show before signing. */

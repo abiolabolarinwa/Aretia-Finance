@@ -31,7 +31,9 @@ export interface Lookalike {
 
 /**
  * The known addresses this one imitates: not the same address, but matching at least three characters at the start AND at
- * the end. By chance that is a one-in-billions event for any one pair, so a hit means someone made it so. Strongest first.
+ * the end. By chance, for any one pair, that is about 1 in 16.7 million for EVM addresses (six hex characters: 16^6) and about
+ * 1 in 38 billion for Solana addresses (58^6). Rare enough that a hit is worth a warning, since poisoners grind addresses to
+ * match exactly this, but across many known addresses a chance match can happen, so it is a warning, not proof. Strongest first.
  */
 export function findLookalikes(address: string, known: readonly KnownAddress[]): Lookalike[] {
   const a = body(address);

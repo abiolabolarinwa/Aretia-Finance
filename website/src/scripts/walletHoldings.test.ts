@@ -107,11 +107,11 @@ describe('holding prices carry the pool behind them (audit M-8, L-29)', () => {
   const majors = new Set([WSOL.toLowerCase()]);
   const SPAM = 'SpamSpamSpamSpamSpamSpamSpamSpamSpamSpam111';
 
-  it('takes the SOL-paired pool over a deeper pool against a made-up token when it holds 5% of it; otherwise the price is thin', () => {
+  it('takes the SOL-paired pool over a deeper pool against a made-up token, however much the made-up one claims (audit M-8)', () => {
     const fake = { baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 900_000 } };
     expect(dexScreenerPrices([fake, { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } }], majors).get(SPAM)).toEqual({ price: 0.01, thin: false });
-    // A claimed $90M against a $50K real pool: the claimed one is drawn but thin, so it is never added to the total.
-    expect(dexScreenerPrices([{ ...fake, liquidity: { usd: 90_000_000 } }, { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } }], majors).get(SPAM)).toEqual({ price: 500, thin: true });
+    // A claimed $90M against a $50K real pool: claimed liquidity proves nothing, so the real SOL pool still sets the price.
+    expect(dexScreenerPrices([{ ...fake, liquidity: { usd: 90_000_000 } }, { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } }], majors).get(SPAM)).toEqual({ price: 0.01, thin: false });
   });
 
   it('a $3 WSOL pool does not set the price of a token with a $2M JUP pool, and that price is marked thin (re-audit M-8)', () => {

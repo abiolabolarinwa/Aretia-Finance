@@ -18,11 +18,10 @@ describe('a pool against a made-up token does not take over the numbers (audit M
     }
   });
 
-  it('when the major-paired pool is under 5% of the deepest, the deepest is used but never as major-backed: no liquidity or cap, quote named', () => {
+  it('a real major-paired pool over the $1,000 floor wins however much a pool against a made-up token claims', () => {
     for (const pairs of [[real, fake], [fake, real]]) {
       const m = bestPools(pairs as never, 'solana', [TOK]).get(TOK)!;
-      expect(m.pool).toMatchObject({ address: 'FakePoolFakePoolFakePool1111', quoteSymbol: 'USDC', quoteMajor: false });
-      expect(m).toMatchObject({ priceUsd: 5, liquidityUsd: null, capUsd: null, capKind: null });
+      expect(m.pool.address).toBe('RealPoolRealPoolRealPool1111');
     }
   });
 
@@ -41,14 +40,15 @@ describe('a pool against a made-up token does not take over the numbers (audit M
     expect(m.pool).toMatchObject({ address: '0xp2', quoteMajor: true });
   });
 
-  it('the chart and token page pick the real pool when it counts, and otherwise say the drawn price is not major-backed', () => {
+  it('the chart and token page pick the real pool when it holds real money, and otherwise say the drawn price is not major-backed', () => {
     const solid = { ...real, liquidity: { usd: 5_000_000 } };
     const c = chooseDexPair('solana', TOK, [fake, solid])!;
     expect((c.p as { pairAddress: string }).pairAddress).toBe('RealPoolRealPoolRealPool1111');
     expect(c.majorBacked).toBe(true);
-    // A real pool 30,000 times smaller than the claimed one is not enough to stand for the price; the drawn one is flagged.
-    const thin = chooseDexPair('solana', TOK, [fake, real])!;
-    expect(thin.majorBacked).toBe(false);
+    // A real pool 30,000 times smaller than the claimed one still stands for the price: claimed liquidity proves nothing.
+    const small = chooseDexPair('solana', TOK, [fake, real])!;
+    expect((small.p as { pairAddress: string }).pairAddress).toBe('RealPoolRealPoolRealPool1111');
+    expect(small.majorBacked).toBe(true);
     // A small major pool (under the $1,000 floor) with nothing else is drawn, flagged.
     const tiny = { ...real, liquidity: { usd: 400 } };
     expect(chooseDexPair('solana', TOK, [tiny])!.majorBacked).toBe(false);

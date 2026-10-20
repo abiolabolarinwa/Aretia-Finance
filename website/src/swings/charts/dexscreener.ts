@@ -15,7 +15,7 @@
  */
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type ChainId } from '../core/types.js';
-import { choosePricePool, DEXSCREENER_CHAIN, GECKO_NETWORK, MAJOR_POOL_MIN_LIQUIDITY_USD, MAJOR_POOL_MIN_SHARE, majorsOf, type PoolInfo } from './pool.js';
+import { choosePricePool, DEXSCREENER_CHAIN, GECKO_NETWORK, MAJOR_POOL_MIN_LIQUIDITY_USD, majorsOf, type PoolInfo } from './pool.js';
 
 export interface DexPair {
   chainId?: string;
@@ -61,11 +61,9 @@ export function chooseDexPair(chain: ChainId, address: string, pairs: unknown): 
     // Deepest first, then busiest, so equal depth is settled by trading.
     .sort((a, b) => b.liq - a.liq || b.vol - a.vol);
   if (usable.length === 0) return null;
-  // Every pool of the token is the yardstick, including those where it is the second token; the chart prefers a pool where it is the
-  // first token (the chart is then of the token itself) unless that pool is tiny next to the real market.
-  const deepest = usable[0]!.liq;
-  const base = usable.filter((x) => x.isBase && x.liq >= Math.max(MAJOR_POOL_MIN_LIQUIDITY_USD, deepest * MAJOR_POOL_MIN_SHARE));
-  const chosen = choosePricePool(base.length > 0 ? base : usable, deepest) ?? choosePricePool(usable, deepest);
+  // The chart prefers a pool where the token is the first token (the chart is then of the token itself) when one holds real money.
+  const base = usable.filter((x) => x.isBase && x.liq >= MAJOR_POOL_MIN_LIQUIDITY_USD);
+  const chosen = choosePricePool(base.length > 0 ? base : usable) ?? choosePricePool(usable);
   if (!chosen) return null;
   const best = chosen.pool;
   return { p: best.p, isBase: best.isBase, liq: best.liq, majorBacked: chosen.majorBacked };

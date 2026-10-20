@@ -363,9 +363,14 @@ describe('Established classification', () => {
   const deep = { liquidityUsd: 9e6, volume24hUsd: 1e6, poolCount: 3, ageHours: 24 * 400 };
   it('is not given to a long, deep, active token that keeps admin powers, which stay visible (audit L-16)', async () => {
     const { assessEvmToken, RISK_LABELS } = await import('./tokens/risk.js');
+    const { ratingView, toRowRisk } = await import('./market/rowRisk.js');
     const usdcLike = assessEvmToken({ ...deep, owner: 'set', isProxy: true, canMint: true, canBlacklist: true, canPause: true });
-    expect(usdcLike.status).not.toBe('established');
+    // Its track record stands, but it is drawn yellow with the issuer's powers named: never green, and not red like a scam.
+    const view = ratingView({ risk: toRowRisk(usdcLike, 'onchain') } as never, undefined);
+    expect(view.band).toBe('yellow');
+    expect(view.label).toBe('Established, issuer controls');
     expect(assessEvmToken({ ...deep, owner: 'renounced', isProxy: false, canMint: false, canBlacklist: false, canPause: false }).status).toBe('established');
+    expect(ratingView({ risk: toRowRisk(assessEvmToken({ ...deep, owner: 'renounced', isProxy: false, canMint: false, canBlacklist: false, canPause: false }), 'onchain') } as never, undefined).band).toBe('green');
     expect(usdcLike.score).toBeGreaterThanOrEqual(60);
     expect(usdcLike.signals.filter((s) => s.state === 'warn').length).toBeGreaterThanOrEqual(4);
     expect(RISK_LABELS.established).toBe('Established');

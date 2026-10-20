@@ -15,7 +15,7 @@ import { isChainEnabled } from '../swings/runtime.js';
 import { DexScreenerPoolFinder } from '../swings/charts/dexscreener.js';
 import { publicRead } from '../swings/chains/evmSession.js';
 import { assessTokenSafety } from '../swings/live.js';
-import { bandOf } from '../swings/market/rowRisk.js';
+import { bandOf, riskBand, riskLabel } from '../swings/market/rowRisk.js';
 import { RISK_LABELS } from '../swings/tokens/risk.js';
 import { checkToken, runCheck } from '../swings/shield/check.js';
 import { checkHash, classifyInput, valueFromHash } from '../swings/shield/classify.js';
@@ -472,7 +472,7 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
     names.append(title);
     const sub = h('span', 'wapp-sh__sub');
     sub.append(h('span', 'wapp-sh__kind', `${KIND_WORD[v.subject.kind] ?? 'Address'}${v.subject.chain ? ` · ${CHAINS[v.subject.chain].name}` : ''}`));
-    if (v.ratingLabel) sub.append(h('span', `wapp__state wapp__state--${bandOf(RATING_TO_STATUS[v.ratingLabel] ?? '')}`, v.ratingLabel));
+    if (v.ratingLabel) sub.append(h('span', `wapp__state wapp__state--${v.ratingLabel.endsWith(', issuer controls') ? 'yellow' : bandOf(RATING_TO_STATUS[v.ratingLabel] ?? '')}`, v.ratingLabel));
     names.append(sub, h('code', 'wapp-sh__value', v.subject.value));
     who.append(avatar, names, ...v.links.slice(0, 2).map((l) => {
       const a = h('a', 'wapp-sh__link', l.label);
@@ -671,7 +671,7 @@ export function initShield(host: ShieldHost): { onShow(hash: string): void; onWa
             }
             const pool = await finder.find('solana', mint).catch(() => null);
             const risk = await assessTokenSafety('solana', mint, pool ? { liquidityUsd: pool.liquidityUsd, volume24hUsd: pool.volume24hUsd, ageMs: null, hasPool: true } : null).catch(() => null);
-            checks.push({ mint, symbol: pool?.baseSymbol ?? holdings.get(mint)?.symbol ?? null, band: risk ? bandOf(risk.status) : 'grey', ratingLabel: risk ? RISK_LABELS[risk.status] : null, noMarket: !pool });
+            checks.push({ mint, symbol: pool?.baseSymbol ?? holdings.get(mint)?.symbol ?? null, band: risk ? riskBand(risk) : 'grey', ratingLabel: risk ? riskLabel(risk) : null, noMarket: !pool });
           }
         }),
       );

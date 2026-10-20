@@ -110,10 +110,12 @@ class Builder {
     const total = this.signals.reduce((sum, s) => sum + s.weight, 0);
     const score = evaluated >= MIN_SIGNALS_FOR_SCORE ? Math.min(100, total) : null;
     const noBad = !this.signals.some((s) => s.state === 'bad');
-    // "Established" is a track record, and it is green: it needs a low score and no admin power anyone still holds.
-    const low = score !== null && score < ESTABLISHED.maxScore;
-    const powers = this.signals.some((s) => ADMIN_POWER_SIGNALS.has(s.id) && (s.state === 'warn' || s.state === 'bad'));
-    return { score, status: classify(score, this.restricted, options.verified === true, ageHours, established && noBad && low && !powers), signals: this.signals, unavailable: this.unavailable, assessedAt: options.now ?? Date.now() };
+    // "Established" is a track record: a low score apart from the issuer's own powers, and no red flag. A large issued token
+    // (USDC, USDT) keeps that track record while its issuer can still freeze or upgrade it; the rating view draws that case
+    // yellow, never green (see hasAdminPowerWarning), so admin powers are never hidden behind a green badge.
+    const otherScore = this.signals.filter((s) => !ADMIN_POWER_SIGNALS.has(s.id)).reduce((sum, s) => sum + s.weight, 0);
+    const low = score !== null && otherScore < ESTABLISHED.maxScore;
+    return { score, status: classify(score, this.restricted, options.verified === true, ageHours, established && noBad && low), signals: this.signals, unavailable: this.unavailable, assessedAt: options.now ?? Date.now() };
   }
 }
 

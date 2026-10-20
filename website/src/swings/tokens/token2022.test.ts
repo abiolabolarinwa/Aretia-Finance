@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { base58, base58To32, extensionClass, mintExtensionTypes, mintRuleProblems, readRawMint, TOKEN_2022_PROGRAM, TOKEN_PROGRAM } from './token2022';
 import { parseMintFacts } from './enrich';
 import { assessMarketData, assessSolanaToken, hasAdminPowerWarning } from './risk';
-import { bandOf } from '../market/rowRisk';
+import { bandOf, ratingView, toRowRisk } from '../market/rowRisk';
 
 /** A mint with the given TLV entries ([type, length]); no authorities. */
 function mint(exts: [number, number][], o: { tail?: number[]; mintAuth?: Uint8Array; freeze?: boolean; supply?: number } = {}): Uint8Array {
@@ -95,9 +95,10 @@ describe('the risk engine judges each extension (audit M-6, L-16)', () => {
   it('market data alone, or a token with admin powers, is never the green "Established" (PoC market)', () => {
     const big = { liquidityUsd: 6e6, volume24hUsd: 6e5, poolCount: 1, ageHours: 9000 };
     expect(bandOf(assessMarketData(big).status)).not.toBe('green');
+    const view = (r: ReturnType<typeof assessSolanaToken>) => ratingView({ risk: toRowRisk(r, 'onchain') } as never, undefined).band;
     const s = assessSolanaToken({ mintAuthoritySet: true, freezeAuthoritySet: true, hasExtensions: true, top10Pct: 70, ...big });
-    expect(bandOf(s.status)).not.toBe('green');
-    expect(assessSolanaToken({ mintAuthoritySet: true, freezeAuthoritySet: false, hasExtensions: false, top10Pct: 10, ...big }).status).not.toBe('established');
+    expect(view(s)).not.toBe('green');
+    expect(view(assessSolanaToken({ mintAuthoritySet: true, freezeAuthoritySet: false, hasExtensions: false, top10Pct: 10, ...big }))).toBe('yellow');
     expect(assessSolanaToken({ mintAuthoritySet: false, freezeAuthoritySet: false, extensionTypes: [18, 19], top10Pct: 10, ...big }).status).toBe('established');
   });
 });

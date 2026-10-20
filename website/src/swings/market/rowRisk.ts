@@ -66,6 +66,18 @@ export function withMarketReading(r: MarketRow, now = Date.now()): MarketRow {
 
 export const bandOf = (status: string): Band => (status === 'high' || status === 'restricted' ? 'red' : status === 'elevated' || status === 'new' ? 'orange' : status === 'established' || status === 'verified' ? 'green' : status === 'unverified' ? 'yellow' : 'grey');
 
+/** The band for a full assessment: a token whose issuer still holds admin powers is never drawn green. */
+export const riskBand = (risk: TokenRisk): Band => {
+  const band = bandOf(risk.status);
+  return band === 'green' && hasAdminPowerWarning(risk) ? 'yellow' : band;
+};
+
+/** The label for a full assessment, naming the issuer's control when the track record alone would read as safe. */
+export const riskLabel = (risk: TokenRisk): string => {
+  const label = RISK_LABELS[risk.status] ?? risk.status;
+  return bandOf(risk.status) === 'green' && hasAdminPowerWarning(risk) ? `${label}, issuer controls` : label;
+};
+
 const toneOf = (status: string): Tone => (status === 'high' || status === 'restricted' ? 'bad' : status === 'elevated' ? 'warn' : status === 'established' || status === 'verified' ? 'on' : 'off');
 
 /** How a row's rating is drawn and explained. */
@@ -84,6 +96,17 @@ export function ratingView(r: MarketRow, state: CheckState | undefined): RatingV
         soft: true,
         checking: state !== 'failed',
         title: `${state === 'failed' ? 'Market reading only. The on-chain check could not be made.' : 'Market reading, from liquidity, trading and age. The contract is being checked.'} Behind the colour: concern score ${risk.score}/100 (higher means more concerns). It cannot see what the contract is able to do, so it is not a safety check.`,
+      };
+    }
+    if (band === 'green' && risk.adminPowers) {
+      // A long track record, but someone can still freeze, mint, pause or upgrade it: never green.
+      return {
+        label: `${label}, issuer controls`,
+        tone: 'off',
+        band: 'yellow',
+        soft: false,
+        checking: false,
+        title: `${risk.basis === 'registry' ? 'From Aretia\'s token registry.' : 'Checked on-chain by Aretia.'} Long-lived with deep trading, but its issuer still holds powers over it (such as freezing, minting, pausing or upgrading). Concern score ${risk.score}/100. A rating is not advice and not a guarantee.`,
       };
     }
     return {

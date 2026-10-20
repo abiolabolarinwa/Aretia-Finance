@@ -148,6 +148,10 @@ export function createEvmPool(host: PoolEvmHost): { draw(card: HTMLElement, redr
     row(dl, `${c.dex.symbol} going in`, `${fromSmallestUnit(c.coinWei, 18)} ${c.dex.symbol}`);
     row(dl, 'Starting price', `${fromSmallestUnit(c.coinWei * 10n ** BigInt(c.tokenDecimals) / c.tokenRaw, 18)} ${c.dex.symbol} per ${c.tokenSymbol}`);
     row(dl, 'Liquidity', c.lock ? 'Locked for good (sent to the dead address)' : 'Sent to your wallet');
+    if (review.seed) {
+      row(dl, 'Opened through', `Aretia’s pair seeder (${short(review.seed.seeder)}): someone made this pool first and left dust in it, which the router cannot open past`);
+      row(dl, 'Taken from you', `${grouped(fromSmallestUnit(review.seed.tokensPaid, c.tokenDecimals))} ${c.tokenSymbol} and ${fromSmallestUnit(review.seed.coinPaid, 18)} ${c.dex.symbol} (the dust counts towards your amounts; the pool opens at exactly them)`);
+    }
     row(dl, 'Aretia fee', `${POOL_FEE_UNITS} ${c.fee.asset}, asked for last`);
     row(dl, `Your ${c.fee.asset}`, `${fromSmallestUnit(review.feeBalance, c.fee.decimals)} ${c.fee.asset}`);
     row(dl, 'Network gas, at most about', gasCostWei === null ? 'could not be estimated' : `${fromSmallestUnit(gasCostWei, 18)} ${c.dex.symbol}`);

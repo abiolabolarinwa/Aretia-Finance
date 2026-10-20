@@ -20,10 +20,16 @@ Fees (set by the owner): Ethereum 0.0042 ETH, BNB Chain 0.014 BNB, Polygon 105 P
 
 `website/src/scripts/walletLaunchEvmContract.test.ts` runs this exact artifact in an in-process EVM (`npm i --no-save @ethereumjs/vm @ethereumjs/common @ethereumjs/util` first; skipped without it).
 
-## Bonding curve (UNAUDITED, not deployed)
+## Bonding curve (UNAUDITED; deployed and immutable on Ethereum, BNB Chain and Polygon)
 
-`AretiaCurve.sol` is the EVM version of Aretia's bonding curve. See `docs/BONDING_CURVE_EVM.md`. Rebuild its artifact with `compile-curve.mjs` (needs `solc@0.8.26`); test stand-ins and their build script are in `test-mocks/`.
+`AretiaCurve.sol` is the EVM version of Aretia's bonding curve, deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` on all three chains and verified. It is immutable: **do not edit `AretiaCurve.sol`, `AretiaTokenFactory.sol` or their artifacts and standard-input files**; they must keep matching the deployed code. Its comment "NOT deployed anywhere" predates the deployment and stays only because the verified source cannot change. See `docs/BONDING_CURVE_EVM.md`. Rebuild its artifact with `compile-curve.mjs` (needs `solc@0.8.26`); test stand-ins and their build script are in `test-mocks/`.
+
+Issues of the deployed curve are handled around it (`docs/BONDING_CURVE_EVM.md`, sections 15 to 19):
+
+- `AretiaCurveRescue.sol`: permissionless rescue-graduate helper for a curve whose graduation is blocked by a pre-made exchange pair (review M-4). Not deployed yet.
+- `AretiaPairSeeder.sol`: opens a Uniswap V2-style pair someone made first and left dust in, for the Launch page's pool flow (M-4). Not deployed yet.
+- Both are built by `compile-helpers.mjs` (artifact + standard-input, solc 0.8.26, optimizer 200, paris) and tested in `test/` (see `test/README.md`).
 
 ## Aretia Pool (UNAUDITED, not deployed on any mainnet)
 
-`AretiaPool.sol` is Aretia's own constant-product swap pool for these chains: single-sided creation, 0.25% or 1% fee, 20% of every fee paid to Aretia inside the trade, the rest claimable by liquidity positions even while locked for good. See `docs/ARETIA_POOL_EVM.md`. Rebuild with `compile-pool.mjs`; hostile test stand-ins are `test-mocks/PoolMocks.sol` (built by `test-mocks/compile-pool-mocks.mjs`); deploy and verify with `website/scripts/pool-evm.mjs`.
+`AretiaPool.sol` is Aretia's own constant-product swap pool for these chains: single-sided creation with the creator's liquidity locked for good, 0.25% or 1% fee, 20% of every fee owed to Aretia (paid out by anyone with `withdrawProtocolFees()`, never inside a trade), the rest claimable by liquidity positions even while locked for good, a deadline on every trade and liquidity call. The source changed after the October 2026 review; the earlier Sepolia deployment is the old build and must be replaced. Regression tests for the review's findings: `test/pool.test.mjs`. See `docs/ARETIA_POOL_EVM.md`. Rebuild with `compile-pool.mjs`; hostile test stand-ins are `test-mocks/PoolMocks.sol` (built by `test-mocks/compile-pool-mocks.mjs`); deploy and verify with `website/scripts/pool-evm.mjs`.

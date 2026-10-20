@@ -46,7 +46,8 @@ function world() {
   };
   const poolWords = () => {
     const p = state.pool;
-    return p ? [p.feeBps, BigInt(CREATOR), 1_700_000_000n, p.x, p.y, p.l, p.acc, p.feeReserve] : Array<bigint>(8).fill(0n);
+    // The new build's ten words: ..., feeReserve, locked (the creator's starting liquidity here), accRemainder.
+    return p ? [p.feeBps, BigInt(CREATOR), 1_700_000_000n, p.x, p.y, p.l, p.acc, p.feeReserve, 10n * ETH, p.accRemainder ?? 0n] : Array<bigint>(10).fill(0n);
   };
   const posWords = (p: typeof state.position) => [p.open ? 1n : 0n, p.shares, p.locked, p.checkpoint, p.pending, p.recipient];
   const read = async (method: string, params: unknown[]): Promise<unknown> => {
@@ -337,7 +338,8 @@ describe('trading and managing a pool', () => {
     };
     expect((await flow.run(tr)).differences).toEqual([]);
     state.other = { open: true, shares: 1n, locked: 0n, checkpoint: 0n, pending: 0n, recipient: 0n };
-    expect((await flow.prepareTransfer(chain, CREATOR, pos, TOKEN, OTHER)).blockers.join(' ')).toMatch(/already has a position/);
+    // The contract merges into an existing position (L-19), so that is no longer a blocker.
+    expect((await flow.prepareTransfer(chain, CREATOR, pos, TOKEN, OTHER)).blockers.join(' ')).not.toMatch(/already has a position/);
     expect((await flow.prepareTransfer(chain, CREATOR, pos, TOKEN, CREATOR)).blockers.join(' ')).toMatch(/different wallet/);
   });
   it('reports a read-back that does not match what was approved', async () => {

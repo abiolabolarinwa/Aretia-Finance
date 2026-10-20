@@ -80,7 +80,7 @@ describe('the contract has no way to change anything after deployment', () => {
   it('the only state-changing functions are the ones the page knows, and none is an admin function', () => {
     const abi = artifact.pool.abi as { type: string; name?: string; stateMutability?: string }[];
     const writes = abi.filter((e) => e.type === 'function' && e.stateMutability !== 'view' && e.stateMutability !== 'pure').map((e) => e.name).sort();
-    expect(writes).toEqual(['addLiquidity', 'buy', 'claimFees', 'createPool', 'lockLiquidity', 'removeLiquidity', 'sell', 'setRecipient', 'transferPosition']);
+    expect(writes).toEqual(['addLiquidity', 'buy', 'claimFees', 'createPool', 'lockLiquidity', 'removeLiquidity', 'sell', 'setRecipient', 'transferPosition', 'withdrawProtocolFees']);
     expect(abi.filter((e) => e.type === 'receive' || e.type === 'fallback').map((e) => e.type)).toEqual(['receive']);
   });
   it('the source has no owner, proxy, delegatecall, selfdestruct, pause or upgrade path', () => {

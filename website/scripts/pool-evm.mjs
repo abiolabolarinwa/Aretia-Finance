@@ -181,4 +181,7 @@ const owed = BigInt(await read('totalOwed()'));
 const held = await pub.getBalance({ address });
 if (held < owed) fail(`the contract holds ${held} wei but owes ${owed}: it is insolvent.`);
 ok(`solvent: holds ${held} wei, owes ${owed}`);
-console.log(`\nVerified. Next, by hand: put ${address.toLowerCase()} in EVM_POOL_ADDRESSES.${chainKey}, update the gate test, and turn the flag on only for a watched rehearsal.`);
+// The post-review build (October 2026) owes the protocol share instead of paying it inside trades; it must have the pull-payment reads.
+if (!art.pool.selectors['protocolOwed()'] || !art.pool.selectors['withdrawProtocolFees()']) fail('the committed artifact is not the post-review build (no protocolOwed / withdrawProtocolFees).');
+ok(`protocolOwed() = ${BigInt(await read('protocolOwed()'))} wei (anyone may pay it to the fee address with withdrawProtocolFees())`);
+console.log(`\nVerified. Next, by hand: put ${address.toLowerCase()} in EVM_POOL_ADDRESSES.${chainKey} and its deployment block in EVM_POOL_DEPLOY_BLOCKS.${chainKey}, update the gate test, and turn the flag on only for a watched rehearsal.`);

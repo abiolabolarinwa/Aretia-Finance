@@ -7,6 +7,7 @@
  *
  * The transactions: approve (the token, exactly the tokens, to the pool), create (one call, which may carry the creator's own first buy),
  * buy, sell (preceded by an approve), add liquidity, remove liquidity, claim fees, lock, transfer a position, set the fee recipient.
+ * Create, buy, sell, add and remove carry a deadline (unix seconds); the inspector accepts one only within the next hour.
  */
 import { keccak256 } from '../swings/core/keccak.js';
 import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
@@ -23,11 +24,11 @@ const word = (n: bigint): string => {
 const addrWord = (a: string): string => a.slice(2).toLowerCase().padStart(64, '0');
 
 export const POOL_SEL = {
-  createPool: selectorOf('createPool((address,uint256,uint256,uint256,uint256,uint256,bool,address,uint256,uint256))'),
-  buy: selectorOf('buy(address,uint256)'),
-  sell: selectorOf('sell(address,uint256,uint256)'),
-  addLiquidity: selectorOf('addLiquidity(address,uint256,uint256)'),
-  removeLiquidity: selectorOf('removeLiquidity(address,uint256,uint256,uint256)'),
+  createPool: selectorOf('createPool((address,uint256,uint256,uint256,uint256,uint256,bool,address,uint256,uint256,uint256))'),
+  buy: selectorOf('buy(address,uint256,uint256)'),
+  sell: selectorOf('sell(address,uint256,uint256,uint256)'),
+  addLiquidity: selectorOf('addLiquidity(address,uint256,uint256,uint256)'),
+  removeLiquidity: selectorOf('removeLiquidity(address,uint256,uint256,uint256,uint256)'),
   claimFees: selectorOf('claimFees(address)'),
   lockLiquidity: selectorOf('lockLiquidity(address,uint256)'),
   transferPosition: selectorOf('transferPosition(address,address)'),
@@ -36,6 +37,8 @@ export const POOL_SEL = {
   positions: selectorOf('positions(address,address)'),
   pendingFees: selectorOf('pendingFees(address,address)'),
   totalOwed: selectorOf('totalOwed()'),
+  protocolOwed: selectorOf('protocolOwed()'),
+  withdrawProtocolFees: selectorOf('withdrawProtocolFees()'),
   creationFee: selectorOf('creationFee()'),
   feeRecipient: selectorOf('feeRecipient()'),
   factory: selectorOf('factory()'),
@@ -46,17 +49,19 @@ export const POOL_SEL = {
 
 export const buildApproveTx = (from: string, token: string, pool: string, amount: bigint): EvmTxRequest => ({ from, to: token, data: encodeApprove(pool, amount), value: '0x0' });
 
-export function buildCreateTx(c: EvmPoolConfig, minFirstBuyOut: bigint): EvmTxRequest {
+export function buildCreateTx(c: EvmPoolConfig, minFirstBuyOut: bigint, deadline: bigint): EvmTxRequest {
   const data =
     POOL_SEL.createPool +
-    addrWord(c.token) + word(c.factoryNonce) + word(c.x0) + word(c.l0) + word(c.y0) + word(BigInt(c.feeBps)) + word(c.lock ? 1n : 0n) + addrWord(c.creator) + word(c.firstBuyWei) + word(c.firstBuyWei > 0n ? minFirstBuyOut : 0n);
+    addrWord(c.token) + word(c.factoryNonce) + word(c.x0) + word(c.l0) + word(c.y0) + word(BigInt(c.feeBps)) + word(c.lock ? 1n : 0n) + addrWord(c.creator) + word(c.firstBuyWei) + word(c.firstBuyWei > 0n ? minFirstBuyOut : 0n) + word(deadline);
   return { from: c.creator, to: c.chain.pool, data, value: toHexQuantity(c.chain.creationFee + c.y0 + c.firstBuyWei) };
 }
 
-export const buildBuyTx = (from: string, chain: EvmPoolChain, token: string, minOut: bigint, wei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.buy + addrWord(token) + word(minOut), value: toHexQuantity(wei) });
-export const buildSellTx = (from: string, chain: EvmPoolChain, token: string, tokens: bigint, minCoinOut: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.sell + addrWord(token) + word(tokens) + word(minCoinOut), value: '0x0' });
-export const buildAddTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, maxTokens: bigint, coinWei: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.addLiquidity + addrWord(token) + word(dl) + word(maxTokens), value: toHexQuantity(coinWei) });
-export const buildRemoveTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, minTokens: bigint, minCoin: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.removeLiquidity + addrWord(token) + word(dl) + word(minTokens) + word(minCoin), value: '0x0' });
+export const buildBuyTx = (from: string, chain: EvmPoolChain, token: string, minOut: bigint, wei: bigint, deadline: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.buy + addrWord(token) + word(minOut) + word(deadline), value: toHexQuantity(wei) });
+export const buildSellTx = (from: string, chain: EvmPoolChain, token: string, tokens: bigint, minCoinOut: bigint, deadline: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.sell + addrWord(token) + word(tokens) + word(minCoinOut) + word(deadline), value: '0x0' });
+export const buildAddTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, maxTokens: bigint, coinWei: bigint, deadline: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.addLiquidity + addrWord(token) + word(dl) + word(maxTokens) + word(deadline), value: toHexQuantity(coinWei) });
+export const buildRemoveTx = (from: string, chain: EvmPoolChain, token: string, dl: bigint, minTokens: bigint, minCoin: bigint, deadline: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.removeLiquidity + addrWord(token) + word(dl) + word(minTokens) + word(minCoin) + word(deadline), value: '0x0' });
+/** Anyone may send this: it pays everything owed to Aretia's fee address, and only to it. */
+export const buildWithdrawProtocolTx = (from: string, chain: EvmPoolChain): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.withdrawProtocolFees, value: '0x0' });
 export const buildClaimTx = (from: string, chain: EvmPoolChain, token: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.claimFees + addrWord(token), value: '0x0' });
 export const buildLockTx = (from: string, chain: EvmPoolChain, token: string, amount: bigint): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.lockLiquidity + addrWord(token) + word(amount), value: '0x0' });
 export const buildTransferTx = (from: string, chain: EvmPoolChain, token: string, to: string): EvmTxRequest => ({ from, to: chain.pool, data: POOL_SEL.transferPosition + addrWord(token) + addrWord(to), value: '0x0' });
@@ -86,35 +91,36 @@ export interface DecodedCreate {
   owner: string;
   firstBuyWei: bigint;
   minFirstBuyOut: bigint;
+  deadline: bigint;
 }
 
 export const decodeCreate = (data: string): DecodedCreate | null => {
-  const w = words(data, POOL_SEL.createPool, 10);
+  const w = words(data, POOL_SEL.createPool, 11);
   if (!w) return null;
   const token = asAddr(w[0]!);
   const owner = asAddr(w[7]!);
   if (!token || !owner || (w[6] !== word(0n) && w[6] !== word(1n))) return null;
-  return { token, nonce: big(w[1]!), x0: big(w[2]!), l0: big(w[3]!), y0: big(w[4]!), feeBps: big(w[5]!), lock: w[6] === word(1n), owner, firstBuyWei: big(w[8]!), minFirstBuyOut: big(w[9]!) };
+  return { token, nonce: big(w[1]!), x0: big(w[2]!), l0: big(w[3]!), y0: big(w[4]!), feeBps: big(w[5]!), lock: w[6] === word(1n), owner, firstBuyWei: big(w[8]!), minFirstBuyOut: big(w[9]!), deadline: big(w[10]!) };
 };
-export const decodeBuy = (data: string): { token: string; minOut: bigint } | null => {
-  const w = words(data, POOL_SEL.buy, 2);
+export const decodeBuy = (data: string): { token: string; minOut: bigint; deadline: bigint } | null => {
+  const w = words(data, POOL_SEL.buy, 3);
   const token = w ? asAddr(w[0]!) : null;
-  return w && token ? { token, minOut: big(w[1]!) } : null;
+  return w && token ? { token, minOut: big(w[1]!), deadline: big(w[2]!) } : null;
 };
-export const decodeSell = (data: string): { token: string; tokens: bigint; minCoinOut: bigint } | null => {
-  const w = words(data, POOL_SEL.sell, 3);
+export const decodeSell = (data: string): { token: string; tokens: bigint; minCoinOut: bigint; deadline: bigint } | null => {
+  const w = words(data, POOL_SEL.sell, 4);
   const token = w ? asAddr(w[0]!) : null;
-  return w && token ? { token, tokens: big(w[1]!), minCoinOut: big(w[2]!) } : null;
+  return w && token ? { token, tokens: big(w[1]!), minCoinOut: big(w[2]!), deadline: big(w[3]!) } : null;
 };
-export const decodeAdd = (data: string): { token: string; dl: bigint; maxTokens: bigint } | null => {
-  const w = words(data, POOL_SEL.addLiquidity, 3);
+export const decodeAdd = (data: string): { token: string; dl: bigint; maxTokens: bigint; deadline: bigint } | null => {
+  const w = words(data, POOL_SEL.addLiquidity, 4);
   const token = w ? asAddr(w[0]!) : null;
-  return w && token ? { token, dl: big(w[1]!), maxTokens: big(w[2]!) } : null;
+  return w && token ? { token, dl: big(w[1]!), maxTokens: big(w[2]!), deadline: big(w[3]!) } : null;
 };
-export const decodeRemove = (data: string): { token: string; dl: bigint; minTokens: bigint; minCoin: bigint } | null => {
-  const w = words(data, POOL_SEL.removeLiquidity, 4);
+export const decodeRemove = (data: string): { token: string; dl: bigint; minTokens: bigint; minCoin: bigint; deadline: bigint } | null => {
+  const w = words(data, POOL_SEL.removeLiquidity, 5);
   const token = w ? asAddr(w[0]!) : null;
-  return w && token ? { token, dl: big(w[1]!), minTokens: big(w[2]!), minCoin: big(w[3]!) } : null;
+  return w && token ? { token, dl: big(w[1]!), minTokens: big(w[2]!), minCoin: big(w[3]!), deadline: big(w[4]!) } : null;
 };
 export const decodeTokenOnly = (data: string, selector: string): string | null => {
   const w = words(data, selector, 1);
@@ -145,6 +151,12 @@ function common(tx: EvmTxRequest, chain: EvmPoolChain, from: string, walletChain
   if (tx.gas !== undefined && !(typeof tx.gas === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.gas) && BigInt(tx.gas) > 0n)) p.push('The gas limit is not a number.');
   return p;
 }
+/** The deadline must be the one approved, still ahead, and at most an hour away. */
+const DEADLINE_MAX_AHEAD = 3600n;
+function checkDeadline(p: string[], got: bigint, want: bigint, nowSeconds: number): void {
+  if (got !== want) p.push('The deadline is not the one shown.');
+  if (got <= BigInt(nowSeconds) || got > BigInt(nowSeconds) + DEADLINE_MAX_AHEAD) p.push('The deadline is not within the next hour.');
+}
 const toIs = (tx: EvmTxRequest, address: string): boolean => typeof tx.to === 'string' && tx.to.toLowerCase() === address.toLowerCase();
 const toPool = (tx: EvmTxRequest, chain: EvmPoolChain, p: string[]): void => {
   if (!toIs(tx, chain.pool)) p.push('The transaction is not sent to the Aretia Pool contract for this network.');
@@ -174,6 +186,8 @@ export function inspectApprove(tx: EvmTxRequest, c: ApproveCheck, walletChainId:
 export interface CreateCheck {
   config: EvmPoolConfig;
   minFirstBuyOut: bigint;
+  deadline: bigint;
+  nowSeconds: number;
 }
 
 export function inspectCreate(tx: EvmTxRequest, c: CreateCheck, walletChainId: number): string[] {
@@ -190,10 +204,11 @@ export function inspectCreate(tx: EvmTxRequest, c: CreateCheck, walletChainId: n
     if (d.l0 !== config.l0) p.push('The starting price is not the one shown.');
     if (d.y0 !== config.y0) p.push('The coin going in beside the tokens is not the one shown.');
     if (d.feeBps !== BigInt(config.feeBps)) p.push('The trading fee is not the one shown.');
-    if (d.lock !== config.lock) p.push('The lock setting is not the one shown.');
+    if (d.lock !== config.lock || !d.lock) p.push('The lock setting is not the one shown (the creator’s liquidity is always locked).');
     if (d.owner !== config.creator.toLowerCase()) p.push('The pool position would belong to a wallet other than yours.');
     if (d.firstBuyWei !== config.firstBuyWei) p.push('Your first buy is not the one shown.');
     if (d.minFirstBuyOut !== (config.firstBuyWei > 0n ? c.minFirstBuyOut : 0n)) p.push('The least your first buy must give is not the one shown.');
+    checkDeadline(p, d.deadline, c.deadline, c.nowSeconds);
   }
   return p;
 }
@@ -203,8 +218,13 @@ export interface TradeCheck {
   from: string;
   token: string;
 }
+/** For the calls that carry a deadline: the one approved, and the clock it is checked against. */
+export interface DeadlineCheck {
+  deadline: bigint;
+  nowSeconds: number;
+}
 
-export function inspectBuy(tx: EvmTxRequest, c: TradeCheck & { wei: bigint; minOut: bigint }, walletChainId: number): string[] {
+export function inspectBuy(tx: EvmTxRequest, c: TradeCheck & DeadlineCheck & { wei: bigint; minOut: bigint }, walletChainId: number): string[] {
   const p = common(tx, c.chain, c.from, walletChainId);
   toPool(tx, c.chain, p);
   if (valueOf(tx) !== c.wei) p.push('The coins sent are not exactly the amount shown.');
@@ -213,11 +233,12 @@ export function inspectBuy(tx: EvmTxRequest, c: TradeCheck & { wei: bigint; minO
   else {
     if (d.token !== c.token.toLowerCase()) p.push('The buy is for a different token than you chose.');
     if (d.minOut !== c.minOut) p.push('The least you would accept is not the one shown.');
+    checkDeadline(p, d.deadline, c.deadline, c.nowSeconds);
   }
   return p;
 }
 
-export function inspectSell(tx: EvmTxRequest, c: TradeCheck & { tokens: bigint; minCoinOut: bigint }, walletChainId: number): string[] {
+export function inspectSell(tx: EvmTxRequest, c: TradeCheck & DeadlineCheck & { tokens: bigint; minCoinOut: bigint }, walletChainId: number): string[] {
   const p = common(tx, c.chain, c.from, walletChainId);
   toPool(tx, c.chain, p);
   if (valueOf(tx) !== 0n) p.push('A sale carries coins, which it should not.');
@@ -227,11 +248,12 @@ export function inspectSell(tx: EvmTxRequest, c: TradeCheck & { tokens: bigint; 
     if (d.token !== c.token.toLowerCase()) p.push('The sale is for a different token than you chose.');
     if (d.tokens !== c.tokens) p.push('The number of tokens is not the one shown.');
     if (d.minCoinOut !== c.minCoinOut) p.push('The least you would accept is not the one shown.');
+    checkDeadline(p, d.deadline, c.deadline, c.nowSeconds);
   }
   return p;
 }
 
-export function inspectAdd(tx: EvmTxRequest, c: TradeCheck & { dl: bigint; maxTokens: bigint; coinWei: bigint }, walletChainId: number): string[] {
+export function inspectAdd(tx: EvmTxRequest, c: TradeCheck & DeadlineCheck & { dl: bigint; maxTokens: bigint; coinWei: bigint }, walletChainId: number): string[] {
   const p = common(tx, c.chain, c.from, walletChainId);
   toPool(tx, c.chain, p);
   if (valueOf(tx) !== c.coinWei) p.push('The coins sent are not exactly the amount shown.');
@@ -241,11 +263,12 @@ export function inspectAdd(tx: EvmTxRequest, c: TradeCheck & { dl: bigint; maxTo
     if (d.token !== c.token.toLowerCase()) p.push('The deposit is for a different pool than you chose.');
     if (d.dl !== c.dl) p.push('The amount of liquidity is not the one shown.');
     if (d.maxTokens !== c.maxTokens) p.push('The most tokens you would pay is not the one shown.');
+    checkDeadline(p, d.deadline, c.deadline, c.nowSeconds);
   }
   return p;
 }
 
-export function inspectRemove(tx: EvmTxRequest, c: TradeCheck & { dl: bigint; minTokens: bigint; minCoin: bigint }, walletChainId: number): string[] {
+export function inspectRemove(tx: EvmTxRequest, c: TradeCheck & DeadlineCheck & { dl: bigint; minTokens: bigint; minCoin: bigint }, walletChainId: number): string[] {
   const p = common(tx, c.chain, c.from, walletChainId);
   toPool(tx, c.chain, p);
   if (valueOf(tx) !== 0n) p.push('A withdrawal carries coins, which it should not.');
@@ -256,6 +279,7 @@ export function inspectRemove(tx: EvmTxRequest, c: TradeCheck & { dl: bigint; mi
     if (d.dl !== c.dl) p.push('The amount of liquidity is not the one shown.');
     if (d.minTokens !== c.minTokens) p.push('The least tokens you would accept is not the one shown.');
     if (d.minCoin !== c.minCoin) p.push('The least coin you would accept is not the one shown.');
+    checkDeadline(p, d.deadline, c.deadline, c.nowSeconds);
   }
   return p;
 }

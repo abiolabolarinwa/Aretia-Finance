@@ -1,0 +1,20 @@
+{
+  "name": "aretia-contracts-evm-tests",
+  "private": true,
+  "type": "module",
+  "description": "In-process EVM tests for contracts-evm (not a website dependency). See README.md.",
+  "scripts": {
+    "test": "node --test rescue.test.mjs seeder.test.mjs pool.test.mjs",
+    "compile:helpers": "node ../compile-helpers.mjs ..",
+    "compile:pool": "node ../compile-pool.mjs .."
+  },
+  "devDependencies": {
+    "@ethereumjs/common": "^4.4.0",
+    "@ethereumjs/util": "^9.1.0",
+    "@ethereumjs/vm": "^8.1.1",
+    "@uniswap/v2-core": "^1.0.1",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
+    "solc": "0.8.26",
+    "viem": "^2.21.0"
+  }
+}

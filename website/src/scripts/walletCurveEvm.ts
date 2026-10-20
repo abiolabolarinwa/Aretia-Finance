@@ -4,8 +4,9 @@
  * the order of events in walletCurveEvmFlow.ts. This file only draws and connects them to the wallet the page already uses. Everything typed,
  * and everything read back from the chain, is shown with textContent, never as markup.
  *
- * It is off by default: walletLaunchEvm.ts only creates it on a build with PUBLIC_CURVE_ENABLED=1, and even then it shows a notice and no form
- * for any network that has no deployed contract in EVM_CURVE_ADDRESSES, which is every network until the contract has been audited.
+ * It is off by default: walletLaunchEvm.ts only creates it on a build with PUBLIC_CURVE_ENABLED=1, and it shows a notice and no form for any
+ * network that has no deployed contract in EVM_CURVE_ADDRESSES. Every curve card shows how much of the token's supply is outside the curve
+ * (review finding M-3), and a graduation blocked by a pre-made pool offers "Graduate anyway" through the rescue helper once it is deployed.
  */
 import type { EvmWalletAdapter } from '../swings/chains/evmWallet.js';
 import type { EvmRead } from '../swings/chains/evmSession.js';
@@ -24,6 +25,8 @@ import {
   evmCurveDisclosures,
   evmCurvePreview,
   evmCurveShareHash,
+  evmOutsideWarning,
+  evmSupplyOutside,
   evmPriceText,
   parseEvmCurveHash,
   validateEvmCurve,
@@ -88,6 +91,8 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
   let curve: EvmCurveState | null = null;
   let curveToken: EvmCurveToken | null = null;
   let lookupNote: string | null = null;
+  /** The token's total supply and the opener's live balance, read with the curve (M-3). Null when they could not be read. */
+  let supplyInfo: { totalSupply: bigint; openerHeld: bigint } | null = null;
   let buyText = '';
   let sellText = '';
   let slippage: number = EVM_SLIPPAGE_BPS_DEFAULT;
@@ -175,7 +180,12 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     row(dl, 'Last token costs', `${p.endPrice} ${sym}`);
     row(dl, 'The price rises', `${p.priceMultiple}× from first to last`);
     row(dl, 'Whole supply is worth', `${p.startValue} ${sym} at the start, ${p.endValue} ${sym} at the end`);
+    row(dl, 'Total supply', amountText(tokenInfo.supply, tokenInfo.decimals));
+    const o = evmSupplyOutside(tokenInfo.supply, { curveTokens: p.curveTokens, lpTokens: p.lpTokens });
+    row(dl, 'Share of supply on the curve', `${(o.committedBps / 100).toFixed(2).replace(/\.?0+$/, '')}%`);
     previewEl.append(dl);
+    const warn = evmOutsideWarning(o, null, (raw) => amountText(raw, tokenInfo!.decimals));
+    if (warn) previewEl.append(errorBox(`Warning: ${warn} Buyers will see this on the curve. Put the whole supply on the curve to avoid it.`));
   }
 
   async function refreshToken(): Promise<void> {
@@ -270,7 +280,19 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     bar.setAttribute('aria-label', `${pct}% of the curve sold`);
     row(dl, 'Progress', bar);
     row(dl, 'Fee', `${Number(c.feeBps) / 100}% of each trade, to Aretia`);
+    let outsideWarning: string | null = null;
+    if (supplyInfo) {
+      const o = evmSupplyOutside(supplyInfo.totalSupply, c);
+      row(dl, 'Total supply', amountText(supplyInfo.totalSupply, dec));
+      row(dl, 'On this curve', `${amountText(o.committed, dec)} (${(o.committedBps / 100).toFixed(2).replace(/\.?0+$/, '')}% of supply)`);
+      row(dl, 'Outside this curve', `${amountText(o.outside, dec)} (${(o.outsideBps / 100).toFixed(2).replace(/\.?0+$/, '')}% of supply)`);
+      row(dl, 'The opener holds now', amountText(supplyInfo.openerHeld, dec));
+      outsideWarning = evmOutsideWarning(o, supplyInfo.openerHeld, (raw) => amountText(raw, dec));
+    } else row(dl, 'Total supply', 'could not be read');
     card.append(dl);
+    // Review finding M-3: tokens held outside the curve can be sold into it ahead of buyers, leaving them unable to sell back.
+    if (outsideWarning) card.append(errorBox(`Warning: ${outsideWarning}`));
+    else if (!supplyInfo) card.append(errorBox('The token’s total supply could not be read, so this page cannot say how much of it is outside the curve. Holders of tokens outside a curve can sell ahead of you.'));
     card.append(copyButton('Copy link to this curve', shareLink(lookup.trim())));
 
     const slip = h('div', 'wapp-ln__field');
@@ -364,6 +386,11 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
         row(dl, 'Price when the curve closes', `${p.endPrice} ${sym} per token`);
       }
       if (r.firstBuy) row(dl, 'Your first buy', `${fromSmallestUnit(r.firstBuy.gross, 18)} ${sym} for ${amountText(r.firstBuy.tokensOut, c.tokenDecimals)} tokens (Aretia fee ${fromSmallestUnit(r.firstBuy.fee, 18)} ${sym} included)`);
+      const o = evmSupplyOutside(c.tokenSupply, c.derived);
+      row(dl, 'Total supply', amountText(c.tokenSupply, c.tokenDecimals));
+      row(dl, 'Share of supply on the curve', `${(o.committedBps / 100).toFixed(2).replace(/\.?0+$/, '')}%`);
+      const warn = evmOutsideWarning(o, null, (raw) => amountText(raw, c.tokenDecimals));
+      if (warn) row(dl, 'Warning', `${warn} Every buyer is shown this.`);
       row(dl, 'Two transactions', 'First an approval for exactly these tokens, then the curve');
     } else if (r.kind === 'buy' && curveToken) {
       row(dl, 'Token', `${curveToken.symbol} (${short(r.token)})`);
@@ -387,6 +414,20 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
       row(dl, `${sym} into the pool`, `${fromSmallestUnit(r.curve.realSol, 18)} ${sym}`);
       row(dl, 'Tokens into the pool', curveToken ? amountText(r.curve.lpTokens, curveToken.decimals) : String(r.curve.lpTokens));
       row(dl, 'Where the liquidity goes', 'The dead address: nobody can ever take it out');
+      if (r.pair) row(dl, 'Pool already on the exchange', `${short(r.pair.pair)}: ${r.pair.reserveToken} token units and ${r.pair.reserveCoin} wei in it`);
+    } else if (r.kind === 'rescue') {
+      row(dl, 'Token', short(r.token));
+      row(dl, 'Through', r.chain.rescue ? `Aretia’s rescue helper (${short(r.chain.rescue)})` : 'not available');
+      if (r.plan) {
+        row(dl, 'Pool already on the exchange', `${short(r.plan.pair)}: ${r.plan.reserveToken} token units and ${r.plan.reserveCoin} wei in it`);
+        row(dl, `${sym} you send, at most`, `${fromSmallestUnit(r.wei, 18)} ${sym} (anything unused comes back)`);
+        row(dl, 'Tokens from your wallet, at most', curveToken ? `${amountText(r.maxTokens, curveToken.decimals)} (${r.maxTokens} smallest units)` : String(r.maxTokens));
+        if (r.plan.coinOut > 0n) row(dl, 'You get back from the repair', `about ${fromSmallestUnit(r.plan.coinOut, 18)} ${sym}`);
+        if (r.plan.tokensOut > 0n) row(dl, 'You get back from the repair', curveToken ? `about ${amountText(r.plan.tokensOut, curveToken.decimals)} tokens` : String(r.plan.tokensOut));
+      }
+      row(dl, `${sym} into the pool`, `${fromSmallestUnit(r.curve.realSol, 18)} ${sym}`);
+      row(dl, 'Where the liquidity goes', 'The dead address: nobody can ever take it out');
+      row(dl, r.approveTx ? 'Two transactions' : 'One transaction', r.approveTx ? 'First an approval to the rescue helper for exactly these tokens, then the rescue' : 'The rescue');
     } else {
       row(dl, 'Token', short(r.token));
     }
@@ -402,6 +443,13 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     }
     card.append(list);
     for (const b of r.blockers) card.append(errorBox(b));
+    if (r.kind === 'graduate' && r.rescuable) {
+      const anyway = h('button', 'wapp__btn wapp__btn--primary', 'Graduate anyway');
+      anyway.type = 'button';
+      anyway.disabled = busy;
+      anyway.addEventListener('click', () => void startTrade('rescue'));
+      card.append(anyway);
+    }
     const ack = h('label', 'wapp__check');
     const box = h('input');
     box.type = 'checkbox';
@@ -513,6 +561,7 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     error = null;
     lookupNote = null;
     curve = null;
+    supplyInfo = null;
     busy = true;
     redrawNow();
     try {
@@ -530,6 +579,9 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
           else {
             curve = found;
             curveToken = info;
+            // Read with the curve, so the warning about supply outside it is never missing (M-3).
+            const [total, openerHeld] = await Promise.all([f.totalSupply(t).catch(() => null), f.balanceOf(t, found.creator).catch(() => null)]);
+            supplyInfo = total !== null && openerHeld !== null ? { totalSupply: total, openerHeld } : null;
           }
         }
       }
@@ -541,7 +593,7 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
     }
   }
 
-  async function startTrade(kind: 'buy' | 'sell' | 'graduate' | 'abort'): Promise<void> {
+  async function startTrade(kind: 'buy' | 'sell' | 'graduate' | 'abort' | 'rescue'): Promise<void> {
     error = null;
     busy = true;
     redrawNow();
@@ -565,6 +617,7 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
         if (raw === null) throw new Error('Enter an amount of tokens above zero.');
         review = await f.prepareSell(chain, account, latest, token, raw, slippage);
       } else if (kind === 'graduate') review = await f.prepareGraduate(chain, account, latest, token);
+      else if (kind === 'rescue') review = await f.prepareRescue(chain, account, latest, token);
       else review = await f.prepareAbort(chain, account, latest, token);
       stage = 'review';
       acknowledged = false;
@@ -590,7 +643,7 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
         progress = p;
         redrawNow();
       };
-      outcome = r.kind === 'create' ? await f.create(r, tick) : r.kind === 'buy' ? await f.buy(r, tick) : r.kind === 'sell' ? await f.sell(r, tick) : r.kind === 'graduate' ? await f.graduate(r, tick) : await f.abort(r, tick);
+      outcome = r.kind === 'create' ? await f.create(r, tick) : r.kind === 'buy' ? await f.buy(r, tick) : r.kind === 'sell' ? await f.sell(r, tick) : r.kind === 'graduate' ? await f.graduate(r, tick) : r.kind === 'rescue' ? await f.rescue(r, tick) : await f.abort(r, tick);
       stage = 'done';
     } catch (e) {
       // The flow's own messages are already plain and complete: show them whole, not shortened.
@@ -618,9 +671,9 @@ export function createEvmCurve(host: CurveEvmHost): { draw(card: HTMLElement, re
       const section = h('div', 'wapp-ln');
       section.append(h('h3', 'wapp__h2', 'Sell on a bonding curve'));
       if (!chain) {
-        // No deployed contract on this network: say so and offer nothing. This is every network until the contract is audited and deployed.
+        // No deployed contract on this network: say so and offer nothing. (Ethereum, BNB Chain and Polygon have one; test networks do not.)
         const name = chainByKey(chainKey)?.name ?? 'this network';
-        section.append(h('p', 'wapp__banner wapp__banner--warn', `Not live on ${name}. The curve contract is built and tested, but it has not been independently audited, so it is not deployed and this page does not send anything.`));
+        section.append(h('p', 'wapp__banner wapp__banner--warn', `Not live on ${name}. No Aretia curve contract is deployed on this network, so this page does not send anything.`));
         card.append(section);
         return;
       }

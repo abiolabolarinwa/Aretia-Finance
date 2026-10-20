@@ -2,7 +2,7 @@
 
 Aretia's own constant-product swap pool for Ethereum-style chains: the EVM version of the Solana Aretia Pool (`docs/ARETIA_POOL.md`). It exists for the same two reasons: Aretia keeps a protocol share of the trading fees only on pools it owns, and a creator can lock liquidity for good and still earn **claimable** fees. Today's EVM pools (Uniswap V2 and PancakeSwap V2, which `walletPoolEvm*.ts` opens) cannot do either: their locked LP tokens earn nothing that anyone can claim, and Aretia gets nothing.
 
-**Status: UNAUDITED. Not deployed on any mainnet. Deployed on Sepolia only (section 11). The Launch card is behind a build flag that is off. Aggregators and routers do not know this contract and will not route to it.**
+**Status: UNAUDITED. Not deployed on any mainnet. The source changed after the October 2026 review (section 13): the Sepolia deployment of section 11 is the OLD build and the web code no longer speaks its ABI, so `EVM_POOL_ADDRESSES.sepolia` is null until the new build is deployed. The Launch card is behind a build flag that is off. Aggregators and routers do not know this contract and will not route to it.**
 
 Contract: `contracts-evm/AretiaPool.sol` (solc 0.8.26, optimizer 200, EVM paris, so one build runs on every chain below). Committed artifact: `AretiaPool.artifact.json`, rebuilt by `compile-pool.mjs`.
 Web: `website/src/scripts/walletAretiaPoolEvm{Core,Tx,Flow}.ts`, the card in `walletAretiaPoolEvm.ts`, and `walletYourPoolsEvm*.ts` for the Your pools page.
@@ -15,9 +15,9 @@ All are constants or constructor arguments. None can change after deployment (th
 
 | Decision | Value now | Notes |
 |---|---|---|
-| Protocol share of every trading fee | 20% (`PROTOCOL_SHARE_BPS = 2000`) | Same as Solana. Sent to the fee address inside the trade. No claim step, no way around it. |
+| Protocol share of every trading fee | 20% (`PROTOCOL_SHARE_BPS = 2000`) | Same as Solana. Owed to the fee address (`protocolOwed`, counted in `totalOwed`) and paid out by `withdrawProtocolFees()`, which anyone may call and which pays only the fee address. A trade never sends coin to the fee address (review M-2). |
 | Creator-chosen trading fee | 0.25% or 1% | The only two values the contract accepts. |
-| Flat creation fee | The chain's token-creation fee: 0.0042 ETH, 0.014 BNB, 105 POL | Constructor argument `creationFee`, paid inside `createPool` to the fee address. Testnets use the testnet token-creation fees (0.0001, 0.0001, 0.1). |
+| Flat creation fee | The chain's token-creation fee: 0.0042 ETH, 0.014 BNB, 105 POL | Constructor argument `creationFee`, paid inside `createPool` and owed to the fee address like the protocol share. Testnets use the testnet token-creation fees (0.0001, 0.0001, 0.1). |
 | Fee address | `0xeb8725e16e504036c2166aa47804d88ecc4d0945` | Constructor argument `feeRecipient`, the same on every chain. |
 | Quote asset | The chain's native coin only | Section 4. |
 | Fee when a curve graduates into a pool | Not set | Section 9. |
@@ -27,7 +27,7 @@ All are constants or constructor arguments. None can change after deployment (th
 * One pool per token per chain, always against the quote asset.
 * Constant product `X * Y = k` with a virtual quote reserve `l`. **Single-sided creation**: the creator deposits only tokens, `l` sets the starting price, and the pool holds no real coin until people buy. Nobody can sell for more coin than buyers paid in, so the price never falls below the start.
 * The same integer maths: buy takes the fee off the coin first (rounded up) and prices the rest rounding tokens out down; sell prices the coin out rounding down, refuses a sale that would pay out more coin than the pool really holds, and takes the fee from the coin out (rounded up). Every rounding favours the pool.
-* Fee tiers 0.25% and 1%. The fee is always in the coin, so there is exactly one fee asset. `protocol = floor(fee * 2000 / 10_000)` is sent to Aretia during the trade; the rest (`lp`) stays in the contract outside the reserves, raises a per-share accumulator (`acc += lp * 2^64 / l`, rounded down) and is claimable by liquidity positions, **locked or not**.
+* Fee tiers 0.25% and 1%. The fee is always in the coin, so there is exactly one fee asset. `protocol = floor(fee * 2000 / 10_000)` is owed to Aretia (accrued, withdrawn separately); the rest (`lp`) stays in the contract outside the reserves, raises a per-share accumulator (`acc += (lp * 2^64 + carry) / l`, the remainder carried to the next fee in `accRemainder`) and is claimable by liquidity positions, **locked or not**.
 * Liquidity is one number, `l`, equal to shares. Add: the depositor pays `ceil(x*dl/l)` tokens and `ceil(y*dl/l)` coin. Remove: `floor` of both. Fees settle first. `k` per share never falls.
 * Permanent lock (`lock` at creation, `lockLiquidity` later; nothing lowers it). Locked liquidity can never be removed by anyone; its fees stay claimable.
 * Fee recipient per position (`setRecipient`) works on locked liquidity: the lock covers the liquidity, not where the fees go.
@@ -60,14 +60,16 @@ What it costs, said plainly: a router that expects a token/WETH pair will not re
 
 All reverts carry a short reason string.
 
-* `createPool(CreateParams)` payable: `token, factoryNonce, x0, l0, y0, feeBps, lock, owner, firstBuyWei, minFirstBuyOut`. Send exactly `creationFee + y0 + firstBuyWei`. Needs the token approved for `x0`. Bounds: `x0 >= 1000`, `l0 >= 10^12`, everything below 2^112. `y0` is usually zero (the curve graduation would use it). `owner` is normally the caller.
-* `buy(token, minTokensOut)` payable. All of `msg.value` is used.
-* `sell(token, tokensIn, minCoinOut)`. Needs the token approved.
-* `addLiquidity(token, dl, maxTokens)` payable: pay at least `ceil(y*dl/l)`; the excess is returned. `dl >= 1000`.
-* `removeLiquidity(token, dl, minTokens, minCoin)`.
-* `claimFees(token)`, `lockLiquidity(token, amount)`, `transferPosition(token, to)`, `setRecipient(token, recipient)`.
-* Views: `pools`, `positions`, `quoteBuy`, `quoteSell`, `pendingFees`, `totalOwed`.
-* Events: `Created`, `Swapped`, `LiquidityChanged`, `Claimed`, `Locked`, `PositionTransferred`, `RecipientSet`.
+* `createPool(CreateParams)` payable: `token, factoryNonce, x0, l0, y0, feeBps, lock, owner, firstBuyWei, minFirstBuyOut, deadline`. `lock` **must be true**: the creator's starting liquidity is always locked for good (M-9). Send exactly `creationFee + y0 + firstBuyWei`. Needs the token approved for `x0`. Bounds: `x0 >= 1000`, `l0 >= 10^12`, everything below 2^112. `y0` is usually zero (the curve graduation would use it). `owner` is normally the caller.
+* `buy(token, minTokensOut, deadline)` payable. All of `msg.value` is used.
+* `sell(token, tokensIn, minCoinOut, deadline)`. Needs the token approved.
+* `addLiquidity(token, dl, maxTokens, deadline)` payable: pay at least `ceil(y*dl/l)`; the excess is returned. `dl >= 1000`.
+* `removeLiquidity(token, dl, minTokens, minCoin, deadline)`. A position left with no shares and nothing pending is deleted.
+* Every `deadline` is unix seconds; the call reverts with `expired` after it (L-20). The page sets 20 minutes and its inspector accepts at most an hour.
+* `claimFees(token)` (deletes a position left empty), `lockLiquidity(token, amount)`, `transferPosition(token, to)` (merges into `to`'s position if it has one, L-19), `setRecipient(token, recipient)`.
+* `withdrawProtocolFees()`: anyone; pays `protocolOwed` to `feeRecipient` (M-2).
+* Views: `pools` (ten words: `feeBps, creator, createdAt, x, y, l, acc, feeReserve, locked, accRemainder`), `positions`, `quoteBuy` (zero when `buy` would hit the size limit, I-7), `quoteSell`, `pendingFees`, `totalOwed`, `protocolOwed`.
+* Events: `Created`, `Swapped(token, trader, isBuy, coinIn, coinOut, tokensIn, tokensOut, fee, protocol, x, y)` (a buy: coin paid in and tokens out; a sell: tokens in and coin paid out after the fee), `LiquidityChanged`, `Claimed`, `Locked` (also at creation, for `l0`), `PositionTransferred`, `RecipientSet` (the stored value: zero means the owner), `PositionClosed`, `ProtocolFeesWithdrawn`.
 
 ## 6. Attack list
 
@@ -81,9 +83,12 @@ All reverts carry a short reason string.
 | 6 | Sandwiching | Every swap has a minimum output; the card sets it from a quote with stated slippage. A public mempool cannot be defended against beyond that. |
 | 7 | Reentrancy | `nonReentrant` on every state-changing function; state is written before any token transfer or coin send; tested with a token that re-enters during a transfer and a contract wallet that re-enters when paid. |
 | 8 | Hostile token | Only factory tokens are accepted; under that every transfer is balance-checked (fee on transfer, false return, lying balance, no-op transfer: all revert). |
-| 9 | Fee-address griefing | Fixed, ordinary account; the verify script checks it. |
+| 9 | Fee-address griefing (an EIP-7702 account that starts refusing coin) | **Pull payment**: trades never send to the fee address; only `withdrawProtocolFees()` does, and its failure affects nothing else (review M-2; `contracts-evm/test/pool.test.mjs`, PoC 2). |
 | 10 | Draining through fee accounting | `feeReserve` rises by the full LP fee and falls only by what a claim pays; credits round down so claims never sum to more than credited; `balance >= totalOwed` after every call. |
 | 11 | Removing locked liquidity | `removeLiquidity` allows at most `shares - locked`; `locked` has no decrement path; `transferPosition` keeps it. |
+| 11a | Creator opens unlocked and withdraws buyers' coin (M-9) | `createPool` requires `lock`; `pools(token).locked` is the pool's locked total, and the trade card shows "x% of liquidity locked" with a warning when any of it can leave. |
+| 11b | Dust position pushed to an address to block transfers to it; empty positions never closing (L-19) | Transfers merge into an existing position; positions with no shares and nothing pending are deleted; "Your pools" filters to live positions before its 50-row cap. |
+| 11c | A trade or deposit held back and mined much later (L-20) | `deadline` on create, buy, sell, add and remove. |
 | 12 | A stranger opens the pool first at a bad price | Anyone holding the token can. The card checks for an existing pool first. Accepted risk, same as Solana and Meteora. |
 | 13 | Position takeover | Positions are keyed by the caller's address; every position function acts on `msg.sender`'s own. |
 | 14 | Pool drained to dust, then a victim adds | Adds are pro rata and capped by `maxTokens` and `msg.value`. |
@@ -120,7 +125,9 @@ That is a **new curve contract**, because the deployed one is immutable, and it 
 
 ## 11. Deployment and what has actually been run
 
-**Sepolia: DEPLOYED AND VERIFIED (2026-10-18).** Test token factory `0xac1b5010eab26f6d5e53e0ee9c246376a914891e`, pool `0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421` (block 11939451), deployed by the throwaway test key `0x5B708eC0393c7799D985CCa3D331c4C6202E2421`. `pool-evm.mjs verify` passed every check against the live network, and `walletAretiaPoolEvm.devnet.ts` ran the real web flow against Sepolia end to end (token made by the factory, pool with a first buy, buy, sell, add, remove, locked liquidity refused, claim while locked, fees redirected and claimed to a fresh wallet, position handed over). The pool address, deploy block and test factory are written into `walletAretiaPoolEvmCore.ts`. The run found one real-network problem, now fixed: a public node can answer an allowance read from a block just before the approval, so the flow re-reads a few times before treating a mismatch as real.
+**The Sepolia deployment below is the OLD build** (before section 13). Redeploy the new build with `pool-evm.mjs deploy --chain sepolia --send`, verify it, and write its address and block back into `walletAretiaPoolEvmCore.ts` before using the card there.
+
+**Sepolia (old build): DEPLOYED AND VERIFIED (2026-10-18).** Test token factory `0xac1b5010eab26f6d5e53e0ee9c246376a914891e`, pool `0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421` (block 11939451), deployed by the throwaway test key `0x5B708eC0393c7799D985CCa3D331c4C6202E2421`. `pool-evm.mjs verify` passed every check against the live network, and `walletAretiaPoolEvm.devnet.ts` ran the real web flow against Sepolia end to end (token made by the factory, pool with a first buy, buy, sell, add, remove, locked liquidity refused, claim while locked, fees redirected and claimed to a fresh wallet, position handed over). The pool address, deploy block and test factory are written into `walletAretiaPoolEvmCore.ts`. The run found one real-network problem, now fixed: a public node can answer an allowance read from a block just before the approval, so the flow re-reads a few times before treating a mismatch as real.
 
 **BSC testnet and Amoy: NOT deployed yet.** They need tBNB and test POL on the same deployer address, then:
 
@@ -135,7 +142,7 @@ Same for `polygonAmoy`. Then write the printed addresses and deploy block into `
 
 **Also run, on a local node first:** the same deploy and verify scripts, unchanged, against a local test node (ganache, chain id set to Sepolia's, throwaway key). The factory and the pool deployed, `verify` passed every check (byte-for-byte code, `factory()`, `feeRecipient()`, `creationFee()` equal to the factory's fee, the constants, solvency) and failed correctly when pointed at the wrong contract. Then `walletAretiaPoolEvm.devnet.ts` drove the real web flow (with its inspector) against that node over JSON-RPC: made a token with the real factory, created a pool with a first buy, bought, sold, added and removed liquidity, refused to remove locked liquidity, claimed fees while locked, redirected the fees to a fresh wallet and claimed to it (exact amount), and handed the position over. A local node is not a public testnet: it proves the scripts, the flow and the contract work together over RPC, not that anything works on those networks.
 
-**Mainnet read-only checks:** `pool-evm.mjs prepare` was run for Ethereum, BNB Chain and Polygon. It only reads: it confirmed each chain's token factory exists, pays the Aretia fee address and charges exactly the creation fee used here (0.0042 ETH, 0.014 BNB, 105 POL), and that the fee address is an ordinary account. Nothing was signed or sent to any mainnet. Runtime keccak of the committed build with each chain's constructor arguments: Ethereum `0x7df9e3dd…a529`, BNB `0xc458a218…f0f3`, Polygon `0xb975df74…af8c`.
+**Mainnet read-only checks:** `pool-evm.mjs prepare` was run for Ethereum, BNB Chain and Polygon. It only reads: it confirmed each chain's token factory exists, pays the Aretia fee address and charges exactly the creation fee used here (0.0042 ETH, 0.014 BNB, 105 POL), and that the fee address is an ordinary account. Nothing was signed or sent to any mainnet. Runtime keccak of the OLD build with each chain's constructor arguments: Ethereum `0x7df9e3dd…a529`, BNB `0xc458a218…f0f3`, Polygon `0xb975df74…af8c`; run `prepare` again for the new build's values.
 
 Re-run the live flow any time with:
 
@@ -158,3 +165,19 @@ On Windows build and test outside OneDrive.
 ## 12. What is unaudited and untested on mainnet
 
 Everything. No independent review of the contract, the maths or the web code has happened. Nothing has run on mainnet. The owner confirms the 20% share, the fee tiers and the creation fees (section 1) before any mainnet build.
+
+## 13. Changes after the October 2026 review (needs a redeploy)
+
+`docs/audit/2026-10-full-review/REPORT.md` findings fixed in `AretiaPool.sol` (the regression tests in `contracts-evm/test/pool.test.mjs` replay the review's `poc/evm-pool/poc.mjs` scenarios and show each now fails):
+
+| Finding | Change |
+|---|---|
+| M-2 | Pull payment. The creation fee and the protocol share accrue in `protocolOwed`, counted in `totalOwed` (so solvency covers them). `withdrawProtocolFees()` is callable by anyone and pays only `feeRecipient`. No trade, creation or liquidity call sends coin to the fee address, so it cannot freeze trading. |
+| M-9 | `createPool` requires `lock`: the creator's `l0` is locked for good and emitted as `Locked`. `Pool.locked` tracks every lock (never falls) and is read by the trade card ("x% of liquidity locked", warning when below 100%). |
+| L-19 | **Merge, not reject:** `transferPosition` onto an address that already has a position merges the two (shares, locked shares and settled fees add; the destination keeps its own fee recipient). Merging was chosen over "reject only non-empty" because giving someone a position only ever adds value to it, so there is nothing to protect them from, and it removes the griefing entirely. Positions with no shares and no pending fees are deleted on `removeLiquidity` and `claimFees`. |
+| L-20 | A `deadline` on `createPool` (in its parameters), `buy`, `sell`, `addLiquidity`, `removeLiquidity`. |
+| I-3 | `Locked` at creation; `Swapped` reports `coinIn, coinOut, tokensIn, tokensOut` separately; `RecipientSet` emits the stored value; new `PositionClosed` and `ProtocolFeesWithdrawn`. |
+| I-5 | The LP-fee rounding remainder is carried in `accRemainder` to the next fee instead of being lost; what is not yet claimable is bounded by one unit per share, however many trades. Forced coin is still stranded. |
+| I-7 | `quoteBuy` returns zeros when `buy` would refuse on the size limit. |
+
+Web: `walletAretiaPoolEvm{Core,Tx,Flow}.ts` and the card use the new selectors and encodings, set and inspect deadlines, read the ten-word `pools`, carry `accRemainder` in the quote maths, show the locked share, and no longer refuse a transfer to a wallet that has a position. "Your pools" filters to open positions with shares (or fees still to claim) before applying its 50-row cap. Runtime bytecode sha-256 of the new build as compiled: `2a7e4a02250bdf1145397ccd6d10cadc728883c0e7b72a48fbd8175bfd6cfba3` (immutables zero).

@@ -6,7 +6,8 @@
  * constants (walletCurveEvmCore.ts), never from the page or the chain.
  *
  * The transactions: approve (the token, exactly the tokens, to the curve), create (one call, which may carry the creator's own first buy),
- * buy, sell (preceded by an approve), graduate, abort.
+ * buy, sell (preceded by an approve), graduate, abort; and, for a graduation blocked by a pre-made pair, an approval to the rescue helper
+ * (only when the repair needs tokens) and the helper's `rescue(token, maxTokens)`.
  */
 import { keccak256 } from '../swings/core/keccak.js';
 import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
@@ -31,6 +32,13 @@ export const CURVE_SEL = {
   curves: selectorOf('curves(address)'),
   totalOwed: selectorOf('totalOwed()'),
   allowance: selectorOf('allowance(address,address)'),
+} as const;
+
+/** The rescue helper's functions (contracts-evm/AretiaCurveRescue.sol). */
+export const RESCUE_SEL = {
+  rescue: selectorOf('rescue(address,uint256)'),
+  quote: selectorOf('quote(address)'),
+  curve: selectorOf('curve()'),
 } as const;
 
 // ---------------------------------------------------------------- builders
@@ -62,6 +70,15 @@ export const buildSellTx = (from: string, chain: EvmCurveChain, token: string, t
 
 export const buildGraduateTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.graduate + addrWord(token), value: '0x0' });
 export const buildAbortTx = (from: string, chain: EvmCurveChain, token: string): EvmTxRequest => ({ from, to: chain.curve, data: CURVE_SEL.abort + addrWord(token), value: '0x0' });
+
+/** The rescue: to the helper, the token and the most tokens it may take from the caller, carrying at most the planned coin. */
+export const buildRescueTx = (from: string, helper: string, token: string, maxTokens: bigint, wei: bigint): EvmTxRequest => ({
+  from,
+  to: helper,
+  data: RESCUE_SEL.rescue + addrWord(token) + word(maxTokens),
+  value: toHexQuantity(wei),
+});
+export const rescueQuoteData = (token: string): string => RESCUE_SEL.quote + addrWord(token);
 
 /** The read call for a curve's stored numbers. */
 export const curveReadData = (token: string): string => CURVE_SEL.curves + addrWord(token);
@@ -198,3 +215,49 @@ export function inspectTokenOnly(tx: EvmTxRequest, c: TradeCheck, selector: stri
 }
 export const inspectGraduate = (tx: EvmTxRequest, c: TradeCheck, walletChainId: number): string[] => inspectTokenOnly(tx, c, CURVE_SEL.graduate, 'graduation', walletChainId);
 export const inspectAbort = (tx: EvmTxRequest, c: TradeCheck, walletChainId: number): string[] => inspectTokenOnly(tx, c, CURVE_SEL.abort, 'unwind', walletChainId);
+
+// ---------------------------------------------------------------- the rescue helper (M-4, L-12)
+
+export interface RescueCheck {
+  chain: EvmCurveChain;
+  from: string;
+  token: string;
+  /** Exactly what the review showed. */
+  maxTokens: bigint;
+  wei: bigint;
+  /** The most coin this rescue may ever carry: the plan's coin (the helper returns anything unused). */
+  maxWei: bigint;
+}
+
+/** The approval for a rescue must name the configured HELPER (never anyone else), be for exactly the planned tokens, and carry no coin. */
+export function inspectRescueApprove(tx: EvmTxRequest, c: { chain: EvmCurveChain; from: string; token: string; amount: bigint }, walletChainId: number): string[] {
+  const p = common(tx, c.chain, c.from, walletChainId);
+  if (!c.chain.rescue) p.push('There is no rescue helper for this network.');
+  if (!toIs(tx, c.token)) p.push('The approval is not sent to the token you chose.');
+  if (valueOf(tx) !== 0n) p.push('The approval carries coins, which it should not.');
+  const d = typeof tx.data === 'string' && tx.data.toLowerCase().startsWith(APPROVE_SELECTOR) ? decodeApprove(tx.data) : null;
+  if (!d) p.push('The transaction data is not a plain approval.');
+  else {
+    if (!c.chain.rescue || d.spender !== c.chain.rescue) p.push('The approval names someone other than Aretia’s rescue helper.');
+    if (d.amount !== c.amount || c.amount === 0n) p.push('The approval is for a different amount of tokens than you approved.');
+  }
+  return p;
+}
+
+/** The rescue must go to the configured helper with exactly `rescue(token, maxTokens)` and carry exactly the coin shown, never more than the plan. */
+export function inspectRescue(tx: EvmTxRequest, c: RescueCheck, walletChainId: number): string[] {
+  const p = common(tx, c.chain, c.from, walletChainId);
+  if (!c.chain.rescue) p.push('There is no rescue helper for this network.');
+  else if (!toIs(tx, c.chain.rescue)) p.push('The transaction is not sent to Aretia’s rescue helper for this network.');
+  const v = valueOf(tx);
+  if (v !== c.wei) p.push('The coins sent are not exactly the amount shown.');
+  if (v === null || v > c.maxWei) p.push('The coins sent are more than the rescue needs.');
+  const w = typeof tx.data === 'string' ? words(tx.data, RESCUE_SEL.rescue, 2) : null;
+  const token = w ? asAddr(w[0]!) : null;
+  if (!w || token === null) p.push('The transaction data is not a plain rescue.');
+  else {
+    if (token !== c.token.toLowerCase()) p.push('The rescue is for a different token than you chose.');
+    if (big(w[1]!) !== c.maxTokens) p.push('The most tokens it may take is not the one shown.');
+  }
+  return p;
+}

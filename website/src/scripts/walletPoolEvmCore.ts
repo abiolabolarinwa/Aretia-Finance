@@ -45,6 +45,17 @@ export const POOL_DEXES: readonly PoolDex[] = [
   { key: 'polygon', chainId: 137, name: 'QuickSwap', router: '0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff', factory: '0x5757371414417b8c6caad45baef941abc7d3ab32', wrapped: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', symbol: 'POL', stables: { USDC: { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', decimals: 6 }, USDT: { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', decimals: 6 } } },
 ];
 
+/**
+ * Aretia's pair seeder (contracts-evm/AretiaPairSeeder.sol) per chain, built against that chain's router above, lower-case. NULL UNTIL
+ * DEPLOYED (docs/BONDING_CURVE_EVM.md, "Deploying the rescue helper and the pair seeder"). It opens a pool whose pair someone made first
+ * and left dust in (review finding M-4), which the router cannot. While null, such a token gets a plain explanation instead.
+ */
+export const EVM_PAIR_SEEDER_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
+  ethereum: null,
+  bnb: null,
+  polygon: null,
+};
+
 export const dexFor = (key: string, table: readonly PoolDex[] = POOL_DEXES): PoolDex | undefined => table.find((d) => d.key === key);
 
 /** Where locked liquidity goes: an address nobody holds a key for. */

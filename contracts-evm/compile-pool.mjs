@@ -5,8 +5,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
-const require = createRequire(import.meta.url);
-const solc = require('solc');
+// solc is looked up from the current folder first (e.g. contracts-evm/test with its node_modules), then next to this file.
+const solc = (() => {
+  try {
+    return createRequire(join(process.cwd(), 'noop.js'))('solc');
+  } catch {
+    return createRequire(import.meta.url)('solc');
+  }
+})();
 if (solc.version().indexOf('0.8.26') !== 0) throw new Error(`need solc 0.8.26, have ${solc.version()}`);
 const dir = process.argv[2] ?? '.';
 const source = readFileSync(join(dir, 'AretiaPool.sol'), 'utf8').replace(/\r\n/g, '\n');

@@ -12,8 +12,8 @@ wallets/
 *seed*phrase*
 *private*key*
 
-# Dependencies
-node_modules/
+# Dependencies (no trailing slash: also matches a node_modules SYMLINK, which a pattern ending in / does not)
+node_modules
 
 # Anchor/Rust build output (regeneratable, not source; program keypairs
 # under target/deploy/ are covered by the *-keypair.json rule above too)

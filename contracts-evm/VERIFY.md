@@ -44,3 +44,5 @@ node scripts/curve-mainnet.mjs verify --chain ethereum --address 0x4e85bc5bd6f08
 It rebuilds the expected runtime code from the artifact and these constructor arguments, compares it byte for byte with the chain, reads back `factory()`, `feeRecipient()`, `router()`, `weth()` and `FEE_BPS()`, reads the token factory's `feeRecipient()` and `fee()`, and stops if the fee address has any code (an EIP-7702 delegation would let it freeze trading; see `docs/operations/fee-key-monitor.md`). Repeat with `--chain bnb` and `--chain polygon`.
 
 The source's comments are kept exactly as verified; `README.md` lists the ones that are out of date.
+
+The helpers `AretiaCurveRescue` (constructor: the curve address) and `AretiaPairSeeder` (constructor: the chain's router) are verified the same way with their own standard-input files, once deployed (`docs/BONDING_CURVE_EVM.md`, section 16).

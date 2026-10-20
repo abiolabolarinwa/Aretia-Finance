@@ -6,14 +6,17 @@
  *             the balances, and that no pool with liquidity already exists for the pair
  *   create    approval for exactly the tokens (inspect, simulate, send, wait, read the allowance back), then the pool transaction (new deadline,
  *             inspect, simulate, send, wait), then read the pool back and compare its reserves and where the liquidity went with the approval
+ * If someone made the pair first and left dust in it with no liquidity tokens (review finding M-4), the router cannot open it. Then, when
+ * Aretia's pair seeder is deployed for the chain (EVM_PAIR_SEEDER_ADDRESSES), the approval names the seeder and the pool transaction is the
+ * seeder's `seed`, which opens the pair at exactly the chosen amounts; otherwise the page explains and sends nothing.
  * The approval and the pool are two transactions. If the second cannot go ahead, the approval stays in place for exactly the tokens approved and
  * nothing else has happened; the error says so.
  */
 import { SwingsError } from '../swings/core/types.js';
 import type { EvmFlowDeps } from './walletLaunchEvmFlow';
 import { toHexQuantity } from './walletLaunchEvmTx';
-import type { PoolConfig } from './walletPoolEvmCore';
-import { SEL, buildAddTx, buildApproveTx, buildFeeTx, inspectAddTx, inspectApproveTx, inspectFeeTx } from './walletPoolEvmTx';
+import { EVM_PAIR_SEEDER_ADDRESSES, type PoolConfig } from './walletPoolEvmCore';
+import { SEL, buildAddTx, buildApproveTx, buildFeeTx, buildSeedApproveTx, buildSeedTx, inspectAddTx, inspectApproveTx, inspectFeeTx, inspectSeedTx, seederQuoteData } from './walletPoolEvmTx';
 
 export interface PoolFlowDeps extends EvmFlowDeps {
   /** Unix seconds. */
@@ -31,6 +34,8 @@ export interface PoolReview {
   coinBalance: bigint;
   tokenBalance: bigint;
   blockers: string[];
+  /** Set when the pool must be opened through Aretia's pair seeder (a pair made first with dust in it): the seeder and what it will take. */
+  seed?: { seeder: string; pair: string; tokensPaid: bigint; coinPaid: bigint } | null;
 }
 
 export type PoolProgress = 'checking' | 'paying-fee' | 'confirming-fee' | 'approving' | 'confirming-approve' | 'adding' | 'confirming' | 'verifying' | 'done';
@@ -68,7 +73,10 @@ const GAS_MARGIN_DEN = 10n;
 const ADD_GAS_CEILING = 450_000n;
 
 export class PoolFlow {
-  constructor(private readonly d: PoolFlowDeps) {}
+  constructor(
+    private readonly d: PoolFlowDeps,
+    private readonly seeders: Readonly<Partial<Record<string, string | null>>> = EVM_PAIR_SEEDER_ADDRESSES,
+  ) {}
 
   private sleep = (ms: number) => (this.d.sleep ?? ((n: number) => new Promise<void>((r) => setTimeout(r, n))))(ms);
   private call = (to: string, data: string): Promise<unknown> => this.d.read('eth_call', [{ to, data }, 'latest']);
@@ -83,6 +91,7 @@ export class PoolFlow {
     let gasCostWei: bigint | null = null;
     let coinBalance = 0n;
     let tokenBalance = 0n;
+    let seed: PoolReview['seed'] = null;
     try {
       if (asBig(await read('eth_chainId', [])) !== BigInt(dex.chainId)) blockers.push(`The network node did not answer as the right network. Try again in a moment.`);
       else {
@@ -106,8 +115,28 @@ export class PoolFlow {
           const pair = addr(await this.call(dex.factory, SEL.getPair + pad(config.token) + pad(dex.wrapped)));
           if (pair && pair !== ZERO) {
             const r = reservesOf(await this.call(pair, SEL.getReserves));
-            if (r === null) blockers.push('A pool for this token already exists and could not be read, so nothing was sent.');
-            else if (r[0] > 0n || r[1] > 0n) blockers.push('A pool for this token already exists with liquidity in it, at a price that is not yours. This page only opens a new pool.');
+            const supply = word(await this.call(pair, SEL.totalSupply));
+            const [balT, balC] = await Promise.all([this.call(config.token, SEL.balanceOf + pad(pair)), this.call(dex.wrapped, SEL.balanceOf + pad(pair))]);
+            const dust = r !== null && (r[0] > 0n || r[1] > 0n || (word(balT) ?? 0n) > 0n || (word(balC) ?? 0n) > 0n);
+            if (r === null || supply === null) blockers.push('A pool for this token already exists and could not be read, so nothing was sent.');
+            else if (supply > 0n) blockers.push('A pool for this token already exists with liquidity in it, owned by whoever added it, at a price that is not yours. This page only opens a new pool.');
+            else if (dust) {
+              // Someone made the pair first and left dust in it without adding liquidity (review finding M-4): the router cannot open it.
+              const seeder = this.seeders[dex.key] ?? null;
+              if (!seeder) {
+                blockers.push(`Someone already made this token’s pool on ${dex.name} and left a few coins or tokens in it without adding liquidity. That blocks opening it through ${dex.name}’s router. Aretia’s pair seeder, which opens such a pool at exactly your amounts, is not deployed on this network yet, so this page cannot open it.`);
+              } else {
+                const q = await this.call(seeder, seederQuoteData(config));
+                const ok = typeof q === 'string' && /^0x[0-9a-fA-F]{256}$/.test(q) && BigInt('0x' + q.slice(2, 66)) === 1n;
+                if (!ok) blockers.push(`Someone already made this token’s pool on ${dex.name} and put more in it than your amounts, so it cannot be opened at your price.`);
+                else {
+                  const tokensPaid = BigInt('0x' + (q as string).slice(130, 194));
+                  const coinPaid = BigInt('0x' + (q as string).slice(194, 258));
+                  seed = { seeder: seeder.toLowerCase(), pair, tokensPaid, coinPaid };
+                  approveTx = buildSeedApproveTx(config, seed.seeder, tokensPaid);
+                }
+              }
+            }
           }
         }
         if (blockers.length === 0) {
@@ -128,7 +157,7 @@ export class PoolFlow {
     } catch {
       blockers.push('The network could not be reached to check this pool. Try again in a moment.');
     }
-    return { config, feeTx, feeBalance, approveTx, gasCostWei, coinBalance, tokenBalance, blockers };
+    return { config, feeTx, feeBalance, approveTx, gasCostWei, coinBalance, tokenBalance, blockers, seed };
   }
 
   private async receipt(hash: string): Promise<{ status?: string } | null> {
@@ -176,7 +205,8 @@ export class PoolFlow {
     } catch {
       throw new PoolError('The network would refuse the fee transfer, so nothing was sent.', true);
     }
-    const approveProblems = inspectApproveTx(review.approveTx, config, await this.d.adapter.getChainId());
+    const seed = review.seed ?? null;
+    const approveProblems = inspectApproveTx(review.approveTx, config, await this.d.adapter.getChainId(), seed ? { seeder: seed.seeder, amount: seed.tokensPaid } : undefined);
     if (approveProblems.length > 0) throw new PoolError(`Not signing: ${approveProblems.join(' ')}`, true);
     try {
       await this.d.read('eth_call', [{ from: review.approveTx.from, to: review.approveTx.to, data: review.approveTx.data, value: '0x0' }, 'latest']);
@@ -190,14 +220,14 @@ export class PoolFlow {
     const ar = await this.receipt(approveHash);
     if (!ar) throw new PoolError(`The approval was sent but has not confirmed yet. Check ${approveHash} on an explorer, then start again.`);
     if (ar.status !== '0x1') throw new PoolError(`The approval failed on the network; nothing was approved and no fee was charged. (${approveHash})`);
-    const allowance = word(await this.call(config.token, SEL.allowance + pad(config.creator) + pad(dex.router)));
-    if (allowance !== config.tokenRaw) throw new PoolError(`The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
+    const allowance = word(await this.call(config.token, SEL.allowance + pad(config.creator) + pad(seed ? seed.seeder : dex.router)));
+    if (allowance !== (seed ? seed.tokensPaid : config.tokenRaw)) throw new PoolError(`The approval confirmed but the allowance is not exactly what you approved, so the pool was not opened. Your tokens did not move. (${approveHash})`);
 
     // The pool transaction is built now, so its deadline starts now.
     const now = this.d.nowSeconds();
-    let addTx = buildAddTx(config, now);
+    let addTx = seed ? buildSeedTx(config, seed.seeder) : buildAddTx(config, now);
     const stuck = 'The approval is in place for exactly the tokens you chose and no fee was charged. You can start again to open the pool.';
-    const addProblems = inspectAddTx(addTx, config, await this.d.adapter.getChainId(), now);
+    const addProblems = seed ? inspectSeedTx(addTx, config, seed.seeder, await this.d.adapter.getChainId()) : inspectAddTx(addTx, config, await this.d.adapter.getChainId(), now);
     if (addProblems.length > 0) throw new PoolError(`Not signing the pool: ${addProblems.join(' ')} ${stuck}`);
     try {
       const gas = asBig(await this.d.read('eth_estimateGas', [addTx]));

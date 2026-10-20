@@ -1,12 +1,14 @@
 /**
  * Aretia Launch on Ethereum-style chains: the rules for selling a token on Aretia's own bonding curve, with no network access and no keys.
  *
- * The contract is contracts-evm/AretiaCurve.sol (design record: docs/BONDING_CURVE_EVM.md). It is UNAUDITED and not deployed anywhere. This
- * file is its web side. The maths is the Solana curve's, in BigInt, written to match contracts-evm exactly and checked against it by
- * walletCurveEvmContract.test.ts; it has no 64-bit limit because wei amounts need more.
+ * The contract is contracts-evm/AretiaCurve.sol (design record: docs/BONDING_CURVE_EVM.md). It is UNAUDITED, and it IS deployed and
+ * immutable on Ethereum, BNB Chain and Polygon (addresses below). This file is its web side. The maths is the Solana curve's, in BigInt,
+ * written to match contracts-evm exactly and checked against it by walletCurveEvmContract.test.ts; it has no 64-bit limit because wei
+ * amounts need more.
  *
- * Two things keep this off until the contract has been audited and deployed: the build flag PUBLIC_CURVE_ENABLED, and a table of contract
- * addresses (EVM_CURVE_ADDRESSES) in which every entry is null.
+ * The card stays off unless the build sets PUBLIC_CURVE_ENABLED=1. Known issues of the deployed contract are handled around it here: the
+ * share of supply outside a curve is shown on every card (review finding M-3), and a graduation blocked by a pre-made pair can go through
+ * the rescue helper once it is deployed (M-4, L-12; EVM_CURVE_RESCUE_ADDRESSES).
  */
 import { fromSmallestUnit, toSmallestUnit } from './walletTools';
 import { CURVE_FEE_BPS } from './walletCurveCore';
@@ -14,7 +16,7 @@ import { chainByKey, isEvmAddress, type LaunchEvmChainKey } from './walletLaunch
 import { POOL_DEXES, type PoolDex } from './walletPoolEvmCore';
 import { keccak256 } from '../swings/core/keccak.js';
 
-/** The deployed AretiaCurve on each chain, lower-case. Null until audited and deployed. Nothing works for a chain whose entry is null. */
+/** The deployed AretiaCurve on each chain, lower-case. Nothing works for a chain whose entry is null. */
 export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
   // Ethereum mainnet, deployed from a fresh gas-only wallet and checked byte for byte by scripts/curve-mainnet.mjs verify. The card stays off unless the build sets PUBLIC_CURVE_ENABLED=1.
   ethereum: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
@@ -22,6 +24,17 @@ export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, str
   bnb: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
   // Polygon mainnet, same deployer and nonce as Ethereum so the same address; checked by scripts/curve-mainnet.mjs verify.
   polygon: '0x4e85bc5bd6f08fa87ceb749372e34226556837e8',
+};
+
+/**
+ * The deployed AretiaCurveRescue (contracts-evm/AretiaCurveRescue.sol) for each chain's curve, lower-case. NULL UNTIL DEPLOYED: the owner
+ * deploys it per chain (docs/BONDING_CURVE_EVM.md, "Deploying the rescue helper and the pair seeder"), checks it, then writes it here.
+ * While null, a graduation blocked by a pre-made pair is explained and only the 7-day unwind is offered.
+ */
+export const EVM_CURVE_RESCUE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
+  ethereum: null,
+  bnb: null,
+  polygon: null,
 };
 
 export const EVM_MIN_TARGET_WEI = 10n ** 16n;
@@ -48,16 +61,24 @@ export interface EvmCurveChain {
   /** The token factory the curve accepts tokens from, lower-case. */
   factory: string;
   dex: PoolDex;
+  /** The rescue-graduate helper for this curve, lower-case, or null when none is deployed (then no "Graduate anyway"). */
+  rescue: string | null;
 }
 
-/** The chain's curve setup, or null when there is no deployed contract (every chain today), or the chain lacks a factory or an exchange. */
-export function evmCurveChain(key: string, addresses: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = EVM_CURVE_ADDRESSES): EvmCurveChain | null {
+/** The chain's curve setup, or null when there is no deployed contract, or the chain lacks a factory or an exchange. */
+export function evmCurveChain(
+  key: string,
+  addresses: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = EVM_CURVE_ADDRESSES,
+  rescues: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = EVM_CURVE_RESCUE_ADDRESSES,
+): EvmCurveChain | null {
   const k = key as LaunchEvmChainKey;
   const chain = chainByKey(k);
   const curve = addresses[k];
   const dex = POOL_DEXES.find((d) => d.key === k);
   if (!chain || !curve || !chain.factory || !dex || !isEvmAddress(curve)) return null;
-  return { key: k, chainId: chain.chainId, name: chain.name, symbol: chain.symbol, explorer: chain.explorer, curve: curve.toLowerCase(), factory: chain.factory, dex };
+  const r = rescues[k];
+  const rescue = r && isEvmAddress(r) ? r.toLowerCase() : null;
+  return { key: k, chainId: chain.chainId, name: chain.name, symbol: chain.symbol, explorer: chain.explorer, curve: curve.toLowerCase(), factory: chain.factory, dex, rescue };
 }
 
 // ---------------------------------------------------------------- the maths (the contract's, in BigInt)
@@ -233,6 +254,40 @@ export function evmCurveProblems(c: EvmCurveState): string[] {
 }
 
 export const evmCanGraduate = (c: EvmCurveState): boolean => c.status === 'soldOut' && c.realTok === 0n;
+
+// ---------------------------------------------------------------- supply outside the curve (review finding M-3)
+
+export interface EvmSupplyOutside {
+  totalSupply: bigint;
+  /** Tokens the curve was given: for sale plus kept for the pool. */
+  committed: bigint;
+  /** Supply never put into the curve. Holders of it can sell into the curve up to what buyers have bought, ahead of them. */
+  outside: bigint;
+  /** Shares of the total supply, in basis points (rounded: outside up, committed down, so the warning is never understated). */
+  committedBps: number;
+  outsideBps: number;
+}
+
+/** How much of a token's supply is on its curve and how much is outside it. */
+export function evmSupplyOutside(totalSupply: bigint, c: Pick<EvmCurveState, 'curveTokens' | 'lpTokens'>): EvmSupplyOutside {
+  const committed = c.curveTokens + c.lpTokens;
+  const outside = totalSupply > committed ? totalSupply - committed : 0n;
+  if (totalSupply === 0n) return { totalSupply, committed, outside, committedBps: 0, outsideBps: 0 };
+  const outsideBps = Number(ceilDiv(outside * BPS, totalSupply));
+  return { totalSupply, committed, outside, committedBps: 10_000 - outsideBps, outsideBps };
+}
+
+const pctText = (bps: number): string => (bps / 100).toFixed(2).replace(/\.?0+$/, '');
+
+/**
+ * The warning shown on every curve card and before opening a curve with less than the whole supply. Null when the whole supply is on the
+ * curve. `openerHeld` is the curve opener's live balance, when known.
+ */
+export function evmOutsideWarning(o: EvmSupplyOutside, openerHeld: bigint | null, fmt: (raw: bigint) => string): string | null {
+  if (o.outside === 0n) return null;
+  const opener = openerHeld === null ? '' : ` The wallet that opened this curve holds ${fmt(openerHeld)} of them right now.`;
+  return `${pctText(o.outsideBps)}% of supply (${fmt(o.outside)} tokens) is outside this curve; holders of it can sell ahead of you. The curve pays sellers from what buyers paid in, so if they sell first, buyers can be left unable to sell back.${opener}`;
+}
 export const evmCanAbort = (c: EvmCurveState, nowSecs: number): boolean => c.status === 'soldOut' && BigInt(nowSecs) >= c.soldOutAt + BigInt(EVM_ABORT_AFTER_SECS);
 
 // ---------------------------------------------------------------- creating a curve
@@ -370,7 +425,7 @@ export function evmCurvePreview(form: Pick<EvmCurveForm, 'tokenAmount' | 'target
   };
 }
 
-export function evmCurveDisclosures(kind: 'create' | 'buy' | 'sell' | 'graduate' | 'abort', symbol: string): { severity: 'info' | 'caution'; text: string }[] {
+export function evmCurveDisclosures(kind: 'create' | 'buy' | 'sell' | 'graduate' | 'abort' | 'rescue', symbol: string): { severity: 'info' | 'caution'; text: string }[] {
   const unaudited = { severity: 'caution' as const, text: 'The curve contract is new and has not been independently audited. Do not put in more than you can lose entirely.' };
   const fee = { severity: 'info' as const, text: `Aretia takes ${EVM_FEE_BPS / 100}% of the ${symbol} side of every trade, paid in the same transaction. Nothing else is taken.` };
   switch (kind) {
@@ -399,6 +454,13 @@ export function evmCurveDisclosures(kind: 'create' | 'buy' | 'sell' | 'graduate'
       ];
     case 'abort':
       return [{ severity: 'info', text: 'The curve sold out but never moved into a pool. This reopens selling (not buying), so holders can sell back along the curve.' }, unaudited];
+    case 'rescue':
+      return [
+        { severity: 'info', text: `Someone made this token's pool on the exchange before the curve could, and left a few coins or tokens in it, which blocks the normal move into a pool. Aretia's rescue helper repairs that pool to the curve's own price and moves the curve into it, all in one transaction, so nobody can block it again in between.` },
+        { severity: 'info', text: `You pay at most the ${symbol} and tokens shown. Anything not needed comes back to you in the same transaction, and so does anything the repair takes out of the pre-made pool. The curve's own checks still apply: it only moves into a pool at its own price.` },
+        { severity: 'caution', text: 'The rescue helper is new and has not been independently audited. It holds nothing, has no owner, and can only take tokens from your own wallet, up to the amount you approve.' },
+        unaudited,
+      ];
   }
 }
 
@@ -409,4 +471,45 @@ export function parseEvmCurveHash(hash: string): { chain: LaunchEvmChainKey; tok
   const m = /^#\/launch\/curve\/evm\/([a-zA-Z]+)\/(0x[0-9a-fA-F]{40})$/.exec(hash.trim());
   if (!m || !chainByKey(m[1] as LaunchEvmChainKey)) return null;
   return { chain: m[1] as LaunchEvmChainKey, token: m[2]!.toLowerCase() };
+}
+
+// ---------------------------------------------------------------- a pre-made exchange pair, and the rescue helper's plan (M-4, L-12)
+
+/** The token/wrapped-coin pair on the curve's exchange, as read before graduating. */
+export interface EvmPairState {
+  pair: string;
+  reserveToken: bigint;
+  reserveCoin: bigint;
+  /** Balances above the reserves (sent but not synced). */
+  unsyncedToken: bigint;
+  unsyncedCoin: bigint;
+}
+
+/** Whether a pair blocks the curve's plain `graduate`: it holds anything at all, synced or not. */
+export const evmPairBlocks = (p: EvmPairState | null): boolean => p !== null && (p.reserveToken > 0n || p.reserveCoin > 0n || p.unsyncedToken > 0n || p.unsyncedCoin > 0n);
+
+/** AretiaCurveRescue.quote(token): what a rescue needs and gives right now. */
+export interface EvmRescuePlan {
+  pair: string;
+  reserveToken: bigint;
+  reserveCoin: bigint;
+  finalToken: bigint;
+  finalCoin: bigint;
+  /** Approve this many tokens to the helper and pass it as `maxTokens`. */
+  tokensIn: bigint;
+  /** Send this much coin with the call. */
+  coinIn: bigint;
+  /** What the repair pays the caller, on top of any unused coin. */
+  tokensOut: bigint;
+  coinOut: bigint;
+}
+
+/** Decodes the 11-word answer of `quote(address)`. Null for anything else, or a plan that pays out on both sides. */
+export function parseRescuePlan(hex: unknown): EvmRescuePlan | null {
+  if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]{704}$/.test(hex)) return null;
+  const w = (i: number): bigint => BigInt('0x' + hex.slice(2 + i * 64, 2 + (i + 1) * 64));
+  if (w(0) >> 160n !== 0n) return null;
+  const plan = { pair: '0x' + hex.slice(2 + 24, 2 + 64).toLowerCase(), reserveToken: w(1), reserveCoin: w(2), finalToken: w(3), finalCoin: w(4), tokensIn: w(5), coinIn: w(6), tokensOut: w(7), coinOut: w(8) };
+  if (plan.tokensOut > 0n && plan.coinOut > 0n) return null;
+  return plan;
 }

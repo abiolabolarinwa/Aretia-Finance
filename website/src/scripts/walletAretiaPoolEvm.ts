@@ -23,6 +23,7 @@ import {
   evmPoolPreview,
   evmPoolShareHash,
   lockTextOf,
+  lockedShareText,
   parseEvmPoolHash,
   poolClaimable,
   poolPriceText,
@@ -220,7 +221,7 @@ export function createEvmAretiaPool(host: PoolEvmHost): { draw(card: HTMLElement
     const chain = evmPoolChain(form.chain);
     const sym = chain?.symbol ?? 'coin';
     card.append(
-      h('p', 'wapp__fine', `Open Aretia’s own pool for a token. You put in tokens only; buyers pay ${sym} and the price rises. Aretia keeps 20% of every trading fee, and the rest goes to the people providing liquidity. Your liquidity is locked for good, and you can still claim its fees. Only tokens made on this page with Aretia’s token factory can have a pool. Your own wallet signs everything.`),
+      h('p', 'wapp__fine', `Open Aretia’s own pool for a token. You put in tokens only; buyers pay ${sym} and the price rises. Aretia is owed 20% of every trading fee (paid out separately, never inside your trade), and the rest goes to the people providing liquidity. Your liquidity is locked for good, and you can still claim its fees. Only tokens made on this page with Aretia’s token factory can have a pool. Your own wallet signs everything.`),
     );
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
@@ -288,7 +289,11 @@ export function createEvmAretiaPool(host: PoolEvmHost): { draw(card: HTMLElement
     row(dl, 'Tokens in the pool', amountText(p.x, dec));
     row(dl, `${sym} in the pool`, `${fromSmallestUnit(p.y, 18)} ${sym}`);
     row(dl, 'Fee', `${Number(p.feeBps) / 100}% of each trade: 20% of it to Aretia, 80% to liquidity providers`);
+    const lockedShare = lockedShareText(p);
+    row(dl, 'Liquidity locked', lockedShare.text);
     card.append(dl);
+    // The price floor holds, but unlocked liquidity can take the coin behind it out (review finding M-9): say how much can leave.
+    if (lockedShare.warn) card.append(errorBox(`Warning: ${lockedShare.text}`));
     card.append(copyButton('Copy link to this pool', shareLink(lookup.trim())));
 
     const slip = h('div', 'wapp-ln__field');
@@ -350,7 +355,7 @@ export function createEvmAretiaPool(host: PoolEvmHost): { draw(card: HTMLElement
       card.append(
         field('Send my fees to another wallet (address)', 'apool-evm-recipient', recipientText, (v) => (recipientText = v), { mono: true, placeholder: '0x…', hint: 'Works even while the liquidity is locked. You can change it again at any time.' }),
         button('Review change', false, () => void startAction('recipient')),
-        field('Hand this whole position to another wallet (address)', 'apool-evm-transfer', transferText, (v) => (transferText = v), { mono: true, placeholder: '0x…', hint: 'Locked liquidity and unclaimed fees go with it. You cannot get it back.' }),
+        field('Hand this whole position to another wallet (address)', 'apool-evm-transfer', transferText, (v) => (transferText = v), { mono: true, placeholder: '0x…', hint: 'Locked liquidity and unclaimed fees go with it. If that wallet already has a position here, the two are merged into it. You cannot get it back.' }),
         button('Review hand-over', false, () => void startAction('transfer')),
       );
     }

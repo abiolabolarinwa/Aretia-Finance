@@ -96,7 +96,7 @@ function world(opts: { maxRange?: number } = {}) {
       if (d.startsWith(POOL_SEL.factory)) return '0x' + w32(BigInt(chain.factory));
       if (d.startsWith(POOL_SEL.feeRecipient)) return '0x' + w32(BigInt(chain.feeAddress));
       if (d.startsWith(POOL_SEL.creationFee)) return '0x' + w32(chain.creationFee);
-      if (d.startsWith(POOL_SEL.pools)) return '0x' + [25n, BigInt(ME), 1n, math.x, math.y, math.l, math.acc, math.feeReserve].map(w32).join('');
+      if (d.startsWith(POOL_SEL.pools)) return '0x' + [25n, BigInt(ME), 1n, math.x, math.y, math.l, math.acc, math.feeReserve, math.l, 0n].map(w32).join('');
       if (d.startsWith(POOL_SEL.positions)) {
         const token = '0x' + d.slice(10 + 24, 10 + 64);
         const who = '0x' + d.slice(10 + 64 + 24);
@@ -174,6 +174,20 @@ describe('listing a wallet’s positions', () => {
     const r = await engine.list(ME, ['ethereum']);
     expect(r.truncated).toBe(true);
     expect(r.rows).toHaveLength(MAX_EVM_POSITIONS);
+  });
+  it('filters out empty positions BEFORE capping, so spam cannot push real positions off the list (L-19)', async () => {
+    const { state, engine, own } = world();
+    for (let i = 0; i < MAX_EVM_POSITIONS + 10; i++) {
+      const t = '0x' + (i + 1).toString(16).padStart(40, '0');
+      state.logs.push({ block: 2000, topics: [POOL_EVENT_TOPICS.liquidity, topicAddr(t), topicAddr(ME)] });
+      // open but empty: no shares, nothing pending
+      state.positions.set(`${t}:${ME}`, { shares: 0n, locked: 0n, checkpoint: 0n, pending: 0n });
+    }
+    state.logs.push({ block: 3000, topics: [POOL_EVENT_TOPICS.created, topicAddr(TOKEN_A), topicAddr(ME), topicAddr(ME)] });
+    own(TOKEN_A);
+    const r = await engine.list(ME, ['ethereum']);
+    expect(r.rows.map((x) => x.token)).toEqual([TOKEN_A]);
+    expect(r.truncated).toBe(false);
   });
 });
 

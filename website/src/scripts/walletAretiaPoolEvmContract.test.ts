@@ -43,6 +43,7 @@ interface Pool {
   l: bigint;
   acc: bigint;
   feeReserve: bigint;
+  accRemainder: bigint;
 }
 interface Pos {
   open: boolean;
@@ -54,6 +55,11 @@ interface Pos {
 }
 const emptyPos = (): Pos => ({ open: false, shares: 0n, locked: 0n, checkpoint: 0n, pending: 0n, recipient: '0x' + '0'.repeat(40) });
 const MAX = 1n << 112n;
+/** The contract's `_creditFees`: LP fee spread into `acc`, the remainder carried (review finding I-5). */
+const cred = (p: Pool, lp: bigint) => {
+  const scaled = (lp << 64n) + p.accRemainder;
+  return { acc: p.acc + scaled / p.l, accRemainder: scaled % p.l, feeReserve: p.feeReserve + lp };
+};
 
 function mBuy(p: Pool, gross: bigint) {
   if (gross <= 0n || gross >= MAX) return null;
@@ -65,7 +71,7 @@ function mBuy(p: Pool, gross: bigint) {
   if (out <= 0n) return null;
   const protocol = (fee * SHARE) / BPS;
   const lp = fee - protocol;
-  const next: Pool = { ...p, x: p.x - out, y: p.y + net, acc: p.acc + (lp << 64n) / p.l, feeReserve: p.feeReserve + lp };
+  const next: Pool = { ...p, x: p.x - out, y: p.y + net, ...cred(p, lp) };
   if (next.y + next.l >= MAX) return null;
   return { fee, net, out, protocol, lp, next };
 }
@@ -77,15 +83,15 @@ function mSell(p: Pool, tokens: bigint) {
   const fee = ceilDiv(gross * p.feeBps, BPS);
   const protocol = (fee * SHARE) / BPS;
   const lp = fee - protocol;
-  return { gross, fee, net: gross - fee, protocol, lp, next: { ...p, x: p.x + tokens, y: p.y - gross, acc: p.acc + (lp << 64n) / p.l, feeReserve: p.feeReserve + lp } as Pool };
+  return { gross, fee, net: gross - fee, protocol, lp, next: { ...p, x: p.x + tokens, y: p.y - gross, ...cred(p, lp) } as Pool };
 }
 const settle = (p: Pool, q: Pos): Pos => ({ ...q, pending: q.pending + ((q.shares * (p.acc - q.checkpoint)) >> 64n), checkpoint: p.acc });
 
 describe('the BigInt model agrees with the web core quote functions', () => {
   it('on a spread of pools and trades', () => {
-    const base: EvmPoolMath = { feeBps: 25n, x: 10n ** 27n, y: 0n, l: 10n * ETH, acc: 0n, feeReserve: 0n };
+    const base: EvmPoolMath = { feeBps: 25n, x: 10n ** 27n, y: 0n, l: 10n * ETH, acc: 0n, feeReserve: 0n, accRemainder: 0n };
     let a = base;
-    let b: Pool = { ...base };
+    let b: Pool = { ...base, accRemainder: 0n };
     for (const wei of [ETH / 9n, ETH, 3n * ETH / 7n, 5n * ETH, 1n, 100n]) {
       const qa = poolQuoteBuy(a, wei);
       const qb = mBuy(b, wei);
@@ -113,7 +119,17 @@ describe('the BigInt model agrees with the web core quote functions', () => {
 describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
   const sel = (sig: string): string => (poolArtifact.pool.selectors as Record<string, string>)[sig]!;
   const word = (v: bigint | string | boolean): string => (typeof v === 'string' ? v.replace(/^0x/, '').toLowerCase().padStart(64, '0') : typeof v === 'boolean' ? (v ? '1' : '0').padStart(64, '0') : v.toString(16).padStart(64, '0'));
-  const call = (sig: string, ...args: (bigint | string | boolean)[]): string => '0x' + sel(sig) + args.map(word).join('');
+  /** The new build adds a deadline as the last argument of these; the tests name the old signatures and get a far deadline appended. */
+  const FAR = 4_000_000_000n;
+  const DEADLINED: Record<string, string> = {
+    'buy(address,uint256)': 'buy(address,uint256,uint256)',
+    'sell(address,uint256,uint256)': 'sell(address,uint256,uint256,uint256)',
+    'addLiquidity(address,uint256,uint256)': 'addLiquidity(address,uint256,uint256,uint256)',
+    'removeLiquidity(address,uint256,uint256,uint256)': 'removeLiquidity(address,uint256,uint256,uint256,uint256)',
+    'createPool((address,uint256,uint256,uint256,uint256,uint256,bool,address,uint256,uint256))': 'createPool((address,uint256,uint256,uint256,uint256,uint256,bool,address,uint256,uint256,uint256))',
+  };
+  const call = (sig: string, ...args: (bigint | string | boolean)[]): string =>
+    DEADLINED[sig] ? '0x' + sel(DEADLINED[sig]!) + [...args, FAR].map(word).join('') : '0x' + sel(sig) + args.map(word).join('');
   const mockSel = (c: string, sig: string): string => ((mocksArtifact as any)[c].selectors as Record<string, string>)[sig]!;
   const mcall = (c: string, sig: string, ...args: (bigint | string | boolean)[]): string => '0x' + mockSel(c, sig) + args.map(word).join('');
   /** ABI tail for a `bytes` argument: its length, then the bytes padded to a whole word. */
@@ -191,7 +207,12 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
       return p;
     };
     const readPos = async (token: string, who: string) => parsePositionReturn(await view(pool, call('positions(address,address)', token, who)))!;
-    const totalOwed = async () => BigInt(await view(pool, call('totalOwed()')));
+    /** Owed to Aretia's fee address and not yet withdrawn (the new build never pays it inside a trade). */
+    const protocolOwed = async () => BigInt(await view(pool, call('protocolOwed()')));
+    /** What the contract owes pools and positions: totalOwed less the protocol's part. */
+    const totalOwed = async () => BigInt(await view(pool, call('totalOwed()'))) - (await protocolOwed());
+    /** The contract's coin less what is owed to the fee address: what backs the pools. */
+    const poolHeld = async () => (await balance(pool)) - (await protocolOwed());
 
     const open = async (o: { supply?: bigint; x0?: bigint; l0?: bigint; feeBps?: bigint; lock?: boolean; creator?: string; firstBuy?: bigint; minFirst?: bigint } = {}) => {
       const creator = o.creator ?? CREATOR;
@@ -203,7 +224,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
       return t;
     };
     return {
-      util, vm, fund, send, fails, view, balance, addr, pool, factory, realFactory, hostileFactory, makeToken, makeHostile, tokenBalance, approve, readPool, readPos, totalOwed, open, deploy, exec, toHex, create, valueFor, feeTo,
+      util, vm, fund, send, fails, view, balance, addr, pool, factory, realFactory, hostileFactory, makeToken, makeHostile, tokenBalance, approve, readPool, readPos, totalOwed, protocolOwed, poolHeld, open, deploy, exec, toHex, create, valueFor, feeTo,
       buy: (from: string, token: string, wei: bigint, minOut = 0n) => send(from, pool, call('buy(address,uint256)', token, minOut), wei),
       sell: (from: string, token: string, amount: bigint, minOut = 0n) => send(from, pool, call('sell(address,uint256,uint256)', token, amount, minOut)),
       add: (from: string, token: string, dl: bigint, maxTokens: bigint, wei: bigint) => send(from, pool, call('addLiquidity(address,uint256,uint256)', token, dl, maxTokens), wei),
@@ -221,19 +242,21 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
   const L0 = 10n * ETH;
   const BUYER = W[1]!;
   const OTHER = W[2]!;
-  const toModel = (p: ReturnType<typeof parsePoolReturn>): Pool => ({ feeBps: p!.feeBps, x: p!.x, y: p!.y, l: p!.l, acc: p!.acc, feeReserve: p!.feeReserve });
+  const toModel = (p: ReturnType<typeof parsePoolReturn>): Pool => ({ feeBps: p!.feeBps, x: p!.x, y: p!.y, l: p!.l, acc: p!.acc, feeReserve: p!.feeReserve, accRemainder: p!.accRemainder });
 
   it('opens a single-sided pool, holds the tokens, charges the creation fee, and refuses everything it should', async () => {
     const w = await world();
     const before = await w.balance(CREATOR);
     const t = await w.open();
     const p = await w.readPool(t.token);
-    expect(p).toMatchObject({ feeBps: 25n, creator: CREATOR, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n });
+    expect(p).toMatchObject({ feeBps: 25n, creator: CREATOR, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n, accRemainder: 0n });
     expect(await w.tokenBalance(t.token, w.pool)).toBe(SUPPLY);
-    expect(await w.balance(w.pool)).toBe(0n);
-    expect(await w.balance(FEE_RECIPIENT)).toBe(CREATION_FEE);
+    expect(await w.poolHeld()).toBe(0n);
+    expect(await w.protocolOwed()).toBe(CREATION_FEE);
     expect(before - (await w.balance(CREATOR))).toBe(CREATION_FEE);
     expect(await w.readPos(t.token, CREATOR)).toMatchObject({ open: true, shares: L0, locked: L0, pending: 0n, recipient: null });
+    expect(p).toMatchObject({ locked: L0 });
+    expect(await w.balance(FEE_RECIPIENT)).toBe(0n); // owed, not pushed
     expect(await w.totalOwed()).toBe(0n);
 
     // Refusals.
@@ -250,6 +273,8 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     expect(await go({ l0: MIN_L - 1n })).toBe('l0');
     expect(await go({ l0: 1n << 112n })).toBe('l0');
     expect(await go({ owner: '0x' + '0'.repeat(40) })).toBe('owner');
+    // The creator's liquidity is always locked (review finding M-9).
+    expect(await go({ lock: false })).toBe('must lock');
     expect(await go({}, CREATION_FEE - 1n)).toBe('value');
     expect(await go({}, CREATION_FEE + 1n)).toBe('value');
     expect(await go({ y0: 5n }, CREATION_FEE)).toBe('value');
@@ -268,7 +293,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     const w = await world();
     const t = await w.makeToken(CREATOR, SUPPLY);
     await w.approve(CREATOR, t.token, w.pool, SUPPLY);
-    const base: Pool = { feeBps: 25n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n };
+    const base: Pool = { feeBps: 25n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n, accRemainder: 0n };
     const q = mBuy(base, ETH)!;
     const c = (min: bigint) => w.create({ token: t.token, nonce: t.nonce, x0: SUPPLY, l0: L0, firstBuy: ETH, minFirst: min });
     expect(await w.fails(CREATOR, w.pool, c(q.out + 1n), CREATION_FEE + ETH)).toBe('slippage');
@@ -279,15 +304,15 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     expect(toModel(await w.readPool(t.token))).toEqual(q.next);
     expect(await w.tokenBalance(t.token, CREATOR)).toBe(q.out);
     expect(before - (await w.balance(CREATOR))).toBe(CREATION_FEE + ETH);
-    expect(await w.balance(FEE_RECIPIENT)).toBe(CREATION_FEE + q.protocol);
-    expect(await w.balance(w.pool)).toBe(q.next.y + q.next.feeReserve);
+    expect(await w.protocolOwed()).toBe(CREATION_FEE + q.protocol);
+    expect(await w.poolHeld()).toBe(q.next.y + q.next.feeReserve);
   });
 
   it('trades exactly as the model says, pays Aretia its 20% in the same transaction, and conserves every wei', async () => {
     for (const feeBps of [25n, 100n]) {
       const w = await world();
       const t = await w.open({ feeBps });
-      let m: Pool = { feeBps, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n };
+      let m: Pool = { feeBps, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n, accRemainder: 0n };
       let feeWallet = CREATION_FEE;
       await w.approve(BUYER, t.token, w.pool, 1n << 255n);
       for (const wei of [ETH / 3n, 7n * ETH, 12345n, 3n * ETH]) {
@@ -297,11 +322,11 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
         feeWallet += q.protocol;
         m = q.next;
         expect(buyerBefore - (await w.balance(BUYER))).toBe(wei);
-        expect(await w.balance(FEE_RECIPIENT)).toBe(feeWallet);
+        expect(await w.protocolOwed()).toBe(feeWallet);
         expect(q.protocol + q.lp).toBe(q.fee);
         expect(q.protocol).toBe((q.fee * 2000n) / 10_000n);
         expect(toModel(await w.readPool(t.token))).toEqual(m);
-        expect(await w.balance(w.pool)).toBe(m.y + m.feeReserve);
+        expect(await w.poolHeld()).toBe(m.y + m.feeReserve);
         expect(await w.totalOwed()).toBe(m.y + m.feeReserve);
       }
       // The buyer sells some back.
@@ -313,9 +338,9 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
         feeWallet += s.protocol;
         m = s.next;
         expect((await w.balance(BUYER)) - balBefore).toBe(s.net);
-        expect(await w.balance(FEE_RECIPIENT)).toBe(feeWallet);
+        expect(await w.protocolOwed()).toBe(feeWallet);
         expect(toModel(await w.readPool(t.token))).toEqual(m);
-        expect(await w.balance(w.pool)).toBe(m.y + m.feeReserve);
+        expect(await w.poolHeld()).toBe(m.y + m.feeReserve);
       }
       // The contract's own views equal the model and the web core.
       const qv = await w.view(w.pool, call('quoteBuy(address,uint256)', t.token, ETH));
@@ -352,7 +377,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     const w = await world();
     const t = await w.open();
     await w.approve(BUYER, t.token, w.pool, 1n << 255n);
-    let m: Pool = { feeBps: 25n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n };
+    let m: Pool = { feeBps: 25n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n, accRemainder: 0n };
     for (const wei of [ETH, 2n * ETH, ETH / 7n]) {
       m = mBuy(m, wei)!.next;
       await w.buy(BUYER, t.token, wei);
@@ -368,7 +393,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     expect((await w.readPos(t.token, CREATOR)).recipient).toBe(fresh);
     await w.claim(CREATOR, t.token);
     expect(await w.balance(fresh)).toBe(expected);
-    expect(await w.balance(w.pool)).toBe(m.y + m.feeReserve - expected);
+    expect(await w.poolHeld()).toBe(m.y + m.feeReserve - expected);
     expect(await w.fails(CREATOR, w.pool, call('claimFees(address)', t.token))).toBe('nothing');
     // Locked liquidity cannot be removed, partly or wholly.
     expect(await w.fails(CREATOR, w.pool, call('removeLiquidity(address,uint256,uint256,uint256)', t.token, 1n, 0n, 0n))).toBe('unlocked shares');
@@ -387,15 +412,18 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     const before = await w.balance(OTHER);
     await w.claim(OTHER, t.token);
     expect((await w.balance(OTHER)) - before).toBe(got);
-    // Cannot transfer onto a wallet that has a position, to oneself, or to zero.
-    await w.add(BUYER, t.token, 10_000n, 1n << 200n, ETH);
-    expect(await w.fails(OTHER, w.pool, call('transferPosition(address,address)', t.token, BUYER))).toBe('recipient has a position');
+    // Cannot transfer to oneself or to zero; onto a wallet that has a position, the two MERGE (review finding L-19).
     expect(await w.fails(OTHER, w.pool, call('transferPosition(address,address)', t.token, OTHER))).toBe('to');
+    expect(await w.fails(OTHER, w.pool, call('transferPosition(address,address)', t.token, '0x' + '0'.repeat(40)))).toBe('to');
+    await w.add(BUYER, t.token, 10_000n, 1n << 200n, ETH);
+    await w.transfer(OTHER, t.token, BUYER);
+    expect(await w.readPos(t.token, BUYER)).toMatchObject({ open: true, shares: L0 + 10_000n, locked: L0 });
+    expect(await w.readPos(t.token, OTHER)).toMatchObject({ open: false, shares: 0n });
   });
 
   it('adds and removes liquidity pro rata with deposits rounded up and withdrawals down, and leaves the minimum behind', async () => {
     const w = await world();
-    const t = await w.open({ lock: false, x0: SUPPLY / 2n });
+    const t = await w.open({ x0: SUPPLY / 2n });
     await w.approve(BUYER, t.token, w.pool, 1n << 255n);
     await w.approve(OTHER, t.token, w.pool, 1n << 255n);
     await w.buy(OTHER, t.token, 3n * ETH);
@@ -414,7 +442,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     m = { ...m, x: m.x + tokens, y: m.y + coin, l: m.l + dl };
     expect(toModel(await w.readPool(t.token))).toEqual(m);
     expect(await w.readPos(t.token, BUYER)).toMatchObject({ open: true, shares: dl, locked: 0n });
-    expect(await w.balance(w.pool)).toBe(m.y + m.feeReserve);
+    expect(await w.poolHeld()).toBe(m.y + m.feeReserve);
     // Add then remove the same shares never returns more than was put in.
     const back = poolQuoteRemove(m, dl)!;
     expect(back.tokens).toBeLessThanOrEqual(tokens);
@@ -425,17 +453,23 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     expect((await w.tokenBalance(t.token, BUYER)) - tokBefore).toBe(back.tokens);
     expect((await w.balance(BUYER)) - coinBefore).toBe(back.coin);
     expect(toModel(await w.readPool(t.token))).toEqual({ ...back.next, acc: m.acc, feeReserve: m.feeReserve, feeBps: 25n });
-    // Locking part of a position keeps that part in for good.
-    await w.lock(CREATOR, t.token, L0 / 2n);
-    expect(await w.fails(CREATOR, w.pool, call('removeLiquidity(address,uint256,uint256,uint256)', t.token, L0 / 2n + 1n, 0n, 0n))).toBe('unlocked shares');
-    expect(await w.fails(CREATOR, w.pool, call('lockLiquidity(address,uint256)', t.token, L0))).toBe('unlocked shares');
-    // The creator may take out everything but the minimum, never below it.
-    const rest = (await w.readPos(t.token, CREATOR)).shares - (await w.readPos(t.token, CREATOR)).locked;
-    expect(await w.fails(CREATOR, w.pool, call('removeLiquidity(address,uint256,uint256,uint256)', t.token, rest + 1n, 0n, 0n))).toBe('unlocked shares');
-    await w.remove(CREATOR, t.token, rest);
+    // A position that removed everything (and had nothing pending) is closed (review finding L-19).
+    expect(await w.readPos(t.token, BUYER)).toMatchObject({ open: false, shares: 0n });
+    // The creator's liquidity is locked for good.
+    expect(await w.fails(CREATOR, w.pool, call('removeLiquidity(address,uint256,uint256,uint256)', t.token, 1n, 0n, 0n))).toBe('unlocked shares');
+    expect(await w.fails(CREATOR, w.pool, call('lockLiquidity(address,uint256)', t.token, 1n))).toBe('unlocked shares');
+    // Locking part of a new position keeps that part in for good, and the pool's locked total follows.
+    const dl2 = 4n * ETH;
+    m = toModel(await w.readPool(t.token));
+    await w.add(BUYER, t.token, dl2, 1n << 200n, ceilDiv(m.y * dl2, m.l) + 1n);
+    await w.lock(BUYER, t.token, dl2 / 2n);
+    expect((await w.readPool(t.token))!.locked).toBe(L0 + dl2 / 2n);
+    expect(await w.fails(BUYER, w.pool, call('removeLiquidity(address,uint256,uint256,uint256)', t.token, dl2 / 2n + 1n, 0n, 0n))).toBe('unlocked shares');
+    await w.remove(BUYER, t.token, dl2 / 2n);
     const p = await w.readPool(t.token);
-    expect(p!.l).toBeGreaterThanOrEqual(MIN_L);
-    expect(await w.balance(w.pool)).toBe(p!.y + p!.feeReserve);
+    expect(p!.l).toBe(L0 + dl2 / 2n);
+    expect(p!.locked).toBe(p!.l);
+    expect(await w.poolHeld()).toBe(p!.y + p!.feeReserve);
   });
 
   it('keeps k from falling, fees summing exactly, and a round trip from profiting, over thousands of seeded trades', async () => {
@@ -446,7 +480,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
       return n === 0n ? 0n : (seed >> 11n) % n;
     };
     for (const feeBps of [25n, 100n]) {
-      let p: Pool = { feeBps, x: 10n ** 27n, y: 0n, l: 10n * ETH, acc: 0n, feeReserve: 0n };
+      let p: Pool = { feeBps, x: 10n ** 27n, y: 0n, l: 10n * ETH, acc: 0n, feeReserve: 0n, accRemainder: 0n };
       let credited = 0n;
       for (let i = 0; i < 6000; i++) {
         const k0 = p.x * (p.y + p.l);
@@ -478,10 +512,15 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
 
   it('runs a seeded random script of 400 operations across five wallets against the model, comparing every number after each step', async () => {
     const w = await world();
-    const t = await w.open({ lock: false, feeBps: 100n });
-    let m: Pool = { feeBps: 100n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n };
+    const t = await w.open({ feeBps: 100n });
+    let m: Pool = { feeBps: 100n, x: SUPPLY, y: 0n, l: L0, acc: 0n, feeReserve: 0n, accRemainder: 0n };
     const pos = new Map<string, Pos>(W.map((a) => [a, emptyPos()]));
-    pos.set(CREATOR, { open: true, shares: L0, locked: 0n, checkpoint: 0n, pending: 0n, recipient: '0x' + '0'.repeat(40) });
+    pos.set(CREATOR, { open: true, shares: L0, locked: L0, checkpoint: 0n, pending: 0n, recipient: '0x' + '0'.repeat(40) });
+    /** The contract deletes a position left with no shares and nothing pending. */
+    const closeIfEmpty = (a: string) => {
+      const q = pos.get(a)!;
+      if (q.open && q.shares === 0n && q.pending === 0n) pos.set(a, emptyPos());
+    };
     const tok = new Map<string, bigint>(W.map((a) => [a, 0n]));
     const sinks = ['0x00000000000000000000000000000000000dad01', '0x00000000000000000000000000000000000dad02'];
     const coinOf = new Map<string, bigint>();
@@ -497,7 +536,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
       seed = (seed * 6364136223846793005n + 1442695040888963407n) & ((1n << 64n) - 1n);
       return n <= 0n ? 0n : (seed >> 11n) % n;
     };
-    let feeWallet = CREATION_FEE;
+    let feeWallet = CREATION_FEE; // owed to the fee address, not paid
     const sinkBal = new Map<string, bigint>(sinks.map((s) => [s, 0n]));
     const settleP = (a: string) => pos.set(a, settle(m, pos.get(a)!));
     const comparePool = async (step: number) => {
@@ -511,8 +550,8 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
         expect(await w.balance(a), `coin ${a} at step ${step}`).toBe(coinOf.get(a)!);
       }
       for (const s of sinks) expect(await w.balance(s)).toBe(sinkBal.get(s)!);
-      expect(await w.balance(FEE_RECIPIENT), `fee wallet at step ${step}`).toBe(feeWallet);
-      expect(await w.balance(w.pool), `pool coin at step ${step}`).toBe(m.y + m.feeReserve);
+      expect(await w.protocolOwed(), `fee wallet at step ${step}`).toBe(feeWallet);
+      expect(await w.poolHeld(), `pool coin at step ${step}`).toBe(m.y + m.feeReserve);
       expect(await w.tokenBalance(t.token, w.pool), `pool tokens at step ${step}`).toBe(m.x);
       expect(await w.totalOwed()).toBe(m.y + m.feeReserve);
       // Solvency of claims: what every position could claim never exceeds the fee reserve.
@@ -598,6 +637,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
           await w.remove(a, t.token, dl, tokens, coin);
           settleP(a);
           pos.set(a, { ...pos.get(a)!, shares: pos.get(a)!.shares - dl });
+          closeIfEmpty(a);
           m = { ...m, x: m.x - tokens, y: m.y - coin, l: m.l - dl };
           tok.set(a, tok.get(a)! + tokens);
           coinOf.set(a, coinOf.get(a)! + coin);
@@ -613,6 +653,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
             const to = e.recipient === zero ? a : e.recipient;
             await w.claim(a, t.token);
             pos.set(a, { ...s, pending: 0n });
+            closeIfEmpty(a);
             m = { ...m, feeReserve: m.feeReserve - s.pending };
             if (sinks.includes(to)) sinkBal.set(to, sinkBal.get(to)! + s.pending);
             else coinOf.set(to, coinOf.get(to)! + s.pending);
@@ -636,10 +677,15 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
         }
       } else if (op === 'transfer') {
         const to = W[Number(rnd(5n))]!;
-        if (e.open && to !== a && !pos.get(to)!.open) {
+        if (e.open && to !== a) {
           await w.transfer(a, t.token, to);
           const s = settle(m, e);
-          pos.set(to, { ...s, recipient: zero });
+          const dst = pos.get(to)!;
+          if (dst.open) {
+            // Merged into the existing position, which keeps its own fee recipient.
+            const d = settle(m, dst);
+            pos.set(to, { ...d, shares: d.shares + s.shares, locked: d.locked + s.locked, pending: d.pending + s.pending });
+          } else pos.set(to, { ...s, recipient: zero });
           pos.set(a, emptyPos());
           accepted++;
         } else {
@@ -667,7 +713,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
 
   it('refuses to be re-entered while paying a seller or a fee claimant', async () => {
     const w = await world();
-    const t = await w.open({ lock: false });
+    const t = await w.open();
     // A contract wallet as buyer/seller: its receive function tries to sell again, then claim again, while being paid.
     const attacker = await w.deploy((mocksArtifact as any).Attacker.bytecode);
     await w.buy(OTHER, t.token, 5n * ETH);
@@ -687,7 +733,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     expect(BigInt(await w.view(attacker, mcall('Attacker', 'reentrySucceeded()')))).toBe(0n);
     expect((await w.balance(attacker)) - balBefore).toBe(s.net);
     expect(toModel(await w.readPool(t.token))).toEqual(s.next);
-    expect(await w.balance(w.pool)).toBe(s.next.y + s.next.feeReserve);
+    expect(await w.poolHeld()).toBe(s.next.y + s.next.feeReserve);
   });
 
   it('refuses a token that re-enters the pool during a transfer', async () => {
@@ -702,14 +748,14 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     await arm(true);
     // A buy: the pool pays the buyer tokens, the token calls back, the pool says "reentrant", the whole buy reverts.
     expect(await w.fails(BUYER, w.pool, call('buy(address,uint256)', t.token, 0n), ETH)).toBe('reentrant');
-    expect(await w.balance(w.pool)).toBe(0n);
+    expect(await w.poolHeld()).toBe(0n);
     // Not passed up: the inner call fails quietly, the outer succeeds, and the inner never took effect.
     await arm(false);
     await w.buy(BUYER, t.token, ETH);
     expect(BigInt(await w.view(t.token, mcall('HostileToken', 'reentered()')))).toBe(1n);
     expect(BigInt(await w.view(t.token, mcall('HostileToken', 'reentrySucceeded()')))).toBe(0n);
     const p = await w.readPool(t.token);
-    expect(await w.balance(w.pool)).toBe(p!.y + p!.feeReserve);
+    expect(await w.poolHeld()).toBe(p!.y + p!.feeReserve);
   });
 
   it('refuses hostile tokens: fee on transfer, false return, a short transfer, a transfer that moves nothing', async () => {
@@ -739,7 +785,7 @@ describe.skipIf(lib === null)('the compiled pool, in an in-process EVM', () => {
     const have = await w.tokenBalance(t.token, BUYER);
     await w.sell(BUYER, t.token, have);
     const p = await w.readPool(t.token);
-    expect(await w.balance(w.pool)).toBe(p!.y + p!.feeReserve);
+    expect(await w.poolHeld()).toBe(p!.y + p!.feeReserve);
   });
 
   it('cannot be blocked or drained by a recipient that refuses coin, and a donation changes nothing', async () => {

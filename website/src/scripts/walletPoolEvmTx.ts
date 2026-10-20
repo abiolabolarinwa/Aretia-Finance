@@ -24,6 +24,14 @@ export const SEL = {
   getReserves: selectorOf('getReserves()'),
   token0: selectorOf('token0()'),
   balanceOf: selectorOf('balanceOf(address)'),
+  totalSupply: selectorOf('totalSupply()'),
+} as const;
+
+/** Aretia's pair seeder (contracts-evm/AretiaPairSeeder.sol): opens a pair someone made first and left dust in (review finding M-4). */
+export const SEEDER_SEL = {
+  seed: selectorOf('seed(address,uint256,address)'),
+  quote: selectorOf('quote(address,uint256,uint256)'),
+  router: selectorOf('router()'),
 } as const;
 
 /** How long a pool transaction stays valid once built: if it is still waiting after this, the network refuses it. */
@@ -66,12 +74,15 @@ export const decodeAddLiquidityEth = (data: string): DecodedAdd | null => {
   return w && token && to ? { token, tokenRaw: BigInt('0x' + w[1]), tokenMin: BigInt('0x' + w[2]), coinMin: BigInt('0x' + w[3]), to, deadline: BigInt('0x' + w[5]) } : null;
 };
 
+/** Hex chain id: every transaction names the one network it is for, so a wallet on another network refuses it (audit L-1). */
+const chainHex = (id: number): string => '0x' + id.toString(16);
+
 export function buildFeeTx(c: PoolConfig): EvmTxRequest {
-  return { from: c.creator, to: c.fee.token, data: encodeTransfer(POOL_FEE_ADDRESS, c.fee.raw), value: '0x0' };
+  return { from: c.creator, to: c.fee.token, data: encodeTransfer(POOL_FEE_ADDRESS, c.fee.raw), value: '0x0', chainId: chainHex(c.dex.chainId) };
 }
 
 export function buildApproveTx(c: PoolConfig): EvmTxRequest {
-  return { from: c.creator, to: c.token, data: encodeApprove(c.dex.router, c.tokenRaw), value: '0x0' };
+  return { from: c.creator, to: c.token, data: encodeApprove(c.dex.router, c.tokenRaw), value: '0x0', chainId: chainHex(c.dex.chainId) };
 }
 
 /** The deadline is `nowSeconds` plus the window. The minimums equal the amounts, so a pool that already exists at another price makes it revert. */
@@ -81,14 +92,25 @@ export function buildAddTx(c: PoolConfig, nowSeconds: number): EvmTxRequest {
     to: c.dex.router,
     data: encodeAddLiquidityEth({ token: c.token, tokenRaw: c.tokenRaw, tokenMin: c.tokenRaw, coinMin: c.coinWei, to: c.lpTo, deadline: BigInt(nowSeconds + POOL_DEADLINE_SECONDS) }),
     value: toHexQuantity(c.coinWei),
+    chainId: chainHex(c.dex.chainId),
   };
 }
 
-const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas']);
+/** The seeder: pair reserves become exactly `tokenRaw` and `coinWei`, liquidity tokens to `lpTo`, coin sent exactly `coinWei` (dust is refunded). */
+export function buildSeedTx(c: PoolConfig, seeder: string): EvmTxRequest {
+  return { from: c.creator, to: seeder, data: SEEDER_SEL.seed + addrWord(c.token) + word(c.tokenRaw) + addrWord(c.lpTo), value: toHexQuantity(c.coinWei), chainId: chainHex(c.dex.chainId) };
+}
+export const seederQuoteData = (c: PoolConfig): string => SEEDER_SEL.quote + addrWord(c.token) + word(c.tokenRaw) + word(c.coinWei);
+export function buildSeedApproveTx(c: PoolConfig, seeder: string, amount: bigint): EvmTxRequest {
+  return { from: c.creator, to: c.token, data: encodeApprove(seeder, amount), value: '0x0', chainId: chainHex(c.dex.chainId) };
+}
+
+const ALLOWED = new Set(['from', 'to', 'data', 'value', 'gas', 'chainId']);
 
 function common(tx: EvmTxRequest, c: PoolConfig, walletChainId: number): string[] {
   const p: string[] = [];
   if (walletChainId !== c.dex.chainId) p.push(`The wallet is on network ${walletChainId}, not ${c.dex.chainId}.`);
+  if (tx.chainId !== chainHex(c.dex.chainId)) p.push(`The transaction is not bound to network ${c.dex.chainId}.`);
   for (const k of Object.keys(tx)) if (!ALLOWED.has(k)) p.push(`The transaction has an unexpected field (${k}).`);
   if (typeof tx.from !== 'string' || tx.from.toLowerCase() !== c.creator) p.push('The transaction is not from the account you approved.');
   if (tx.gas !== undefined && !(typeof tx.gas === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.gas) && BigInt(tx.gas) > 0n)) p.push('The gas limit is not a number.');
@@ -116,16 +138,24 @@ export function inspectFeeTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: num
   return p;
 }
 
-/** The approval must go to the token, name the exchange's router as spender, and be for exactly the tokens going in (never unlimited). */
-export function inspectApproveTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: number): string[] {
+/**
+ * The approval must go to the token, name the exchange's router as spender (or, when opening through Aretia's pair seeder, that seeder and
+ * nobody else), and be for exactly the tokens going in (never unlimited).
+ */
+export function inspectApproveTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: number, seed?: { seeder: string; amount: bigint }): string[] {
   const p = common(tx, c, walletChainId);
   if (typeof tx.to !== 'string' || tx.to.toLowerCase() !== c.token) p.push('The approval is not sent to the token you chose.');
   if (valueOf(tx) !== 0n) p.push('The approval carries coins, which it should not.');
   const d = typeof tx.data === 'string' ? decodeApprove(tx.data) : null;
   if (!d) p.push('The transaction data is not a plain approval.');
   else {
-    if (d.spender !== c.dex.router) p.push(`The approval names someone other than ${c.dex.name}’s router.`);
-    if (d.amount !== c.tokenRaw) p.push('The approval is for a different amount of tokens than you approved.');
+    if (seed) {
+      if (d.spender !== seed.seeder.toLowerCase()) p.push('The approval names someone other than Aretia’s pair seeder.');
+      if (d.amount !== seed.amount || seed.amount > c.tokenRaw) p.push('The approval is for a different amount of tokens than you approved.');
+    } else {
+      if (d.spender !== c.dex.router) p.push(`The approval names someone other than ${c.dex.name}’s router.`);
+      if (d.amount !== c.tokenRaw) p.push('The approval is for a different amount of tokens than you approved.');
+    }
   }
   return p;
 }
@@ -143,6 +173,23 @@ export function inspectAddTx(tx: EvmTxRequest, c: PoolConfig, walletChainId: num
     if (d.tokenMin !== c.tokenRaw || d.coinMin !== c.coinWei) p.push('The minimum amounts are not exactly the amounts, so the pool could be filled at a different price.');
     if (d.to !== c.lpTo) p.push(c.lock ? 'The liquidity would not go to the dead address, so it would not be locked.' : 'The liquidity tokens would go to someone other than you.');
     if (d.deadline <= BigInt(nowSeconds) || d.deadline > BigInt(nowSeconds + 3600)) p.push('The deadline is not within the next hour.');
+  }
+  return p;
+}
+
+/** The seeder call must go to the configured seeder and carry exactly the token, amounts and liquidity receiver approved. */
+export function inspectSeedTx(tx: EvmTxRequest, c: PoolConfig, seeder: string, walletChainId: number): string[] {
+  const p = common(tx, c, walletChainId);
+  if (typeof tx.to !== 'string' || tx.to.toLowerCase() !== seeder.toLowerCase()) p.push('The transaction is not sent to Aretia’s pair seeder for this network.');
+  if (valueOf(tx) !== c.coinWei) p.push(`The ${c.dex.symbol} sent is not exactly the amount you approved.`);
+  const w = typeof tx.data === 'string' ? words(tx.data, SEEDER_SEL.seed, 3) : null;
+  const token = w ? asAddr(w[0]!) : null;
+  const to = w ? asAddr(w[2]!) : null;
+  if (!w || !token || !to) p.push('The transaction data is not a plain pool opening.');
+  else {
+    if (token !== c.token) p.push('The pool is for a different token than you approved.');
+    if (BigInt('0x' + w[1]) !== c.tokenRaw) p.push('The number of tokens differs from the one you approved.');
+    if (to !== c.lpTo) p.push(c.lock ? 'The liquidity would not go to the dead address, so it would not be locked.' : 'The liquidity tokens would go to someone other than you.');
   }
   return p;
 }

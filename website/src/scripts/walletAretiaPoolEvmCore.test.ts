@@ -11,6 +11,8 @@ import {
   evmPoolPreview,
   evmPoolShareHash,
   lockTextOf,
+  lockedShareText,
+  lockedShareBps,
   parseEvmPoolHash,
   parsePoolReturn,
   parsePositionReturn,
@@ -39,11 +41,11 @@ const form = (over: Partial<EvmPoolForm> = {}): EvmPoolForm => ({ ...DEFAULT_EVM
 const w32 = (n: bigint) => n.toString(16).padStart(64, '0');
 
 describe('the chain table', () => {
-  it('has no pool address on any mainnet until a deployment is written in, and only the verified Sepolia test deployment', () => {
+  it('has no pool address anywhere until the new build is deployed (the old Sepolia deployment speaks the old ABI)', () => {
     const { ethereum, bnb, polygon, sepolia, ...others } = EVM_POOL_ADDRESSES;
     expect([ethereum, bnb, polygon]).toEqual([null, null, null]);
     expect(Object.values(others).every((a) => a === null)).toBe(true);
-    expect(sepolia).toBe('0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421');
+    expect(sepolia).toBeNull();
     expect(evmPoolChain('ethereum')).toBeNull();
   });
   it('takes each chain’s creation fee from the token-creation fee and the fee address from the same table', () => {
@@ -179,9 +181,12 @@ describe('validation', () => {
 });
 
 describe('reading the chain', () => {
-  const poolWords = (over: Partial<Record<number, bigint>> = {}) => '0x' + [25n, BigInt(CREATOR), 1_700_000_000n, 10n ** 27n, 0n, 10n * ETH, 0n, 0n].map((v, i) => w32(over[i] ?? v)).join('');
+  const poolWords = (over: Partial<Record<number, bigint>> = {}) => '0x' + [25n, BigInt(CREATOR), 1_700_000_000n, 10n ** 27n, 0n, 10n * ETH, 0n, 0n, 10n * ETH, 7n].map((v, i) => w32(over[i] ?? v)).join('');
   it('parses a pool return and refuses malformed ones or a missing pool', () => {
-    expect(parsePoolReturn(poolWords())).toMatchObject({ feeBps: 25n, creator: CREATOR, x: 10n ** 27n, l: 10n * ETH });
+    expect(parsePoolReturn(poolWords())).toMatchObject({ feeBps: 25n, creator: CREATOR, x: 10n ** 27n, l: 10n * ETH, locked: 10n * ETH, accRemainder: 7n });
+    // More locked than there is liquidity cannot be a real pool; the old eight-word answer is refused.
+    expect(parsePoolReturn(poolWords({ 8: 11n * ETH }))).toBeNull();
+    expect(parsePoolReturn(poolWords().slice(0, 2 + 8 * 64))).toBeNull();
     expect(parsePoolReturn(poolWords({ 0: 0n }))).toBeNull();
     expect(parsePoolReturn(poolWords({ 1: 1n << 200n }))).toBeNull();
     expect(parsePoolReturn('0x1234')).toBeNull();
@@ -220,6 +225,24 @@ describe('what the page tells people', () => {
       expect(text).toMatch(/audited/);
       expect(text).not.toMatch(/\bsafe\b|guarantee|risk-free/i);
     }
-    expect(evmPoolDisclosures('create', 'ETH').map((d) => d.text).join(' ')).toMatch(/20% of it goes to Aretia/);
+    expect(evmPoolDisclosures('create', 'ETH').map((d) => d.text).join(' ')).toMatch(/20% of it is owed to Aretia/);
+  });
+});
+
+describe('how much of a pool is locked (M-9) and the fee carry (I-5)', () => {
+  it('says 100% plainly, and warns with the withdrawable share otherwise', () => {
+    expect(lockedShareText({ locked: 10n, l: 10n })).toEqual({ text: '100% of liquidity locked for good', warn: false });
+    const part = lockedShareText({ locked: 3n, l: 4n });
+    expect(part.warn).toBe(true);
+    expect(part.text).toMatch(/^75% of liquidity locked for good\. The other 25% can be withdrawn/);
+    expect(lockedShareBps({ locked: 1n, l: 3n })).toBe(3333);
+    expect(lockedShareText({ locked: 0n, l: 0n }).warn).toBe(true);
+  });
+  it('carries the LP-fee remainder exactly as the contract does', () => {
+    const m = { feeBps: 100n, x: 10n ** 27n, y: 0n, l: 10n ** 22n, acc: 0n, feeReserve: 0n, accRemainder: 0n };
+    let cur: typeof m = m;
+    for (let i = 0; i < 40; i++) cur = { ...m, ...poolQuoteBuy(cur, 10_000n)!.next } as typeof m;
+    expect(cur.acc * cur.l + cur.accRemainder).toBe(cur.feeReserve << 64n);
+    expect(cur.acc).toBeGreaterThan(0n);
   });
 });

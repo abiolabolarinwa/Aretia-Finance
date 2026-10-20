@@ -20,6 +20,7 @@
 //! must never be given knowledge of, any project or its returns.
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::pubkey;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
@@ -41,33 +42,44 @@ pub const SECONDS_PER_DAY: i64 = 2;
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const NUM_TIERS: usize = 5; // tier 0 (no stake) through tier 4
 pub const NUM_DURATIONS: usize = 4; // 30 / 90 / 180 / 365 days
+/// Largest duration multiplier a config may set, in hundredths: 10.00x (I-18).
+/// The design table tops out at 2.00x; this bound only stops a typo or a
+/// compromised authority from making one lock length dwarf every other.
+pub const MAX_DURATION_MULTIPLIER: u16 = 1_000;
+/// Longest lock a config may offer: ten years.
+pub const MAX_DURATION_DAYS: u16 = 3_650;
+
+/// The only mint `initialize_config` accepts (M-10): real ACT, the
+/// Token-2022 mint in TOKENOMICS.md. A `test-mint` build (which
+/// `test-fast-clock` turns on) accepts act-presale's throwaway devnet test
+/// mint instead, so the throwaway test deployments can still be set up; such
+/// a build must never be deployed anywhere real.
+#[cfg(not(feature = "test-mint"))]
+pub const ACT_MINT: Pubkey = pubkey!("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
+#[cfg(feature = "test-mint")]
+pub const ACT_MINT: Pubkey = pubkey!("DByy9CGFgXAEGeaufeA275y8tP9aiXWZkjRanNMd4pEr");
 
 #[program]
 pub mod act_staking {
     use super::*;
 
-    /// One-time setup. `authority` should be the treasury multisig's vault
-    /// PDA (see TREASURY_V2.md), not a personal key -- Squads' own 2-of-3
-    /// threshold is what actually gates calls to `update_tier_config` and
-    /// `set_paused`; this program only checks a single signer against
-    /// whatever `authority` is set to.
+    /// One-time setup. Only the program's upgrade authority may call it
+    /// (checked against the program's ProgramData account), and only for the
+    /// ACT mint, so nobody can front-run the deployer and take the config or
+    /// bind it to another mint (M-10). The vault is opened idempotently, so
+    /// an associated account someone opened in advance cannot block it.
+    /// `authority` becomes `config.authority`; hand it to the treasury
+    /// multisig's vault PDA afterwards with `set_config_authority` (see
+    /// TREASURY_V2.md) -- Squads' own 2-of-3 threshold is what then gates
+    /// `update_tier_config` and `set_paused`; this program only checks a
+    /// single signer against whatever `authority` is set to.
     pub fn initialize_config(
         ctx: Context<InitializeConfig>,
         tiers: [u64; NUM_TIERS],
         duration_days: [u16; NUM_DURATIONS],
         duration_multiplier: [u16; NUM_DURATIONS],
     ) -> Result<()> {
-        require!(tiers[0] == 0, StakingError::InvalidTierTable);
-        for i in 1..NUM_TIERS {
-            require!(tiers[i] > tiers[i - 1], StakingError::InvalidTierTable);
-        }
-        for i in 0..NUM_DURATIONS {
-            require!(duration_days[i] > 0, StakingError::InvalidDurationTable);
-            require!(
-                duration_multiplier[i] >= 100,
-                StakingError::InvalidDurationTable
-            );
-        }
+        validate_tables(&tiers, &duration_days, &duration_multiplier)?;
 
         let config = &mut ctx.accounts.config;
         config.authority = ctx.accounts.authority.key();
@@ -94,17 +106,7 @@ pub mod act_staking {
         duration_days: [u16; NUM_DURATIONS],
         duration_multiplier: [u16; NUM_DURATIONS],
     ) -> Result<()> {
-        require!(tiers[0] == 0, StakingError::InvalidTierTable);
-        for i in 1..NUM_TIERS {
-            require!(tiers[i] > tiers[i - 1], StakingError::InvalidTierTable);
-        }
-        for i in 0..NUM_DURATIONS {
-            require!(duration_days[i] > 0, StakingError::InvalidDurationTable);
-            require!(
-                duration_multiplier[i] >= 100,
-                StakingError::InvalidDurationTable
-            );
-        }
+        validate_tables(&tiers, &duration_days, &duration_multiplier)?;
 
         let config = &mut ctx.accounts.config;
         config.tiers = tiers;
@@ -148,7 +150,8 @@ pub mod act_staking {
         require!(!config.paused, StakingError::StakingPaused);
         require!(amount > 0, StakingError::ZeroAmount);
 
-        let duration_idx = config
+        // `lock_days` must be one of the configured options.
+        config
             .duration_days
             .iter()
             .position(|&d| d == lock_days)
@@ -225,12 +228,12 @@ pub mod act_staking {
         user_stake.unlock_at = now + (lock_days as i64) * SECONDS_PER_DAY;
         user_stake.bump = ctx.bumps.user_stake;
 
-        let multiplier = config.duration_multiplier[duration_idx] as u128;
-        let cas = (new_amount as u128)
-            .checked_mul(multiplier)
-            .ok_or(StakingError::MathOverflow)?
-            / 100;
-        user_stake.tier = tier_for_cas(cas, &config.tiers);
+        // The stored tier is a snapshot of the tier right now, recomputed
+        // from scratch on every stake (never carried over). It goes stale
+        // when the lock expires or the config changes: anything that reads
+        // a tier must use `effective_tier` (or the SDK's `effectiveTier`)
+        // at the time it reads, never this field (L-30).
+        user_stake.tier = effective_tier(new_amount, lock_days, user_stake.unlock_at, now, config)?;
 
         let config = &mut ctx.accounts.config;
         config.total_staked = config
@@ -282,6 +285,65 @@ pub mod act_staking {
     }
 }
 
+/// Checks a tier/duration table: thresholds start at 0 and strictly rise;
+/// every duration is between 1 day and `MAX_DURATION_DAYS` and appears only
+/// once; every multiplier is between 1.00x and `MAX_DURATION_MULTIPLIER`
+/// (I-18).
+fn validate_tables(
+    tiers: &[u64; NUM_TIERS],
+    duration_days: &[u16; NUM_DURATIONS],
+    duration_multiplier: &[u16; NUM_DURATIONS],
+) -> Result<()> {
+    require!(tiers[0] == 0, StakingError::InvalidTierTable);
+    for i in 1..NUM_TIERS {
+        require!(tiers[i] > tiers[i - 1], StakingError::InvalidTierTable);
+    }
+    for i in 0..NUM_DURATIONS {
+        require!(
+            duration_days[i] > 0 && duration_days[i] <= MAX_DURATION_DAYS,
+            StakingError::InvalidDurationTable
+        );
+        require!(
+            duration_multiplier[i] >= 100 && duration_multiplier[i] <= MAX_DURATION_MULTIPLIER,
+            StakingError::InvalidDurationTable
+        );
+        require!(
+            !duration_days[..i].contains(&duration_days[i]),
+            StakingError::InvalidDurationTable
+        );
+    }
+    Ok(())
+}
+
+/// The tier a stake has at `now` under `config`, worked out from scratch
+/// (L-30). The lock multiplier applies only while the lock runs
+/// (`now < unlock_at`) and only if `lock_days` is still one of the
+/// configured durations; an expired lock, or one whose duration the config
+/// no longer offers, counts at 1.00x.
+pub fn effective_tier(
+    amount: u64,
+    lock_days: u16,
+    unlock_at: i64,
+    now: i64,
+    config: &StakeConfig,
+) -> Result<u8> {
+    let multiplier = if now < unlock_at {
+        config
+            .duration_days
+            .iter()
+            .position(|&d| d == lock_days)
+            .map(|i| config.duration_multiplier[i])
+            .unwrap_or(100)
+    } else {
+        100
+    } as u128;
+    let cas = (amount as u128)
+        .checked_mul(multiplier)
+        .ok_or(StakingError::MathOverflow)?
+        / 100;
+    Ok(tier_for_cas(cas, &config.tiers))
+}
+
 /// Highest tier whose threshold `cas` meets or exceeds. `tiers[0]` is
 /// always 0, so this always returns at least tier 0.
 fn tier_for_cas(cas: u128, tiers: &[u64; NUM_TIERS]) -> u8 {
@@ -295,7 +357,7 @@ fn tier_for_cas(cas: u128, tiers: &[u64; NUM_TIERS]) -> u8 {
 }
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Debug)]
 pub struct StakeConfig {
     pub authority: Pubkey,
     pub mint: Pubkey,
@@ -340,10 +402,15 @@ pub struct InitializeConfig<'info> {
     #[account(seeds = [b"vault_authority"], bump)]
     pub vault_authority: UncheckedAccount<'info>,
 
+    #[account(address = ACT_MINT @ StakingError::WrongMint)]
     pub mint: InterfaceAccount<'info, Mint>,
 
+    // `init_if_needed`, not `init`: anyone may open an associated account
+    // for any owner, so a stranger opening the vault first must not block
+    // initialisation for good (M-10). Anchor still checks an existing one
+    // is the vault authority's account for this mint and token program.
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         associated_token::mint = mint,
         associated_token::authority = vault_authority,
@@ -354,6 +421,14 @@ pub struct InitializeConfig<'info> {
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
     pub system_program: Program<'info, System>,
+
+    /// This program, to find its ProgramData account.
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ StakingError::NotUpgradeAuthority)]
+    pub program: Program<'info, crate::program::ActStaking>,
+
+    /// The program's ProgramData: `authority` must be its upgrade authority.
+    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()) @ StakingError::NotUpgradeAuthority)]
+    pub program_data: Account<'info, ProgramData>,
 }
 
 #[derive(Accounts)]
@@ -467,10 +542,67 @@ pub enum StakingError {
     StillLocked,
     #[msg("Tier thresholds must start at 0 and strictly increase.")]
     InvalidTierTable,
-    #[msg("Duration options must be non-zero days with a multiplier of at least 1.00x.")]
+    #[msg("Duration options must be distinct, between 1 and 3,650 days, with multipliers between 1.00x and 10.00x.")]
     InvalidDurationTable,
     #[msg("Arithmetic overflow.")]
     MathOverflow,
     #[msg("New authority cannot be the default (all-zero) pubkey.")]
     InvalidNewAuthority,
+    #[msg("Only the program's upgrade authority may initialise the config.")]
+    NotUpgradeAuthority,
+    #[msg("The config can only be initialised for the ACT mint.")]
+    WrongMint,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> StakeConfig {
+        StakeConfig {
+            authority: Pubkey::default(),
+            mint: ACT_MINT,
+            vault: Pubkey::default(),
+            total_staked: 0,
+            tiers: [0, 1_000, 5_000, 20_000, 100_000],
+            duration_days: [30, 90, 180, 365],
+            duration_multiplier: [100, 125, 150, 200],
+            paused: false,
+            bump: 0,
+            vault_authority_bump: 0,
+        }
+    }
+
+    #[test]
+    fn duplicate_durations_and_huge_multipliers_are_refused() {
+        let c = config();
+        assert!(validate_tables(&c.tiers, &c.duration_days, &c.duration_multiplier).is_ok());
+        assert!(validate_tables(&c.tiers, &[30, 90, 90, 365], &c.duration_multiplier).is_err(), "duplicate duration");
+        assert!(validate_tables(&c.tiers, &[30, 30, 30, 30], &c.duration_multiplier).is_err());
+        assert!(validate_tables(&c.tiers, &c.duration_days, &[100, 125, 150, MAX_DURATION_MULTIPLIER + 1]).is_err(), "multiplier above the bound");
+        assert!(validate_tables(&c.tiers, &c.duration_days, &[100, 125, 150, MAX_DURATION_MULTIPLIER]).is_ok());
+        assert!(validate_tables(&c.tiers, &c.duration_days, &[99, 125, 150, 200]).is_err());
+        assert!(validate_tables(&c.tiers, &[0, 90, 180, 365], &c.duration_multiplier).is_err());
+        assert!(validate_tables(&c.tiers, &[30, 90, 180, MAX_DURATION_DAYS + 1], &c.duration_multiplier).is_err());
+        assert!(validate_tables(&[1, 2, 3, 4, 5], &c.duration_days, &c.duration_multiplier).is_err());
+        assert!(validate_tables(&[0, 2, 2, 4, 5], &c.duration_days, &c.duration_multiplier).is_err());
+    }
+
+    #[test]
+    fn an_expired_lock_counts_at_one_times() {
+        let c = config();
+        // 4,000 staked for 365 days at 2.00x is 8,000: tier 2 while locked.
+        assert_eq!(effective_tier(4_000, 365, 1_000, 999, &c).unwrap(), 2);
+        // Once the lock has run out it is 4,000 at 1.00x: tier 1.
+        assert_eq!(effective_tier(4_000, 365, 1_000, 1_000, &c).unwrap(), 1);
+        assert_eq!(effective_tier(4_000, 365, 1_000, 5_000, &c).unwrap(), 1);
+        // A duration the config no longer offers also counts at 1.00x.
+        let mut changed = c.clone();
+        changed.duration_days = [30, 90, 180, 360];
+        assert_eq!(effective_tier(4_000, 365, 1_000, 0, &changed).unwrap(), 1);
+        // And a change of thresholds is read at once, not from a stored value.
+        changed.tiers = [0, 10_000, 20_000, 30_000, 40_000];
+        assert_eq!(effective_tier(4_000, 90, 1_000, 0, &changed).unwrap(), 0);
+        assert_eq!(effective_tier(0, 30, 1_000, 0, &c).unwrap(), 0);
+    }
 }

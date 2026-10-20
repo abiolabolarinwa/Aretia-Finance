@@ -13,6 +13,18 @@ fn start(total: u64, target: u64) -> (Derived, Curve) {
     (d, d.start())
 }
 
+/// What a sell of `amount` would pay the seller after the fee, worked out apart from `sell` (None if it pays out more than the vault owes).
+fn net_of(c: &Curve, amount: u64, fee_bps: u16) -> Option<u64> {
+    let new_vt = c.v_tok as u128 + amount as u128;
+    let new_vs = ceil_div(k(c), new_vt);
+    let gross = c.v_sol as u128 - new_vs;
+    if gross > c.real_sol as u128 {
+        return None;
+    }
+    let gross = gross as u64;
+    Some(gross - fee_up(gross, fee_bps).min(gross))
+}
+
 #[test]
 fn derive_splits_like_the_reference_curve() {
     // 1,000,000,000 tokens (6 decimals) and an 85 SOL target.
@@ -68,6 +80,29 @@ fn zero_and_dust_are_refused() {
     assert!(sell(&c, c.real_tok, 0, 100).is_none());
     assert!(buy(&c, 5, 10_000).is_none());
     assert!(buy(&c, 1, 100).is_none(), "one lamport buys no token");
+}
+
+#[test]
+fn a_sell_that_pays_nothing_is_refused() {
+    // L-8: after a buy, find the largest sell whose SOL rounds to zero or is all fee. It must be refused, and the
+    // smallest sell that pays at least one lamport must go through and pay exactly that.
+    for fee_bps in [0u16, 58, 100] {
+        let (d, c) = start(1_000_000_000_000_000, 10 * SOL);
+        let (_, c) = buy(&c, SOL, fee_bps).unwrap();
+        let mut t = 1u64;
+        while net_of(&c, t * 2, fee_bps) == Some(0) {
+            t *= 2;
+        }
+        assert_eq!(net_of(&c, t, fee_bps), Some(0));
+        assert!(sell(&c, d.curve_tokens, t, fee_bps).is_none(), "a sell of {t} that pays nothing must be refused (fee {fee_bps})");
+        assert!(sell(&c, d.curve_tokens, 1, fee_bps).is_none(), "one raw unit pays nothing");
+        let mut lo = t;
+        while net_of(&c, lo, fee_bps) == Some(0) {
+            lo += 1;
+        }
+        let (s, _) = sell(&c, d.curve_tokens, lo, fee_bps).expect("the first paying sell goes through");
+        assert!(s.net > 0 && s.gross == s.fee + s.net);
+    }
 }
 
 #[test]
@@ -132,10 +167,15 @@ proptest! {
                 Op::Sell { actor, bps } => {
                     let amount = (held[actor] as u128 * bps as u128 / BPS) as u64;
                     if amount == 0 { continue; }
-                    // A holder of curve tokens must always be able to sell them: never None for solvency.
+                    // A holder of curve tokens must always be able to sell them: never None for solvency. The one
+                    // exception is dust that would pay nothing after the fee, which is refused rather than taken (L-8).
                     let r = sell(&c, d.curve_tokens, amount, fee_bps);
-                    prop_assert!(r.is_some(), "a legitimate sell was refused: {:?} amount {}", c, amount);
+                    if r.is_none() {
+                        prop_assert_eq!(net_of(&c, amount, fee_bps), Some(0), "a legitimate sell was refused: {:?} amount {}", c, amount);
+                        continue;
+                    }
                     let (s, next) = r.unwrap();
+                    prop_assert!(s.net > 0, "a sell that pays nothing was accepted");
                     prop_assert!(k(&next) >= k(&c), "k fell on a sell");
                     prop_assert!(s.gross <= c.real_sol);
                     prop_assert_eq!(s.gross, s.fee + s.net);
@@ -150,18 +190,45 @@ proptest! {
             prop_assert_eq!(c.real_sol as u128, vault_in - vault_out);
             prop_assert_eq!(c.real_tok as u128 + held.iter().map(|h| *h as u128).sum::<u128>(), d.curve_tokens as u128);
         }
-        // Everyone sells everything back: the vault still pays every one of them, and is left with a
-        // non-negative remainder (dust that rounding kept on the vault's side).
+        // Everyone sells everything back: the vault still pays every one of them (bar dust worth nothing after the
+        // fee, which stays with its holder), and is left with a non-negative remainder (dust that rounding kept on the vault's side).
         for actor in 0..4 {
             let amount = held[actor];
             if amount == 0 { continue; }
             let r = sell(&c, d.curve_tokens, amount, fee_bps);
-            prop_assert!(r.is_some(), "final unwind refused: {:?} amount {}", c, amount);
+            if r.is_none() {
+                prop_assert_eq!(net_of(&c, amount, fee_bps), Some(0), "final unwind refused: {:?} amount {}", c, amount);
+                continue;
+            }
             c = r.unwrap().1;
             held[actor] = 0;
         }
-        prop_assert_eq!(c.real_tok, d.curve_tokens);
+        prop_assert_eq!(c.real_tok as u128 + held.iter().map(|h| *h as u128).sum::<u128>(), d.curve_tokens as u128);
         prop_assert!(c.v_sol >= d.v_sol0);
+    }
+
+    /// Any sell the maths accepts pays the seller at least one lamport, and any sell it refuses (inside what was sold
+    /// and what the vault owes) is one that would have paid nothing.
+    #[test]
+    fn an_accepted_sell_always_pays_something(
+        total in 1_000_000u64..(1u64 << 62),
+        target in MIN_TARGET..2_000 * SOL,
+        lamports in 1u64..300 * SOL,
+        bps in 1u64..=10_000,
+        tiny in 1u64..5_000,
+        fee_bps in prop_oneof![Just(0u16), Just(58u16), Just(100u16), 0u16..2_000],
+    ) {
+        prop_assume!(derive(total, target, MIN_TARGET).is_some());
+        let (d, c) = start(total, target);
+        if let Some((b, c)) = buy(&c, lamports, fee_bps) {
+            for amount in [(b.tokens_out as u128 * bps as u128 / 10_000) as u64, tiny.min(b.tokens_out)] {
+                if amount == 0 { continue; }
+                match sell(&c, d.curve_tokens, amount, fee_bps) {
+                    Some((s, _)) => prop_assert!(s.net > 0),
+                    None => prop_assert_eq!(net_of(&c, amount, fee_bps), Some(0)),
+                }
+            }
+        }
     }
 
     /// A round trip, with no fee, in the same state, never returns more SOL than went in.

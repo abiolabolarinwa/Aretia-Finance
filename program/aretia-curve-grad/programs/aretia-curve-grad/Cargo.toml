@@ -16,6 +16,8 @@ no-log-ix-name = []
 cpi = ["no-entrypoint"]
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 default = []
+# A mainnet build. It refuses to compile until the mainnet Aretia Pool program id is set in src/lib.rs (L-31); the default is devnet.
+mainnet = []
 
 [dependencies]
 anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }

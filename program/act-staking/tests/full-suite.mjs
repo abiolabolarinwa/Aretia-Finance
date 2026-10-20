@@ -232,6 +232,17 @@ describe("act-staking (devnet, throwaway fast-clock deployment)", function () {
       { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      // M-10: the program and its ProgramData, so the program can check the
+      // caller is its upgrade authority (the deployer, for this throwaway copy).
+      { pubkey: PROGRAM_ID, isSigner: false, isWritable: false },
+      {
+        pubkey: PublicKey.findProgramAddressSync(
+          [PROGRAM_ID.toBuffer()],
+          new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111")
+        )[0],
+        isSigner: false,
+        isWritable: false,
+      },
     ];
     return new TransactionInstruction({ programId: PROGRAM_ID, keys, data });
   }

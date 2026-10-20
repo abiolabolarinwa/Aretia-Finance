@@ -19,6 +19,7 @@ solana-transaction = "4"
 solana-sdk-ids = "3"
 solana-account = "4"
 solana-clock = "~3.2"
+solana-rent = "4"
 curve-math = { path = "../curve-math" }
 sha2 = "0.10"
 num-bigint = "0.4"

@@ -38,6 +38,12 @@ export const ACT_STAKING_PROGRAM_ID = new PublicKey(
   "DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH"
 );
 
+/** The only mint a (non-test) build's `initialize_config` accepts: ACT (TOKENOMICS.md). */
+export const ACT_MINT = new PublicKey("7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG");
+
+/** The upgradeable BPF loader, which owns every program's ProgramData account. */
+export const BPF_LOADER_UPGRADEABLE_ID = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+
 export interface StakeConfig {
   authority: PublicKey;
   mint: PublicKey;
@@ -53,12 +59,31 @@ export interface StakeConfig {
 
 export interface UserStake {
   owner: PublicKey;
+  // `tier` below is a snapshot from the last `stake`; read the live tier with `effectiveTier`.
   amount: bigint;
   lockDays: number;
   stakedAt: bigint;
   unlockAt: bigint;
   tier: number;
   bump: number;
+}
+
+/**
+ * The tier a stake has at `nowUnix` (unix seconds) under `config`, worked out from scratch -- the same rule as the
+ * program's `effective_tier`. Use this, never `UserStake.tier`: the stored tier is a snapshot taken at the last
+ * `stake` and goes stale when the lock runs out or the authority changes the config (L-30). The lock multiplier
+ * applies only while the lock runs and only if `lockDays` is still a configured duration; otherwise 1.00x.
+ */
+export function effectiveTier(stake: Pick<UserStake, "amount" | "lockDays" | "unlockAt">, config: Pick<StakeConfig, "tiers" | "durationDays" | "durationMultiplier">, nowUnix: bigint | number): number {
+  const now = BigInt(nowUnix);
+  const i = config.durationDays.indexOf(stake.lockDays);
+  const multiplier = now < stake.unlockAt && i >= 0 ? BigInt(config.durationMultiplier[i]!) : 100n;
+  const cas = (stake.amount * multiplier) / 100n;
+  let tier = 0;
+  config.tiers.forEach((threshold, t) => {
+    if (cas >= threshold) tier = t;
+  });
+  return tier;
 }
 
 function discriminator(name: string): Buffer {
@@ -187,8 +212,17 @@ export class ActStakingClient {
     return info ? ActStakingClient.decodeUserStake(info.data) : null;
   }
 
+  /** The program's ProgramData account: `initialize_config` checks the caller is its upgrade authority. */
+  programDataAddress(): PublicKey {
+    return PublicKey.findProgramAddressSync([this.programId.toBuffer()], BPF_LOADER_UPGRADEABLE_ID)[0];
+  }
+
   // ---- Instruction builders ----
 
+  /**
+   * One-time setup. `authority` must be the program's upgrade authority and `mint` must be ACT (`ACT_MINT`), or the
+   * program refuses (M-10). The vault is opened if it is not there yet.
+   */
   ixInitializeConfig(
     authority: PublicKey,
     mint: PublicKey,
@@ -214,6 +248,8 @@ export class ActStakingClient {
       { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: this.programId, isSigner: false, isWritable: false },
+      { pubkey: this.programDataAddress(), isSigner: false, isWritable: false },
     ];
     return new TransactionInstruction({ programId: this.programId, keys, data });
   }

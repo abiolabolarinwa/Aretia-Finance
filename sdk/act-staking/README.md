@@ -33,7 +33,14 @@ const myStake = await client.fetchUserStake(myWallet.publicKey);
 
 // Build a stake instruction (you sign and send it yourself)
 const ix = client.ixStake(myWallet.publicKey, actMint, myAta, 1_000_000_000n, 90);
+
+// A tier, read live. Never use myStake.tier: it is a snapshot from the last stake and goes stale when the lock
+// runs out or the config changes. effectiveTier counts an expired lock at 1.00x, like the program's effective_tier.
+import { effectiveTier } from "./dist";
+const tier = effectiveTier(myStake!, config!, Math.floor(Date.now() / 1000));
 ```
+
+`ixInitializeConfig` passes the program and its ProgramData account as its last two accounts: the program only lets its upgrade authority initialise, and only for `ACT_MINT` (2026-10 review, M-10).
 
 ## What's covered
 

@@ -134,6 +134,7 @@ pub mod aretia_curve {
         require!(b.tokens_out >= min_tokens_out, CurveError::Slippage);
 
         // Effects first.
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), c.real_sol);
         c.set_math(&next);
         let now = Clock::get()?.unix_timestamp;
         if b.sold_out {
@@ -172,7 +173,7 @@ pub mod aretia_curve {
         )?;
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before - b.tokens_out, CurveError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol, surplus)?;
 
         emit!(Traded { curve: curve_key, trader: ctx.accounts.buyer.key(), is_buy: true, lamports: b.gross, fee: b.fee, tokens: b.tokens_out, v_sol, v_tok, real_sol, ts: now });
         Ok(())
@@ -186,6 +187,7 @@ pub mod aretia_curve {
         let (s, next) = curve_math::sell(&c.math(), c.curve_tokens, tokens_in, c.fee_bps).ok_or(CurveError::TradeTooSmall)?;
         require!(s.net >= min_lamports_out, CurveError::Slippage);
 
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), c.real_sol);
         c.set_math(&next);
         let (curve_key, sol_bump) = (c.key(), c.sol_bump);
         let (v_sol, v_tok, real_sol) = (c.v_sol, c.v_tok, c.real_sol);
@@ -220,7 +222,7 @@ pub mod aretia_curve {
                 s.fee,
             )?;
         }
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol, surplus)?;
 
         emit!(Traded { curve: curve_key, trader: ctx.accounts.seller.key(), is_buy: false, lamports: s.gross, fee: s.fee, tokens: tokens_in, v_sol, v_tok, real_sol, ts: now });
         Ok(())
@@ -248,6 +250,7 @@ pub mod aretia_curve {
 
         // Effects first: after this nothing can sell, buy, or migrate again.
         curve.status = Status::Migrated;
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), curve.real_sol);
         curve.real_sol = 0;
         curve.pool = pool_expected;
 
@@ -300,7 +303,7 @@ pub mod aretia_curve {
             sol_to_move,
         )?;
         token::sync_native(CpiContext::new(ctx.accounts.token_program.to_account_info(), token::SyncNative { account: migrator_wsol.clone() }))?;
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0, surplus)?;
         let tok_now = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?;
         let wsol_now = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?;
         require!(tok_now == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
@@ -337,9 +340,13 @@ pub mod aretia_curve {
         let lock = lock_ix(&ctx.accounts, migrator.key(), args.liquidity);
         invoke_signed(&lock, &infos, &[migrator_seeds])?;
 
-        // 6. The pool must have taken (nearly) all of both sides, or it was opened at the wrong price.
-        let tok_left = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?.saturating_sub(tok_base);
-        let sol_left = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?.saturating_sub(sol_base);
+        // 6. The pool must have taken (nearly) all of both sides, or it was opened at the wrong price. It may take nothing
+        //    that was already in the migrator's accounts: what is left must not fall below what they held before, so a
+        //    donation cannot loosen the 0.1% rule.
+        let tok_left_raw = token_amount(&migrator_token, &mint_key, &migrator.key(), &anchor_spl::token_2022::ID)?;
+        let sol_left_raw = token_amount(&migrator_wsol, &WSOL_MINT, &migrator.key(), &token::ID)?;
+        require!(tok_left_raw >= tok_base && sol_left_raw >= sol_base, CurveError::PoolPriceMismatch);
+        let (tok_left, sol_left) = (tok_left_raw - tok_base, sol_left_raw - sol_base);
         require!(curve_math::migration_consumed_enough(tokens_to_move, tok_left), CurveError::PoolPriceMismatch);
         require!(curve_math::migration_consumed_enough(sol_to_move, sol_left), CurveError::PoolPriceMismatch);
 
@@ -479,9 +486,18 @@ pub fn fee_wsol_address() -> Pubkey {
     get_associated_token_address_with_program_id(&FEE_WALLET, &WSOL_MINT, &token::ID)
 }
 
-/// The SOL vault must always hold the rent-exempt minimum plus every lamport the curve owes holders.
-fn require_solvent(sol_vault: &AccountInfo, real_sol: u64) -> Result<()> {
-    let min = Rent::get()?.minimum_balance(0);
+/// What the SOL vault holds beyond what the curve owes holders: the rent it paid when it was opened, plus any donation.
+fn vault_surplus(sol_vault: &AccountInfo, real_sol: u64) -> u64 {
+    sol_vault.lamports().saturating_sub(real_sol)
+}
+
+/// The SOL vault must always hold every lamport the curve owes holders plus its rent. The rent part is the rent-exempt minimum
+/// now, or what the vault held beyond its debt before this instruction (`surplus_before`, which is at least the rent it paid
+/// when opened), whichever is lower. So a later rise in rent cannot freeze sells on a vault that paid the old rent (I-13), a
+/// fall in rent only lowers the floor, and no instruction can ever pay out of that surplus. No stored field is needed, so the
+/// account layout is unchanged (BONDING_CURVE.md section 11b).
+fn require_solvent(sol_vault: &AccountInfo, real_sol: u64, surplus_before: u64) -> Result<()> {
+    let min = vault_rent_floor(Rent::get()?.minimum_balance(0), surplus_before);
     require!(sol_vault.lamports() >= min.checked_add(real_sol).ok_or(CurveError::BadParameters)?, CurveError::Insolvent);
     Ok(())
 }
@@ -923,9 +939,24 @@ pub enum CurveError {
     NothingToClaim,
 }
 
+/// The rent part of the solvency floor: the rent-exempt minimum of a 0-byte account now, capped at what the vault held beyond
+/// its debt before the instruction.
+fn vault_rent_floor(rent_now: u64, surplus_before: u64) -> u64 {
+    rent_now.min(surplus_before)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_vault_rent_floor_is_what_a_vault_paid_and_never_more() {
+        let paid = Rent::default().minimum_balance(0);
+        assert_eq!(vault_rent_floor(paid, paid), paid);
+        assert_eq!(vault_rent_floor(2 * paid, paid), paid, "a rise in rent does not raise the floor above what the vault paid");
+        assert_eq!(vault_rent_floor(paid / 2, paid), paid / 2, "a fall in rent lowers it");
+        assert_eq!(vault_rent_floor(paid, paid + 5), paid, "a donation does not raise it");
+    }
 
     fn base() -> Vec<u8> {
         let mut d = vec![0u8; 82];

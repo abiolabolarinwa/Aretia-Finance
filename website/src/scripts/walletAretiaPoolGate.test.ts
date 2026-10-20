@@ -95,7 +95,7 @@ describe('the web constants equal the program’s', () => {
   });
   it('the program has no instruction that could change a fee, a share or a lock downward', () => {
     const src = program();
-    const names = [...src.matchAll(/pub fn (\w+)\(ctx: Context/g)].map((m) => m[1]);
+    const names = [...src.matchAll(/pub fn (\w+)(?:<'info>)?\(ctx: Context/g)].map((m) => m[1]);
     expect(names).toEqual(['create_pool', 'swap', 'add_liquidity', 'remove_liquidity', 'claim_fees', 'transfer_position', 'set_recipient', 'lock_liquidity']);
     // `locked` is only ever assigned in create_pool and lock_liquidity, and only upward.
     const assigns = [...src.matchAll(/\.locked\s*=\s*([^;]+);/g)].map((m) => m[1]!.trim());

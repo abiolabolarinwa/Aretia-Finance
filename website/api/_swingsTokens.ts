@@ -6,6 +6,7 @@
  * The browser never sees database credentials: SUPABASE_SERVICE_ROLE_KEY lives in the server
  * environment. Without SUPABASE_URL and the key both endpoints answer 503 "not configured".
  */
+import { bearerMatches } from './_secrets.js';
 import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit, PUBLIC_FALLBACK_RPC, type ProxyEnv } from './_rpcProxy.js';
 import { CHAIN_IDS, isChainId, type ChainId } from '../src/swings/core/types.js';
@@ -152,7 +153,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const headers = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
   // Constant behaviour for a missing secret: nothing runs unless one is configured and presented.
-  if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  if (!bearerMatches(input.authorization, secret)) return json(401, { error: 'unauthorized' }, headers);
   // `?chain=base` looks at one network only, so each network can be run on its own and a slow one cannot hold up the rest.
   const only = input.query.chain ? (isChainId(input.query.chain) ? input.query.chain : null) : undefined;
   if (only === null) return json(400, { error: 'chain' }, headers);

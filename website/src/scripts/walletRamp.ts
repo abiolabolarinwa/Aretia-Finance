@@ -3,6 +3,8 @@
  * provider (MoonPay) takes the payment and checks identity on its own page; Aretia never sees a card or a document and
  * never holds funds. A purchase is finished only when the USDC shows up in the wallet.
  */
+import { authorizationFor } from '../swings/account/client.js';
+import { browserStorage } from '../swings/history.js';
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
 import { publicRead, readBalance, type EvmSession } from '../swings/chains/evmSession.js';
 import { MoonPayRampProvider, type RampApiCatalog, type RampDiagnosis } from '../swings/ramp/moonpay.js';
@@ -64,7 +66,8 @@ const store = {
 
 export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () => string | null, isEnabled: (c: ChainId) => boolean): { draw(): void } {
   const api = async (body: Record<string, unknown>): Promise<unknown> => {
-    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    // A payment link is signed only for the wallet signed in on this browser (Save to my wallet).
+    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json', ...authorizationFor(browserStorage(), body.wallet) }, body: JSON.stringify(body) });
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     if (!res.ok || !data) throw new Error(data?.error ?? `The service answered ${res.status}`);
     return data;

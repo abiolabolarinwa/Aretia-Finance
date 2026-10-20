@@ -9,11 +9,16 @@
  *  - Off unless RAMP_ENABLED=1 on the server.
  *  - A provider appears only when its keys are set. Secret keys never leave the server.
  *  - Same allowed-origin rule as the RPC proxy.
+ *  - A signed widget URL is made only for the wallet the caller is signed in with (the wallet sign-in of /api/swings-account), so a
+ *    phishing page cannot get Aretia-signed purchase links to its own address. Every URL issued is logged (owner, network, side).
  *
  * No framework types, so it can be tested on its own. See docs/ramp.md.
  */
 import { createHmac } from 'node:crypto';
 import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
+import { ownerOf, sessionOwner, sessionSecret } from './_swingsAuth.js';
+import { rest } from './_swingsAccount.js';
+import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 
 // ------------------------------------------------------------------ assets
 
@@ -57,6 +62,10 @@ export interface RampEnv extends ProxyEnv {
   MOONPAY_SELL_ENABLED?: string;
   /** Override the sell widget host. */
   MOONPAY_SELL_WIDGET_URL?: string;
+  /** The wallet sign-in a session request is checked against. */
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SWINGS_SESSION_SECRET?: string;
 }
 
 export interface ProviderInfo {
@@ -268,6 +277,8 @@ export function resetCatalogCache(): void {
 export interface RampInput {
   method: string;
   origin: string | null;
+  /** `Bearer <session token>` from the wallet sign-in; needed for `session`. */
+  authorization?: string | null;
   ip: string;
   contentType: string | null;
   body: string;
@@ -290,7 +301,7 @@ export async function handleRamp(input: RampInput): Promise<RampOutput> {
   if (allowed) {
     headers['access-control-allow-origin'] = input.origin!;
     headers['access-control-allow-methods'] = 'POST, OPTIONS';
-    headers['access-control-allow-headers'] = 'content-type';
+    headers['access-control-allow-headers'] = 'content-type, authorization';
   }
   if (input.method === 'OPTIONS') return { status: allowed ? 204 : 403, body: '', headers };
   if (input.method !== 'POST') return json(405, { error: 'Use POST.' }, { ...headers, allow: 'POST, OPTIONS' });
@@ -324,8 +335,21 @@ export async function handleRamp(input: RampInput): Promise<RampOutput> {
       const checked = checkSession({ provider: String(req.provider), side: String(req.side), asset: String(req.asset), wallet: req.wallet as string, fiat: req.fiat as string | undefined, amount: req.amount as number | undefined, chain: req.chain as string | undefined });
       if (!checked.ok) return json(400, { error: checked.message }, headers);
       if (!provider.sides.includes(checked.side)) return json(400, { error: 'That provider does not offer this yet.' }, headers);
+      // Only for the wallet the caller proved they control.
+      const dbUrl = supabaseBase(env.SUPABASE_URL);
+      const dbKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+      if (!dbUrl || !dbKey) return json(503, { error: 'Sign-in is not set up on this server, so payment links cannot be made.' }, headers);
+      let owner: string | null;
+      try {
+        owner = await sessionOwner(sessionSecret(env) ?? dbKey, input.authorization ?? null, input.now, rest(dbUrl, dbKey, input.fetchImpl));
+      } catch {
+        return json(502, { error: 'Sign-in could not be checked right now.' }, headers);
+      }
+      if (!owner) return json(401, { error: 'Sign in with this wallet first (a free message, not a transaction), then try again.' }, headers);
+      if (owner !== ownerOf(checked.chain === 'solana' ? 'solana' : 'evm', req.wallet as string)) return json(403, { error: 'Payment links are made only for the wallet you are signed in with.' }, headers);
       const build = checked.side === 'sell' ? buildMoonpaySellUrl : buildMoonpayBuyUrl;
       const url = build(env, { moonpayCode: checked.moonpayCode, wallet: req.wallet as string, fiat: checked.fiat, amount: checked.amount });
+      console.info(`ramp url issued owner=${owner} chain=${checked.chain} side=${checked.side} asset=${checked.asset} ip=${input.ip}`);
       return json(200, { provider: provider.id, url }, headers);
     }
     default:

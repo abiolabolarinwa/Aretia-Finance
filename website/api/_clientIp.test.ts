@@ -19,3 +19,15 @@ describe('clientIp', () => {
     expect(clientIp({})).toBe('unknown');
   });
 });
+
+describe('L-14: every handler takes the caller address from clientIp()', () => {
+  it('no api file reads x-forwarded-for itself', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const dir = new URL('.', import.meta.url);
+    // swings-quote, swings-records and swings-tokens are moved to clientIp() on the swap-engine branch.
+    const pending = new Set(['swings-quote.ts', 'swings-records.ts', 'swings-tokens.ts']);
+    const own = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== '_clientIp.ts' && !pending.has(f));
+    const offenders = own.filter((f) => /x-forwarded-for|x-real-ip/i.test(readFileSync(new URL(f, dir), 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+});

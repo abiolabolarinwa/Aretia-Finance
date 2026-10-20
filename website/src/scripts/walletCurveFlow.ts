@@ -304,7 +304,8 @@ export class CurveFlow {
     if (tokensIn > held) blockers.push('More than your wallet holds of this token.');
     const quote = quoteSell(curve, curve.curveTokens, tokensIn, curve.feeBps);
     if (!quote) {
-      blockers.push('That amount cannot be sold back to the curve.');
+      // quoteSell refuses both a sale beyond what the curve has sold and one too small to pay anything (audit L-8).
+      blockers.push(curve.realTok + tokensIn > curve.curveTokens ? 'That amount cannot be sold back to the curve.' : 'That amount is too small: the curve would pay you 0 SOL for it, and the tokens would be lost. Sell a larger amount.');
       return { kind: 'sell', trader, mint: curve.mint, curve, quote: null, tokensIn, minOut: 0n, tokensBefore: held, instructions: [], network: 0n, balance, blockers };
     }
     // The program accepts a sale that pays nothing (audit L-8) and the tokens would be gone for 0 lamports: refuse it here.

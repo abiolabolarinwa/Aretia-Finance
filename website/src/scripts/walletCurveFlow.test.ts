@@ -330,9 +330,9 @@ describe('sell', () => {
     w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(1_000_000_000n) });
     const flow = new CurveFlow(w.deps);
     const curve = (await flow.loadCurve(MINT))!;
-    let dust = 1n;
-    while (quoteSell(curve, curve.curveTokens, dust * 2n, curve.feeBps)!.net === 0n) dust *= 2n;
-    expect(quoteSell(curve, curve.curveTokens, dust, curve.feeBps)!.net).toBe(0n);
+    // The maths mirror itself now refuses a sale that would pay nothing, as the program does.
+    const dust = 1n;
+    expect(quoteSell(curve, curve.curveTokens, dust, curve.feeBps)).toBeNull();
     const review = await flow.prepareSell(BUYER, curve, dust);
     expect(review.blockers.join(' ')).toMatch(/pay you 0 SOL/);
     expect(review.instructions).toEqual([]);

@@ -1,4 +1,5 @@
 [package]
+rust-version = "1.79"
 name = "act-staking"
 version = "0.1.0"
 description = "Aretia Finance -- ACT staking (tiered access infrastructure, Part VIII Sec. 30). Deployed on devnet; not yet on mainnet -- see STAKING_DESIGN.md."

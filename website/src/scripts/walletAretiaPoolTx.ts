@@ -162,7 +162,11 @@ export interface SwapParams {
   minOut: bigint;
 }
 
-/** The pool's swap instruction alone (what a router builds around). */
+/**
+ * The pool's swap instruction alone (what a router builds around). After the ten fixed accounts come four read-only ones (the fee
+ * wallet, the native mint, the System program, the associated-token program) that let the program open Aretia's wrapped-SOL fee
+ * account again, the trader paying its rent, if it was closed; without them a closed fee account would stop every swap.
+ */
 export function buildSwap(web3: typeof Web3, program: string, s: SwapParams): Web3.TransactionInstruction {
   const pool = poolAddress(web3, program, s.mint);
   return new web3.TransactionInstruction({
@@ -178,6 +182,10 @@ export function buildSwap(web3: typeof Web3, program: string, s: SwapParams): We
       key(web3, wsolAccount(web3, ARETIA_POOL_FEE_ADDRESS), false, true),
       key(web3, TOKEN_2022_PROGRAM_ID, false, false),
       key(web3, TOKEN_PROGRAM_ID, false, false),
+      key(web3, ARETIA_POOL_FEE_ADDRESS, false, false),
+      key(web3, WSOL_MINT, false, false),
+      key(web3, SYSTEM_PROGRAM_ID, false, false),
+      key(web3, ATA_PROGRAM_ID, false, false),
     ],
     data: data(DISC.swap, [{ bool: s.isBuy }, { u64: s.amountIn }, { u64: s.minOut }]),
   });
@@ -469,6 +477,10 @@ export function inspectSwap(web3: typeof Web3, tx: Web3.Transaction, c: SwapChec
     [assoc(web3, ARETIA_POOL_FEE_ADDRESS, WSOL_MINT, TOKEN_PROGRAM_ID), 'W'],
     [TOKEN_2022_PROGRAM_ID, ''],
     [TOKEN_PROGRAM_ID, ''],
+    [ARETIA_POOL_FEE_ADDRESS, ''],
+    [WSOL_MINT, ''],
+    [SYSTEM_PROGRAM_ID, ''],
+    [ATA_PROGRAM_ID, ''],
   ];
   const before = c.isBuy ? [ataStep(web3, c.trader, c.trader, c.mint, TOKEN_2022_PROGRAM_ID), ...wrapSteps(web3, c.trader, c.amountIn)] : [ataStep(web3, c.trader, c.trader, WSOL_MINT, TOKEN_PROGRAM_ID)];
   return inspectPlan(tx, c.trader, {
@@ -575,7 +587,8 @@ export function inspectSetRecipient(web3: typeof Web3, tx: Web3.Transaction, c: 
     [pool, ''],
     [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
   ];
-  return inspectPlan(tx, c.owner, { ...alone(), program: c.program, tag: DISC.setRecipient, dataLen: 8 + 32, accounts, args: (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.recipient)) ? [] : ['The wallet that would receive the fees is not the one shown.']) });
+  const unowned = c.recipient === SYSTEM_PROGRAM_ID || c.recipient === pool ? ['Fees cannot be sent to the pool itself or to the empty address: nobody could use them.'] : [];
+  return [...unowned, ...inspectPlan(tx, c.owner, { ...alone(), program: c.program, tag: DISC.setRecipient, dataLen: 8 + 32, accounts, args: (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.recipient)) ? [] : ['The wallet that would receive the fees is not the one shown.']) })];
 }
 
 export function inspectTransferPosition(web3: typeof Web3, tx: Web3.Transaction, c: { program: string; owner: string; mint: string; newOwner: string; positionId?: string }): string[] {
@@ -585,5 +598,7 @@ export function inspectTransferPosition(web3: typeof Web3, tx: Web3.Transaction,
     [pool, ''],
     [pda(web3, c.program, [text('position'), pk(web3, pool), pk(web3, c.positionId ?? c.owner)]), 'W'],
   ];
-  return inspectPlan(tx, c.owner, { ...alone(), program: c.program, tag: DISC.transferPosition, dataLen: 8 + 32, accounts, args: (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.newOwner)) ? [] : ['The wallet the position would go to is not the one shown.']) });
+  // The program refuses these: nobody can sign for them. To give liquidity up for good, lock it instead.
+  const unowned = c.newOwner === SYSTEM_PROGRAM_ID || c.newOwner === pool ? ['A position cannot be sent to the pool or to the empty address. To give the liquidity up for good, lock it.'] : [];
+  return [...unowned, ...inspectPlan(tx, c.owner, { ...alone(), program: c.program, tag: DISC.transferPosition, dataLen: 8 + 32, accounts, args: (d) => (bytesEqual(d.subarray(8, 40), pk(web3, c.newOwner)) ? [] : ['The wallet the position would go to is not the one shown.']) })];
 }

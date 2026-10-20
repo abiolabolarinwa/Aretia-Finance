@@ -75,20 +75,43 @@ fn liquidity_adds_in_proportion_and_rounds_up() {
     assert_eq!(a.sol_in as u128, (p.y as u128 * SOL as u128 + p.l as u128 - 1) / p.l as u128);
     assert_eq!(q.l, p.l + SOL);
     // Removing the same liquidity returns no more than was put in.
-    let (r, _) = remove(&q, SOL).unwrap();
+    let (r, _) = remove(&q, SOL, SOL).unwrap();
     assert!(r.tokens_out <= a.tokens_in && r.sol_out <= a.sol_in);
 }
 
 #[test]
-fn removing_everything_is_allowed_and_dust_is_not() {
-    let p = fresh(10_000, 10_000_000, 25);
-    assert!(remove(&p, 500).is_none(), "below the minimum and not everything");
-    assert!(remove(&p, 0).is_none());
-    assert!(remove(&p, p.l + 1).is_none());
-    let (r, q) = remove(&p, p.l).unwrap();
-    assert_eq!((r.tokens_out, r.sol_out), (10_000, 0));
-    assert_eq!(q.l, 0);
-    assert!(buy(&q, SOL).is_none(), "an emptied pool does not trade");
+fn a_pool_can_never_be_emptied() {
+    // L-23: the last MIN_LIQUIDITY always stays, so the pool keeps trading and can take liquidity again.
+    let p = fresh(1_000_000_000, 10 * SOL, 25);
+    assert!(remove(&p, p.l, p.l).is_none(), "everything may not leave");
+    assert!(remove(&p, p.l - MIN_LIQUIDITY + 1, p.l).is_none(), "nor anything that goes below the floor");
+    let (_, q) = remove(&p, p.l - MIN_LIQUIDITY, p.l).unwrap();
+    assert_eq!(q.l, MIN_LIQUIDITY);
+    assert!(q.in_range() && q.x > 0);
+    let (_, q) = buy(&q, SOL / 100).expect("a pool at its floor still trades");
+    assert!(add(&q, SOL).is_some(), "and still takes new liquidity");
+    let at_min = fresh(10_000, MIN_LIQUIDITY, 25);
+    assert!(remove(&at_min, MIN_LIQUIDITY_DELTA, at_min.l).is_none(), "a pool opened at the minimum keeps all of it");
+}
+
+#[test]
+fn dust_is_refused_unless_it_is_all_the_remover_has() {
+    // I-15: a position whose unlocked part is below MIN_LIQUIDITY_DELTA can still take it out.
+    let p = fresh(1_000_000_000, 10 * SOL, 25);
+    assert!(remove(&p, 500, 10_000).is_none(), "below the minimum and not all of it");
+    assert!(remove(&p, 500, 500).is_some(), "all of a small unlocked balance");
+    assert!(remove(&p, 0, 0).is_none());
+    assert!(remove(&p, p.l + 1, p.l + 1).is_none());
+}
+
+#[test]
+fn adding_waits_for_the_launch_fee_to_end() {
+    // L-22: no adding while the schedule is above the base fee; no schedule means always open.
+    assert!(adding_open(25, 0, 0, 1_000, 1_000));
+    assert!(!adding_open(25, 2_500, 900, 1_000, 1_000));
+    assert!(!adding_open(25, 2_500, 900, 1_000, 1_899));
+    assert!(adding_open(25, 2_500, 900, 1_000, 1_900));
+    assert!(adding_open(25, 2_500, 900, 1_000, 99_999));
 }
 
 #[test]
@@ -178,7 +201,8 @@ proptest! {
             prop_assert!(q.y >= p.y && q.x >= p.x);
         }
         if dl < p.l {
-            if let Some((r, q)) = remove(&p, dl) {
+            if let Some((r, q)) = remove(&p, dl, dl) {
+                prop_assert!(q.l >= MIN_LIQUIDITY, "removal went below the floor");
                 let lhs = big(q.big_x(), q.big_y()) * big(p.l as u128, p.l as u128);
                 let rhs = big(p.big_x(), p.big_y()) * big(q.l as u128, q.l as u128);
                 prop_assert!(lhs >= rhs, "remove lowered k per share");
@@ -193,7 +217,7 @@ proptest! {
         let mut p = p;
         if buy_in > 0 { if let Some((_, n)) = buy(&p, buy_in) { p = n; } }
         if let Some((a, q)) = add(&p, dl) {
-            let (r, _) = remove(&q, dl).unwrap();
+            let (r, _) = remove(&q, dl, dl).unwrap();
             prop_assert!(r.tokens_out <= a.tokens_in);
             prop_assert!(r.sol_out <= a.sol_in);
         }
@@ -300,6 +324,6 @@ fn ranges_are_bounded_and_scale_with_liquidity() {
     let p = Pool::open_ranged(1_000_000_000, 0, MIN_LIQUIDITY * 100, 25, 500_000_000).unwrap();
     let (_, q) = add(&p, MIN_LIQUIDITY * 100).unwrap();
     assert_eq!((q.x, q.vx, q.l), (2_000_000_000, 1_000_000_000, MIN_LIQUIDITY * 200), "doubling the liquidity doubles both token reserves");
-    let (_, r) = remove(&q, MIN_LIQUIDITY * 100).unwrap();
+    let (_, r) = remove(&q, MIN_LIQUIDITY * 100, MIN_LIQUIDITY * 100).unwrap();
     assert_eq!((r.x, r.vx, r.l), (p.x, p.vx, p.l));
 }

@@ -139,7 +139,7 @@ export interface SellQuote {
   next: CurveMath;
 }
 
-/** Exact-input sell: SOL down, fee up. Refuses to put back more tokens than the curve has sold. */
+/** Exact-input sell: SOL down, fee up. Refuses to put back more tokens than the curve has sold, or to pay the seller nothing. */
 export function quoteSell(c: CurveMath, curveTokens: bigint, tokensIn: bigint, feeBps: number): SellQuote | null {
   if (feeBps < 0 || BigInt(feeBps) >= BPS || tokensIn <= 0n || tokensIn > U64_MAX) return null;
   const realTok = c.realTok + tokensIn;
@@ -150,6 +150,8 @@ export function quoteSell(c: CurveMath, curveTokens: bigint, tokensIn: bigint, f
   const gross = c.vSol - newVs;
   if (gross < 0n || gross > c.realSol) return null;
   const fee = feeUp(gross, feeBps) < gross ? feeUp(gross, feeBps) : gross;
+  // The program refuses a sell that would pay the seller nothing after the fee (the tokens would be lost).
+  if (gross === fee) return null;
   return { gross, fee, net: gross - fee, next: { vSol: newVs, vTok: newVt, realSol: c.realSol - gross, realTok } };
 }
 

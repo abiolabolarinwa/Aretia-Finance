@@ -31,6 +31,7 @@ export const ARETIA_POOL_FEE_ADDRESS = POOL_FEE_ADDRESS;
 /** Aretia's share of every trading fee, in basis points of the fee. */
 export const PROTOCOL_SHARE_BPS = 2_000n;
 export const MIN_TOKENS = 1_000n;
+/** The least a pool opens with, and the floor that always stays in it: removing never takes `l` below this. */
 export const MIN_LIQUIDITY = 10_000_000n;
 export const MIN_LIQUIDITY_DELTA = 1_000n;
 export const MAX_AMOUNT = 1n << 62n;
@@ -163,8 +164,12 @@ export function addLiquidity(p: PoolMath, dl: bigint): { tokensIn: bigint; solIn
   return { tokensIn: dx, solIn: dy, next };
 }
 
-export function removeLiquidity(p: PoolMath, dl: bigint): { tokensOut: bigint; solOut: bigint; next: PoolMath } | null {
-  if (p.l === 0n || dl <= 0n || dl > p.l || (dl < MIN_LIQUIDITY_DELTA && dl !== p.l)) return null;
+/**
+ * Removing `dl`: both sides rounded down. The pool always keeps MIN_LIQUIDITY, so it can never be emptied. Below MIN_LIQUIDITY_DELTA
+ * only when it is all of `available`, the remover's whole unlocked balance.
+ */
+export function removeLiquidity(p: PoolMath, dl: bigint, available: bigint): { tokensOut: bigint; solOut: bigint; next: PoolMath } | null {
+  if (dl <= 0n || dl > p.l || p.l - dl < MIN_LIQUIDITY || (dl < MIN_LIQUIDITY_DELTA && dl !== available)) return null;
   const dx = (p.x * dl) / p.l;
   const dy = (p.y * dl) / p.l;
   const dvx = (p.vx * dl) / p.l;
@@ -186,6 +191,11 @@ export function effectiveFeeBps(baseBps: number, startBps: number, decaySecs: nu
   const left = BigInt(decaySecs) - elapsed;
   const extra = ceilDiv(BigInt(startBps - baseBps) * left, BigInt(decaySecs));
   return baseBps + Number(extra);
+}
+
+/** Liquidity may be added only once the launch fee is back at the base fee (the program refuses it before). */
+export function addingOpen(p: PoolMath, now: bigint): boolean {
+  return effectiveFeeBps(p.feeBps, p.feeStartBps ?? 0, p.decaySecs ?? 0, p.startTs ?? 0n, now) === p.feeBps;
 }
 
 /** The pool as a trade would find it at `now`: its fee is the one in force. */

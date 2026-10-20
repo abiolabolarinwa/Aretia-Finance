@@ -370,7 +370,7 @@ export function initAretiaPool(host: AretiaPoolHost, opts: AretiaPoolOptions = {
     const dlRaw = toSmallestUnit(liqText, 9);
     const dl = dlRaw ? BigInt(dlRaw) : 0n;
     const add = f && dl > 0n ? f.quoteAdd(pool, dl, ARETIA_SLIPPAGE_BPS_DEFAULT) : null;
-    const rem = f && dl > 0n && position && dl <= position.shares - position.locked ? f.quoteRemove(pool, dl, ARETIA_SLIPPAGE_BPS_DEFAULT) : null;
+    const rem = f && dl > 0n && position && dl <= position.shares - position.locked ? f.quoteRemove(pool, dl, ARETIA_SLIPPAGE_BPS_DEFAULT, position.shares - position.locked) : null;
     if (add) box.append(h('p', 'wapp__fine', `Adding this takes about ${amountText(add.tokens, decimals)} tokens and ${sol(add.sol)}.`));
     if (rem) box.append(h('p', 'wapp__fine', `Removing this returns about ${amountText(rem.tokens, decimals)} tokens and ${sol(rem.sol)}. Locked liquidity cannot be removed.`));
     const row2 = h('div', 'wapp__row-actions');

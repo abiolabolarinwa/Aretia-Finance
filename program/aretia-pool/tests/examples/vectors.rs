@@ -69,12 +69,14 @@ fn main() {
                 }
                 _ => {
                     let dl = 1 + next() % (p.l / 4 + 1);
-                    match remove(&p, dl) {
+                    // What the remover holds unlocked: sometimes exactly `dl` (so dust is allowed), otherwise the whole pool.
+                    let available = if next() % 2 == 0 { dl } else { p.l };
+                    match remove(&p, dl, available) {
                         Some((r, n)) => {
-                            steps.push(format!("{{\"op\":\"remove\",\"amount\":\"{dl}\",\"result\":{{\"tokensOut\":\"{}\",\"solOut\":\"{}\"}},\"state\":{}}}", r.tokens_out, r.sol_out, st(&n)));
+                            steps.push(format!("{{\"op\":\"remove\",\"amount\":\"{dl}\",\"available\":\"{available}\",\"result\":{{\"tokensOut\":\"{}\",\"solOut\":\"{}\"}},\"state\":{}}}", r.tokens_out, r.sol_out, st(&n)));
                             p = n;
                         }
-                        None => steps.push(format!("{{\"op\":\"remove\",\"amount\":\"{dl}\",\"result\":null,\"state\":{}}}", st(&p))),
+                        None => steps.push(format!("{{\"op\":\"remove\",\"amount\":\"{dl}\",\"available\":\"{available}\",\"result\":null,\"state\":{}}}", st(&p))),
                     }
                 }
             }

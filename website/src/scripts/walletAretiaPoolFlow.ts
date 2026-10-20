@@ -26,6 +26,7 @@ import {
   poolMathOf,
   sell,
   addLiquidity,
+  addingOpen,
   removeLiquidity,
   type AretiaPoolCost,
   type CreateParams,
@@ -250,17 +251,18 @@ export class AretiaPoolFlow {
     return signature;
   }
 
-  /** A quote for adding `dl` of liquidity, with caps a little above what is needed. Null if the pool cannot take it. */
+  /** A quote for adding `dl` of liquidity, with caps a little above what is needed. Null if the pool cannot take it, or the launch fee is still running. */
   quoteAdd(pool: PoolAccount, dl: bigint, slippageBps: number): LiquidityQuote | null {
+    if (!addingOpen(poolMathOf(pool), BigInt((this.d.nowSecs ?? (() => Math.floor(Date.now() / 1000)))()))) return null;
     const q = addLiquidity(poolMathOf(pool), dl);
     if (!q) return null;
     const cap = (v: bigint) => (v * BigInt(10_000 + slippageBps) + 9_999n) / 10_000n;
     return { dl, tokens: q.tokensIn, sol: q.solIn, limitTokens: cap(q.tokensIn), limitSol: cap(q.solIn) };
   }
 
-  /** A quote for removing `dl`, with floors a little below what is expected. */
-  quoteRemove(pool: PoolAccount, dl: bigint, slippageBps: number): LiquidityQuote | null {
-    const q = removeLiquidity(poolMathOf(pool), dl);
+  /** A quote for removing `dl`, with floors a little below what is expected. `available` is the position's unlocked shares. */
+  quoteRemove(pool: PoolAccount, dl: bigint, slippageBps: number, available: bigint = dl): LiquidityQuote | null {
+    const q = removeLiquidity(poolMathOf(pool), dl, available);
     if (!q) return null;
     return { dl, tokens: q.tokensOut, sol: q.solOut, limitTokens: minOut(q.tokensOut, slippageBps), limitSol: minOut(q.solOut, slippageBps) };
   }

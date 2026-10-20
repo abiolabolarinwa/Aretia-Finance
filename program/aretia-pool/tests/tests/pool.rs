@@ -278,7 +278,7 @@ fn a_second_provider_adds_and_removes_in_proportion() {
     assert!(mine > 0 && creators > mine);
 
     // Remove it all: gets back no more than it put in, plus nothing from the fees (they stay claimable).
-    let (r, _) = pool_math::remove(&p1.math(), dl).unwrap();
+    let (r, _) = pool_math::remove(&p1.math(), dl, dl).unwrap();
     l.env.send(&[remove_ix(&lp.pubkey(), &l.mint, dl, r.tokens_out, r.sol_out)], &[&lp]).expect("remove");
     assert_eq!(l.env.position(&l.mint, &lp.pubkey()).pending, mine, "fees were settled, not lost");
     let before = l.env.wsol(&lp.pubkey());
@@ -559,9 +559,9 @@ fn random_run(vx0: u64, seed: u64) {
             let unlocked = have.shares - have.locked;
             let dl = if rng.below(6) == 0 { have.shares + 1 } else { rng.below(unlocked.max(1) + 1) };
             let p = settled(&model, have);
-            let valid = have.exists && dl <= unlocked && pool_math::remove(&model, dl).is_some();
+            let valid = have.exists && dl <= unlocked && pool_math::remove(&model, dl, unlocked).is_some();
             if valid {
-                let (r, n) = pool_math::remove(&model, dl).unwrap();
+                let (r, n) = pool_math::remove(&model, dl, unlocked).unwrap();
                 let mut np = p;
                 np.shares -= dl;
                 Plan { ix: remove_ix(&a, &mint, dl, r.tokens_out, r.sol_out), next: Some(n), pos: Some(np), tok: r.tokens_out as i128, lam: r.sol_out as i128, fee: 0, kind: 3 }
@@ -784,4 +784,158 @@ fn a_stranger_cannot_block_a_pool_by_opening_its_vaults_first() {
     let r = env.send(&[create_pool_ix_full(&c, &c, &c, &mint, X0, 0, L0, 25, true, 0, 0, 0)], &[&creator]);
     assert!(r.is_ok(), "create_pool was blocked by pre-opened vaults: {:?}", r.err().map(|e| e.meta.logs.join(" | ")));
     assert_eq!(env.token_amount(&ata(&pool, &mint, &TOKEN_2022)), X0);
+}
+
+// ---------------------------------------------------------------- regressions for the 2026-10 review (docs/audit/2026-10-full-review)
+
+fn launch_sched(lock: bool, sniper: u16, decay: u32) -> Launched {
+    let mut env = Env::new();
+    let creator = env.user(100);
+    env.make_wsol(&creator.pubkey(), 0);
+    let mint = env.make_mint(MintKind::Launch, DECIMALS, SUPPLY, &creator);
+    let c = creator.pubkey();
+    env.send(&[create_pool_ix_full(&c, &c, &c, &mint, X0, 0, L0, 25, lock, sniper, decay, 0)], &[&creator]).expect("create_pool");
+    Launched { env, creator, mint }
+}
+
+/// M-5: the PoC gave the position to 1111...1111 and took it back with add_liquidity. Now the "burn" itself is refused, and a
+/// position already sitting at the default owner (as one sent there before the fix would) cannot be re-initialised or reclaimed.
+#[test]
+fn m5_a_position_cannot_be_burned_to_the_default_key_or_reclaimed() {
+    let mut l = launch_with(X0, 0, L0, 25, false);
+    let c = l.creator.pubkey();
+    l.env.send(&[lock_ix(&c, &l.mint, L0 / 2)], &[&l.creator]).expect("lock half");
+    let buyer = trader(&mut l, 200, 0);
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 100 * SOL, 1)], &[&buyer]).expect("buy");
+    let pool = pool_pda(&l.mint);
+    for bad in [SYSTEM, Address::new_from_array([0u8; 32]), pool] {
+        assert_fails_with(l.env.send(&[transfer_position_ix(&c, &c, &l.mint, &bad)], &[&l.creator]), "BadRecipient");
+    }
+    assert_eq!(l.env.position(&l.mint, &c).owner, c, "the position did not move");
+
+    // A position that reached the default owner before this fix: write it so, then try the PoC's reclaim.
+    l.env.send(&[claim_ix(&c, &l.mint)], &[&l.creator]).expect("claim first so pending is settled into the checkpoint");
+    let pos_addr = position_pda(&pool, &c);
+    let mut acc = l.env.svm.get_account(&pos_addr).unwrap();
+    acc.data[40..72].copy_from_slice(&[0u8; 32]);
+    l.env.svm.set_account(pos_addr, acc).unwrap();
+    let before = l.env.position(&l.mint, &c);
+    l.env.make_wsol(&c, 10 * SOL);
+    assert_fails_with(l.env.send(&[add_ix(&c, &l.mint, 1_000, u64::MAX, u64::MAX)], &[&l.creator]), "NotOwner");
+    assert_fails_with(l.env.send(&[remove_ix(&c, &l.mint, 1_000, 0, 0)], &[&l.creator]), "");
+    let after = l.env.position(&l.mint, &c);
+    assert_eq!((after.owner, after.shares, after.locked, after.checkpoint, after.pending), (before.owner, before.shares, before.locked, before.checkpoint, before.pending));
+}
+
+/// M-5: adding to an existing position never rewrites its checkpoint, so fees settled to it are kept.
+#[test]
+fn m5_adding_to_a_position_keeps_its_settled_fees() {
+    let mut l = launch(25, false);
+    let c = l.creator.pubkey();
+    let buyer = trader(&mut l, 50, 0);
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 10 * SOL, 1)], &[&buyer]).expect("buy");
+    let p = l.env.pool(&l.mint);
+    let owed = pool_math::pending_fee(L0, p.acc, 0).unwrap();
+    assert!(owed > 0);
+    l.env.make_wsol(&c, 10 * SOL);
+    l.env.send(&[add_ix(&c, &l.mint, 1_000_000, u64::MAX, u64::MAX)], &[&l.creator]).expect("add");
+    let pos = l.env.position(&l.mint, &c);
+    assert_eq!(pos.pending, owed, "the fees earned before the add are still owed");
+    assert_eq!(pos.checkpoint, p.acc);
+}
+
+/// L-21: with the fee wallet's wrapped-SOL account closed, a swap that passes the trailing accounts opens it again (the trader
+/// pays the rent) and pays Aretia; a swap without them fails with a clear error; with the account present, both forms work.
+#[test]
+fn l21_a_swap_succeeds_when_the_fee_wsol_account_is_missing() {
+    let mut l = launch(100, true);
+    let buyer = trader(&mut l, 50, 0);
+    let fee_ata = wsol_ata(&FEE_WALLET);
+    l.env.send(&[swap_ix_bare(&buyer.pubkey(), &l.mint, true, SOL, 1)], &[&buyer]).expect("an old client still works while the account exists");
+    l.env.svm.set_account(fee_ata, solana_account::Account { lamports: 0, data: vec![], owner: SYSTEM, executable: false, rent_epoch: 0 }).unwrap();
+    assert_fails_with(l.env.send(&[swap_ix_bare(&buyer.pubkey(), &l.mint, true, SOL, 1)], &[&buyer]), "FeeAccountMissing");
+    let p = l.env.pool(&l.mint);
+    let (q, _) = pool_math::buy(&p.math(), SOL).unwrap();
+    let lamports0 = l.env.lamports(&buyer.pubkey());
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, SOL, 1)], &[&buyer]).expect("the swap opens the fee account itself");
+    assert_eq!(l.env.wsol(&FEE_WALLET), q.protocol, "Aretia got exactly its share");
+    assert!(l.env.lamports(&buyer.pubkey()) < lamports0, "the trader paid the rent");
+    // and a sell works too, and again with the account now present
+    let toks = l.env.token_amount(&ata(&buyer.pubkey(), &l.mint, &TOKEN_2022));
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, false, toks / 2, 1)], &[&buyer]).expect("sell");
+    // wrong trailing accounts are refused
+    l.env.svm.set_account(fee_ata, solana_account::Account { lamports: 0, data: vec![], owner: SYSTEM, executable: false, rent_epoch: 0 }).unwrap();
+    let mut ix = swap_ix_bare(&buyer.pubkey(), &l.mint, true, SOL, 1);
+    let mut extra = fee_wsol_open_accounts();
+    extra[0] = solana_instruction::AccountMeta::new_readonly(buyer.pubkey(), false);
+    ix.accounts.extend(extra);
+    assert_fails_with(l.env.send(&[ix], &[&buyer]), "FeeAccountMissing");
+}
+
+/// L-23: the PoC removed everything and left a dead pool. Now the last MIN_LIQUIDITY always stays, and the pool keeps working.
+#[test]
+fn l23_a_pool_can_never_be_emptied() {
+    let mut l = launch(25, false);
+    let c = l.creator.pubkey();
+    l.env.make_wsol(&c, 0);
+    assert_fails_with(l.env.send(&[remove_ix(&c, &l.mint, L0, 0, 0)], &[&l.creator]), "BadParameters");
+    assert_fails_with(l.env.send(&[remove_ix(&c, &l.mint, L0 - pool_math::MIN_LIQUIDITY + 1, 0, 0)], &[&l.creator]), "BadParameters");
+    l.env.send(&[remove_ix(&c, &l.mint, L0 - pool_math::MIN_LIQUIDITY, 0, 0)], &[&l.creator]).expect("remove down to the floor");
+    assert_eq!(l.env.pool(&l.mint).l, pool_math::MIN_LIQUIDITY);
+    let buyer = trader(&mut l, 50, 0);
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, SOL / 10, 1)], &[&buyer]).expect("a pool at its floor still trades");
+    l.env.make_wsol(&buyer.pubkey(), 10 * SOL);
+    l.env.send(&[add_ix(&buyer.pubkey(), &l.mint, 1_000_000, u64::MAX, u64::MAX)], &[&buyer]).expect("and takes liquidity again");
+    assert_vault_exact(&l, 0, 0);
+}
+
+/// I-15: a position whose unlocked part is below MIN_LIQUIDITY_DELTA can still take all of it out (and no more).
+#[test]
+fn i15_a_small_unlocked_balance_can_be_withdrawn() {
+    let mut l = launch(25, true);
+    let lp = trader(&mut l, 50, 1_000_000_000_000);
+    let a = lp.pubkey();
+    l.env.send(&[add_ix(&a, &l.mint, 1_500, u64::MAX, u64::MAX)], &[&lp]).expect("add");
+    l.env.send(&[lock_ix(&a, &l.mint, 1_000)], &[&lp]).expect("lock most");
+    assert_fails_with(l.env.send(&[remove_ix(&a, &l.mint, 400, 0, 0)], &[&lp]), "BadParameters");
+    assert_fails_with(l.env.send(&[remove_ix(&a, &l.mint, 501, 0, 0)], &[&lp]), "Locked");
+    l.env.send(&[remove_ix(&a, &l.mint, 500, 0, 0)], &[&lp]).expect("all 500 unlocked shares");
+    let pos = l.env.position(&l.mint, &a);
+    assert_eq!((pos.shares, pos.locked), (1_000, 1_000));
+}
+
+/// I-16: the pool cannot be named as the fee recipient, nor the default key, and a claim never pays into the pool's own vault.
+#[test]
+fn i16_fees_cannot_be_sent_back_into_the_pool() {
+    let mut l = launch(25, true);
+    let c = l.creator.pubkey();
+    let buyer = trader(&mut l, 50, 0);
+    l.env.send(&[swap_ix(&buyer.pubkey(), &l.mint, true, 10 * SOL, 1)], &[&buyer]).expect("buy");
+    let pool = pool_pda(&l.mint);
+    assert_fails_with(l.env.send(&[set_recipient_ix(&c, &l.mint, &pool)], &[&l.creator]), "BadRecipient");
+    assert_fails_with(l.env.send(&[set_recipient_ix(&c, &l.mint, &SYSTEM)], &[&l.creator]), "BadRecipient");
+    // A recipient set to the pool before this fix: the claim is refused rather than paying the vault.
+    let pos_addr = position_pda(&pool, &c);
+    let mut acc = l.env.svm.get_account(&pos_addr).unwrap();
+    acc.data[112..144].copy_from_slice(pool.as_ref());
+    l.env.svm.set_account(pos_addr, acc).unwrap();
+    assert_fails_with(l.env.send(&[claim_ix_to(&c, &l.mint, &c, &pool)], &[&l.creator]), "WrongAccount");
+    l.env.send(&[set_recipient_ix(&c, &l.mint, &c)], &[&l.creator]).expect("point it back at the owner");
+    l.env.send(&[claim_ix(&c, &l.mint)], &[&l.creator]).expect("claim");
+    assert_vault_exact(&l, 0, 0);
+}
+
+/// L-22: the PoC's just-in-time add during the launch fee is refused; once the fee is back at the base, adding works.
+#[test]
+fn l22_no_adding_while_the_launch_fee_runs() {
+    let mut l = launch_sched(true, 2_500, 900);
+    let t0 = l.env.pool(&l.mint).created_at;
+    l.env.set_time(t0);
+    let jit = trader(&mut l, 50, 300_000_000_000_000);
+    let dl = L0 / 2;
+    assert_fails_with(l.env.send(&[add_ix(&jit.pubkey(), &l.mint, dl, u64::MAX, u64::MAX)], &[&jit]), "LaunchFeeActive");
+    l.env.set_time(t0 + 899);
+    assert_fails_with(l.env.send(&[add_ix(&jit.pubkey(), &l.mint, dl, u64::MAX, u64::MAX)], &[&jit]), "LaunchFeeActive");
+    l.env.set_time(t0 + 900);
+    l.env.send(&[add_ix(&jit.pubkey(), &l.mint, dl, u64::MAX, u64::MAX)], &[&jit]).expect("adding opens when the schedule ends");
 }

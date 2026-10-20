@@ -44,7 +44,8 @@ export function sessionSecret(env: { SWINGS_SESSION_SECRET?: string; SUPABASE_SE
  * origins (aretiafinance.org, www.aretiafinance.org and RPC_ALLOWED_ORIGINS). Taken from configuration, never from the request.
  */
 export function loginDomains(env: ProxyEnv & { SWINGS_LOGIN_DOMAINS?: string }): string[] {
-  const own = (env.SWINGS_LOGIN_DOMAINS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  // Hosts only; a value written as an origin ("https://aretiafinance.org/") is reduced to its host rather than never matching.
+  const own = (env.SWINGS_LOGIN_DOMAINS ?? '').split(',').map((s) => s.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/\/.*$/, '')).filter(Boolean);
   if (own.length > 0) return own;
   const out: string[] = [];
   for (const o of allowedOrigins(env)) {

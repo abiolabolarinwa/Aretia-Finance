@@ -153,7 +153,9 @@ export async function handleReferrals(input: ReferralsInput): Promise<ReferralsO
     let binding = ((await db.call(`referral_bindings?trader=eq.${q}&select=trader,referrer,bound_at,expires_at`)) as BindingRow[])[0] ?? null;
     if (!binding) {
       const capture = readCapture(secret, body.capture, input.now);
-      if (!capture) return json(200, { credited: 0, reason: parseReferrer(body.ref) ? 'no-capture' : 'no-referrer' }, headers);
+      // A token that was sent but does not verify (signed with an earlier secret, or damaged) is 'bad-capture', so the browser drops it
+      // and asks for a new one instead of resending it for ever.
+      if (!capture) return json(200, { credited: 0, reason: typeof body.capture === 'string' && body.capture ? 'bad-capture' : parseReferrer(body.ref) ? 'no-capture' : 'no-referrer' }, headers);
       if (isSelf(owner, capture.referrer)) return json(200, { credited: 0, reason: 'self' }, headers);
       const [revoked, back] = (await Promise.all([db.call(`referral_revocations?referrer=eq.${enc(capture.referrer)}&select=referrer`), db.call(`referral_bindings?trader=eq.${enc(capture.referrer)}&select=trader,referrer`)])) as [unknown[], { trader: string; referrer: string }[]];
       if (revoked.length > 0) return json(200, { credited: 0, reason: 'revoked' }, headers);

@@ -217,7 +217,8 @@ export class EvmChainAdapter implements ChainAdapter {
       this.sent.add(quoteId);
       try {
         const hash = await this.wallet.sendBatch(this.chainId, p.taker, calls);
-        // The swap went with the fee, so a fee paid earlier on its own for it has now been used.
+        // The swap went with the fee, so a fee paid earlier on its own for it has now been used. (A batch answers a batch id, not a
+        // transaction hash, so its receipt cannot be awaited here as the single-swap path does.)
         if (feeKey) this.setFeePaid(feeKey, false);
         return hash;
       } catch (e) {
@@ -259,12 +260,24 @@ export class EvmChainAdapter implements ChainAdapter {
     this.sent.add(quoteId);
     try {
       const hash = await this.send(p.swap, p.taker);
-      if (feeKey) this.setFeePaid(feeKey, false);
+      if (feeKey) this.clearFeeWhenConfirmed(feeKey, hash);
       return hash;
     } catch (e) {
       if (e instanceof SwingsError && e.code === 'rejected') this.sent.delete(quoteId);
       throw e;
     }
+  }
+
+  /**
+   * Forgets a separately paid fee only once the swap it paid for is confirmed. A swap that reverts on-chain, or is still pending,
+   * leaves the fee recorded for its window, so trying again does not charge it twice.
+   */
+  private clearFeeWhenConfirmed(feeKey: string, hash: string): void {
+    void this.waitForReceipt(hash)
+      .then((status) => {
+        if (status === 'confirmed') this.setFeePaid(feeKey, false);
+      })
+      .catch(() => undefined);
   }
 
   /**

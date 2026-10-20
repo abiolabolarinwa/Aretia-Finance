@@ -8,7 +8,7 @@ import { browserStorage } from '../swings/history.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, isChainId, type ChainId } from '../swings/core/types.js';
 import { HUB_TOKENS } from '../swings/dex/hubs.js';
 import { KNOWN_TOKENS } from './walletTools.js';
-import { REFERRAL_CONFIG, captureFromSearch, readStoredRef, referralLink, referrerPercentOfVolume, storeCapture, type KeyValue } from '../swings/referrals/core.js';
+import { REFERRAL_CONFIG, captureFromSearch, dropCapture, readStoredRef, referralLink, referrerPercentOfVolume, storeCapture, type KeyValue } from '../swings/referrals/core.js';
 import { takeFeeTxs } from '../swings/referrals/feeTxLog.js';
 
 const QUEUE_KEY = 'aretia-referral-queue-v1';
@@ -103,7 +103,13 @@ export async function flushReferrals(): Promise<void> {
         continue;
       }
       try {
-        const r = await account.call<{ results?: { result: string }[] }>(session, { op: 'record', ref, capture, chain: item.chain, txs: item.txs, swapTx: item.txs[item.txs.length - 1] }, API);
+        const r = await account.call<{ reason?: string; results?: { result: string }[] }>(session, { op: 'record', ref, capture, chain: item.chain, txs: item.txs, swapTx: item.txs[item.txs.length - 1] }, API);
+        // A capture the server no longer accepts (its secret changed) is dropped so the next report gets a new one; the swap is kept.
+        if (r.reason === 'bad-capture') {
+          dropCapture(browserStorage() as KeyValue | null, Date.now());
+          keep.push(item);
+          continue;
+        }
         // A transaction the node could not show yet is tried again; everything else is final.
         if ((r.results ?? []).some((x) => x.result === 'pending' || x.result === 'unreadable')) keep.push(item);
       } catch {

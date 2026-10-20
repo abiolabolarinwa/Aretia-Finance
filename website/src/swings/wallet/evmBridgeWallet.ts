@@ -212,7 +212,8 @@ export class EvmBridgeWallet implements WalletAdapter {
     if (!this.isConnected() || !session.address) throw new SwingsError('invalid', 'The wallet is no longer connected.');
     if (tx.tx.from.toLowerCase() !== session.address.toLowerCase()) throw new SwingsError('invalid', 'The wallet account changed since this transaction was built. Nothing was sent.');
     if (session.networkId !== tx.chainId) throw new SwingsError('invalid', 'The wallet is on a different network from this transaction. Nothing was sent.');
-    return this.adapter.sendTransaction(tx.tx);
+    // The request names its network too, so a wallet that switches between this check and its prompt refuses it (audit L-1).
+    return this.adapter.sendTransaction({ ...tx.tx, chainId: '0x' + tx.chainId.toString(16) });
   }
 
   async switchNetwork(chain: ChainId): Promise<void> {

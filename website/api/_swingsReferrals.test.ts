@@ -388,9 +388,9 @@ describe('audit regressions (2026-10 review)', () => {
     const noCapture = fakeWorld({ evmTx: { [H]: swap() } });
     expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: undefined, chain: 'ethereum', txs: [H] })).data.reason).toBe('no-capture');
     const forged = issueCapture('another-secret', `evm:${REFERRER}`, NOW - 3_600_000);
-    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: forged, chain: 'ethereum', txs: [H] })).data.reason).toBe('no-capture');
+    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: forged, chain: 'ethereum', txs: [H] })).data.reason).toBe('bad-capture');
     const expired = capture(REFERRER, NOW - 91 * 86_400_000);
-    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: expired, chain: 'ethereum', txs: [H] })).data.reason).toBe('no-capture');
+    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: expired, chain: 'ethereum', txs: [H] })).data.reason).toBe('bad-capture');
     expect(noCapture.bindings).toHaveLength(0);
     // a capture naming the trader is self-referral, refused
     expect((await call(noCapture, { op: 'record', ref: TRADER, chain: 'ethereum', txs: [H] })).data.reason).toBe('self');

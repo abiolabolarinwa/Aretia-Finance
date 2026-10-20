@@ -424,7 +424,10 @@ export class CctpSettlementProvider implements SettlementProvider {
     const parsed = parseExecutionId(executionId);
     if (!parsed || parsed.providerId !== this.id) throw new SwingsError('invalid', 'This is not a settlement this provider can follow.');
     const raw = quote.raw as CctpRaw;
-    const m = await this.message(raw.srcDomain, parsed.sourceTx);
+    // The source domain comes from Circle's table for the move's chain, never from the stored quote.
+    const srcDomain = CCTP_DOMAIN[quote.intent.sourceChain];
+    if (srcDomain === undefined) throw new SwingsError('invalid', 'The source chain is not one this provider settles from.');
+    const m = await this.message(srcDomain, parsed.sourceTx);
     if (!m || m.status !== 'complete' || !m.attestation || !m.message) return null;
     // Never mint twice: if the message was already used on the destination, there is nothing to send.
     if (m.nonce && (await this.nonceUsed(quote.intent.destinationChain, m.nonce))) return null;
@@ -517,6 +520,29 @@ function burnTermProblems(intent: SettlementIntent, t: { amount: bigint; domain:
   return out;
 }
 
+// Circle's V2 message: header with the destination domain at byte 8 and the burn body from byte 148, whose mint recipient is at
+// body byte 36 and amount at body byte 68.
+const MSG_DEST_DOMAIN_AT = 8;
+const MSG_BODY_AT = 148;
+
+/** The attested message inside an EVM claim must mint this move's amount to this move's recipient on this move's destination. */
+function claimMessageProblems(intent: SettlementIntent, data: string): string[] {
+  let message: string;
+  try {
+    [message] = decodeParams(['bytes', 'bytes'], '0x' + data.slice(10)) as [string, string];
+  } catch {
+    return ['The claim does not carry a readable message.'];
+  }
+  const b = hexToBytes(message);
+  if (b.length < MSG_BODY_AT + 100) return ['The claim carries a message too short to be a USDC transfer.'];
+  const out: string[] = [];
+  const domain = new DataView(b.buffer, b.byteOffset).getUint32(MSG_DEST_DOMAIN_AT, false);
+  if (domain !== CCTP_DOMAIN[intent.destinationChain]) out.push('The claimed message is for a different network than this move.');
+  const hex = (x: Uint8Array): string => '0x' + [...x].map((v) => v.toString(16).padStart(2, '0')).join('');
+  if (hex(b.subarray(MSG_BODY_AT + 36, MSG_BODY_AT + 68)) !== bytes32OfAddress(intent.recipient)) out.push('The claimed message pays someone other than this move\'s recipient.');
+  return out;
+}
+
 /**
  * Decodes a CCTP transaction and checks every field against Circle's published contracts and the intent: the approval's
  * token, spender and amount, and each `depositForBurn` argument (amount, domain, recipient, token, caller, fee, finality).
@@ -535,6 +561,7 @@ export function cctpTransactionProblems(intent: SettlementIntent, tx: Settlement
     if (!eqi(u.tx.from, intent.recipient)) out.push('The claim is from a different account than the recipient.');
     if (!(u.tx.data ?? '').toLowerCase().startsWith(SEL_RECEIVE_MESSAGE)) out.push('The claim is not a receiveMessage call.');
     if (!zeroValue(u.tx.value)) out.push('The claim sends coin, which it never does.');
+    else out.push(...claimMessageProblems(intent, u.tx.data ?? ''));
     return out;
   }
   if (tx.chain !== src) return ['The transaction is on a different network than this move.'];

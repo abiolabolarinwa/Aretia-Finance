@@ -183,6 +183,23 @@ describe('L-2: a fee paid on its own is not charged again, and the swap is check
     expect(fees(sends)).toBe(4);
   });
 
+  it('keeps the fee recorded when the swap is sent but fails on-chain, so the retry is not charged again (re-audit)', async () => {
+    const store = memory();
+    const sends: { to: string; data?: string }[] = [];
+    let swapFails = true;
+    // Receipts: the fee confirms; the first swap reverts on-chain, the retry confirms.
+    const w = (): EvmWalletAdapter => ({ ...(wallet(sends, () => false) as object), request: async (m: string, params?: unknown[]) => {
+      if (m !== 'eth_getTransactionReceipt') return '0x';
+      const last = sends[sends.length - 1];
+      return { status: last?.data === '0xswap' && swapFails ? '0x0' : '0x1', params };
+    } }) as never;
+    await new EvmChainAdapter('ethereum', w(), { pollMs: 1, feeStore: store }).signAndSubmit(prepared('q1'));
+    await new Promise((r) => setTimeout(r, 20));
+    swapFails = false;
+    await new EvmChainAdapter('ethereum', w(), { pollMs: 1, feeStore: store }).signAndSubmit(prepared('q2'));
+    expect(fees(sends)).toBe(1);
+  });
+
   it('simulates the swap again after the fee is confirmed, and keeps the fee recorded when the swap would now fail', async () => {
     const store = memory();
     const sends: { to: string; data?: string }[] = [];

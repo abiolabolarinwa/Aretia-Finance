@@ -190,3 +190,24 @@ describe('H-3: a restored record is never signed from', () => {
     expect((burn.unsigned as { tx: { data: string } }).tx.data.toLowerCase()).not.toContain('e'.repeat(40));
   });
 });
+
+describe('the EVM claim must mint to this move (re-audit)', () => {
+  const intent = intentOf();
+  // Circle's V2 message: header (148 bytes, destination domain at byte 8), then the burn body (mint recipient at body byte 36).
+  const message = (domain: number, recipient: string): string => {
+    const b = new Uint8Array(148 + 228);
+    new DataView(b.buffer).setUint32(8, domain, false);
+    b.set(Uint8Array.from(Buffer.from(recipient.slice(2).padStart(64, '0'), 'hex')), 148 + 36);
+    return '0x' + Buffer.from(b).toString('hex');
+  };
+  const claim = (msg: string): SettlementTransaction => ({ stepId: 'mint', chain: 'base', description: '', unsigned: { kind: 'evm', chainId: 8453, tx: { from: VICTIM, to: CCTP_CONTRACTS.messageTransmitter, data: encodeFunction('receiveMessage(bytes,bytes)', [msg, '0x1234']), value: '0x0' } } });
+
+  it('accepts a message that mints to the recipient on the destination', () => {
+    expect(cctpTransactionProblems(intent, claim(message(6, VICTIM)))).toEqual([]);
+  });
+  it('refuses a message that pays someone else, or is for another network, or is too short', () => {
+    expect(cctpTransactionProblems(intent, claim(message(6, ATTACKER))).join(' ')).toMatch(/someone other/);
+    expect(cctpTransactionProblems(intent, claim(message(3, VICTIM))).join(' ')).toMatch(/different network/);
+    expect(cctpTransactionProblems(intent, claim('0xabcd')).join(' ')).toMatch(/too short/);
+  });
+});

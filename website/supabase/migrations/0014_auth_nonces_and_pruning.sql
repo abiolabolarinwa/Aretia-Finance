@@ -44,7 +44,9 @@ as $$
   delete from public.notify_links where expires_at < now_ms - 86400000::bigint;
   delete from public.notify_inbox where created_at < now_ms - 604800000::bigint;
   delete from public.tracked_pools where last_seen < now_ms - 604800000::bigint;
-  delete from public.swings_records where updated_at < now_ms - 7776000000::bigint;
+  -- Only finished moves: a burned but not yet minted transfer keeps its recovery copy however long it waits.
+  delete from public.swings_records where updated_at < now_ms - 7776000000::bigint
+    and state in ('COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED');
 $$;
 revoke all on function public.aretia_prune(bigint) from public, anon, authenticated;
 grant execute on function public.aretia_prune(bigint) to service_role;

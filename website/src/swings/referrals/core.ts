@@ -203,5 +203,18 @@ export function storeCapture(store: KeyValue | null, now: number, ref: string, c
   }
 }
 
+/** Forgets a capture token the server refused, keeping the stored referrer, so a fresh capture is requested. */
+export function dropCapture(store: KeyValue | null, now: number): void {
+  const existing = readStoredRef(store, now);
+  if (!existing?.capture) return;
+  const { capture: _drop, ...rest } = existing;
+  void _drop;
+  try {
+    store?.setItem(REF_STORAGE_KEY, JSON.stringify(rest));
+  } catch {
+    // nothing stored: the next report asks again anyway
+  }
+}
+
 /** The link a referrer shares. */
 export const referralLink = (address: string, origin = 'https://aretiafinance.org'): string => `${origin}/?ref=${encodeURIComponent(address)}`;

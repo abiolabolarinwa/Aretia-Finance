@@ -21,6 +21,8 @@ import type BN from 'bn.js';
 import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress } from './walletTools';
 import { SYSTEM_PROGRAM_ID } from './walletLaunchTx';
 import { POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, protectionSchedule, type PoolConfig } from './walletPoolCore';
+// A function-only import (walletCurveTx imports this file's constants too): the pool address is derived without the SDK.
+import { meteoraPoolAddress } from './walletCurveTx';
 
 export const METEORA_PROGRAM_ID = 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG';
 /** Meteora's fixed pool authority (an address written into the program, the same for every pool). */
@@ -78,6 +80,41 @@ export function expectedBaseFee(config: PoolConfig): Uint8Array {
   v.setBigUint64(18, s.reduction, true);
   out[26] = 0;
   return out;
+}
+
+/** floor(sqrt(n)) for a non-negative bigint, by Newton's method. */
+export function isqrt(n: bigint): bigint {
+  if (n < 0n) throw new Error('isqrt of a negative number');
+  if (n < 2n) return n;
+  let x = 1n << BigInt((n.toString(2).length + 1) >> 1);
+  for (;;) {
+    const y = (x + n / x) >> 1n;
+    if (y >= x) return x;
+    x = y;
+  }
+}
+
+/**
+ * The starting price as Meteora stores it, a Q64.64 square root of (SOL lamports per raw token), worked out with integers only and
+ * no SDK: floor(sqrt(price × 10^(9 − decimals)) × 2^64). Null when the price is not a plain decimal.
+ */
+export function expectedSqrtPrice(price: string, decimals: number): bigint | null {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(price);
+  if (!m || !Number.isInteger(decimals) || decimals < 0 || decimals > 30) return null;
+  const frac = m[2] ?? '';
+  let num = BigInt(m[1]! + frac) << 128n;
+  let den = 10n ** BigInt(frac.length);
+  if (decimals <= 9) num *= 10n ** BigInt(9 - decimals);
+  else den *= 10n ** BigInt(decimals - 9);
+  return num === 0n ? null : isqrt(num / den);
+}
+
+/** Raw tokens a single-sided position of `liquidity` over [lower, upper] holds (Meteora's concentrated formula, rounded up). */
+export function impliedTokenAmount(liquidity: bigint, lower: bigint, upper: bigint): bigint | null {
+  if (lower <= 0n || upper <= lower) return null;
+  const n = liquidity * (upper - lower);
+  const d = lower * upper;
+  return (n + d - 1n) / d;
 }
 
 export function poolMath(web3: typeof Web3, libs: PoolLibs, config: PoolConfig): PoolMath {
@@ -274,6 +311,15 @@ export function inspectPool(web3: typeof Web3, tx: Web3.Transaction, input: Pool
     blockers.push(config.launchProtection ? 'The trading fee is not the launch-protection schedule shown.' : 'The trading fee is not the one shown.');
   if (view(d).getUint16(35, true) !== 0 || d[37] !== 0 || d[38] !== 0) blockers.push('The pool would use fee options this page does not offer.');
   if (u128(d, 39).toString() !== math.minSqrtPrice.toString()) blockers.push('The starting price is not the one shown.');
+  // Independently of the SDK: the price from the config with integer maths (allowing only rounding, one part in 10^12), the
+  // tokens the liquidity really takes (never more than shown, and not noticeably fewer), and the pool's address from its seeds.
+  const sqrtWant = expectedSqrtPrice(config.price, config.decimals);
+  const sqrtGot = u128(d, 39);
+  const diff = sqrtWant === null ? null : sqrtGot > sqrtWant ? sqrtGot - sqrtWant : sqrtWant - sqrtGot;
+  if (diff === null || diff > 2n + sqrtWant! / 1_000_000_000_000n) blockers.push('The starting price does not work out to the price you entered.');
+  const tokens = impliedTokenAmount(u128(d, 72), sqrtGot, u128(d, 55));
+  if (tokens === null || tokens > config.tokenAmountRaw || tokens * 1_000_000n < config.tokenAmountRaw * 999_999n) blockers.push('The liquidity does not match the amount of tokens shown.');
+  if (pool !== meteoraPoolAddress(web3, config.mint) || key(init, 5) !== meteoraPoolAddress(web3, config.mint)) blockers.push('The pool address is not the one fixed by the two tokens.');
   if (u128(d, 55).toString() !== math.maxSqrtPrice.toString()) blockers.push('The top of the price range is not the expected one.');
   if (d[71] !== 0) blockers.push('The pool would have an alpha vault.');
   if (u128(d, 72).toString() !== math.liquidity.toString()) blockers.push('The amount going into the pool is not the one shown.');

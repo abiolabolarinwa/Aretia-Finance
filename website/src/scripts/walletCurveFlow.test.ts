@@ -9,6 +9,7 @@ import {
   DEFAULT_CURVE_FORM,
   deriveCurve,
   quoteBuy,
+  quoteSell,
   startOf,
   validateCurve,
   type CurveConfig,
@@ -16,7 +17,7 @@ import {
   type CurveStatus,
 } from './walletCurveCore';
 import { CurveFlow, type CurveFlowDeps, type CurveProgress } from './walletCurveFlow';
-import { curveAddress, feeWsolAddress, meteoraPoolAddress, migrateAddresses, migratorAddress, tokenVaultAddress } from './walletCurveTx';
+import { curveAddress, feeWsolAddress, METEORA_POSITION_DISCRIMINATOR, meteoraPoolAddress, migrateAddresses, migratorAddress, parseMeteoraPosition, pickMigratedPosition, tokenVaultAddress } from './walletCurveTx';
 import { LaunchError } from './walletLaunchFlow';
 import { METEORA_POOL_AUTHORITY as METEORA_POOL_AUTHORITY_ID, METEORA_PROGRAM_ID } from './walletPoolTx';
 import { TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
@@ -324,6 +325,19 @@ describe('sell', () => {
     expect((await f2.prepareSell(BUYER, (await f2.loadCurve(MINT))!, 1_000n)).blockers.join(' ')).toMatch(/cannot be sold back/);
   });
 
+  it('L-8: refuses a sale the curve would pay 0 lamports for, and builds nothing to sign', async () => {
+    const w = tradingWorld({ ...fresh(), ...quoteBuy(startOf(derived), 20n * SOL, 58)!.next });
+    w.accounts.set(ataAddress(web3, BUYER, MINT, TOKEN_2022_PROGRAM_ID), { owner: TOKEN_2022_PROGRAM_ID, data: tokenAccount(1_000_000_000n) });
+    const flow = new CurveFlow(w.deps);
+    const curve = (await flow.loadCurve(MINT))!;
+    let dust = 1n;
+    while (quoteSell(curve, curve.curveTokens, dust * 2n, curve.feeBps)!.net === 0n) dust *= 2n;
+    expect(quoteSell(curve, curve.curveTokens, dust, curve.feeBps)!.net).toBe(0n);
+    const review = await flow.prepareSell(BUYER, curve, dust);
+    expect(review.blockers.join(' ')).toMatch(/pay you 0 SOL/);
+    expect(review.instructions).toEqual([]);
+  });
+
   it('allows selling to an unwound curve', async () => {
     const sold = quoteBuy(startOf(derived), 1_000n * SOL, 58)!.next;
     const w = tradingWorld({ ...fresh(), ...sold, status: 'aborted', soldOutAt: 1_000n });
@@ -427,16 +441,16 @@ describe('sending a graduated pool’s fees to Aretia', () => {
   it('names the program’s accounts in order, pays only Aretia’s fee wallet, and finds the position from the migrator', async () => {
     const w = tradingWorld(migrated());
     const asked: [string, string][] = [];
-    w.deps.positionNft = async (owner, except) => {
-      asked.push([owner, except]);
-      return NFT;
+    w.deps.positionNft = async (owner, pool) => {
+      asked.push([owner, pool]);
+      return { nft: NFT, pool };
     };
     const flow = new CurveFlow(w.deps);
     const curve = (await flow.loadCurve(MINT))!;
     const review = await flow.prepareClaimFees(BUYER, curve);
     expect(review.blockers).toEqual([]);
     const migrator = migratorAddress(web3, PROGRAM, curveAddress(web3, PROGRAM, MINT));
-    expect(asked).toEqual([[migrator, MINT]]);
+    expect(asked).toEqual([[migrator, meteoraPoolAddress(web3, MINT)]]);
     const m = migrateAddresses(web3, MINT, NFT);
     const keys = review.instructions[0]!.keys.map((k) => k.pubkey.toBase58());
     // The same order as ClaimPoolFees in program/aretia-curve.
@@ -469,7 +483,7 @@ describe('sending a graduated pool’s fees to Aretia', () => {
 
   it('refuses before graduation, without a position, or with a position from another pool', async () => {
     const before = tradingWorld(soldOutState());
-    before.deps.positionNft = async () => NFT;
+    before.deps.positionNft = async (_o, pool) => ({ nft: NFT, pool });
     const f1 = new CurveFlow(before.deps);
     expect((await f1.prepareClaimFees(BUYER, (await f1.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/not moved into its pool/);
     const none = tradingWorld(migrated());
@@ -478,8 +492,38 @@ describe('sending a graduated pool’s fees to Aretia', () => {
     expect((await f2.prepareClaimFees(BUYER, (await f2.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/could not be found/);
     const other = tradingWorld(migrated());
     other.accounts.set(curveAddress(web3, PROGRAM, MINT), { owner: PROGRAM, data: curveBytes({ ...migrated(), pool: web3.Keypair.generate().publicKey.toBase58() }) });
-    other.deps.positionNft = async () => NFT;
+    other.deps.positionNft = async (_o, pool) => ({ nft: NFT, pool });
     const f3 = new CurveFlow(other.deps);
     expect((await f3.prepareClaimFees(BUYER, (await f3.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/does not belong/);
+    // L-9: the position's own pool field is checked (the old check compared two values derived from the same mint).
+    const wrongField = tradingWorld(migrated());
+    wrongField.deps.positionNft = async () => ({ nft: NFT, pool: web3.Keypair.generate().publicKey.toBase58() });
+    const f4 = new CurveFlow(wrongField.deps);
+    expect((await f4.prepareClaimFees(BUYER, (await f4.loadCurve(MINT))!)).blockers.join(' ')).toMatch(/does not belong/);
+  });
+
+  it('L-9: finds the graduated position from the pool\'s Position accounts, and a stray NFT sent to the migrator cannot break it', () => {
+    const pool = meteoraPoolAddress(web3, MINT);
+    const position = (nft: string, poolKey: string, locked: bigint) => {
+      const d = new Uint8Array(408);
+      d.set(METEORA_POSITION_DISCRIMINATOR, 0);
+      d.set(new web3.PublicKey(poolKey).toBytes(), 8);
+      d.set(new web3.PublicKey(nft).toBytes(), 40);
+      const v = new DataView(d.buffer);
+      v.setBigUint64(184, locked & (2n ** 64n - 1n), true);
+      v.setBigUint64(192, locked >> 64n, true);
+      return { address: migrateAddresses(web3, MINT, nft).position, data: d };
+    };
+    const STRAY = web3.Keypair.generate().publicKey.toBase58();
+    const OTHER_POOL = web3.Keypair.generate().publicKey.toBase58();
+    const real = position(NFT, pool, 10n ** 20n);
+    // The migrator holds the real NFT plus a stray one (someone sent it 1 unit of another position's NFT).
+    const held = new Set([NFT, STRAY]);
+    expect(pickMigratedPosition(web3, [position(STRAY, pool, 5n), real], pool, held)).toEqual({ pool, nft: NFT, permanentLocked: 10n ** 20n });
+    expect(pickMigratedPosition(web3, [position(STRAY, OTHER_POOL, 10n ** 30n), real], pool, held)!.nft).toBe(NFT); // another pool's position
+    expect(pickMigratedPosition(web3, [real], pool, new Set([STRAY]))).toBeNull(); // the NFT is not the migrator's
+    expect(pickMigratedPosition(web3, [{ ...real, address: STRAY }], pool, held)).toBeNull(); // not at the address its NFT fixes
+    expect(pickMigratedPosition(web3, [position(NFT, pool, 0n)], pool, held)).toBeNull(); // nothing locked
+    expect(parseMeteoraPosition(web3, new Uint8Array(408))).toBeNull();
   });
 });

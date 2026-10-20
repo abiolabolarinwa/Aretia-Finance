@@ -72,6 +72,45 @@ export function migrateAddresses(web3: typeof Web3, mint: string, nft: string): 
   };
 }
 
+// ---------------------------------------------------------------- the graduated position
+
+/** Meteora's Position account: an 8-byte discriminator, then `pool` and `nft_mint`; `permanent_locked_liquidity` (u128) at 184. */
+export const METEORA_POSITION_DISCRIMINATOR = Uint8Array.from([170, 188, 143, 228, 122, 64, 247, 208]);
+export const POSITION_POOL_OFFSET = 8;
+const POSITION_NFT_OFFSET = 40;
+const POSITION_LOCKED_OFFSET = 184;
+
+export interface MeteoraPosition {
+  pool: string;
+  nft: string;
+  permanentLocked: bigint;
+}
+
+/** Reads a Meteora Position account, or null when the bytes are not one. */
+export function parseMeteoraPosition(web3: typeof Web3, data: Uint8Array): MeteoraPosition | null {
+  if (data.length < POSITION_LOCKED_OFFSET + 16 || !METEORA_POSITION_DISCRIMINATOR.every((b, i) => data[i] === b)) return null;
+  const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const locked = v.getBigUint64(POSITION_LOCKED_OFFSET, true) | (v.getBigUint64(POSITION_LOCKED_OFFSET + 8, true) << 64n);
+  return { pool: new web3.PublicKey(data.subarray(POSITION_POOL_OFFSET, POSITION_POOL_OFFSET + 32)).toBase58(), nft: new web3.PublicKey(data.subarray(POSITION_NFT_OFFSET, POSITION_NFT_OFFSET + 32)).toBase58(), permanentLocked: locked };
+}
+
+/**
+ * The curve's own position in its pool, from the pool's Position accounts (Meteora's `getProgramAccounts`, filtered by pool):
+ * one whose `pool` field is the curve's pool, whose address is the one its NFT fixes, whose NFT the migrator holds, and whose
+ * liquidity is locked for good. If someone hands the migrator another position's NFT, the one with the most locked liquidity
+ * wins (the graduation's), so a stray token can no longer break the lookup.
+ */
+export function pickMigratedPosition(web3: typeof Web3, accounts: readonly { address: string; data: Uint8Array }[], pool: string, migratorMints: ReadonlySet<string>): MeteoraPosition | null {
+  let best: MeteoraPosition | null = null;
+  for (const a of accounts) {
+    const p = parseMeteoraPosition(web3, a.data);
+    if (!p || p.pool !== pool || p.permanentLocked === 0n || !migratorMints.has(p.nft)) continue;
+    if (a.address !== pda(web3, [text('position'), key(web3, p.nft).toBytes()], METEORA_PROGRAM_ID)) continue;
+    if (!best || p.permanentLocked > best.permanentLocked) best = p;
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------- encoding
 
 function u64le(v: bigint): Uint8Array {

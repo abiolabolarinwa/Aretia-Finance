@@ -19,10 +19,11 @@ import { initYourPools } from './walletYourPools';
 import { mountLaunchFeatured } from './walletFeatured';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
+import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
 import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
-import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
+import { loadWeb3, planSend, rpcCall, resolveName, sendPlanChanged, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, type AccountSnapshot } from './walletTools';
 
 /**
@@ -833,17 +834,23 @@ export function initWalletApp(): void {
     ];
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
     if (plan.recipientIsContract) card.append(banner('warn', 'This address is a smart contract, not a normal wallet. Funds sent to a contract that does not expect them can be lost. Send only if you know what it does.'));
+    // Shield's guard, as on Solana Send: is it an address you know, a copy-cat of one, or a first time.
+    const guard = plan.blockers.length === 0 ? sendRecipientGuard(req.to, shield.book().list(), evmAccount) : null;
+    if (guard) for (const f of guard.findings) card.append(banner(f.severity === 'bad' ? 'warn' : f.severity === 'ok' ? 'ok' : 'info', f.severity === 'ok' || f.severity === 'info' ? f.title : `${f.title} ${f.detail}`));
     for (const b of plan.blockers) card.append(banner('warn', b));
     const canGo = plan.blockers.length === 0 && plan.tx !== null;
     const ack = el('input', { attrs: { type: 'checkbox', id: 'send-ack' } });
     if (canGo && plan.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-ack' } }, [ack, el('span', { text: 'I know this address is a contract and I want to send to it anyway.' })]));
+    const guardAck = el('input', { attrs: { type: 'checkbox', id: 'send-guard-ack' } });
+    if (canGo && guard?.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-guard-ack' } }, [guardAck, el('span', { text: 'I compared every character of this address with the one I meant to use, and it is the same.' })]));
     const status = el('div', { attrs: { 'aria-live': 'polite' } });
     const actions = el('div', { class: 'wapp__row-actions' });
     const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
     const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
-    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked));
+    const sync = () => (confirm.disabled = sendConfirmDisabled({ canGo, busy: sendBusy, needsAck: plan.needsAck, ack: ack.checked, guard, guardAck: guardAck.checked }));
     sync();
     ack.addEventListener('change', sync);
+    guardAck.addEventListener('change', sync);
     cancel.addEventListener('click', () => (out.textContent = ''));
     confirm.addEventListener('click', async () => {
       if (sendBusy) return;
@@ -852,7 +859,10 @@ export function initWalletApp(): void {
       status.textContent = '';
       status.append(banner('info', 'Waiting for your wallet to approve…'));
       try {
+        if (guard?.needsAck && !guardAck.checked) throw new Error('Compare the address and tick the box first.');
         const hash = await sendEvmTransfer(plan, await ensureEvmWallet());
+        // Remembered from now on, so a copy-cat of it can be caught next time.
+        shield.book().rememberSent(req.to);
         status.textContent = '';
         const link = el('a', { text: 'View transaction', attrs: { href: `${EVM_EXPLORER_TX[req.chain] ?? ''}${hash}`, target: '_blank', rel: 'noopener noreferrer' } });
         status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link]));
@@ -912,7 +922,7 @@ export function initWalletApp(): void {
     return dl;
   }
 
-  function renderSendReview(plan: SendPlan, sim: Simulation | null, name: string | null, req: SendRequest, plannedAt: number): void {
+  function renderSendReview(plan: SendPlan, sim: Simulation | null, name: string | null, req: SendRequest, plannedAt: number, notice?: string): void {
     const { out } = sendEls();
     if (!out) return;
     out.textContent = '';
@@ -927,6 +937,7 @@ export function initWalletApp(): void {
     ];
     if (plan.createsDestAta) rows.push(['Opens recipient account', `about ${sol(plan.rentLamports)}, paid by you`]);
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
+    if (notice) card.append(banner('warn', notice));
 
     if (plan.mint === ACT_INFO.mint) {
       const received = Number(plan.amountText) * (1 - ACT_INFO.transferFee.totalPercent / 100);
@@ -972,6 +983,10 @@ export function initWalletApp(): void {
           active = await planSend(req);
           const again = active.blockers.length === 0 ? await simulatePlan(active) : null;
           if (active.blockers.length > 0 || !again?.ok) return void renderSendReview(active, again, name, req, Date.now());
+          // Never sign something other than what was reviewed: if the rebuild differs (for example it now opens the recipient's
+          // token account, with rent), show the new review instead.
+          const changed = sendPlanChanged(plan, active);
+          if (changed.length > 0) return void renderSendReview(active, again, name, req, Date.now(), `The transfer changed since you reviewed it: ${changed.join('; ')}. Check it again, then confirm.`);
         }
         const signature = await signAndSubmit(active);
         // Remembered from now on, so a copy-cat of it can be caught next time.

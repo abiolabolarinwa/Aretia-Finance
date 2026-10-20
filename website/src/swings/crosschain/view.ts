@@ -3,9 +3,9 @@
  * can be tested: amounts are exact (no floating point), fees are shown one by one and never merged into a vague total,
  * and a status never says "done" before the destination has the funds.
  */
-import { CHAINS, SwingsError } from '../core/types.js';
+import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
 import type { ExecutionRecord } from '../orchestrator/states.js';
-import type { SettlementQuote } from '../settlement/types.js';
+import type { SettlementIntent, SettlementQuote } from '../settlement/types.js';
 
 /** Raw units as exact text: 1234500 with 6 decimals is "1.2345". Never rounds. */
 export function formatUnits(raw: bigint, decimals: number): string {
@@ -123,6 +123,20 @@ export function viewStatus(r: ExecutionRecord, claimable: boolean): StatusView {
 export function pickUnfinished(list: readonly ExecutionRecord[], accounts: readonly (string | null)[]): ExecutionRecord | null {
   const mine = new Set(accounts.filter((a): a is string => !!a).map((a) => a.toLowerCase()));
   return list.find((r) => mine.has(r.quote.intent.sender.toLowerCase())) ?? null;
+}
+
+/**
+ * Who a move is from and to, against the accounts connected on this page. The sender must be the wallet connected for the
+ * source network, or nothing may be signed. A recipient that is not the account connected for the destination is allowed
+ * only after the person has seen the full address and confirmed it (`confirmRecipient` holds that question).
+ */
+export function checkParties(intent: SettlementIntent, accountFor: (chain: ChainId) => string | null): { error: string | null; confirmRecipient: string | null } {
+  const same = (chain: ChainId, a: string, b: string | null): boolean => b !== null && (CHAINS[chain].kind === 'evm' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const src = CHAINS[intent.sourceChain].name;
+  const dst = CHAINS[intent.destinationChain].name;
+  if (!same(intent.sourceChain, intent.sender, accountFor(intent.sourceChain))) return { error: `This move is from ${intent.sender}, which is not the wallet connected for ${src}. Nothing was signed. Get a new quote with your connected wallet.`, confirmRecipient: null };
+  if (same(intent.destinationChain, intent.recipient, accountFor(intent.destinationChain))) return { error: null, confirmRecipient: null };
+  return { error: null, confirmRecipient: `The USDC will be sent to this address on ${dst}:\n\n${intent.recipient}\n\nIt is not the account connected here for ${dst}. Sending to an address that is not yours cannot be undone. Continue only if this whole address is yours.` };
 }
 
 /**

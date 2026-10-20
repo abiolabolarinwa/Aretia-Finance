@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { durationText, explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from './view.js';
+import { checkParties, durationText, explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from './view.js';
 import { SwingsError } from '../core/types.js';
 import { MockSettlementProvider } from '../settlement/testing.js';
 import { EXECUTION_STATES, type ExecutionRecord } from '../orchestrator/states.js';
@@ -109,5 +109,30 @@ describe('the wait, recovery and errors', () => {
     expect(other).toMatch(/^Something went wrong: network down retry\. Nothing was assumed/);
     expect(explainMoveError(undefined)).toMatch(/^Something went wrong\. Nothing was assumed/);
     expect(explainMoveError(new Error('x'.repeat(500))).length).toBeLessThan(260);
+  });
+});
+
+describe('checkParties (H-3: a move is only signed from the connected wallet, to a connected account or a confirmed full address)', () => {
+  const ME = '0x' + 'a'.repeat(40);
+  const SOL = 'So11111111111111111111111111111111111111112';
+  const ATTACKER = '0x' + 'e'.repeat(40);
+  const base = { ...intent, sender: ME, recipient: ME };
+  const accounts = (c: string): string | null => (c === 'solana' ? SOL : ME.toUpperCase().replace('0X', '0x'));
+
+  it('passes a move between the connected accounts (EVM case-insensitively)', () => {
+    expect(checkParties(base, accounts)).toEqual({ error: null, confirmRecipient: null });
+    expect(checkParties({ ...base, destinationChain: 'solana', recipient: SOL }, accounts)).toEqual({ error: null, confirmRecipient: null });
+  });
+
+  it('refuses a sender that is not the connected source wallet', () => {
+    expect(checkParties({ ...base, sender: ATTACKER }, accounts).error).toMatch(/not the wallet connected for Ethereum/);
+    expect(checkParties(base, () => null).error).toMatch(/not the wallet connected/);
+  });
+
+  it('asks about any other recipient, showing the whole address', () => {
+    const r = checkParties({ ...base, recipient: ATTACKER }, accounts);
+    expect(r.error).toBeNull();
+    expect(r.confirmRecipient).toContain(ATTACKER);
+    expect(checkParties({ ...base, destinationChain: 'solana', recipient: SOL.toLowerCase() }, accounts).confirmRecipient).toContain(SOL.toLowerCase()); // Solana addresses are case-sensitive
   });
 });

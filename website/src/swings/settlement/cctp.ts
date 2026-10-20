@@ -22,7 +22,7 @@ import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
 import { formatUnits } from '../crosschain/view.js';
 import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
-import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, usedNonceAddress } from './cctpSolana.js';
+import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, COMPUTE_BUDGET_PROGRAM, DISC_DEPOSIT_FOR_BURN, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
 import { executionIdOf, parseExecutionId, type SettlementCost, type SettlementIntent, type SettlementProvider, type SettlementQuote, type SettlementStatus, type SettlementStep, type SettlementTransaction, type SupportAnswer } from './types.js';
@@ -50,6 +50,11 @@ export const CCTP_CONTRACTS = {
 
 export const FINALITY_FAST = 1000;
 export const FINALITY_STANDARD = 2000;
+
+/** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
+export const MOVE_CAP_RAW = 250_000_000n;
+/** Largest fee a burn may allow Circle to take, in basis points of the amount (the safety engine's default ceiling). */
+export const MAX_FEE_BPS = 100;
 
 /** Chains whose published CCTP "fast transfer" works from them as a source. */
 const FAST_SOURCE = new Set<ChainId>(['ethereum', 'optimism', 'arbitrum', 'base', 'solana']);
@@ -279,12 +284,56 @@ export class CctpSettlementProvider implements SettlementProvider {
 
   // ------------------------------------------------------------------ transactions
 
+  /**
+   * The terms a burn is built from. Contracts, token and domains come from Aretia's own tables for the intent's chains,
+   * never from the quote; a quote (for example one restored from a recovery code) whose stored values disagree is
+   * refused rather than corrected, and the per-move cap and the fee ceiling are applied again.
+   */
+  private terms(quote: SettlementQuote): CctpRaw {
+    const raw = (quote.raw ?? {}) as Partial<CctpRaw>;
+    const { intent } = quote;
+    const refuse = (why: string): never => {
+      throw new SwingsError('invalid', `${why} Nothing was built. Get a new quote.`);
+    };
+    const src = CCTP_DOMAIN[intent.sourceChain];
+    const dst = CCTP_DOMAIN[intent.destinationChain];
+    const usdc = CCTP_USDC[intent.sourceChain];
+    const dstUsdc = CCTP_USDC[intent.destinationChain];
+    if (src === undefined || dst === undefined || !usdc || !dstUsdc || intent.sourceChain === intent.destinationChain) return refuse('These networks are not a USDC route.');
+    if (!validAddress(intent.sourceChain, intent.sender) || !validAddress(intent.destinationChain, intent.recipient)) return refuse('This settlement cannot be built for these addresses.');
+    const sameAddr = (chain: ChainId, a: unknown, b: string): boolean => typeof a === 'string' && (isSolana(chain) ? a === b : a.toLowerCase() === b.toLowerCase());
+    if (!sameAddr(intent.sourceChain, intent.sourceAsset?.address, usdc) || !sameAddr(intent.destinationChain, intent.destinationAsset?.address, dstUsdc)) return refuse('This quote is not for native USDC.');
+    if (!sameAddr(intent.sourceChain, raw.usdc, usdc)) return refuse('This quote names a token that is not native USDC on this network.');
+    if (!sameAddr('ethereum', raw.tokenMessenger, CCTP_CONTRACTS.tokenMessenger)) return refuse('This quote names a contract that is not Circle\'s token messenger.');
+    if (raw.srcDomain !== src || raw.dstDomain !== dst) return refuse('This quote names the wrong Circle domains for these networks.');
+    if (raw.mode !== this.o.mode || raw.minFinalityThreshold !== (this.o.mode === 'fast' ? FINALITY_FAST : FINALITY_STANDARD)) return refuse('This quote is for a different kind of transfer.');
+    const amount = raw.amount;
+    if (typeof amount !== 'bigint' || amount !== intent.sourceAmount || amount !== quote.sourceAmount) return refuse('This quote\'s amounts do not agree.');
+    if (amount <= 0n || amount > MOVE_CAP_RAW) return refuse('This amount is above the limit for a single move while Swings is being proven.');
+    const maxFee = raw.maxFee;
+    if (typeof maxFee !== 'bigint' || maxFee < 0n || maxFee >= amount || maxFee > feeFor(amount, MAX_FEE_BPS)) return refuse('This quote allows a transfer fee above the ceiling.');
+    if (typeof raw.needsApproval !== 'boolean') return refuse('This quote is damaged.');
+    return { mode: this.o.mode, srcDomain: src, dstDomain: dst, usdc, amount, maxFee, minFinalityThreshold: raw.minFinalityThreshold, needsApproval: raw.needsApproval, tokenMessenger: CCTP_CONTRACTS.tokenMessenger };
+  }
+
   async buildSettlement(quote: SettlementQuote): Promise<SettlementTransaction[]> {
     if (quote.providerId !== this.id) throw new SwingsError('invalid', 'This quote was not made by this provider.');
     if (this.now() >= quote.expiresAt) throw new SwingsError('expired', 'This quote has expired. Get a new one.');
-    const raw = quote.raw as CctpRaw;
+    const raw = this.terms(quote);
     const { intent } = quote;
-    if (!validAddress(intent.sourceChain, intent.sender) || !validAddress(intent.destinationChain, intent.recipient)) throw new SwingsError('invalid', 'This settlement cannot be built for these addresses.');
+    const built = await this.buildFrom(intent, raw);
+    const problems = (await Promise.all(built.map((t) => this.inspect(quote, t)))).flat();
+    if (problems.length > 0) throw new SwingsError('invalid', problems[0]!);
+    return built;
+  }
+
+  /** Checks a built transaction field by field against Circle's contracts and the intent. Empty means it matches. */
+  async inspect(quote: SettlementQuote, tx: SettlementTransaction): Promise<string[]> {
+    const web3 = this.o.solana && (isSolana(quote.intent.sourceChain) || isSolana(quote.intent.destinationChain)) ? await this.o.solana.web3() : undefined;
+    return cctpTransactionProblems(quote.intent, tx, web3);
+  }
+
+  private async buildFrom(intent: SettlementIntent, raw: CctpRaw): Promise<SettlementTransaction[]> {
 
     if (isSolana(intent.sourceChain)) {
       const solana = this.o.solana;
@@ -419,4 +468,117 @@ export class CctpSettlementProvider implements SettlementProvider {
 /** Both CCTP modes, ready to hand to the quote engine. */
 export function cctpProviders(o: Omit<CctpOptions, 'mode'>): CctpSettlementProvider[] {
   return [new CctpSettlementProvider({ ...o, mode: 'fast' }), new CctpSettlementProvider({ ...o, mode: 'standard' })];
+}
+
+// ------------------------------------------------------------------ inspector
+
+const ZERO_ADDRESS = '0x' + '0'.repeat(40);
+const SEL_APPROVE = encodeFunction('approve(address,uint256)', [ZERO_ADDRESS, 0n]).slice(0, 10);
+/** TokenMessengerV2.depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller, maxFee, minFinalityThreshold): 0x8e0250ee. */
+export const DEPOSIT_FOR_BURN_V2 = 'depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)';
+const SEL_DEPOSIT_FOR_BURN = encodeFunction(DEPOSIT_FOR_BURN_V2, [0n, 0, ZERO32, ZERO_ADDRESS, ZERO32, 0n, 0]).slice(0, 10);
+const SEL_RECEIVE_MESSAGE = encodeFunction('receiveMessage(bytes,bytes)', ['0x', '0x']).slice(0, 10);
+const bytesHex = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+const eqi = (a: unknown, b: string): boolean => typeof a === 'string' && a.toLowerCase() === b.toLowerCase();
+const zeroValue = (v: string | undefined): boolean => {
+  try {
+    return BigInt(v ?? '0x0') === 0n;
+  } catch {
+    return false;
+  }
+};
+/** True when `data` is exactly the canonical encoding of these arguments (no dirty high bits, no trailing bytes). */
+const canonical = (signature: string, args: unknown[], data: string): boolean => {
+  try {
+    return encodeFunction(signature, args).toLowerCase() === data;
+  } catch {
+    return false;
+  }
+};
+
+/** The 32-byte recipient a burn must name for this intent: the EVM address, or the recipient's own USDC account on Solana. */
+function expectedMintRecipient(intent: SettlementIntent, web3?: typeof Web3): string | null {
+  if (!isSolana(intent.destinationChain)) return bytes32OfAddress(intent.recipient);
+  if (!web3) return null;
+  return bytesHex(new web3.PublicKey(ataAddress(web3, intent.recipient, SOLANA_USDC, TOKEN_PROGRAM_ID)).toBytes());
+}
+
+/** Checks the fields every burn shares, decoded from the transaction itself, against Aretia's tables and the intent. */
+function burnTermProblems(intent: SettlementIntent, t: { amount: bigint; domain: number; mintRecipient: string; destinationCaller: string; maxFee: bigint; finality: number }, web3?: typeof Web3): string[] {
+  const out: string[] = [];
+  const recipient = expectedMintRecipient(intent, web3);
+  if (t.amount !== intent.sourceAmount) out.push('The burn is for a different amount than this move.');
+  if (t.amount <= 0n || t.amount > MOVE_CAP_RAW) out.push('The burn is above the limit for a single move.');
+  if (t.domain !== CCTP_DOMAIN[intent.destinationChain]) out.push('The burn sends to a different network than this move.');
+  if (recipient === null || t.mintRecipient.toLowerCase() !== recipient.toLowerCase()) out.push('The burn pays a different recipient than this move.');
+  if (t.destinationCaller.toLowerCase() !== ZERO32) out.push('The burn restricts who may claim it.');
+  if (t.maxFee < 0n || t.maxFee >= t.amount || t.maxFee > feeFor(t.amount, MAX_FEE_BPS)) out.push('The burn allows a transfer fee above the ceiling.');
+  if (t.finality !== FINALITY_FAST && t.finality !== FINALITY_STANDARD) out.push('The burn names an unknown finality.');
+  return out;
+}
+
+/**
+ * Decodes a CCTP transaction and checks every field against Circle's published contracts and the intent: the approval's
+ * token, spender and amount, and each `depositForBurn` argument (amount, domain, recipient, token, caller, fee, finality).
+ * It does not trust the provider that built the transaction, so a crafted or restored quote cannot slip anything past it.
+ * Empty means it matches. A Solana destination needs the Solana library to derive the recipient's USDC account.
+ */
+export function cctpTransactionProblems(intent: SettlementIntent, tx: SettlementTransaction, web3?: typeof Web3): string[] {
+  const src = intent.sourceChain;
+  const u = tx.unsigned;
+  if (tx.stepId === 'mint') {
+    if (tx.chain !== intent.destinationChain) return ['The claim is on a different network than this move.'];
+    if (u.kind === 'solana') return isSolana(tx.chain) ? [] : ['The claim is for the wrong kind of network.'];
+    if (u.chainId !== CHAINS[tx.chain].evmChainId) return ['The claim is for a different network.'];
+    const out: string[] = [];
+    if (!eqi(u.tx.to, CCTP_CONTRACTS.messageTransmitter)) out.push('The claim calls a contract that is not Circle\'s message transmitter.');
+    if (!eqi(u.tx.from, intent.recipient)) out.push('The claim is from a different account than the recipient.');
+    if (!(u.tx.data ?? '').toLowerCase().startsWith(SEL_RECEIVE_MESSAGE)) out.push('The claim is not a receiveMessage call.');
+    if (!zeroValue(u.tx.value)) out.push('The claim sends coin, which it never does.');
+    return out;
+  }
+  if (tx.chain !== src) return ['The transaction is on a different network than this move.'];
+  if (u.kind === 'solana') {
+    if (!isSolana(src) || tx.stepId !== 'burn') return ['This Solana transaction is not a USDC burn.'];
+    if (!web3) return ['The Solana burn cannot be checked here.'];
+    const t = u.transaction;
+    if ('version' in t) return ['The Solana burn is not in the expected form.'];
+    const out: string[] = [];
+    if (t.feePayer?.toBase58() !== intent.sender) out.push('The burn is paid for by a different account than the sender.');
+    const burns = t.instructions.filter((i) => i.programId.toBase58() === TOKEN_MESSENGER_MINTER_V2);
+    if (t.instructions.some((i) => ![TOKEN_MESSENGER_MINTER_V2, COMPUTE_BUDGET_PROGRAM].includes(i.programId.toBase58()))) out.push('The burn calls a program other than Circle\'s.');
+    if (burns.length !== 1) return [...out, 'The transaction does not hold exactly one burn.'];
+    const ix = burns[0]!;
+    const d = Uint8Array.from(ix.data);
+    if (d.length !== 96 || !DISC_DEPOSIT_FOR_BURN.every((b, i) => d[i] === b)) return [...out, 'The Solana instruction is not depositForBurn.'];
+    const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+    if (ix.keys[0]?.pubkey.toBase58() !== intent.sender) out.push('The burn is owned by a different account than the sender.');
+    if (ix.keys[3]?.pubkey.toBase58() !== ataAddress(web3, intent.sender, SOLANA_USDC, TOKEN_PROGRAM_ID)) out.push('The burn takes USDC from an account that is not the sender\'s.');
+    if (ix.keys[10]?.pubkey.toBase58() !== SOLANA_USDC) out.push('The burn names a token that is not native USDC.');
+    out.push(...burnTermProblems(intent, { amount: v.getBigUint64(8, true), domain: v.getUint32(16, true), mintRecipient: bytesHex(d.subarray(20, 52)), destinationCaller: bytesHex(d.subarray(52, 84)), maxFee: v.getBigUint64(84, true), finality: v.getUint32(92, true) }, web3));
+    return out;
+  }
+  const usdc = CCTP_USDC[src];
+  if (!usdc || isSolana(src) || u.chainId !== CHAINS[src].evmChainId) return ['The transaction is for a different network.'];
+  const out: string[] = [];
+  if (!eqi(u.tx.from, intent.sender)) out.push('The transaction is from a different account than the sender.');
+  if (!zeroValue(u.tx.value)) out.push('The transaction sends coin, which a USDC move never does.');
+  const data = (u.tx.data ?? '').toLowerCase();
+  if (tx.stepId === 'approve') {
+    if (!eqi(u.tx.to, usdc)) out.push('The approval is not on native USDC.');
+    if (!data.startsWith(SEL_APPROVE) || data.length !== 10 + 64 * 2) return [...out, 'The approval is not an approve call.'];
+    const [spender, amount] = decodeParams(['address', 'uint256'], '0x' + data.slice(10)) as [string, bigint];
+    if (!canonical('approve(address,uint256)', [spender, amount], data)) return [...out, 'The approval is not encoded in the standard form.'];
+    if (!eqi(spender, CCTP_CONTRACTS.tokenMessenger)) out.push('The approval lets an address other than Circle\'s token messenger spend your USDC.');
+    if (amount !== intent.sourceAmount || amount > MOVE_CAP_RAW) out.push('The approval is for a different amount than this move.');
+    return out;
+  }
+  if (tx.stepId !== 'burn') return [...out, 'This is not a step of a USDC move.'];
+  if (!eqi(u.tx.to, CCTP_CONTRACTS.tokenMessenger)) out.push('The burn calls a contract that is not Circle\'s token messenger.');
+  if (!data.startsWith(SEL_DEPOSIT_FOR_BURN) || data.length !== 10 + 64 * 7) return [...out, 'The burn is not a depositForBurn call.'];
+  const [amount, domain, mintRecipient, burnToken, destinationCaller, maxFee, finality] = decodeParams(['uint256', 'uint32', 'bytes32', 'address', 'bytes32', 'uint256', 'uint32'], '0x' + data.slice(10)) as [bigint, bigint | number, string, string, string, bigint, bigint | number];
+  if (!canonical(DEPOSIT_FOR_BURN_V2, [amount, domain, mintRecipient, burnToken, destinationCaller, maxFee, finality], data)) return [...out, 'The burn is not encoded in the standard form.'];
+  if (!eqi(burnToken, usdc)) out.push('The burn names a token that is not native USDC.');
+  out.push(...burnTermProblems(intent, { amount, domain: Number(domain), mintRecipient, destinationCaller, maxFee, finality: Number(finality) }, web3));
+  return out;
 }

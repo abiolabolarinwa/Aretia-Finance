@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import vectors from './__fixtures__/curveVectors.json';
 import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore';
 import {
+  outsideSupply,
   CURVE_ABORT_AFTER_SECS,
   CURVE_ACCOUNT_DISCRIMINATOR,
   CURVE_ACCOUNT_SIZE,
@@ -325,5 +326,16 @@ describe('what a creator sees while typing, and sharing', () => {
   it('round-trips a share link and refuses anything else', () => {
     expect(parseCurveHash(curveShareHash(MINT))).toBe(MINT);
     for (const bad of ['', '#/launch', '#/launch/curve/', '#/launch/curve/nope', `#/launch/curve/${MINT}/x`, `#/swap/curve/${MINT}`, `#/launch/curve/${MINT}0`, '#/launch/curve/<script>']) expect(parseCurveHash(bad)).toBeNull();
+  });
+});
+
+describe('M-3: supply outside the curve', () => {
+  it('reports the share of supply that never went into the curve, and the opener\'s live share', () => {
+    const c = { curveTokens: 600n, lpTokens: 300n };
+    expect(outsideSupply(c, 1_000n, 100n)).toEqual({ outside: 100n, outsidePercent: '10', opener: 100n, openerPercent: '10' });
+    expect(outsideSupply(c, 900n, 0n)).toEqual({ outside: 0n, outsidePercent: '0', opener: 0n, openerPercent: '0' });
+    expect(outsideSupply(c, 900_000_001n, null).outsidePercent).toBe('100'); // rounded up, never shown smaller
+    expect(outsideSupply({ curveTokens: 999_999n, lpTokens: 0n }, 1_000_000n, 1n)).toMatchObject({ outside: 1n, outsidePercent: '0.01', openerPercent: '0.01' }); // a sliver is never 0
+    expect(outsideSupply(c, 1_234n, null).outsidePercent).toBe('27.07');
   });
 });

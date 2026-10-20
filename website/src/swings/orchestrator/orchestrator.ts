@@ -6,6 +6,9 @@
  *  - send a transaction twice: a step is marked `sending` and saved BEFORE the wallet is asked; if the page dies in
  *    between, the step is flagged for the user ("needs attention") and is not retried by itself;
  *  - sign with a different account or call an address the provider has not declared;
+ *  - sign from a saved quote: only a quote accepted through `create` on this page, in this session, is ever signed. A record
+ *    restored from a recovery code or left over from an earlier visit is retired and must be quoted again, so a crafted
+ *    record can never choose the contract, the amount or the recipient;
  *  - say COMPLETED because the source transaction confirmed: only the provider's report that the destination received
  *    the value (and, where the destination needs a claim, that the claim confirmed) completes an execution;
  *  - guess when it cannot tell: an unknown provider answer changes nothing.
@@ -55,6 +58,8 @@ export function notConfirmedText(chain: string, stepId: string, hash: string): s
 export class CrossChainOrchestrator {
   private readonly o: Required<Omit<OrchestratorOptions, 'store' | 'providers' | 'gateway'>> & Pick<OrchestratorOptions, 'store' | 'providers' | 'gateway'>;
   private readonly busy = new Set<string>();
+  /** Quotes accepted on this page, by execution id. The only quotes `start` will sign from. */
+  private readonly fresh = new Map<string, SettlementQuote>();
 
   constructor(options: OrchestratorOptions) {
     this.o = {
@@ -76,7 +81,13 @@ export class CrossChainOrchestrator {
     this.provider(quote.providerId);
     const base: ExecutionRecord = { id: this.o.newId(), version: 0, state: 'CREATED', quote, createdAt: t, updatedAt: t, steps: {}, executionId: null, destinationTxHash: null, refundTxHash: null, failure: null, needsAttention: null, history: [] };
     const created = await this.o.store.create(base);
+    this.fresh.set(created.id, quote);
     return this.move(created, 'QUOTED', 'Quote accepted; nothing has been signed.');
+  }
+
+  /** Whether this execution's quote was accepted on this page, so its source transactions may be signed. */
+  canSign(id: string): boolean {
+    return this.fresh.has(id);
   }
 
   async get(id: string): Promise<ExecutionRecord | null> {
@@ -100,12 +111,20 @@ export class CrossChainOrchestrator {
       if (r.needsAttention) throw new SwingsError('invalid', `Aretia cannot continue by itself: ${r.needsAttention}`);
       if (r.state === 'SOURCE_SUBMITTED' || r.state === 'SOURCE_CONFIRMED') return this.resumeSource(r);
       if (r.state !== 'QUOTED' && r.state !== 'AWAITING_SIGNATURE') return r;
-      const provider = this.provider(r.quote.providerId);
-      if (!hasCommitted(r) && r.quote.expiresAt <= this.o.now()) return this.move(r, 'EXPIRED', 'The quote expired before anything was signed.');
-      const txs = await provider.buildSettlement(r.quote);
+      const interrupted = Object.values(r.steps).find((x) => x.status === 'sending');
+      if (interrupted) return this.attention(r, `The ${interrupted.stepId} step was being sent when this page last stopped, and Aretia cannot tell whether the wallet sent it. Check your wallet's history before doing anything else.`);
+      // A saved quote is never signed: it may have been restored from a code someone else wrote. Retire it; the user quotes again.
+      const quote = this.fresh.get(id);
+      if (!quote || quote.id !== r.quote.id) return this.retire(r);
+      r = { ...r, quote };
+      const provider = this.provider(quote.providerId);
+      if (!hasCommitted(r) && quote.expiresAt <= this.o.now()) return this.move(r, 'EXPIRED', 'The quote expired before anything was signed.');
+      const txs = await provider.buildSettlement(quote);
       if (txs.length === 0) return this.fail(r, 'The provider built no transactions.', false);
+      const issues = provider.inspect ? (await Promise.all(txs.map((t) => provider.inspect!(quote, t)))).flat() : [];
+      if (issues.length > 0) throw new SwingsError('invalid', `Nothing was signed: ${issues[0]}`);
       if (r.state === 'QUOTED') r = await this.move(r, 'AWAITING_SIGNATURE', 'Waiting for the wallet to sign.');
-      const allowed = provider.allowedDestinations(r.quote.intent.sourceChain);
+      const allowed = provider.allowedDestinations(quote.intent.sourceChain);
       for (let i = 0; i < txs.length; i++) {
         const tx = txs[i]!;
         const last = i === txs.length - 1;
@@ -121,7 +140,7 @@ export class CrossChainOrchestrator {
         r = await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'sending', hash: null, updatedAt: this.o.now() });
         let hash: string;
         try {
-          hash = await this.o.gateway.send(tx, { address: r.quote.intent.sender, allowedDestinations: allowed });
+          hash = await this.o.gateway.send(tx, { address: quote.intent.sender, allowedDestinations: allowed });
         } catch (e) {
           // A refusal Aretia or the wallet states plainly (SwingsError) means nothing was sent. Anything else, such as a
           // network error while sending, is ambiguous: the transaction may have gone through, so it is never retried.
@@ -209,6 +228,8 @@ export class CrossChainOrchestrator {
       if (existing && existing.status !== 'pending' && existing.status !== 'failed') return r; // already submitted; advance() will see it complete
       const tx = await provider.buildDestination(r.quote, r.executionId);
       if (!tx) throw new SwingsError('invalid', 'The funds are not ready to claim yet, or have already been claimed.');
+      const issues = provider.inspect ? await provider.inspect(r.quote, tx) : [];
+      if (issues.length > 0) throw new SwingsError('invalid', `Nothing was signed: ${issues[0]}`);
       r = await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'sending', hash: null, updatedAt: this.o.now() });
       let hash: string;
       try {
@@ -289,6 +310,12 @@ export class CrossChainOrchestrator {
 
   private async saveStep(r: ExecutionRecord, step: StepProgress): Promise<ExecutionRecord> {
     return this.o.store.update({ ...r, updatedAt: this.o.now(), steps: { ...r.steps, [step.stepId]: step } }, r.version);
+  }
+
+  /** Ends a saved, unsigned quote so that a new one is fetched. Nothing is signed. */
+  private async retire(r: ExecutionRecord): Promise<ExecutionRecord> {
+    const why = 'This move was saved earlier or restored from a recovery code. Aretia never signs a saved quote: get a new quote, which is checked again before you sign.';
+    return hasCommitted(r) ? this.fail(r, why, false) : this.move(r, 'EXPIRED', why);
   }
 
   private async fail(r: ExecutionRecord, reason: string, fundsMayBeAtRisk: boolean): Promise<ExecutionRecord> {

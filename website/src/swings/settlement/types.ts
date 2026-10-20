@@ -137,6 +137,11 @@ export interface SettlementProvider {
    * tables, never from the quote. The orchestrator refuses to sign a transaction that calls anything else.
    */
   allowedDestinations(chain: ChainId): readonly string[];
+  /**
+   * Optional independent check of one built transaction against the provider's published contracts and the quote's intent
+   * (decoded spender, amounts, recipient and so on). Problems mean the orchestrator refuses to sign. Empty means it matches.
+   */
+  inspect?(quote: SettlementQuote, tx: SettlementTransaction): Promise<string[]>;
   /** Where a settlement is, given the id the provider issues from the source transaction. */
   trackSettlement(executionId: string, quote?: SettlementQuote): Promise<SettlementStatus>;
 }

@@ -164,6 +164,23 @@ export interface SendPlan {
   transaction: Web3.Transaction | null;
 }
 
+/** The largest amount a System or SPL Token transfer can carry (a u64). The instruction encoder would wrap anything above it. */
+export const U64_MAX = 2n ** 64n - 1n;
+
+/**
+ * What differs between the plan the person reviewed and a re-plan built just before signing (the blockhash refresh after 45 s):
+ * anything they would see on the review, such as opening the recipient's token account and its rent. Empty means the same.
+ */
+export function sendPlanChanged(reviewed: SendPlan, fresh: SendPlan): string[] {
+  const out: string[] = [];
+  if (reviewed.to !== fresh.to || reviewed.mint !== fresh.mint || reviewed.destAta !== fresh.destAta || reviewed.tokenProgram !== fresh.tokenProgram) out.push('the destination');
+  if (reviewed.amountRaw !== fresh.amountRaw || reviewed.decimals !== fresh.decimals) out.push('the amount');
+  if (reviewed.createsDestAta !== fresh.createsDestAta || reviewed.rentLamports !== fresh.rentLamports) out.push(fresh.createsDestAta ? "it now also opens the recipient's token account, paid by you" : "the recipient's token account");
+  if (reviewed.feeLamports !== fresh.feeLamports) out.push('the network fee');
+  if (reviewed.mayCharge !== fresh.mayCharge || reviewed.needsAck !== fresh.needsAck) out.push('what you need to acknowledge');
+  return out;
+}
+
 /** Everything that can be checked before asking the wallet to sign. Throws only on network failure. */
 export async function planSend(req: SendRequest): Promise<SendPlan> {
   const web3 = await loadWeb3();
@@ -216,6 +233,8 @@ export async function planSend(req: SendRequest): Promise<SendPlan> {
   const amountRaw = raw === null ? 0n : BigInt(raw);
   if (raw === null && isSol) blockers.push(`${req.amountText} is not a valid SOL amount (at most 9 decimal places).`);
   if (raw !== null && amountRaw === 0n) blockers.push('The amount must be more than zero.');
+  // The u64 encoder for the transfer instruction would silently wrap a larger number into a different, smaller amount.
+  if (raw !== null && amountRaw > U64_MAX) blockers.push('That amount is larger than a Solana transfer can carry.');
 
   if (isSol && raw !== null) {
     if (amountRaw + BASE_FEE_LAMPORTS > senderLamports) blockers.push(`You hold ${fromSmallestUnit(senderLamports, 9)} SOL, which can't cover ${req.amountText} plus the network fee.`);

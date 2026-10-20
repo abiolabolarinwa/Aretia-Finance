@@ -15,7 +15,7 @@
  */
 import { normalizeTokenRef } from '../core/token.js';
 import { SwingsError, type ChainId } from '../core/types.js';
-import { DEXSCREENER_CHAIN, GECKO_NETWORK, majorsOf, type PoolInfo } from './pool.js';
+import { choosePricePool, DEXSCREENER_CHAIN, GECKO_NETWORK, MAJOR_POOL_MIN_LIQUIDITY_USD, MAJOR_POOL_MIN_SHARE, majorsOf, type PoolInfo } from './pool.js';
 
 export interface DexPair {
   chainId?: string;
@@ -44,6 +44,8 @@ export interface ChosenPair {
   p: DexPair;
   isBase: boolean;
   liq: number;
+  /** The pool is paired with a major token and deep enough to count (charts/pool.ts `choosePricePool`). False: say the price is not major-backed. */
+  majorBacked: boolean;
 }
 
 /** Chooses the pair for a token from DexScreener's list of pairs. Pure. */
@@ -55,19 +57,18 @@ export function chooseDexPair(chain: ChainId, address: string, pairs: unknown): 
   const majors = majorsOf(chain);
   const usable = (pairs as DexPair[])
     .filter((p) => p && p.chainId === slug && typeof p.pairAddress === 'string' && /^[A-Za-z0-9]{20,}$/.test(p.pairAddress) && p.baseToken && p.quoteToken && (same(p.baseToken.address) || same(p.quoteToken.address)))
-    .map((p) => ({ p, isBase: same(p.baseToken!.address), liq: num(p.liquidity?.usd) ?? 0, paired: majors.has(lc(same(p.baseToken!.address) ? p.quoteToken!.address : p.baseToken!.address)), vol: num(p.volume?.h24) ?? 0 }));
+    .map((p) => ({ p, isBase: same(p.baseToken!.address), liq: num(p.liquidity?.usd) ?? 0, major: majors.has(lc(same(p.baseToken!.address) ? p.quoteToken!.address : p.baseToken!.address)), vol: num(p.volume?.h24) ?? 0 }))
+    // Deepest first, then busiest, so equal depth is settled by trading.
+    .sort((a, b) => b.liq - a.liq || b.vol - a.vol);
   if (usable.length === 0) return null;
-  // The yardstick is the deepest pool paired with a major token: a pool against a made-up token can report any depth it likes, and
-  // must not make every real pool look too small to count.
-  const majorPaired = usable.filter((x) => x.paired);
-  const deepest = Math.max(...(majorPaired.length > 0 ? majorPaired : usable).map((x) => x.liq));
-  const reasonable = usable.filter((x) => x.isBase && x.liq >= Math.max(1000, deepest * 0.05));
-  const order = (a: (typeof usable)[number], b: (typeof usable)[number]): number => (a.paired === b.paired ? 0 : a.paired ? -1 : 1) || b.liq - a.liq || b.vol - a.vol;
-  // A token that has a pool against a major token is drawn from one, even a small one, rather than from a pool against an unknown token.
-  const pairedBase = usable.filter((x) => x.isBase && x.paired);
-  const pool = pairedBase.length > 0 && !reasonable.some((x) => x.paired) ? pairedBase : reasonable.length > 0 ? reasonable : usable;
-  const best = pool.sort(order)[0]!;
-  return { p: best.p, isBase: best.isBase, liq: best.liq };
+  // Every pool of the token is the yardstick, including those where it is the second token; the chart prefers a pool where it is the
+  // first token (the chart is then of the token itself) unless that pool is tiny next to the real market.
+  const deepest = usable[0]!.liq;
+  const base = usable.filter((x) => x.isBase && x.liq >= Math.max(MAJOR_POOL_MIN_LIQUIDITY_USD, deepest * MAJOR_POOL_MIN_SHARE));
+  const chosen = choosePricePool(base.length > 0 ? base : usable, deepest) ?? choosePricePool(usable, deepest);
+  if (!chosen) return null;
+  const best = chosen.pool;
+  return { p: best.p, isBase: best.isBase, liq: best.liq, majorBacked: chosen.majorBacked };
 }
 
 /** Picks the pair to draw for a token. Pure. */

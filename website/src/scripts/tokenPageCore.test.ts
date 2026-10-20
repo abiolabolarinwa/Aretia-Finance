@@ -56,6 +56,16 @@ describe('mint facts', () => {
     expect(f.filter((x) => x.tone === 'warn').map((x) => x.label)).toEqual(['Permanent delegate (12)', 'Transfer hook (14)', 'Pausable (26)']);
     expect(f.some((x) => x.tone === 'good')).toBe(false);
   });
+  it('says a delegate, hook or pause switch nobody holds is given up, and the treasury-held ACT fee is a warning, not "Dangerous"', () => {
+    const f = solanaMintFacts({ ...base, extensions: [12, 14, 26], extensionDetails: { permanentDelegate: { delegate: null }, transferHook: { authority: null, programId: null }, pausable: { authority: null, paused: false } } });
+    expect(f.filter((x) => x.tone === 'warn')).toEqual([]);
+    expect(f.filter((x) => x.value.startsWith('Given up') && x.label.endsWith(')')).map((x) => x.label)).toEqual(['Permanent delegate (12)', 'Transfer hook (14)', 'Pausable (26)']);
+    expect(f.find((x) => x.label === 'Supply')?.tone).toBe('good');
+    const act = solanaMintFacts({ ...base, extensions: [1, 18], extensionDetails: { transferFee: { configAuthority: 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA', withdrawAuthority: 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA', olderBps: 150, newerBps: 150, newerEpoch: 1031n, maximumFee: 10n ** 18n } } });
+    const row = act.find((x) => x.label === 'Transfer fee (1)')!;
+    expect(row.value).toBe('Check before you trade: a 1.5% fee is taken on every transfer; the Aretia treasury multisig (2 of 3) can change the rate (a change takes effect only from a later epoch, never at once); the fees go to the Aretia treasury multisig (2 of 3)');
+    expect(act.find((x) => x.label === 'Supply')?.tone).toBe('good');
+  });
   it('treats metadata and group extensions as neutral, and scaled or confidential amounts as a warning', () => {
     expect(solanaMintFacts({ ...base, extensions: [18, 19, 20, 21, 22, 23] }).filter((x) => x.tone === 'warn')).toEqual([]);
     const f = solanaMintFacts({ ...base, extensions: [18, 19, 25, 24] });

@@ -4,15 +4,18 @@
  * `MissingTableError` so the page can say so instead of failing.
  */
 import { supabaseHeaders } from '../tokens/supabaseAuth.js';
-import { tokenKey, type LaunchChain, type LaunchRecord } from './core.js';
+import { LISTED, tokenKey, type LaunchChain, type LaunchRecord, type ListingState } from './core.js';
 
 export class MissingTableError extends Error {
   constructor() {
-    super('The Launch Box tables have not been created yet (migration 0012).');
+    super('The Launch Box tables have not been created yet, or are missing a column (migrations 0012 and 0015).');
   }
 }
 
-export interface StoredLaunch extends LaunchRecord {
+/** A token to store, with where it starts on the list (EVM tokens: listed; Solana: as its first read found it). */
+export type NewLaunch = LaunchRecord & Partial<ListingState>;
+
+export interface StoredLaunch extends LaunchRecord, ListingState {
   indexedAt: number;
   poolDex: string | null;
   poolAddress: string | null;
@@ -33,16 +36,23 @@ export interface LaunchStore {
   cursors(): Promise<CursorRow[]>;
   setCursor(chain: LaunchChain, cursor: string | null, now: number, stats: Record<string, unknown> | null): Promise<void>;
   /** Inserts the tokens that are not stored yet; one that already exists is left exactly as it is. Returns how many were new. */
-  insertNew(records: readonly LaunchRecord[], now: number): Promise<number>;
+  insertNew(records: readonly NewLaunch[], now: number): Promise<number>;
   /** Which of these addresses are stored already. */
   existing(chain: LaunchChain, addresses: readonly string[]): Promise<Set<string>>;
   count(chain: LaunchChain): Promise<number>;
-  /** Newest first. */
+  /** Newest first, everything stored (pending and hidden too). */
   list(limit: number): Promise<StoredLaunch[]>;
+  /** Newest first, only what the public list shows (core.ts `isPublicListing`): no pending, hidden or never-checked Solana token. */
+  listPublic(limit: number): Promise<StoredLaunch[]>;
+  /**
+   * One page of a chain's tokens for the indexer's re-check, in key order after `afterKey`. `priority` keeps only the rows that most
+   * need a look: pending, hidden, never checked, failing, or with nothing minted.
+   */
+  listForCheck(chain: LaunchChain, opts: { afterKey: string | null; limit: number; priority: boolean }): Promise<StoredLaunch[]>;
   /** Fills fields that were unknown (never overwrites a known value with null). */
   patch(chain: LaunchChain, address: string, fields: Partial<Pick<StoredLaunch, 'name' | 'symbol' | 'decimals' | 'supply' | 'creator' | 'createdAt' | 'tx' | 'poolDex' | 'poolAddress' | 'poolUrl' | 'poolSeenAt' | 'curveAddress'>>): Promise<void>;
-  /** Takes a token off the list for good (a Solana mint that turned out to break the launch rule). */
-  remove(chain: LaunchChain, address: string): Promise<void>;
+  /** Writes a token's listing state as given (nulls included). Nothing is ever deleted: a hidden token keeps its row and its reason. */
+  setListing(chain: LaunchChain, address: string, state: ListingState): Promise<void>;
 }
 
 interface Row {
@@ -63,6 +73,11 @@ interface Row {
   pool_url: string | null;
   pool_seen_at: number | null;
   curve_address: string | null;
+  pending?: boolean | null;
+  hidden_at?: number | null;
+  hidden_reason?: string | null;
+  fail_count?: number | null;
+  checked_at?: number | null;
 }
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
@@ -84,7 +99,17 @@ export const fromRow = (r: Row): StoredLaunch => ({
   poolUrl: r.pool_url,
   poolSeenAt: num(r.pool_seen_at),
   curveAddress: r.curve_address,
+  pending: r.pending === true,
+  hiddenAt: num(r.hidden_at),
+  hiddenReason: r.hidden_reason ?? null,
+  failCount: num(r.fail_count) ?? 0,
+  checkedAt: num(r.checked_at),
 });
+
+const listingColumns = (l: ListingState): Record<string, unknown> => ({ pending: l.pending, hidden_at: l.hiddenAt, hidden_reason: l.hiddenReason, fail_count: l.failCount, checked_at: l.checkedAt });
+/** The public list as a PostgREST filter: the same rule as core.ts `isPublicListing`. */
+export const PUBLIC_FILTER = 'pending=is.false&hidden_at=is.null&or=(chain.neq.solana,checked_at.not.is.null)';
+const PRIORITY_FILTER = 'or=(pending.is.true,hidden_at.not.is.null,checked_at.is.null,fail_count.gt.0,supply.is.null,supply.eq.0)';
 
 const COLUMN: Record<string, string> = { name: 'name', symbol: 'symbol', decimals: 'decimals', supply: 'supply', creator: 'creator', createdAt: 'created_at', tx: 'tx', poolDex: 'pool_dex', poolAddress: 'pool_address', poolUrl: 'pool_url', poolSeenAt: 'pool_seen_at', curveAddress: 'curve_address' };
 
@@ -127,9 +152,10 @@ export class SupabaseLaunchStore implements LaunchStore {
     await this.call('launchbox_cursors?on_conflict=chain', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ chain, cursor, updated_at: now, stats }) });
   }
 
-  async insertNew(records: readonly LaunchRecord[], now: number): Promise<number> {
+  async insertNew(records: readonly NewLaunch[], now: number): Promise<number> {
     if (records.length === 0) return 0;
     const body = records.map((r) => ({
+      ...listingColumns({ ...LISTED, ...r }),
       key: tokenKey(r.chain, r.address),
       chain: r.chain,
       address: r.chain === 'solana' ? r.address : r.address.toLowerCase(),
@@ -172,6 +198,17 @@ export class SupabaseLaunchStore implements LaunchStore {
     return rows.map(fromRow);
   }
 
+  async listPublic(limit: number): Promise<StoredLaunch[]> {
+    const rows = (await this.call(`launchbox_tokens?select=*&${PUBLIC_FILTER}&order=created_at.desc.nullslast,indexed_at.desc&limit=${Math.max(1, Math.min(1000, Math.floor(limit)))}`)) as Row[];
+    return rows.map(fromRow);
+  }
+
+  async listForCheck(chain: LaunchChain, opts: { afterKey: string | null; limit: number; priority: boolean }): Promise<StoredLaunch[]> {
+    const after = opts.afterKey ? `&key=gt.${encodeURIComponent(opts.afterKey)}` : '';
+    const rows = (await this.call(`launchbox_tokens?select=*&chain=eq.${chain}${after}${opts.priority ? `&${PRIORITY_FILTER}` : ''}&order=key.asc&limit=${Math.max(1, Math.min(1000, Math.floor(opts.limit)))}`)) as Row[];
+    return rows.map(fromRow);
+  }
+
   async patch(chain: LaunchChain, address: string, fields: Parameters<LaunchStore['patch']>[2]): Promise<void> {
     const body: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null && COLUMN[k]) body[COLUMN[k]!] = v;
@@ -179,7 +216,7 @@ export class SupabaseLaunchStore implements LaunchStore {
     await this.call(`launchbox_tokens?key=eq.${encodeURIComponent(tokenKey(chain, address))}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(body) });
   }
 
-  async remove(chain: LaunchChain, address: string): Promise<void> {
-    await this.call(`launchbox_tokens?key=eq.${encodeURIComponent(tokenKey(chain, address))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
+  async setListing(chain: LaunchChain, address: string, state: ListingState): Promise<void> {
+    await this.call(`launchbox_tokens?key=eq.${encodeURIComponent(tokenKey(chain, address))}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(listingColumns(state)) });
   }
 }

@@ -10,6 +10,7 @@ import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowR
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
 import { padlockShown } from '../swings/market/lock.js';
 import { verifiedBadge } from '../lib/verifiedBadge';
+import { imitationChip } from '../lib/imitationChip';
 
 export interface TableState {
   key: SortKey | null;
@@ -202,6 +203,8 @@ export function marketTable(o: TableOptions): HTMLElement {
     line.append(el('strong', '', r.symbol), el('small', '', r.quoteSymbol ? `/ ${r.quoteSymbol}` : ''));
     const verified = verifiedBadge(r.chain, r.address, { plain: true });
     if (verified) line.append(verified);
+    const imitates = imitationChip(r.chain, r.address, r.symbol, r.name);
+    if (imitates) line.append(imitates);
     names.append(line, el('small', 'wapp-mt__fullname', r.name || 'No name given'));
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);

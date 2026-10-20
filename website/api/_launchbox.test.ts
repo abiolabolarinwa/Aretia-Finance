@@ -13,7 +13,7 @@ async function seeded(): Promise<FakeLaunchStore> {
   const store = new FakeLaunchStore();
   await store.insertNew(
     [
-      { chain: 'solana', address: A_SOL, name: 'Sol Token', symbol: 'SOLT', decimals: 9, supply: '1000', creator: 'cr', createdAt: NOW - 3_600_000, tx: 'tx1', source: 'solana-fee' },
+      { chain: 'solana', address: A_SOL, name: 'Sol Token', symbol: 'SOLT', decimals: 9, supply: '1000', creator: 'cr', createdAt: NOW - 3_600_000, tx: 'tx1', source: 'solana-fee', pending: false, checkedAt: NOW - 120_000 },
       { chain: 'bnb', address: A_BNB, name: 'Bnb Token', symbol: 'BNBT', decimals: 18, supply: '5', creator: '0xc', createdAt: NOW - 7_200_000, tx: '0xt', source: 'factory' },
       { chain: 'ethereum', address: A_ETH, name: 'Eth Token', symbol: 'ETHT', decimals: 18, supply: '5', creator: '0xc', createdAt: NOW - 100, tx: '0xu', source: 'factory' },
     ],
@@ -54,6 +54,14 @@ const parse = (r: { body: string }) => JSON.parse(r.body) as { setup: string; la
 beforeEach(() => resetLaunchboxCache());
 
 describe('GET /api/launchbox', () => {
+  it('shows no pending, hidden or never-checked Solana token (re-audit of M-6)', async () => {
+    const store = await seeded();
+    const solana = (c: string, over: Record<string, unknown>) => ({ chain: 'solana' as const, address: c.repeat(43), name: c, symbol: c, decimals: 9, supply: '1000', creator: 'cr', createdAt: NOW - 1000, tx: c, source: 'solana-fee' as const, ...over });
+    await store.insertNew([solana('P', { supply: '0', pending: true, checkedAt: NOW }), solana('H', { pending: false, checkedAt: NOW, hiddenAt: NOW, hiddenReason: 'a freeze authority is set', failCount: 2 }), solana('U', { pending: false, checkedAt: null })], NOW);
+    const symbols = parse(await handleLaunchbox(input({ store }))).launches.map((l) => l.symbol);
+    expect(symbols).toEqual(['ETHT', 'SOLT', 'BNBT']);
+  });
+
   it('lists the indexed tokens with market data from DexScreener and the curve read from the chain', async () => {
     const store = await seeded();
     const res = await handleLaunchbox(input({ store }));
@@ -215,8 +223,8 @@ describe('GET /api/launchbox-run', () => {
 describe('market helpers', () => {
   it('picks, for each token, its pool with the most liquidity, as the base token only', () => {
     const pairs = [
-      { chainId: 'solana', dexId: 'a', pairAddress: 'low', url: 'https://d/low', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '1', liquidity: { usd: 10 } },
-      { chainId: 'solana', dexId: 'b', pairAddress: 'high', url: 'https://d/high', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '2', liquidity: { usd: 99 }, fdv: 500 },
+      { chainId: 'solana', dexId: 'a', pairAddress: 'low', url: 'https://d/low', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '1', liquidity: { usd: 1_000 } },
+      { chainId: 'solana', dexId: 'b', pairAddress: 'high', url: 'https://d/high', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '2', liquidity: { usd: 9_900 }, fdv: 500 },
       { chainId: 'solana', dexId: 'c', pairAddress: 'quote', url: 'https://d/q', baseToken: { address: 'other' }, priceUsd: '3', liquidity: { usd: 1e9 } },
       { chainId: 'bsc', dexId: 'd', pairAddress: 'wrongchain', url: 'https://d/w', baseToken: { address: A_SOL }, priceUsd: '3', liquidity: { usd: 1e9 } },
     ];

@@ -8,7 +8,7 @@
  *  - The result is a risk classification, never a safety claim: there is no "safe" status.
  */
 import type { RiskSignal, RiskStatus, TokenRisk } from '../core/types.js';
-import { EXTENSION_MEANING, extensionClass, extensionLabel } from './token2022.js';
+import { extensionLabel, judgeExtensions, type ExtensionDetails } from './token2022.js';
 
 /** Facts about a Solana mint. `undefined`/`null` means "could not be determined". */
 export interface SolanaRiskFacts {
@@ -18,6 +18,8 @@ export interface SolanaRiskFacts {
   hasExtensions?: boolean | null;
   /** The extension types themselves. When known, they are judged one by one (see tokens/token2022.ts) instead of `hasExtensions`. */
   extensionTypes?: readonly number[] | null;
+  /** The authorities read from inside the extensions (tokens/token2022.ts `readExtensionDetails`), so a power given up is not held against the token. */
+  extensionDetails?: ExtensionDetails | null;
   /** Share of supply held by the 10 largest accounts, 0..100. Pool vaults are not excluded, so this can overstate. */
   top10Pct?: number | null;
   /** 'wallets' when program-controlled accounts (pools, vaults) were excluded; otherwise 'all'. */
@@ -132,8 +134,6 @@ export const ADMIN_POWER_SIGNALS: ReadonlySet<string> = new Set(['mint-authority
 /** Whether an assessment found an admin power still held. */
 export const hasAdminPowerWarning = (risk: Pick<TokenRisk, 'signals'> | null | undefined): boolean => !!risk && risk.signals.some((s) => ADMIN_POWER_SIGNALS.has(s.id) && (s.state === 'warn' || s.state === 'bad'));
 
-/** Extensions that let the issuer take, block or stop holders' tokens outright: the token is rated "restricted". */
-const TRAP_EXTENSIONS = new Set([9, 12, 14, 26]);
 const isEstablished = (f: { ageHours?: number | null; liquidityUsd?: number | null; volume24hUsd?: number | null }): boolean =>
   (f.ageHours ?? 0) >= ESTABLISHED.minAgeHours && (f.liquidityUsd ?? 0) >= ESTABLISHED.minLiquidityUsd && (f.volume24hUsd ?? 0) >= ESTABLISHED.minVolume24hUsd;
 
@@ -152,13 +152,14 @@ export function assessSolanaToken(f: SolanaRiskFacts, options: RiskOptions = {})
   b.flag('mint-authority', 'Mint authority', f.mintAuthoritySet, 'Mint authority is revoked: no new tokens can be created.', 'Mint authority is still set: more tokens can be created at any time.', 25);
   b.flag('freeze-authority', 'Freeze authority', f.freezeAuthoritySet, 'No freeze authority.', 'A freeze authority is set: holder accounts can be frozen.', 20);
   if (f.extensionTypes !== undefined && f.extensionTypes !== null) {
-    const bad = f.extensionTypes.filter((t) => extensionClass(t) === 'bad');
-    const warn = f.extensionTypes.filter((t) => extensionClass(t) === 'warn');
-    const say = (ts: readonly number[]): string => ts.map((t) => `${extensionLabel(t)}${EXTENSION_MEANING[t] ? `: ${EXTENSION_MEANING[t]}` : ''}`).join('; ');
-    if (bad.some((t) => TRAP_EXTENSIONS.has(t))) b.restricted = true;
+    const verdicts = judgeExtensions(f.extensionTypes, f.extensionDetails ?? {});
+    const bad = verdicts.filter((v) => v.class === 'bad');
+    const warn = verdicts.filter((v) => v.class === 'warn');
+    const say = (vs: typeof verdicts): string => vs.map((v) => `${extensionLabel(v.type)}${v.meaning ? `: ${v.meaning}` : ''}`).join('; ');
+    if (verdicts.some((v) => v.trap)) b.restricted = true;
     if (bad.length > 0) b.add('extensions', 'Token-2022 extensions', 'bad', `Dangerous extensions: ${say(bad)}.${warn.length ? ` Also: ${say(warn)}.` : ''}`, 40);
-    else if (warn.length > 0) b.add('extensions', 'Token-2022 extensions', 'warn', `Extensions that change what you see: ${say(warn)}.`, 10);
-    else b.add('extensions', 'Token-2022 extensions', 'ok', f.extensionTypes.length > 0 ? 'Only name and metadata extensions.' : 'No Token-2022 extensions.');
+    else if (warn.length > 0) b.add('extensions', 'Token-2022 extensions', 'warn', `Check before you trade: ${say(warn)}.`, 10);
+    else b.add('extensions', 'Token-2022 extensions', 'ok', f.extensionTypes.length > 0 ? 'Only name and metadata extensions, or extensions whose powers are given up.' : 'No Token-2022 extensions.');
   } else b.flag('extensions', 'Token-2022 extensions', f.hasExtensions, 'No Token-2022 extensions.', 'Token-2022 extensions are present (for example a transfer fee or hook). Read what they do before trading.', 5);
   b.concentration(f.top10Pct, f.top10Basis);
   b.liquidity(f.liquidityUsd, f.poolCount);

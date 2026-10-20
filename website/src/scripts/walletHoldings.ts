@@ -2,6 +2,7 @@
  * Pure helpers behind the dashboard's holdings: reading token accounts straight from the chain, merging that with
  * Jupiter's balance list, and deciding which holdings the table shows. No network and no DOM, so they can be tested.
  */
+import { choosePricePool } from '../swings/charts/pool.js';
 
 /** A balance for one mint before names and prices are looked up. */
 export interface RawBalance {
@@ -87,6 +88,27 @@ export function splitByPrice<T extends { mint: string; value: number | null }>(
   return { shown, hiddenUnpriced };
 }
 
+/**
+ * Whether a holding's value counts toward the portfolio total (and the split by value). A thin price (a shallow pool, an
+ * unknown depth, or a pool not paired with a major token) is shown on its row, marked "thin", but never added: one
+ * airdropped token with a made-up price could otherwise turn the total into any number its creator likes.
+ */
+export const countsTowardTotal = (h: { value: number | null; thin?: boolean }): boolean => h.value !== null && Number.isFinite(h.value) && h.thin !== true;
+
+/** The portfolio total from the holdings whose value counts, and how many priced holdings were left out as thin. */
+export function portfolioTotal(holdings: readonly { value: number | null; thin?: boolean }[]): { sum: number; counted: number; thinLeftOut: number } {
+  let sum = 0;
+  let counted = 0;
+  let thinLeftOut = 0;
+  for (const h of holdings) {
+    if (countsTowardTotal(h)) {
+      sum += h.value!;
+      counted++;
+    } else if (h.value !== null) thinLeftOut++;
+  }
+  return { sum, counted, thinLeftOut };
+}
+
 // ---------------------------------------------------------------- prices from market feeds
 
 /** Below this much money in the pool behind a price, the holding is not given a value at all: a dust pool can claim any price. */
@@ -114,24 +136,25 @@ export interface DexPricePair {
 }
 
 /**
- * Each mint's price from DexScreener's pairs: the pool paired with a major token (`majors`, lower-case) comes first, then depth, so a
- * pool against a made-up token that reports a huge liquidity cannot set the price. A price from a pool against an unknown token is
- * always marked thin.
+ * Each mint's price from DexScreener's pairs (charts/pool.ts `choosePricePool`): the deepest pool paired with a major token (`majors`,
+ * lower-case) when it holds at least $1,000 and 5% of the mint's deepest pool; otherwise the deepest pool, always marked thin. So a pool
+ * against a made-up token that reports a huge liquidity can never give an unmarked price (and a thin price is not added to the total),
+ * and a $3 WSOL pool cannot set the price of a token that trades millions against another token.
  */
 export function dexScreenerPrices(pairs: readonly DexPricePair[], majors: ReadonlySet<string>): Map<string, FeedPrice> {
-  const best = new Map<string, { p: DexPricePair; major: boolean; liq: number }>();
+  const byMint = new Map<string, { p: DexPricePair; major: boolean; liq: number }[]>();
   for (const p of pairs) {
     const mint = p.baseToken?.address;
     if (!mint || !p.priceUsd) continue;
     const major = majors.has((p.quoteToken?.address ?? '').toLowerCase());
     const liq = typeof p.liquidity?.usd === 'number' && Number.isFinite(p.liquidity.usd) ? p.liquidity.usd : 0;
-    const prev = best.get(mint);
-    if (prev && ((prev.major && !major) || (prev.major === major && liq <= prev.liq))) continue;
-    best.set(mint, { p, major, liq });
+    byMint.set(mint, [...(byMint.get(mint) ?? []), { p, major, liq }]);
   }
   const out = new Map<string, FeedPrice>();
-  for (const [mint, { p, major, liq }] of best) {
-    const priced = priceWithLiquidity(Number(p.priceUsd), liq, major);
+  for (const [mint, pools] of byMint) {
+    const chosen = choosePricePool(pools);
+    if (!chosen) continue;
+    const priced = priceWithLiquidity(Number(chosen.pool.p.priceUsd), chosen.pool.liq, chosen.majorBacked);
     if (priced) out.set(mint, priced);
   }
   return out;

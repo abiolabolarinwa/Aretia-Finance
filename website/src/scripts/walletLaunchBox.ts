@@ -11,7 +11,7 @@ import { compactUsd, formatAge, formatChange, formatPrice } from '../swings/mark
 import { LAUNCH_CHAINS, defaultSort, tokenKey, viewLaunches, type Filter, type LaunchChain, type LaunchView, type Sort, type SortKey, type Tab } from '../swings/launchbox/core.js';
 import { verifiedChecker } from './launchBoxVerified';
 import { cleanText } from '../swings/tokens/safeText.js';
-import { impersonationWarning } from '../swings/tokens/impersonation.js';
+import { imitationChip } from '../lib/imitationChip';
 
 export interface LaunchBoxIndexRow {
   chain: LaunchChain;
@@ -180,14 +180,8 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
       v.setAttribute('aria-label', 'Verified');
       line.append(v);
     }
-    const imitates = impersonationWarning(r.chain, r.address, symbol, name);
-    if (imitates) {
-      const w = el('span', 'wapp-lb__imitates', '⚠ Not the real one');
-      w.title = imitates;
-      w.setAttribute('role', 'img');
-      w.setAttribute('aria-label', imitates);
-      line.append(w);
-    }
+    const imitates = imitationChip(r.chain, r.address, symbol, name);
+    if (imitates) line.append(imitates);
     names.append(line, el('small', 'wapp-mt__fullname', name || 'No name given'));
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);

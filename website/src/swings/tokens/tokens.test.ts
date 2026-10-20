@@ -228,7 +228,7 @@ describe('on-chain enrichment', () => {
   const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b));
 
   it('reads authorities, supply and decimals from a mint account', () => {
-    expect(parseMintFacts(TOKEN, mintBytes({ mintAuth: true, freeze: false, supply: 1_000n, decimals: 6 }))).toEqual({ decimals: 6, supply: 1_000n, mintAuthoritySet: true, freezeAuthoritySet: false, hasExtensions: false, extensionTypes: [] });
+    expect(parseMintFacts(TOKEN, mintBytes({ mintAuth: true, freeze: false, supply: 1_000n, decimals: 6 }))).toEqual({ decimals: 6, supply: 1_000n, mintAuthoritySet: true, freezeAuthoritySet: false, hasExtensions: false, extensionTypes: [], extensionDetails: {} });
     expect(parseMintFacts('SomeOtherProgram', mintBytes({ mintAuth: false, freeze: false, supply: 1n, decimals: 0 }))).toBeNull();
     expect(parseMintFacts(TOKEN, new Uint8Array(10))).toBeNull();
   });

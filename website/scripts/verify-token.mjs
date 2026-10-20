@@ -45,6 +45,8 @@ if (chain === 'solana') {
   if (!/^0x[0-9a-fA-F]{40}$/.test(token)) fail('that is not an address (0x followed by 40 letters and numbers).');
   const url = process.env[`${chain.toUpperCase()}_RPC_URL`] || c.rpc;
   const code = await rpc(url, 'eth_getCode', [token, 'latest']);
+  // checkEvm fails EIP-7702 delegated accounts (code 0xef0100 + address) and any code with a DELEGATECALL; say so early, too.
+  if (typeof code === 'string' && code.toLowerCase().startsWith('0xef0100')) console.error('Note: this address is an EIP-7702 delegated account, not a token contract.');
   // The supply at two different blocks (about a minute apart on every chain), and the EIP-1967 implementation slot.
   const latest = Number.parseInt(await rpc(url, 'eth_blockNumber', []), 16);
   if (!Number.isSafeInteger(latest) || latest < 50) fail('the node gave no block number.');

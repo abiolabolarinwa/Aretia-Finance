@@ -4,6 +4,9 @@ import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRow
 import { GeckoMarket, parseGeckoPools } from './gecko.js';
 import { rowFromRecord, rowsFromRecords } from './registryRows.js';
 import type { TokenRecord } from '../core/types.js';
+import { applyRatings } from './ratings.js';
+import { ratingView } from './rowRisk.js';
+import { padlockShown } from './lock.js';
 
 const NOW = 1_800_000_000_000;
 const MINT = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
@@ -149,7 +152,34 @@ describe('Find Tokens rows', () => {
   it('combine the registry\'s rating with DexScreener\'s numbers', () => {
     const r = rowFromRecord(rec(), [dexPair], NOW);
     expect(r).toMatchObject({ symbol: 'NEW', quoteSymbol: 'SOL', priceUsd: 0.5, capUsd: 80000, txns24h: 10, volume24hUsd: 4000, liquidityUsd: 20000, ageMs: 120_000, fresh: true, icon: 'https://cdn.dexscreener.com/n.png', change: { m5: 1, h1: 2, h6: 3, h24: 4 } });
-    expect(r.risk).toEqual({ status: 'elevated', label: 'Elevated risk', score: 40 });
+    expect(r.risk).toEqual({ status: 'elevated', label: 'Elevated risk', score: 40, basis: 'registry' });
+  });
+
+  it('draw an established token whose issuer can still mint and freeze in yellow, never green, and hide its padlock', () => {
+    const signals = [
+      { id: 'mint-authority', label: 'Mint authority', state: 'warn', detail: 'Can mint.', weight: 0 },
+      { id: 'freeze-authority', label: 'Freeze authority', state: 'warn', detail: 'Can freeze.', weight: 0 },
+    ];
+    const established = rec({ risk: { status: 'established', score: 5, signals, assessedAt: 1, version: 1 } as never });
+    for (const r of [rowFromRecord(established, [dexPair], NOW), rowFromRecord({ ...established, market: { at: NOW, pool: 'P'.repeat(32), priceUsd: 1, capUsd: null, txns24h: null, volume24hUsd: null, change: { m5: null, h1: null, h6: null, h24: null }, liquidityUsd: null, lock: { pct: 99 } } as never }, [], NOW)]) {
+      expect(r.risk).toMatchObject({ status: 'established', basis: 'registry', adminPowers: true });
+      const view = ratingView(r, undefined);
+      expect(view.band).toBe('yellow');
+      expect(view.label).toBe('Established, issuer controls');
+      expect(padlockShown(99, r.risk)).toBe(false);
+    }
+    // The same token with both authorities given up stays green.
+    const clean = rowFromRecord(rec({ risk: { status: 'established', score: 5, signals: signals.map((x) => ({ ...x, state: 'ok' })), assessedAt: 1, version: 1 } as never }), [dexPair], NOW);
+    expect(ratingView(clean, undefined).band).toBe('green');
+  });
+
+  it('take the admin-power mark from the registry\'s ratings answer', () => {
+    const base = row('USDC', { address: MINT, risk: null, lockedPct: 80 });
+    const [r] = applyRatings([base], [{ chain: 'solana', address: MINT, status: 'established', score: 5, adminPowers: true, lockedPct: 80 }]);
+    expect(ratingView(r!, undefined)).toMatchObject({ band: 'yellow', label: 'Established, issuer controls' });
+    expect(padlockShown(r!.lockedPct, r!.risk)).toBe(false);
+    const [old] = applyRatings([base], [{ chain: 'solana', address: MINT, status: 'established', score: 5, lockedPct: 80 }]);
+    expect(old!.risk!.adminPowers).toBeUndefined();
   });
 
   it('fall back to what the registry knows, with dashes for the rest, when DexScreener has nothing', () => {

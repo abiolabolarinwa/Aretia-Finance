@@ -6,7 +6,7 @@
 import { chooseDexPair, type DexPair } from '../charts/dexscreener.js';
 import { DEXSCREENER_CHAIN } from '../charts/pool.js';
 import { ageInfo } from '../tokens/registry.js';
-import { RISK_LABELS } from '../tokens/risk.js';
+import { hasAdminPowerWarning, RISK_LABELS } from '../tokens/risk.js';
 import type { ChainId, TokenRecord } from '../core/types.js';
 import type { MarketRow } from './types.js';
 import { isFresh, rowNumbers } from './snapshot.js';
@@ -16,21 +16,25 @@ const num = (v: unknown): number | null => {
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
 };
 
+/** A registry record's rating for a row, marking admin powers so an issuer-controlled token is never drawn green. */
+function registryRisk(r: TokenRecord): NonNullable<MarketRow['risk']> {
+  const st = r.risk?.status ?? 'unknown';
+  return { status: st, label: RISK_LABELS[st], score: r.risk?.score ?? null, basis: 'registry', ...(hasAdminPowerWarning(r.risk) ? { adminPowers: true } : {}) };
+}
+
 /** One registry token as a row, using DexScreener's pairs for it when there are any. Pure. */
 export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): MarketRow {
   // Aretia's own fresh snapshot wins: no outside request was needed for it.
   if (isFresh(r.market, now)) {
-    const st = r.risk?.status ?? 'unknown';
     const nums = rowNumbers(r.market, r.firstPoolAt, now);
     return {
       chain: r.ref.chain, address: r.ref.address, symbol: r.symbol, quoteSymbol: '', name: r.name, icon: r.logo, decimals: r.decimals,
-      ...nums, ageMs: nums.ageMs ?? ageInfo(r, now).ms, traders24h: null, risk: { status: st, label: RISK_LABELS[st], score: r.risk?.score ?? null }, fresh: true,
+      ...nums, ageMs: nums.ageMs ?? ageInfo(r, now).ms, traders24h: null, risk: registryRisk(r), fresh: true,
     };
   }
   const chosen = chooseDexPair(r.ref.chain, r.ref.address, pairs);
   const p: DexPair | null = chosen?.isBase ? chosen.p : null;
   const age = ageInfo(r, now);
-  const st = r.risk?.status ?? 'unknown';
   const t = p?.txns?.h24;
   const created = typeof p?.pairCreatedAt === 'number' ? now - p.pairCreatedAt : null;
   const price = num(p?.priceUsd);
@@ -52,7 +56,7 @@ export function rowFromRecord(r: TokenRecord, pairs: unknown, now: number): Mark
     traders24h: null,
     change: { m5: num(p?.priceChange?.m5), h1: num(p?.priceChange?.h1), h6: num(p?.priceChange?.h6), h24: num(p?.priceChange?.h24) },
     liquidityUsd: num(p?.liquidity?.usd) ?? r.liquidityUsd,
-    risk: { status: st, label: RISK_LABELS[st], score: r.risk?.score ?? null },
+    risk: registryRisk(r),
     fresh: true,
   };
 }

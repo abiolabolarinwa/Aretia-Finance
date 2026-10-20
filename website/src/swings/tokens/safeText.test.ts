@@ -107,3 +107,20 @@ describe('impersonating names (audit L-15)', () => {
     expect(impersonationWarning('ethereum', '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eB48', 'USDC', 'USD Coin')).toBeNull();
   });
 });
+
+describe('impersonating names, re-audit L-15: small capitals, hooked letters, ₮ and Cyrillic lower case', () => {
+  const FAKE = 'Fake1111111111111111111111111111111111111111';
+  it('catches every example from the re-audit', () => {
+    for (const [sym, claim] of [['ᴜꜱᴅᴄ', 'USDC'], ['USD₮', 'USDT'], ['USDƇ', 'USDC'], ['USÐC', 'USDC'], ['ɅCT', 'ACT'], ['ꞫTH', 'ETH'], ['uѕdт', 'USDT']] as const) {
+      expect(reservedNameClaim(sym, 'x'), sym).toBe(claim);
+      expect(impersonationWarning('solana', FAKE, sym, 'x'), sym).toMatch(new RegExp(`calls itself ${claim}`));
+    }
+  });
+  it('folds the rest of the new look-alikes and leaves ordinary names alone', () => {
+    expect(skeleton('ᴡᴇᴛʜ')).toBe('WETH');
+    expect(skeleton('Ƀ₮Ƈ')).toBe('BTC');
+    expect(skeleton('мок')).toBe('MOK');
+    expect(reservedNameClaim('BONK', 'Bonk')).toBeNull();
+    expect(reservedNameClaim('JUP', 'Jupiter')).toBeNull();
+  });
+});

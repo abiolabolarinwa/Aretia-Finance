@@ -7,13 +7,16 @@
  *    a computable address, and its name, symbol, decimals and supply can be read from the chain at any time. That count is also a check:
  *    "expected" in the stats is how many tokens the factory has made, "indexed" how many are stored.
  *  - Solana: the fee wallet's signatures, newest first, with a forward edge (new activity) and a backward edge (history, a page at a time).
- *    A transaction is accepted only by acceptSolanaLaunch (core.ts), and its mint only if it keeps the rule Aretia's on-chain programs
- *    apply (no mint or freeze authority once minted, only the metadata extensions). Listed Solana tokens are checked again on every
- *    run, and one that breaks the rule is taken off the list.
+ *    A transaction is accepted only by acceptSolanaLaunch (core.ts), and its mint is stored with where it stands on the list: shown only
+ *    once a read finds it keeping the rule Aretia's on-chain programs apply (supply minted, no mint or freeze authority, only the metadata
+ *    extensions). A creation between its two transactions is stored as pending and not shown. Every Solana token is checked again, with
+ *    its own share of the time: pending, hidden and unchecked ones first, then all of them a page at a time, carrying on from where the
+ *    last run stopped. One that breaks the rule is hidden after two reads in a row (core.ts `nextListing`), never deleted, and comes back
+ *    when a read finds it keeping the rule.
  *
- * Safe to run twice or at once: stored tokens are never rewritten (only unknown fields filled, Solana names refreshed, rule-breaking
- * Solana tokens removed), and a cursor only moves after the tokens before it were stored. A node
- * error stops that chain for this run and leaves its cursor where it was.
+ * Safe to run twice or at once: stored tokens are never rewritten (only unknown fields filled, Solana names refreshed, the listing state
+ * of Solana tokens updated), and a cursor only moves after the tokens before it were stored. A node error stops that chain for this run
+ * and leaves its cursor where it was.
  */
 import {
   EVM_FACTORIES,
@@ -29,17 +32,20 @@ import {
   decodeTokenCreated,
   decodeUintReturn,
   evmWindow,
+  nextListing,
   parseSolanaState,
   planBackfill,
   planForward,
   selector,
+  sameListing,
   serializeSolanaState,
+  UNCHECKED,
   type EvmLaunchChain,
   type LaunchChain,
   type LaunchRecord,
   type ParsedTx,
 } from './core.js';
-import { MissingTableError, type LaunchStore } from './store.js';
+import { MissingTableError, type LaunchStore, type NewLaunch, type StoredLaunch } from './store.js';
 import { mintRuleProblems, readRawMint } from '../tokens/token2022.js';
 
 export interface IndexerEnv {
@@ -73,6 +79,8 @@ export interface IndexerDeps {
   now: () => number;
   /** Milliseconds this run may keep starting new work. */
   budgetMs?: number;
+  /** Milliseconds of that kept for re-checking stored Solana tokens (default RECHECK_SHARE of the budget). */
+  recheckBudgetMs?: number;
   /** Which chains to read; default all. */
   chains?: readonly LaunchChain[];
 }
@@ -85,6 +93,8 @@ export interface ChainReport {
   indexed?: number;
   error?: string;
   note?: string;
+  /** Solana: what the re-check of stored tokens did this run. */
+  recheck?: { checked: number; hidden: number; readmitted: number; error?: string };
 }
 export interface IndexerReport {
   ok: boolean;
@@ -244,6 +254,8 @@ export interface MintInfo {
   supply: string | null;
   /** Why the mint breaks the launch rule (tokens/token2022.ts `mintRuleProblems`); empty when it keeps it. */
   problems: string[];
+  /** The creation is not finished: nothing minted yet, or a mint authority is still set. Never shown while so. */
+  pending: boolean;
 }
 
 /** A pending creation (the creator still holds the mint authority, nothing minted yet) is given this long to finish. */
@@ -269,8 +281,8 @@ export function mintInfoOf(account: RawAccount, pendingCreator: string | null): 
   }
   const problems = mintRuleProblems(account.owner, data, pendingCreator);
   const raw = account.owner === TOKEN_2022_PROGRAM ? readRawMint(data) : null;
-  if (!raw) return { name: '', symbol: '', decimals: null, supply: null, problems: problems.length ? problems : ['not a readable mint'] };
-  return { name: cleanText(raw.name ?? '', 64), symbol: cleanText(raw.symbol ?? '', 32), decimals: raw.decimals, supply: raw.supply.toString(), problems };
+  if (!raw) return { name: '', symbol: '', decimals: null, supply: null, problems: problems.length ? problems : ['not a readable mint'], pending: false };
+  return { name: cleanText(raw.name ?? '', 64), symbol: cleanText(raw.symbol ?? '', 32), decimals: raw.decimals, supply: raw.supply.toString(), problems, pending: raw.supply === 0n || raw.mintAuthority !== null };
 }
 
 export async function readSolanaMint(rpc: { call(method: string, params: unknown[]): Promise<unknown> }, mint: string, pendingCreator: string | null = null): Promise<MintInfo | null> {
@@ -278,40 +290,81 @@ export async function readSolanaMint(rpc: { call(method: string, params: unknown
   return mintInfoOf(res?.value, pendingCreator);
 }
 
+/** Rows re-checked per node request (getMultipleAccounts takes up to 100). */
+const RECHECK_PAGE = 100;
+/** The share of a run's budget kept for the re-check when the caller does not set one. */
+const RECHECK_SHARE = 0.35;
+
 /**
- * Checks every listed Solana token against the launch rule again and takes off the list any that break it: a creation whose
- * creator kept the mint authority after minting, or that never minted within PENDING_MS. Tokens that keep
- * it get their supply, name and symbol refreshed (a creator may hold the metadata update authority). Mint and freeze authorities
- * cannot come back once given up, so a token that passes once with its supply minted keeps passing.
+ * Checks stored Solana tokens against the launch rule again and moves each one on the list (core.ts `nextListing`): a pending creation is
+ * shown once its supply is minted and the mint authority is gone, a token found breaking the rule twice in a row is hidden with the reason,
+ * and a hidden one that keeps the rule again comes back. First every row that most needs a look (pending, hidden, never checked, failing,
+ * nothing minted), then all rows a page at a time from where the last run stopped (`recheckAfter` in the cursor's stats), so no row is
+ * left out however many there are. Supply, name and symbol are refreshed for tokens that keep the rule (a creator may hold the metadata
+ * update authority).
  */
-async function recheckSolana(rpc: Rpc, d: IndexerDeps, deadline: number): Promise<number> {
-  const listed = (await d.store.list(1000)).filter((t) => t.chain === 'solana');
-  let removed = 0;
-  for (let i = 0; i < listed.length && d.now() < deadline; i += 100) {
-    const batch = listed.slice(i, i + 100);
-    const res = (await rpc.call('getMultipleAccounts', [batch.map((t) => t.address), { encoding: 'base64', commitment: 'confirmed' }])) as { value?: RawAccount[] } | null;
-    if (!res || !Array.isArray(res.value) || res.value.length !== batch.length) throw new Error('The node gave no account list.');
-    for (const [n, t] of batch.entries()) {
-      const pending = t.createdAt !== null && d.now() - t.createdAt < PENDING_MS ? t.creator : null;
-      const info = mintInfoOf(res.value[n], pending);
-      // No account: a node that lags or forgot is not proof of anything (a launch mint cannot be closed), so the row stays.
-      if (!info) continue;
-      if (info.problems.length > 0) {
-        await d.store.remove('solana', t.address);
-        removed++;
-        continue;
+export async function recheckSolana(rpc: { call(method: string, params: unknown[]): Promise<unknown> }, d: IndexerDeps, deadline: number): Promise<NonNullable<ChainReport['recheck']>> {
+  const out = { checked: 0, hidden: 0, readmitted: 0 };
+  const seen = new Set<string>();
+  const checkPage = async (rows: readonly StoredLaunch[]): Promise<void> => {
+    const fresh = rows.filter((t) => !seen.has(t.address));
+    if (fresh.length === 0) return;
+    const res = (await rpc.call('getMultipleAccounts', [fresh.map((t) => t.address), { encoding: 'base64', commitment: 'confirmed' }])) as { value?: RawAccount[] } | null;
+    if (!res || !Array.isArray(res.value) || res.value.length !== fresh.length) throw new Error('The node gave no account list.');
+    for (const [n, t] of fresh.entries()) {
+      seen.add(t.address);
+      out.checked++;
+      const pendingCreator = t.createdAt !== null && d.now() - t.createdAt < PENDING_MS ? t.creator : null;
+      const info = mintInfoOf(res.value[n], pendingCreator);
+      // No account: a node that lags or forgot is not proof of anything (a launch mint cannot be closed), so nothing changes.
+      const next = nextListing(t, info && { problems: info.problems, pending: info.pending }, d.now());
+      if (!sameListing(t, next)) {
+        if (t.hiddenAt === null && next.hiddenAt !== null) out.hidden++;
+        if (t.hiddenAt !== null && next.hiddenAt === null) out.readmitted++;
+        await d.store.setListing('solana', t.address, next);
       }
+      if (!info || info.problems.length > 0) continue;
       const fields: Parameters<LaunchStore['patch']>[2] = {};
       if (info.supply && info.supply !== '0' && info.supply !== t.supply) fields.supply = info.supply;
       if (info.name && info.name !== t.name) fields.name = info.name;
       if (info.symbol && info.symbol !== t.symbol) fields.symbol = info.symbol;
       if (Object.keys(fields).length > 0) await d.store.patch('solana', t.address, fields);
     }
+  };
+  // 1. The rows that most need a look, all of them.
+  for (let after: string | null = null; d.now() < deadline; ) {
+    const page = await d.store.listForCheck('solana', { afterKey: after, limit: RECHECK_PAGE, priority: true });
+    await checkPage(page);
+    if (page.length < RECHECK_PAGE) break;
+    after = `solana:${page[page.length - 1]!.address}`;
   }
-  return removed;
+  // 2. Every row, a page at a time, continuing from where the last run stopped and starting over once at the end.
+  const cursor = await d.store.getCursor('solana');
+  const startedAt = typeof cursor?.stats?.recheckAfter === 'string' ? cursor.stats.recheckAfter : null;
+  let after = startedAt;
+  for (let wrapped = false; d.now() < deadline; ) {
+    const page = await d.store.listForCheck('solana', { afterKey: after, limit: RECHECK_PAGE, priority: false });
+    // Back at rows already checked this run: the whole table has been covered.
+    if (wrapped && page.length > 0 && page.every((t) => seen.has(t.address))) break;
+    await checkPage(page);
+    if (page.length === RECHECK_PAGE) {
+      after = `solana:${page[page.length - 1]!.address}`;
+      continue;
+    }
+    after = null;
+    if (wrapped || startedAt === null) break;
+    wrapped = true;
+  }
+  const latest = await d.store.getCursor('solana');
+  await d.store.setCursor('solana', latest?.cursor ?? null, d.now(), { ...(latest?.stats ?? {}), recheckAfter: after });
+  return out;
 }
 
-export async function indexSolana(d: IndexerDeps, deadline: number): Promise<ChainReport> {
+/**
+ * Reads the fee wallet's new and old signatures until `deadline`, then re-checks stored tokens with a budget of its own (`recheckMs`,
+ * counted from when it starts), so a slow history read never leaves pending or hidden tokens unchecked.
+ */
+export async function indexSolana(d: IndexerDeps, deadline: number, recheckMs = d.recheckBudgetMs ?? 12_000): Promise<ChainReport> {
   const rpc = new Rpc(d.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com', d.fetchImpl);
   const report: ChainReport = { chain: 'solana', added: 0, cursor: null };
   const row = await d.store.getCursor('solana');
@@ -319,10 +372,12 @@ export async function indexSolana(d: IndexerDeps, deadline: number): Promise<Cha
   report.cursor = serializeSolanaState(state);
   let unreadable = Number((row?.stats as { unreadable?: number } | null)?.unreadable ?? 0);
   let rejected = Number((row?.stats as { rejected?: number } | null)?.rejected ?? 0);
+  // Other fields of the stats (the re-check's place) are kept when the reading part writes its own.
+  const stats = (): Record<string, unknown> => ({ ...(row?.stats ?? {}) });
 
   const handlePage = async (page: SigInfo[]): Promise<void> => {
     const ok = page.filter((s) => !s.err);
-    const records: LaunchRecord[] = [];
+    const records: NewLaunch[] = [];
     for (let i = 0; i < ok.length; i += 4) {
       const batch = await Promise.all(
         ok.slice(i, i + 4).map(async (s) => {
@@ -335,13 +390,12 @@ export async function indexSolana(d: IndexerDeps, deadline: number): Promise<Cha
           }
           const hit = acceptSolanaLaunch(tx, s.signature, SOLANA_FEE_WALLET);
           if (!hit) return null;
-          // The mint itself must keep the launch rule; a creation still between its two transactions may hold the authority.
+          // The mint itself must keep the launch rule; a creation still between its two transactions may hold the authority. Every
+          // accepted creation is stored, with where it stands: not shown until a read finds it finished and keeping the rule, so a
+          // creator who finishes late is listed then, and one node's wrong answer cannot lose a token for good.
           const pending = hit.blockTime === null || d.now() / 1000 - hit.blockTime < PENDING_MS / 1000 ? hit.creator : null;
           const info = await readSolanaMint(rpc, hit.mint, pending);
-          if (!info || info.problems.length > 0) {
-            rejected++;
-            return null;
-          }
+          if (info && info.problems.length > 0) rejected++;
           return { hit, info } as const;
         }),
       );
@@ -350,14 +404,15 @@ export async function indexSolana(d: IndexerDeps, deadline: number): Promise<Cha
         records.push({
           chain: 'solana',
           address: b.hit.mint,
-          name: b.info.name,
-          symbol: b.info.symbol,
-          decimals: b.info.decimals ?? b.hit.decimals,
-          supply: b.info.supply,
+          name: b.info?.name ?? '',
+          symbol: b.info?.symbol ?? '',
+          decimals: b.info?.decimals ?? b.hit.decimals,
+          supply: b.info?.supply ?? null,
           creator: b.hit.creator,
           createdAt: b.hit.blockTime ? b.hit.blockTime * 1000 : null,
           tx: b.hit.signature,
           source: 'solana-fee',
+          ...nextListing(UNCHECKED, b.info && { problems: b.info.problems, pending: b.info.pending }, d.now()),
         });
       }
     }
@@ -375,26 +430,27 @@ export async function indexSolana(d: IndexerDeps, deadline: number): Promise<Cha
       const page = await list(plan);
       await handlePage(page);
       state = applyForward(state, page, SOLANA_PAGE);
-      await d.store.setCursor('solana', serializeSolanaState(state), d.now(), { unreadable, rejected });
+      await d.store.setCursor('solana', serializeSolanaState(state), d.now(), { ...stats(), unreadable, rejected });
     }
     for (let plan = planBackfill(state); plan && pages < SOLANA_MAX_PAGES && d.now() < deadline; plan = planBackfill(state), pages++) {
       const page = await list(plan);
       await handlePage(page);
       state = applyBackfill(state, page, SOLANA_PAGE);
-      await d.store.setCursor('solana', serializeSolanaState(state), d.now(), { unreadable, rejected });
-    }
-    // A creation is two transactions; the supply is minted by the second. Every listed token is checked again: the supply and name
-    // are refreshed, and one that broke the launch rule after it was listed is taken off.
-    if (d.now() < deadline) {
-      const removed = await recheckSolana(rpc, d, deadline);
-      if (removed > 0) {
-        rejected += removed;
-        await d.store.setCursor('solana', serializeSolanaState(state), d.now(), { unreadable, rejected });
-      }
+      await d.store.setCursor('solana', serializeSolanaState(state), d.now(), { ...stats(), unreadable, rejected });
     }
   } catch (e) {
     if (e instanceof MissingTableError) throw e;
     report.error = String(e instanceof Error ? e.message : e).slice(0, 200);
+  }
+  // A creation is two transactions; the supply is minted by the second. Stored tokens are checked again even when reading the history
+  // failed: pending ones are shown once finished, and the listing of the rest is kept true (see recheckSolana).
+  try {
+    report.recheck = await recheckSolana(rpc, d, d.now() + recheckMs);
+  } catch (e) {
+    if (e instanceof MissingTableError) throw e;
+    const error = String(e instanceof Error ? e.message : e).slice(0, 200);
+    report.recheck = { checked: 0, hidden: 0, readmitted: 0, error };
+    report.error ??= error;
   }
   report.cursor = serializeSolanaState(state);
   return report;
@@ -403,12 +459,15 @@ export async function indexSolana(d: IndexerDeps, deadline: number): Promise<Cha
 // ---------------------------------------------------------------- all chains
 
 export async function runIndexer(d: IndexerDeps): Promise<IndexerReport> {
-  const deadline = d.now() + (d.budgetMs ?? 40_000);
+  const budget = d.budgetMs ?? 40_000;
   const chains = d.chains ?? (['bnb', 'ethereum', 'polygon', 'solana'] as const);
+  // The Solana re-check has its own share of the time, so reading the chains can never use it up.
+  const recheckMs = chains.includes('solana') ? (d.recheckBudgetMs ?? Math.round(budget * RECHECK_SHARE)) : 0;
+  const deadline = d.now() + budget - recheckMs;
   const reports: ChainReport[] = [];
   try {
     // Chains are independent: a failing node for one does not stop the rest.
-    for (const chain of chains) reports.push(chain === 'solana' ? await indexSolana(d, deadline) : await indexEvmChain(chain, d, deadline));
+    for (const chain of chains) reports.push(chain === 'solana' ? await indexSolana(d, deadline, recheckMs) : await indexEvmChain(chain, d, deadline));
   } catch (e) {
     if (e instanceof MissingTableError) return { ok: false, chains: reports, missingTable: true };
     throw e;

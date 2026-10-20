@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const spec = '../../scripts/verifyTokenCore.mjs';
 const core: any = await import(/* @vite-ignore */ spec);
-const { TOKEN_2022_PROGRAM, automatedPass, checkEvm, checkSolana, readSolanaMint, renderReport, proxyReason } = core;
+const { TOKEN_2022_PROGRAM, automatedPass, checkEvm, checkSolana, readSolanaMint, renderReport, proxyReason, hasDelegatecall, delegationTarget } = core;
 
 const TOKEN = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
@@ -134,5 +134,35 @@ describe('audit M-7: the real extension numbers, an allow-list, and proxies', ()
   it('names the two blocks the supply was read at', () => {
     const plain = '0x6080604052' + '63' + '18160ddd';
     expect(checkEvm(plain, '5', '5', { blocks: [100, 130] }).supplyFixed.detail).toMatch(/blocks 100 and 130/);
+  });
+});
+
+describe('re-audit M-7: EIP-7702 delegated accounts and DELEGATECALL', () => {
+  const plain = '0x6080604052' + '63' + '18160ddd' + '63' + 'a9059cbb';
+  it('fails an EIP-7702 delegation designator', () => {
+    const code = '0xef0100' + '33'.repeat(20);
+    expect(delegationTarget(code)).toBe('0x' + '33'.repeat(20));
+    const r = checkEvm(code, '1', '1');
+    expect(automatedPass(r)).toBe(false);
+    expect(r.powersGivenUp.detail).toMatch(/EIP-7702 delegated account: its code runs in 0x3333/);
+    expect(delegationTarget(plain)).toBeNull();
+  });
+  it('fails code with a DELEGATECALL opcode, found by an instruction walk', () => {
+    // PUSH1 0 DUP1 ... GAS DELEGATECALL: a hand-rolled proxy that is neither EIP-1167 nor EIP-1967.
+    const r = checkEvm(plain + '5af4', '1', '1');
+    expect(r.powersGivenUp.pass).toBe(false);
+    expect(r.powersGivenUp.detail).toMatch(/DELEGATECALL/);
+    expect(hasDelegatecall('0x6000f4')).toBe(true);
+  });
+  it('does not count a 0xf4 inside PUSH1..PUSH32 data or in the trailing metadata', () => {
+    expect(hasDelegatecall('0x60f4')).toBe(false);
+    expect(hasDelegatecall('0x7f' + 'f4'.repeat(32) + '00')).toBe(false);
+    expect(hasDelegatecall('0x63f4f4f4f4' + '01')).toBe(false);
+    // Solidity metadata: a2 64 'ipfs' 58 22 <34-byte hash with f4 in it> ... then the 2-byte length.
+    const cbor = 'a264697066735822' + 'f4'.repeat(34) + '64736f6c6343' + '000814' + '0033';
+    expect(hasDelegatecall('0x6080604052' + 'fe' + cbor)).toBe(false);
+    expect(automatedPass(checkEvm(plain + 'fe' + cbor, '1', '1'))).toBe(true);
+    // A truncated PUSH at the end is not an opcode either.
+    expect(hasDelegatecall('0x7ff4')).toBe(false);
   });
 });

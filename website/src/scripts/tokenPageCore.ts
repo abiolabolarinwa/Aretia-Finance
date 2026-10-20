@@ -8,7 +8,7 @@ import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
 import { fromSmallestUnit } from './walletTools.js';
 import type { MintFacts } from './walletLaunchChain.js';
-import { EXTENSION_MEANING, extensionClass, extensionLabel } from '../swings/tokens/token2022.js';
+import { extensionClass, extensionLabel, judgeExtensions } from '../swings/tokens/token2022.js';
 import { curveProgressPercent, priceText, type CurveState } from './walletCurveCore.js';
 import { evmPriceText, type EvmCurveState } from './walletCurveEvmCore.js';
 
@@ -85,8 +85,11 @@ export const formatSupply = WHOLE;
  * "supply fixed" and "freeze given up" beside the point, so those are then not shown in green.
  */
 export function solanaMintFacts(m: MintFacts): Fact[] {
-  const bad = m.extensions.filter((t) => extensionClass(t) === 'bad');
-  const warn = m.extensions.filter((t) => extensionClass(t) === 'warn');
+  // Each extension judged with the authorities inside it, so a delegate, hook or pause switch nobody holds is not called dangerous.
+  const verdicts = judgeExtensions(m.extensions, m.extensionDetails ?? {});
+  const bad = verdicts.filter((v) => v.class === 'bad');
+  const warn = verdicts.filter((v) => v.class === 'warn');
+  const givenUp = verdicts.filter((v) => v.class === 'neutral' && extensionClass(v.type) !== 'neutral');
   const good: Fact['tone'] = bad.length > 0 ? 'plain' : 'good';
   const caveat = bad.length > 0 ? ', but see the extensions below' : '';
   const out: Fact[] = [{ label: 'Total supply', value: WHOLE(m.supply, m.decimals), tone: 'plain' }];
@@ -100,8 +103,9 @@ export function solanaMintFacts(m: MintFacts): Fact[] {
       ? { label: 'Freeze power', value: `Given up: no one can freeze holders${caveat}`, tone: good }
       : { label: 'Freeze power', value: `Held by ${shortAddress(m.freezeAuthority)}, who can freeze a holder’s tokens`, tone: 'warn' },
   );
-  for (const t of bad) out.push({ label: extensionLabel(t), value: `Dangerous: ${EXTENSION_MEANING[t] ?? 'an extension Aretia does not describe; treat it as a power over your tokens'}`, tone: 'warn' });
-  for (const t of warn) out.push({ label: extensionLabel(t), value: `Check before you trade: ${EXTENSION_MEANING[t] ?? 'it changes what you see'}`, tone: 'warn' });
+  for (const v of bad) out.push({ label: extensionLabel(v.type), value: `Dangerous: ${v.meaning || 'an extension Aretia does not describe; treat it as a power over your tokens'}`, tone: 'warn' });
+  for (const v of warn) out.push({ label: extensionLabel(v.type), value: `Check before you trade: ${v.meaning || 'it changes what you see'}`, tone: 'warn' });
+  for (const v of givenUp) out.push({ label: extensionLabel(v.type), value: `Given up: ${v.meaning}`, tone: 'good' });
   out.push({ label: 'Decimals', value: String(m.decimals), tone: 'plain' });
   return out;
 }

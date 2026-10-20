@@ -143,9 +143,47 @@ export function slotAddress(slotHex) {
   return typeof slotHex === 'string' && /^0x[0-9a-fA-F]{64}$/.test(slotHex) && !/^0x0+$/.test(slotHex) ? '0x' + slotHex.slice(-40).toLowerCase() : null;
 }
 
+const EIP7702_PREFIX = 'ef0100';
+/** The account an EIP-7702 delegation designator (0xef0100 + address) points to, or null when the code is not one. */
+export function delegationTarget(codeHex) {
+  const code = String(codeHex).toLowerCase().replace(/^0x/, '');
+  return code.startsWith(EIP7702_PREFIX) ? '0x' + code.slice(EIP7702_PREFIX.length, EIP7702_PREFIX.length + 40) : null;
+}
+
+/**
+ * The Solidity/Vyper metadata at the end of runtime code: CBOR (a map, first byte 0xa1..0xa7) whose length is the last two bytes.
+ * It is data, not instructions, so the opcode walk skips it rather than reading a stray 0xf4 in a hash as DELEGATECALL.
+ */
+function withoutMetadata(code) {
+  if (code.length < 4) return code;
+  const len = Number.parseInt(code.slice(-4), 16);
+  const start = code.length - 4 - len * 2;
+  if (len === 0 || start < 0) return code;
+  const first = Number.parseInt(code.slice(start, start + 2), 16);
+  return first >= 0xa1 && first <= 0xa7 ? code.slice(0, start) : code;
+}
+
+/**
+ * True if the code holds a DELEGATECALL (0xf4) opcode. Walks the code one instruction at a time and skips the immediate bytes of
+ * PUSH1..PUSH32 (0x60..0x7f), so a 0xf4 inside a pushed constant is not counted. Data after the code (other than the trailing
+ * metadata) is walked too: a false alarm only sends the token to the human review, a miss would pass it.
+ */
+export function hasDelegatecall(codeHex) {
+  const code = withoutMetadata(String(codeHex).toLowerCase().replace(/^0x/, ''));
+  for (let i = 0; i + 2 <= code.length; ) {
+    const op = Number.parseInt(code.slice(i, i + 2), 16);
+    if (op === 0xf4) return true;
+    i += 2 + (op >= 0x60 && op <= 0x7f ? (op - 0x5f) * 2 : 0);
+  }
+  return false;
+}
+
 /** Why the code is (or may be) a proxy whose behaviour lives in another contract, or null. `implementationSlot` is the EIP-1967 slot read from the chain. */
 export function proxyReason(codeHex, implementationSlot = null) {
   const code = String(codeHex).toLowerCase().replace(/^0x/, '');
+  // An EIP-7702 account: its "code" is a pointer to another contract, which its owner can re-point at any time.
+  const delegated = delegationTarget(codeHex);
+  if (delegated) return `it is an EIP-7702 delegated account: its code runs in ${delegated}, and the account's key can change that`;
   const target = minimalProxyTarget(codeHex);
   if (target) return `it is an EIP-1167 minimal proxy: its code runs in ${target}`;
   const impl = slotAddress(implementationSlot);
@@ -153,6 +191,8 @@ export function proxyReason(codeHex, implementationSlot = null) {
   if (code.includes(EIP1967_IMPL_SLOT)) return 'its code uses the EIP-1967 implementation slot (an upgradeable proxy)';
   const sel = PROXY_SELECTORS.find((x) => hasSelector(code, x));
   if (sel) return `its code has ${sel === '5c60da1b' ? 'implementation()' : 'proxiableUUID()'} (an upgradeable proxy)`;
+  // Any DELEGATECALL runs another contract's code with this token's storage: a proxy or library call the scan cannot see into.
+  if (hasDelegatecall(code)) return 'its code uses DELEGATECALL (it can run code from another contract with its own storage)';
   return null;
 }
 

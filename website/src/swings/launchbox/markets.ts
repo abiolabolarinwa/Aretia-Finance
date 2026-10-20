@@ -4,7 +4,7 @@
  */
 import { EVM_CURVE, selector, type CurveView, type EvmLaunchChain, type LaunchChain, type LaunchView, type PoolView } from './core.js';
 import type { StoredLaunch } from './store.js';
-import { majorsOf } from '../charts/pool.js';
+import { choosePricePool, majorsOf } from '../charts/pool.js';
 import { cleanText } from '../tokens/safeText.js';
 
 const DEX_CHAIN: Readonly<Record<LaunchChain, string>> = { solana: 'solana', bnb: 'bsc', ethereum: 'ethereum', polygon: 'polygon' };
@@ -39,27 +39,31 @@ const finite = (v: unknown): number | null => (typeof v === 'number' && Number.i
 const httpsUrl = (u: unknown): string | null => (typeof u === 'string' && /^https:\/\/[^\s]+$/.test(u) && u.length < 300 ? u : null);
 
 /**
- * Picks, for each requested token (the token as the pool's base), its pool paired with a major quote token (a main stablecoin or the
- * wrapped native coin) with the most liquidity; only when it has none, its deepest pool. A pool's reported liquidity can be inflated by a
- * made-up token on the other side, so such a pool never wins over a real one, and its liquidity and market cap are not shown: the row
- * names the quote token instead. Tokens with no pool are absent from the map.
+ * Picks, for each requested token (the token as the pool's base), the pool its numbers come from (charts/pool.ts `choosePricePool`): the
+ * deepest pool paired with a major quote token (a main stablecoin or the wrapped native coin) when it holds at least $1,000 and 5% of the
+ * token's deepest pool, otherwise the deepest pool. A pool's reported liquidity can be inflated by a made-up token on the other side, so
+ * a price that is not major-backed never shows liquidity or market cap: the row names the quote token instead (`quoteMajor: false`).
+ * Tokens with no pool are absent from the map.
  */
 export function bestPools(pairs: readonly Pair[], chain: LaunchChain, addresses: readonly string[]): Map<string, MarketInfo> {
   const want = new Map(addresses.map((a) => [chain === 'solana' ? a : a.toLowerCase(), a]));
   const majors = majorsOf(chain);
-  const out = new Map<string, MarketInfo>();
-  const best = new Map<string, { major: boolean; liq: number }>();
+  const byToken = new Map<string, { p: Pair & { pairAddress: string; dexId: string }; major: boolean; liq: number }[]>();
   for (const p of pairs) {
     if (p.chainId !== DEX_CHAIN[chain]) continue;
     const base = p.baseToken?.address;
     if (typeof base !== 'string') continue;
     const key = chain === 'solana' ? base : base.toLowerCase();
     if (!want.has(key) || typeof p.pairAddress !== 'string' || typeof p.dexId !== 'string') continue;
-    const liq = finite(p.liquidity?.usd) ?? 0;
     const major = typeof p.quoteToken?.address === 'string' && majors.has(p.quoteToken.address.toLowerCase());
-    const prev = best.get(key);
-    if (prev && ((prev.major && !major) || (prev.major === major && liq <= prev.liq))) continue;
-    best.set(key, { major, liq });
+    byToken.set(key, [...(byToken.get(key) ?? []), { p: p as Pair & { pairAddress: string; dexId: string }, major, liq: finite(p.liquidity?.usd) ?? 0 }]);
+  }
+  const out = new Map<string, MarketInfo>();
+  for (const [key, pools] of byToken) {
+    const chosen = choosePricePool(pools);
+    if (!chosen) continue;
+    const { p } = chosen.pool;
+    const major = chosen.majorBacked;
     const price = typeof p.priceUsd === 'string' ? Number(p.priceUsd) : NaN;
     const mcap = finite(p.marketCap);
     const fdv = finite(p.fdv);

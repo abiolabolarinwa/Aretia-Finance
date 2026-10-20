@@ -9,7 +9,7 @@ import { PUBLIC_EVM_RPC, type IndexerEnv } from './indexer.js';
 
 export async function refreshLinks(d: { store: LaunchStore; fetchImpl: typeof fetch; env: IndexerEnv; now: () => number }): Promise<{ pools: number; curves: number; error?: string }> {
   const out = { pools: 0, curves: 0 } as { pools: number; curves: number; error?: string };
-  const tokens = await d.store.list(200);
+  const tokens = await d.store.listPublic(200);
   const byChain = new Map<LaunchChain, typeof tokens>();
   for (const t of tokens) byChain.set(t.chain, [...(byChain.get(t.chain) ?? []), t]);
   for (const [chain, list] of byChain) {

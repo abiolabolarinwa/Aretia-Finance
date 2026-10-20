@@ -36,7 +36,7 @@ async function fresh(): Promise<{ db: PGlite; sql: SqlClient }> {
 describe('migration files', () => {
   it('are numbered without gaps and have checksums', () => {
     const m = loadMigrations(files);
-    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql']);
+    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql']);
     expect(m[0]!.checksum).toBe(checksumOf(files[0]!.sql));
   });
 
@@ -57,8 +57,8 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { onStep: (s) => steps.push(s) });
-    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql']);
-    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql', 'Applied 0009_robinhood_chain.sql', 'Applied 0010_notifications.sql', 'Applied 0011_referrals.sql', 'Applied 0012_launchbox.sql', 'Applied 0013_referral_tx_case.sql', 'Applied 0014_auth_nonces_and_pruning.sql']);
+    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql']);
+    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql', 'Applied 0009_robinhood_chain.sql', 'Applied 0010_notifications.sql', 'Applied 0011_referrals.sql', 'Applied 0012_launchbox.sql', 'Applied 0013_referral_tx_case.sql', 'Applied 0014_auth_nonces_and_pruning.sql', 'Applied 0015_launchbox_listing.sql']);
     const rows = await sql.query('select name from public.aretia_schema_migrations order by name');
     expect(rows.map((r) => r.name)).toEqual(done);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('token_registry','discovery_cursors','swings_events')"))[0]!.n).toBe(3);
@@ -77,7 +77,7 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { dryRun: true, onStep: (s) => steps.push(s) });
-    expect(done).toHaveLength(14);
+    expect(done).toHaveLength(15);
     expect(steps[0]).toMatch(/Would apply/);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name = 'token_registry'"))[0]!.n).toBe(0);
   });
@@ -114,6 +114,30 @@ describe('audit migrations (2026-10 review)', () => {
     expect(left.filter((r) => r.chain === 'ethereum')).toEqual([{ chain: 'ethereum', tx: '0x' + h, status: 'credited', created_at: 2 }]);
     expect(left.filter((r) => r.chain === 'solana')).toHaveLength(2);
     await expect(db.exec(`insert into public.referral_credits (chain, tx, asset, trader, referrer, fee_raw, share_raw, status, tx_at, created_at) values ${row('base', '0x' + h.toUpperCase(), 'credited', 9)}`)).rejects.toThrow();
+  });
+
+  it('0015: Launch Box listing state; old Solana rows with nothing minted become pending; safe to run twice', async () => {
+    const { db, sql } = await fresh();
+    const all = loadMigrations(files);
+    await applyMigrations(sql, all.filter((m) => m.name < '0015'));
+    const row = (addr: string, chain: string, supply: string | null) => `('${chain}:${addr}', '${chain}', '${addr}', ${supply === null ? 'null' : `'${supply}'`}, 'solana-fee', 1)`;
+    const a = 'A'.repeat(43);
+    const b = 'B'.repeat(43);
+    const e = '0x' + 'e'.repeat(40);
+    await db.exec(`insert into public.launchbox_tokens (key, chain, address, supply, source, indexed_at) values ${row(a, 'solana', '0')}, ${row(b, 'solana', '1000')}, ${row(e, 'bnb', null).replace("'solana-fee'", "'factory'")}`);
+    const migration = all.find((m) => m.name === '0015_launchbox_listing.sql')!;
+    await applyMigrations(sql, all);
+    // Run the same file again by hand: nothing fails and nothing changes.
+    await db.exec(migration.sql);
+    const rows = await sql.query('select address, pending, hidden_at, fail_count, checked_at from public.launchbox_tokens order by address');
+    expect(rows.map((r) => [r.address, r.pending])).toEqual([[e, false], [a, true], [b, false]]);
+    expect(rows.every((r) => r.hidden_at === null && r.fail_count === 0 && r.checked_at === null)).toBe(true);
+    // The public list's filter: on Solana nothing is shown before a check.
+    const pub = "select address from public.launchbox_tokens where not pending and hidden_at is null and (chain <> 'solana' or checked_at is not null) order by address";
+    expect((await sql.query(pub)).map((r) => r.address)).toEqual([e]);
+    await db.exec(`update public.launchbox_tokens set checked_at = 5 where address = '${b}'`);
+    expect((await sql.query(pub)).map((r) => r.address)).toEqual([e, b]);
+    await expect(db.exec(`update public.launchbox_tokens set fail_count = -1 where address = '${b}'`)).rejects.toThrow(/check constraint/);
   });
 
   it('0014: nonces are single-use by a conditional update, and pruning removes what is old', async () => {

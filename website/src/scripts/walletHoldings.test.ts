@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, priceWithLiquidity, splitByPrice, type RawBalance } from './walletHoldings';
+import { countsTowardTotal, dexScreenerPrices, portfolioTotal, lamportsToBalance, mergeBalances, parseTokenAccountsResult, priceWithLiquidity, splitByPrice, type RawBalance } from './walletHoldings';
 
 const SOL = 'So11111111111111111111111111111111111111112';
 const account = (mint: unknown, amount: unknown, decimals: unknown, ui?: unknown) => ({
@@ -107,12 +107,20 @@ describe('holding prices carry the pool behind them (audit M-8, L-29)', () => {
   const majors = new Set([WSOL.toLowerCase()]);
   const SPAM = 'SpamSpamSpamSpamSpamSpamSpamSpamSpamSpam111';
 
-  it('takes the SOL-paired pool over a deeper pool against a made-up token', () => {
+  it('takes the SOL-paired pool over a deeper pool against a made-up token when it holds 5% of it; otherwise the price is thin', () => {
+    const fake = { baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 900_000 } };
+    expect(dexScreenerPrices([fake, { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } }], majors).get(SPAM)).toEqual({ price: 0.01, thin: false });
+    // A claimed $90M against a $50K real pool: the claimed one is drawn but thin, so it is never added to the total.
+    expect(dexScreenerPrices([{ ...fake, liquidity: { usd: 90_000_000 } }, { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } }], majors).get(SPAM)).toEqual({ price: 500, thin: true });
+  });
+
+  it('a $3 WSOL pool does not set the price of a token with a $2M JUP pool, and that price is marked thin (re-audit M-8)', () => {
+    const JUP = 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN';
     const got = dexScreenerPrices([
-      { baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 90_000_000 } },
-      { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } },
+      { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '9', liquidity: { usd: 3 } },
+      { baseToken: { address: SPAM }, quoteToken: { address: JUP }, priceUsd: '0.42', liquidity: { usd: 2_000_000 } },
     ], majors);
-    expect(got.get(SPAM)).toEqual({ price: 0.01, thin: false });
+    expect(got.get(SPAM)).toEqual({ price: 0.42, thin: true });
   });
 
   it('a price from a pool against an unknown token is thin; one from a dust pool gives no value at all', () => {
@@ -126,5 +134,26 @@ describe('holding prices carry the pool behind them (audit M-8, L-29)', () => {
     expect(priceWithLiquidity(3, 2_000_000)).toEqual({ price: 3, thin: false });
     expect(priceWithLiquidity(3, 999)).toBeNull();
     expect(priceWithLiquidity(0, 2_000_000)).toBeNull();
+  });
+});
+
+describe('the portfolio total leaves thin prices out (re-audit L-29)', () => {
+  it('adds only holdings with a solid price; thin or non-major-priced ones are shown but not counted', () => {
+    const rows = [
+      { mint: 'SOL', value: 150, thin: false },
+      { mint: 'USDC', value: 50, thin: false },
+      // An airdropped token priced from a pool against an unknown quote: marked thin, so not added.
+      { mint: 'SPAM', value: 9_000_000, thin: true },
+      { mint: 'NOPRICE', value: null, thin: false },
+    ];
+    expect(portfolioTotal(rows)).toEqual({ sum: 200, counted: 2, thinLeftOut: 1 });
+    expect(countsTowardTotal(rows[2]!)).toBe(false);
+    expect(countsTowardTotal(rows[3]!)).toBe(false);
+    expect(portfolioTotal([])).toEqual({ sum: 0, counted: 0, thinLeftOut: 0 });
+  });
+  it('a dexScreener price from a pool not paired with a major token never reaches the total', () => {
+    const SPAM = 'SpamSpamSpamSpamSpamSpamSpamSpamSpamSpam111';
+    const p = dexScreenerPrices([{ baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 90_000_000 } }], new Set())!.get(SPAM)!;
+    expect(portfolioTotal([{ value: 1_000 * p.price, thin: p.thin }]).sum).toBe(0);
   });
 });

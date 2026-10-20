@@ -48,6 +48,47 @@ export interface LaunchRecord {
   source: 'factory' | 'nonce' | 'solana-fee';
 }
 
+// ---------------------------------------------------------------- whether a stored token is shown (re-audit of M-6)
+
+/**
+ * Where a stored token stands on the public list. A Solana token is never taken off for good on one node's answer: a mint that breaks
+ * the launch rule is hidden only after HIDE_AFTER_FAILS reads in a row found it so, with the reason and time kept, and it comes back as
+ * soon as a read finds it keeping the rule (a creator who finishes the second transaction late is listed then).
+ */
+export interface ListingState {
+  /** A Solana creation between its two transactions (nothing minted yet, or the creator still holds the mint authority). Stored, never shown. */
+  pending: boolean;
+  hiddenAt: number | null;
+  hiddenReason: string | null;
+  /** Reads in a row that found the mint breaking the launch rule. */
+  failCount: number;
+  /** When the mint was last read and found keeping the rule (Solana); null until then, and a Solana token is not shown before it. */
+  checkedAt: number | null;
+}
+
+export const HIDE_AFTER_FAILS = 2;
+/** A row the indexer has just found and not judged yet: not shown. */
+export const UNCHECKED: ListingState = { pending: true, hiddenAt: null, hiddenReason: null, failCount: 0, checkedAt: null };
+/** EVM tokens come from the factory itself, which only makes fixed-supply tokens; they are shown as found. */
+export const LISTED: ListingState = { pending: false, hiddenAt: null, hiddenReason: null, failCount: 0, checkedAt: null };
+
+/** Whether a stored token belongs on the public list. Pure. */
+export const isPublicListing = (t: { chain: LaunchChain } & ListingState): boolean => !t.pending && t.hiddenAt === null && (t.chain !== 'solana' || t.checkedAt !== null);
+
+/**
+ * The listing after one read of a Solana mint. `read` is null when the node gave no account (a lagging node proves nothing: nothing
+ * changes); otherwise the rule's problems (empty when it keeps the rule) and whether the creation is still pending. Pure.
+ */
+export function nextListing(prev: ListingState, read: { problems: readonly string[]; pending: boolean } | null, now: number): ListingState {
+  if (!read) return prev;
+  if (read.problems.length === 0) return { pending: read.pending, hiddenAt: null, hiddenReason: null, failCount: 0, checkedAt: now };
+  const failCount = prev.failCount + 1;
+  if (failCount < HIDE_AFTER_FAILS) return { ...prev, failCount };
+  return { ...prev, failCount, hiddenAt: prev.hiddenAt ?? now, hiddenReason: read.problems.join('; ').slice(0, 200) };
+}
+
+export const sameListing = (a: ListingState, b: ListingState): boolean => a.pending === b.pending && a.hiddenAt === b.hiddenAt && a.hiddenReason === b.hiddenReason && a.failCount === b.failCount && a.checkedAt === b.checkedAt;
+
 /**
  * Text from the chain made safe to store and show: NFC, control, zero-width, bidirectional, invisible-operator and stacking
  * combining characters out, trimmed, cut to length (tokens/safeText.ts has the full list).

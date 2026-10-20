@@ -70,6 +70,7 @@ import { AretiaRouter, explainNoRoute } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
 import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
+import { imitationChip } from '../lib/imitationChip';
 
 /** Fired on the window when the Ethereum-style account connected in the swap changes; `detail` is the address or null. */
 export const EVM_ACCOUNT_EVENT = 'aretia:evm-account';
@@ -929,7 +930,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const list = el('div', { class: 'wapp__stack' });
     const row = (t: TokenInfo): HTMLElement => {
       const b = el('button', { class: 'wapp__asset', attrs: { type: 'button' } });
-      b.append(avatar(t.symbol, logoOf(s.chain, t)), el('span', {}, [el('strong', { text: t.symbol }), el('small', { text: `${t.name ? t.name + ' · ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' · unverified' : ''}` })]));
+      b.append(avatar(t.symbol, logoOf(s.chain, t)), el('span', {}, [el('strong', { text: t.symbol }, [t.mint === EVM_NATIVE_ADDRESS ? null : imitationChip(s.chain, t.mint, t.symbol, t.name)]), el('small', { text: `${t.name ? t.name + ' · ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' · unverified' : ''}` })]));
       b.addEventListener('click', () => void pick(p.side, t));
       return b;
     };

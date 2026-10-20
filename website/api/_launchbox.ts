@@ -94,7 +94,9 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
       await catchingUp;
       cursors = await store.cursors();
     }
-    const stored = await store.list(LIST_LIMIT);
+    // Only what may be shown: no pending creation, no hidden token, and no Solana token the indexer has not yet read and found keeping
+    // the launch rule (core.ts `isPublicListing`). The indexer may run only once a day, so the list never trusts a row before that read.
+    const stored = await store.listPublic(LIST_LIMIT);
     let marketOk = true;
     let staleMarket = false;
     const maps = new Map<LaunchChain, Map<string, MarketInfo>>();
@@ -147,12 +149,12 @@ export async function handleLaunchboxRun(input: LaunchboxInput): Promise<Launchb
   if (!store) return json(503, { error: 'not-configured' }, headers);
   try {
     const report = await runIndexer({ store, fetchImpl: input.fetchImpl, env: input.env, now: () => Date.now(), budgetMs: 40_000 });
-    if (report.missingTable) return json(503, { error: 'no-table', hint: 'Run migration 0012_launchbox.sql (npm run db:migrate).' }, headers);
+    if (report.missingTable) return json(503, { error: 'no-table', hint: 'Run migrations 0012_launchbox.sql and 0015_launchbox_listing.sql (npm run db:migrate).' }, headers);
     const links = await refreshLinks({ store, fetchImpl: input.fetchImpl, env: input.env, now: () => Date.now() }).catch(() => ({ pools: 0, curves: 0, error: 'links failed' }));
     page = null;
     return json(report.ok ? 200 : 207, { ...report, links }, headers);
   } catch (e) {
-    if (e instanceof MissingTableError) return json(503, { error: 'no-table', hint: 'Run migration 0012_launchbox.sql (npm run db:migrate).' }, headers);
+    if (e instanceof MissingTableError) return json(503, { error: 'no-table', hint: 'Run migrations 0012_launchbox.sql and 0015_launchbox_listing.sql (npm run db:migrate).' }, headers);
     return json(500, { error: 'run-failed' }, headers);
   }
 }

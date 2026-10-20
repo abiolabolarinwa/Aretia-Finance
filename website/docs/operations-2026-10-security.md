@@ -26,6 +26,8 @@ Rows listed with `count(paid_at) > 1` are payments that were paid more than once
 
 **Sign-in and every signed-in feature fail until 0014 is applied** (502). Swaps are not affected.
 
+- `supabase/migrations/0015_launchbox_listing.sql` (re-audit, Launch Box): adds `pending`, `hidden_at`, `hidden_reason`, `fail_count` and `checked_at` to `launchbox_tokens`, marks old Solana rows with nothing minted as pending, and adds two partial indexes. Run it **before** deploying the code that reads these columns: until it is applied, Launch Box says it is being set up and lists nothing. After it, Solana tokens are listed again once the indexer has read them (the next run, or the catch-up when someone opens Launch Box). See `docs/launchbox.md`.
+
 ## 2. Set the environment variables (Vercel, Sensitive), in the same release as the code
 
 | Variable | What it does |

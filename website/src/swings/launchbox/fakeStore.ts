@@ -1,6 +1,6 @@
 /** An in-memory LaunchStore for tests. Same rules as the real one: inserting a token that exists changes nothing. */
-import { tokenKey, type LaunchChain, type LaunchRecord } from './core.js';
-import { MissingTableError, type CursorRow, type LaunchStore, type StoredLaunch } from './store.js';
+import { isPublicListing, LISTED, tokenKey, type LaunchChain, type ListingState } from './core.js';
+import { MissingTableError, type CursorRow, type LaunchStore, type NewLaunch, type StoredLaunch } from './store.js';
 
 export class FakeLaunchStore implements LaunchStore {
   rows = new Map<string, StoredLaunch>();
@@ -27,13 +27,13 @@ export class FakeLaunchStore implements LaunchStore {
     this.check();
     this.cursorRows.set(chain, { chain, cursor, updatedAt: now, stats });
   }
-  async insertNew(records: readonly LaunchRecord[], now: number): Promise<number> {
+  async insertNew(records: readonly NewLaunch[], now: number): Promise<number> {
     this.check();
     let added = 0;
     for (const r of records) {
       const key = tokenKey(r.chain, r.address);
       if (this.rows.has(key)) continue;
-      this.rows.set(key, { ...r, address: r.chain === 'solana' ? r.address : r.address.toLowerCase(), indexedAt: now, poolDex: null, poolAddress: null, poolUrl: null, poolSeenAt: null, curveAddress: null });
+      this.rows.set(key, { ...LISTED, ...r, address: r.chain === 'solana' ? r.address : r.address.toLowerCase(), indexedAt: now, poolDex: null, poolAddress: null, poolUrl: null, poolSeenAt: null, curveAddress: null });
       added++;
     }
     return added;
@@ -57,8 +57,21 @@ export class FakeLaunchStore implements LaunchStore {
     if (!row) return;
     for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) (row as unknown as Record<string, unknown>)[k] = v;
   }
-  async remove(chain: LaunchChain, address: string): Promise<void> {
+  async listPublic(limit: number): Promise<StoredLaunch[]> {
+    return (await this.list(Number.MAX_SAFE_INTEGER)).filter(isPublicListing).slice(0, limit);
+  }
+  async listForCheck(chain: LaunchChain, opts: { afterKey: string | null; limit: number; priority: boolean }): Promise<StoredLaunch[]> {
     this.check();
-    this.rows.delete(tokenKey(chain, address));
+    const needsLook = (r: StoredLaunch): boolean => r.pending || r.hiddenAt !== null || r.checkedAt === null || r.failCount > 0 || r.supply === null || r.supply === '0';
+    return [...this.rows.entries()]
+      .filter(([k, r]) => r.chain === chain && (opts.afterKey === null || k > opts.afterKey) && (!opts.priority || needsLook(r)))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .slice(0, opts.limit)
+      .map(([, r]) => ({ ...r }));
+  }
+  async setListing(chain: LaunchChain, address: string, state: ListingState): Promise<void> {
+    this.check();
+    const row = this.rows.get(tokenKey(chain, address));
+    if (row) Object.assign(row, state);
   }
 }

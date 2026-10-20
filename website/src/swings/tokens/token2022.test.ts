@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { base58, base58To32, extensionClass, mintExtensionTypes, mintRuleProblems, readRawMint, TOKEN_2022_PROGRAM, TOKEN_PROGRAM } from './token2022';
+import { base58, base58To32, extensionClass, judgeExtensions, mintExtensionTypes, mintRuleProblems, readExtensionDetails, readRawMint, TOKEN_2022_PROGRAM, TOKEN_PROGRAM } from './token2022';
 import { parseMintFacts } from './enrich';
 import { assessMarketData, assessSolanaToken, hasAdminPowerWarning } from './risk';
 import { bandOf, ratingView, toRowRisk } from '../market/rowRisk';
@@ -100,5 +100,80 @@ describe('the risk engine judges each extension (audit M-6, L-16)', () => {
     expect(view(s)).not.toBe('green');
     expect(view(assessSolanaToken({ mintAuthoritySet: true, freezeAuthoritySet: false, hasExtensions: false, top10Pct: 10, ...big }))).toBe('yellow');
     expect(assessSolanaToken({ mintAuthoritySet: false, freezeAuthoritySet: false, extensionTypes: [18, 19], top10Pct: 10, ...big }).status).toBe('established');
+  });
+});
+
+/** A mint with real extension bodies ([type, bytes]). */
+function mintWith(exts: [number, number[]][]): Uint8Array {
+  const body: number[] = [];
+  for (const [t, b] of exts) body.push(t & 255, t >> 8, b.length & 255, b.length >> 8, ...b);
+  const d = new Uint8Array(166 + body.length);
+  d[45] = 1;
+  d[44] = 9;
+  d[165] = 1;
+  d.set(body, 166);
+  return d;
+}
+const key = (n: number): number[] => new Array(32).fill(n);
+const NONE = key(0);
+const u64 = (n: bigint): number[] => Array.from({ length: 8 }, (_, i) => Number((n >> BigInt(8 * i)) & 255n));
+const u16 = (n: number): number[] => [n & 255, n >> 8];
+const fee = (cfg: number[], withdraw: number[], older: number, newer: number, epoch = 1031n): number[] => [...cfg, ...withdraw, ...u64(0n), ...u64(1027n), ...u64(10n ** 18n), ...u16(older), ...u64(epoch), ...u64(10n ** 18n), ...u16(newer)];
+const TREASURY = base58To32('GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA')!;
+
+describe('the authorities inside the extensions (re-audit: extension false positives)', () => {
+  const market = { top10Pct: 30, top10Basis: 'wallets' as const, liquidityUsd: 60000, volume24hUsd: 20000, poolCount: 1, ageHours: 100 };
+  const assess = (d: Uint8Array) => assessSolanaToken({ ...parseMintFacts(TOKEN_2022_PROGRAM, d)!, ...market });
+  const ext = (d: Uint8Array) => assess(d).signals.find((s) => s.id === 'extensions')!;
+
+  it('reads the spl-token-2022 layouts: fee config, permanent delegate, transfer hook, pausable', () => {
+    const d = mintWith([[1, fee(key(5), key(6), 150, 100)], [12, NONE], [14, [...key(8), ...NONE]], [26, [...NONE, 1]]]);
+    const got = readExtensionDetails(d);
+    expect(got.transferFee).toMatchObject({ configAuthority: base58(new Uint8Array(key(5))), withdrawAuthority: base58(new Uint8Array(key(6))), olderBps: 150, newerBps: 100, newerEpoch: 1031n });
+    expect(got.permanentDelegate).toEqual({ delegate: null });
+    expect(got.transferHook).toEqual({ authority: base58(new Uint8Array(key(8))), programId: null });
+    expect(got.pausable).toEqual({ authority: null, paused: true });
+    // A body of the wrong length is not read, so the type keeps its own (dangerous) rating.
+    expect(readExtensionDetails(mintWith([[12, key(1).slice(0, 31)]])).permanentDelegate).toBeUndefined();
+  });
+
+  it('a permanent delegate, hook or pause switch nobody holds is not restricted', () => {
+    for (const d of [mintWith([[12, NONE]]), mintWith([[14, [...NONE, ...NONE]]]), mintWith([[26, [...NONE, 0]]])]) {
+      const r = assess(d);
+      expect(r.status).not.toBe('restricted');
+      expect(ext(d).state).toBe('ok');
+    }
+    // A hook with no program but a live authority can be given one later: a warning, not a trap.
+    const later = mintWith([[14, [...key(4), ...NONE]]]);
+    expect(assess(later).status).not.toBe('restricted');
+    expect(ext(later).state).toBe('warn');
+  });
+
+  it('a held power stays restricted, and a pause switch that is on stays bad even with no one holding it', () => {
+    for (const d of [mintWith([[12, key(2)]]), mintWith([[14, [...NONE, ...key(9)]]]), mintWith([[26, [...key(3), 0]]]), mintWith([[26, [...NONE, 1]]])]) {
+      expect(assess(d).status).toBe('restricted');
+      expect(ext(d).state).toBe('bad');
+    }
+    expect(ext(mintWith([[26, [...NONE, 1]]])).detail).toMatch(/paused right now, and no one can resume them/);
+  });
+
+  it('a transfer fee is rated by its rate and names who can change it', () => {
+    expect(ext(mintWith([[1, fee(key(5), NONE, 100, 100)]])).state).toBe('warn');
+    expect(ext(mintWith([[1, fee(NONE, NONE, 0, 0)]])).state).toBe('ok');
+    const high = mintWith([[1, fee(key(5), key(5), 1500, 1500)]]);
+    expect(ext(high).state).toBe('bad');
+    expect(assess(high).status).not.toBe('restricted');
+    expect(assess(mintWith([[1, fee(NONE, NONE, 9000, 9000)]])).status).toBe('restricted');
+    // The higher of the current and the scheduled rate counts, since the epoch is not read.
+    expect(judgeExtensions([1], readExtensionDetails(mintWith([[1, fee(NONE, NONE, 100, 2000)]]))) [0]!.class).toBe('bad');
+  });
+
+  it('ACT (3.5% now, 1.5% scheduled, authority at the treasury) reads as a clear warning, not "Dangerous"', () => {
+    const act = mintWith([[1, fee([...TREASURY], [...TREASURY], 350, 150)], [18, new Array(64).fill(0)]]);
+    const s = ext(act);
+    expect(s.state).toBe('warn');
+    expect(s.detail).toMatch(/Transfer fee \(1\): a fee of 3\.5% is taken on every transfer, set to become 1\.5% from epoch 1031; the Aretia treasury multisig \(2 of 3\) can change the rate/);
+    expect(s.detail).not.toMatch(/Dangerous/);
+    expect(assess(act).status).not.toBe('restricted');
   });
 });

@@ -22,7 +22,7 @@ import { guardRecipient } from '../swings/shield/guard';
 import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
-import { dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, priceWithLiquidity, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type DexPricePair, type RawBalance } from './walletHoldings';
+import { countsTowardTotal, dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, portfolioTotal, priceWithLiquidity, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type DexPricePair, type RawBalance } from './walletHoldings';
 import { majorsOf } from '../swings/charts/pool.js';
 import { loadWeb3, planSend, rpcCall, resolveName, sendPlanChanged, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, type AccountSnapshot } from './walletTools';
@@ -520,7 +520,7 @@ export function initWalletApp(): void {
     if (!box || !bar || !legend) return;
     bar.textContent = '';
     legend.textContent = '';
-    const priced = (all ?? []).filter((h) => (h.value ?? 0) > 0);
+    const priced = (all ?? []).filter((h) => countsTowardTotal(h) && (h.value ?? 0) > 0);
     box.hidden = priced.length === 0 || sum <= 0;
     if (box.hidden) return;
     const shades = ['#ffffff', '#cfc7ff', '#a595ff', '#7a66f5'];
@@ -580,13 +580,14 @@ export function initWalletApp(): void {
       return;
     }
     const priced = all.filter((h) => h.value !== null);
-    const sum = priced.reduce((s, h) => s + (h.value ?? 0), 0);
+    // Thin prices are shown on their rows but not added (audit L-29): see countsTowardTotal.
+    const { sum, counted, thinLeftOut } = portfolioTotal(all);
     const { shown, hiddenUnpriced } = splitByPrice(all, isNativeMint, showUnpriced);
     // How many tokens the toggle governs: those with no price, other than the native coin.
     const unpricedCount = priced.length > 0 ? all.filter((h) => h.value === null && !isNativeMint(h.mint)).length : 0;
-    total.textContent = priced.length > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
+    total.textContent = counted > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
     renderAllocation(all, sum);
-    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced`;
+    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced${thinLeftOut > 0 ? `; ${thinLeftOut} with a thin price not counted in the total` : ''}`;
     if (all.length === 0) return;
 
     const mask = (t: string) => (amountsHidden ? '••••' : t);
@@ -596,7 +597,7 @@ export function initWalletApp(): void {
     );
     const tbody = el('tbody');
     for (const h of shown) {
-      const weight = h.value !== null && sum > 0 ? (h.value / sum) * 100 : null;
+      const weight = countsTowardTotal(h) && sum > 0 ? (h.value! / sum) * 100 : null;
       const bar = el('span', { class: 'wapp-bar' }, [el('span')]);
       (bar.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, weight ?? 0))}%`;
       const priceCell = el('td', { class: 'num' });

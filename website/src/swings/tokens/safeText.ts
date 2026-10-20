@@ -104,6 +104,18 @@ const CONFUSABLE: Readonly<Record<string, string>> = {
   Ꭺ: 'A', Ᏼ: 'B', Ꮯ: 'C', Ꭰ: 'D', Ꭼ: 'E', Ꮋ: 'H', Ꮖ: 'I', Ꭻ: 'J', Ꮶ: 'K', Ꮮ: 'L', Ꮇ: 'M', Ꮲ: 'P', Ꭱ: 'R', Ꮪ: 'S', Ꭲ: 'T', Ꮩ: 'V', Ꮃ: 'W', Ꮓ: 'Z', Ꮤ: 'W', Ꮟ: 'B',
   // Lisu
   ꓮ: 'A', ꓐ: 'B', ꓚ: 'C', ꓓ: 'D', ꓰ: 'E', ꓝ: 'F', ꓖ: 'G', ꓧ: 'H', ꓲ: 'I', ꓙ: 'J', ꓗ: 'K', ꓡ: 'L', ꓟ: 'M', ꓠ: 'N', ꓳ: 'O', ꓑ: 'P', ꓣ: 'R', ꓢ: 'S', ꓔ: 'T', ꓴ: 'U', ꓦ: 'V', ꓪ: 'W', ꓫ: 'X', ꓬ: 'Y', ꓜ: 'Z',
+  // Cyrillic lower case that reads as a Latin capital in a short symbol ("uѕdт")
+  т: 'T', к: 'K', м: 'M', н: 'H', в: 'B',
+  // Latin small capitals (Phonetic Extensions, IPA and Latin Extended-D): "ᴜꜱᴅᴄ"
+  ᴀ: 'A', ʙ: 'B', ᴄ: 'C', ᴅ: 'D', ᴇ: 'E', ꜰ: 'F', ɢ: 'G', ʜ: 'H', ɪ: 'I', ᴊ: 'J', ᴋ: 'K', ʟ: 'L', ᴍ: 'M', ɴ: 'N', ᴏ: 'O', ᴘ: 'P', ꞯ: 'Q', ʀ: 'R', ꜱ: 'S', ᴛ: 'T', ᴜ: 'U', ᴠ: 'V', ᴡ: 'W', ʏ: 'Y', ᴢ: 'Z',
+  // Latin letters with hooks, strokes and bars, and turned or reversed forms, that pass for plain ones ("USDƇ", "USÐC", "ɅCT", "ꞫTH")
+  Ɓ: 'B', Ƀ: 'B', ƀ: 'B', Ꞵ: 'B', ꞵ: 'B', Ƈ: 'C', ƈ: 'C', Ȼ: 'C', ȼ: 'C', Ð: 'D', ð: 'D', Đ: 'D', đ: 'D', Ɖ: 'D', Ɗ: 'D', ɗ: 'D',
+  Ɛ: 'E', ɛ: 'E', Ǝ: 'E', Ɇ: 'E', ɇ: 'E', Ɜ: 'E', ɜ: 'E', Ƒ: 'F', ƒ: 'F', Ɠ: 'G', ɠ: 'G', Ǥ: 'G', ǥ: 'G', Ħ: 'H', ħ: 'H', Ɨ: 'I', ɨ: 'I',
+  Ɉ: 'J', ɉ: 'J', Ƙ: 'K', ƙ: 'K', Ł: 'L', ł: 'L', Ƚ: 'L', ƚ: 'L', Ɲ: 'N', ɲ: 'N', Ƞ: 'N', Ɵ: 'O', Ø: 'O', ø: 'O', Ƥ: 'P', ƥ: 'P', Ᵽ: 'P',
+  Ɍ: 'R', ɍ: 'R', Ʀ: 'R', Ŧ: 'T', ŧ: 'T', Ƭ: 'T', ƭ: 'T', Ʈ: 'T', Ⱦ: 'T', Ʉ: 'U', ʉ: 'U', Ʋ: 'V', ʋ: 'V', Ʌ: 'A', ʌ: 'A', Ⱥ: 'A',
+  Ƴ: 'Y', ƴ: 'Y', Ɏ: 'Y', ɏ: 'Y', Ƶ: 'Z', ƶ: 'Z', Ȥ: 'Z', ȥ: 'Z',
+  // currency signs drawn as letters ("USD₮")
+  '₮': 'T', '₳': 'A', '₿': 'B', '₵': 'C', '₦': 'N', '₱': 'P', '€': 'E',
   // digits that pass for letters in a symbol
   '0': 'O', '1': 'I',
 };

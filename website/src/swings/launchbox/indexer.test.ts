@@ -331,36 +331,78 @@ describe('Solana indexer: the launch rule (audit M-6)', () => {
   const deps = (store: FakeLaunchStore, fetchImpl: typeof fetch, now = 1_760_100_000_000) => ({ store, fetchImpl, env: {}, now: () => now });
   const OTHER = base58(new Uint8Array(32).fill(9));
 
-  it('does not list a mint with a permanent delegate, transfer hook or pausable extension, or with a freeze authority', async () => {
+  const shown = async (store: FakeLaunchStore) => (await store.listPublic(1000)).map((t) => t.address);
+
+  it('does not show a mint with a permanent delegate, transfer hook or pausable extension, or with a freeze authority', async () => {
     for (const bad of [{ extra: [[12, 32]] as [number, number][] }, { extra: [[14, 64]] as [number, number][] }, { extra: [[26, 65]] as [number, number][] }, { freezeAuthority: PAYER }]) {
       const store = new FakeLaunchStore();
       const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000', bad), [mint('2')]: mintAccount('Two', 'TWO', '1000') };
-      const report = await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
-      expect(report.added).toBe(1);
-      expect([...store.rows.keys()]).toEqual([`solana:${mint('2')}`]);
+      await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
+      expect(await shown(store)).toEqual([mint('2')]);
+      // Found and read twice (on discovery and by the re-check): hidden with the reason, kept, never deleted.
+      expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ failCount: 2, hiddenReason: expect.stringMatching(/freeze authority|is not allowed/) });
       expect((await store.getCursor('solana'))?.stats).toMatchObject({ rejected: 1 });
     }
   });
 
-  it('does not list a minted token whose mint authority was kept, or held by someone other than the creator', async () => {
+  it('does not show a minted token whose mint authority was kept, or held by someone other than the creator', async () => {
     const store = new FakeLaunchStore();
     const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000', { mintAuthority: PAYER }), [mint('2')]: mintAccount('Two', 'TWO', '0', { mintAuthority: OTHER }) };
-    const report = await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
-    expect(report.added).toBe(0);
+    await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
+    expect(await shown(store)).toEqual([]);
   });
 
-  it('takes a pending creation off the list when the creator mints but keeps the authority, or never finishes', async () => {
+  it('stores a pending creation without showing it, and shows it once the supply is minted and the authority is gone', async () => {
     const store = new FakeLaunchStore();
     const pending = { [mint('1')]: mintAccount('One', 'ONE', '0', { mintAuthority: PAYER }), [mint('2')]: mintAccount('Two', 'TWO', '0', { mintAuthority: PAYER }) };
     await indexSolana(deps(store, solanaNode(sigs, txs, pending), 1_760_000_500_000), 1e15);
     expect(store.rows.size).toBe(2);
-    // Mint 1: supply minted, authority kept. Mint 2: still pending, but within the window.
-    const later = { ...pending, [mint('1')]: mintAccount('One', 'ONE', '1000', { mintAuthority: PAYER }) };
-    await indexSolana(deps(store, solanaNode(sigs, txs, later), 1_760_001_000_000), 1e15);
-    expect([...store.rows.keys()]).toEqual([`solana:${mint('2')}`]);
-    // Four days on, mint 2 has still not been finished.
-    await indexSolana(deps(store, solanaNode(sigs, txs, later), 1_760_000_000_000 + 4 * 86_400_000), 1e15);
-    expect(store.rows.size).toBe(0);
+    expect([...store.rows.values()].every((r) => r.pending && r.hiddenAt === null)).toBe(true);
+    expect(await shown(store)).toEqual([]);
+    const done = { ...pending, [mint('2')]: mintAccount('Two', 'TWO', '9000') };
+    await indexSolana(deps(store, solanaNode(sigs, txs, done), 1_760_000_900_000), 1e15);
+    expect(await shown(store)).toEqual([mint('2')]);
+    expect(store.rows.get(`solana:${mint('2')}`)).toMatchObject({ pending: false, supply: '9000', checkedAt: 1_760_000_900_000 });
+  });
+
+  it('hides a token only after two failing reads in a row, keeps the reason and time, and never on one answer', async () => {
+    const store = new FakeLaunchStore();
+    const good = { [mint('1')]: mintAccount('One', 'ONE', '1000'), [mint('2')]: mintAccount('Two', 'TWO', '1000') };
+    await indexSolana(deps(store, solanaNode(sigs, txs, good)), 1e15);
+    expect(await shown(store)).toEqual([mint('1'), mint('2')]);
+    // One node answers that mint 1 has a freeze authority: one read is not enough.
+    const lying = { ...good, [mint('1')]: mintAccount('One', 'ONE', '1000', { freezeAuthority: OTHER }) };
+    await indexSolana(deps(store, solanaNode(sigs, txs, lying), 1_760_100_000_000), 1e15);
+    expect(await shown(store)).toEqual([mint('1'), mint('2')]);
+    expect(store.rows.get(`solana:${mint('1')}`)?.failCount).toBe(1);
+    // A good read in between resets the count.
+    await indexSolana(deps(store, solanaNode(sigs, txs, good), 1_760_100_100_000), 1e15);
+    expect(store.rows.get(`solana:${mint('1')}`)?.failCount).toBe(0);
+    await indexSolana(deps(store, solanaNode(sigs, txs, lying), 1_760_100_200_000), 1e15);
+    await indexSolana(deps(store, solanaNode(sigs, txs, lying), 1_760_100_300_000), 1e15);
+    expect(await shown(store)).toEqual([mint('2')]);
+    expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ hiddenAt: 1_760_100_300_000, hiddenReason: 'a freeze authority is set', failCount: 2 });
+    // A node that gives no account at all changes nothing.
+    await indexSolana(deps(store, solanaNode(sigs, txs, {}), 1_760_100_400_000), 1e15);
+    expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ hiddenAt: 1_760_100_300_000, failCount: 2 });
+  });
+
+  it('re-admits a creator who finishes the second transaction after the three-day window', async () => {
+    const store = new FakeLaunchStore();
+    const pending = { [mint('1')]: mintAccount('One', 'ONE', '0', { mintAuthority: PAYER }), [mint('2')]: mintAccount('Two', 'TWO', '1000') };
+    await indexSolana(deps(store, solanaNode(sigs, txs, pending), 1_760_000_500_000), 1e15);
+    // Four and five days on, mint 1 has still not been finished: hidden after the second read past the window.
+    const day = 86_400_000;
+    await indexSolana(deps(store, solanaNode(sigs, txs, pending), 1_760_000_000_000 + 4 * day), 1e15);
+    await indexSolana(deps(store, solanaNode(sigs, txs, pending), 1_760_000_000_000 + 5 * day), 1e15);
+    expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ pending: true, hiddenReason: 'a mint authority is still set' });
+    expect(await shown(store)).toEqual([mint('2')]);
+    // Day six: the creator mints and gives up the authority. The token keeps the rule, so it is shown.
+    const finished = { ...pending, [mint('1')]: mintAccount('One', 'ONE', '1000') };
+    const report = await indexSolana(deps(store, solanaNode(sigs, txs, finished), 1_760_000_000_000 + 6 * day), 1e15);
+    expect(report.recheck).toMatchObject({ readmitted: 1 });
+    expect(await shown(store)).toEqual([mint('1'), mint('2')]);
+    expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ pending: false, hiddenAt: null, hiddenReason: null, failCount: 0, supply: '1000' });
   });
 
   it('refreshes a name the creator changed after listing, cleaned of invisible characters', async () => {
@@ -370,6 +412,70 @@ describe('Solana indexer: the launch rule (audit M-6)', () => {
     const renamed = { ...mints, [mint('1')]: mintAccount('Uno\u202e\ufeff', 'UNO\u2060', '1000') };
     await indexSolana(deps(store, solanaNode(sigs, txs, renamed)), 1e15);
     expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ name: 'Uno', symbol: 'UNO' });
+  });
+});
+
+describe('Solana indexer: the re-check (re-audit of M-6)', () => {
+  const deps = (store: FakeLaunchStore, fetchImpl: typeof fetch, now = 1_760_100_000_000) => ({ store, fetchImpl, env: {}, now: () => now });
+  const addr = (i: number): string => `Row${String(i).padStart(5, '0')}`.padEnd(43, 'x');
+  async function seededRows(n: number, over: (i: number) => Record<string, unknown> = () => ({})): Promise<FakeLaunchStore> {
+    const store = new FakeLaunchStore();
+    await store.insertNew(Array.from({ length: n }, (_, i) => ({ chain: 'solana' as const, address: addr(i), name: 'R', symbol: 'R', decimals: 9, supply: '1000', creator: PAYER, createdAt: 1, tx: null, source: 'solana-fee' as const, pending: false, checkedAt: 1, ...over(i) })), 1);
+    return store;
+  }
+  const allGood = (calls: Call[]) => node({ getSignaturesForAddress: () => [], getMultipleAccounts: (p) => ({ value: (p[0] as string[]).map(() => accountOf(rawMint('R', 'R', '1000'))) }) }, calls);
+
+  it('pages through every Solana row, not only the newest 1,000', async () => {
+    const store = await seededRows(1250);
+    const calls: Call[] = [];
+    const report = await indexSolana(deps(store, allGood(calls)), 1e15);
+    expect(report.recheck).toMatchObject({ checked: 1250 });
+    expect(calls.filter((c) => c.method === 'getMultipleAccounts')).toHaveLength(13);
+  });
+
+  it('looks at pending and never-minted rows first', async () => {
+    const store = await seededRows(150, (i) => (i === 149 ? { pending: true, supply: '0', checkedAt: null } : {}));
+    const calls: Call[] = [];
+    await indexSolana(deps(store, allGood(calls)), 1e15);
+    expect(calls.find((c) => c.method === 'getMultipleAccounts')!.params[0]).toEqual([addr(149)]);
+    expect(store.rows.get(`solana:${addr(149)}`)).toMatchObject({ pending: false, supply: '1000' });
+  });
+
+  it('has its own budget: it runs even when reading the history used all of its time, or failed', async () => {
+    const store = await seededRows(3, (i) => (i === 0 ? { pending: true, supply: '0', checkedAt: null } : {}));
+    const report = await indexSolana(deps(store, allGood([])), 0);
+    expect(report.recheck).toMatchObject({ checked: 3 });
+    expect(store.rows.get(`solana:${addr(0)}`)?.pending).toBe(false);
+    const broken = node({ getSignaturesForAddress: () => { throw new Error('node busy'); }, getMultipleAccounts: (p) => ({ value: (p[0] as string[]).map(() => accountOf(rawMint('R', 'R', '1000'))) }) });
+    const again = await indexSolana(deps(store, broken), 1e15);
+    expect(again.error).toMatch(/node busy/);
+    expect(again.recheck).toMatchObject({ checked: 3 });
+  });
+
+  it('carries on from where the last run stopped, and still covers every row', async () => {
+    const store = await seededRows(250);
+    await store.setCursor('solana', null, 1, { recheckAfter: `solana:${addr(199)}` });
+    const calls: Call[] = [];
+    const report = await indexSolana(deps(store, allGood(calls)), 1e15);
+    const pages = calls.filter((c) => c.method === 'getMultipleAccounts').map((c) => c.params[0] as string[]);
+    expect(pages[0]![0]).toBe(addr(200));
+    expect(report.recheck).toMatchObject({ checked: 250 });
+  });
+
+  it('runIndexer keeps a share of the budget for the re-check', async () => {
+    const store = await seededRows(1, () => ({ pending: true, supply: '0', checkedAt: null }));
+    let t = 0;
+    // Every EVM node call takes ten seconds, so reading the EVM chains alone would use a 40-second budget.
+    const fetchImpl = node({
+      eth_blockNumber: () => { t += 10_000; return '0x4e20'; },
+      eth_getLogs: () => { t += 10_000; return []; },
+      eth_getTransactionCount: () => { t += 10_000; return '0x1'; },
+      getSignaturesForAddress: () => [],
+      getMultipleAccounts: (p) => ({ value: (p[0] as string[]).map(() => accountOf(rawMint('R', 'R', '1000'))) }),
+    });
+    const report = await runIndexer({ store, fetchImpl, env: {}, now: () => t, budgetMs: 40_000 });
+    expect(report.chains.find((c) => c.chain === 'solana')?.recheck).toMatchObject({ checked: 1 });
+    expect(store.rows.get(`solana:${addr(0)}`)?.pending).toBe(false);
   });
 });
 

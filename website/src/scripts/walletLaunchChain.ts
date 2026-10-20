@@ -8,6 +8,7 @@
 import { TOKEN_2022_PROGRAM_ID, parseTokenAccount, ataAddress } from './walletTools';
 import { distributionOf, configFromJson, configToJson, type LaunchConfig, type LaunchConfigJson } from './walletLaunchCore';
 import type * as Web3 from '@solana/web3.js';
+import { readExtensionDetails, type ExtensionDetails } from '../swings/tokens/token2022.js';
 
 // ---------------------------------------------------------------- reading a mint
 
@@ -24,6 +25,8 @@ export interface MintFacts {
   extensions: number[];
   metadataPointer: { authority: string | null; address: string } | null;
   metadata: { updateAuthority: string | null; mint: string; name: string; symbol: string; uri: string; additionalFields: number } | null;
+  /** The authorities inside the extensions that hand someone a power (fee, delegate, hook, pause); absent when not read. */
+  extensionDetails?: ExtensionDetails;
 }
 
 function base58(bytes: Uint8Array, web3: typeof Web3): string {
@@ -93,6 +96,7 @@ export function parseMintAccount(web3: typeof Web3, owner: string, data: Uint8Ar
     }
     at = end;
   }
+  facts.extensionDetails = readExtensionDetails(data);
   return facts;
 }
 

@@ -33,6 +33,8 @@ const NOW = 5_000_000;
 const ME = '0x' + 'a'.repeat(40);
 const ACT_BASE = '0x' + 'ac'.repeat(20);
 const word = (n: bigint): string => '0x' + n.toString(16).padStart(64, '0');
+/** A Circle V2 message minting to ME on Base (domain 6): header of 148 bytes, then the burn body with the recipient at byte 36. */
+const MESSAGE = '0x' + '00'.repeat(8) + '00000006' + '00'.repeat(136) + '00'.repeat(36) + '00'.repeat(12) + 'a'.repeat(40) + '00'.repeat(160);
 
 /** A world: Circle's service, the chains, and a wallet whose balances the test controls. */
 function world() {
@@ -60,7 +62,7 @@ function world() {
     const json = (b: unknown, status = 200): Response => new Response(JSON.stringify(b), { status });
     if (u.includes('/fees/')) return json([{ finalityThreshold: 1000, minimumFee: 1.3 }, { finalityThreshold: 2000, minimumFee: 0 }]);
     if (u.includes('/allowance')) return json({ allowance: 1_000_000 });
-    if (u.includes('/messages/')) return w.attested ? json({ messages: [{ status: 'complete', message: '0xabcd', attestation: '0x1234', eventNonce: '0x' + 'd'.repeat(64) }] }) : json({ messages: [{ status: 'pending_confirmations', message: '0x', attestation: 'PENDING', eventNonce: '0x' + 'd'.repeat(64) }] });
+    if (u.includes('/messages/')) return w.attested ? json({ messages: [{ status: 'complete', message: MESSAGE, attestation: '0x1234', eventNonce: '0x' + 'd'.repeat(64) }] }) : json({ messages: [{ status: 'pending_confirmations', message: '0x', attestation: 'PENDING', eventNonce: '0x' + 'd'.repeat(64) }] });
     return json({}, 404);
   }) as unknown as typeof fetch;
   let n = 0;

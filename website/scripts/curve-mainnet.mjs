@@ -1,9 +1,16 @@
 /* global process */
-// Mainnet deployment helper for the Aretia bonding curve. It NEVER holds a key, signs or sends anything.
+// Mainnet deployment helper for the Aretia bonding curve. `prepare` and `verify` are read-only: they hold no key and sign or send
+// nothing. `send` is the exception: it reads a deployer key from DEPLOYER_KEY_FILE and sends the creation transaction, for the owner
+// to run on their own machine only.
 //
 //   npm i --no-save viem
 //   node scripts/curve-mainnet.mjs prepare --chain ethereum                    read-only checks, then writes the unsigned creation data
 //   node scripts/curve-mainnet.mjs verify  --chain ethereum --address 0x...    checks a deployed curve is exactly the audited build
+//   DEPLOYER_KEY_FILE=<file> node scripts/curve-mainnet.mjs send --chain ethereum --yes-mainnet    deploys it (reads a key)
+//
+// Both read-only modes also read the token factory's feeRecipient() and fee() back, and stop if the fee address has any code: the
+// curve pays it inside every buy and sell, so code there (an EIP-7702 delegation, "0xef0100..." in its code) could freeze every trade
+// (audit M-2). See docs/operations/fee-key-monitor.md.
 //
 // Chains: ethereum, bnb, polygon. You deploy the printed data yourself, from the owner's own wallet or hardware wallet
 // (a contract-creation transaction: no "to", the data below, zero value). Then run `verify` on the address it created.
@@ -22,9 +29,9 @@ const FEE_ADDRESS = '0xeb8725e16e504036c2166aa47804d88ecc4d0945';
 // Token factory (the chain's Aretia launcher), the exchange router, and the exchange's own factory and wrapped coin, as in
 // walletLaunchEvmCore.ts and walletPoolEvmCore.ts. They are re-read from the chain below, so a typo here cannot pass.
 const CHAINS = {
-  ethereum: { chainId: 1, rpc: 'https://ethereum-rpc.publicnode.com', factory: '0x951a22270faa7d1c25efad2356c414cbddaba324', router: '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', exFactory: '0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f', wrapped: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' },
-  bnb: { chainId: 56, rpc: 'https://bsc-rpc.publicnode.com', factory: '0xc3eb98c45795cffb10b61178332cc6fcbbc0385c', router: '0x10ed43c718714eb63d5aa57b78b54704e256024e', exFactory: '0xca143ce32fe78f1f7019d7d551a6402fc5350c73', wrapped: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' },
-  polygon: { chainId: 137, rpc: 'https://polygon-bor-rpc.publicnode.com', factory: '0xca1aa427ba5906d00377a835dd9b36b049034f0c', router: '0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff', exFactory: '0x5757371414417b8c6caad45baef941abc7d3ab32', wrapped: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270' },
+  ethereum: { chainId: 1, rpc: 'https://ethereum-rpc.publicnode.com', factory: '0x951a22270faa7d1c25efad2356c414cbddaba324', factoryFeeWei: 4_200_000_000_000_000n, router: '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', exFactory: '0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f', wrapped: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' },
+  bnb: { chainId: 56, rpc: 'https://bsc-rpc.publicnode.com', factory: '0xc3eb98c45795cffb10b61178332cc6fcbbc0385c', factoryFeeWei: 14_000_000_000_000_000n, router: '0x10ed43c718714eb63d5aa57b78b54704e256024e', exFactory: '0xca143ce32fe78f1f7019d7d551a6402fc5350c73', wrapped: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c' },
+  polygon: { chainId: 137, rpc: 'https://polygon-bor-rpc.publicnode.com', factory: '0xca1aa427ba5906d00377a835dd9b36b049034f0c', factoryFeeWei: 105_000_000_000_000_000_000n, router: '0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff', exFactory: '0x5757371414417b8c6caad45baef941abc7d3ab32', wrapped: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270' },
 };
 
 const arg = (name) => {
@@ -65,6 +72,17 @@ if (tail(await call(net.router, '0xad5c4648')) !== net.wrapped) fail('the router
 if (tail(await call(net.router, '0xc45a0155')) !== net.exFactory) fail('the router reports a different exchange factory.');
 ok('router points at the expected exchange factory and wrapped coin');
 if (!isAddress(FEE_ADDRESS)) fail('fee address is not an address.');
+// The token factory is fixed to the same fee address and a known fee (walletLaunchEvmCore.ts); read both back.
+if (tail(await call(net.factory, '0x46904840')) !== FEE_ADDRESS) fail(`the token factory's feeRecipient() is not ${FEE_ADDRESS}.`);
+if (BigInt(await call(net.factory, '0xddca3f43')) !== net.factoryFeeWei) fail(`the token factory's fee() is not ${net.factoryFeeWei} wei.`);
+ok(`token factory feeRecipient() = ${FEE_ADDRESS}, fee() = ${net.factoryFeeWei} wei`);
+// The curve pays the fee address inside every trade, and a failed payment reverts the trade. It must be a plain key with no code.
+const feeCode = ((await pub.getCode({ address: FEE_ADDRESS })) ?? '0x').toLowerCase();
+if (feeCode !== '0x') {
+  const delegated = feeCode.startsWith('0xef0100') ? ` It is an EIP-7702 delegation to 0x${feeCode.slice(8, 48)}.` : '';
+  fail(`ALERT: the fee address ${FEE_ADDRESS} has code on ${chainKey} (${feeCode.slice(0, 50)}).${delegated} Code there can refuse the fee and freeze every buy and sell on every curve (audit M-2). Do not deploy or use the curve; see docs/operations/fee-key-monitor.md.`);
+}
+ok(`fee address ${FEE_ADDRESS} has no code (no EIP-7702 delegation). Never sign a 7702 authorisation with this key.`);
 
 const args = `${pad(net.factory)}${pad(FEE_ADDRESS)}${pad(net.router)}`;
 const creation = `0x${art.curve.bytecode.replace(/^0x/, '')}${args}`;

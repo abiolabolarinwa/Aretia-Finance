@@ -22,7 +22,8 @@ import { guardRecipient } from '../swings/shield/guard';
 import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
-import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
+import { dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, priceWithLiquidity, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type DexPricePair, type RawBalance } from './walletHoldings';
+import { majorsOf } from '../swings/charts/pool.js';
 import { loadWeb3, planSend, rpcCall, resolveName, sendPlanChanged, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, type AccountSnapshot } from './walletTools';
 
@@ -148,11 +149,8 @@ interface JupToken {
   icon?: string;
   usdPrice?: number;
   decimals?: number;
-}
-interface DexPair {
-  baseToken?: { address?: string };
-  priceUsd?: string;
-  liquidity?: { usd?: number };
+  /** The money in the token's pools, in US dollars, as Jupiter reports it. */
+  liquidity?: number;
 }
 
 const inBatches = <T>(items: readonly T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
@@ -221,25 +219,19 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   }
 
   const prices = new Map<string, { price: number; source: 'Jupiter' | 'DexScreener' | 'GeckoTerminal'; thin: boolean }>();
+  // Every price carries the liquidity behind it: under $1,000 there is no value at all, and a shallow or unknown pool is marked thin.
   for (const [mint, token] of meta) {
-    if (typeof token.usdPrice === 'number' && token.usdPrice > 0) prices.set(mint, { price: token.usdPrice, source: 'Jupiter', thin: false });
+    const priced = typeof token.usdPrice === 'number' ? priceWithLiquidity(token.usdPrice, typeof token.liquidity === 'number' ? token.liquidity : null) : null;
+    if (priced) prices.set(mint, { ...priced, source: 'Jupiter' });
   }
   // Both fallbacks take at most 30 mints per request. A wallet can hold more unpriced mints than that (and unpriced
   // tokens are hidden by default), so every batch is asked, not just the first.
   const unpriced = mints.filter((m) => !prices.has(m));
   await Promise.allSettled(
     inBatches(unpriced, 30).map(async (batch) => {
-      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(',')}`);
-      const best = new Map<string, DexPair>();
-      for (const p of pairs) {
-        const mint = p.baseToken?.address;
-        if (!mint || !p.priceUsd) continue;
-        if (!best.has(mint) || (p.liquidity?.usd ?? 0) > (best.get(mint)?.liquidity?.usd ?? 0)) best.set(mint, p);
-      }
-      for (const [mint, p] of best) {
-        const price = Number(p.priceUsd);
-        if (Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'DexScreener', thin: (p.liquidity?.usd ?? 0) < 10_000 });
-      }
+      const pairs = await getJson<DexPricePair[]>(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(',')}`);
+      // Pools against SOL or a main stablecoin first, then depth: a pool against a made-up token cannot set the price.
+      for (const [mint, p] of dexScreenerPrices(pairs, majorsOf('solana'))) if (batch.includes(mint)) prices.set(mint, { ...p, source: 'DexScreener' });
     }),
   );
   // A token neither Jupiter nor DexScreener prices (DexScreener can lag on a new pool) may still be priced by
@@ -247,10 +239,13 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   const stillUnpriced = mints.filter((m) => !prices.has(m));
   await Promise.allSettled(
     inBatches(stillUnpriced, 30).map(async (batch) => {
-      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${batch.join(',')}`);
+      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string>; total_reserve_in_usd?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${batch.join(',')}?include_total_reserve_in_usd=true`);
+      const reserves = r.data?.attributes?.total_reserve_in_usd ?? {};
       for (const [mint, value] of Object.entries(r.data?.attributes?.token_prices ?? {})) {
-        const price = Number(value);
-        if (batch.includes(mint) && Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'GeckoTerminal', thin: false });
+        const reserve = Number(reserves[mint]);
+        // No reserve figure: no value, rather than a price nothing stands behind.
+        const priced = batch.includes(mint) && Number.isFinite(reserve) ? priceWithLiquidity(Number(value), reserve) : null;
+        if (priced) prices.set(mint, { ...priced, source: 'GeckoTerminal' });
       }
     }),
   );

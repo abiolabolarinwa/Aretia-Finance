@@ -23,8 +23,12 @@ describe('the market reading', () => {
     expect(r.score).toBe(32);
   });
 
-  it('calls a year-old, deep, busy pool established', () => {
-    expect(marketReading(row({ ageMs: 400 * 24 * HOUR, liquidityUsd: 6_000_000, volume24hUsd: 700_000 })).status).toBe('established');
+  it('never calls a pool established (green) from market data alone (audit L-16)', () => {
+    const r = withMarketReading(row({ ageMs: 400 * 24 * HOUR, liquidityUsd: 6_000_000, volume24hUsd: 700_000 }));
+    expect(r.risk?.status).toBe('unverified');
+    expect(ratingView(r, 'pending').band).toBe('yellow');
+    // Even a market-basis row that says "established" is not drawn green.
+    expect(ratingView(row({ risk: { status: 'established', label: 'Established', score: 0, basis: 'market' } }), 'pending').band).toBe('yellow');
   });
 
   it('gives no score, rather than a flattering one, when the age is unknown', () => {

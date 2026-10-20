@@ -8,6 +8,15 @@ import type { ChainId } from '../core/types.js';
 import { evaluateMoves, watchKey, type WatchedPrice } from '../account/priceAlerts.js';
 import { evaluateOrders, type PriceOrder } from '../account/priceOrders.js';
 import { formatPrice } from '../market/types.js';
+import { cleanText } from '../tokens/safeText.js';
+
+/**
+ * A token symbol as it may appear in a message. Symbols are chosen by whoever made the token, and Telegram turns anything that
+ * looks like a link or a username into one, so the characters that make a link (. / : @ #) and invisible ones are taken out.
+ */
+export function messageSymbol(symbol: string): string {
+  return cleanText(symbol, 40).replace(/[./:@#\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Token';
+}
 
 export interface WatchedFavourite {
   chain: ChainId;
@@ -49,8 +58,8 @@ export function planForOwner(w: OwnerWatch, prices: Readonly<Record<string, numb
   const hits = evaluateOrders(w.orders, prices);
 
   const all: PlannedMessage[] = [
-    ...hits.map(({ order, price }): PlannedMessage => ({ kind: 'order', title: `${order.symbol} reached ${formatPrice(order.targetUsd)}`, body: `Your ${order.side} price. Now ${formatPrice(price)}.`, url: '/wallet#/swings' })),
-    ...moves.alerts.map((a): PlannedMessage => ({ kind: 'move', title: `${a.symbol} ${a.movePct > 0 ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, body: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, url: '/wallet#/favourites' })),
+    ...hits.map(({ order, price }): PlannedMessage => ({ kind: 'order', title: `${messageSymbol(order.symbol)} reached ${formatPrice(order.targetUsd)}`, body: `Your ${order.side} price. Now ${formatPrice(price)}.`, url: '/wallet#/swings' })),
+    ...moves.alerts.map((a): PlannedMessage => ({ kind: 'move', title: `${messageSymbol(a.symbol)} ${a.movePct > 0 ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, body: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, url: '/wallet#/favourites' })),
   ];
   const messages = all.slice(0, max);
   if (all.length > max) messages.push({ kind: 'move', title: `${all.length - max} more price alerts`, body: 'Open Aretia to see all of them.', url: '/wallet#/favourites' });

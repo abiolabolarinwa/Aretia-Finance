@@ -39,7 +39,7 @@ export interface MarketRow {
   /** How the liquidity is locked: burned (permanent) or held in a locker until a date. Absent means burned, as Aretia's records say. */
   lockInfo?: { kind: 'burned' | 'time-locked'; until: number | null; by?: string } | null;
   /** Aretia's own rating, only for tokens in its registry. */
-  risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market' } | null;
+  risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market'; /** The check found an admin power still held (minting, freezing, pausing, upgrading...). */ adminPowers?: boolean } | null;
   /** In Aretia's registry of newly detected tokens. */
   fresh: boolean;
 }

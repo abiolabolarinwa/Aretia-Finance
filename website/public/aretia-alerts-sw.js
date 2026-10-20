@@ -22,6 +22,17 @@ async function waiting() {
   }
 }
 
+/** A same-origin path for a notification to open, or '/wallet'. "//evil.example" and "/\\evil.example" resolve to another origin and are refused. */
+function sameOriginPath(u) {
+  if (typeof u !== 'string' || u.length > 500) return '/wallet';
+  try {
+    const parsed = new URL(u, self.location.origin);
+    return parsed.origin === self.location.origin ? parsed.pathname + parsed.search + parsed.hash : '/wallet';
+  } catch {
+    return '/wallet';
+  }
+}
+
 self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {
@@ -29,7 +40,7 @@ self.addEventListener('push', (event) => {
       // A push always shows something: browsers (iPhone especially) withdraw permission from sites that stay silent.
       if (messages.length === 0) messages.push({ title: 'Aretia alert', body: 'Open Aretia to see what moved.', url: '/wallet#/favourites' });
       for (const m of messages.slice(0, 6)) {
-        const url = typeof m.url === 'string' && m.url.startsWith('/') ? m.url : '/wallet';
+        const url = sameOriginPath(m.url);
         await self.registration.showNotification(String(m.title || 'Aretia alert').slice(0, 120), { body: String(m.body || '').slice(0, 300), icon: '/assets/logo-mark.png', badge: '/assets/logo-mark.png', tag: `aretia-${url}-${String(m.title).slice(0, 40)}`, data: { url } });
       }
     })(),
@@ -38,7 +49,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/wallet';
+  const url = sameOriginPath(event.notification.data && event.notification.data.url);
   event.waitUntil(
     (async () => {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

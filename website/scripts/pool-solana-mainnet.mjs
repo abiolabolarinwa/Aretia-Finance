@@ -25,8 +25,8 @@ const FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
 const RENT_MIN_EMPTY_ACCOUNT = 890_880n;
 
 const CLUSTERS = {
-  mainnet: { name: 'mainnet-beta', rpc: 'https://solana-rpc.publicnode.com' },
-  devnet: { name: 'devnet', rpc: 'https://api.devnet.solana.com' },
+  mainnet: { name: 'mainnet-beta', rpc: 'https://solana-rpc.publicnode.com', genesis: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d' },
+  devnet: { name: 'devnet', rpc: 'https://api.devnet.solana.com', genesis: 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' },
 };
 
 const arg = (name) => {
@@ -46,6 +46,9 @@ const clusterKey = arg('cluster') ?? 'mainnet';
 const cluster = CLUSTERS[clusterKey];
 if (!['prepare', 'verify'].includes(mode) || !cluster) fail('usage: pool-solana-mainnet.mjs prepare|verify [--program <address>] [--cluster mainnet|devnet] [--rpc url] [--artifact path]');
 const conn = new Connection(arg('rpc') ?? cluster.rpc, 'confirmed');
+// The node must be on the cluster named: a devnet node given with --cluster mainnet would otherwise "verify" a devnet program.
+const genesis = await conn.getGenesisHash().catch((e) => fail(`could not read the genesis hash from the node (${e instanceof Error ? e.message : e}).`));
+if (genesis !== cluster.genesis) fail(`the node at ${arg('rpc') ?? cluster.rpc} is not on ${cluster.name}: its genesis hash is ${genesis}, ${cluster.name}'s is ${cluster.genesis}.`);
 
 const artifactPath = arg('artifact') ?? join(root, 'program', 'aretia-pool', 'artifacts', 'aretia_pool.so');
 const so = readFileSync(artifactPath);
@@ -55,7 +58,7 @@ if (pinned !== soSha) fail(`${artifactPath} does not match its recorded sha-256 
 // A build made before a fix to the program source is marked stale next to it; it must be rebuilt and retested, never deployed.
 if (existsSync(`${artifactPath}.STALE`)) fail(`${artifactPath} was built before a fix to the program source (see ${artifactPath}.STALE). Rebuild it and run the program tests before deploying.`);
 
-console.log(`cluster ${cluster.name}, build ${artifactPath}`);
+console.log(`cluster ${cluster.name} (genesis ${genesis}), build ${artifactPath}`);
 ok(`build is ${so.length} bytes, sha-256 ${soSha}`);
 
 async function commonChecks() {

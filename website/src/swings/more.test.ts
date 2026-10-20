@@ -349,10 +349,11 @@ describe('proxied EVM tokens are analysed through their implementation', () => {
 
 describe('Established classification', () => {
   const deep = { liquidityUsd: 9e6, volume24hUsd: 1e6, poolCount: 3, ageHours: 24 * 400 };
-  it('describes a long, deep, active track record without hiding admin powers', async () => {
+  it('is not given to a long, deep, active token that keeps admin powers, which stay visible (audit L-16)', async () => {
     const { assessEvmToken, RISK_LABELS } = await import('./tokens/risk.js');
     const usdcLike = assessEvmToken({ ...deep, owner: 'set', isProxy: true, canMint: true, canBlacklist: true, canPause: true });
-    expect(usdcLike.status).toBe('established');
+    expect(usdcLike.status).not.toBe('established');
+    expect(assessEvmToken({ ...deep, owner: 'renounced', isProxy: false, canMint: false, canBlacklist: false, canPause: false }).status).toBe('established');
     expect(usdcLike.score).toBeGreaterThanOrEqual(60);
     expect(usdcLike.signals.filter((s) => s.state === 'warn').length).toBeGreaterThanOrEqual(4);
     expect(RISK_LABELS.established).toBe('Established');

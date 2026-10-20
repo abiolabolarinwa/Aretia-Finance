@@ -49,7 +49,20 @@ describe('mint facts', () => {
     const f = solanaMintFacts({ ...base, mintAuthority: MINT, freezeAuthority: MINT, extensions: [1] });
     expect(f.find((x) => x.label === 'Supply')?.tone).toBe('warn');
     expect(f.find((x) => x.label === 'Freeze power')?.tone).toBe('warn');
-    expect(f.some((x) => x.label === 'Transfer fee')).toBe(true);
+    expect(f.some((x) => x.label === 'Transfer fee (1)' && x.tone === 'warn')).toBe(true);
+  });
+  it('lists a permanent delegate, transfer hook and pause switch, and then shows nothing in green (audit M-6)', () => {
+    const f = solanaMintFacts({ ...base, extensions: [12, 14, 26] });
+    expect(f.filter((x) => x.tone === 'warn').map((x) => x.label)).toEqual(['Permanent delegate (12)', 'Transfer hook (14)', 'Pausable (26)']);
+    expect(f.some((x) => x.tone === 'good')).toBe(false);
+  });
+  it('treats metadata and group extensions as neutral, and scaled or confidential amounts as a warning', () => {
+    expect(solanaMintFacts({ ...base, extensions: [18, 19, 20, 21, 22, 23] }).filter((x) => x.tone === 'warn')).toEqual([]);
+    const f = solanaMintFacts({ ...base, extensions: [18, 19, 25, 24] });
+    expect(f.filter((x) => x.tone === 'warn').map((x) => x.label)).toEqual(['Scaled UI amount (25)', 'Confidential mint and burn (24)']);
+    expect(f.find((x) => x.label === 'Supply')?.tone).toBe('good');
+    // An extension this code does not know is treated as dangerous.
+    expect(solanaMintFacts({ ...base, extensions: [99] }).some((x) => x.label === 'Unknown extension (99)' && x.tone === 'warn')).toBe(true);
   });
   it('does not claim evm powers it did not read', () => {
     const f = evmTokenFacts(null, 18);

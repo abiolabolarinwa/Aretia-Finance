@@ -101,10 +101,18 @@ async function main() {
 
   const dir = outPath.substring(0, Math.max(outPath.lastIndexOf("\\"), outPath.lastIndexOf("/")));
   if (dir && !fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
-  fs.writeFileSync(outPath, JSON.stringify(Array.from(secretKeyBytes)));
+  // Owner read/write only, and never over an existing file (which could be another key). `mode` applies when the file is created;
+  // chmod again in case a umask widened it. On Windows these modes are ignored: keep the file in your own user folder.
+  try {
+    fs.writeFileSync(outPath, JSON.stringify(Array.from(secretKeyBytes)), { mode: 0o600, flag: "wx" });
+  } catch (e) {
+    console.error(e && e.code === "EEXIST" ? `${outPath} already exists - not overwritten. Choose another path or move the old file first.` : `Could not write ${outPath}: ${e && e.message}`);
+    process.exit(1);
+  }
+  fs.chmodSync(outPath, 0o600);
   console.log(`\nWrote keypair file to: ${outPath}`);
   console.log("Verify it worked without printing the key itself:");
   console.log(`  node -e "import('@solana/web3.js').then(w=>{const fs=require('fs');const k=w.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('${outPath.replace(/\\/g, "\\\\")}'))));console.log('Public key:', k.publicKey.toBase58());})"`);

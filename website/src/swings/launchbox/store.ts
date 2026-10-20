@@ -41,6 +41,8 @@ export interface LaunchStore {
   list(limit: number): Promise<StoredLaunch[]>;
   /** Fills fields that were unknown (never overwrites a known value with null). */
   patch(chain: LaunchChain, address: string, fields: Partial<Pick<StoredLaunch, 'name' | 'symbol' | 'decimals' | 'supply' | 'creator' | 'createdAt' | 'tx' | 'poolDex' | 'poolAddress' | 'poolUrl' | 'poolSeenAt' | 'curveAddress'>>): Promise<void>;
+  /** Takes a token off the list for good (a Solana mint that turned out to break the launch rule). */
+  remove(chain: LaunchChain, address: string): Promise<void>;
 }
 
 interface Row {
@@ -175,5 +177,9 @@ export class SupabaseLaunchStore implements LaunchStore {
     for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null && COLUMN[k]) body[COLUMN[k]!] = v;
     if (Object.keys(body).length === 0) return;
     await this.call(`launchbox_tokens?key=eq.${encodeURIComponent(tokenKey(chain, address))}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(body) });
+  }
+
+  async remove(chain: LaunchChain, address: string): Promise<void> {
+    await this.call(`launchbox_tokens?key=eq.${encodeURIComponent(tokenKey(chain, address))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
   }
 }

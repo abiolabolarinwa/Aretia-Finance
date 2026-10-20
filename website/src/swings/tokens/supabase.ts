@@ -85,8 +85,15 @@ export const fromRow = (w: Row): TokenRecord => ({
   updatedAt: Number(w.updated_at),
 });
 
-/** Escapes a value for use inside a PostgREST `ilike` filter. */
-const likeEscape = (s: string): string => s.replace(/[\\%_*(),]/g, (c) => `\\${c}`);
+/**
+ * A "contains" pattern for a PostgREST `ilike` filter inside `or=(...)`, as one double-quoted value, so no character the person typed
+ * can end the value or add a filter of its own (I-24). Inside the quotes PostgREST reads `\"` and `\\` as a quote and a backslash.
+ * In the pattern itself `%` and `_` are escaped for LIKE, and `*` (PostgREST's wildcard) is dropped.
+ */
+export function ilikeContains(s: string): string {
+  const like = s.replace(/\*/g, '').replace(/[\\%_]/g, (c) => `\\${c}`);
+  return `"*${like.replace(/[\\"]/g, (c) => `\\${c}`)}*"`;
+}
 
 import { supabaseHeaders } from './supabaseAuth.js';
 
@@ -138,7 +145,7 @@ export class SupabaseTokenRepository implements TokenRepository {
     return this.rows(`token_registry?address=in.(${list.map((a) => `"${a}"`).join(',')})&limit=200`);
   }
   searchText(query: string, limit: number): Promise<TokenRecord[]> {
-    const q = encodeURIComponent(`*${likeEscape(query)}*`);
+    const q = encodeURIComponent(ilikeContains(query));
     return this.rows(`token_registry?or=(symbol.ilike.${q},name.ilike.${q})&order=liquidity_usd.desc.nullslast&limit=${limit}`);
   }
   listRecent(chain: ChainId | undefined, limit: number): Promise<TokenRecord[]> {

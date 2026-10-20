@@ -7,6 +7,7 @@
  * DexScreener by token address, batched and kept for a minute; an Aretia Curve's status and progress are read from the chain. A token
  * with no pool has no price and says so. If the index has not been set up (its migration not run) the answer says that and lists nothing.
  */
+import { bearerMatches } from './_secrets.js';
 import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { overLimit } from './_rpcProxy.js';
 import { LAUNCH_CHAINS, type CurveView, type LaunchChain, type LaunchView } from '../src/swings/launchbox/core.js';
@@ -140,7 +141,7 @@ export async function handleLaunchboxRun(input: LaunchboxInput): Promise<Launchb
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
   // Nothing runs unless a secret is configured and presented.
-  if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  if (!bearerMatches(input.authorization, secret)) return json(401, { error: 'unauthorized' }, headers);
   if (input.method !== 'GET' && input.method !== 'POST') return json(405, { error: 'method' }, { ...headers, allow: 'GET, POST' });
   const store = storeFor(input);
   if (!store) return json(503, { error: 'not-configured' }, headers);

@@ -1,22 +1,27 @@
 /**
  * POST /api/swings-account: favourite tokens and swap history that follow a wallet address across devices.
  *
+ *   { op: 'nonce' }                        a single-use value to put in the sign-in message (valid five minutes)
  *   { op: 'login', message, signature }   prove control of an address; answers with a session token
+ *   { op: 'sign-out-all' }                 end every session of this address, on every device
  *   { op: 'get' }                          the person's favourites and saved trades
  *   { op: 'favourite', chain, address, symbol, name, icon, on }   add or remove one favourite
  *   { op: 'trades', items: [...] }         save swap-history items (already-saved ones are kept as they are)
  *
  * Everything after login needs `Authorization: Bearer <session token>`, and only ever touches the rows of the address
  * the token was issued for. Nothing here can move funds, and no key or recovery phrase is ever sent: a signature over a
- * plain message is the only proof asked for. Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (the session key is derived
- * from the latter, so no extra setting is required); SWINGS_SESSION_SECRET may be set to use a separate secret.
+ * plain message is the only proof asked for. Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and migration 0014 (sign-in nonces
+ * and session versions). SWINGS_SESSION_SECRET should be set to its own secret; until it is, the session key is derived from the
+ * service key and a warning is logged.
  */
 import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit } from './_rpcProxy.js';
 import { CHAINS, isChainId, type ChainId } from '../src/swings/core/types.js';
 import { normalizeTokenRef } from '../src/swings/core/token.js';
 import { cleanLogo, cleanText } from '../src/swings/tokens/registry.js';
-import { issueSession, readSession, verifyLogin } from './_swingsAuth.js';
+import { issueSession, loginDomains, sessionOwner, sessionSecret, sessionVersion, verifyLogin } from './_swingsAuth.js';
+import { overBudget, resetBudgets } from './_limits.js';
+import { LOGIN_WINDOW_MS } from '../src/swings/account/loginMessage.js';
 import type { TokensEnv } from './_swingsTokens.js';
 
 export interface AccountInput {
@@ -25,7 +30,7 @@ export interface AccountInput {
   authorization: string | null;
   ip: string;
   body: unknown;
-  env: TokensEnv & { SWINGS_SESSION_SECRET?: string };
+  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string };
   fetchImpl: typeof fetch;
   now: number;
 }
@@ -38,11 +43,14 @@ export interface AccountOutput {
 const MAX_FAVOURITES = 500;
 const MAX_TRADES = 200;
 const STATUSES = ['quoting', 'building', 'simulating', 'awaiting-signature', 'submitted', 'confirmed', 'failed', 'rejected', 'expired'];
-const usedNonces = new Map<string, number>();
+/** Sign-in nonces one address (IP) may ask for per minute. */
+const NONCES_PER_MINUTE = 20;
 
 export function resetAccountState(): void {
-  usedNonces.clear();
+  resetBudgets();
 }
+
+const randomHex = (bytes: number): string => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 const json = (status: number, data: unknown, headers: Record<string, string>): AccountOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -102,40 +110,67 @@ export async function handleAccount(input: AccountInput): Promise<AccountOutput>
   const key = input.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) return json(503, { error: 'not-configured', message: 'Saving to your wallet is not set up on this server yet.' }, headers);
   if (overLimit(`account:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
-  const secret = input.env.SWINGS_SESSION_SECRET?.trim() || key;
+  const secret = sessionSecret(input.env) ?? key;
   const body = obj(input.body);
   const op = body.op;
   const db = rest(url, key, input.fetchImpl);
+
+  if (op === 'nonce') {
+    if (overBudget(`nonce:${input.ip}`, input.now, NONCES_PER_MINUTE)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
+    const nonce = randomHex(16);
+    const expiresAt = input.now + LOGIN_WINDOW_MS;
+    try {
+      await db.call('auth_nonces', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ nonce, created_at: input.now, expires_at: expiresAt }) });
+    } catch {
+      return json(502, { error: 'database', message: 'Signing in is not available right now.' }, headers);
+    }
+    return json(200, { nonce, expiresAt }, headers);
+  }
 
   if (op === 'login') {
     const message = typeof body.message === 'string' ? body.message : '';
     const signature = typeof body.signature === 'string' ? body.signature : '';
     if (!message || message.length > 1000 || !signature || signature.length > 400) return json(400, { error: 'bad-request' }, headers);
-    const domain = (() => {
-      try {
-        return new URL(input.origin ?? '').host;
-      } catch {
-        return '';
-      }
-    })();
-    const check = verifyLogin({ message, signature, domain, now: input.now });
+    // The site a message must name comes from the server's configuration, never from the request. A local development host is
+    // accepted only off the production deployment, as the origin check does.
+    const domains = loginDomains(input.env);
+    if (input.env.VERCEL_ENV !== 'production') {
+      const local = /^http:\/\/((?:localhost|127\.0\.0\.1)(?::\d+)?)$/.exec(input.origin ?? '')?.[1];
+      if (local) domains.push(local);
+    }
+    const check = verifyLogin({ message, signature, domain: domains, now: input.now });
     if (!check.ok) return json(401, { error: 'sign-in', message: check.reason }, headers);
-    // A signed message works once: a second use of the same message is refused.
-    const nonceKey = `${check.owner}|${signature.slice(0, 40)}`;
-    if (usedNonces.has(nonceKey)) return json(401, { error: 'sign-in', message: 'That sign-in was already used. Try again.' }, headers);
-    if (usedNonces.size > 5000) usedNonces.clear();
-    usedNonces.set(nonceKey, input.now);
-    const session = issueSession(secret, check.owner, input.now);
-    return json(200, { token: session.token, expiresAt: session.expiresAt, owner: check.owner, address: check.address }, headers);
+    try {
+      // The nonce must be one this server issued, unexpired and unused; using it marks it used for this owner, in one statement,
+      // so a second use of the same message (in any spelling of the signature, on any instance) is refused.
+      const used = (await db.call(`auth_nonces?nonce=eq.${encodeURIComponent(check.nonce ?? '')}&used_at=is.null&expires_at=gt.${input.now}`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ used_at: input.now, owner: check.owner }) })) as unknown[] | null;
+      if (!Array.isArray(used) || used.length !== 1) return json(401, { error: 'sign-in', message: 'That sign-in was already used or has expired. Try again.' }, headers);
+      const version = await sessionVersion(db, check.owner);
+      const session = issueSession(secret, check.owner, input.now, version);
+      console.info(`sign-in ${check.owner}`);
+      return json(200, { token: session.token, expiresAt: session.expiresAt, owner: check.owner, address: check.address }, headers);
+    } catch {
+      return json(502, { error: 'database', message: 'Signing in is not available right now.' }, headers);
+    }
   }
 
-  const bearer = input.authorization?.startsWith('Bearer ') ? input.authorization.slice(7).trim() : null;
-  const owner = readSession(secret, bearer, input.now);
+  let owner: string | null;
+  try {
+    owner = await sessionOwner(secret, input.authorization, input.now, db);
+  } catch {
+    return json(502, { error: 'database', message: 'Your saved data could not be reached.' }, headers);
+  }
   if (!owner) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
   const account = owner.slice(owner.indexOf(':') + 1);
   const q = encodeURIComponent(owner);
 
   try {
+    if (op === 'sign-out-all') {
+      // Every token carries the version it was issued under; raising it ends them all, this one included.
+      const next = (await sessionVersion(db, owner)) + 1;
+      await db.call('account_sessions?on_conflict=owner', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ owner, version: next, updated_at: input.now }) });
+      return json(200, { ok: true }, headers);
+    }
     if (op === 'get') {
       const [favs, trades] = await Promise.all([
         db.call(`user_favourites?owner=eq.${q}&select=chain,address,symbol,name,icon,added_at&order=added_at.desc&limit=${MAX_FAVOURITES}`) as Promise<Record<string, unknown>[]>,

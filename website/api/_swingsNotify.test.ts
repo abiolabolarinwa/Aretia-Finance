@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { cleanOrder, handleAlertsRun, handleNotify, handleTelegramWebhook, type NotifyEnv, type NotifyInput } from './_swingsNotify.js';
+import { cleanOrder, fairTokens, handleAlertsRun, handleNotify, handleTelegramWebhook, MAX_WATCHED_PER_OWNER, type NotifyEnv, type NotifyInput } from './_swingsNotify.js';
+import { resetBudgets } from './_limits.js';
 import { generateVapidKeys } from '../src/swings/notify/vapid.js';
 
 const NOW = 1_800_000_000_000;
@@ -35,7 +36,10 @@ const env = (over: Partial<NotifyEnv> = {}): NotifyEnv => ({ SUPABASE_URL: 'http
 const session = (): string => `Bearer ${issueSession('service-key-for-tests', OWNER, NOW).token}`;
 const input = (over: Partial<NotifyInput> & { fetchImpl: typeof fetch }): NotifyInput => ({ method: 'POST', origin: ORIGIN, authorization: null, ip: '9.9.9.9', query: {}, body: {}, env: env(), now: NOW, ...over });
 
-beforeEach(() => resetRateLimit());
+beforeEach(() => {
+  resetRateLimit();
+  resetBudgets();
+});
 
 describe('notify: settings', () => {
   it('reports what is set up without a sign-in', async () => {
@@ -68,11 +72,11 @@ describe('notify: settings', () => {
     const e = env({ VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey });
     const f = fake([[/GET .*notify_channels/, () => []], [/POST .*notify_channels/, () => [{ id: 7 }]]]);
     expect((await handleNotify(input({ fetchImpl: f.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'http://x.example/a' }, authorization: session() }))).status).toBe(400);
-    const ok = JSON.parse((await handleNotify(input({ fetchImpl: f.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'https://push.example.org/abc' }, authorization: session() }))).body) as { id: number; secret: string };
+    const ok = JSON.parse((await handleNotify(input({ fetchImpl: f.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'https://fcm.googleapis.com/fcm/send/abc' }, authorization: session() }))).body) as { id: number; secret: string };
     expect(ok.id).toBe(7);
     expect(ok.secret).toMatch(/^[0-9a-f]{48}$/);
-    const again = fake([[/GET .*notify_channels/, () => [{ id: 7, owner: OWNER, kind: 'webpush', ref: 'https://push.example.org/abc', secret: 'keepme' }]]]);
-    expect(JSON.parse((await handleNotify(input({ fetchImpl: again.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'https://push.example.org/abc' }, authorization: session() }))).body)).toEqual({ id: 7, secret: 'keepme' });
+    const again = fake([[/GET .*notify_channels/, () => [{ id: 7, owner: OWNER, kind: 'webpush', ref: 'https://fcm.googleapis.com/fcm/send/abc', secret: 'keepme' }]]]);
+    expect(JSON.parse((await handleNotify(input({ fetchImpl: again.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'https://fcm.googleapis.com/fcm/send/abc' }, authorization: session() }))).body)).toEqual({ id: 7, secret: 'keepme' });
   });
   it('checks price orders field by field', () => {
     const good = { id: 'o1', chain: 'base', address: BASE_ADDR, symbol: 'AAA', name: 'Aaa', icon: null, side: 'buy', targetUsd: 0.5, createdAt: 5 };
@@ -187,15 +191,81 @@ describe('the scheduled check', () => {
     const e = env({ VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey });
     for (const [status, removed] of [[201, 0], [410, 1]] as const) {
       const r = routes('1.20');
-      r[0] = [/GET .*notify_channels/, () => [{ id: 4, owner: OWNER, kind: 'webpush', ref: 'https://push.example.org/send/xyz', secret: 'p'.repeat(48) }]];
-      r.push([/POST https:\/\/push\.example\.org/, () => new Response(null, { status })]);
+      r[0] = [/GET .*notify_channels/, () => [{ id: 4, owner: OWNER, kind: 'webpush', ref: 'https://fcm.googleapis.com/fcm/send/send/xyz', secret: 'p'.repeat(48) }]];
+      r.push([/POST https:\/\/fcm\.googleapis\.com\/fcm/, () => new Response(null, { status })]);
       const f = fake(r);
       const out = await handleAlertsRun(input({ fetchImpl: f.fetchImpl, method: 'GET', authorization: 'Bearer cron-secret', env: e }));
       expect(JSON.parse(out.body)).toMatchObject({ sent: status === 201 ? 1 : 0 });
       expect(f.find(/POST .*notify_inbox/)[0]!.body).toMatchObject({ channel_id: 4, title: 'AAA ▲ +20.0%', url: '/wallet#/favourites' });
-      const push = f.find(/POST https:\/\/push\.example\.org/)[0]!;
+      const push = f.find(/POST https:\/\/fcm\.googleapis\.com\/fcm/)[0]!;
       expect(push.body).toBeNull();
       expect(f.find(/DELETE .*notify_channels\?id=eq\.4/)).toHaveLength(removed);
     }
+  });
+});
+
+describe('audit regressions (2026-10 review)', () => {
+  it('M-11: refuses a push address that is not a browser push service', async () => {
+    const keys = await generateVapidKeys();
+    const e = env({ VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey });
+    const f = fake([]);
+    for (const endpoint of ['https://attacker.example/x', 'https://169.254.169.254.nip.io/latest']) expect((await handleNotify(input({ fetchImpl: f.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint }, authorization: session() }))).status).toBe(400);
+    expect(f.find(/POST .*notify_channels/)).toHaveLength(0);
+  });
+
+  it('M-11 / I-25: op test is limited per owner', async () => {
+    const f = fake([[/GET .*notify_channels/, () => [{ id: 1, owner: OWNER, kind: 'telegram', ref: '555', secret: null }]], [/POST .*sendMessage/, () => new Response('{}')]]);
+    const statuses: number[] = [];
+    for (let i = 0; i < 5; i++) statuses.push((await handleNotify(input({ fetchImpl: f.fetchImpl, ip: `1.2.3.${i}`, body: { op: 'test' }, authorization: session() }))).status);
+    expect(statuses).toEqual([200, 200, 200, 429, 429]);
+    expect(f.find(/sendMessage/)).toHaveLength(3);
+  });
+
+  it('M-11: the alert job reads every channel in ordered pages, so many throwaway owners cannot hide real ones', async () => {
+    const page = (after: number) => Array.from({ length: after < 2000 ? 1000 : 3 }, (_, i) => ({ id: after + i + 1, owner: after + i + 1 === 2003 ? OWNER : `evm:0x${String(after + i).padStart(40, '0')}`, kind: 'telegram', ref: String(after + i), secret: null }));
+    const f = fake([[/GET .*notify_channels/, (c) => page(Number(/id=gt\.(\d+)/.exec(c.url)![1]))]]);
+    const out = await handleAlertsRun(input({ fetchImpl: f.fetchImpl, method: 'GET', authorization: 'Bearer cron-secret' }));
+    expect(JSON.parse(out.body)).toMatchObject({ owners: 2003 });
+    const reads = f.find(/GET .*notify_channels/);
+    expect(reads.map((c) => /id=gt\.(\d+)/.exec(c.url)![1])).toEqual(['0', '1000', '2000']);
+    expect(reads.every((c) => c.url.includes('order=id.asc'))).toBe(true);
+    expect(f.find(/rpc\/aretia_prune/)).toHaveLength(1);
+  });
+
+  it('M-11: the price budget is shared round-robin, and an owner with hundreds of favourites cannot take it all', () => {
+    const tok = (o: string, i: number) => ({ chain: 'base' as const, address: `0x${o}${String(i).padStart(39, '0')}`.slice(0, 42) });
+    const hog = Array.from({ length: 500 }, (_, i) => tok('a', i));
+    const small = [tok('b', 1), tok('c', 1)];
+    const picked = fairTokens(['hog', 'small'], (o) => (o === 'hog' ? hog : small), 10);
+    expect(picked).toHaveLength(10);
+    expect(picked).toEqual(expect.arrayContaining(small));
+    // the starting owner rotates between runs
+    expect(fairTokens(['x', 'y'], (o) => [tok(o === 'x' ? 'd' : 'e', 1)], 1, 1)[0]).toEqual(tok('e', 1));
+    expect(MAX_WATCHED_PER_OWNER).toBeLessThanOrEqual(50);
+  });
+
+  it('M-11: only the newest favourites of one owner are watched', async () => {
+    const favs = Array.from({ length: 300 }, (_, i) => ({ owner: OWNER, chain: 'base', address: '0x' + i.toString(16).padStart(40, '0'), symbol: 'T', icon: null }));
+    const f = fake([[/GET .*notify_channels/, () => [{ id: 1, owner: OWNER, kind: 'telegram', ref: '555', secret: null }]], [/GET .*user_favourites/, () => favs]]);
+    const out = await handleAlertsRun(input({ fetchImpl: f.fetchImpl, method: 'GET', authorization: 'Bearer cron-secret' }));
+    expect(JSON.parse(out.body).tokens).toBe(MAX_WATCHED_PER_OWNER);
+    expect(f.find(/GET .*user_favourites/)[0]!.url).toContain('order=owner.asc,added_at.desc');
+  });
+
+  it('M-11: a stored channel that is not on a push service is removed, never contacted', async () => {
+    const keys = await generateVapidKeys();
+    const e = env({ VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey });
+    const f = fake([[/GET .*notify_channels/, () => [{ id: 9, owner: OWNER, kind: 'webpush', ref: 'https://attacker.example/x', secret: 's'.repeat(48) }]], [/POST .*sendMessage/, () => new Response('{}')]]);
+    await handleNotify(input({ fetchImpl: f.fetchImpl, env: e, body: { op: 'test' }, authorization: session() }));
+    expect(f.find(/attacker\.example/).filter((c) => !c.url.includes('/rest/v1/'))).toHaveLength(0);
+    expect(f.find(/DELETE .*notify_channels\?id=eq\.9/)).toHaveLength(1);
+  });
+
+  it('I-22: the inbox secret is read from a header (the query is still accepted) and compared in constant time', async () => {
+    const routes: [RegExp, Handler][] = [[/GET .*notify_channels/, () => [{ id: 3, secret: 'k'.repeat(48) }]], [/GET .*notify_inbox/, () => [{ id: 1, title: 't', body: 'b', url: '/wallet' }]]];
+    const ok = await handleNotify(input({ fetchImpl: fake(routes).fetchImpl, method: 'GET', query: { inbox: '3' }, inboxSecret: 'k'.repeat(48) }));
+    expect(ok.status).toBe(200);
+    expect((await handleNotify(input({ fetchImpl: fake(routes).fetchImpl, method: 'GET', query: { inbox: '3', s: 'k'.repeat(48) } }))).status).toBe(200);
+    expect((await handleNotify(input({ fetchImpl: fake(routes).fetchImpl, method: 'GET', query: { inbox: '3' }, inboxSecret: 'k'.repeat(47) + 'x' }))).status).toBe(404);
   });
 });

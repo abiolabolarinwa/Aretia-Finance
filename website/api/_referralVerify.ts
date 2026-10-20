@@ -1,6 +1,7 @@
 /**
  * Reads a swap's fee payment back from the chain, so a referral is credited for what Aretia really received and never for what a
- * browser says. Read-only: it asks a public node about a transaction that is already final.
+ * browser says. Read-only: it asks a public node about a transaction, and counts it only once it is final: `finalized` on Solana,
+ * and on EVM chains buried under `EVM_CONFIRMATIONS` blocks (until then the answer is `pending` and the page reports it again).
  *
  *  - Solana: the transaction's signer must be the trader, and the fee wallet's balance must have gone up in that transaction (SOL, or
  *    USDC / USDT held by the fee wallet). The amount credited is that rise.
@@ -33,6 +34,38 @@ export const EVM_READ_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>> 
   avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
   robinhood: 'https://robinhood-rpc.publicnode.com',
 };
+
+/**
+ * Blocks that must sit on top of a fee payment before it is credited, per EVM chain. Chosen to reach the chain's own finality, or
+ * a couple of minutes where finality comes from L1:
+ *  - ethereum 64: two epochs, about 13 minutes, when the block is finalized by the beacon chain;
+ *  - bnb 30: fast finality (BEP-126) finalizes in two to three blocks; 30 blocks is about 25 seconds at 0.75 s;
+ *  - polygon 64: about two minutes at 2 s, well past Heimdall v2 milestones (seconds);
+ *  - base / optimism 60: about two minutes at 2 s (sequencer reorgs are not expected; L1 batch posting follows);
+ *  - arbitrum / robinhood 480: about two minutes at 0.25 s;
+ *  - avalanche 1: Snowman consensus is final when the block is accepted.
+ */
+export const EVM_CONFIRMATIONS: Readonly<Record<Exclude<ChainId, 'solana'>, number>> = {
+  ethereum: 64,
+  bnb: 30,
+  polygon: 64,
+  base: 60,
+  arbitrum: 480,
+  optimism: 60,
+  avalanche: 1,
+  robinhood: 480,
+};
+
+/**
+ * The one spelling of a transaction id that is stored and compared: EVM hashes in lower case (a node reads any letter case as the
+ * same transaction, the database would not), Solana signatures exactly as written (base58 is case-sensitive). Null for anything
+ * that is not a well-formed id of that chain.
+ */
+export function canonicalTx(chain: ChainId, tx: unknown): string | null {
+  if (typeof tx !== 'string') return null;
+  if (CHAINS[chain].kind === 'solana') return /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(tx) ? tx : null;
+  return /^0x[0-9a-fA-F]{64}$/.test(tx) ? tx.toLowerCase() : null;
+}
 
 export interface VerifyEnv {
   SOLANA_RPC_URL?: string;
@@ -87,13 +120,18 @@ interface EvmReceipt { status?: string; blockNumber?: string; logs?: EvmLog[] }
 
 export async function verifyEvmFee(input: { chain: ChainId; hash: string; trader: string; env: VerifyEnv; fetchImpl: typeof fetch }): Promise<Verified> {
   const url = (EVM_READ_RPC as Record<string, string>)[input.chain];
-  if (!url || CHAINS[input.chain].kind !== 'evm' || !/^0x[0-9a-fA-F]{64}$/.test(input.hash)) return { ok: false, reason: 'unreadable' };
+  // Only the canonical (lower-case) spelling is read, so one payment can never be presented under several names.
+  if (!url || CHAINS[input.chain].kind !== 'evm' || !/^0x[0-9a-f]{64}$/.test(input.hash)) return { ok: false, reason: 'unreadable' };
   const treasury = evmFeeAddress(input.env);
   const trader = input.trader.toLowerCase();
   try {
     const [tx, receipt] = (await Promise.all([rpc(input.fetchImpl, url, 'eth_getTransactionByHash', [input.hash]), rpc(input.fetchImpl, url, 'eth_getTransactionReceipt', [input.hash])])) as [EvmTx | null, EvmReceipt | null];
     if (!tx || !receipt || !receipt.blockNumber) return { ok: false, reason: 'pending' };
     if (receipt.status !== '0x1') return { ok: false, reason: 'failed' };
+    // Not final yet: reported again later by the page.
+    const head = (await rpc(input.fetchImpl, url, 'eth_blockNumber', [])) as string | null;
+    const depth = EVM_CONFIRMATIONS[input.chain as Exclude<ChainId, 'solana'>] ?? 64;
+    if (typeof head !== 'string' || word(head) - word(receipt.blockNumber) + 1n < BigInt(depth)) return { ok: false, reason: 'pending' };
     const block = (await rpc(input.fetchImpl, url, 'eth_getBlockByNumber', [receipt.blockNumber, false])) as { timestamp?: string } | null;
     if (!block?.timestamp) return { ok: false, reason: 'unreadable' };
     const at = Number(word(block.timestamp)) * 1000;
@@ -131,7 +169,7 @@ export async function verifySolanaFee(input: { signature: string; trader: string
   if (!/^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(input.signature)) return { ok: false, reason: 'unreadable' };
   const url = input.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com';
   try {
-    const tx = (await rpc(input.fetchImpl, url, 'getTransaction', [input.signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }])) as SolTx | null;
+    const tx = (await rpc(input.fetchImpl, url, 'getTransaction', [input.signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }])) as SolTx | null;
     if (!tx || !tx.meta) return { ok: false, reason: 'pending' };
     if (tx.meta.err) return { ok: false, reason: 'failed' };
     const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) => (typeof k === 'string' ? { pubkey: k, signer: false } : { pubkey: k.pubkey ?? '', signer: k.signer === true }));

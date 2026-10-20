@@ -53,16 +53,24 @@ export async function vapidAuthorization(keys: VapidKeys, endpoint: string, nowM
 
 /** Wakes a browser. Returns the push service's status: 201 queued, 404 or 410 the browser is gone for good. */
 export async function sendPush(fetchImpl: typeof fetch, keys: VapidKeys, endpoint: string, nowMs: number): Promise<number> {
-  const res = await fetchImpl(endpoint, { method: 'POST', headers: { authorization: await vapidAuthorization(keys, endpoint, nowMs), ttl: '3600', urgency: 'high', 'content-length': '0' } });
+  // Only a known push service is ever asked (validPushEndpoint), and a redirect is never followed to somewhere else.
+  if (!validPushEndpoint(endpoint)) return 400;
+  const res = await fetchImpl(endpoint, { method: 'POST', redirect: 'manual', headers: { authorization: await vapidAuthorization(keys, endpoint, nowMs), ttl: '3600', urgency: 'high', 'content-length': '0' } });
   return res.status;
 }
 
-/** A push address is only ever an https address on a push service; anything else is refused. */
+/** The browsers' push services: Chrome / Edge-on-Chromium (FCM), Firefox (Mozilla autopush), Windows (WNS) and Safari (Apple). */
+const PUSH_HOSTS = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com'];
+const PUSH_HOST_SUFFIXES = ['.push.services.mozilla.com', '.notify.windows.com'];
+
+/** A push address is only ever an https address on one of the browsers' push services; anything else is refused. */
 export function validPushEndpoint(v: unknown): v is string {
   if (typeof v !== 'string' || v.length > 600) return false;
   try {
     const u = new URL(v);
-    return u.protocol === 'https:' && u.hostname.includes('.') && !u.username && !u.password;
+    if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return false;
+    const host = u.hostname.toLowerCase();
+    return PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some((s) => host.endsWith(s) && /^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(host.slice(0, -s.length)));
   } catch {
     return false;
   }

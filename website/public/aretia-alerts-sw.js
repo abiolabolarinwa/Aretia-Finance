@@ -13,7 +13,8 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 async function waiting() {
   if (!channel || !secret) return [];
   try {
-    const res = await fetch(`/api/swings-notify?inbox=${encodeURIComponent(channel)}&s=${encodeURIComponent(secret)}`, { cache: 'no-store' });
+    // The secret goes in a header, not the address, so it does not end up in request logs.
+    const res = await fetch(`/api/swings-notify?inbox=${encodeURIComponent(channel)}`, { cache: 'no-store', headers: { 'x-inbox-secret': secret } });
     if (!res.ok) return [];
     const body = await res.json();
     return Array.isArray(body.messages) ? body.messages : [];

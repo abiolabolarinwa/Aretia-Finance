@@ -9,7 +9,8 @@
  *                             { op: 'prefs', movePct, enabled }              how big a move to report, and on/off
  *                             { op: 'orders', orders: [...] }                copy the browser's price orders so the server watches them
  *                             { op: 'test' }                                 send a test message to every channel
- *   GET  /api/swings-notify?inbox=<id>&s=<secret>                            a browser collects its waiting messages
+ *   GET  /api/swings-notify?inbox=<id>  (X-Inbox-Secret: <secret>)            a browser collects its waiting messages
+ *                                                                            (the old ?s=<secret> is still read, for workers not yet updated)
  *   POST /api/swings-telegram                                                Telegram's webhook (the bot's messages)
  *   GET  /api/swings-alerts-run                                              the scheduled check (Authorization: Bearer CRON_SECRET)
  *
@@ -18,7 +19,9 @@
  */
 import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit } from './_rpcProxy.js';
-import { readSession } from './_swingsAuth.js';
+import { sessionOwner, sessionSecret } from './_swingsAuth.js';
+import { bearerMatches, sameSecret } from './_secrets.js';
+import { overBudget } from './_limits.js';
 import { rest, type Rest } from './_swingsAccount.js';
 import { isChainId, type ChainId } from '../src/swings/core/types.js';
 import { normalizeTokenRef } from '../src/swings/core/token.js';
@@ -55,11 +58,24 @@ export interface NotifyInput {
   now: number;
   /** Telegram's `X-Telegram-Bot-Api-Secret-Token` header, for the webhook. */
   telegramSecret?: string | null;
+  /** The browser inbox's `X-Inbox-Secret` header. */
+  inboxSecret?: string | null;
 }
 
 const MAX_CHANNELS = 6;
 const MAX_ORDERS = 20;
 const LINK_TTL_MS = 15 * 60_000;
+/** Test messages one owner may ask for per ten minutes. */
+const TESTS_PER_10_MIN = 3;
+/** Favourites per owner the alert job watches (the most recently added). Price orders are always watched. */
+export const MAX_WATCHED_PER_OWNER = 50;
+/** Tokens priced per alert run, shared fairly between owners. */
+export const PRICE_BUDGET = 400;
+/** Channels read per page, and pages per run. */
+const CHANNEL_PAGE = 1000;
+const MAX_CHANNEL_PAGES = 30;
+/** Owners read per batch of favourites: MAX_FAVOURITES (500) each, so a batch always fits in one 5000-row answer. */
+const OWNER_BATCH = 10;
 const DEFAULT_ORIGIN = 'https://aretiafinance.org';
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const json = (status: number, data: unknown, headers: Record<string, string>): TokensOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
@@ -101,6 +117,11 @@ export async function deliver(env: NotifyEnv, fetchImpl: typeof fetch, db: Rest,
     } else {
       const keys = vapidFrom(env);
       if (!keys) return false;
+      // An address stored before push services were checked, and not on one, is removed rather than contacted.
+      if (!validPushEndpoint(ch.ref)) {
+        await db.call(`notify_channels?id=eq.${ch.id}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
+        return false;
+      }
       await db.call('notify_inbox', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ channel_id: ch.id, title: m.title, body: m.body, url: m.url, created_at: now }) });
       const status = await sendPush(fetchImpl, keys, ch.ref, now);
       if (status === 404 || status === 410) {
@@ -119,7 +140,7 @@ export async function deliver(env: NotifyEnv, fetchImpl: typeof fetch, db: Rest,
 function database(env: NotifyEnv, fetchImpl: typeof fetch): { db: Rest; secret: string } | null {
   const url = supabaseBase(env.SUPABASE_URL);
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  return url && key ? { db: rest(url, key, fetchImpl), secret: env.SWINGS_SESSION_SECRET?.trim() || key } : null;
+  return url && key ? { db: rest(url, key, fetchImpl), secret: sessionSecret(env) ?? key } : null;
 }
 
 /** A price order as the page sends it, checked field by field. */
@@ -151,12 +172,12 @@ export async function handleNotify(input: NotifyInput): Promise<TokensOutput> {
   if (input.method === 'GET') {
     if (!base) return json(503, { error: 'not-configured' }, headers);
     const id = Number(input.query.inbox);
-    const secret = input.query.s ?? '';
+    const secret = input.inboxSecret ?? input.query.s ?? '';
     if (!Number.isInteger(id) || id < 1 || secret.length < 16 || secret.length > 80) return json(400, { error: 'bad-request' }, headers);
     if (overLimit(`inbox:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
     try {
       const ch = (await base.db.call(`notify_channels?id=eq.${id}&kind=eq.webpush&select=id,secret`)) as { id: number; secret: string | null }[];
-      if (!ch[0] || ch[0].secret !== secret) return json(404, { error: 'not-found' }, headers);
+      if (!ch[0] || !sameSecret(secret, ch[0].secret)) return json(404, { error: 'not-found' }, headers);
       const rows = (await base.db.call(`notify_inbox?channel_id=eq.${id}&select=id,title,body,url&order=created_at.asc&limit=20`)) as { id: number; title: string; body: string; url: string }[];
       if (rows.length > 0) await base.db.call(`notify_inbox?id=in.(${rows.map((r) => Number(r.id)).join(',')})`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       return json(200, { messages: rows.map((r) => ({ title: r.title, body: r.body, url: r.url })) }, headers);
@@ -175,8 +196,12 @@ export async function handleNotify(input: NotifyInput): Promise<TokensOutput> {
 
   if (!base) return json(503, { error: 'not-configured', message: 'Alerts to your phone are not set up on this server yet.' }, headers);
   if (overLimit(`notify:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
-  const bearer = input.authorization?.startsWith('Bearer ') ? input.authorization.slice(7).trim() : null;
-  const owner = readSession(base.secret, bearer, input.now);
+  let owner: string | null;
+  try {
+    owner = await sessionOwner(base.secret, input.authorization, input.now, base.db);
+  } catch {
+    return json(502, { error: 'database', message: 'Your alert settings could not be reached.' }, headers);
+  }
   if (!owner) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
   const q = encodeURIComponent(owner);
   const { db } = base;
@@ -229,6 +254,7 @@ export async function handleNotify(input: NotifyInput): Promise<TokensOutput> {
       return json(200, { saved: given.length, reached: have.filter((h) => h.hit_at !== null && keep.includes(h.id)).map((h) => ({ id: h.id, price: Number(h.hit_price ?? 0) })) }, headers);
     }
     if (op === 'test') {
+      if (overBudget(`notify-test:${owner}`, input.now, TESTS_PER_10_MIN, 10 * 60_000)) return json(429, { error: 'rate-limit', message: 'Wait a few minutes before sending another test.' }, { ...headers, 'retry-after': '600' });
       const chs = await channels();
       if (chs.length === 0) return json(409, { error: 'none', message: 'Link Telegram or this browser first.' }, headers);
       const m: PlannedMessage = { kind: 'move', title: 'Aretia test alert', body: 'If you can read this, alerts reach this device.', url: '/wallet#/favourites' };
@@ -249,7 +275,7 @@ export async function handleTelegramWebhook(input: NotifyInput): Promise<TokensO
   const secret = input.env.TELEGRAM_WEBHOOK_SECRET?.trim();
   const token = input.env.TELEGRAM_BOT_TOKEN?.trim();
   if (input.method !== 'POST') return json(405, { error: 'method' }, headers);
-  if (!secret || !token || input.telegramSecret !== secret) return json(401, { error: 'unauthorized' }, headers);
+  if (!secret || !token || !sameSecret(input.telegramSecret, secret)) return json(401, { error: 'unauthorized' }, headers);
   const base = database(input.env, input.fetchImpl);
   const update = readUpdate(input.body);
   // Anything unreadable is acknowledged, so Telegram does not send it again.
@@ -280,17 +306,49 @@ export async function handleTelegramWebhook(input: NotifyInput): Promise<TokensO
   return json(200, { ok: true }, headers);
 }
 
+/**
+ * The tokens to price, round-robin across owners: every owner's first token (their price orders first), then every owner's second,
+ * and so on, until `budget` distinct tokens are chosen. The owner the rounds start from moves with `rotate`, so when the budget runs
+ * out it is not always the same owners who miss out. A token several owners watch is counted once.
+ */
+export function fairTokens<T extends { chain: ChainId; address: string }>(owners: readonly string[], watched: (owner: string) => T[], budget: number, rotate = 0): T[] {
+  if (owners.length === 0 || budget <= 0) return [];
+  const start = ((rotate % owners.length) + owners.length) % owners.length;
+  const order = [...owners.slice(start), ...owners.slice(0, start)];
+  const lists = order.map((o) => watched(o));
+  const out = new Map<string, T>();
+  const longest = Math.max(0, ...lists.map((l) => l.length));
+  for (let round = 0; round < longest && out.size < budget; round++) {
+    for (const list of lists) {
+      const t = list[round];
+      if (!t) continue;
+      const k = watchKey(t.chain, t.address);
+      if (!out.has(k)) out.set(k, t);
+      if (out.size >= budget) break;
+    }
+  }
+  return [...out.values()];
+}
+
 /** The scheduled check: reads what everyone with a linked channel watches, and sends what is owed. */
 export async function handleAlertsRun(input: NotifyInput): Promise<TokensOutput> {
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
-  const secret = input.env.CRON_SECRET?.trim();
-  if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  if (!bearerMatches(input.authorization, input.env.CRON_SECRET?.trim())) return json(401, { error: 'unauthorized' }, headers);
   const base = database(input.env, input.fetchImpl);
   if (!base) return json(503, { error: 'not-configured' }, headers);
   const { db } = base;
   const stats = { owners: 0, tokens: 0, sent: 0, failed: 0, ordersReached: 0 };
+  // Old link codes, inbox messages, tracked pools and records are removed by the database (migration 0014); best-effort.
+  await db.call('rpc/aretia_prune', { method: 'POST', body: JSON.stringify({ now_ms: input.now }) }).catch(() => undefined);
   try {
-    const chs = (await db.call('notify_channels?select=id,owner,kind,ref,secret&limit=3000')) as Channel[];
+    // Every channel, in pages ordered by id, so no group of owners can crowd out the rest of a single unordered read.
+    const chs: Channel[] = [];
+    for (let page = 0, after = 0; page < MAX_CHANNEL_PAGES; page++) {
+      const rows = (await db.call(`notify_channels?id=gt.${after}&select=id,owner,kind,ref,secret&order=id.asc&limit=${CHANNEL_PAGE}`)) as Channel[];
+      chs.push(...rows);
+      if (rows.length < CHANNEL_PAGE) break;
+      after = Number(rows[rows.length - 1]!.id);
+    }
     const byOwner = new Map<string, Channel[]>();
     for (const c of chs) byOwner.set(c.owner, [...(byOwner.get(c.owner) ?? []), c]);
     const prefs = new Map<string, { movePct: number; enabled: boolean }>();
@@ -298,28 +356,30 @@ export async function handleAlertsRun(input: NotifyInput): Promise<TokensOutput>
     const orders = new Map<string, PriceOrder[]>();
     const states = new Map<string, Record<string, number>>();
     const owners = [...byOwner.keys()];
-    for (let i = 0; i < owners.length; i += 25) {
-      const list = encodeURIComponent(inList(owners.slice(i, i + 25)));
+    for (let i = 0; i < owners.length; i += OWNER_BATCH) {
+      const list = encodeURIComponent(inList(owners.slice(i, i + OWNER_BATCH)));
       const [p, f, o, s] = await Promise.all([
         db.call(`notify_prefs?owner=${list}&select=owner,move_pct,enabled`) as Promise<{ owner: string; move_pct: number; enabled: boolean }[]>,
-        db.call(`user_favourites?owner=${list}&select=owner,chain,address,symbol,icon&limit=5000`) as Promise<{ owner: string; chain: ChainId; address: string; symbol: string; icon: string | null }[]>,
+        db.call(`user_favourites?owner=${list}&select=owner,chain,address,symbol,icon&order=owner.asc,added_at.desc&limit=5000`) as Promise<{ owner: string; chain: ChainId; address: string; symbol: string; icon: string | null }[]>,
         db.call(`user_price_orders?owner=${list}&hit_at=is.null&select=owner,id,chain,address,symbol,name,icon,side,target_usd,created_at&limit=2000`) as Promise<{ owner: string; id: string; chain: ChainId; address: string; symbol: string; name: string; icon: string | null; side: 'buy' | 'sell'; target_usd: number; created_at: number }[]>,
         db.call(`notify_state?owner=${list}&select=owner,token_key,baseline&limit=20000`) as Promise<{ owner: string; token_key: string; baseline: number }[]>,
       ]);
       for (const r of p) prefs.set(r.owner, { movePct: r.move_pct, enabled: r.enabled });
-      for (const r of f) favs.set(r.owner, [...(favs.get(r.owner) ?? []), { chain: r.chain, address: r.address, symbol: r.symbol, icon: r.icon }]);
+      for (const r of f) {
+        const list = favs.get(r.owner) ?? [];
+        if (list.length < MAX_WATCHED_PER_OWNER) list.push({ chain: r.chain, address: r.address, symbol: r.symbol, icon: r.icon });
+        favs.set(r.owner, list);
+      }
       for (const r of o) orders.set(r.owner, [...(orders.get(r.owner) ?? []), { id: r.id, chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon, side: r.side, targetUsd: Number(r.target_usd), createdAt: Number(r.created_at), hitAt: null, hitPrice: null }]);
       for (const r of s) states.set(r.owner, { ...(states.get(r.owner) ?? {}), [r.token_key]: Number(r.baseline) });
     }
     stats.owners = owners.length;
 
-    // One price lookup for every token anyone watches, however many people watch it.
-    const wanted = new Map<string, { chain: ChainId; address: string; symbol: string; name: string; icon: string | null; addedAt: number }>();
-    for (const owner of owners) {
-      for (const f of favs.get(owner) ?? []) wanted.set(watchKey(f.chain, f.address), { chain: f.chain, address: f.address, symbol: f.symbol, name: '', icon: f.icon, addedAt: input.now });
-      for (const o of orders.get(owner) ?? []) wanted.set(watchKey(o.chain, o.address), { chain: o.chain, address: o.address, symbol: o.symbol, name: o.name, icon: o.icon, addedAt: input.now });
-    }
-    const tokens = [...wanted.values()].slice(0, 400);
+    // One price lookup for every token anyone watches, however many people watch it, within a budget shared fairly.
+    const tokens = fairTokens(owners, (o) => [
+      ...(orders.get(o) ?? []).map((x) => ({ chain: x.chain, address: x.address, symbol: x.symbol, name: x.name, icon: x.icon, addedAt: input.now })),
+      ...(favs.get(o) ?? []).map((f) => ({ chain: f.chain, address: f.address, symbol: f.symbol, name: '', icon: f.icon, addedAt: input.now })),
+    ], PRICE_BUDGET, Math.floor(input.now / 60_000));
     stats.tokens = tokens.length;
     const prices: Record<string, number | null> = {};
     if (tokens.length > 0) for (const r of await rowsFromFavourites(tokens, input.fetchImpl, () => input.now)) prices[watchKey(r.chain, r.address)] = r.priceUsd;

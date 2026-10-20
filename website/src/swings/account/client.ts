@@ -32,7 +32,16 @@ export interface SavedFavourite {
 
 const KEY = 'aretia-account-sessions-v1';
 
-const randomHex = (bytes: number): string => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+/**
+ * `Authorization` for a request about `address` (e.g. a ramp payment link), from the sign-in saved in this browser, or nothing
+ * when that address has not signed in. The family is read from the address's shape.
+ */
+export function authorizationFor(storage: StorageLike | null, address: unknown, now: number = Date.now()): Record<string, string> {
+  if (typeof address !== 'string' || address.length === 0) return {};
+  const family: WalletFamily = /^0x[0-9a-fA-F]{40}$/.test(address) ? 'evm' : 'solana';
+  const s = new AccountClient(storage, undefined, () => now, () => '').session(family, address);
+  return s ? { authorization: `Bearer ${s.token}` } : {};
+}
 
 export class AccountClient {
   constructor(
@@ -75,7 +84,11 @@ export class AccountClient {
   }
 
   async signIn(signer: Signer): Promise<Session> {
-    const message = loginMessage({ family: signer.family, address: signer.address, domain: this.domain(), issuedAt: this.now(), nonce: randomHex(16) });
+    // The nonce is issued by the server and works once, so a signature cannot be replayed.
+    const n = await this.fetchImpl('/api/swings-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'nonce' }) });
+    const issued = (await n.json().catch(() => null)) as { nonce?: string; message?: string } | null;
+    if (!n.ok || typeof issued?.nonce !== 'string' || !/^[0-9a-f]{16,64}$/.test(issued.nonce)) throw new Error(issued?.message ?? 'Signing in is not available right now. Try again.');
+    const message = loginMessage({ family: signer.family, address: signer.address, domain: this.domain(), issuedAt: this.now(), nonce: issued.nonce });
     const signature = await signer.sign(message);
     const res = await this.fetchImpl('/api/swings-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'login', message, signature }) });
     const body = (await res.json().catch(() => null)) as { token?: string; expiresAt?: number; owner?: string; address?: string; message?: string } | null;
@@ -97,6 +110,14 @@ export class AccountClient {
     const body = (await res.json().catch(() => null)) as (T & { message?: string }) | null;
     if (!res.ok || !body) throw new Error((body as { message?: string } | null)?.message ?? 'Your saved data could not be reached.');
     return body;
+  }
+
+  /** Ends every session of this address, on every device (the server raises the address's session version). */
+  async signOutEverywhere(session: Session): Promise<void> {
+    await this.call(session, { op: 'sign-out-all' }).catch(() => undefined);
+    const all = this.readAll();
+    delete all[session.owner];
+    this.writeAll(all);
   }
 
   get(session: Session): Promise<{ favourites: SavedFavourite[]; trades: HistoryItem[] }> {

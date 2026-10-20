@@ -7,6 +7,8 @@
  * It uses the same plan runner, executors, safety checks and recovery advice as everything else. Each step starts only
  * when the one before is proven by your own balance, and anything it cannot verify makes it wait, not guess.
  */
+import { authorizationFor } from '../swings/account/client.js';
+import { browserStorage } from '../swings/history.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, SwingsError, type ChainId } from '../swings/core/types.js';
 import { readBalance } from '../swings/chains/evmSession.js';
 import { CCTP_USDC } from '../swings/settlement/cctp.js';
@@ -76,7 +78,8 @@ const saveCountry = (v: string): void => {
 export function initPlan(root: HTMLElement, rt: CrossChainRuntime): { draw(): void } {
   const { evm, isEnabled, reader, engine, orchestrator, adoptWallet } = rt;
   const api = async (body: Record<string, unknown>): Promise<unknown> => {
-    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    // A payment link is signed only for the wallet signed in on this browser (Save to my wallet).
+    const res = await fetch('/api/ramp', { method: 'POST', headers: { 'content-type': 'application/json', ...authorizationFor(browserStorage(), body.wallet) }, body: JSON.stringify(body) });
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     if (!res.ok || !data) throw new Error(data?.error ?? `The service answered ${res.status}`);
     return data;

@@ -117,7 +117,7 @@ describe('inspectors', () => {
 const w = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
 const aw = (a: string) => '0x' + a.slice(2).padStart(64, '0');
 
-function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3; feeRejectOnce?: boolean; lpSupply?: bigint; seeder?: string; seederQuote?: [boolean, bigint, bigint] } = {}) {
+function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3; feeRejectOnce?: boolean; lpSupply?: bigint; seeder?: string; seederQuote?: [boolean, bigint, bigint]; seederRouter?: string } = {}) {
   const sent: { to?: string; data?: string; value?: string; gas?: string }[] = [];
   let approved = false;
   let opened = false;
@@ -148,6 +148,7 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
       if (c.to === PAIR && d === SEL.getReserves) return '0x' + (opened ? (s.reserves ?? [TOKENS, COIN])[0] : (s.existing?.[0] ?? 0n)).toString(16).padStart(64, '0') + (opened ? (s.reserves ?? [TOKENS, COIN])[1] : (s.existing?.[1] ?? 0n)).toString(16).padStart(64, '0') + '0'.repeat(64);
       if (c.to === PAIR && d === SEL.token0) return aw(TOKEN);
       if (c.to === PAIR && d === SEL.totalSupply) return w(s.lpSupply ?? (s.existing && (s.existing[0] > 0n || s.existing[1] > 0n) ? 1000n : 0n));
+      if (s.seeder && c.to === s.seeder && d.startsWith(SEEDER_SEL.router)) return '0x' + '0'.repeat(24) + (s.seederRouter ?? dex.router).slice(2);
       if (s.seeder && c.to === s.seeder && d.startsWith(SEEDER_SEL.quote)) {
         const q = s.seederQuote ?? [true, TOKENS, COIN];
         return '0x' + [q[0] ? 1n : 0n, BigInt(PAIR), q[1], q[2]].map((v) => v.toString(16).padStart(64, '0')).join('');
@@ -238,6 +239,13 @@ describe('PoolFlow', () => {
     await x.flow.create(review);
     expect(x.sent[1]!.to).toBe(SEEDER);
     expect(x.sent[1]!.data!.startsWith(SEEDER_SEL.seed)).toBe(true);
+  });
+  it('refuses a configured seeder built for another router, before approving anything to it (re-audit N-3)', async () => {
+    const SEEDER = '0x5eed000000000000000000000000000000005eed';
+    const x = world({ existing: [0n, 1n], lpSupply: 0n, seeder: SEEDER, seederRouter: OTHER });
+    const review = await x.flow.prepare(config());
+    expect(review.blockers.join(' ')).toMatch(/not set up for this exchange/);
+    expect(review.seed).toBeNull();
   });
   it('a pair made first holding more than the chosen amounts cannot be seeded', async () => {
     const SEEDER = '0x5eed000000000000000000000000000000005eed';

@@ -16,7 +16,7 @@ import { SwingsError } from '../swings/core/types.js';
 import type { EvmFlowDeps } from './walletLaunchEvmFlow';
 import { toHexQuantity } from './walletLaunchEvmTx';
 import { EVM_PAIR_SEEDER_ADDRESSES, type PoolConfig } from './walletPoolEvmCore';
-import { SEL, buildAddTx, buildApproveTx, buildFeeTx, buildSeedApproveTx, buildSeedTx, inspectAddTx, inspectApproveTx, inspectFeeTx, inspectSeedTx, seederQuoteData } from './walletPoolEvmTx';
+import { SEEDER_SEL, SEL, buildAddTx, buildApproveTx, buildFeeTx, buildSeedApproveTx, buildSeedTx, inspectAddTx, inspectApproveTx, inspectFeeTx, inspectSeedTx, seederQuoteData } from './walletPoolEvmTx';
 
 export interface PoolFlowDeps extends EvmFlowDeps {
   /** Unix seconds. */
@@ -81,6 +81,14 @@ export class PoolFlow {
   private sleep = (ms: number) => (this.d.sleep ?? ((n: number) => new Promise<void>((r) => setTimeout(r, n))))(ms);
   private call = (to: string, data: string): Promise<unknown> => this.d.read('eth_call', [{ to, data }, 'latest']);
 
+  /** The seeder must have code and be built for this exchange's router, before anything is approved to it (re-audit N-3). */
+  private async seederIsGenuine(seeder: string, router: string): Promise<boolean> {
+    const code = await this.d.read('eth_getCode', [seeder, 'latest']);
+    if (typeof code !== 'string' || code === '0x') return false;
+    const r = await this.call(seeder, SEEDER_SEL.router);
+    return typeof r === 'string' && /^0x[0-9a-fA-F]{64}$/.test(r) && r.slice(-40).toLowerCase() === router.slice(2).toLowerCase();
+  }
+
   async prepare(config: PoolConfig): Promise<PoolReview> {
     const { dex } = config;
     const { read } = this.d;
@@ -125,6 +133,8 @@ export class PoolFlow {
               const seeder = this.seeders[dex.key] ?? null;
               if (!seeder) {
                 blockers.push(`Someone already made this token’s pool on ${dex.name} and left a few coins or tokens in it without adding liquidity. That blocks opening it through ${dex.name}’s router. Aretia’s pair seeder, which opens such a pool at exactly your amounts, is not deployed on this network yet, so this page cannot open it.`);
+              } else if (!(await this.seederIsGenuine(seeder, dex.router))) {
+                blockers.push('Aretia’s pair seeder is not on this network at the address this page expects, or it is not set up for this exchange, so nothing was sent.');
               } else {
                 const q = await this.call(seeder, seederQuoteData(config));
                 const ok = typeof q === 'string' && /^0x[0-9a-fA-F]{256}$/.test(q) && BigInt('0x' + q.slice(2, 66)) === 1n;

@@ -34,6 +34,12 @@ const MINIMUM_LIQUIDITY = 1000n;
 /** Below this share burned, nothing is marked. */
 export const LOCK_MIN_PCT = 50;
 
+/**
+ * Whether a row shows the padlock. A padlock covers only the pool's liquidity tokens; when the token itself keeps an admin power
+ * (minting, freezing, pausing, an upgradeable contract), burned liquidity does not protect a buyer, so no padlock is drawn.
+ */
+export const padlockShown = (lockedPct: number | null | undefined, risk?: { adminPowers?: boolean } | null): lockedPct is number => lockedPct !== null && lockedPct !== undefined && risk?.adminPowers !== true;
+
 const pct = (burned: bigint, total: bigint): number => (total <= 0n ? 0 : Number((burned * 10_000n) / total) / 100);
 
 /** Pure. The share of a pair's liquidity token that is burned, given its supply and the dead and zero balances. */

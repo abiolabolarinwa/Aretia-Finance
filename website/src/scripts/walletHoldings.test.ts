@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, type RawBalance } from './walletHoldings';
+import { dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, priceWithLiquidity, splitByPrice, type RawBalance } from './walletHoldings';
 
 const SOL = 'So11111111111111111111111111111111111111112';
 const account = (mint: unknown, amount: unknown, decimals: unknown, ui?: unknown) => ({
@@ -99,5 +99,32 @@ describe('splitByPrice', () => {
 
   it('keeps the original order', () => {
     expect(splitByPrice([h('B', 1), h('A', 2), h(SOL, 3)], SOL, false).shown.map((x) => x.mint)).toEqual(['B', 'A', SOL]);
+  });
+});
+
+describe('holding prices carry the pool behind them (audit M-8, L-29)', () => {
+  const WSOL = 'So11111111111111111111111111111111111111112';
+  const majors = new Set([WSOL.toLowerCase()]);
+  const SPAM = 'SpamSpamSpamSpamSpamSpamSpamSpamSpamSpam111';
+
+  it('takes the SOL-paired pool over a deeper pool against a made-up token', () => {
+    const got = dexScreenerPrices([
+      { baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 90_000_000 } },
+      { baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '0.01', liquidity: { usd: 50_000 } },
+    ], majors);
+    expect(got.get(SPAM)).toEqual({ price: 0.01, thin: false });
+  });
+
+  it('a price from a pool against an unknown token is thin; one from a dust pool gives no value at all', () => {
+    expect(dexScreenerPrices([{ baseToken: { address: SPAM }, quoteToken: { address: 'FakeQuote1111111111111111111111111111111111' }, priceUsd: '500', liquidity: { usd: 90_000_000 } }], majors).get(SPAM)).toEqual({ price: 500, thin: true });
+    expect(dexScreenerPrices([{ baseToken: { address: SPAM }, quoteToken: { address: WSOL }, priceUsd: '500', liquidity: { usd: 20 } }], majors).has(SPAM)).toBe(false);
+  });
+
+  it('Jupiter and GeckoTerminal prices are marked thin by their liquidity too', () => {
+    expect(priceWithLiquidity(3, null)).toEqual({ price: 3, thin: true });
+    expect(priceWithLiquidity(3, 5_000)).toEqual({ price: 3, thin: true });
+    expect(priceWithLiquidity(3, 2_000_000)).toEqual({ price: 3, thin: false });
+    expect(priceWithLiquidity(3, 999)).toBeNull();
+    expect(priceWithLiquidity(0, 2_000_000)).toBeNull();
   });
 });

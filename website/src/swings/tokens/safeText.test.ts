@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { hasLookalikeLetters, isOffensive, isUnsafeName } from './safeText.js';
+import { hasLookalikeLetters, isOffensive, isUnsafeName, reservedNameClaim, skeleton } from './safeText.js';
+import { ACT_MINT, impersonationWarning } from './impersonation.js';
 import { InMemoryTokenRepository, TokenRegistryService } from './registry.js';
 import type { TokenRecord } from '../core/types.js';
 
@@ -73,5 +74,36 @@ describe('look-alike letters', () => {
     expect(isUnsafeName('FAGGOT')).toBe(true);
     expect(isUnsafeName('ՍЅᎠТ')).toBe(true);
     expect(isUnsafeName('USDT', 'Tether')).toBe(false);
+  });
+});
+
+describe('impersonating names (audit L-15)', () => {
+  it('hides fullwidth, mathematical and Lisu look-alike letters', () => {
+    expect(isUnsafeName('ＵＳＤＣ', 'USD Coin')).toBe(true);
+    expect(isUnsafeName('𝖴𝖲𝖣𝖢', 'USD Coin')).toBe(true);
+    expect(isUnsafeName('𝐔𝐒𝐃𝐓')).toBe(true);
+    expect(isUnsafeName('ꓴꓢꓓꓚ')).toBe(true);
+    expect(isUnsafeName('USDC', 'USD Coin')).toBe(false);
+    expect(isUnsafeName('华夏', '한국')).toBe(false);
+  });
+
+  it('folds look-alikes to one skeleton', () => {
+    for (const t of ['USDC', 'ＵＳＤＣ', '𝖴𝖲𝖣𝖢', 'UЅDС', 'U​S⁠D﻿C', 'u.s.d.c', 'ꓴꓢꓓꓚ']) expect(skeleton(t), t).toBe('USDC');
+  });
+
+  it('names the well-known token a name claims to be, and nothing for ordinary names', () => {
+    expect(reservedNameClaim('ＵＳＤＣ', 'whatever')).toBe('USDC');
+    expect(reservedNameClaim('WΕTH', 'x')).toBe('WETH');
+    expect(reservedNameClaim('ACT', 'Some token')).toBe('ACT');
+    expect(reservedNameClaim('XYZ', 'Aretia Finance')).toBe('ARETIA');
+    expect(reservedNameClaim('PEPE', 'Pepe')).toBeNull();
+  });
+
+  it('warns only when the address is not the real one', () => {
+    expect(impersonationWarning('solana', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'USDC', 'USD Coin')).toBeNull();
+    expect(impersonationWarning('solana', ACT_MINT, 'ACT', 'Aretia')).toBeNull();
+    expect(impersonationWarning('solana', 'Fake1111111111111111111111111111111111111111', 'USDC', 'USD Coin')).toMatch(/not the USDC Aretia knows/);
+    expect(impersonationWarning('bnb', '0x' + '12'.repeat(20), 'X', 'Aretia Gold')).toMatch(/Aretia name/);
+    expect(impersonationWarning('ethereum', '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eB48', 'USDC', 'USD Coin')).toBeNull();
   });
 });

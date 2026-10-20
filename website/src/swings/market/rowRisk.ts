@@ -10,7 +10,7 @@
  * A token that could not be read says "Couldn't check" and why, rather than a label that means nothing.
  */
 import type { TokenRisk } from '../core/types.js';
-import { assessMarketData, RISK_LABELS } from '../tokens/risk.js';
+import { assessMarketData, hasAdminPowerWarning, RISK_LABELS } from '../tokens/risk.js';
 import type { MarketRow } from './types.js';
 
 export type RowRisk = NonNullable<MarketRow['risk']>;
@@ -49,7 +49,7 @@ export function marketReading(r: MarketRow, now = Date.now()): TokenRisk {
   return assessMarketData({ liquidityUsd: r.liquidityUsd, volume24hUsd: r.volume24hUsd, poolCount: r.pool ? 1 : null, ageHours: r.ageMs === null ? null : r.ageMs / 3_600_000 }, { now });
 }
 
-export const toRowRisk = (risk: TokenRisk, basis: NonNullable<RowRisk['basis']>): RowRisk => ({ status: risk.status, label: RISK_LABELS[risk.status] ?? risk.status, score: risk.score, basis });
+export const toRowRisk = (risk: TokenRisk, basis: NonNullable<RowRisk['basis']>): RowRisk => ({ status: risk.status, label: RISK_LABELS[risk.status] ?? risk.status, score: risk.score, basis, ...(hasAdminPowerWarning(risk) ? { adminPowers: true } : {}) });
 
 /** A rating that says something: it has a status other than "unknown" and a score. */
 const meaningful = (risk: RowRisk | null): risk is RowRisk => risk !== null && risk.status !== 'unknown' && risk.score !== null;
@@ -75,10 +75,12 @@ export function ratingView(r: MarketRow, state: CheckState | undefined): RatingV
     const label = risk.label;
     const band = bandOf(risk.status);
     if (risk.basis === 'market') {
+      // A market reading cannot see what the contract can do, so it is never drawn green.
+      const soft = band === 'green' ? 'yellow' : band;
       return {
         label,
-        tone: toneOf(risk.status),
-        band,
+        tone: soft === band ? toneOf(risk.status) : 'off',
+        band: soft,
         soft: true,
         checking: state !== 'failed',
         title: `${state === 'failed' ? 'Market reading only. The on-chain check could not be made.' : 'Market reading, from liquidity, trading and age. The contract is being checked.'} Behind the colour: concern score ${risk.score}/100 (higher means more concerns). It cannot see what the contract is able to do, so it is not a safety check.`,

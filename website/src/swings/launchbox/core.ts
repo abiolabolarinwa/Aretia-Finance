@@ -3,6 +3,7 @@
  * No network, no database. The indexer (indexer.ts) and the page both use this file, so the rules are written once.
  */
 import { keccak256 } from '../core/keccak.js';
+import { cleanText as clean, isUnsafeName } from '../tokens/safeText.js';
 
 export type LaunchChain = 'solana' | 'bnb' | 'ethereum' | 'polygon';
 export const LAUNCH_CHAINS: readonly LaunchChain[] = ['solana', 'bnb', 'ethereum', 'polygon'];
@@ -47,13 +48,12 @@ export interface LaunchRecord {
   source: 'factory' | 'nonce' | 'solana-fee';
 }
 
-/** Text from the chain made safe to store and show: control characters out, trimmed, cut to length. */
-// Control, zero-width and bidirectional-override characters.
-// eslint-disable-next-line no-control-regex
-const UNSAFE = new RegExp('[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]', 'g');
-
+/**
+ * Text from the chain made safe to store and show: NFC, control, zero-width, bidirectional, invisible-operator and stacking
+ * combining characters out, trimmed, cut to length (tokens/safeText.ts has the full list).
+ */
 export function cleanText(s: string, max: number): string {
-  return s.replace(UNSAFE, '').trim().slice(0, max);
+  return clean(s, max);
 }
 
 // ---------------------------------------------------------------- EVM
@@ -199,7 +199,9 @@ const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
  * Decides whether a transaction is an Aretia Solana token creation. It must have succeeded and contain, as top-level instructions,
  * BOTH a System transfer of exactly 0.05 SOL to the Aretia fee wallet from a signer AND a Token-2022 InitializeMint for a mint that the
  * same transaction created (System CreateAccount owned by Token-2022). A transaction that pays the fee but makes no new mint, or makes
- * a mint but does not pay, or makes more than one mint, is refused. Names and symbols are never read from the transaction.
+ * a mint but does not pay, or makes more than one mint, is refused, and so is a mint whose mint authority is not the payer or that has
+ * a freeze authority. Names and symbols are never read from the transaction. The mint account itself is then checked against the
+ * on-chain programs' rule by the indexer (tokens/token2022.ts `mintRuleProblems`).
  *
  * What this cannot prove: someone could build a transaction of exactly that shape without using the Launch page. It would be listed;
  * the token is real and was created in a transaction that paid Aretia the fee, but it did not come from Aretia's own page.
@@ -214,7 +216,7 @@ export function acceptSolanaLaunch(tx: ParsedTx | null | undefined, signature: s
 
   let payer: string | null = null;
   const created = new Set<string>();
-  const inits: { mint: string; decimals: number | null }[] = [];
+  const inits: { mint: string; decimals: number | null; mintAuthority: unknown; freezeAuthority: unknown }[] = [];
   for (const ix of message.instructions) {
     const p = typeof ix.parsed === 'object' && ix.parsed ? ix.parsed : null;
     if (!p || typeof p.type !== 'string' || !p.info) continue;
@@ -223,13 +225,16 @@ export function acceptSolanaLaunch(tx: ParsedTx | null | undefined, signature: s
       if (p.type === 'transfer' && info.destination === feeWallet && typeof info.source === 'string' && signers.has(info.source) && lamports(info.lamports) === SOLANA_FEE_LAMPORTS) payer ??= info.source;
       if (p.type === 'createAccount' && info.owner === TOKEN_2022_PROGRAM && typeof info.newAccount === 'string' && BASE58.test(info.newAccount)) created.add(info.newAccount);
     } else if (ix.programId === TOKEN_2022_PROGRAM && (p.type === 'initializeMint' || p.type === 'initializeMint2') && typeof info.mint === 'string' && BASE58.test(info.mint)) {
-      inits.push({ mint: info.mint, decimals: typeof info.decimals === 'number' ? info.decimals : null });
+      inits.push({ mint: info.mint, decimals: typeof info.decimals === 'number' ? info.decimals : null, mintAuthority: info.mintAuthority, freezeAuthority: info.freezeAuthority });
     }
   }
   if (payer === null) return null;
   const mints = inits.filter((i) => created.has(i.mint));
   if (mints.length !== 1 || inits.length !== 1) return null;
   const only = mints[0]!;
+  // Aretia's Launch page makes the creator (the fee payer) the mint authority, to be given up once the supply is minted, and sets no
+  // freeze authority. Anything else is not an Aretia launch.
+  if (only.mintAuthority !== payer || (only.freezeAuthority !== undefined && only.freezeAuthority !== null)) return null;
   return { mint: only.mint, creator: payer, signature, blockTime: typeof tx.blockTime === 'number' ? tx.blockTime : null, decimals: only.decimals };
 }
 
@@ -295,6 +300,10 @@ export interface PoolView {
   dex: string;
   address: string;
   url: string;
+  /** The token the pool prices against, as the market source names it. */
+  quoteSymbol?: string | null;
+  /** False when that is not a main stablecoin or the wrapped native coin: the price is then in a token of unknown worth. */
+  quoteMajor?: boolean;
 }
 export interface LaunchView {
   chain: LaunchChain;
@@ -335,6 +344,8 @@ export interface Sort {
 export function filterLaunches(rows: readonly LaunchView[], f: Filter): LaunchView[] {
   const q = f.query.trim().toLowerCase();
   return rows.filter((r) => {
+    // A name that is abusive or dressed up with look-alike letters is kept off the list, as on every other Aretia list.
+    if (isUnsafeName(r.symbol, r.name)) return false;
     if (f.chain && r.chain !== f.chain) return false;
     if (f.tab === 'curve' && !(r.curve && (r.curve.status === 'trading' || r.curve.status === 'soldOut'))) return false;
     if (f.tab === 'pool' && !r.pool) return false;

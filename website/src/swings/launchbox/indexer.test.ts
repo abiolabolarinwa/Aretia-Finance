@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EVM_FACTORIES, SOLANA_FEE_WALLET, TOKEN_2022_PROGRAM, TOKEN_CREATED_TOPIC, createAddress, parseSolanaState, selector } from './core';
 import { FakeLaunchStore } from './fakeStore';
 import { indexEvmChain, indexSolana, runIndexer } from './indexer';
+import { base58, base58To32 } from '../tokens/token2022';
 
 const w = (n: bigint | number): string => BigInt(n).toString(16).padStart(64, '0');
 const hexStr = (s: string): string => {
@@ -172,7 +173,7 @@ describe('EVM indexer', () => {
 // ---------------------------------------------------------------- Solana
 
 const sig = (c: string): string => c.repeat(88);
-const PAYER = 'PayerPayerPayerPayerPayerPayerPayerPayer111';
+const PAYER = base58(new Uint8Array(32).fill(7));
 const mint = (c: string): string => `Mint${c}`.padEnd(43, c);
 const launchTx = (m: string) => ({
   blockTime: 1_760_000_000,
@@ -193,9 +194,36 @@ const plainTransfer = {
   meta: { err: null },
   transaction: { message: { accountKeys: [{ pubkey: PAYER, signer: true }], instructions: [{ programId: '11111111111111111111111111111111', parsed: { type: 'transfer', info: { source: PAYER, destination: SOLANA_FEE_WALLET, lamports: 50_000_000 } } }] } },
 };
-const mintAccount = (name: string, symbol: string, supply: string) => ({
-  value: { owner: TOKEN_2022_PROGRAM, data: { parsed: { info: { decimals: 9, supply, extensions: [{ extension: 'tokenMetadata', state: { name, symbol } }] } } } },
-});
+/** A Token-2022 mint account as the node returns it (base64): metadata pointer and metadata, optionally other extensions and authorities. */
+function rawMint(name: string, symbol: string, supply: string, o: { mintAuthority?: string | null; freezeAuthority?: string | null; extra?: [number, number][] } = {}): Uint8Array {
+  const enc = new TextEncoder();
+  const str = (t: string): number[] => {
+    const b = [...enc.encode(t)];
+    return [b.length & 255, b.length >> 8, 0, 0, ...b];
+  };
+  const meta = [...new Array(64).fill(0), ...str(name), ...str(symbol), ...str('https://x.example/m.json'), 0, 0, 0, 0];
+  const tlv = (type: number, body: number[]): number[] => [type & 255, type >> 8, body.length & 255, body.length >> 8, ...body];
+  const body = [...tlv(18, new Array(64).fill(0)), ...tlv(19, meta), ...(o.extra ?? []).flatMap(([t, l]) => tlv(t, new Array(l).fill(1)))];
+  const d = new Uint8Array(166 + body.length);
+  const v = new DataView(d.buffer);
+  const ma = o.mintAuthority === undefined ? null : o.mintAuthority;
+  if (ma) {
+    v.setUint32(0, 1, true);
+    d.set(base58To32(ma)!, 4);
+  }
+  v.setBigUint64(36, BigInt(supply), true);
+  d[44] = 9;
+  d[45] = 1;
+  if (o.freezeAuthority) {
+    v.setUint32(46, 1, true);
+    d.set(base58To32(o.freezeAuthority)!, 50);
+  }
+  d[165] = 1;
+  d.set(body, 166);
+  return d;
+}
+const accountOf = (data: Uint8Array, owner = TOKEN_2022_PROGRAM) => ({ owner, data: [Buffer.from(data).toString('base64'), 'base64'] });
+const mintAccount = (name: string, symbol: string, supply: string, o: Parameters<typeof rawMint>[3] = {}) => ({ value: accountOf(rawMint(name, symbol, supply, o)) });
 
 function solanaNode(sigs: { signature: string; err?: unknown; blockTime?: number }[], txs: Record<string, unknown>, mints: Record<string, unknown>, calls: Call[] = []) {
   return node(
@@ -212,6 +240,7 @@ function solanaNode(sigs: { signature: string; err?: unknown; blockTime?: number
       },
       getTransaction: (p) => txs[p[0] as string] ?? null,
       getAccountInfo: (p) => mints[p[0] as string] ?? { value: null },
+      getMultipleAccounts: (p) => ({ value: (p[0] as string[]).map((a) => (mints[a] as { value: unknown } | undefined)?.value ?? null) }),
     },
     calls,
   );
@@ -220,7 +249,7 @@ function solanaNode(sigs: { signature: string; err?: unknown; blockTime?: number
 describe('Solana indexer', () => {
   const sigs = [{ signature: sig('a'), blockTime: 1_760_000_200 }, { signature: sig('b'), blockTime: 1_760_000_100 }, { signature: sig('c'), blockTime: 1_760_000_000 }, { signature: sig('d'), err: { x: 1 }, blockTime: 1_759_999_000 }];
   const txs = { [sig('a')]: launchTx(mint('1')), [sig('b')]: plainTransfer, [sig('c')]: launchTx(mint('2')) };
-  const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000'), [mint('2')]: mintAccount('Two', 'TWO', '0') };
+  const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000'), [mint('2')]: mintAccount('Two', 'TWO', '0', { mintAuthority: PAYER }) };
   const deps = (store: FakeLaunchStore, fetchImpl: typeof fetch, now = 1_760_100_000_000) => ({ store, fetchImpl, env: {}, now: () => now });
 
   it('records fee-paying mint creations from the fee wallet\'s history, ignores the rest, and reads the name from the mint itself', async () => {
@@ -293,6 +322,54 @@ describe('Solana indexer', () => {
     const later = { ...mints, [mint('2')]: mintAccount('Two', 'TWO', '9000') };
     await indexSolana(deps(store, solanaNode(sigs, txs, later), 1_760_000_900_000), 1e15);
     expect(store.rows.get(`solana:${mint('2')}`)?.supply).toBe('9000');
+  });
+});
+
+describe('Solana indexer: the launch rule (audit M-6)', () => {
+  const sigs = [{ signature: sig('a'), blockTime: 1_760_000_200 }, { signature: sig('c'), blockTime: 1_760_000_000 }];
+  const txs = { [sig('a')]: launchTx(mint('1')), [sig('c')]: launchTx(mint('2')) };
+  const deps = (store: FakeLaunchStore, fetchImpl: typeof fetch, now = 1_760_100_000_000) => ({ store, fetchImpl, env: {}, now: () => now });
+  const OTHER = base58(new Uint8Array(32).fill(9));
+
+  it('does not list a mint with a permanent delegate, transfer hook or pausable extension, or with a freeze authority', async () => {
+    for (const bad of [{ extra: [[12, 32]] as [number, number][] }, { extra: [[14, 64]] as [number, number][] }, { extra: [[26, 65]] as [number, number][] }, { freezeAuthority: PAYER }]) {
+      const store = new FakeLaunchStore();
+      const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000', bad), [mint('2')]: mintAccount('Two', 'TWO', '1000') };
+      const report = await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
+      expect(report.added).toBe(1);
+      expect([...store.rows.keys()]).toEqual([`solana:${mint('2')}`]);
+      expect((await store.getCursor('solana'))?.stats).toMatchObject({ rejected: 1 });
+    }
+  });
+
+  it('does not list a minted token whose mint authority was kept, or held by someone other than the creator', async () => {
+    const store = new FakeLaunchStore();
+    const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000', { mintAuthority: PAYER }), [mint('2')]: mintAccount('Two', 'TWO', '0', { mintAuthority: OTHER }) };
+    const report = await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
+    expect(report.added).toBe(0);
+  });
+
+  it('takes a pending creation off the list when the creator mints but keeps the authority, or never finishes', async () => {
+    const store = new FakeLaunchStore();
+    const pending = { [mint('1')]: mintAccount('One', 'ONE', '0', { mintAuthority: PAYER }), [mint('2')]: mintAccount('Two', 'TWO', '0', { mintAuthority: PAYER }) };
+    await indexSolana(deps(store, solanaNode(sigs, txs, pending), 1_760_000_500_000), 1e15);
+    expect(store.rows.size).toBe(2);
+    // Mint 1: supply minted, authority kept. Mint 2: still pending, but within the window.
+    const later = { ...pending, [mint('1')]: mintAccount('One', 'ONE', '1000', { mintAuthority: PAYER }) };
+    await indexSolana(deps(store, solanaNode(sigs, txs, later), 1_760_001_000_000), 1e15);
+    expect([...store.rows.keys()]).toEqual([`solana:${mint('2')}`]);
+    // Four days on, mint 2 has still not been finished.
+    await indexSolana(deps(store, solanaNode(sigs, txs, later), 1_760_000_000_000 + 4 * 86_400_000), 1e15);
+    expect(store.rows.size).toBe(0);
+  });
+
+  it('refreshes a name the creator changed after listing, cleaned of invisible characters', async () => {
+    const store = new FakeLaunchStore();
+    const mints = { [mint('1')]: mintAccount('One', 'ONE', '1000'), [mint('2')]: mintAccount('Two', 'TWO', '1000') };
+    await indexSolana(deps(store, solanaNode(sigs, txs, mints)), 1e15);
+    const renamed = { ...mints, [mint('1')]: mintAccount('Uno\u202e\ufeff', 'UNO\u2060', '1000') };
+    await indexSolana(deps(store, solanaNode(sigs, txs, renamed)), 1e15);
+    expect(store.rows.get(`solana:${mint('1')}`)).toMatchObject({ name: 'Uno', symbol: 'UNO' });
   });
 });
 

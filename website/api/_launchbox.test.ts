@@ -37,7 +37,7 @@ function world(opts: { dex?: 'ok' | 'down' | 'empty'; curve?: string; seen?: See
       if (opts.dex === 'down') return new Response('nope', { status: 503 });
       if (opts.dex === 'empty') return Response.json([]);
       const chain = url.split('/tokens/v1/')[1]!.split('/')[0];
-      if (chain === 'solana') return Response.json([{ chainId: 'solana', dexId: 'meteora', url: 'https://dexscreener.com/solana/p1', pairAddress: 'p1', baseToken: { address: A_SOL }, priceUsd: '0.002', priceChange: { h24: 12.5 }, volume: { h24: 1234 }, liquidity: { usd: 5000 }, marketCap: 20000, fdv: 30000 }]);
+      if (chain === 'solana') return Response.json([{ chainId: 'solana', dexId: 'meteora', url: 'https://dexscreener.com/solana/p1', pairAddress: 'p1', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '0.002', priceChange: { h24: 12.5 }, volume: { h24: 1234 }, liquidity: { usd: 5000 }, marketCap: 20000, fdv: 30000 }]);
       return Response.json([]);
     }
     if (init?.body && url.includes('publicnode')) {
@@ -215,8 +215,8 @@ describe('GET /api/launchbox-run', () => {
 describe('market helpers', () => {
   it('picks, for each token, its pool with the most liquidity, as the base token only', () => {
     const pairs = [
-      { chainId: 'solana', dexId: 'a', pairAddress: 'low', url: 'https://d/low', baseToken: { address: A_SOL }, priceUsd: '1', liquidity: { usd: 10 } },
-      { chainId: 'solana', dexId: 'b', pairAddress: 'high', url: 'https://d/high', baseToken: { address: A_SOL }, priceUsd: '2', liquidity: { usd: 99 }, fdv: 500 },
+      { chainId: 'solana', dexId: 'a', pairAddress: 'low', url: 'https://d/low', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '1', liquidity: { usd: 10 } },
+      { chainId: 'solana', dexId: 'b', pairAddress: 'high', url: 'https://d/high', baseToken: { address: A_SOL }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '2', liquidity: { usd: 99 }, fdv: 500 },
       { chainId: 'solana', dexId: 'c', pairAddress: 'quote', url: 'https://d/q', baseToken: { address: 'other' }, priceUsd: '3', liquidity: { usd: 1e9 } },
       { chainId: 'bsc', dexId: 'd', pairAddress: 'wrongchain', url: 'https://d/w', baseToken: { address: A_SOL }, priceUsd: '3', liquidity: { usd: 1e9 } },
     ];

@@ -86,3 +86,53 @@ export function splitByPrice<T extends { mint: string; value: number | null }>(
   for (const h of holdings) (h.value !== null || (typeof nativeMint === 'string' ? h.mint === nativeMint : nativeMint(h.mint)) ? shown : hiddenUnpriced).push(h);
   return { shown, hiddenUnpriced };
 }
+
+// ---------------------------------------------------------------- prices from market feeds
+
+/** Below this much money in the pool behind a price, the holding is not given a value at all: a dust pool can claim any price. */
+export const MIN_PRICE_LIQUIDITY_USD = 1_000;
+/** Below this, a price is shown but marked thin. */
+export const THIN_LIQUIDITY_USD = 10_000;
+
+export interface FeedPrice {
+  price: number;
+  thin: boolean;
+}
+
+/** A price with the liquidity behind it (null when the feed gives none): dropped under the floor, marked thin when shallow or unknown. */
+export function priceWithLiquidity(price: number, liquidityUsd: number | null, quoteIsMajor = true): FeedPrice | null {
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (liquidityUsd !== null && !(liquidityUsd >= MIN_PRICE_LIQUIDITY_USD)) return null;
+  return { price, thin: liquidityUsd === null || liquidityUsd < THIN_LIQUIDITY_USD || !quoteIsMajor };
+}
+
+export interface DexPricePair {
+  baseToken?: { address?: string };
+  quoteToken?: { address?: string };
+  priceUsd?: string;
+  liquidity?: { usd?: number };
+}
+
+/**
+ * Each mint's price from DexScreener's pairs: the pool paired with a major token (`majors`, lower-case) comes first, then depth, so a
+ * pool against a made-up token that reports a huge liquidity cannot set the price. A price from a pool against an unknown token is
+ * always marked thin.
+ */
+export function dexScreenerPrices(pairs: readonly DexPricePair[], majors: ReadonlySet<string>): Map<string, FeedPrice> {
+  const best = new Map<string, { p: DexPricePair; major: boolean; liq: number }>();
+  for (const p of pairs) {
+    const mint = p.baseToken?.address;
+    if (!mint || !p.priceUsd) continue;
+    const major = majors.has((p.quoteToken?.address ?? '').toLowerCase());
+    const liq = typeof p.liquidity?.usd === 'number' && Number.isFinite(p.liquidity.usd) ? p.liquidity.usd : 0;
+    const prev = best.get(mint);
+    if (prev && ((prev.major && !major) || (prev.major === major && liq <= prev.liq))) continue;
+    best.set(mint, { p, major, liq });
+  }
+  const out = new Map<string, FeedPrice>();
+  for (const [mint, { p, major, liq }] of best) {
+    const priced = priceWithLiquidity(Number(p.priceUsd), liq, major);
+    if (priced) out.set(mint, priced);
+  }
+  return out;
+}

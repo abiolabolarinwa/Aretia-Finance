@@ -28,5 +28,5 @@ export function lockTitle(pct: number, info?: LockInfo | null): string {
       ? `Locked: ${share}% of this pool's active liquidity is held in ${who}, with an unlock date so far ahead it is effectively permanent. It is still a lock, not a burn.`
       : `Locked until ${dateOf(info.until)}: ${share}% of this pool's active liquidity is held in ${who} and cannot be withdrawn before that date. It is a time lock, not a burn: after the date the owner can take it out.`;
   }
-  return `Locked: ${share}% of this pool's liquidity tokens are burned, so that money cannot be withdrawn. Other liquidity in the pool, and tokens held by lock contracts, are not counted. No padlock means "not shown to be locked", not "unlocked".`;
+  return `Liquidity tokens burned: ${share}% of this pool's liquidity tokens are burned, so that money cannot be withdrawn. Other liquidity in the pool, and tokens held by lock contracts, are not counted. No padlock means "not shown to be locked", not "unlocked".`;
 }

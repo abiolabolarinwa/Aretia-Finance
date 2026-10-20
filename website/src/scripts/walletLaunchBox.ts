@@ -10,6 +10,8 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { LAUNCH_CHAINS, defaultSort, tokenKey, viewLaunches, type Filter, type LaunchChain, type LaunchView, type Sort, type SortKey, type Tab } from '../swings/launchbox/core.js';
 import { verifiedChecker } from './launchBoxVerified';
+import { cleanText } from '../swings/tokens/safeText.js';
+import { impersonationWarning } from '../swings/tokens/impersonation.js';
 
 export interface LaunchBoxIndexRow {
   chain: LaunchChain;
@@ -67,7 +69,7 @@ export function ago(ms: number | null, now: number): string {
 }
 
 function logo(r: LaunchView): HTMLElement {
-  const letters = el('span', 'wapp-avatar wapp-mt__logo', (r.symbol || '?').slice(0, 2).toUpperCase());
+  const letters = el('span', 'wapp-avatar wapp-mt__logo', ([...cleanText(r.symbol, 32)].slice(0, 2).join('') || '?').toUpperCase());
   const url = cachedLogo(r.chain, r.address);
   if (!url || !(/^https:\/\//.test(url) || url.startsWith('/'))) return letters;
   const img = el('img', 'wapp-avatar wapp-mt__logo');
@@ -89,6 +91,8 @@ function num(label: string, text: string, cls = ''): HTMLTableCellElement {
 
 /** The price cell says plainly when there is nothing to price. */
 function priceText(r: LaunchView): { text: string; muted: boolean } {
+  // A price from a pool against an unknown token is that token's word only: say what it is quoted in.
+  if (r.priceUsd !== null && r.pool && r.pool.quoteMajor === false) return { text: `${formatPrice(r.priceUsd)} in ${r.pool.quoteSymbol || 'an unknown token'}`, muted: true };
   if (r.priceUsd !== null) return { text: formatPrice(r.priceUsd), muted: false };
   if (r.market === 'unavailable') return { text: 'Unavailable', muted: true };
   return { text: r.curve ? 'On curve' : 'No market yet', muted: true };
@@ -144,7 +148,9 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     tr.tabIndex = 0;
     tr.dataset.k = tokenKey(r.chain, r.address);
     tr.setAttribute('role', 'link');
-    tr.setAttribute('aria-label', `${r.symbol || 'Token'} on ${CHAINS[r.chain].name}: open`);
+    const symbol = cleanText(r.symbol, 32);
+    const name = cleanText(r.name, 64);
+    tr.setAttribute('aria-label', `${symbol || 'Token'} on ${CHAINS[r.chain].name}: open`);
     tr.addEventListener('click', () => h.open(r));
     tr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -164,7 +170,7 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     const line = el('span', 'wapp-mt__line');
     const link = el('a', 'wapp-lb__link');
     link.href = tokenHref(r);
-    link.append(el('strong', '', r.symbol || '?'));
+    link.append(el('strong', '', symbol || '?'));
     link.addEventListener('click', (e) => e.stopPropagation());
     line.append(link);
     if (h.isVerified?.(r.chain, r.address)) {
@@ -174,7 +180,15 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
       v.setAttribute('aria-label', 'Verified');
       line.append(v);
     }
-    names.append(line, el('small', 'wapp-mt__fullname', r.name || 'No name given'));
+    const imitates = impersonationWarning(r.chain, r.address, symbol, name);
+    if (imitates) {
+      const w = el('span', 'wapp-lb__imitates', '⚠ Not the real one');
+      w.title = imitates;
+      w.setAttribute('role', 'img');
+      w.setAttribute('aria-label', imitates);
+      line.append(w);
+    }
+    names.append(line, el('small', 'wapp-mt__fullname', name || 'No name given'));
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);
     tok.append(cell);

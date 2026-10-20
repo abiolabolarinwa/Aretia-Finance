@@ -1,0 +1,36 @@
+name: fee-key-monitor
+
+# Audit M-2: the deployed Aretia curves pay the EVM fee address inside every trade, so code at that address (an EIP-7702 delegation)
+# could freeze or censor every buy and sell. Each hour this asks Ethereum, BNB Chain and Polygon whether the address has code, and fails
+# (which notifies the repository's watchers) if it does. A node that cannot be read is a warning, not a failure. Optional repository
+# variables ETHEREUM_RPC_URL, BNB_RPC_URL and POLYGON_RPC_URL replace the public nodes. See docs/operations/fee-key-monitor.md.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ETHEREUM_RPC_URL: ${{ vars.ETHEREUM_RPC_URL }}
+      BNB_RPC_URL: ${{ vars.BNB_RPC_URL }}
+      POLYGON_RPC_URL: ${{ vars.POLYGON_RPC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the fee address for code
+        working-directory: website
+        run: |
+          set +e
+          node scripts/fee-key-monitor.mjs
+          code=$?
+          if [ "$code" = "2" ]; then echo "::warning::Some chains could not be read; nothing proven for them this hour."; exit 0; fi
+          if [ "$code" = "1" ]; then echo "::error::ALERT: the Aretia fee address has code (EIP-7702?). See docs/operations/fee-key-monitor.md."; fi
+          exit $code

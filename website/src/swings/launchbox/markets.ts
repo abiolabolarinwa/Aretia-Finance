@@ -4,6 +4,8 @@
  */
 import { EVM_CURVE, selector, type CurveView, type EvmLaunchChain, type LaunchChain, type LaunchView, type PoolView } from './core.js';
 import type { StoredLaunch } from './store.js';
+import { majorsOf } from '../charts/pool.js';
+import { cleanText } from '../tokens/safeText.js';
 
 const DEX_CHAIN: Readonly<Record<LaunchChain, string>> = { solana: 'solana', bnb: 'bsc', ethereum: 'ethereum', polygon: 'polygon' };
 const BATCH = 30;
@@ -24,6 +26,7 @@ interface Pair {
   url?: string;
   pairAddress?: string;
   baseToken?: { address?: string };
+  quoteToken?: { address?: string; symbol?: string };
   priceUsd?: string;
   priceChange?: { h24?: number };
   volume?: { h24?: number };
@@ -35,11 +38,17 @@ interface Pair {
 const finite = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const httpsUrl = (u: unknown): string | null => (typeof u === 'string' && /^https:\/\/[^\s]+$/.test(u) && u.length < 300 ? u : null);
 
-/** Picks, for each requested token, its pool with the most liquidity (the token as the pool's base). Tokens with no pool are absent from the map. */
+/**
+ * Picks, for each requested token (the token as the pool's base), its pool paired with a major quote token (a main stablecoin or the
+ * wrapped native coin) with the most liquidity; only when it has none, its deepest pool. A pool's reported liquidity can be inflated by a
+ * made-up token on the other side, so such a pool never wins over a real one, and its liquidity and market cap are not shown: the row
+ * names the quote token instead. Tokens with no pool are absent from the map.
+ */
 export function bestPools(pairs: readonly Pair[], chain: LaunchChain, addresses: readonly string[]): Map<string, MarketInfo> {
   const want = new Map(addresses.map((a) => [chain === 'solana' ? a : a.toLowerCase(), a]));
+  const majors = majorsOf(chain);
   const out = new Map<string, MarketInfo>();
-  const bestLiq = new Map<string, number>();
+  const best = new Map<string, { major: boolean; liq: number }>();
   for (const p of pairs) {
     if (p.chainId !== DEX_CHAIN[chain]) continue;
     const base = p.baseToken?.address;
@@ -47,19 +56,22 @@ export function bestPools(pairs: readonly Pair[], chain: LaunchChain, addresses:
     const key = chain === 'solana' ? base : base.toLowerCase();
     if (!want.has(key) || typeof p.pairAddress !== 'string' || typeof p.dexId !== 'string') continue;
     const liq = finite(p.liquidity?.usd) ?? 0;
-    if (out.has(key) && liq <= (bestLiq.get(key) ?? 0)) continue;
-    bestLiq.set(key, liq);
+    const major = typeof p.quoteToken?.address === 'string' && majors.has(p.quoteToken.address.toLowerCase());
+    const prev = best.get(key);
+    if (prev && ((prev.major && !major) || (prev.major === major && liq <= prev.liq))) continue;
+    best.set(key, { major, liq });
     const price = typeof p.priceUsd === 'string' ? Number(p.priceUsd) : NaN;
     const mcap = finite(p.marketCap);
     const fdv = finite(p.fdv);
+    const quoteSymbol = typeof p.quoteToken?.symbol === 'string' ? cleanText(p.quoteToken.symbol, 16) || null : null;
     out.set(key, {
       priceUsd: Number.isFinite(price) && price > 0 ? price : null,
       change24h: finite(p.priceChange?.h24),
       volume24hUsd: finite(p.volume?.h24),
-      liquidityUsd: finite(p.liquidity?.usd),
-      capUsd: mcap ?? fdv,
-      capKind: mcap !== null ? 'mcap' : fdv !== null ? 'fdv' : null,
-      pool: { dex: p.dexId.slice(0, 40), address: p.pairAddress.slice(0, 80), url: httpsUrl(p.url) ?? '' },
+      liquidityUsd: major ? finite(p.liquidity?.usd) : null,
+      capUsd: major ? (mcap ?? fdv) : null,
+      capKind: !major ? null : mcap !== null ? 'mcap' : fdv !== null ? 'fdv' : null,
+      pool: { dex: p.dexId.slice(0, 40), address: p.pairAddress.slice(0, 80), url: httpsUrl(p.url) ?? '', quoteSymbol, quoteMajor: major },
     });
   }
   return out;

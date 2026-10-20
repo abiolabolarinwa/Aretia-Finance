@@ -4,18 +4,42 @@
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 export const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 
-/** Token-2022 extension types that let someone other than the holder move or block tokens, or take a cut. */
-export const RISKY_EXTENSIONS = new Map([
+/** Token-2022's ExtensionType enum (spl-token-2022 `extension/mod.rs`). */
+export const EXTENSION_NAMES = new Map([
+  [0, 'uninitialized'],
   [1, 'transfer fee'],
-  [4, 'confidential-transfer fee'],
+  [2, 'transfer fee amount'],
+  [3, 'mint close authority'],
+  [4, 'confidential transfers'],
+  [5, 'confidential transfer account'],
+  [6, 'default account state'],
+  [7, 'immutable owner'],
+  [8, 'memo transfer'],
   [9, 'non-transferable'],
+  [10, 'interest-bearing'],
+  [11, 'CPI guard'],
   [12, 'permanent delegate'],
+  [13, 'non-transferable account'],
   [14, 'transfer hook'],
-  [6, 'default account state (frozen by default)'],
-  [10, 'interest-bearing (display only)'],
-  [11, 'close authority'],
+  [15, 'transfer hook account'],
+  [16, 'confidential transfer fee'],
+  [17, 'confidential transfer fee amount'],
+  [18, 'metadata pointer'],
+  [19, 'token metadata'],
+  [20, 'group pointer'],
+  [21, 'token group'],
+  [22, 'group member pointer'],
+  [23, 'token group member'],
+  [24, 'confidential mint and burn'],
+  [25, 'scaled UI amount'],
+  [26, 'pausable'],
+  [27, 'pausable account'],
 ]);
-const FLAG_ONLY = new Set([10]);
+/** The only extensions a verified mint may carry: the name, metadata and group labels. */
+export const ALLOWED_EXTENSIONS = new Set([18, 19, 20, 21, 22, 23]);
+/** Allowed, but printed for the reviewer to look at: interest-bearing changes only the displayed amount. */
+export const FLAG_ONLY = new Set([10]);
+export const extensionName = (t) => `${EXTENSION_NAMES.get(t) ?? 'unknown extension'} (${t})`;
 
 const base58 = (bytes) => {
   const A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -75,12 +99,14 @@ export function checkSolana(mint) {
   const supplyFixed = mint.mintAuthority === null ? { pass: true, detail: `Mint authority is gone. Supply is ${mint.supply} (smallest units), ${mint.decimals} decimals.` } : { pass: false, detail: `A mint authority still exists (${mint.mintAuthority}): more can be created.` };
   const problems = [];
   if (mint.freezeAuthority !== null) problems.push(`a freeze authority still exists (${mint.freezeAuthority})`);
-  for (const t of mint.extensions) {
-    if (FLAG_ONLY.has(t)) continue;
-    if (RISKY_EXTENSIONS.has(t)) problems.push(`the mint has the "${RISKY_EXTENSIONS.get(t)}" extension`);
-  }
-  const powersGivenUp = problems.length === 0 ? { pass: true, detail: 'No freeze authority, and none of the transfer-fee, delegate, hook or default-frozen extensions.' } : { pass: false, detail: `Not given up: ${problems.join('; ')}.` };
-  return { supplyFixed, powersGivenUp };
+  // An allow-list: anything that is not a name, metadata or group label fails, including types this script does not know.
+  const refused = mint.extensions.filter((t) => !ALLOWED_EXTENSIONS.has(t) && !FLAG_ONLY.has(t));
+  for (const t of refused) problems.push(`the mint has the "${extensionName(t)}" extension`);
+  const flagged = mint.extensions.filter((t) => FLAG_ONLY.has(t));
+  const flagText = flagged.length ? ` Flagged for the reviewer: ${flagged.map(extensionName).join(', ')}.` : '';
+  const powersGivenUp = problems.length === 0 ? { pass: true, detail: `No freeze authority, and no extension beyond name, metadata and group labels.${flagText}` } : { pass: false, detail: `Not given up: ${problems.join('; ')}.` };
+  const extensions = mint.extensions.map((t) => `${extensionName(t)}: ${ALLOWED_EXTENSIONS.has(t) ? 'allowed' : FLAG_ONLY.has(t) ? 'allowed, flagged for review' : 'NOT ALLOWED'}`);
+  return { supplyFixed, powersGivenUp, extensions };
 }
 
 /** Four-byte selectors of functions that would let someone change the supply, stop transfers or keep control. */
@@ -99,27 +125,63 @@ export const EVM_SELECTORS = [
 /** True if the code contains PUSH4 <selector>, the way a Solidity dispatcher compares it. */
 export const hasSelector = (codeHex, selector) => codeHex.toLowerCase().includes('63' + selector);
 
+const EIP1167_PREFIX = '363d3d373d3d3d363d73';
+const EIP1967_IMPL_SLOT = '360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+/** The storage slot an EIP-1967 proxy keeps its implementation address in (read with eth_getStorageAt). */
+export const EIP1967_SLOT = '0x' + EIP1967_IMPL_SLOT;
+/** Selectors of implementation() and proxiableUUID() (UUPS). */
+const PROXY_SELECTORS = ['5c60da1b', '52d1902d'];
+
+/** The implementation an EIP-1167 minimal proxy delegates to, or null when the code is not one. */
+export function minimalProxyTarget(codeHex) {
+  const code = String(codeHex).toLowerCase().replace(/^0x/, '');
+  return code.startsWith(EIP1167_PREFIX) && code.length >= EIP1167_PREFIX.length + 40 ? '0x' + code.slice(EIP1167_PREFIX.length, EIP1167_PREFIX.length + 40) : null;
+}
+
+/** The address in an EIP-1967 implementation slot value, or null when it is empty or malformed. */
+export function slotAddress(slotHex) {
+  return typeof slotHex === 'string' && /^0x[0-9a-fA-F]{64}$/.test(slotHex) && !/^0x0+$/.test(slotHex) ? '0x' + slotHex.slice(-40).toLowerCase() : null;
+}
+
+/** Why the code is (or may be) a proxy whose behaviour lives in another contract, or null. `implementationSlot` is the EIP-1967 slot read from the chain. */
+export function proxyReason(codeHex, implementationSlot = null) {
+  const code = String(codeHex).toLowerCase().replace(/^0x/, '');
+  const target = minimalProxyTarget(codeHex);
+  if (target) return `it is an EIP-1167 minimal proxy: its code runs in ${target}`;
+  const impl = slotAddress(implementationSlot);
+  if (impl) return `it is an EIP-1967 proxy: its implementation slot points to ${impl}, which an admin may be able to change`;
+  if (code.includes(EIP1967_IMPL_SLOT)) return 'its code uses the EIP-1967 implementation slot (an upgradeable proxy)';
+  const sel = PROXY_SELECTORS.find((x) => hasSelector(code, x));
+  if (sel) return `its code has ${sel === '5c60da1b' ? 'implementation()' : 'proxiableUUID()'} (an upgradeable proxy)`;
+  return null;
+}
+
 /**
- * The two automated checks for an Ethereum-style token, from its code and its total supply read twice (a block apart is enough).
- * This is a scan, not a proof: code can hide a power. It is a gate before the human review, never a replacement for it.
+ * The two automated checks for an Ethereum-style token, from its code, its EIP-1967 implementation slot, and its total supply read at
+ * two different blocks. This is a scan, not a proof: code can hide a power. It is a gate before the human review, never a replacement for
+ * it. A proxy always fails: what it can do lives in code that may be swapped.
  */
-export function checkEvm(codeHex, supplyBefore, supplyAfter) {
+export function checkEvm(codeHex, supplyBefore, supplyAfter, opts = {}) {
   if (typeof codeHex !== 'string' || !/^0x[0-9a-fA-F]*$/.test(codeHex) || codeHex.length < 4) {
     const fail = { pass: false, detail: 'There is no contract at that address on this chain.' };
     return { supplyFixed: fail, powersGivenUp: fail };
   }
+  const proxy = proxyReason(codeHex, opts.implementationSlot ?? null);
   const found = EVM_SELECTORS.filter(([sel]) => hasSelector(codeHex, sel)).map(([, name]) => name);
   const mintLike = found.filter((n) => n.startsWith('mint'));
-  const supplyFixed =
-    mintLike.length > 0
+  const blocks = opts.blocks ? ` (blocks ${opts.blocks[0]} and ${opts.blocks[1]})` : '';
+  const supplyFixed = proxy
+    ? { pass: false, detail: `Cannot be judged from this code: ${proxy}.` }
+    : mintLike.length > 0
       ? { pass: false, detail: `The code has ${mintLike.join(', ')}.` }
       : supplyBefore === null || supplyAfter === null
-        ? { pass: false, detail: 'Could not read the total supply.' }
+        ? { pass: false, detail: 'Could not read the total supply at two blocks.' }
         : supplyBefore !== supplyAfter
-          ? { pass: false, detail: 'The total supply changed between two reads.' }
-          : { pass: true, detail: `No mint function found in the code. Total supply ${supplyAfter} (smallest units), unchanged between two reads.` };
+          ? { pass: false, detail: `The total supply changed between two reads${blocks}.` }
+          : { pass: true, detail: `No mint function found in the code. Total supply ${supplyAfter} (smallest units), unchanged between two reads${blocks}.` };
   const others = found.filter((n) => !n.startsWith('mint'));
-  const powersGivenUp = others.length === 0 ? { pass: true, detail: 'No pause, owner, ownership-transfer or blacklist functions found in the code.' } : { pass: false, detail: `The code has ${others.join(', ')}.` };
+  const problems = [...(proxy ? [proxy] : []), ...(others.length ? [`the code has ${others.join(', ')}`] : [])];
+  const powersGivenUp = problems.length === 0 ? { pass: true, detail: 'Not a proxy, and no pause, owner, ownership-transfer or blacklist functions found in the code.' } : { pass: false, detail: `Not given up: ${problems.join('; ')}.` };
   return { supplyFixed, powersGivenUp };
 }
 
@@ -134,6 +196,7 @@ export function renderReport({ chain, token, when, automated, notes = [] }) {
     ``,
     line('The supply is fixed', automated.supplyFixed),
     line('Special powers are given up', automated.powersGivenUp),
+    ...(automated.extensions ? ['', `Token-2022 extensions (${automated.extensions.length}):`, ...(automated.extensions.length ? automated.extensions.map((e) => `  - ${e}`) : ['  - none'])] : []),
     ``,
     `Still to record by a person (this script cannot do these):`,
     `  [ ] The project link and creator match what was claimed`,

@@ -8,6 +8,7 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
+import { padlockShown } from '../swings/market/lock.js';
 import { verifiedBadge } from '../lib/verifiedBadge';
 
 export interface TableState {
@@ -73,15 +74,15 @@ function changeCell(n: number | null): HTMLElement {
   return td;
 }
 
-/** The liquidity figure, with a padlock when the pool's liquidity is shown to be locked (burned). */
+/** The liquidity figure, with a padlock when the pool's liquidity tokens are shown to be burned or locked, and the token keeps no admin power. */
 function liquidityCell(r: MarketRow): HTMLElement {
   const td = el('td', 'wapp-mt__num wapp-mt__liq', compactUsd(r.liquidityUsd));
-  if (r.lockedPct === null || r.lockedPct === undefined) return td;
+  if (!padlockShown(r.lockedPct, r.risk)) return td;
   const timed = r.lockInfo?.kind === 'time-locked';
   const lock = el('span', `wapp-mt__lock${timed ? ' is-timed' : ''}`);
   lock.title = lockTitle(r.lockedPct, r.lockInfo);
   lock.setAttribute('role', 'img');
-  lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent ${timed ? 'in a locker' : 'burned'}`);
+  lock.setAttribute('aria-label', timed ? `Liquidity locked, ${r.lockedPct.toFixed(1)} percent in a locker` : `Liquidity tokens burned, ${r.lockedPct.toFixed(1)} percent`);
   lock.innerHTML = LOCK_ICON;
   td.prepend(lock);
   return td;

@@ -57,11 +57,12 @@ export function isOffensive(...texts: (string | null | undefined)[]): boolean {
 }
 
 /**
- * Look-alike letters from other alphabets (Cyrillic, Armenian, Cherokee, Greek) are how a scam token passes for a real
- * one: the top pool of a busy network can be a "USDT" spelled with Armenian and Cherokee letters. Names containing them
- * are hidden. Names entirely in another writing system (Chinese, Korean, Arabic and so on) are not touched.
+ * Look-alike letters from other alphabets (Cyrillic, Armenian, Cherokee, Greek, Lisu) and the "styled" Latin letters of
+ * Unicode (fullwidth ＵＳＤＣ, mathematical 𝖴𝖲𝖣𝖢 and 𝐔𝐒𝐃𝐂) are how a scam token passes for a real one: the top pool of a
+ * busy network can be a "USDT" spelled with Armenian and Cherokee letters. Names containing them are hidden. Names entirely
+ * in another writing system (Chinese, Korean, Arabic and so on) are not touched.
  */
-const LOOKALIKE = /[Ͱ-ϿЀ-ԯ԰-֏Ꭰ-᏿ᲀ-᲏Ⲁ-⳿]/;
+const LOOKALIKE = /[\u0370-\u03ff\u0400-\u052f\u0530-\u058f\u13a0-\u13ff\u1c80-\u1c8f\u2c80-\u2cff\ua4d0-\ua4ff\uab70-\uabbf\uff01-\uff5e\u{1d400}-\u{1d7ff}]/u;
 
 export function hasLookalikeLetters(...texts: (string | null | undefined)[]): boolean {
   return texts.some((t) => !!t && LOOKALIKE.test(t));
@@ -70,4 +71,75 @@ export function hasLookalikeLetters(...texts: (string | null | undefined)[]): bo
 /** True if a name or symbol should be kept off the lists: abusive, or dressed up with look-alike letters. */
 export function isUnsafeName(...texts: (string | null | undefined)[]): boolean {
   return isOffensive(...texts) || hasLookalikeLetters(...texts);
+}
+
+// ---------------------------------------------------------------- invisible characters
+
+/**
+ * Characters that change how text is drawn without being seen: controls, zero-width and joiner characters, bidirectional
+ * marks and overrides (including the Arabic letter mark U+061C), the byte-order mark U+FEFF, the invisible operators
+ * U+2060-2064, the Mongolian vowel separator U+180E, the combining grapheme joiner, and the general-purpose combining marks
+ * that can be stacked over Latin letters (accents used by real names are precomposed once the text is NFC-normalised).
+ */
+// eslint-disable-next-line no-control-regex, no-misleading-character-class -- the class lists code points to remove, combining marks on purpose
+export const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u2028-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]/g;
+
+/** Text from a chain or a market source made safe to store and show: NFC, invisible and stacking characters out, trimmed, cut to length. */
+export function cleanText(s: string, max: number): string {
+  return [...s.normalize('NFC').replace(UNSAFE_CHARS, '').trim()].slice(0, max).join('');
+}
+
+// ---------------------------------------------------------------- impersonation
+
+/** Common look-alike letters folded to the Latin letter they imitate (a small part of Unicode's confusables table). */
+const CONFUSABLE: Readonly<Record<string, string>> = {
+  // Cyrillic
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y', Ѕ: 'S', І: 'I', Ј: 'J', Ԁ: 'D', Ԛ: 'Q', Ԝ: 'W', Ꙅ: 'S',
+  а: 'A', е: 'E', о: 'O', р: 'P', с: 'C', у: 'Y', х: 'X', ѕ: 'S', і: 'I', ј: 'J', ԁ: 'D', һ: 'H', ԛ: 'Q', ԝ: 'W', ӏ: 'L',
+  // Greek
+  Α: 'A', Β: 'B', Ε: 'E', Ζ: 'Z', Η: 'H', Ι: 'I', Κ: 'K', Μ: 'M', Ν: 'N', Ο: 'O', Ρ: 'P', Τ: 'T', Υ: 'Y', Χ: 'X', ο: 'O', ν: 'V', τ: 'T', ι: 'I', κ: 'K', ρ: 'P', υ: 'U',
+  // Armenian
+  Ս: 'U', Տ: 'S', Օ: 'O', Լ: 'L', Ք: 'P', ս: 'U', օ: 'O', հ: 'H', ո: 'N', զ: 'Q',
+  // Cherokee
+  Ꭺ: 'A', Ᏼ: 'B', Ꮯ: 'C', Ꭰ: 'D', Ꭼ: 'E', Ꮋ: 'H', Ꮖ: 'I', Ꭻ: 'J', Ꮶ: 'K', Ꮮ: 'L', Ꮇ: 'M', Ꮲ: 'P', Ꭱ: 'R', Ꮪ: 'S', Ꭲ: 'T', Ꮩ: 'V', Ꮃ: 'W', Ꮓ: 'Z', Ꮤ: 'W', Ꮟ: 'B',
+  // Lisu
+  ꓮ: 'A', ꓐ: 'B', ꓚ: 'C', ꓓ: 'D', ꓰ: 'E', ꓝ: 'F', ꓖ: 'G', ꓧ: 'H', ꓲ: 'I', ꓙ: 'J', ꓗ: 'K', ꓡ: 'L', ꓟ: 'M', ꓠ: 'N', ꓳ: 'O', ꓑ: 'P', ꓣ: 'R', ꓢ: 'S', ꓔ: 'T', ꓴ: 'U', ꓦ: 'V', ꓪ: 'W', ꓫ: 'X', ꓬ: 'Y', ꓜ: 'Z',
+  // digits that pass for letters in a symbol
+  '0': 'O', '1': 'I',
+};
+
+/**
+ * A name's "skeleton": NFKC (which turns fullwidth and mathematical letters into plain ones), invisible and combining
+ * characters removed, look-alike letters folded to Latin, upper case, and everything but letters and digits dropped.
+ * Two names with the same skeleton look the same to a person.
+ */
+export function skeleton(text: string | null | undefined): string {
+  if (!text) return '';
+  return [...text.normalize('NFKD').replace(UNSAFE_CHARS, '').normalize('NFKC')]
+    .map((c) => CONFUSABLE[c] ?? c)
+    .join('')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .replace(/0/g, 'O')
+    .replace(/1/g, 'I');
+}
+
+/** Symbols of tokens people already know, which an unlisted address may not take without a warning. */
+export const RESERVED_SYMBOLS: readonly string[] = ['ACT', 'USDC', 'USDT', 'DAI', 'USDG', 'SOL', 'WSOL', 'ETH', 'WETH', 'BTC', 'WBTC', 'BTCB', 'CBBTC', 'BNB', 'WBNB', 'POL', 'MATIC', 'WMATIC', 'WPOL', 'ARETIA'];
+/** Names (and words inside names) of the same, as skeletons. */
+const RESERVED_NAMES: readonly string[] = ['USDCOIN', 'TETHER', 'TETHERUSD', 'SOLANA', 'WRAPPEDSOL', 'ETHEREUM', 'ETHER', 'WRAPPEDETHER', 'BITCOIN', 'WRAPPEDBITCOIN', 'WRAPPEDBTC', 'BINANCECOIN', 'WRAPPEDBNB', 'POLYGON', 'ARETIACOIN', 'ARETIATOKEN'];
+const RESERVED_SYMBOL_SKELETONS = new Set(RESERVED_SYMBOLS.map(skeleton));
+const RESERVED_NAME_SKELETONS = new Set(RESERVED_NAMES.map(skeleton));
+
+/**
+ * The well-known token a name or symbol claims to be, or null. "Aretia" anywhere in the name counts, since only Aretia's own
+ * token may carry it. The caller decides whether the address is that token's (see `knownTokenAddress`).
+ */
+export function reservedNameClaim(symbol: string | null | undefined, name: string | null | undefined): string | null {
+  const s = skeleton(symbol);
+  const n = skeleton(name);
+  if (RESERVED_SYMBOL_SKELETONS.has(s)) return RESERVED_SYMBOLS.find((r) => skeleton(r) === s) ?? s;
+  if (RESERVED_NAME_SKELETONS.has(n) || RESERVED_SYMBOL_SKELETONS.has(n)) return n;
+  if (s.includes('ARETIA') || n.includes('ARETIA')) return 'ARETIA';
+  return null;
 }

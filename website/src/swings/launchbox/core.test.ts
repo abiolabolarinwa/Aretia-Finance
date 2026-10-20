@@ -7,6 +7,7 @@ import {
   TOKEN_2022_PROGRAM,
   TOKEN_CREATED_TOPIC,
   acceptSolanaLaunch,
+  cleanText,
   applyBackfill,
   applyForward,
   createAddress,
@@ -198,6 +199,22 @@ describe('Solana acceptance rules', () => {
   });
   it('does not read a name from the transaction: nothing but addresses, the creator and the time come out', () => {
     expect(Object.keys(acceptSolanaLaunch(good(), SIG)!).sort()).toEqual(['blockTime', 'creator', 'decimals', 'mint', 'signature']);
+  });
+  it('refuses a mint created with a freeze authority, or with a mint authority other than the payer (audit M-6, PoC F-launchbox)', () => {
+    expect(acceptSolanaLaunch(tx([transfer(), createAccount(), initMint({ freezeAuthority: PAYER }, 'initializeMint2')]), SIG)).toBeNull();
+    expect(acceptSolanaLaunch(tx([transfer(), createAccount(), initMint({ mintAuthority: 'SomeoneElseSomeoneElseSomeoneElse1111111' })]), SIG)).toBeNull();
+    expect(acceptSolanaLaunch(tx([transfer(), createAccount(), initMint({ mintAuthority: undefined })]), SIG)).toBeNull();
+    expect(acceptSolanaLaunch(tx([transfer(), createAccount(), initMint({ freezeAuthority: null })]), SIG)?.mint).toBe(MINT);
+  });
+});
+
+describe('cleanText (audit L-15)', () => {
+  it('drops the Arabic letter mark, byte-order mark, invisible operators, the Mongolian separator and stacked combining marks', () => {
+    expect(cleanText('US\u061cDC\ufeff\u2060', 32)).toBe('USDC');
+    expect(cleanText('U\u2061S\u2062D\u2063C\u2064\u180e', 32)).toBe('USDC');
+    expect(cleanText('U\u0338SDC\u20e3', 32)).toBe('USDC');
+    expect(cleanText('Pok\u0065\u0301mon', 32)).toBe('Pokémon');
+    expect(cleanText('华夏 Coin', 32)).toBe('华夏 Coin');
   });
 });
 

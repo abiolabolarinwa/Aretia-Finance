@@ -18,14 +18,17 @@ describe('Launch Box page', () => {
     expect(ago(now - 3 * 86_400_000, now)).toBe('3 d ago');
   });
 
-  it('shows the Verified badge only when a verified-tokens module provides isVerified', () => {
-    expect(verifiedChecker({})).toBeNull();
-    expect(verifiedChecker({ a: { somethingElse: 1 } })).toBeNull();
-    const check = verifiedChecker({ a: { isVerified: (c: string, a: string) => c === 'bnb' && a === '0x1' } });
-    expect(check?.('bnb', '0x1')).toBe(true);
-    expect(check?.('bnb', '0x2')).toBe(false);
-    // A module that throws never breaks the page.
-    expect(verifiedChecker({ a: { isVerified: () => { throw new Error('x'); } } })?.('bnb', '0x1')).toBe(false);
+  it('shows the Verified badge from the site\'s verified list, by its rules (audit I-26)', () => {
+    const now = () => Date.parse('2026-11-10T00:00:00Z');
+    const entry = { token: '0xABCDEF0000000000000000000000000000000001', chain: 'bnb' as const, date: '2026-11-02', checked: ['supply-fixed', 'powers-given-up', 'identity-matches', 'pool-locked'] as const, evidence: 'https://aretiafinance.org/docs/verified/x.txt' };
+    const check = verifiedChecker([entry], now);
+    expect(check('bnb', '0xabcdef0000000000000000000000000000000001')).toBe(true);
+    expect(check('bnb', '0xabcdef0000000000000000000000000000000002')).toBe(false);
+    expect(check('ethereum', '0xabcdef0000000000000000000000000000000001')).toBe(false);
+    // An entry that does not record all four checks never shows a badge.
+    expect(verifiedChecker([{ ...entry, checked: ['supply-fixed'] }], now)('bnb', entry.token)).toBe(false);
+    // The site's own list is used by default (empty until a token is verified).
+    expect(verifiedChecker()('bnb', entry.token)).toBe(false);
   });
 });
 

@@ -57,4 +57,8 @@ export class FakeLaunchStore implements LaunchStore {
     if (!row) return;
     for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) (row as unknown as Record<string, unknown>)[k] = v;
   }
+  async remove(chain: LaunchChain, address: string): Promise<void> {
+    this.check();
+    this.rows.delete(tokenKey(chain, address));
+  }
 }

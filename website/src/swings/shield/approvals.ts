@@ -1,13 +1,16 @@
 /**
  * Token permissions an Ethereum-style wallet has given to the swap venues Aretia knows. An approval lets a contract move your
  * token; swapping makes one, and most are never taken back. This reads, for each network, the allowance of the main tokens
- * (the wrapped coin and the stablecoins) to each venue's router and to Permit2, all in ONE call per network (Multicall3).
+ * (the wrapped coin and the stablecoins) to every contract Aretia's own swaps ask approvals for: each venue's router (the Balancer
+ * Vault is Balancer's router), each curated Curve pool, 0x's AllowanceHolder and Permit2, plus the allowances held inside Permit2
+ * for the routers that spend through it. All in ONE call per network (Multicall3).
  *
  * The limit is stated in every result: Shield cannot list an approval to a contract it does not know, or for a token it is not
  * asked about, because that needs a full transaction index. So this finds the common ones, and says that is all it found.
  */
 import { CHAINS, type ChainId } from '../core/types.js';
 import { EVM_DEXES } from '../dex/entries.js';
+import { ZEROX_TRUSTED_CONTRACTS } from '../providers/evm0x.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { selector } from '../engine/abi.js';
@@ -37,13 +40,30 @@ export interface Approval {
   spender: Spender;
   allowance: bigint;
   unlimited: boolean;
+  /** 'permit2': an allowance held inside Permit2 (taken back through Permit2), not one on the token itself. */
+  via?: 'permit2';
 }
 
-/** The venues' routers on one network, and Permit2, each once. */
+/** Every contract Aretia's swaps ask a token approval for on one network, each once. */
 export function spendersFor(chain: ChainId): Spender[] {
   const seen = new Map<string, Spender>();
-  for (const d of EVM_DEXES) if (d.chain === chain && d.router) if (!seen.has(d.router.toLowerCase())) seen.set(d.router.toLowerCase(), { address: d.router.toLowerCase(), label: d.name });
-  seen.set(PERMIT2, { address: PERMIT2, label: 'Permit2 (a shared approval contract used by Uniswap and others)' });
+  const add = (address: string, label: string): void => void (seen.has(address.toLowerCase()) || seen.set(address.toLowerCase(), { address: address.toLowerCase(), label }));
+  for (const d of EVM_DEXES) {
+    if (d.chain !== chain) continue;
+    // A venue's router; for Balancer this is its Vault, which is what the swap approves.
+    if (d.router) add(d.router, d.name);
+    // Curve has no router: each pool is approved on its own.
+    if (d.mechanism === 'evm-curve-pool') for (const pool of d.knownPools ?? []) add(pool, `${d.name} pool ${pool.slice(0, 8)}…`);
+  }
+  for (const spender of ZEROX_TRUSTED_CONTRACTS[chain]?.spenders ?? []) add(spender, '0x AllowanceHolder');
+  add(PERMIT2, 'Permit2 (a shared approval contract used by Uniswap and others)');
+  return [...seen.values()];
+}
+
+/** The routers that spend through Permit2 (Uniswap V4's), whose allowances are held inside Permit2 itself. */
+export function permit2SpendersFor(chain: ChainId): Spender[] {
+  const seen = new Map<string, Spender>();
+  for (const d of EVM_DEXES) if (d.chain === chain && d.mechanism === 'evm-v4-router' && d.router) seen.set(d.router.toLowerCase(), { address: d.router.toLowerCase(), label: `${d.name} through Permit2` });
   return [...seen.values()];
 }
 
@@ -60,6 +80,10 @@ export function tokensFor(chain: ChainId, extra: readonly ApprovalToken[] = []):
 const word = (n: bigint): string => n.toString(16).padStart(64, '0');
 const addr = (a: string): string => a.replace(/^0x/, '').toLowerCase().padStart(64, '0');
 const ALLOWANCE = '0x' + selector('allowance(address,address)');
+/** Permit2's `allowance(owner, token, spender)`: (uint160 amount, uint48 expiration, uint48 nonce). */
+const PERMIT2_ALLOWANCE = '0x' + selector('allowance(address,address,address)');
+/** At or above this a Permit2 allowance (a uint160) is "unlimited". */
+const PERMIT2_UNLIMITED = 1n << 159n;
 const AGGREGATE3 = '0x' + selector('aggregate3((address,bool,bytes)[])');
 
 /** `aggregate3` for a list of calls, none of which may stop the others by failing. */
@@ -99,15 +123,19 @@ export function decodeAggregate3(hex: string): { success: boolean; first: bigint
 }
 
 /** Every non-zero allowance of these tokens to these spenders, for one owner on one network, in one call. */
-export async function readApprovals(chain: ChainId, owner: string, read: EvmRead, tokens: readonly ApprovalToken[] = tokensFor(chain), spenders: readonly Spender[] = spendersFor(chain)): Promise<Approval[]> {
-  const pairs = tokens.flatMap((token) => spenders.map((spender) => ({ token, spender })));
+export async function readApprovals(chain: ChainId, owner: string, read: EvmRead, tokens: readonly ApprovalToken[] = tokensFor(chain), spenders: readonly Spender[] = spendersFor(chain), viaPermit2: readonly Spender[] = permit2SpendersFor(chain)): Promise<Approval[]> {
+  const pairs = [
+    ...tokens.flatMap((token) => spenders.map((spender) => ({ token, spender, via: undefined }))),
+    ...tokens.flatMap((token) => viaPermit2.map((spender) => ({ token, spender, via: 'permit2' as const }))),
+  ];
   if (pairs.length === 0) return [];
-  const calls = pairs.map((p) => ({ target: p.token.address, data: ALLOWANCE + addr(owner) + addr(p.spender.address) }));
+  const calls = pairs.map((p) => (p.via ? { target: PERMIT2, data: PERMIT2_ALLOWANCE + addr(owner) + addr(p.token.address) + addr(p.spender.address) } : { target: p.token.address, data: ALLOWANCE + addr(owner) + addr(p.spender.address) }));
   const result = decodeAggregate3(String(await read('eth_call', [{ to: MULTICALL3, data: encodeAggregate3(calls) }, 'latest'])));
   const out: Approval[] = [];
   result.forEach((r, i) => {
     if (!r.success || r.first === null || r.first === 0n) return;
-    out.push({ chain, token: pairs[i]!.token, spender: pairs[i]!.spender, allowance: r.first, unlimited: r.first >= UNLIMITED });
+    const p = pairs[i]!;
+    out.push({ chain, token: p.token, spender: p.spender, allowance: r.first, unlimited: r.first >= (p.via ? PERMIT2_UNLIMITED : UNLIMITED), ...(p.via ? { via: p.via } : {}) });
   });
   return out;
 }
@@ -121,7 +149,7 @@ const amountText = (a: Approval): string => (a.unlimited ? 'unlimited' : (Number
 /** Plain findings for each permission found. Unlimited ones are cautions; small ones are notes. */
 export function describeApprovals(approvals: readonly Approval[]): ApprovalFinding[] {
   return approvals.map((a) => ({
-    id: `approval-${a.chain}-${a.token.address}-${a.spender.address}`,
+    id: `approval-${a.chain}-${a.token.address}-${a.spender.address}${a.via ? `-${a.via}` : ''}`,
     severity: a.unlimited ? 'warn' : 'note',
     title: `${a.spender.label} can spend ${amountText(a)} ${a.token.symbol} on ${CHAINS[a.chain].name}.`,
     detail: a.unlimited ? 'You approved it to spend without a limit. That is how swaps work, but the permission stays after the swap. If you are not using this venue, take it back; if its contract is ever attacked, your balance is exposed.' : 'A permission left over from a swap. It only covers this amount.',
@@ -131,3 +159,7 @@ export function describeApprovals(approvals: readonly Approval[]): ApprovalFindi
 
 /** `approve(spender, 0)`: the call that takes a permission back. */
 export const revokeCall = (spender: string): string => '0x' + selector('approve(address,uint256)') + addr(spender) + word(0n);
+
+/** The transaction that takes a permission back: on the token itself, or for one held inside Permit2, Permit2's `approve(token, spender, 0, 0)`. */
+export const revokeTx = (token: string, spender: string, via?: 'permit2'): { to: string; data: string } =>
+  via === 'permit2' ? { to: PERMIT2, data: '0x' + selector('approve(address,address,uint160,uint48)') + addr(token) + addr(spender) + word(0n) + word(0n) } : { to: token, data: revokeCall(spender) };

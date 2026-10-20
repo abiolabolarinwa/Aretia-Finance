@@ -30,7 +30,7 @@ import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { alertsCard } from './walletAlerts.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
-import { revokeCall } from '../swings/shield/approvals.js';
+import { revokeTx } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
@@ -147,7 +147,7 @@ const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? 
 /** Where the Aretia fee goes on EVM networks. Set it in Vercel; until then EVM swaps are paused. */
 const EVM_FEE_ADDRESS = String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '');
 
-export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void; evmAccount(): string | null; revokeEvm(chain: ChainId, token: string, spender: string): Promise<string> } {
+export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' | 'favourites'): void; onPayShow(): void; onWalletChange(): void; onActivityShow(): void; evmAccount(): string | null; revokeEvm(chain: ChainId, token: string, spender: string, via?: 'permit2'): Promise<string> } {
   const root = document.querySelector<HTMLElement>('[data-pane="swings"]');
   if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {}, evmAccount: () => null, revokeEvm: () => Promise.reject(new Error('Not available here.')) };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
@@ -749,7 +749,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     timingNote = '';
     try {
       const stale = !s.quote || !s.prepared || Date.now() - s.preparedAt > FRESH_MS || expiryLabel(s.quote).expired;
+      const shown = s.quote;
       if (stale) await getQuote(true);
+      // A refreshed quote is signed straight away only when it is the same route and no worse than what was on screen.
+      const drift = stale && shown && s.quote && s.quote !== shown ? AretiaRouter.refreshDrift(shown, s.quote) : null;
+      if (drift) {
+        s.notice = `${drift} Nothing was sent. Check the new figures, then press Swap again.`;
+        return render();
+      }
       if (s.phase === 'review' && s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck()) await confirm();
     } finally {
       swapBusy = false;
@@ -788,6 +795,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const quote = s.quote;
     s.phase = 'signing';
     s.error = null;
+    s.notice = null;
     render();
     try {
       const walletFrom = Date.now();
@@ -804,7 +812,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         s.execution = null;
         s.phase = 'review';
         s.error = null;
-        s.notice = `${execution.error ?? 'Your wallet did not send this.'} You can try again, or send it one step at a time: your wallet then asks you to confirm each step on its own (the approval, then the Aretia fee, then the swap), and the fee is paid before the swap.`;
+        s.notice = `${execution.error ?? 'Your wallet did not send this.'} You can try again, or send it one step at a time: your wallet then asks you to confirm each step on its own (the approval, then the Aretia fee, then the swap). The fee is then a separate transaction, paid before the swap, and it is not refunded if you decline the swap or it fails.`;
         s.stepByStep = isEvm(quote.request.chain) && !!evm.adapter;
         return render();
       }
@@ -2300,13 +2308,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     },
     /** The connected Ethereum-style account, for Shield. */
     evmAccount: () => evm.account,
-    /** Shield's "take it back": approve(spender, 0) on the token, signed by the connected Ethereum-style wallet. */
-    async revokeEvm(chain, token, spender) {
+    /** Shield's "take it back": approve(spender, 0) on the token (or inside Permit2), signed by the connected Ethereum-style wallet. */
+    async revokeEvm(chain, token, spender, via) {
       const adapter = evm.adapter;
       const info = CHAINS[chain];
       if (!adapter || !evm.account || info.evmChainId === null) throw new SwingsError('invalid', 'Connect your Ethereum-style wallet first (on the Swap page).');
       await adapter.switchChain(info.evmChainId);
-      return adapter.sendTransaction({ from: evm.account, to: token, data: revokeCall(spender), value: '0x0' });
+      return adapter.sendTransaction({ from: evm.account, ...revokeTx(token, spender, via), value: '0x0', chainId: '0x' + info.evmChainId.toString(16) });
     },
   };
 }

@@ -239,7 +239,7 @@ export class EvmCurveFlow {
       if (!firstBuy) blockers.push('Your first buy is too small to get any tokens.');
       else minFirstBuyOut = firstBuy.tokensOut;
     }
-    const approveTx = buildApproveTx(config.creator, config.token, chain.curve, config.totalRaw);
+    const approveTx = buildApproveTx(config.creator, config.token, chain.curve, config.totalRaw, chain.chainId);
     const createTx = buildCreateTx(config, minFirstBuyOut);
     try {
       if (await this.checkChain(chain, blockers)) {
@@ -347,7 +347,7 @@ export class EvmCurveFlow {
     if (curve.status !== 'trading' && curve.status !== 'aborted') blockers.push('This curve is not open for selling.');
     const quote = evmQuoteSell(curve, curve.curveTokens, tokens);
     const minOut = quote ? evmMinOut(quote.net, slippageBps) : 0n;
-    const approveTx = buildApproveTx(account, token, chain.curve, tokens);
+    const approveTx = buildApproveTx(account, token, chain.curve, tokens, chain.chainId);
     const tx = buildSellTx(account, chain, token, tokens, minOut);
     let gasCostWei: bigint | null = null;
     let coinBalance = 0n;

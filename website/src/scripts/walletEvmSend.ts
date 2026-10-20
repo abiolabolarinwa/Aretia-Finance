@@ -107,7 +107,8 @@ export async function planEvmSend(req: EvmSendRequest, read: EvmRead): Promise<E
       if (gas === null || price === null) throw new Error('no estimate');
       const limit = (gas * GAS_MARGIN_NUM) / GAS_MARGIN_DEN;
       feeWei = limit * price;
-      tx = { ...tx, gas: hex(limit) };
+      // Bound to the network the transfer was planned on, so a wallet that has switched refuses it.
+      tx = { ...tx, gas: hex(limit), chainId: hex(BigInt(CHAINS[req.chain].evmChainId ?? 0)) };
     } catch (e) {
       const why = e instanceof SwingsError ? e.message : '';
       blockers.push(`The network would not accept this transfer${why ? `: ${why}` : '. The recipient or the token may refuse it'}. Nothing was sent.`);
@@ -152,6 +153,7 @@ export async function sendEvmTransfer(plan: EvmSendPlan, adapter: EvmWalletAdapt
   if (chainId === null) throw new SwingsError('invalid', 'That is not an Ethereum-style network.');
   const account = (await adapter.getAccounts())[0];
   if (!account || account.toLowerCase() !== plan.request.from.toLowerCase()) throw new SwingsError('invalid', 'The account selected in your wallet changed. Review the transfer again.');
+  if (plan.tx.chainId !== '0x' + chainId.toString(16)) throw new SwingsError('invalid', 'This transfer was not built for that network, so it was not sent.');
   if ((await adapter.getChainId()) !== chainId) await adapter.switchChain(chainId);
   return adapter.sendTransaction(plan.tx);
 }

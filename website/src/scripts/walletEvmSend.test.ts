@@ -155,6 +155,13 @@ describe('sendEvmTransfer', () => {
     const blocked = await planEvmSend({ ...nativeReq, amountText: '5' }, node().read);
     await expect(sendEvmTransfer(blocked, adapter().a)).rejects.toThrow(/did not pass its checks/);
   });
+  it('L-1: binds the transfer to its network and refuses a plan for another one', async () => {
+    const plan = await planEvmSend(nativeReq, node().read);
+    expect(plan.tx?.chainId).toBe('0x38');
+    const { a, log } = adapter({ getChainId: async () => 56 });
+    await expect(sendEvmTransfer({ ...plan, tx: { ...plan.tx!, chainId: '0x1' } }, a)).rejects.toThrow(/not built for that network/);
+    expect(log).toEqual([]);
+  });
 });
 
 describe('the build flag', () => {

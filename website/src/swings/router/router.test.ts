@@ -315,3 +315,16 @@ describe('time budget', () => {
     }
   });
 });
+
+describe('M-12: a quote refreshed inside Swap is signed only when it matches the one on screen', () => {
+  const shown = quoteFrom('aretia-sol', 1_000_000n);
+  it('lets a same-route refresh within the tolerance, or a better one, go straight to the wallet', () => {
+    expect(AretiaRouter.refreshDrift(shown, quoteFrom('aretia-sol', 999_000n))).toBeNull();
+    expect(AretiaRouter.refreshDrift(shown, quoteFrom('aretia-sol', 1_200_000n))).toBeNull();
+  });
+  it('stops on a new provider, a lower output, or a lower minimum', () => {
+    expect(AretiaRouter.refreshDrift(shown, quoteFrom('jupiter', 1_100_000n))).toMatch(/route changed/);
+    expect(AretiaRouter.refreshDrift(shown, quoteFrom('aretia-sol', 990_000n))).toMatch(/price fell/);
+    expect(AretiaRouter.refreshDrift(shown, quoteFrom('aretia-sol', 1_000_000n, { minOut: 900_000n }))).toMatch(/minimum/);
+  });
+});

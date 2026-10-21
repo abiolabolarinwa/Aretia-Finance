@@ -7,7 +7,8 @@
 import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { CCTP_CONTRACTS, CCTP_USDC, CctpSettlementProvider, cctpTransactionProblems, DEPOSIT_FOR_BURN_V2, MOVE_CAP_RAW } from './cctp.js';
-import { buildDepositForBurn, evmAddressBytes32, SOLANA_USDC } from './cctpSolana.js';
+import { buildDepositForBurn, evmAddressBytes32, SOLANA_USDC, solanaFeeUsdcAccount } from './cctpSolana.js';
+import { moveFeeFor } from '../core/fee.js';
 import { encodeFunction } from '../engine/abiGeneric.js';
 import { transactionProblems } from '../wallet/safety.js';
 import { CrossChainOrchestrator, type ExecutionGateway } from '../orchestrator/orchestrator.js';
@@ -22,8 +23,9 @@ const VICTIM = '0x' + 'a'.repeat(40);
 const ATTACKER = '0x' + 'e'.repeat(40);
 const ZERO32 = '0x' + '0'.repeat(64);
 const AMOUNT = 100_000_000n;
+const FEE_ADDRESS = '0x' + '7'.repeat(40);
 
-const provider = (): CctpSettlementProvider => new CctpSettlementProvider({ mode: 'standard', read: (() => async () => '0x') as never, fetchImpl: (async () => new Response('{}')) as never, now: () => NOW });
+const provider = (): CctpSettlementProvider => new CctpSettlementProvider({ mode: 'standard', read: (() => async () => '0x') as never, fetchImpl: (async () => new Response('{}')) as never, now: () => NOW, evmFeeAddress: FEE_ADDRESS });
 const intentOf = (over: Partial<SettlementIntent> = {}): SettlementIntent => ({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: AMOUNT, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: VICTIM, recipient: VICTIM, ...over });
 const quoteOf = (over: { intent?: Partial<SettlementIntent>; raw?: Record<string, unknown>; sourceAmount?: bigint } = {}): SettlementQuote => {
   const intent = intentOf(over.intent);
@@ -35,13 +37,14 @@ const quoteOf = (over: { intent?: Partial<SettlementIntent>; raw?: Record<string
     sourceAmount: over.sourceAmount ?? intent.sourceAmount,
     destinationAmount: intent.sourceAmount,
     settlementFee: { chain: 'ethereum', asset: intent.sourceAsset, amount: 0n, description: '' },
+    aretiaFee: { chain: 'ethereum', asset: intent.sourceAsset, amount: moveFeeFor(intent.sourceAmount), description: '' },
     networkFees: null,
     estimatedSeconds: 60,
     limits: { min: 1n, max: 10n ** 12n },
     expiresAt: 9e15,
     risk: { level: 'low', trust: '', factors: [] },
     requirements: [],
-    raw: { mode: 'standard', srcDomain: 0, dstDomain: 6, usdc: CCTP_USDC.ethereum, amount: intent.sourceAmount, maxFee: 0n, minFinalityThreshold: 2000, needsApproval: true, tokenMessenger: CCTP_CONTRACTS.tokenMessenger, ...over.raw },
+    raw: { mode: 'standard', srcDomain: 0, dstDomain: 6, usdc: CCTP_USDC.ethereum, amount: intent.sourceAmount, aretiaFee: moveFeeFor(intent.sourceAmount), burnAmount: intent.sourceAmount, maxFee: 0n, minFinalityThreshold: 2000, needsApproval: true, tokenMessenger: CCTP_CONTRACTS.tokenMessenger, ...over.raw },
   } as SettlementQuote;
 };
 
@@ -64,11 +67,11 @@ describe('H-3: the builder derives contracts from Aretia\'s tables and refuses a
     await expect(p.buildSettlement(quoteOf({ raw: { maxFee: -1n } }))).rejects.toThrow(/fee above the ceiling/);
   });
 
-  it('builds an honest quote: the approval names Circle\'s messenger for exactly the amount, and both pass the inspector', async () => {
+  it('builds an honest quote: the approval names Circle\'s messenger for exactly the burn, Aretia\'s fee goes to the fee address, and all pass the inspector', async () => {
     const q = quoteOf();
     const txs = await provider().buildSettlement(q);
-    expect(txs.map((t) => t.stepId)).toEqual(['approve', 'burn']);
-    for (const t of txs) expect(cctpTransactionProblems(q.intent, t)).toEqual([]);
+    expect(txs.map((t) => t.stepId)).toEqual(['approve', 'fee', 'burn']);
+    for (const t of txs) expect(cctpTransactionProblems(q.intent, t, undefined, FEE_ADDRESS)).toEqual([]);
     const allowed = provider().allowedDestinations('ethereum');
     for (const t of txs) expect(transactionProblems(t.unsigned, { address: VICTIM } as never, { address: VICTIM, chain: 'ethereum', allowedDestinations: allowed })).toEqual([]);
   });
@@ -116,7 +119,7 @@ describe('H-3: the CCTP inspector decodes every field', () => {
   it('checks a Solana burn\'s decoded instruction: owner, token account, recipient and amount', () => {
     const owner = web3.Keypair.generate().publicKey.toBase58();
     const sIntent = intentOf({ sourceChain: 'solana', sourceAsset: { chain: 'solana', address: SOLANA_USDC }, sender: owner });
-    const make = (recipient: string, amount = AMOUNT): SettlementTransaction => ({ stepId: 'burn', chain: 'solana', description: '', unsigned: { kind: 'solana', transaction: buildDepositForBurn(web3, { owner, amount, destinationDomain: 6, mintRecipient: evmAddressBytes32(recipient), maxFee: 0n, minFinalityThreshold: 2000, recentBlockhash: web3.Keypair.generate().publicKey.toBase58(), messageEventKey: web3.Keypair.generate() }) } });
+    const make = (recipient: string, amount = AMOUNT): SettlementTransaction => ({ stepId: 'burn', chain: 'solana', description: '', unsigned: { kind: 'solana', transaction: buildDepositForBurn(web3, { owner, amount, destinationDomain: 6, mintRecipient: evmAddressBytes32(recipient), maxFee: 0n, minFinalityThreshold: 2000, recentBlockhash: web3.Keypair.generate().publicKey.toBase58(), messageEventKey: web3.Keypair.generate(), aretiaFee: { destination: solanaFeeUsdcAccount(web3), amount: moveFeeFor(AMOUNT) } }) } });
     expect(cctpTransactionProblems(sIntent, make(VICTIM), web3)).toEqual([]);
     expect(cctpTransactionProblems(sIntent, make(ATTACKER), web3)).toContainEqual(expect.stringMatching(/different recipient/));
     expect(cctpTransactionProblems(sIntent, make(VICTIM, AMOUNT + 1n), web3)).toContainEqual(expect.stringMatching(/different amount/));
@@ -176,7 +179,7 @@ describe('H-3: a restored record is never signed from', () => {
     const rec = await orch.create(quoteOf());
     expect(orch.canSign(rec.id)).toBe(true);
     expect((await orch.start(rec.id)).state).toBe('SETTLEMENT_PENDING');
-    expect(gateway.sent.map((t) => t.stepId)).toEqual(['approve', 'burn']);
+    expect(gateway.sent.map((t) => t.stepId)).toEqual(['approve', 'fee', 'burn']);
   });
 
   it('a record overwritten under a fresh id is still built from the quote accepted on this page', async () => {

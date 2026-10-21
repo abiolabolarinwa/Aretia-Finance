@@ -16,6 +16,8 @@ export interface MockSettlementOptions {
   /** What `trackSettlement` reports, so tests can walk a settlement through its states. */
   status?: () => SettlementStatus['code'];
   failQuote?: boolean;
+  /** A fee in basis points added ON TOP of the amount (as Aretia's Move USDC fee is): the full amount arrives, more leaves the wallet. */
+  onTopBps?: number;
   sloppy?: Partial<{ changeAmount: boolean; payMore: boolean; expired: boolean; noReceiveStep: boolean; otherProvider: boolean }>;
 }
 
@@ -53,6 +55,7 @@ export class MockSettlementProvider implements SettlementProvider {
         ],
       },
       sourceAmount: s.changeAmount ? intent.sourceAmount + 1n : intent.sourceAmount,
+      ...(this.o.onTopBps ? { sourceTotal: intent.sourceAmount + (intent.sourceAmount * BigInt(this.o.onTopBps) + 9_999n) / 10_000n } : {}),
       destinationAmount: s.payMore ? intent.sourceAmount + 1n : intent.sourceAmount - fee,
       settlementFee: { chain: intent.sourceChain, asset: intent.sourceAsset, amount: fee, description: 'Mock fee' },
       networkFees: null,

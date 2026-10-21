@@ -7,7 +7,8 @@ From a machine with open internet access: `npm run test:live`. The Solana file c
 
 ## 1. What you need
 - **A Solana wallet and an Ethereum-style wallet** for the same person. MetaMask holds both. Connect the Solana wallet with the **Connect wallet** button at the top of the page, and the Ethereum-style one in Move USDC.
-- **Solana to Base:** 2 USDC **in your standard USDC account** (the page counts only that account, because that is the one the burn takes from), and at least **0.01 SOL** for the network fee and the small deposit that stores the message record. Below about 0.006 SOL the page warns; at zero it refuses. That deposit (a few thousandths of a SOL) is not taken back by Aretia. Also a little ETH on Base to pay the claim.
+- **Aretia's fee:** 0.1% of the amount entered, added on top (2 USDC pays 0.002 USDC). From Solana it is paid inside the burn transaction, to the fee wallet's USDC account, which the operator must have opened once (see `setup.md`, "The Move USDC fee"); otherwise moves from Solana are refused.
+- **Solana to Base:** 2.002 USDC **in your standard USDC account** (the page counts only that account, because that is the one the burn takes from), and at least **0.01 SOL** for the network fee and the small deposit that stores the message record. Below about 0.006 SOL the page warns; at zero it refuses. That deposit (a few thousandths of a SOL) is not taken back by Aretia. Also a little ETH on Base to pay the claim.
 - **Base to Solana:** 2 USDC and a little ETH on Base for the burn, and **about 0.005 SOL** on Solana for the claim (the fee, plus roughly 0.002 SOL to open your USDC account if you have never held USDC there).
 - The destination account is always your own: the page uses the connected wallet on each side.
 

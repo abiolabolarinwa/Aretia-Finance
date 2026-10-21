@@ -8,6 +8,7 @@ import type { SettlementIntent } from './types.js';
 const NOW = 5_000_000;
 const SENDER = '0x' + 'a'.repeat(40);
 const RECIPIENT = '0x' + 'b'.repeat(40);
+const FEE_ADDRESS = '0x' + '7'.repeat(40);
 const word = (n: bigint): string => '0x' + n.toString(16).padStart(64, '0');
 const intent = (over: Partial<SettlementIntent> = {}): SettlementIntent => ({
   sourceChain: 'ethereum',
@@ -54,7 +55,7 @@ const world = (w: Partial<World> = {}): { w: World; fetchImpl: typeof fetch; rea
 };
 const provider = (mode: 'fast' | 'standard', w: Partial<World> = {}) => {
   const x = world(w);
-  return { p: new CctpSettlementProvider({ mode, read: x.read as never, fetchImpl: x.fetchImpl, now: () => NOW }), x };
+  return { p: new CctpSettlementProvider({ mode, read: x.read as never, fetchImpl: x.fetchImpl, now: () => NOW, evmFeeAddress: FEE_ADDRESS }), x };
 };
 
 describe('feeFor', () => {
@@ -92,35 +93,39 @@ describe('CCTP support is decided, with a reason, never assumed', () => {
 });
 
 describe('quotes', () => {
-  it('fast: charges the published fee out of the amount, needs an exact approval, and shows the time', async () => {
+  it('fast: adds the published fee and Aretia\'s fee on top, so the full amount arrives; needs an exact approval, and shows the time', async () => {
     const { p } = provider('fast');
     const q = await p.getQuote(intent());
-    expect(q.settlementFee.amount).toBe(130_000n);
-    expect(q.destinationAmount).toBe(1_000_000_000n - 130_000n);
-    expect(q.route.steps.map((s) => s.id)).toEqual(['approve', 'burn', 'attest', 'mint']);
+    // Circle's fee on top of 1,000 USDC at 1.3 bps, worked out on the larger burn: 0.130017 USDC.
+    expect(q.settlementFee.amount).toBe(130_017n);
+    expect(q.aretiaFee!.amount).toBe(1_000_000n);
+    expect(q.destinationAmount).toBe(1_000_000_000n);
+    expect(q.sourceTotal).toBe(1_000_000_000n + 130_017n + 1_000_000n);
+    expect(q.route.steps.map((s) => s.id)).toEqual(['approve', 'fee', 'burn', 'attest', 'mint']);
     expect(q.route.steps.at(-1)!.kind).toBe('receive');
     expect(q.estimatedSeconds).toBeLessThan(120);
     expect(q.networkFees).toBeNull();
   });
 
-  it('standard: no fee, a long wait, and no approval when the allowance already covers it', async () => {
+  it('standard: no Circle fee, Aretia\'s fee on top, a long wait, and no approval when the allowance already covers the burn', async () => {
     const { p } = provider('standard', { allowance: 1_000_000_000n });
     const q = await p.getQuote(intent());
     expect(q.settlementFee.amount).toBe(0n);
     expect(q.destinationAmount).toBe(q.sourceAmount);
-    expect(q.route.steps.map((s) => s.id)).toEqual(['burn', 'attest', 'mint']);
+    expect(q.sourceTotal).toBe(1_001_000_000n);
+    expect(q.route.steps.map((s) => s.id)).toEqual(['fee', 'burn', 'attest', 'mint']);
     expect(q.estimatedSeconds).toBeGreaterThan(15 * 60);
   });
 
-  it('rejects an amount above the burn limit, above the fast allowance, or too small for the fee', async () => {
+  it('rejects an amount above the burn limit, above the fast allowance, or of zero', async () => {
     await expect(provider('standard', { burnLimit: 5n }).p.getQuote(intent())).rejects.toThrow(/largest single/);
     await expect(provider('fast', { fastAllowance: 10 }).p.getQuote(intent())).rejects.toThrow(/fast-transfer allowance/);
-    await expect(provider('fast').p.getQuote(intent({ sourceAmount: 1n }))).rejects.toThrow(/too small/);
+    await expect(provider('fast').p.getQuote(intent({ sourceAmount: 0n }))).rejects.toThrow(/above zero/);
   });
 
   it('passes the engine\'s own checks, and the engine ranks fast against standard', async () => {
     const x = world({ allowance: 10n ** 12n });
-    const providers = cctpProviders({ read: x.read as never, fetchImpl: x.fetchImpl, now: () => NOW });
+    const providers = cctpProviders({ read: x.read as never, fetchImpl: x.fetchImpl, now: () => NOW, evmFeeAddress: FEE_ADDRESS });
     const engine = new SettlementQuoteEngine(providers, { now: () => NOW });
     const search = await engine.quote(intent(), 'cheapest');
     expect(search.failures).toEqual([]);
@@ -130,15 +135,18 @@ describe('quotes', () => {
 });
 
 describe('transactions', () => {
-  it('builds an approval for exactly the amount and a burn to the stated recipient, nothing more', async () => {
+  it('builds an approval for exactly the burn, Aretia\'s fee, and a burn to the stated recipient, nothing more', async () => {
     const { p } = provider('standard');
     const q = await p.getQuote(intent({ sourceAmount: 100_000_000n }));
     const txs = await p.buildSettlement(q);
-    expect(txs.map((t) => t.stepId)).toEqual(['approve', 'burn']);
+    expect(txs.map((t) => t.stepId)).toEqual(['approve', 'fee', 'burn']);
     const approve = txs[0]!.unsigned as { tx: { to: string; data: string } };
     expect(approve.tx.to).toBe(CCTP_USDC.ethereum);
     expect(approve.tx.data).toBe(encodeFunction('approve(address,uint256)', [CCTP_CONTRACTS.tokenMessenger, 100_000_000n]));
-    const burn = txs[1]!.unsigned as { tx: { to: string; data: string; from: string } };
+    const fee = txs[1]!.unsigned as { tx: { to: string; data: string } };
+    expect(fee.tx.to).toBe(CCTP_USDC.ethereum);
+    expect(fee.tx.data).toBe(encodeFunction('transfer(address,uint256)', [FEE_ADDRESS, 100_000n]));
+    const burn = txs[2]!.unsigned as { tx: { to: string; data: string; from: string } };
     expect(burn.tx.to).toBe(CCTP_CONTRACTS.tokenMessenger);
     expect(burn.tx.from).toBe(SENDER);
     expect(burn.tx.data.toLowerCase()).toContain('b'.repeat(40));
@@ -147,7 +155,7 @@ describe('transactions', () => {
   it('refuses to build from an expired quote', async () => {
     const x = world();
     let t = NOW;
-    const p = new CctpSettlementProvider({ mode: 'standard', read: x.read as never, fetchImpl: x.fetchImpl, now: () => t });
+    const p = new CctpSettlementProvider({ mode: 'standard', read: x.read as never, fetchImpl: x.fetchImpl, now: () => t, evmFeeAddress: FEE_ADDRESS });
     const q = await p.getQuote(intent());
     t += 10 * 60_000;
     await expect(p.buildSettlement(q)).rejects.toThrow(/expired/);

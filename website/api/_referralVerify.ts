@@ -9,6 +9,12 @@
  *    from the trader to the fee address, in a transaction that succeeded.
  *
  * Only assets that carry the Aretia fee are counted (`isFeeAsset`), so odd tokens sent to the fee wallet earn nobody anything.
+ *
+ * Move USDC fees (0.1% of a Circle CCTP move, added on top) are fee revenue from the trader too, and are credited the same way, by
+ * decision: on EVM the move's fee is a separate USDC transfer to the fee address exactly like a swap's separate fee transfer, so the
+ * two cannot be told apart from the chain; on Solana it is a rise of the fee wallet's USDC inside the burn transaction. Either way it
+ * is one payment in one transaction, credited at most once per (chain, tx, asset); the burn itself pays the fee wallet nothing, so
+ * reporting it credits nothing. (A move of exactly 10,000 USDC pays exactly 10 USDC, the flat EVM pool fee, and is then not credited.)
  * Not verified against a real swap yet: see docs/referrals.md.
  */
 import { SWAP_FEE_WALLET } from '../src/scripts/walletTools.js';

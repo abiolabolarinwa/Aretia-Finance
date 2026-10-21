@@ -9,7 +9,7 @@
  *  - an unknown amount stays unknown: if any leg has no price, the final amount is null and says why, never a guess;
  *  - the expiry is the earliest of the legs, the risk is the worst of the legs.
  */
-import { FEE_PERCENT } from '../core/fee.js';
+import { FEE_PERCENT, MOVE_FEE_PERCENT } from '../core/fee.js';
 import { CHAINS, SwingsError, type ChainId, type Quote } from '../core/types.js';
 import type { RampQuote } from '../ramp/types.js';
 import type { SettlementQuote } from '../settlement/types.js';
@@ -85,14 +85,18 @@ const fiatLine = (code: string, amount: number | null): AmountLine => ({ chain: 
 export function legFromSettlement(q: SettlementQuote, symbol = 'USDC', decimals = 6): ExecutionLeg {
   const i = q.intent;
   const src = { chain: i.sourceChain, assetKey: key(i.sourceAsset.address), symbol, decimals };
-  const fees: FeeLine[] = [{ label: 'Transfer fee', kind: 'settlement', assetKey: src.assetKey, symbol, decimals, amount: q.settlementFee.amount }];
+  const onTop = q.sourceTotal !== undefined && q.sourceTotal > q.sourceAmount;
+  const fees: FeeLine[] = [{ label: q.aretiaFee ? `Circle's transfer fee${onTop ? ' (at most, added on top)' : ''}` : 'Transfer fee', kind: 'settlement', assetKey: src.assetKey, symbol, decimals, amount: q.settlementFee.amount }];
+  // Aretia's Move USDC fee is its own line, never merged into Circle's.
+  if (q.aretiaFee) fees.push({ label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount${onTop ? ', added on top' : ''}`, kind: 'aretia-fee', assetKey: key(q.aretiaFee.asset.address), symbol, decimals, amount: q.aretiaFee.amount });
   if (q.networkFees === null) fees.push({ label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${i.sourceChain}`, symbol: CHAINS[i.sourceChain].nativeSymbol, decimals: CHAINS[i.sourceChain].nativeDecimals, amount: null });
   else for (const f of q.networkFees) fees.push({ label: `Network fee on ${CHAINS[f.chain].name}`, kind: 'network', assetKey: `native:${f.chain}`, symbol: CHAINS[f.chain].nativeSymbol, decimals: CHAINS[f.chain].nativeDecimals, amount: f.amount });
   return {
     id: q.id,
     kind: 'settlement',
     title: `Move ${symbol} from ${CHAINS[i.sourceChain].name} to ${CHAINS[i.destinationChain].name}`,
-    input: { ...src, amount: q.sourceAmount },
+    // What the leg takes from the wallet: the amount plus any fee added on top.
+    input: { ...src, amount: q.sourceTotal ?? q.sourceAmount },
     output: { chain: i.destinationChain, assetKey: key(i.destinationAsset.address), symbol, decimals, amount: q.destinationAmount },
     fees,
     estimatedSeconds: q.estimatedSeconds,
@@ -211,11 +215,11 @@ export function pendingSettlementLeg(id: string, from: { chain: ChainId; address
     title: `Move ${symbol} from ${CHAINS[from.chain].name} to ${CHAINS[to.chain].name}`,
     input: { chain: from.chain, assetKey: key(from.address), symbol, decimals, amount: null },
     output: { chain: to.chain, assetKey: key(to.address), symbol, decimals, amount: null },
-    fees: [{ label: 'Transfer fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
+    fees: [{ label: 'Transfer fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount moved (worked out when the money arrives)`, kind: 'aretia-fee', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
     estimatedSeconds,
     risk: 'low',
-    signatures: 3,
+    signatures: 4,
     expiresAt: Number.MAX_SAFE_INTEGER,
-    notes: ['This step is priced and checked again when the money has arrived, from the amount that actually arrived.'],
+    notes: ['This step is priced and checked again when the money has arrived, from the amount that actually arrived. The fees are added on top, so what is moved is the arrived amount less the fees.'],
   };
 }

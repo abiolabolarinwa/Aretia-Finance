@@ -5,7 +5,7 @@
  */
 import { SwingsError, type ChainId } from '../core/types.js';
 import type { EvmRead } from '../chains/evmSession.js';
-import type { SettlementTransaction } from '../settlement/types.js';
+import type { PermittedTokenTransfer, SettlementTransaction } from '../settlement/types.js';
 import { ensureNetwork, verifyBeforeExecute, type NetworkSwitchRequest } from '../wallet/safety.js';
 import type { WalletSessionManager } from '../wallet/sessionManager.js';
 import type { ExecutionGateway } from './orchestrator.js';
@@ -20,7 +20,7 @@ export class WalletExecutionGateway implements ExecutionGateway {
     private readonly solanaStatus?: (signature: string) => Promise<'confirmed' | 'failed' | 'pending'>,
   ) {}
 
-  async send(tx: SettlementTransaction, expect: { address: string; allowedDestinations: readonly string[] }): Promise<string> {
+  async send(tx: SettlementTransaction, expect: { address: string; allowedDestinations: readonly string[]; permittedTokenTransfer?: PermittedTokenTransfer | null }): Promise<string> {
     if (expect.allowedDestinations.length === 0) throw new SwingsError('invalid', 'The provider declared no addresses this transaction may call, so it is refused.');
     const lease = this.wallets.lease(tx.chain);
     const same = tx.unsigned.kind === 'evm' ? lease.address.toLowerCase() === expect.address.toLowerCase() : lease.address === expect.address;
@@ -31,7 +31,8 @@ export class WalletExecutionGateway implements ExecutionGateway {
     }
     const fresh = this.wallets.lease(tx.chain);
     const wallet = await this.wallets.redeem(fresh, { allowedDestinations: expect.allowedDestinations });
-    const problems = await verifyBeforeExecute(wallet, { address: expect.address, chain: tx.chain, allowedDestinations: expect.allowedDestinations, revision: fresh.revision }, tx.unsigned);
+    const permitted = expect.permittedTokenTransfer && expect.permittedTokenTransfer.chain === tx.chain ? expect.permittedTokenTransfer : null;
+    const problems = await verifyBeforeExecute(wallet, { address: expect.address, chain: tx.chain, allowedDestinations: expect.allowedDestinations, revision: fresh.revision, permittedTokenTransfer: permitted }, tx.unsigned);
     if (problems.length > 0) throw new SwingsError('invalid', problems[0]!);
     return wallet.sendTransaction(tx.unsigned);
   }

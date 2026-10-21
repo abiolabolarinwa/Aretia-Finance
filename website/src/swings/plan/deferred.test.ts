@@ -39,7 +39,7 @@ async function build(over: { mockOpts?: ConstructorParameters<typeof MockSettlem
   const balance = new BalanceLegExecutor({ balanceOf: async (c, _w, a) => balances.get(`${c}:${a}`) ?? null, walletFor: () => ME, instruction: () => 'Pay on the provider page.' });
   const store = new JsonVersionedStore<PlanRecord>(null, 'p', (v): v is PlanRecord => typeof v === 'object' && v !== null && 'legs' in v);
   const runner = new PlanRunner({ store, executors: { 'ramp-buy': balance, settlement: deferred }, now: () => NOW, newId: () => 'plan1' });
-  return { runner, balances, sent, acknowledged, deferred, quote, store };
+  return { runner, balances, sent, acknowledged, deferred, quote, store, quotes };
 }
 
 describe('a settlement priced when its turn comes', () => {
@@ -62,6 +62,19 @@ describe('a settlement priced when its turn comes', () => {
     expect(exec).toBeTruthy();
     const record = (await store.get(id))!;
     expect(record.legs[1]!.status).toBe('active');
+  });
+
+  it('with fees added on top, moves the most that fits in what arrived (the fees come out of it too)', async () => {
+    const { runner, balances, sent, quote, quotes } = await build({ mockOpts: { onTopBps: 10, feeBps: 0 } });
+    const id = (await runner.create(quote)).id;
+    await runner.step(id);
+    balances.set(`ethereum:${USDC_ETH}`, 90_000_000n);
+    await runner.step(id);
+    expect(sent).toEqual(['send']);
+    const moved = quotes.get('pending')!;
+    expect(moved.sourceTotal!).toBeLessThanOrEqual(90_000_000n);
+    expect(moved.sourceAmount).toBeLessThan(90_000_000n);
+    expect(moved.sourceAmount).toBeGreaterThanOrEqual(90_000_000n - 90_000n - 1n);
   });
 
   it('does not start when nothing arrived, and tries again on the next step', async () => {

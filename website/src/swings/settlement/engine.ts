@@ -59,7 +59,9 @@ export function quoteProblems(intent: SettlementIntent, q: SettlementQuote, now:
 
 /** Orders quotes by the stated preference. Risk always comes first; ties fall through to the next rule. Pure. */
 export function rankQuotes(quotes: readonly SettlementQuote[], preference: SettlementPreference): SettlementQuote[] {
-  const byCost = (a: SettlementQuote, b: SettlementQuote): number => (a.destinationAmount === b.destinationAmount ? 0 : a.destinationAmount > b.destinationAmount ? -1 : 1);
+  // More arriving is cheaper; when the same arrives (fees added on top), the one that takes less from the wallet is cheaper.
+  const total = (q: SettlementQuote): bigint => q.sourceTotal ?? q.sourceAmount;
+  const byCost = (a: SettlementQuote, b: SettlementQuote): number => (a.destinationAmount !== b.destinationAmount ? (a.destinationAmount > b.destinationAmount ? -1 : 1) : total(a) === total(b) ? 0 : total(a) < total(b) ? -1 : 1);
   const byTime = (a: SettlementQuote, b: SettlementQuote): number => a.estimatedSeconds - b.estimatedSeconds;
   const byRisk = (a: SettlementQuote, b: SettlementQuote): number => RISK_ORDER[a.risk.level] - RISK_ORDER[b.risk.level];
   const order = preference === 'fastest' ? [byRisk, byTime, byCost] : [byRisk, byCost, byTime];

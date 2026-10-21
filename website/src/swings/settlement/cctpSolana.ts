@@ -14,7 +14,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { SwingsError } from '../core/types.js';
-import { ataAddress, createAtaIdempotentInstruction, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, createAtaIdempotentInstruction, SWAP_FEE_WALLET, TOKEN_PROGRAM_ID, transferCheckedInstruction } from '../../scripts/walletTools.js';
 
 export const TOKEN_MESSENGER_MINTER_V2 = 'CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe';
 export const MESSAGE_TRANSMITTER_V2 = 'CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC';
@@ -155,8 +155,22 @@ export interface BurnArgs {
   recentBlockhash: string;
   /** A fresh key pair, used once, whose public key will hold the message event. Never a user key. */
   messageEventKey: Web3.Keypair;
+  /**
+   * Aretia's Move USDC fee, sent from the owner's USDC account to `destination` (the fee wallet's own USDC account, which must
+   * already exist) in the SAME transaction as the burn, so there is never a fee without a burn or a burn without the fee.
+   */
+  aretiaFee?: { destination: string; amount: bigint };
   computeUnits?: number;
 }
+
+/** USDC has 6 decimals on Solana; TransferChecked makes the token program check that again. */
+export const SOLANA_USDC_DECIMALS = 6;
+
+/**
+ * The fee wallet's standard USDC account on Solana, where the Move USDC fee is paid. Aretia never creates it at a user's expense:
+ * the operator creates it once (see docs/aretia-swings/setup.md), and a move from Solana is refused until it exists.
+ */
+export const solanaFeeUsdcAccount = (web3: typeof Web3): string => ataAddress(web3, SWAP_FEE_WALLET, SOLANA_USDC, TOKEN_PROGRAM_ID);
 
 /**
  * The unsigned burn transaction, already signed by the throwaway message-event key. The owner's wallet still has to sign
@@ -164,6 +178,7 @@ export interface BurnArgs {
  */
 export function buildDepositForBurn(web3: typeof Web3, a: BurnArgs): Web3.Transaction {
   if (a.amount <= 0n || a.maxFee >= a.amount) throw new SwingsError('invalid', 'The fee must be less than the amount.');
+  if (a.aretiaFee && a.aretiaFee.amount <= 0n) throw new SwingsError('invalid', 'The Aretia fee must be above zero.');
   if (a.mintRecipient.length !== 32 || a.mintRecipient.every((b) => b === 0)) throw new SwingsError('invalid', 'The recipient is not valid.');
   const addr = cctpSolanaAddresses(web3);
   const owner = new web3.PublicKey(a.owner);
@@ -196,6 +211,8 @@ export function buildDepositForBurn(web3: typeof Web3, a: BurnArgs): Web3.Transa
   });
   const tx = new web3.Transaction({ feePayer: owner, recentBlockhash: a.recentBlockhash });
   tx.add(web3.ComputeBudgetProgram.setComputeUnitLimit({ units: a.computeUnits ?? 250_000 }));
+  // Aretia's fee first, then the burn, in one transaction: if either fails, neither happens.
+  if (a.aretiaFee) tx.add(transferCheckedInstruction(web3, TOKEN_PROGRAM_ID, ownerUsdc, SOLANA_USDC, a.aretiaFee.destination, a.owner, a.aretiaFee.amount, SOLANA_USDC_DECIMALS));
   tx.add(ix);
   tx.partialSign(a.messageEventKey);
   return tx;

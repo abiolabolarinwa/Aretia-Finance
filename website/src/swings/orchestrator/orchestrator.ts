@@ -11,20 +11,24 @@
  *    record can never choose the contract, the amount or the recipient;
  *  - say COMPLETED because the source transaction confirmed: only the provider's report that the destination received
  *    the value (and, where the destination needs a claim, that the claim confirmed) completes an execution;
- *  - guess when it cannot tell: an unknown provider answer changes nothing.
+ *  - guess when it cannot tell: an unknown provider answer changes nothing;
+ *  - charge Aretia's fee for a move twice, or for a move that cannot happen: before the fee step and before the burn the provider's
+ *    `preflight` simulates the burn, and a fee paid on its own is remembered (`MoveFeeLedger`, by chain, sender and amount) until
+ *    the burn it paid for confirms, so a retry of the same move under a new quote skips the fee step instead of paying it again.
  *
  * It does not move value itself. The wallet gateway signs; the provider builds and tracks.
  */
 import { SwingsError } from '../core/types.js';
 import type { ChainId } from '../core/types.js';
-import { executionIdOf, parseExecutionId, type SettlementProvider, type SettlementQuote, type SettlementTransaction } from '../settlement/types.js';
+import { executionIdOf, FEE_STEP_ID, parseExecutionId, type PermittedTokenTransfer, type SettlementProvider, type SettlementQuote, type SettlementTransaction } from '../settlement/types.js';
+import { MoveFeeLedger, moveFeeKey } from './feeLedger.js';
 import { secureId } from './remote.js';
 import { applyTransition, hasCommitted, isFinal, type ExecutionRecord, type ExecutionState, type StepProgress } from './states.js';
 import type { ExecutionStore } from './store.js';
 
 export interface ExecutionGateway {
   /** Asks the user's wallet to sign and send. Must refuse (throw) unless the wallet is the expected account on the right network. */
-  send(tx: SettlementTransaction, expect: { address: string; allowedDestinations: readonly string[] }): Promise<string>;
+  send(tx: SettlementTransaction, expect: { address: string; allowedDestinations: readonly string[]; permittedTokenTransfer?: PermittedTokenTransfer | null }): Promise<string>;
   confirmation(chain: ChainId, hash: string): Promise<'confirmed' | 'failed' | 'pending'>;
 }
 
@@ -38,6 +42,8 @@ export interface OrchestratorOptions {
   confirmPollMs?: number;
   confirmTimeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Where a fee paid on its own is remembered until its burn confirms. Defaults to sessionStorage (and memory). */
+  feeLedger?: MoveFeeLedger;
 }
 
 /** A Solana transaction that has not landed within about two minutes never will: its blockhash has expired. */
@@ -69,6 +75,7 @@ export class CrossChainOrchestrator {
       confirmTimeoutMs: 10 * 60_000,
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
       ...options,
+      feeLedger: options.feeLedger ?? new MoveFeeLedger(undefined, options.now ?? Date.now),
     };
   }
 
@@ -119,12 +126,23 @@ export class CrossChainOrchestrator {
       r = { ...r, quote };
       const provider = this.provider(quote.providerId);
       if (!hasCommitted(r) && quote.expiresAt <= this.o.now()) return this.move(r, 'EXPIRED', 'The quote expired before anything was signed.');
-      const txs = await provider.buildSettlement(quote);
+      let txs: SettlementTransaction[];
+      try {
+        txs = await provider.buildSettlement(quote);
+      } catch (e) {
+        // An earlier step (an approval, Aretia's fee) went out, then the quote lapsed before the burn: this execution cannot finish.
+        // It ends here; a new quote starts a new one, and a fee already paid for the same move is not charged again.
+        if (e instanceof SwingsError && e.code === 'expired' && hasCommitted(r)) return this.fail(r, 'The quote expired before the USDC was moved, so nothing more was sent from this quote. Get a new quote for the same move: an Aretia fee already paid for it is not charged again.', false);
+        throw e;
+      }
       if (txs.length === 0) return this.fail(r, 'The provider built no transactions.', false);
       const issues = provider.inspect ? (await Promise.all(txs.map((t) => provider.inspect!(quote, t)))).flat() : [];
+      if (provider.inspectAll) issues.push(...(await provider.inspectAll(quote, txs)));
       if (issues.length > 0) throw new SwingsError('invalid', `Nothing was signed: ${issues[0]}`);
       if (r.state === 'QUOTED') r = await this.move(r, 'AWAITING_SIGNATURE', 'Waiting for the wallet to sign.');
       const allowed = provider.allowedDestinations(quote.intent.sourceChain);
+      const permittedTokenTransfer = provider.permittedTokenTransfer ? await provider.permittedTokenTransfer(quote) : null;
+      const feeKey = moveFeeKey(quote.intent);
       for (let i = 0; i < txs.length; i++) {
         const tx = txs[i]!;
         const last = i === txs.length - 1;
@@ -136,11 +154,20 @@ export class CrossChainOrchestrator {
           if (isFinal(r.state)) return r;
           continue;
         }
+        // Aretia's fee for this very move was already paid on its own (an earlier attempt whose burn did not confirm): not again.
+        const prepaid = tx.stepId === FEE_STEP_ID ? this.o.feeLedger.paid(feeKey) : null;
+        if (prepaid) {
+          r = await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'confirmed', hash: prepaid, updatedAt: this.o.now() });
+          continue;
+        }
+        // The chain is asked first whether the move can go through (the burn is simulated), so a fee is never paid for a move that
+        // would fail. Nothing has been handed to the wallet when this throws.
+        if (provider.preflight) await provider.preflight(quote, txs, i);
         // Save "sending" first, so a crash after the wallet call cannot lead to a second send.
         r = await this.saveStep(r, { stepId: tx.stepId, chain: tx.chain, status: 'sending', hash: null, updatedAt: this.o.now() });
         let hash: string;
         try {
-          hash = await this.o.gateway.send(tx, { address: quote.intent.sender, allowedDestinations: allowed });
+          hash = await this.o.gateway.send(tx, { address: quote.intent.sender, allowedDestinations: allowed, permittedTokenTransfer });
         } catch (e) {
           // A refusal Aretia or the wallet states plainly (SwingsError) means nothing was sent. Anything else, such as a
           // network error while sending, is ambiguous: the transaction may have gone through, so it is never retried.
@@ -183,6 +210,9 @@ export class CrossChainOrchestrator {
       return this.fail(r, `The ${stepId} transaction failed on the network (${step.hash}).`, false);
     }
     r = await this.saveStep(r, { ...step, status: 'confirmed', updatedAt: this.o.now() });
+    // A fee paid on its own is remembered until the burn it paid for confirms; then it is spent and forgotten.
+    if (stepId === FEE_STEP_ID && step.hash) this.o.feeLedger.markPaid(moveFeeKey(r.quote.intent), step.hash);
+    if (last) this.o.feeLedger.clear(moveFeeKey(r.quote.intent));
     return last ? this.confirmSource(r) : r;
   }
 

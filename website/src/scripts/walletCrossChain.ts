@@ -3,6 +3,7 @@
  * the user's own wallet through the same checks as a swap. Everything the user is told comes from `crosschain/view.ts`.
  */
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
+import { MOVE_FEE_PERCENT } from '../swings/core/fee.js';
 import { restoreFromCode } from '../swings/orchestrator/remote.js';
 import { runtime } from '../swings/runtime.js';
 import { CCTP_USDC, MOVE_CAP_RAW } from '../swings/settlement/cctp.js';
@@ -153,7 +154,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     const pick = el('input', { attrs: { type: 'radio', name: 'cc-quote', ...(s.chosen === q ? { checked: '' } : {}) } });
     pick.addEventListener('change', () => { s.chosen = q; draw(); });
     card.append(el('label', { class: 'wapp__row-actions' }, [pick, el('strong', { text: v.mechanism })]));
-    card.append(el('p', { text: `You send ${v.youSend}. You receive ${v.youReceive}, in ${v.time}.` }));
+    card.append(el('p', { text: `Amount: ${v.amountEntered}. You send ${v.youSend} in all (the fees are added on top). The recipient gets ${v.youReceive}, in ${v.time}.` }));
     const fees = el('ul', { class: 'wapp__list' });
     for (const f of v.fees) fees.append(el('li', { text: `${f.label}: ${f.value}` }));
     card.append(fees);
@@ -275,7 +276,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     const steps = el('ol', { class: 'wapp__steps' });
     for (const t of ['Pick the networks and amount', 'Check the quote', 'Approve in your wallet', 'Collect on the other network']) steps.append(el('li', { text: t }));
     card.append(steps);
-    card.append(el('details', { class: 'wapp__more' }, [el('summary', { text: 'How does this work, and is it safe?' }), el('p', { text: "Circle, the company that issues USDC, lets USDC be sent between networks without a bridge: your USDC is destroyed on the first network and Circle issues the same amount on the second. You never hold a wrapped copy, and nobody else holds your funds in between." }), el('p', { text: 'The USDC always goes to your own account on the other network. To move to or from Solana you need both a Solana wallet and an Ethereum-style wallet connected. BNB Chain is not supported by Circle.' }), el('p', { text: 'The last step needs a little of the other network\'s coin (for example ETH on Base) to pay its network fee. If you do not have any, get some first.' })]));
+    card.append(el('details', { class: 'wapp__more' }, [el('summary', { text: 'How does this work, and is it safe?' }), el('p', { text: "Circle, the company that issues USDC, lets USDC be sent between networks without a bridge: your USDC is destroyed on the first network and Circle issues the same amount on the second. You never hold a wrapped copy, and nobody else holds your funds in between." }), el('p', { text: `Aretia charges ${MOVE_FEE_PERCENT} of the amount you enter, added on top and paid in USDC on the sending network; Circle's fee for a fast transfer is added on top too. So the amount you enter is what arrives.` }), el('p', { text: 'The USDC always goes to your own account on the other network. To move to or from Solana you need both a Solana wallet and an Ethereum-style wallet connected. BNB Chain is not supported by Circle.' }), el('p', { text: 'The last step needs a little of the other network\'s coin (for example ETH on Base) to pay its network fee. If you do not have any, get some first.' })]));
     const involves = (kind: 'solana' | 'evm'): boolean => [s.from, s.to].some((c) => CHAINS[c].kind === kind);
     if (!s.record && involves('evm') && !evm.account) {
       card.append(connectBox());
@@ -304,7 +305,7 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
       for (const d of s.search.declined) root.append(banner('info', `${d.providerId}: ${d.reason}`));
       for (const f of s.search.failures) root.append(banner('warn', `${f.providerId}: ${f.message}`));
       if (s.chosen) {
-        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Start: send ${formatUnits(s.chosen.sourceAmount, 6)} USDC`, attrs: { type: 'button' } });
+        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Start: send ${formatUnits(s.chosen.sourceTotal ?? s.chosen.sourceAmount, 6)} USDC (${formatUnits(s.chosen.destinationAmount, 6)} USDC arrives)`, attrs: { type: 'button' } });
         go.addEventListener('click', () =>
           void run(async () => {
             const q = s.chosen!;

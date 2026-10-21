@@ -29,10 +29,27 @@ export interface SettlementIntent {
   recipient: string;
 }
 
+/** The step id of Aretia's own fee transaction, when a provider builds it as a transaction of its own (EVM sources). */
+export const FEE_STEP_ID = 'fee';
+
+/** A single SPL token transfer (TransferChecked) a Solana transaction is allowed to make: every field must match exactly. */
+export interface PermittedTokenTransfer {
+  chain: ChainId;
+  /** The token program that runs it. */
+  program: string;
+  source: string;
+  mint: string;
+  destination: string;
+  /** The signer that owns `source`. */
+  owner: string;
+  amount: bigint;
+  decimals: number;
+}
+
 /** One thing that happens, in order. Some need the user's signature; some are waiting. */
 export interface SettlementStep {
   id: string;
-  kind: 'approve' | 'send' | 'wait' | 'receive';
+  kind: 'approve' | 'fee' | 'send' | 'wait' | 'receive';
   chain: ChainId;
   description: string;
   requiresSignature: boolean;
@@ -74,10 +91,21 @@ export interface SettlementQuote {
   intent: SettlementIntent;
   route: SettlementRoute;
   sourceAmount: bigint;
+  /**
+   * Everything that leaves the sender's balance of the source asset, when a provider adds fees ON TOP of `sourceAmount` (Circle CCTP:
+   * the burn, which includes Circle's largest fee, plus Aretia's fee). Absent means `sourceAmount`. Balance checks use this.
+   */
+  sourceTotal?: bigint;
   /** What arrives, at the least. Never more than was sent in the same asset. */
   destinationAmount: bigint;
   /** What the settlement itself charges (taken from the amount, or paid on top). */
   settlementFee: SettlementCost;
+  /**
+   * Aretia's own fee for the move, on its own line and never merged into the provider's. For Circle CCTP it is added ON TOP of
+   * `sourceAmount` (as is Circle's fee), so `destinationAmount` is the full `sourceAmount` and `sourceTotal` carries both fees.
+   * Absent when the provider charges no Aretia fee.
+   */
+  aretiaFee?: SettlementCost;
   /** Network fees to be paid in each chain's own coin, when the provider can estimate them. Null = not estimated. */
   networkFees: SettlementCost[] | null;
   estimatedSeconds: number;
@@ -142,6 +170,27 @@ export interface SettlementProvider {
    * (decoded spender, amounts, recipient and so on). Problems mean the orchestrator refuses to sign. Empty means it matches.
    */
   inspect?(quote: SettlementQuote, tx: SettlementTransaction): Promise<string[]>;
+  /**
+   * Optional check of a whole set of built source transactions together (how many of each step, and in what order), on top of
+   * `inspect`, which sees one transaction at a time. Problems mean nothing is signed.
+   */
+  inspectAll?(quote: SettlementQuote, txs: readonly SettlementTransaction[]): Promise<string[]>;
+  /**
+   * Optional check run right before `txs[index]` is handed to the wallet, against the chain as it stands then. It throws (a
+   * SwingsError) when sending that step would make the user pay for a move that cannot happen, for example when the burn would
+   * fail and the step about to go is Aretia's fee. Nothing is sent when it throws.
+   */
+  preflight?(quote: SettlementQuote, txs: readonly SettlementTransaction[], index: number): Promise<void>;
+  /**
+   * Optional: the largest amount that could be entered for this quote's route with `balance` of the source asset, fees on top
+   * included. Used only to word a refusal helpfully; null when the provider cannot say.
+   */
+  largestAmountFor?(quote: SettlementQuote, balance: bigint): bigint | null;
+  /**
+   * Optional: the one token transfer the source transaction may make besides the settlement itself (Aretia's fee on Solana), worked
+   * out from Aretia's constants for this intent, never from the quote. The wallet gateway refuses every other token transfer.
+   */
+  permittedTokenTransfer?(quote: SettlementQuote): Promise<PermittedTokenTransfer | null>;
   /** Where a settlement is, given the id the provider issues from the source transaction. */
   trackSettlement(executionId: string, quote?: SettlementQuote): Promise<SettlementStatus>;
 }

@@ -71,6 +71,23 @@ The client-side gate (disabled submit button) — and the manual verification pa
 
 **The legacy Trade tab fee** (the older Jupiter swap screen's code, `website/src/scripts/walletSwap.ts`) is still in the code: `SWAP_FEE_BPS = 100n` in `walletTools.ts` is **1% of the token being sold, whatever the token**, sent to this wallet in the same transaction, and it is what `planSwap` charges when its caller does not pass `feeBps`. Today the only caller is Swings (`website/src/swings/live.ts`), which passes `feeBps: 0n` and charges only the 0.58% above, so a swap is never charged both and the 1% is not charged in practice. Any new caller must pass `feeBps` explicitly; the default should be retired.
 
+## Move USDC fee (21 Oct 2026)
+
+Every **Move USDC** move (Circle CCTP, Pay > Move USDC and the plan's move step) carries an Aretia fee, on both routes (fast and standard) and from every source chain (EVM and Solana). It is **added on top: the recipient receives the full amount entered.**
+
+| Product | Aretia fee | Paid in | Paid to | When |
+|---|---|---|---|---|
+| Swap (Aretia Swings) | 0.58% of the amount paid (coins and main stablecoins only) | the asset paid with | this wallet (Solana) / the EVM fee address | with the swap |
+| **Move USDC** | **0.1% of the amount moved** (`MOVE_FEE_BPS = 10`, rounded up to the next 0.000001 USDC) | **USDC, on the source chain** | this wallet's **USDC account** (Solana source) / the EVM fee address `PUBLIC_ARETIA_EVM_FEE_ADDRESS` (EVM source) | Solana: inside the burn transaction (all or nothing). EVM: its own transfer after any approval and before the burn, sent only after the burn has been simulated, and never charged twice for a retry of the same move |
+
+Example: enter 1,000 USDC. Aretia's fee is 1 USDC; on the standard route Circle charges nothing, so 1,001 USDC leaves the wallet and 1,000 USDC arrives. On the fast route Circle's fee (at most a few cents per 1,000) is added on top too, and the recipient still gets at least 1,000. The 10,000 USDC per-move cap applies to the amount entered.
+
+The rate lives only in `website/src/swings/core/fee.ts` (`MOVE_FEE_BPS`, `moveFeeFor`). It is recomputed from that constant whenever a move is built and checked: a saved or restored quote cannot change it.
+
+**Operator, once:** a move from Solana needs this wallet's **USDC associated token account** to exist (`ATA(2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2, USDC mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, Token program)`). Aretia never opens it at a user's expense; until it exists, moves from Solana are refused with "Aretia's fee account for USDC on Solana has not been opened yet". It very likely exists already (any swap paid in USDC on Solana opens it); check on Solscan and, if missing, create it from the Phantom account (receiving any USDC does it) or with `spl-token create-account EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --owner 2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2`. Moves from EVM networks need `PUBLIC_ARETIA_EVM_FEE_ADDRESS` set at build time; without it they are refused, never sent without the fee.
+
+Referrals: a Move fee is fee revenue from the trader like a swap fee, and a referrer earns the same 20% share of it when it is reported (see `website/docs/referrals.md`). Not reviewed by counsel.
+
 ## Still open
 
 - [x] Dry-run the harvest-and-split script against live mainnet — done, 3 Sept 2026. Scan and fee-read logic confirmed correct.

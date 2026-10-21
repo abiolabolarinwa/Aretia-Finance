@@ -14,18 +14,31 @@
  * Two providers share this code, "standard" (finality 2000, no fee, 15 to 19 minutes from Ethereum and the big L2s)
  * and "fast" (finality 1000, a small fee, seconds), so the quote engine can compare cost against time.
  *
+ * Aretia charges its own fee on every move, on both routes and from every source chain: `MOVE_FEE_BPS` (0.1%) of the amount
+ * entered, ADDED ON TOP in USDC on the source chain. The amount entered is what the recipient receives (at least): Circle's fee is
+ * also added on top (the burn is the amount entered plus Circle's largest fee, so what is minted is never less than the amount
+ * entered), and the user's source balance pays burn + Aretia's fee. The fee is its own line on the quote, apart from Circle's,
+ * and is always worked out again from the constant, never read from a saved quote.
+ *  - From an EVM chain it is a USDC `transfer` to the EVM fee address (`PUBLIC_ARETIA_EVM_FEE_ADDRESS`, the one the swap fee uses),
+ *    sent as its own step after any approval and before the burn, and only after the burn has been simulated against the chain
+ *    (`preflight`), so a move that would fail does not cost the fee. No address configured: EVM moves are refused, never sent
+ *    without the fee and never to a default address.
+ *  - From Solana it is an SPL `TransferChecked` to the fee wallet's USDC account inside the burn transaction itself, so it is
+ *    all or nothing. That account must already exist (the operator creates it once); Aretia never opens it at the user's expense.
+ *
  * Sources, 7 Oct 2026: developers.circle.com/cctp (supported chains, finality), iris-api.circle.com (fees, attestations),
  * contract addresses from Circle's EVM smart contracts page.
  */
 import type * as Web3 from '@solana/web3.js';
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
+import { MOVE_FEE_BPS, MOVE_FEE_PERCENT, moveFeeFor } from '../core/fee.js';
 import { formatUnits } from '../crosschain/view.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { ataAddress, SWAP_FEE_WALLET, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
-import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, COMPUTE_BUDGET_PROGRAM, DISC_DEPOSIT_FOR_BURN, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
+import { buildDepositForBurn, buildReceiveMessage, cctpSolanaAddresses, COMPUTE_BUDGET_PROGRAM, DISC_DEPOSIT_FOR_BURN, evmAddressBytes32, hexToBytes, isSolanaAddress, readBurnLimit, readFeeRecipient, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, SOLANA_USDC_DECIMALS, solanaFeeUsdcAccount, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
 import type { EvmRead } from '../chains/evmSession.js';
 import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
-import { executionIdOf, parseExecutionId, type SettlementCost, type SettlementIntent, type SettlementProvider, type SettlementQuote, type SettlementStatus, type SettlementStep, type SettlementTransaction, type SupportAnswer } from './types.js';
+import { executionIdOf, FEE_STEP_ID, parseExecutionId, type PermittedTokenTransfer, type SettlementCost, type SettlementIntent, type SettlementProvider, type SettlementQuote, type SettlementStatus, type SettlementStep, type SettlementTransaction, type SupportAnswer } from './types.js';
 
 /** CCTP domain ids, from Circle's list. BNB Chain is deliberately absent: Circle does not support USDC there. */
 export const CCTP_DOMAIN: Readonly<Partial<Record<ChainId, number>>> = { ethereum: 0, avalanche: 1, optimism: 2, arbitrum: 3, solana: 5, base: 6, polygon: 7 };
@@ -51,8 +64,18 @@ export const CCTP_CONTRACTS = {
 export const FINALITY_FAST = 1000;
 export const FINALITY_STANDARD = 2000;
 
-/** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
+/**
+ * Largest single move while Swings is being proven with real money, applied to the amount ENTERED (what the recipient receives).
+ * The burn may exceed it by Circle's fee, itself bounded by the MAX_FEE_BPS ceiling; Aretia's fee is paid on top. Raised only by a
+ * reviewed change here.
+ */
 export const MOVE_CAP_RAW = 10_000_000_000n; // 10,000 USDC (6 decimals)
+/**
+ * Aretia's fee on every move: MOVE_FEE_BPS = 10 basis points (0.1%) of the amount entered, rounded up, ADDED ON TOP in USDC on the
+ * source chain (the recipient still receives the whole amount entered). The number itself lives in `core/fee.ts`, the one home of
+ * every Aretia rate, and is re-exported here beside the cap so the move's limits read together.
+ */
+export { MOVE_FEE_BPS, moveFeeFor };
 /** Largest fee a burn may allow Circle to take, in basis points of the amount (the safety engine's default ceiling). */
 export const MAX_FEE_BPS = 100;
 
@@ -82,7 +105,52 @@ export interface CctpOptions {
   irisBase?: string;
   /** How long a quote stays valid. Fees can change, so it is short. */
   quoteTtlMs?: number;
+  /**
+   * Where Aretia's fee goes on EVM chains: the same build-time setting the swap fee uses (`PUBLIC_ARETIA_EVM_FEE_ADDRESS`). Missing
+   * or not a valid address: moves FROM an EVM chain are refused (never sent without the fee, never to a default address).
+   */
+  evmFeeAddress?: string;
+  /** Pause between the burn simulation's retries (a node a block behind can still miss an approval just mined). Default 2 s. */
+  simulateRetryMs?: number;
 }
+
+/** The EVM fee address as the inspector compares it (lower case), or null when it is missing, malformed or the zero address. */
+export function normaliseEvmFeeAddress(a: string | undefined | null): string | null {
+  const v = typeof a === 'string' ? a.trim() : '';
+  return /^0x[0-9a-fA-F]{40}$/.test(v) && !/^0x0{40}$/.test(v) ? v.toLowerCase() : null;
+}
+
+/**
+ * Circle's largest fee when it is added ON TOP of `entered`: the smallest `m` with m >= feeFor(entered + m, bps), so a burn of
+ * entered + m still mints at least `entered` after Circle takes its fee from the burn.
+ */
+export function circleFeeOnTop(entered: bigint, bps: number): bigint {
+  let m = feeFor(entered, bps);
+  for (let i = 0; i < 64; i++) {
+    const next = feeFor(entered + m, bps);
+    if (next <= m) return m;
+    m = next;
+  }
+  return m;
+}
+
+/** Everything a move of `entered` takes from the sender's USDC: the burn (entered + Circle's largest fee) plus Aretia's fee. */
+export const moveTotalFor = (entered: bigint, circleBps: number): bigint => entered + circleFeeOnTop(entered, circleBps) + moveFeeFor(entered);
+
+/** The largest amount that can be entered (and so received) when the sender holds `balance` raw USDC. 0 when nothing fits. */
+export function largestEnteredFor(balance: bigint, circleBps: number): bigint {
+  let lo = 0n;
+  let hi = balance;
+  while (lo < hi) {
+    const mid = (lo + hi + 1n) / 2n;
+    if (moveTotalFor(mid, circleBps) <= balance) lo = mid;
+    else hi = mid - 1n;
+  }
+  return lo;
+}
+
+/** True when a burn of `burn` allowing Circle `maxFee` delivers exactly `entered` at the least, with the fee under the ceiling. */
+const burnCoversEntered = (entered: bigint, burn: bigint, maxFee: bigint): boolean => maxFee >= 0n && burn - maxFee === entered && maxFee <= feeFor(burn, MAX_FEE_BPS);
 
 interface IrisFee {
   finalityThreshold: number;
@@ -95,8 +163,16 @@ interface CctpRaw {
   srcDomain: number;
   dstDomain: number;
   usdc: string;
+  /** The amount entered (the intent's `sourceAmount`). */
   amount: bigint;
+  /** Aretia's fee: `moveFeeFor(amount)`, paid on top. Recomputed from the constant before anything is built. */
+  aretiaFee: bigint;
+  /** What is burned: `amount + maxFee`, so at least `amount` is minted. */
+  burnAmount: bigint;
+  /** Circle's largest fee, on top of the amount (Circle takes it from the burn). */
   maxFee: bigint;
+  /** Circle's published rate when quoted (a hint for "the largest amount that fits"; never used to build). */
+  circleFeeBps?: number;
   minFinalityThreshold: number;
   needsApproval: boolean;
   tokenMessenger: string;
@@ -123,6 +199,8 @@ export class CctpSettlementProvider implements SettlementProvider {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private readonly iris: string;
+  /** Where Aretia's fee goes on EVM chains, or null when none is configured (EVM-source moves are then refused). */
+  readonly evmFeeAddress: string | null;
 
   constructor(private readonly o: CctpOptions) {
     this.id = `circle-cctp-${o.mode}`;
@@ -130,6 +208,7 @@ export class CctpSettlementProvider implements SettlementProvider {
     this.fetchImpl = o.fetchImpl ?? ((...a) => fetch(...a));
     this.now = o.now ?? Date.now;
     this.iris = o.irisBase ?? 'https://iris-api.circle.com';
+    this.evmFeeAddress = normaliseEvmFeeAddress(o.evmFeeAddress);
   }
 
   // ------------------------------------------------------------------ support
@@ -168,6 +247,12 @@ export class CctpSettlementProvider implements SettlementProvider {
     if ((isSolana(intent.sourceChain) || isSolana(intent.destinationChain)) && !this.o.solana) return no('The Solana side of a USDC settlement is not available in this context, so this route is not offered.');
     if (!validAddress(intent.sourceChain, intent.sender) || !validAddress(intent.destinationChain, intent.recipient)) return no('The sender and recipient must be valid addresses on their chains.');
     if (this.o.mode === 'fast' && !FAST_SOURCE.has(intent.sourceChain)) return no(`${CHAINS[intent.sourceChain].name} does not offer fast transfer as a source; the standard transfer is the option there.`);
+    // Aretia's fee must have somewhere to go before a move is offered: never sent without it, never to a default address.
+    if (!isSolana(intent.sourceChain) && !this.evmFeeAddress) return no(`Moving USDC from ${CHAINS[intent.sourceChain].name} is paused: the Aretia fee address for EVM networks is not set up yet.`);
+    if (isSolana(intent.sourceChain)) {
+      const feeAccount = await this.solanaFeeAccountProblem();
+      if (feeAccount) return no(feeAccount);
+    }
     const fees = await this.fees(src, dst, signal);
     if ('error' in fees) return no(fees.error);
     if (!fees.some((f) => f.finalityThreshold === (this.o.mode === 'fast' ? FINALITY_FAST : FINALITY_STANDARD))) return no(`Circle does not quote ${this.o.mode} transfer for this route.`);
@@ -180,6 +265,24 @@ export class CctpSettlementProvider implements SettlementProvider {
   private async solanaAccount(address: string): Promise<Uint8Array | null> {
     const r = await this.o.solana!.rpc<{ value: { data: [string, string] } | null }>('getAccountInfo', [address, { encoding: 'base64', commitment: 'confirmed' }]);
     return r.value ? Uint8Array.from(atob(r.value.data[0]), (c) => c.charCodeAt(0)) : null;
+  }
+
+  /**
+   * Null when the fee wallet's USDC account exists on Solana and is a USDC account owned by the fee wallet; otherwise why not. Aretia
+   * never creates that account at the user's expense, so a move from Solana waits until the operator has created it once.
+   */
+  private async solanaFeeAccountProblem(): Promise<string | null> {
+    try {
+      const web3 = await this.o.solana!.web3();
+      const r = await this.o.solana!.rpc<{ value: { data: [string, string]; owner?: string } | null }>('getAccountInfo', [solanaFeeUsdcAccount(web3), { encoding: 'base64', commitment: 'confirmed' }]);
+      if (!r.value) return 'Moving USDC from Solana is paused: Aretia\'s fee account for USDC on Solana has not been opened yet.';
+      const data = Uint8Array.from(atob(r.value.data[0]), (c) => c.charCodeAt(0));
+      const b58 = (b: Uint8Array): string => new web3.PublicKey(b).toBase58();
+      if (r.value.owner !== TOKEN_PROGRAM_ID || data.length < 72 || b58(data.subarray(0, 32)) !== SOLANA_USDC || b58(data.subarray(32, 64)) !== SWAP_FEE_WALLET) return 'Moving USDC from Solana is paused: Aretia\'s fee account for USDC on Solana is not the expected account.';
+      return null;
+    } catch {
+      return 'Aretia\'s fee account on Solana could not be checked, so a move from Solana is not offered right now.';
+    }
   }
 
   private async burnLimit(chain: ChainId): Promise<bigint | null> {
@@ -214,31 +317,40 @@ export class CctpSettlementProvider implements SettlementProvider {
     const fees = (await this.fees(src, dst, signal)) as IrisFee[];
     const finality = this.o.mode === 'fast' ? FINALITY_FAST : FINALITY_STANDARD;
     const bps = fees.find((f) => f.finalityThreshold === finality)!.minimumFee;
+    // The amount entered pays Aretia's fee first; the rest is burned, and Circle's fee (if any) comes out of the burn.
     const amount = intent.sourceAmount;
-    const maxFee = feeFor(amount, bps);
+    if (amount <= 0n) throw new SwingsError('invalid', 'The amount must be above zero.');
+    // The amount entered is what arrives. Circle's fee and Aretia's fee are both added on top of it.
+    const aretiaFee = moveFeeFor(amount);
+    const maxFee = circleFeeOnTop(amount, bps);
+    if (maxFee > feeFor(amount + maxFee, MAX_FEE_BPS)) throw new SwingsError('invalid', 'Circle\'s transfer fee for this route is above the ceiling Aretia allows.');
+    const burnAmount = amount + maxFee;
     const limit = (await this.burnLimit(intent.sourceChain))!;
-    if (amount > limit) throw new SwingsError('invalid', 'That amount is above the largest single USDC transfer this route allows.');
-    if (amount <= maxFee) throw new SwingsError('invalid', 'That amount is too small to cover the transfer fee.');
+    if (burnAmount > limit) throw new SwingsError('invalid', 'That amount is above the largest single USDC transfer this route allows.');
     if (this.o.mode === 'fast') {
       // Fast transfer is limited by an allowance Circle publishes; a larger transfer would not be fast.
       const a = await this.fastAllowance(signal);
-      if (a !== null && amount > a) throw new SwingsError('invalid', 'That amount is above the fast-transfer allowance right now. Use the standard transfer for a larger amount.');
+      if (a !== null && burnAmount > a) throw new SwingsError('invalid', 'That amount is above the fast-transfer allowance right now. Use the standard transfer for a larger amount.');
     }
-    // Solana burns are signed by the owner directly, so there is no separate approval there.
-    const needsApproval = isSolana(intent.sourceChain) ? false : (await this.allowance(intent.sourceChain, intent.sender)) < amount;
+    // Solana burns are signed by the owner directly, so there is no separate approval there. On EVM the approval covers the burn only.
+    const needsApproval = isSolana(intent.sourceChain) ? false : (await this.allowance(intent.sourceChain, intent.sender)) < burnAmount;
     const attest = ATTEST_SECONDS[this.o.mode][intent.sourceChain];
     if (attest === undefined) throw new SwingsError('no-route', 'No timing is published for this route.');
     const srcName = CHAINS[intent.sourceChain].name;
     const dstName = CHAINS[intent.destinationChain].name;
+    const fromSolana = isSolana(intent.sourceChain);
+    const feeText = `${formatUnits(aretiaFee, 6)} USDC`;
     const steps: SettlementStep[] = [
-      ...(needsApproval ? [{ id: 'approve', kind: 'approve' as const, chain: intent.sourceChain, description: `Allow Circle's contract to use exactly ${formatUnits(amount, 6)} USDC on ${srcName} (a permission for this move only)`, requiresSignature: true, estimatedSeconds: 15 }] : []),
-      { id: 'burn', kind: 'send', chain: intent.sourceChain, description: `Send ${formatUnits(amount, 6)} USDC from ${srcName}`, requiresSignature: true, estimatedSeconds: 15 },
+      ...(needsApproval ? [{ id: 'approve', kind: 'approve' as const, chain: intent.sourceChain, description: `Allow Circle's contract to use exactly ${formatUnits(burnAmount, 6)} USDC on ${srcName} (a permission for this move only)`, requiresSignature: true, estimatedSeconds: 15 }] : []),
+      ...(fromSolana ? [] : [{ id: FEE_STEP_ID, kind: 'fee' as const, chain: intent.sourceChain, description: `Pay Aretia's ${MOVE_FEE_PERCENT} fee, ${feeText}, on ${srcName} (sent only after the transfer below has been checked to go through)`, requiresSignature: true, estimatedSeconds: 15 }]),
+      { id: 'burn', kind: 'send', chain: intent.sourceChain, description: fromSolana ? `Send ${formatUnits(burnAmount + aretiaFee, 6)} USDC from ${srcName}: ${formatUnits(burnAmount, 6)} USDC is moved${maxFee > 0n ? ' (Circle\'s fee included)' : ''} and ${feeText} is Aretia's ${MOVE_FEE_PERCENT} fee, in one transaction` : `Send ${formatUnits(burnAmount, 6)} USDC from ${srcName}${maxFee > 0n ? ' (Circle\'s fee included)' : ''}`, requiresSignature: true, estimatedSeconds: 15 },
       { id: 'attest', kind: 'wait', chain: intent.sourceChain, description: `Wait for Circle to confirm it (about ${attest >= 90 ? Math.round(attest / 60) + ' minutes' : attest + ' seconds'})`, requiresSignature: false, estimatedSeconds: attest },
       { id: 'mint', kind: 'receive', chain: intent.destinationChain, description: `Collect the USDC on ${dstName}: one more approval, which needs a little ${CHAINS[intent.destinationChain].nativeSymbol} for the network fee`, requiresSignature: true, estimatedSeconds: 30 },
     ];
     const usdcAsset = intent.sourceAsset;
-    const settlementFee: SettlementCost = { chain: intent.sourceChain, asset: usdcAsset, amount: maxFee, description: this.o.mode === 'fast' ? `Circle's fast-transfer fee (${bps} bps), taken from the amount` : 'Circle charges nothing for a standard transfer' };
-    const raw: CctpRaw = { mode: this.o.mode, srcDomain: src, dstDomain: dst, usdc: CCTP_USDC[intent.sourceChain]!, amount, maxFee, minFinalityThreshold: finality, needsApproval, tokenMessenger: CCTP_CONTRACTS.tokenMessenger };
+    const settlementFee: SettlementCost = { chain: intent.sourceChain, asset: usdcAsset, amount: maxFee, description: this.o.mode === 'fast' ? `Circle's fast-transfer fee (${bps} bps, at most this much), added on top so the recipient still receives the full amount` : 'Circle charges nothing for a standard transfer' };
+    const aretiaFeeCost: SettlementCost = { chain: intent.sourceChain, asset: usdcAsset, amount: aretiaFee, description: `Aretia's fee, ${MOVE_FEE_PERCENT} of the amount entered, added on top and paid in USDC on ${srcName}` };
+    const raw: CctpRaw = { mode: this.o.mode, srcDomain: src, dstDomain: dst, usdc: CCTP_USDC[intent.sourceChain]!, amount, aretiaFee, burnAmount, maxFee, circleFeeBps: bps, minFinalityThreshold: finality, needsApproval, tokenMessenger: CCTP_CONTRACTS.tokenMessenger };
     const t = this.now();
     return {
       id: `${this.id}:${t}:${intent.sourceChain}:${intent.destinationChain}`,
@@ -246,11 +358,13 @@ export class CctpSettlementProvider implements SettlementProvider {
       intent,
       route: { providerId: this.id, mechanism: `Circle CCTP, ${this.o.mode} transfer (native USDC burn and mint)`, kind: 'transfer', steps },
       sourceAmount: amount,
-      destinationAmount: amount - maxFee,
+      sourceTotal: burnAmount + aretiaFee,
+      destinationAmount: burnAmount - maxFee,
       settlementFee,
+      aretiaFee: aretiaFeeCost,
       networkFees: null,
       estimatedSeconds: attest + HANDLING_SECONDS,
-      limits: { min: maxFee + 1n, max: limit },
+      limits: { min: 1n, max: limit },
       expiresAt: t + (this.o.quoteTtlMs ?? 120_000),
       risk: {
         level: 'low',
@@ -262,7 +376,10 @@ export class CctpSettlementProvider implements SettlementProvider {
         ],
       },
       requirements: [
-        ...(needsApproval ? ['One approval for exactly this amount on the source chain.'] : []),
+        fromSolana
+          ? `Aretia's fee of ${MOVE_FEE_PERCENT} (${feeText}) is added on top and paid in USDC on Solana in the same transaction as the transfer: if the transfer does not happen, neither does the fee. You need ${formatUnits(burnAmount + aretiaFee, 6)} USDC in all.`
+          : `Aretia's fee of ${MOVE_FEE_PERCENT} (${feeText}) is added on top and paid in USDC on ${srcName} as its own transaction, sent only after the transfer has been checked to go through, and never charged twice for a retry of the same move. You need ${formatUnits(burnAmount + aretiaFee, 6)} USDC in all.`,
+        ...(needsApproval ? ['One approval for exactly the amount moved on the source chain.'] : []),
         `A little ${CHAINS[intent.destinationChain].nativeSymbol} on ${dstName} to pay the network fee when you claim.`,
         ...(isSolana(intent.destinationChain) ? ['If you have never held USDC on Solana with this wallet, the claim also pays a small one-time rent (about 0.002 SOL) to open your USDC account.'] : []),
         ...(isSolana(intent.sourceChain) ? ['A burn from Solana also pays a small deposit (a few thousandths of a SOL) to store the message record. Aretia does not take that deposit back.'] : []),
@@ -287,7 +404,9 @@ export class CctpSettlementProvider implements SettlementProvider {
   /**
    * The terms a burn is built from. Contracts, token and domains come from Aretia's own tables for the intent's chains,
    * never from the quote; a quote (for example one restored from a recovery code) whose stored values disagree is
-   * refused rather than corrected, and the per-move cap and the fee ceiling are applied again.
+   * refused rather than corrected, and the per-move cap and the fee ceiling are applied again. Aretia's fee and the burn amount
+   * are worked out again from `MOVE_FEE_BPS`; a quote that carries any other figure is refused, and the figure used is always the
+   * recomputed one.
    */
   private terms(quote: SettlementQuote): CctpRaw {
     const raw = (quote.raw ?? {}) as Partial<CctpRaw>;
@@ -310,10 +429,16 @@ export class CctpSettlementProvider implements SettlementProvider {
     const amount = raw.amount;
     if (typeof amount !== 'bigint' || amount !== intent.sourceAmount || amount !== quote.sourceAmount) return refuse('This quote\'s amounts do not agree.');
     if (amount <= 0n || amount > MOVE_CAP_RAW) return refuse('This amount is above the limit for a single move while Swings is being proven.');
+    const aretiaFee = moveFeeFor(amount);
+    if (raw.aretiaFee !== aretiaFee || quote.aretiaFee?.amount !== aretiaFee) return refuse(`This quote's Aretia fee is not ${MOVE_FEE_PERCENT} of the amount.`);
     const maxFee = raw.maxFee;
-    if (typeof maxFee !== 'bigint' || maxFee < 0n || maxFee >= amount || maxFee > feeFor(amount, MAX_FEE_BPS)) return refuse('This quote allows a transfer fee above the ceiling.');
+    if (typeof maxFee !== 'bigint' || maxFee < 0n || maxFee > feeFor(amount + maxFee, MAX_FEE_BPS)) return refuse('This quote allows a transfer fee above the ceiling.');
+    // The burn is always rebuilt as the amount plus Circle's largest fee, so the recipient gets at least the amount entered.
+    const burnAmount = amount + maxFee;
+    if (raw.burnAmount !== burnAmount) return refuse('This quote\'s amounts do not agree.');
     if (typeof raw.needsApproval !== 'boolean') return refuse('This quote is damaged.');
-    return { mode: this.o.mode, srcDomain: src, dstDomain: dst, usdc, amount, maxFee, minFinalityThreshold: raw.minFinalityThreshold, needsApproval: raw.needsApproval, tokenMessenger: CCTP_CONTRACTS.tokenMessenger };
+    if (!isSolana(intent.sourceChain) && !this.evmFeeAddress) return refuse('The Aretia fee address for EVM networks is not set up, so a move from this network is not built.');
+    return { mode: this.o.mode, srcDomain: src, dstDomain: dst, usdc, amount, aretiaFee, burnAmount, maxFee, minFinalityThreshold: raw.minFinalityThreshold, needsApproval: raw.needsApproval, tokenMessenger: CCTP_CONTRACTS.tokenMessenger };
   }
 
   async buildSettlement(quote: SettlementQuote): Promise<SettlementTransaction[]> {
@@ -322,15 +447,62 @@ export class CctpSettlementProvider implements SettlementProvider {
     const raw = this.terms(quote);
     const { intent } = quote;
     const built = await this.buildFrom(intent, raw);
-    const problems = (await Promise.all(built.map((t) => this.inspect(quote, t)))).flat();
+    const problems = await this.inspectAll(quote, built);
     if (problems.length > 0) throw new SwingsError('invalid', problems[0]!);
     return built;
   }
 
-  /** Checks a built transaction field by field against Circle's contracts and the intent. Empty means it matches. */
+  private async web3For(quote: SettlementQuote): Promise<typeof Web3 | undefined> {
+    return this.o.solana && (isSolana(quote.intent.sourceChain) || isSolana(quote.intent.destinationChain)) ? this.o.solana.web3() : undefined;
+  }
+
+  /** Checks a built transaction field by field against Circle's contracts, Aretia's fee constants and the intent. Empty means it matches. */
   async inspect(quote: SettlementQuote, tx: SettlementTransaction): Promise<string[]> {
-    const web3 = this.o.solana && (isSolana(quote.intent.sourceChain) || isSolana(quote.intent.destinationChain)) ? await this.o.solana.web3() : undefined;
-    return cctpTransactionProblems(quote.intent, tx, web3);
+    return cctpTransactionProblems(quote.intent, tx, await this.web3For(quote), this.evmFeeAddress);
+  }
+
+  /** Checks every source transaction, and that together they are exactly the steps of a move: one fee, one burn, in order. */
+  async inspectAll(quote: SettlementQuote, txs: readonly SettlementTransaction[]): Promise<string[]> {
+    return cctpSettlementProblems(quote.intent, txs, await this.web3For(quote), this.evmFeeAddress);
+  }
+
+  /**
+   * Before the fee and before the burn on an EVM chain, the burn is simulated against the chain as it stands (after any approval,
+   * however long the person took to confirm). If it would fail, nothing more is sent: the fee is never paid for a move that cannot
+   * happen. A refusal is asked again a few times, because a node a block behind can still miss an approval that was just mined.
+   */
+  async preflight(quote: SettlementQuote, txs: readonly SettlementTransaction[], index: number): Promise<void> {
+    const step = txs[index];
+    if (!step || isSolana(quote.intent.sourceChain) || (step.stepId !== FEE_STEP_ID && step.stepId !== 'burn')) return;
+    const burn = txs.find((t) => t.stepId === 'burn');
+    if (!burn || burn.unsigned.kind !== 'evm') throw new SwingsError('simulation-failed', 'The transfer could not be checked, so nothing more was sent.');
+    const b = burn.unsigned.tx;
+    let last: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await this.o.read(quote.intent.sourceChain)('eth_call', [{ from: b.from, to: b.to, data: b.data, value: b.value ?? '0x0' }, 'latest']);
+        return;
+      } catch (e) {
+        last = e;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, this.o.simulateRetryMs ?? 2_000));
+      }
+    }
+    const why = last instanceof Error ? ` (${last.message.slice(0, 160)})` : '';
+    throw new SwingsError('simulation-failed', step.stepId === FEE_STEP_ID ? `The USDC transfer would fail on ${CHAINS[quote.intent.sourceChain].name} right now${why}, so neither Aretia's fee nor the transfer was sent. Check your USDC balance, then try again.` : `The USDC transfer would fail on ${CHAINS[quote.intent.sourceChain].name} right now${why}, so it was not sent. Aretia's fee for it is already paid and is not charged again when you try this move again.`);
+  }
+
+  /** The largest amount that can be entered (and received) on this route with `balance` USDC, both fees on top. */
+  largestAmountFor(quote: SettlementQuote, balance: bigint): bigint | null {
+    const bps = (quote.raw as Partial<CctpRaw> | null)?.circleFeeBps;
+    if (typeof bps !== 'number' || !(bps >= 0)) return null;
+    const most = largestEnteredFor(balance, bps);
+    return most < MOVE_CAP_RAW ? most : MOVE_CAP_RAW;
+  }
+
+  /** On Solana the burn transaction also pays Aretia's fee: exactly this transfer, from the sender's USDC account to the fee account. */
+  async permittedTokenTransfer(quote: SettlementQuote): Promise<PermittedTokenTransfer | null> {
+    if (!isSolana(quote.intent.sourceChain) || !this.o.solana) return null;
+    return expectedSolanaFeeTransfer(quote.intent, await this.o.solana.web3());
   }
 
   private async buildFrom(intent: SettlementIntent, raw: CctpRaw): Promise<SettlementTransaction[]> {
@@ -340,13 +512,18 @@ export class CctpSettlementProvider implements SettlementProvider {
       if (!solana) throw new SwingsError('invalid', 'The Solana side is not available here.');
       if (isSolana(intent.destinationChain)) throw new SwingsError('invalid', 'Both sides are Solana.');
       const web3 = await solana.web3();
+      // The fee wallet's USDC account is read again right before building: it must exist, and Aretia never creates it for the user.
+      const feeProblem = await this.solanaFeeAccountProblem();
+      if (feeProblem) throw new SwingsError('not-enabled', `${feeProblem} Nothing was built.`);
       const { value } = await solana.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
-      const transaction = buildDepositForBurn(web3, { owner: intent.sender, amount: raw.amount, destinationDomain: raw.dstDomain, mintRecipient: evmAddressBytes32(intent.recipient), maxFee: raw.maxFee, minFinalityThreshold: raw.minFinalityThreshold, recentBlockhash: value.blockhash, messageEventKey: web3.Keypair.generate() });
-      return [{ stepId: 'burn', chain: 'solana', description: `Burn ${raw.amount} (raw) USDC on Solana so it can be minted to ${intent.recipient} on ${CHAINS[intent.destinationChain].name}`, unsigned: { kind: 'solana', transaction } }];
+      const transaction = buildDepositForBurn(web3, { owner: intent.sender, amount: raw.burnAmount, destinationDomain: raw.dstDomain, mintRecipient: evmAddressBytes32(intent.recipient), maxFee: raw.maxFee, minFinalityThreshold: raw.minFinalityThreshold, recentBlockhash: value.blockhash, messageEventKey: web3.Keypair.generate(), aretiaFee: { destination: solanaFeeUsdcAccount(web3), amount: raw.aretiaFee } });
+      return [{ stepId: 'burn', chain: 'solana', description: `Burn ${raw.burnAmount} (raw) USDC on Solana so it can be minted to ${intent.recipient} on ${CHAINS[intent.destinationChain].name}, and pay Aretia's ${MOVE_FEE_PERCENT} fee of ${raw.aretiaFee} (raw) USDC in the same transaction`, unsigned: { kind: 'solana', transaction } }];
     }
 
     const chainId = CHAINS[intent.sourceChain].evmChainId;
     if (chainId === null) throw new SwingsError('invalid', 'This settlement cannot be built for these addresses.');
+    const feeAddress = this.evmFeeAddress;
+    if (!feeAddress) throw new SwingsError('not-enabled', 'The Aretia fee address for EVM networks is not set up, so a move from this network is not built.');
     // To a Solana recipient the burn names the recipient's USDC token account (derived here), not their wallet.
     let mintRecipient = bytes32OfAddress(intent.recipient);
     if (isSolana(intent.destinationChain)) {
@@ -356,20 +533,23 @@ export class CctpSettlementProvider implements SettlementProvider {
       mintRecipient = '0x' + [...new web3.PublicKey(ataAddress(web3, intent.recipient, SOLANA_USDC, TOKEN_PROGRAM_ID)).toBytes()].map((x) => x.toString(16).padStart(2, '0')).join('');
     }
     const out: SettlementTransaction[] = [];
+    // Order: approval (the burn amount only), then Aretia's fee, then the burn. The orchestrator simulates the burn before the fee
+    // and again before the burn (`preflight`), so the fee is never paid for a burn that would fail.
     if (raw.needsApproval) {
-      out.push({ stepId: 'approve', chain: intent.sourceChain, description: `Approve exactly ${raw.amount} (raw) USDC for Circle's token messenger`, unsigned: { kind: 'evm', chainId, tx: { from: intent.sender, to: raw.usdc, data: encodeFunction('approve(address,uint256)', [raw.tokenMessenger, raw.amount]), value: '0x0' } } });
+      out.push({ stepId: 'approve', chain: intent.sourceChain, description: `Approve exactly ${raw.burnAmount} (raw) USDC for Circle's token messenger`, unsigned: { kind: 'evm', chainId, tx: { from: intent.sender, to: raw.usdc, data: encodeFunction('approve(address,uint256)', [raw.tokenMessenger, raw.burnAmount]), value: '0x0' } } });
     }
+    out.push({ stepId: FEE_STEP_ID, chain: intent.sourceChain, description: `Pay Aretia's ${MOVE_FEE_PERCENT} fee of ${raw.aretiaFee} (raw) USDC to Aretia's fee address`, unsigned: { kind: 'evm', chainId, tx: { from: intent.sender, to: raw.usdc, data: encodeFunction('transfer(address,uint256)', [feeAddress, raw.aretiaFee]), value: '0x0' } } });
     out.push({
       stepId: 'burn',
       chain: intent.sourceChain,
-      description: `Burn ${raw.amount} (raw) USDC on ${CHAINS[intent.sourceChain].name} so it can be minted to ${intent.recipient} on ${CHAINS[intent.destinationChain].name}`,
+      description: `Burn ${raw.burnAmount} (raw) USDC on ${CHAINS[intent.sourceChain].name} so it can be minted to ${intent.recipient} on ${CHAINS[intent.destinationChain].name}`,
       unsigned: {
         kind: 'evm',
         chainId,
         tx: {
           from: intent.sender,
           to: raw.tokenMessenger,
-          data: encodeFunction('depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)', [raw.amount, raw.dstDomain, mintRecipient, raw.usdc, ZERO32, raw.maxFee, raw.minFinalityThreshold]),
+          data: encodeFunction('depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)', [raw.burnAmount, raw.dstDomain, mintRecipient, raw.usdc, ZERO32, raw.maxFee, raw.minFinalityThreshold]),
           value: '0x0',
         },
       },
@@ -443,7 +623,11 @@ export class CctpSettlementProvider implements SettlementProvider {
       const { value } = await solana.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
       // The claim is built from Circle's attested message and refuses any message that does not pay this recipient's own USDC account.
       const built = buildReceiveMessage(web3, { payer: quote.intent.recipient, recipientOwner: quote.intent.recipient, message: m.message, attestation: m.attestation, localDomain: CCTP_DOMAIN.solana!, feeRecipient: readFeeRecipient(web3, messenger), recentBlockhash: value.blockhash });
-      if (built.amount !== raw.amount) throw new SwingsError('invalid', 'The attested message is for a different amount than this move, so it was not claimed.');
+      // The message carries what was burned: the amount entered plus at most Circle's fee (bounded by the ceiling). A move saved
+      // before the fee existed burned exactly the amount.
+      const entered = quote.intent.sourceAmount;
+      const legacy = raw.aretiaFee === undefined;
+      if (legacy ? built.amount !== entered : built.amount < entered || built.amount - entered > feeFor(built.amount, MAX_FEE_BPS)) throw new SwingsError('invalid', 'The attested message is for a different amount than this move, so it was not claimed.');
       return { stepId: 'mint', chain: dst, description: `Claim the USDC on Solana using Circle's attestation`, unsigned: { kind: 'solana', transaction: built.transaction } };
     }
 
@@ -477,6 +661,7 @@ export function cctpProviders(o: Omit<CctpOptions, 'mode'>): CctpSettlementProvi
 
 const ZERO_ADDRESS = '0x' + '0'.repeat(40);
 const SEL_APPROVE = encodeFunction('approve(address,uint256)', [ZERO_ADDRESS, 0n]).slice(0, 10);
+const SEL_TRANSFER = encodeFunction('transfer(address,uint256)', [ZERO_ADDRESS, 0n]).slice(0, 10);
 /** TokenMessengerV2.depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller, maxFee, minFinalityThreshold): 0x8e0250ee. */
 export const DEPOSIT_FOR_BURN_V2 = 'depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)';
 const SEL_DEPOSIT_FOR_BURN = encodeFunction(DEPOSIT_FOR_BURN_V2, [0n, 0, ZERO32, ZERO_ADDRESS, ZERO32, 0n, 0]).slice(0, 10);
@@ -510,12 +695,13 @@ function expectedMintRecipient(intent: SettlementIntent, web3?: typeof Web3): st
 function burnTermProblems(intent: SettlementIntent, t: { amount: bigint; domain: number; mintRecipient: string; destinationCaller: string; maxFee: bigint; finality: number }, web3?: typeof Web3): string[] {
   const out: string[] = [];
   const recipient = expectedMintRecipient(intent, web3);
-  if (t.amount !== intent.sourceAmount) out.push('The burn is for a different amount than this move.');
-  if (t.amount <= 0n || t.amount > MOVE_CAP_RAW) out.push('The burn is above the limit for a single move.');
+  // The burn is the amount entered plus Circle's largest fee, so at least the amount entered is minted; the fee is under the ceiling.
+  if (t.amount - t.maxFee !== intent.sourceAmount) out.push('The burn is for a different amount than this move.');
+  if (intent.sourceAmount <= 0n || intent.sourceAmount > MOVE_CAP_RAW || t.amount > MOVE_CAP_RAW + feeFor(t.amount, MAX_FEE_BPS)) out.push('The burn is above the limit for a single move.');
   if (t.domain !== CCTP_DOMAIN[intent.destinationChain]) out.push('The burn sends to a different network than this move.');
   if (recipient === null || t.mintRecipient.toLowerCase() !== recipient.toLowerCase()) out.push('The burn pays a different recipient than this move.');
   if (t.destinationCaller.toLowerCase() !== ZERO32) out.push('The burn restricts who may claim it.');
-  if (t.maxFee < 0n || t.maxFee >= t.amount || t.maxFee > feeFor(t.amount, MAX_FEE_BPS)) out.push('The burn allows a transfer fee above the ceiling.');
+  if (t.maxFee < 0n || t.maxFee >= t.amount || !burnCoversEntered(t.amount - t.maxFee, t.amount, t.maxFee)) out.push('The burn allows a transfer fee above the ceiling.');
   if (t.finality !== FINALITY_FAST && t.finality !== FINALITY_STANDARD) out.push('The burn names an unknown finality.');
   return out;
 }
@@ -543,13 +729,39 @@ function claimMessageProblems(intent: SettlementIntent, data: string): string[] 
   return out;
 }
 
+/** The one SPL transfer a Solana burn may carry: Aretia's fee, from the sender's USDC account to the fee wallet's, for this intent. */
+export function expectedSolanaFeeTransfer(intent: SettlementIntent, web3: typeof Web3): PermittedTokenTransfer | null {
+  if (!isSolana(intent.sourceChain) || !isSolanaAddress(intent.sender)) return null;
+  const amount = moveFeeFor(intent.sourceAmount);
+  if (amount <= 0n) return null;
+  return { chain: 'solana', program: TOKEN_PROGRAM_ID, source: ataAddress(web3, intent.sender, SOLANA_USDC, TOKEN_PROGRAM_ID), mint: SOLANA_USDC, destination: solanaFeeUsdcAccount(web3), owner: intent.sender, amount, decimals: SOLANA_USDC_DECIMALS };
+}
+
+/** Problems with one SPL Token instruction measured against the one fee transfer allowed. Empty means it is exactly that transfer. */
+function solanaFeeTransferProblems(ix: Web3.TransactionInstruction, expected: PermittedTokenTransfer): string[] {
+  const d = Uint8Array.from(ix.data);
+  if (d.length !== 10 || d[0] !== 12) return ['The burn transaction makes a token instruction other than Aretia\'s fee transfer.'];
+  const out: string[] = [];
+  const amount = new DataView(d.buffer, d.byteOffset, d.byteLength).getBigUint64(1, true);
+  const keys = ix.keys.map((k) => k.pubkey.toBase58());
+  if (keys.length !== 4) out.push('Aretia\'s fee transfer names unexpected accounts.');
+  if (keys[0] !== expected.source) out.push('Aretia\'s fee is taken from an account that is not the sender\'s USDC account.');
+  if (keys[1] !== expected.mint || d[9] !== expected.decimals) out.push('Aretia\'s fee is not paid in native USDC.');
+  if (keys[2] !== expected.destination) out.push('Aretia\'s fee goes to an account that is not Aretia\'s USDC fee account.');
+  if (keys[3] !== expected.owner || !ix.keys[3]?.isSigner) out.push('Aretia\'s fee is signed by a different account than the sender.');
+  if (amount !== expected.amount) out.push(`Aretia's fee is not ${MOVE_FEE_PERCENT} of this move.`);
+  return out;
+}
+
 /**
- * Decodes a CCTP transaction and checks every field against Circle's published contracts and the intent: the approval's
- * token, spender and amount, and each `depositForBurn` argument (amount, domain, recipient, token, caller, fee, finality).
- * It does not trust the provider that built the transaction, so a crafted or restored quote cannot slip anything past it.
- * Empty means it matches. A Solana destination needs the Solana library to derive the recipient's USDC account.
+ * Decodes a CCTP transaction and checks every field against Circle's published contracts, Aretia's fee constants and the
+ * intent: the approval's token, spender and amount (the burn amount, never more), Aretia's fee transfer (native USDC, the
+ * configured fee address, exactly `moveFeeFor` of the amount entered), and each `depositForBurn` argument (amount, domain,
+ * recipient, token, caller, fee, finality). It does not trust the provider that built the transaction, so a crafted or
+ * restored quote cannot slip anything past it. Empty means it matches. A Solana side needs the Solana library to derive
+ * the token accounts. `evmFeeAddress` is the configured EVM fee address; without it no EVM fee step is accepted.
  */
-export function cctpTransactionProblems(intent: SettlementIntent, tx: SettlementTransaction, web3?: typeof Web3): string[] {
+export function cctpTransactionProblems(intent: SettlementIntent, tx: SettlementTransaction, web3?: typeof Web3, evmFeeAddress?: string | null): string[] {
   const src = intent.sourceChain;
   const u = tx.unsigned;
   if (tx.stepId === 'mint') {
@@ -573,7 +785,13 @@ export function cctpTransactionProblems(intent: SettlementIntent, tx: Settlement
     const out: string[] = [];
     if (t.feePayer?.toBase58() !== intent.sender) out.push('The burn is paid for by a different account than the sender.');
     const burns = t.instructions.filter((i) => i.programId.toBase58() === TOKEN_MESSENGER_MINTER_V2);
-    if (t.instructions.some((i) => ![TOKEN_MESSENGER_MINTER_V2, COMPUTE_BUDGET_PROGRAM].includes(i.programId.toBase58()))) out.push('The burn calls a program other than Circle\'s.');
+    // Circle's program, the compute budget, and the SPL Token program for exactly one transfer: Aretia's fee. Nothing else.
+    if (t.instructions.some((i) => ![TOKEN_MESSENGER_MINTER_V2, COMPUTE_BUDGET_PROGRAM, TOKEN_PROGRAM_ID].includes(i.programId.toBase58()))) out.push('The burn calls a program other than Circle\'s.');
+    const feeIxs = t.instructions.filter((i) => i.programId.toBase58() === TOKEN_PROGRAM_ID);
+    const expectedFee = expectedSolanaFeeTransfer(intent, web3);
+    if (!expectedFee) out.push('Aretia\'s fee for this move cannot be worked out.');
+    else if (feeIxs.length !== 1) out.push('The burn transaction does not pay Aretia\'s fee exactly once.');
+    else out.push(...solanaFeeTransferProblems(feeIxs[0]!, expectedFee));
     if (burns.length !== 1) return [...out, 'The transaction does not hold exactly one burn.'];
     const ix = burns[0]!;
     const d = Uint8Array.from(ix.data);
@@ -597,7 +815,20 @@ export function cctpTransactionProblems(intent: SettlementIntent, tx: Settlement
     const [spender, amount] = decodeParams(['address', 'uint256'], '0x' + data.slice(10)) as [string, bigint];
     if (!canonical('approve(address,uint256)', [spender, amount], data)) return [...out, 'The approval is not encoded in the standard form.'];
     if (!eqi(spender, CCTP_CONTRACTS.tokenMessenger)) out.push('The approval lets an address other than Circle\'s token messenger spend your USDC.');
-    if (amount !== intent.sourceAmount || amount > MOVE_CAP_RAW) out.push('The approval is for a different amount than this move.');
+    // The burn amount: the amount entered plus at most Circle's fee under the ceiling, never Aretia's fee, never more. (That it equals
+    // the burn's own amount exactly is checked across the set, in `cctpSettlementProblems`.)
+    if (amount < intent.sourceAmount || !burnCoversEntered(intent.sourceAmount, amount, amount - intent.sourceAmount) || intent.sourceAmount <= 0n || intent.sourceAmount > MOVE_CAP_RAW) out.push('The approval is for a different amount than this move.');
+    return out;
+  }
+  if (tx.stepId === FEE_STEP_ID) {
+    if (!eqi(u.tx.to, usdc)) out.push('Aretia\'s fee is not paid in native USDC.');
+    if (!data.startsWith(SEL_TRANSFER) || data.length !== 10 + 64 * 2) return [...out, 'Aretia\'s fee is not a USDC transfer.'];
+    const [to, amount] = decodeParams(['address', 'uint256'], '0x' + data.slice(10)) as [string, bigint];
+    if (!canonical('transfer(address,uint256)', [to, amount], data)) return [...out, 'Aretia\'s fee is not encoded in the standard form.'];
+    const fee = normaliseEvmFeeAddress(evmFeeAddress);
+    if (!fee) out.push('The Aretia fee address is not set up, so the fee cannot be checked.');
+    else if (!eqi(to, fee)) out.push('Aretia\'s fee goes to an address that is not Aretia\'s fee address.');
+    if (amount !== moveFeeFor(intent.sourceAmount) || amount <= 0n || intent.sourceAmount > MOVE_CAP_RAW) out.push(`Aretia's fee is not ${MOVE_FEE_PERCENT} of this move.`);
     return out;
   }
   if (tx.stepId !== 'burn') return [...out, 'This is not a step of a USDC move.'];
@@ -608,4 +839,38 @@ export function cctpTransactionProblems(intent: SettlementIntent, tx: Settlement
   if (!eqi(burnToken, usdc)) out.push('The burn names a token that is not native USDC.');
   out.push(...burnTermProblems(intent, { amount, domain: Number(domain), mintRecipient, destinationCaller, maxFee, finality: Number(finality) }, web3));
   return out;
+}
+
+/**
+ * Checks a whole set of source transactions: each one with `cctpTransactionProblems`, and together they must be exactly the
+ * steps of one move. From an EVM chain: an optional approval, then exactly ONE Aretia fee transfer, then exactly one burn, in that
+ * order and nothing else. From Solana: exactly one transaction, the burn, which carries the fee inside it. Empty means it matches.
+ */
+export function cctpSettlementProblems(intent: SettlementIntent, txs: readonly SettlementTransaction[], web3?: typeof Web3, evmFeeAddress?: string | null): string[] {
+  const out = txs.flatMap((t) => cctpTransactionProblems(intent, t, web3, evmFeeAddress));
+  const ids = txs.map((t) => t.stepId).join(',');
+  if (isSolana(intent.sourceChain)) {
+    if (ids !== 'burn') out.push('A move from Solana is exactly one transaction: the burn, with Aretia\'s fee inside it.');
+  } else if (ids !== `approve,${FEE_STEP_ID},burn` && ids !== `${FEE_STEP_ID},burn`) {
+    const fees = txs.filter((t) => t.stepId === FEE_STEP_ID).length;
+    out.push(fees !== 1 ? 'The move does not pay Aretia\'s fee exactly once.' : 'The move\'s steps are not an approval, Aretia\'s fee and the burn, in that order.');
+  }
+  // The approval must be for exactly what the burn takes.
+  const approve = txs.find((t) => t.stepId === 'approve');
+  const burn = txs.find((t) => t.stepId === 'burn');
+  if (approve && burn) {
+    const amountOf = (t: SettlementTransaction, words: number): bigint | null => {
+      if (t.unsigned.kind !== 'evm') return null;
+      const d = (t.unsigned.tx.data ?? '').toLowerCase();
+      try {
+        return (decodeParams(['uint256'], '0x' + d.slice(10 + 64 * words, 10 + 64 * (words + 1))) as [bigint])[0];
+      } catch {
+        return null;
+      }
+    };
+    const approved = amountOf(approve, 1);
+    const burned = amountOf(burn, 0);
+    if (approved === null || burned === null || approved !== burned) out.push('The approval is not for exactly the amount the burn takes.');
+  }
+  return [...new Set(out)];
 }

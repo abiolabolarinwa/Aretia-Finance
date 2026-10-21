@@ -55,7 +55,7 @@ See `threat-model-cross-chain.md` (this layer) and `ARETIA_SWINGS_THREAT_MODEL.m
 
 ## 6. Economics
 
-Policy is in one file (`core/fee.ts`): 0.55% (55 bps) of qualifying swap value is used to buy ACT; no other Aretia fee exists. The milestone specification said 0.87%; the product runs the 0.55% the owner set and the new code reads that value rather than copying a number. **Open for the owner:** confirm 0.55% versus 0.87%; and which step of a multi-step plan carries the allocation (today the first eligible swap; ramps and settlements carry none). The allocation is Solana-only today; EVM stays off until addresses and ACT liquidity exist. No unattended buyback can run: it is refused unless production configuration enables it, and nothing calls it.
+Policy is in one file (`core/fee.ts`): 0.55% (55 bps) of qualifying swap value is used to buy ACT; no other Aretia fee exists. The milestone specification said 0.87%; the product runs the 0.55% the owner set and the new code reads that value rather than copying a number. **Open for the owner:** confirm 0.55% versus 0.87%; and which step of a multi-step plan carries the allocation (today the first eligible swap; ramps carry none). Since 21 Oct 2026 every Move USDC settlement carries its own 0.1% Aretia fee (`MOVE_FEE_BPS`), added on top, so the recipient receives the full amount entered. The allocation is Solana-only today; EVM stays off until addresses and ACT liquidity exist. No unattended buyback can run: it is refused unless production configuration enables it, and nothing calls it.
 
 ## 7. Data and persistence
 

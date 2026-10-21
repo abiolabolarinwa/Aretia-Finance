@@ -1,8 +1,8 @@
 import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { CCTP_CONTRACTS, CCTP_USDC, CctpSettlementProvider } from './cctp.js';
-import { cctpSolanaAddresses, evmAddressBytes32, MESSAGE_TRANSMITTER_V2, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
-import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
+import { cctpSolanaAddresses, evmAddressBytes32, MESSAGE_TRANSMITTER_V2, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, solanaFeeUsdcAccount, TOKEN_MESSENGER_MINTER_V2, usedNonceAddress } from './cctpSolana.js';
+import { ataAddress, SWAP_FEE_WALLET, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import { encodeFunction } from '../engine/abiGeneric.js';
 import type { SettlementIntent } from './types.js';
 
@@ -10,6 +10,7 @@ const NOW = 5_000_000;
 const SOL_USER = web3.Keypair.generate().publicKey.toBase58();
 const EVM_USER = '0x' + 'ab'.repeat(20);
 const FEE_RECIPIENT = web3.Keypair.generate().publicKey.toBase58();
+const EVM_FEE_ADDRESS = '0x' + '7'.repeat(40);
 const NONCE = '0x' + 'd'.repeat(64);
 const hex = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
 const word = (n: bigint): string => '0x' + n.toString(16).padStart(64, '0');
@@ -34,7 +35,7 @@ function craftMessage(o: { account: string; amount: bigint; recipientProgram?: s
   return hex(msg);
 }
 
-function world(w: { attested?: boolean; message?: string; solUsedNonce?: boolean; evmNonceUsed?: boolean; limit?: bigint; irisDown?: boolean } = {}) {
+function world(w: { attested?: boolean; message?: string; solUsedNonce?: boolean; evmNonceUsed?: boolean; limit?: bigint; irisDown?: boolean; noFeeAccount?: boolean; feeAccountOwner?: string } = {}) {
   const addr = cctpSolanaAddresses(web3);
   const localToken = new Uint8Array(130);
   new DataView(localToken.buffer).setBigUint64(72, w.limit ?? 5_000_000_000n, true);
@@ -42,6 +43,11 @@ function world(w: { attested?: boolean; message?: string; solUsedNonce?: boolean
   messenger.set(new web3.PublicKey(FEE_RECIPIENT).toBytes(), 109);
   const b64 = (b: Uint8Array): [string, string] => [Buffer.from(b).toString('base64'), 'base64'];
   const accounts = new Map<string, Uint8Array>([[addr.localToken, localToken], [addr.tokenMessenger, messenger]]);
+  // The fee wallet's USDC account, opened once by the operator: a token account (mint, then owner) held by the Token program.
+  const feeAccount = new Uint8Array(165);
+  feeAccount.set(new web3.PublicKey(SOLANA_USDC).toBytes(), 0);
+  feeAccount.set(new web3.PublicKey(w.feeAccountOwner ?? SWAP_FEE_WALLET).toBytes(), 32);
+  if (!w.noFeeAccount) accounts.set(solanaFeeUsdcAccount(web3), feeAccount);
   if (w.solUsedNonce) accounts.set(usedNonceAddress(web3, Uint8Array.from(Buffer.from(NONCE.slice(2), 'hex'))), new Uint8Array(9));
   const rpcCalls: string[] = [];
   const rpc = (async (method: string, params: unknown[]) => {
@@ -49,7 +55,7 @@ function world(w: { attested?: boolean; message?: string; solUsedNonce?: boolean
     if (method === 'getLatestBlockhash') return { value: { blockhash: web3.Keypair.generate().publicKey.toBase58() } };
     if (method === 'getAccountInfo') {
       const d = accounts.get(String(params[0]));
-      return { value: d ? { data: b64(d) } : null };
+      return { value: d ? { data: b64(d), owner: String(params[0]) === solanaFeeUsdcAccount(web3) ? TOKEN_PROGRAM_ID : TOKEN_MESSENGER_MINTER_V2 } : null };
     }
     throw new Error('unexpected rpc ' + method);
   }) as never;
@@ -70,7 +76,7 @@ function world(w: { attested?: boolean; message?: string; solUsedNonce?: boolean
     if (u.includes('/messages/')) return w.attested ? json({ messages: [{ status: 'complete', message: w.message ?? '0xabcd', attestation: '0x1234', eventNonce: NONCE }] }) : json({ messages: [{ status: 'pending_confirmations', message: '0x', attestation: 'PENDING', eventNonce: NONCE }] });
     return json({}, 404);
   }) as unknown as typeof fetch;
-  const provider = (mode: 'fast' | 'standard' = 'standard', withSolana = true) => new CctpSettlementProvider({ mode, read: read as never, fetchImpl, now: () => NOW, ...(withSolana ? { solana: { rpc, web3: async () => web3 } } : {}) });
+  const provider = (mode: 'fast' | 'standard' = 'standard', withSolana = true) => new CctpSettlementProvider({ mode, read: read as never, fetchImpl, now: () => NOW, evmFeeAddress: EVM_FEE_ADDRESS, ...(withSolana ? { solana: { rpc, web3: async () => web3 } } : {}) });
   return { provider, rpcCalls, accounts };
 }
 
@@ -101,11 +107,13 @@ describe('Solana to EVM', () => {
     expect(unsigned.kind).toBe('solana');
     const t = unsigned.transaction;
     expect(t.feePayer!.toBase58()).toBe(SOL_USER);
-    expect(t.instructions.map((i) => i.programId.toBase58())).toEqual(['ComputeBudget111111111111111111111111111111', TOKEN_MESSENGER_MINTER_V2]);
+    // The compute budget, Aretia's fee (an SPL transfer to the fee wallet's USDC account), then the burn: one transaction.
+    expect(t.instructions.map((i) => i.programId.toBase58())).toEqual(['ComputeBudget111111111111111111111111111111', TOKEN_PROGRAM_ID, TOKEN_MESSENGER_MINTER_V2]);
+    expect(t.instructions[1]!.keys[2]!.pubkey.toBase58()).toBe(solanaFeeUsdcAccount(web3));
     expect(t.signatures.filter((s) => s.signature !== null)).toHaveLength(1); // only the throwaway key; the wallet signs the rest
-    const data = Buffer.from(t.instructions[1]!.data);
+    const data = Buffer.from(t.instructions[2]!.data);
     expect(data.subarray(8 + 8 + 4, 8 + 8 + 4 + 32).toString('hex')).toBe(Buffer.from(evmAddressBytes32(EVM_USER)).toString('hex'));
-    expect(SOLANA_CCTP_PROGRAMS).toContain(t.instructions[1]!.programId.toBase58());
+    expect(SOLANA_CCTP_PROGRAMS).toContain(t.instructions[2]!.programId.toBase58());
   });
 
   it('declares only the CCTP programs for Solana, and nothing for Solana when the tools are absent', () => {

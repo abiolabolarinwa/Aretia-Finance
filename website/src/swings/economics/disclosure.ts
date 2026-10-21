@@ -3,9 +3,12 @@
  * nowhere else; this module only decides WHICH step of a plan carries the fee and how the costs are disclosed.
  *
  * Rules (tests enforce them):
- *  - there is exactly one Aretia charge, the 0.58% fee, paid in the asset the user is paying with (a coin or a stablecoin). It is never added on top of
- *    itself: a plan carries it on at most ONE step, so a multi-step plan does not pay it twice on the same money;
- *  - ramps and settlements carry no Aretia charge; their providers' fees are shown as the providers' own;
+ *  - the swap fee, 0.58%, is paid in the asset the user is paying with (a coin or a stablecoin). It is never added on top of itself:
+ *    a plan carries it on at most ONE swap step, so a multi-step plan does not pay it twice on the same money;
+ *  - a "Move USDC" settlement (Circle CCTP) carries Aretia's Move fee, 0.1% of the amount moved (`MOVE_FEE_BPS` in `core/fee.ts`),
+ *    added on top in USDC on the source chain, so the amount moved arrives in full. It is on that settlement leg only, as its own
+ *    'aretia-fee' line, never merged with Circle's fee and never chosen by `selectFee` (which picks the swap fee's step);
+ *  - ramps carry no Aretia charge; ramp and settlement providers' fees are shown as the providers' own;
  *  - every cost is disclosed on its own line: the amount, the network fee, the venue fee, the settlement fee, the ramp
  *    fee and the Aretia fee, each in its own asset.
  */

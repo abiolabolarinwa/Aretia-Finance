@@ -302,6 +302,34 @@ describe('flat Aretia fees are not swap fees', () => {
   });
 });
 
+describe('Move USDC fees (0.1%, added on top) count once, like any fee a referred trader really paid', () => {
+  const MESSENGER = '0x28b5a0e9c621a5badaa536219b3a228c8168cf5d';
+  it('EVM: the separate fee transfer is credited; the burn transaction carries no fee and is never counted', async () => {
+    const feeTx = { from: TRADER, to: USDC_ETH, logs: [feeLog(USDC_ETH, TRADER, 1_000_000n)], blockTime: NOW - 60_000 };
+    const burnTx = { from: TRADER, to: MESSENGER, logs: [{ address: USDC_ETH, topics: [TRANSFER, pad(TRADER), pad(MESSENGER)], data: pad('0x' + (1_000_000_000n).toString(16)) }], blockTime: NOW - 50_000 };
+    const w = fakeWorld({ evmTx: { [HASH(21)]: feeTx, [HASH(22)]: burnTx } });
+    const r = await call(w, { op: 'record', ref: REFERRER, chain: 'ethereum', txs: [HASH(21), HASH(22)] });
+    expect(r.data.results.map((x) => x.result)).toEqual(['credited', 'no-fee']);
+    expect(w.credits).toHaveLength(1);
+    expect(w.credits[0]).toMatchObject({ asset: USDC_ETH, fee_raw: '1000000', share_raw: '200000' });
+    expect((await call(w, { op: 'record', chain: 'ethereum', txs: [HASH(21)] })).data.results[0].result).toBe('already-recorded');
+    expect(w.credits).toHaveLength(1);
+  });
+  it('Solana: the fee rides in the burn transaction, and only the fee wallet\'s rise is credited, once', async () => {
+    const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    const move = {
+      blockTime: Math.floor((NOW - 30_000) / 1000),
+      meta: { err: null, preBalances: [1e9, 1], postBalances: [0.99e9, 1], preTokenBalances: [{ mint: usdc, owner: SWAP_FEE_WALLET, uiTokenAmount: { amount: '5' } }, { mint: usdc, owner: SOL_TRADER, uiTokenAmount: { amount: '2000000000' } }], postTokenBalances: [{ mint: usdc, owner: SWAP_FEE_WALLET, uiTokenAmount: { amount: '1000005' } }, { mint: usdc, owner: SOL_TRADER, uiTokenAmount: { amount: '999000000' } }] },
+      transaction: { message: { accountKeys: [{ pubkey: SOL_TRADER, signer: true }, { pubkey: SWAP_FEE_WALLET, signer: false }], instructions: [{ programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', parsed: { type: 'transferChecked', info: {} } }, { programId: 'CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe' }] } },
+    };
+    const w = fakeWorld({ solTx: { [SIG]: move } });
+    const r = await call(w, { op: 'record', ref: SOL_REF, chain: 'solana', txs: [SIG] }, { as: `solana:${SOL_TRADER}` });
+    expect(r.data.credited).toBe(1);
+    expect(w.credits).toEqual([expect.objectContaining({ asset: usdc, fee_raw: '1000000', share_raw: '200000' })]);
+    expect((await call(w, { op: 'record', chain: 'solana', txs: [SIG] }, { as: `solana:${SOL_TRADER}` })).data.credited).toBe(0);
+  });
+});
+
 describe('a referrer reading their own numbers', () => {
   it('shows only their rows, with totals per chain and coin, and counts what earned nothing', async () => {
     const w = fakeWorld();

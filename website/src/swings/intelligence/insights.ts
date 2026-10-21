@@ -66,6 +66,10 @@ export function compareSettlementQuotes(quotes: readonly SettlementQuote[], symb
     const parts: string[] = [];
     if (moreArrives > 0n) parts.push(`${formatUnits(moreArrives, decimals)} ${symbol} more arrives on ${dst}`);
     else if (moreArrives < 0n) parts.push(`${formatUnits(-moreArrives, decimals)} ${symbol} less arrives on ${dst}`);
+    // With fees added on top the same amount arrives either way; what differs is what leaves the wallet.
+    const costsLess = (o.sourceTotal ?? o.sourceAmount) - (best.sourceTotal ?? best.sourceAmount);
+    if (costsLess > 0n) parts.push(`costs ${formatUnits(costsLess, decimals)} ${symbol} less`);
+    else if (costsLess < 0n) parts.push(`costs ${formatUnits(-costsLess, decimals)} ${symbol} more`);
     if (faster > 0) parts.push(`${durationText(faster).replace('about ', '')} faster`);
     else if (faster < 0) parts.push(`${durationText(-faster).replace('about ', '')} slower`);
     details.push(`Compared with ${o.route.mechanism}: ${parts.length > 0 ? parts.join(', ') : 'no difference in amount or time'}.`);

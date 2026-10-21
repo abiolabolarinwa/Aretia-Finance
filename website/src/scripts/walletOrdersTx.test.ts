@@ -2,7 +2,7 @@ import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import instructions from './__fixtures__/orders/instructions.json';
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from './walletTools';
-import { WRAPPED_SOL_MINT, cancelOrderInstruction, createOrderInstruction, inspectOrderTransaction, orderAddress, unwrapSolInstruction, wrapSolInstructions } from './walletOrdersTx';
+import { WRAPPED_SOL_MINT, cancelOrderFeeFrozenInstruction, cancelOrderInstruction, createOrderInstruction, inspectOrderTransaction, orderAddress, unwrapSolInstruction, wrapSolInstructions } from './walletOrdersTx';
 import { createHash } from 'node:crypto';
 
 // The same fixed addresses the Rust golden test uses.

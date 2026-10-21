@@ -1,6 +1,6 @@
 # ADR 0007: Aretia Order Program (limit buy and limit sell)
 
-Status: **Built and tested, NOT deployed, NOT audited.** Solana program, web-curve venue adapter, TypeScript client and keeper are in the Aretia Wallet repository (`programs/aretia-orders*`, `apps/order-keeper`); this repository has the web wallet's limit-orders card (`website/src/scripts/walletOrders*.ts`), off until the program is deployed. EVM contract: not started.
+Status: **Built through O5 and tested. NOT deployed. NOT audited.** See section 10 for what exists and what does not.
 
 This file is a copy of the decision record kept in the Aretia Wallet repository (`docs/aretia-launch/adr/0007-order-program.md`); that one is the source of truth.
 
@@ -90,14 +90,26 @@ immutable per deployment.
 
 ## 9. Open items for the owner
 
-1. Fee recipient wallet for each chain.
-2. Program upgradeability (immutable vs multisig upgradeable). Recommended: upgradeable behind a multisig with a timelock,
-   because there will be no audit.
-3. Whether the Aretia keeper should exist at launch.
-4. Legal review of fees and public order books.
+1. ~~Fee recipient wallet for each chain.~~ Given for Solana and EVM (section 1).
+2. ~~Program upgradeability.~~ Decided: upgradeable behind a multisig with a 72-hour timelock.
+3. ~~Whether the Aretia keeper should exist.~~ Decided: yes.
+4. ~~Legal review.~~ Owner chose to skip it.
+5. **Still open:** who the multisig members are; who funds and holds the keeper's hot wallet; the BNB Chain, Ethereum and Polygon
+   deployments (the one EVM fee address is used on all of them).
 
-## 10. Milestones (proposal)
+## 10. Milestones: where each stands (updated 2026-10-21)
 
-O0 spec sign-off (this document) -> O1 Solana program + LiteSVM tests -> O2 backend order index and per-user API ->
-O3 web wallet UI -> O4 keeper reference implementation -> O5 EVM contract -> O6 devnet/testnet runs -> O7 mainnet only on
-explicit authorisation.
+|     | What                                                                              | State                                                                     |
+| --- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| O0  | This record                                                                       | Done, owner decisions recorded                                            |
+| O1  | Solana program `programs/aretia-orders` (24 + 5 tests)                            | Built, tested in LiteSVM, **not deployed**                                |
+| O1b | Venue adapter for the web wallet's curve `programs/aretia-orders-web-curve-venue` | Built; tested against the curve's real binary (8 tests)                   |
+| O2  | Order index and private per-user API (`apps/launch-api`)                          | Built, tested (privacy, idempotence, resume)                              |
+| O3  | Web wallet "Limit orders" card (Aretia-Finance)                                   | Built, tested, **off** (`PUBLIC_ORDERS_ENABLED`; no program address)      |
+| O4  | Aretia Keeper `apps/order-keeper`                                                 | Built, tested on a fake chain, dry-run by default, never run on a network |
+| O5  | EVM contract `AretiaOrders.sol` (21 tests on a real EVM)                          | Built; **no EVM client, keeper or UI yet**; pooled escrow (see section 7) |
+| O6  | Devnet / testnet runs                                                             | **Not done** (no network access from the build environment)               |
+| O7  | Mainnet                                                                           | **Not authorised.** Needs the owner's explicit go-ahead                   |
+
+Not built: an adapter for tokens that have graduated to the Meteora pool; EVM client, keeper and UI; non-SOL payment assets on Solana
+(USDC, USDT) for the keeper and the card; the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.

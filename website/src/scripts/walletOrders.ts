@@ -288,8 +288,9 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
     } else {
       card.append(h('h3', 'wapp__h3', 'Review the cancel'));
       row(dl, 'Order', short(r.order));
-      row(dl, 'Aretia’s cancel fee (about)', r.account.side === 'buy' ? sol(r.fee) : `${fromSmallestUnit(r.fee, market?.decimals ?? 6)} tokens`);
+      row(dl, 'Aretia’s cancel fee (about)', r.feeWaived ? 'none' : r.account.side === 'buy' ? sol(r.fee) : `${fromSmallestUnit(r.fee, market?.decimals ?? 6)} tokens`);
       card.append(dl);
+      if (r.feeWaived) card.append(h('p', 'wapp__fine', 'The token’s issuer has frozen the account Aretia’s fee would go to, so this cancel is made without the fee. You get everything back.'));
       card.append(h('p', 'wapp__fine', 'The rest of what is unfilled comes back to your wallet. Anything that already filled stays filled.'));
     }
     for (const b of r.blockers) card.append(errorBox(b));

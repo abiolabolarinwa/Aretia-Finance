@@ -99,6 +99,8 @@ function harness(
     tokens?: bigint;
     reject?: boolean;
     simError?: string | null;
+    /** Fail a fee-bearing cancel with the frozen-account error, so the fee-frozen fallback is exercised. */
+    frozenFee?: boolean;
     confirm?: 'confirmed' | 'failed' | 'pending';
     afterSend?: (accounts: Map<string, Acc>, tx: web3.Transaction) => void;
   } = {},
@@ -127,7 +129,11 @@ function harness(
     }),
     fetchAccount: async (a) => accounts.get(a) ?? null,
     ordersOf: async () => open,
-    simulate: async () => (over.simError ? { ok: false, error: over.simError } : { ok: true, error: null }),
+    simulate: async (tx) => {
+      // A frozen fee account makes the ordinary cancel fail; the fee-free cancel goes through.
+      if (over.frozenFee && Buffer.from(tx.instructions[0]!.data).subarray(0, 8).toString('hex') === '5f81edf00831df84') return { ok: false, error: 'custom program error: 0x1 (account is frozen)' };
+      return over.simError ? { ok: false, error: over.simError } : { ok: true, error: null };
+    },
     signAndSubmit: async (tx) => {
       if (over.reject) throw new Error('User rejected the request');
       sent.push(tx);
@@ -328,6 +334,18 @@ describe('listing and cancelling', () => {
     const out = await h.flow.cancel(review);
     expect(out.differences).toEqual([]);
     expect(h.sent).toHaveLength(1);
+  });
+
+  it('cancels without the fee when the issuer has frozen the account the fee goes to, and says so', async () => {
+    const addr = orderAddress(web3, PROGRAM, OWNER, 1n);
+    const h = harness({ frozenFee: true, afterSend: (accounts) => void accounts.delete(addr) });
+    h.accounts.set(addr, { owner: PROGRAM, data: orderBytes({ nonce: 1n }) });
+    h.open.push({ address: addr, data: orderBytes({ nonce: 1n }) });
+    const [r] = await h.flow.listOrders(OWNER);
+    const review = await h.flow.prepareCancel(OWNER, r!);
+    expect(review).toMatchObject({ blockers: [], fee: 0n, feeWaived: true });
+    expect(Buffer.from(review.instructions[0]!.data).toString('hex')).toBe('e2e3a23cf1a257b1');
+    expect((await h.flow.cancel(review)).differences).toEqual([]);
   });
 
   it('reports an order that is still there after the cancel', async () => {

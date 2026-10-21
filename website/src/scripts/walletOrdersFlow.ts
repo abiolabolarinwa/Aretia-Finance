@@ -29,6 +29,7 @@ import {
 } from './walletOrdersCore';
 import {
   WRAPPED_SOL_MINT,
+  cancelOrderFeeFrozenInstruction,
   cancelOrderInstruction,
   createOrderInstruction,
   curveAddressOf,
@@ -109,6 +110,8 @@ export interface CancelReview {
   account: OrderAccount;
   /** The fee the program will keep, estimated from what is still unfilled. */
   fee: bigint;
+  /** True when Aretia’s fee account has been frozen by the token’s issuer and the cancel is made without the fee. */
+  feeWaived?: boolean;
   instructions: Web3.TransactionInstruction[];
   blockers: string[];
 }
@@ -329,9 +332,26 @@ export class OrdersFlow {
       feeRecipient,
     });
     const fee = (row.account.inRemaining * BigInt(row.account.cancelFeeBps) + 9_999n) / 10_000n;
-    const tx = this.assemble([ix], owner, await this.blockhash());
-    const trial = await this.d.simulate(tx);
-    if (!trial.ok) blockers.push(`The network would refuse this in a trial run: ${explain(trial.error)}.`);
+    const hash = await this.blockhash();
+    const trial = await this.d.simulate(this.assemble([ix], owner, hash));
+    if (!trial.ok) {
+      // The usual reason a cancel fails is that the token's issuer froze the account Aretia's fee goes to. The program has a
+      // fee-free cancel for exactly that case and refuses it otherwise, so try it: if the network accepts it, it is the right one.
+      const waived = cancelOrderFeeFrozenInstruction(web3, {
+        programId: program,
+        owner,
+        launchMint: row.account.launchMint,
+        launchTokenProgram: row.account.launchTokenProgram,
+        curve: curveAddressOf(web3, curveProgram, row.account.launchMint),
+        order: row.address,
+        feeRecipient,
+      });
+      const retry = await this.d.simulate(this.assemble([waived], owner, hash));
+      if (retry.ok) {
+        return { kind: 'cancel', owner, order: row.address, account: row.account, fee: 0n, feeWaived: true, instructions: [waived], blockers };
+      }
+      blockers.push(`The network would refuse this in a trial run: ${explain(trial.error)}.`);
+    }
     return {
       kind: 'cancel',
       owner,

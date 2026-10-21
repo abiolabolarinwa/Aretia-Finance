@@ -13,6 +13,7 @@ export const WRAPPED_SOL_MINT = 'So11111111111111111111111111111111111111112';
 /** sha256("global:<name>")[..8], the order program's Anchor instruction discriminators. */
 const CREATE_ORDER = Uint8Array.from([141, 54, 37, 207, 237, 210, 250, 215]);
 const CANCEL_ORDER = Uint8Array.from([95, 129, 237, 240, 8, 49, 223, 132]);
+const CANCEL_ORDER_FEE_FROZEN = Uint8Array.from([226, 227, 162, 60, 241, 162, 87, 177]);
 /** SPL Token instruction numbers used here. */
 const SYNC_NATIVE = 17;
 const CLOSE_ACCOUNT = 9;
@@ -136,6 +137,15 @@ export function cancelOrderInstruction(web3: typeof Web3, a: CancelArgs): Web3.T
     ],
     CANCEL_ORDER,
   );
+}
+
+/**
+ * The same cancel with no fee, for when the token account Aretia's fee would go to has been frozen by the token's issuer, so the
+ * ordinary cancel cannot pay it. The program checks the account really is frozen and refuses otherwise.
+ */
+export function cancelOrderFeeFrozenInstruction(web3: typeof Web3, a: CancelArgs): Web3.TransactionInstruction {
+  const ix = cancelOrderInstruction(web3, a);
+  return new web3.TransactionInstruction({ programId: ix.programId, keys: ix.keys, data: CANCEL_ORDER_FEE_FROZEN as unknown as Buffer });
 }
 
 /**

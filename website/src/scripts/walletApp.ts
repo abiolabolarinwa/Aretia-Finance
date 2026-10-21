@@ -12,6 +12,7 @@ import { initShield } from './walletShield';
 import { initLaunch } from './walletLaunch';
 import { initPool } from './walletPool';
 import { initCurve } from './walletCurve';
+import { initOrders } from './walletOrders';
 import { initAretiaPool } from './walletAretiaPool';
 import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
 import { initLaunchBox } from './walletLaunchBox';
@@ -388,6 +389,7 @@ export function initWalletApp(): void {
 
   const pool = initPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
+  const orders = initOrders({ getAddress: () => address, refreshWallet: () => void refresh() });
   const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
   let launchHub: LaunchHub | null = null;
   // Featured launches on the Launch page (drawn only while something is featured today).
@@ -403,6 +405,7 @@ export function initWalletApp(): void {
     refreshWallet: () => void refresh(),
     onNetwork: (n) => {
       curve.setActive(n === 'solana');
+      orders.setActive(n === 'solana');
       aretiaPool.setActive(n === 'solana');
     },
     offerPool: (mint) => pool.offer(mint),
@@ -1092,6 +1095,7 @@ export function initWalletApp(): void {
       launch.onShow();
       pool.onShow();
       curve.onShow();
+      orders.onShow();
       launchHub ??= initLaunchHub(launch, {
         curveOn: curve.present,
         onPools: () => yourPools.onShow(),
@@ -1099,6 +1103,7 @@ export function initWalletApp(): void {
           launch.onWalletChange();
           pool.onWalletChange();
           curve.onWalletChange();
+          orders.onWalletChange();
         },
       });
       launchHub?.onShow();
@@ -1191,6 +1196,7 @@ export function initWalletApp(): void {
     yourPools.onWalletChange();
     pool.onWalletChange();
     curve.onWalletChange();
+    orders.onWalletChange();
     renderChrome();
     // The Referrals page shows the connected wallet's own link and numbers, so it is drawn again for the new one.
     if (currentView() === 'referrals') referrals?.onShow();

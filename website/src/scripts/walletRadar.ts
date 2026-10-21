@@ -443,7 +443,14 @@ export function initRadar(): void {
     }
     if (mine !== token) return; // a newer request has taken over the panel
     if (!r.ok) {
-      result.replaceChildren(el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: r.message, attrs: { role: 'alert' } }));
+      const failed = el('div', { class: 'wapp-rd__banner wapp-rd__banner--warn', text: r.message, attrs: { role: 'alert' } });
+      const back = lastResults;
+      // A failed analysis must not cost the person their search: the matches stay one click away.
+      if (fromSearch && back) {
+        const b = el('button', { class: 'wapp-rd__chain', text: 'Back to the matches', attrs: { type: 'button' } });
+        b.addEventListener('click', () => result.replaceChildren(back));
+        result.replaceChildren(failed, b);
+      } else result.replaceChildren(failed);
       return;
     }
     remember(assetId);

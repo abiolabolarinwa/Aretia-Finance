@@ -109,7 +109,8 @@ export async function handleRadar(input: RadarInput): Promise<RadarOutput> {
 
   let path: string;
   let init: RequestInit = { method: 'GET' };
-  let timeoutMs = 15_000;
+  // Long enough for a host that sleeps when idle (a free tier) to wake up; the function itself is allowed 60 seconds.
+  let timeoutMs = 40_000;
   if (op === 'home') {
     if (homeCache && input.now - homeCache.at < HOME_KEEP_MS) return { status: 200, body: homeCache.body, headers: { ...headers, 'content-type': 'application/json' } };
     path = '/api/radar';

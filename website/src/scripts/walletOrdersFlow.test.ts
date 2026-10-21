@@ -4,8 +4,8 @@ import { LaunchError } from './walletLaunchFlow';
 import { deriveCurve, startOf } from './walletCurveCore';
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress } from './walletTools';
 import { OrdersFlow, type Market, type OrdersFlowDeps } from './walletOrdersFlow';
-import { DEFAULT_ORDER_FORM, orderTerms } from './walletOrdersCore';
-import { WRAPPED_SOL_MINT, curveAddressOf, orderAddress, ordersAssetAddress, ordersConfigAddress } from './walletOrdersTx';
+import { DEFAULT_ORDER_FORM, QUOTE_USDC, QUOTE_USDT, orderTerms } from './walletOrdersCore';
+import { METEORA_DAMM_V2_PROGRAM, WRAPPED_SOL_MINT, curveAddressOf, meteoraPoolAddressOf, orderAddress, ordersAssetAddress, ordersConfigAddress } from './walletOrdersTx';
 
 const PROGRAM = 'Fnb5FELt2BGQLzXdKc1pFTJThdYuZQwaamLVpc8pGPKH';
 const CURVE_PROGRAM = 'CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu';
@@ -65,6 +65,7 @@ function orderBytes(
     inRemaining?: bigint;
     minOut?: bigint;
     status?: number;
+    quote?: string;
   } = {},
 ): Uint8Array {
   const d = new Uint8Array(235);
@@ -72,7 +73,7 @@ function orderBytes(
   const b = d.subarray(8);
   b.set(keyBytes(over.owner ?? OWNER), 0);
   b.set(keyBytes(MINT), 32);
-  b.set(keyBytes(WRAPPED_SOL_MINT), 64);
+  b.set(keyBytes(over.quote ?? WRAPPED_SOL_MINT), 64);
   b.set(keyBytes(TOKEN_2022_PROGRAM_ID), 96);
   b.set(keyBytes(TOKEN_PROGRAM_ID), 128);
   b[160] = over.side ?? 0;
@@ -167,7 +168,7 @@ describe('loadMarket', () => {
     expect(m).toMatchObject({
       mint: MINT,
       decimals: 6,
-      minLamports: 100_000_000n,
+      minQuote: 100_000_000n,
       tokens: 7n,
       wrapped: 0n,
       sol: 5n * SOL,
@@ -387,5 +388,95 @@ describe('unwrapping', () => {
     const out = await h.flow.unwrap(OWNER);
     expect(out.differences).toEqual([]);
     expect(await h.flow.wrappedBalance(OWNER)).toBe(0n);
+  });
+});
+
+describe('paying in USDC or USDT', () => {
+  const setup = (opts: { usdc?: bigint; pool?: boolean; asset?: boolean; quote?: typeof QUOTE_USDC } = {}) => {
+    const q = opts.quote ?? QUOTE_USDC;
+    const h = harness({ tokens: 5_000_000_000n });
+    h.put(curveAddressOf(web3, CURVE_PROGRAM, MINT), CURVE_PROGRAM, curveBytes(2)); // migrated: the token lives on its pool
+    if (opts.pool !== false) h.put(meteoraPoolAddressOf(web3, MINT, q.mint), METEORA_DAMM_V2_PROGRAM, new Uint8Array(1000));
+    if (opts.asset !== false) {
+      const a = assetBytes(50_000_000n);
+      a.set(keyBytes(q.mint), 8);
+      h.put(ordersAssetAddress(web3, PROGRAM, q.mint), PROGRAM, a);
+    }
+    if (opts.usdc) h.put(ataAddress(web3, OWNER, q.mint, TOKEN_PROGRAM_ID), TOKEN_PROGRAM_ID, tokenBytes(opts.usdc));
+    return { h, q };
+  };
+  const form = { ...buyForm, quote: 'USDC' as const, amount: '100', price: '0.05' };
+
+  it('a token still on its curve only takes SOL', async () => {
+    const h = harness();
+    const r = await h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    expect('problem' in r && r.problem).toContain('only SOL orders can fill');
+  });
+
+  it('needs a real pool, and the asset switched on, before it offers anything', async () => {
+    const noPool = setup({ pool: false });
+    const a = await noPool.h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    expect('problem' in a && a.problem).toContain('no USDC pool');
+    const wrongOwner = setup({ pool: false });
+    wrongOwner.h.put(meteoraPoolAddressOf(web3, MINT, QUOTE_USDC.mint), PROGRAM, new Uint8Array(1000));
+    const b = await wrongOwner.h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    expect('problem' in b && b.problem).toContain('no USDC pool');
+    const off = setup({ asset: false });
+    const c = await off.h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    expect('problem' in c && c.problem).toContain('USDC are not switched on');
+  });
+
+  it('reads the pool venue, the balance, the minimum and sizes the order in USDC', async () => {
+    const { h } = setup({ usdc: 250_000_000n });
+    const m = await h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    if ('problem' in m) throw new Error(m.problem);
+    expect(m).toMatchObject({ venue: 'pool', minQuote: 50_000_000n, quoteBalance: 250_000_000n });
+    const { issues, terms } = h.flow.prepareForm(form, m);
+    expect(issues).toEqual([]);
+    expect(terms).toMatchObject({ amountIn: 100_000_000n, minOut: 2_000_000_000n, priceQuote: 50_000n });
+    expect(h.flow.prepareForm({ ...form, amount: '10' }, m).issues[0]?.message).toContain('smallest order is 50 USDC');
+    expect(h.flow.prepareForm({ ...form, amount: '300' }, m).issues[0]?.message).toContain('not have enough');
+  });
+
+  it('a USDC buy wraps nothing: one create instruction naming USDC, and the preview is in USDC', async () => {
+    const { h } = setup({ usdc: 250_000_000n });
+    const m = await h.flow.loadMarket(OWNER, MINT, QUOTE_USDC);
+    if ('problem' in m) throw new Error(m.problem);
+    const terms = orderTerms(form, 6, QUOTE_USDC)!;
+    const r = await h.flow.preparePlace(OWNER, m, terms);
+    expect(r.instructions).toHaveLength(1);
+    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
+    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
+    expect(r.blockers).toEqual([]);
+    expect(r.preview.escrowed).toBe('100 USDC');
+    expect(r.preview.fillFee).toBe('1.5 USDC');
+    expect(r.disclosures.some((d) => d.text.includes('Meteora pool'))).toBe(true);
+  });
+
+  it('USDT works the same, and a balance that is too small blocks the order', async () => {
+    const { h } = setup({ quote: QUOTE_USDT, usdc: 10_000_000n });
+    const m = await h.flow.loadMarket(OWNER, MINT, QUOTE_USDT);
+    if ('problem' in m) throw new Error(m.problem);
+    const r = await h.flow.preparePlace(OWNER, m, orderTerms({ ...form, quote: 'USDT' }, 6, QUOTE_USDT)!);
+    expect(r.blockers.join(' ')).toContain('More USDT than your wallet holds');
+  });
+
+  it('lists a stablecoin order with its asset and its price in that asset', async () => {
+    const { h } = setup();
+    h.open.push({ address: orderAddress(web3, PROGRAM, OWNER, 1n), data: orderBytes({ quote: QUOTE_USDC.mint, inTotal: 100_000_000n, minOut: 2_000_000_000n }) });
+    const rows = await h.flow.listOrders(OWNER);
+    expect(rows[0]!.quote?.symbol).toBe('USDC');
+    expect(rows[0]!.limit).toBe(50_000n); // 0.05 USDC per token
+  });
+
+  it('cancels a stablecoin order with the order’s own payment asset in the instruction', async () => {
+    const { h } = setup();
+    const addr = orderAddress(web3, PROGRAM, OWNER, 1n);
+    h.open.push({ address: addr, data: orderBytes({ quote: QUOTE_USDC.mint, inTotal: 100_000_000n }) });
+    const [row] = await h.flow.listOrders(OWNER);
+    const r = await h.flow.prepareCancel(OWNER, row!);
+    expect(r.blockers).toEqual([]);
+    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
+    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
   });
 });

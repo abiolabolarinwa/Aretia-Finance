@@ -11,7 +11,7 @@
 import { fromSmallestUnit } from './walletTools';
 import { LaunchError, friendlyError } from './walletLaunchFlow';
 import { priceText } from './walletCurveCore';
-import { DEFAULT_ORDER_FORM, ordersProgramFor, type OrderForm, type OrderIssue } from './walletOrdersCore';
+import { DEFAULT_ORDER_FORM, QUOTE_SOL, ordersProgramFor, quoteAssetsFor, quoteByMint, quoteBySymbol, type OrderForm, type OrderIssue, type QuoteAsset } from './walletOrdersCore';
 import { CURVE_PROGRAM_ID_MAINNET } from './walletCurveCore';
 import { OrdersFlow, type CancelReview, type Market, type OrderRow, type OrdersFlowDeps, type OrdersOutcome, type OrdersProgress, type PlaceReview } from './walletOrdersFlow';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
@@ -50,6 +50,7 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: strin
 };
 const grouped = (text: string): string => text.replace(/^(\d+)/, (whole) => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 const sol = (lamports: bigint): string => `${fromSmallestUnit(lamports, 9)} SOL`;
+const money = (base: bigint, q: QuoteAsset): string => `${fromSmallestUnit(base, q.decimals)} ${q.symbol}`;
 const tokens = (raw: bigint, decimals: number): string => grouped(fromSmallestUnit(raw, decimals));
 const short = (a: string): string => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
@@ -69,6 +70,8 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
   if (!root) return noop;
   const program = opts.program !== undefined ? opts.program : ordersProgramFor('mainnet');
   const curveProgram = opts.curveProgram !== undefined ? opts.curveProgram : CURVE_PROGRAM_ID_MAINNET;
+  const quotes = quoteAssetsFor(program && program === ordersProgramFor('devnet') ? 'devnet' : 'mainnet');
+  const chosenQuote = (): QuoteAsset => quotes.find((q) => q.symbol === form.quote) ?? QUOTE_SOL;
 
   let stage: Stage = 'form';
   let form: OrderForm = { ...DEFAULT_ORDER_FORM };
@@ -200,13 +203,40 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
         'Buy or sell an Aretia Launch token only at a price you choose. Your money waits in escrow that only you can cancel, and nothing fills unless the market reaches your price.',
       ),
       sides,
+    );
+    if (quotes.length > 1) {
+      const wrap = h('div', 'wapp-ln__field');
+      const lab = h('label', 'wapp__eyebrow', 'Pay with');
+      lab.htmlFor = 'ord-quote';
+      const sel = h('select', 'wapp__input');
+      sel.id = 'ord-quote';
+      sel.disabled = busy;
+      for (const q of quotes) {
+        const o = h('option', '', q.symbol);
+        o.value = q.symbol;
+        o.selected = q.symbol === form.quote;
+        sel.append(o);
+      }
+      sel.addEventListener('change', () => {
+        form = { ...form, quote: (quoteBySymbol(sel.value) ?? QUOTE_SOL).symbol };
+        issues = [];
+        draw();
+      });
+      wrap.append(lab, sel);
+      if (!chosenQuote().isSol) wrap.append(h('p', 'wapp__fine', `${chosenQuote().symbol} orders are for tokens that have graduated to their Meteora pool. Until then only SOL orders can fill.`));
+      card.append(wrap);
+    }
+    card.append(
       field('Token address', 'ord-mint', form.mint, (v) => (form = { ...form, mint: v }), {
         mono: true,
         placeholder: 'Paste the token’s address',
         problem: problemFor('mint'),
       }),
-      field(form.side === 'buy' ? 'SOL to spend' : 'Tokens to sell', 'ord-amount', form.amount, (v) => (form = { ...form, amount: v }), { inputmode: 'decimal', problem: problemFor('amount') }),
-      field('Your price, in SOL per token', 'ord-price', form.price, (v) => (form = { ...form, price: v }), {
+      field(form.side === 'buy' ? `${chosenQuote().symbol} to spend` : 'Tokens to sell', 'ord-amount', form.amount, (v) => (form = { ...form, amount: v }), {
+        inputmode: 'decimal',
+        problem: problemFor('amount'),
+      }),
+      field(`Your price, in ${chosenQuote().symbol} per token`, 'ord-price', form.price, (v) => (form = { ...form, price: v }), {
         inputmode: 'decimal',
         problem: problemFor('price'),
         hint: form.side === 'buy' ? 'The most you will pay for one token, every fee included.' : 'The least you will accept for one token, every fee included.',
@@ -236,9 +266,17 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
         const a = r.account;
         const li = h('li', 'wapp-ln__item');
         const d = r.decimals ?? 6;
-        const what = a.side === 'buy' ? `Buy ${short(a.launchMint)}: ${sol(a.inRemaining)} left to spend` : `Sell ${short(a.launchMint)}: ${tokens(a.inRemaining, d)} tokens left`;
+        const q = r.quote;
+        const what =
+          a.side === 'buy' ? `Buy ${short(a.launchMint)}: ${q ? money(a.inRemaining, q) : 'an unknown asset'} left to spend` : `Sell ${short(a.launchMint)}: ${tokens(a.inRemaining, d)} tokens left`;
         li.append(h('strong', '', what));
-        li.append(h('span', 'wapp__fine', r.limit === null ? ' · price unknown' : ` · waiting for ${fromSmallestUnit(r.limit, 9)} SOL per token ${a.side === 'buy' ? 'or less' : 'or more'}`));
+        li.append(
+          h(
+            'span',
+            'wapp__fine',
+            r.limit === null ? ' · price unknown' : ` · waiting for ${fromSmallestUnit(r.limit, q?.decimals ?? 9)} ${q?.symbol ?? ''} per token ${a.side === 'buy' ? 'or less' : 'or more'}`,
+          ),
+        );
         const cancel = h('button', 'wapp__btn wapp__btn--ghost', 'Cancel');
         cancel.type = 'button';
         cancel.disabled = busy;
@@ -270,25 +308,36 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
       const t = r.terms;
       card.append(h('h3', 'wapp__h3', t.side === 'buy' ? 'Review your buy order' : 'Review your sell order'));
       row(dl, 'Token', short(r.mint));
-      row(dl, t.side === 'buy' ? 'Held in escrow (SOL)' : 'Held in escrow (tokens)', r.preview.escrowed);
-      row(dl, t.side === 'buy' ? 'You get at least' : 'You get at least (SOL)', r.preview.atLeast);
-      row(dl, 'Your price', `${fromSmallestUnit(t.priceLamports, 9)} SOL per token`);
-      if (market) row(dl, 'Price on the curve now', `${priceText(market.curve, market.decimals)} SOL per token`);
+      row(dl, t.side === 'buy' ? `Held in escrow (${r.quote.symbol})` : 'Held in escrow (tokens)', r.preview.escrowed);
+      row(dl, t.side === 'buy' ? 'You get at least' : `You get at least (${r.quote.symbol})`, r.preview.atLeast);
+      row(dl, 'Your price', `${money(t.priceQuote, r.quote)} per token`);
+      if (market && market.venue === 'curve') row(dl, 'Price on the curve now', `${priceText(market.curve, market.decimals)} SOL per token`);
       row(dl, 'Aretia’s fee if it fills', r.preview.fillFee);
       row(dl, 'Aretia’s fee if you cancel', r.preview.cancelFee);
       row(dl, 'Network costs (refunded when the order closes, except the fee)', sol(r.network));
       card.append(dl);
       if (
         market &&
-        ((t.side === 'buy' && market.curve.vSol * 10n ** BigInt(market.decimals) <= t.priceLamports * market.curve.vTok) ||
-          (t.side === 'sell' && market.curve.vSol * 10n ** BigInt(market.decimals) >= t.priceLamports * market.curve.vTok))
+        market.venue === 'curve' &&
+        ((t.side === 'buy' && market.curve.vSol * 10n ** BigInt(market.decimals) <= t.priceQuote * market.curve.vTok) ||
+          (t.side === 'sell' && market.curve.vSol * 10n ** BigInt(market.decimals) >= t.priceQuote * market.curve.vTok))
       )
         card.append(h('p', 'wapp__banner', 'Your price is already met by the curve, so this order will probably fill straight away.'));
       for (const d of r.disclosures) card.append(h('p', d.severity === 'caution' ? 'wapp__banner wapp__banner--warn' : 'wapp__fine', d.text));
     } else {
       card.append(h('h3', 'wapp__h3', 'Review the cancel'));
       row(dl, 'Order', short(r.order));
-      row(dl, 'Aretia’s cancel fee (about)', r.feeWaived ? 'none' : r.account.side === 'buy' ? sol(r.fee) : `${fromSmallestUnit(r.fee, market?.decimals ?? 6)} tokens`);
+      row(
+        dl,
+        'Aretia’s cancel fee (about)',
+        r.feeWaived
+          ? 'none'
+          : r.account.side === 'buy'
+            ? quoteByMint(r.account.quoteMint)
+              ? money(r.fee, quoteByMint(r.account.quoteMint) as QuoteAsset)
+              : `${r.fee} (smallest units)`
+            : `${fromSmallestUnit(r.fee, market?.decimals ?? 6)} tokens`,
+      );
       card.append(dl);
       if (r.feeWaived) card.append(h('p', 'wapp__fine', 'The token’s issuer has frozen the account Aretia’s fee would go to, so this cancel is made without the fee. You get everything back.'));
       card.append(h('p', 'wapp__fine', 'The rest of what is unfilled comes back to your wallet. Anything that already filled stays filled.'));
@@ -411,7 +460,7 @@ export function initOrders(host: OrdersHost, opts: OrdersOptions = {}): OrdersCa
     draw();
     try {
       const f = await flowFor();
-      const m = await f.loadMarket(who, form.mint.trim());
+      const m = await f.loadMarket(who, form.mint.trim(), chosenQuote());
       if ('problem' in m) {
         issues = [{ field: 'mint', message: m.problem }];
         return;

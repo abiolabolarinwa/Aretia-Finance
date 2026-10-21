@@ -1,6 +1,8 @@
 # ADR 0007: Aretia Order Program (limit buy and limit sell)
 
-Status: **Proposed, specification only. No code exists. Nothing is deployed.**
+Status: **Built and tested, NOT deployed, NOT audited.** Solana program, web-curve venue adapter, TypeScript client and keeper are in the Aretia Wallet repository (`programs/aretia-orders*`, `apps/order-keeper`); this repository has the web wallet's limit-orders card (`website/src/scripts/walletOrders*.ts`), off until the program is deployed. EVM contract: not started.
+
+This file is a copy of the decision record kept in the Aretia Wallet repository (`docs/aretia-launch/adr/0007-order-program.md`); that one is the source of truth.
 
 ## 1. Decisions (from the owner)
 

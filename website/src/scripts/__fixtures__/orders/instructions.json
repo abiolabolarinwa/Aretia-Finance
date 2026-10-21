@@ -239,6 +239,78 @@
     "accounts": [
       {
         "isSigner": true,
+        "isWritable": true,
+        "pubkey": "4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX"
+      },
+      {
+        "isSigner": false,
+        "isWritable": false,
+        "pubkey": "3oLRHRnDhyt6aiN8xu6rPbUkqZxAWLqCD61RvqoZRozb"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "9Afc6B9uypZfXqQ5hJVXkJVosUUHcMAs94DAByXZbYLQ"
+      },
+      {
+        "isSigner": false,
+        "isWritable": false,
+        "pubkey": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG"
+      },
+      {
+        "isSigner": false,
+        "isWritable": false,
+        "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "4ZjNS3uAcVKcRGDkefDxT1cEuuhn8ZvcueDnpG9w1rKz"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "7X8QKwAgas1AwmB9P61XtxQvzKckqvMVLZbNSWKqdofs"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "5MyFwsDEoVyMuEVTGDG8buQEA8spjh2NzirdmrmUFDzq"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "CTa8rpk5nurTTPSTCQyTKeFAVXFQM4YvaYrubaS1nppQ"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "GgY1nedKrw37xRNBVA8ERYUF6uygVifCrSK794LQch4o"
+      },
+      {
+        "isSigner": false,
+        "isWritable": true,
+        "pubkey": "FVDpmnjxTNW9kJ7YB6jcjgSsdcGwvyh2X1177hL1urzT"
+      },
+      {
+        "isSigner": false,
+        "isWritable": false,
+        "pubkey": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+      },
+      {
+        "isSigner": false,
+        "isWritable": false,
+        "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      }
+    ],
+    "dataHex": "e2e3a23cf1a257b1",
+    "name": "cancel_order_fee_frozen",
+    "programId": "Fnb5FELt2BGQLzXdKc1pFTJThdYuZQwaamLVpc8pGPKH"
+  },
+  {
+    "accounts": [
+      {
+        "isSigner": true,
         "isWritable": false,
         "pubkey": "2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2"
       },

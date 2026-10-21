@@ -84,6 +84,15 @@ describe('the order instructions agree with the program (golden file written by 
     });
   });
 
+  it('cancel_order_fee_frozen', () => {
+    const order = orderAddress(web3, PROGRAM, OWNER, 7n);
+    expect(shape(cancelOrderFeeFrozenInstruction(web3, { ...base, order, feeRecipient: FEE }))).toEqual({
+      programId: golden('cancel_order_fee_frozen').programId,
+      dataHex: golden('cancel_order_fee_frozen').dataHex,
+      accounts: golden('cancel_order_fee_frozen').accounts,
+    });
+  });
+
   it('uses wrapped SOL as the payment asset unless told otherwise', () => {
     const { quoteMint: _drop, ...noQuote } = base;
     void _drop;
@@ -101,6 +110,7 @@ describe('the order instructions agree with the program (golden file written by 
     const d = (name: string) => createHash('sha256').update(`global:${name}`).digest().subarray(0, 8).toString('hex');
     expect(golden('create_order_buy').dataHex.startsWith(d('create_order'))).toBe(true);
     expect(golden('cancel_order').dataHex).toBe(d('cancel_order'));
+    expect(golden('cancel_order_fee_frozen').dataHex).toBe(d('cancel_order_fee_frozen'));
   });
 });
 

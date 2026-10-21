@@ -58,6 +58,20 @@ export const orderAddress = (web3: typeof Web3, program: string, owner: string, 
 /** The web wallet's curve account for a token: it proves to the order program that the token is an Aretia Launch token. */
 export const curveAddressOf = (web3: typeof Web3, curveProgram: string, mint: string): string => pda(web3, curveProgram, [utf8.encode('curve'), new web3.PublicKey(mint).toBytes()]);
 
+/** Meteora's DAMM v2 program: where a token trades once it has graduated from its curve. */
+export const METEORA_DAMM_V2_PROGRAM = 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG';
+/** The customizable pool for two mints: seeds "cpool", the larger key, then the smaller. */
+export function meteoraPoolAddressOf(web3: typeof Web3, mintX: string, mintY: string): string {
+  const [x, y] = [new web3.PublicKey(mintX).toBytes(), new web3.PublicKey(mintY).toBytes()];
+  let xBigger = false;
+  for (let i = 0; i < 32; i++)
+    if (x[i] !== y[i]) {
+      xBigger = (x[i] as number) > (y[i] as number);
+      break;
+    }
+  return pda(web3, METEORA_DAMM_V2_PROGRAM, [utf8.encode('cpool'), xBigger ? x : y, xBigger ? y : x]);
+}
+
 // ---------------------------------------------------------------- instructions
 
 export interface OrderTxInput {

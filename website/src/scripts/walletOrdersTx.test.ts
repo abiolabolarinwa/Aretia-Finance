@@ -2,7 +2,17 @@ import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import instructions from './__fixtures__/orders/instructions.json';
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from './walletTools';
-import { WRAPPED_SOL_MINT, cancelOrderFeeFrozenInstruction, cancelOrderInstruction, createOrderInstruction, inspectOrderTransaction, orderAddress, unwrapSolInstruction, wrapSolInstructions } from './walletOrdersTx';
+import {
+  meteoraPoolAddressOf,
+  WRAPPED_SOL_MINT,
+  cancelOrderFeeFrozenInstruction,
+  cancelOrderInstruction,
+  createOrderInstruction,
+  inspectOrderTransaction,
+  orderAddress,
+  unwrapSolInstruction,
+  wrapSolInstructions,
+} from './walletOrdersTx';
 import { createHash } from 'node:crypto';
 
 // The same fixed addresses the Rust golden test uses.
@@ -229,5 +239,18 @@ describe('inspectOrderTransaction', () => {
 
   it('catches a different fee payer', () => {
     expect(inspectOrderTransaction(web3, txOf(ixs(), FEE), expected())).toContain('The transaction is not paid for by your wallet.');
+  });
+});
+
+describe('the Meteora pool address', () => {
+  // Vectors from the Aretia Wallet client (packages/launch-solana/src/meteora.ts), which is checked against the real Meteora program.
+  const MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
+  it.each([
+    ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', '6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX'],
+    ['Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', '8tjXFTNwNJkc4g96Z9KRvpnpHMqEBxYPaYiigwcrsoXK'],
+    ['So11111111111111111111111111111111111111112', 'ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb'],
+  ])('%s', (quote, pool) => {
+    expect(meteoraPoolAddressOf(web3, MINT, quote)).toBe(pool);
+    expect(meteoraPoolAddressOf(web3, quote, MINT)).toBe(pool); // the order of the two does not matter
   });
 });

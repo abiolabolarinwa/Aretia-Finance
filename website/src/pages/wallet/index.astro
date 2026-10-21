@@ -49,6 +49,7 @@ const curveOn = import.meta.env.PUBLIC_CURVE_ENABLED === '1';
 // Limit orders (docs/ORDER_PROGRAM.md) stay out of the page until the site is built with PUBLIC_ORDERS_ENABLED=1, and do nothing on mainnet even
 // then: the card shows a notice and no form until the order program has an address.
 const ordersOn = import.meta.env.PUBLIC_ORDERS_ENABLED === '1';
+const ordersEvmOn = import.meta.env.PUBLIC_ORDERS_EVM_ENABLED === '1';
 
 // Aretia's own pool program (docs/ARETIA_POOL.md) stays out of the page until the site is built with PUBLIC_ARETIA_POOL_ENABLED=1, and does
 // nothing on mainnet even then: it has no mainnet program and is unaudited.
@@ -424,6 +425,9 @@ const sendTips = [
                     </div>
                   )}
                   <div data-evm-curve-root aria-live="polite" hidden></div>
+                  {ordersEvmOn && (
+                    <div class="wapp__card lh-nested" data-evm-orders-root aria-live="polite" hidden></div>
+                  )}
                 </div>
                 <div class="lh-nav lh-nav--split" data-hub-market-nav></div>
               </section>

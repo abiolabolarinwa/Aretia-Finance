@@ -6,10 +6,11 @@
  * owner less than the price they set. The program, its client and its tests are in the Aretia Wallet repository
  * (programs/aretia-orders, docs/aretia-launch/adr/0007-order-program.md).
  *
- * This version trades Aretia Launch tokens against SOL (held as wrapped SOL while an order is open) on the web wallet's bonding
- * curve. Other payment assets and tokens that have left the curve come later.
+ * Aretia Launch tokens trade against SOL (held as wrapped SOL while an order is open) on the web wallet's bonding curve, and, once a
+ * token has graduated to its Meteora pool, against SOL, USDC or USDT on that pool.
  */
 import { fromSmallestUnit, toSmallestUnit } from './walletTools';
+import { WRAPPED_SOL_MINT } from './walletOrdersTx';
 
 // ---------------------------------------------------------------- where the program lives
 
@@ -40,7 +41,27 @@ export const CURVE_FEE_BPS = 58n;
 
 export const BPS = 10_000n;
 const U64_MAX = (1n << 64n) - 1n;
-const SOL_DECIMALS = 9;
+
+// ---------------------------------------------------------------- the payment assets
+
+export type QuoteSymbol = 'SOL' | 'USDC' | 'USDT';
+
+/** A payment asset an order can be made in. All are classic-token mints; SOL is held as wrapped SOL while an order is open. */
+export interface QuoteAsset {
+  symbol: QuoteSymbol;
+  mint: string;
+  decimals: number;
+  isSol: boolean;
+}
+
+export const QUOTE_SOL: QuoteAsset = { symbol: 'SOL', mint: WRAPPED_SOL_MINT, decimals: 9, isSol: true };
+export const QUOTE_USDC: QuoteAsset = { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, isSol: false };
+export const QUOTE_USDT: QuoteAsset = { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, isSol: false };
+
+/** What a person can pay with. The stablecoin mints above are mainnet's, so devnet offers SOL only. */
+export const quoteAssetsFor = (cluster: 'mainnet' | 'devnet'): QuoteAsset[] => (cluster === 'devnet' ? [QUOTE_SOL] : [QUOTE_SOL, QUOTE_USDC, QUOTE_USDT]);
+export const quoteByMint = (mint: string): QuoteAsset | null => [QUOTE_SOL, QUOTE_USDC, QUOTE_USDT].find((q) => q.mint === mint) ?? null;
+export const quoteBySymbol = (symbol: string): QuoteAsset | null => [QUOTE_SOL, QUOTE_USDC, QUOTE_USDT].find((q) => q.symbol === symbol) ?? null;
 
 /** 150n -> "1.5%", 200n -> "2%". Never integer division: a fee shown to a person must be the fee charged. */
 export const percentText = (bps: bigint): string => `${Number(bps) / 100}%`;
@@ -55,10 +76,12 @@ export interface OrderForm {
   /** The Launch token's address. */
   mint: string;
   side: OrderSide;
-  /** Buy: SOL to spend. Sell: tokens to sell. */
+  /** Buy: the payment asset to spend. Sell: tokens to sell. */
   amount: string;
-  /** SOL per whole token. The limit: the worst price the owner accepts, Aretia's fee included. */
+  /** Payment asset per whole token. The limit: the worst price the owner accepts, Aretia's fee included. */
   price: string;
+  /** What the order is paid in. */
+  quote: QuoteSymbol;
 }
 
 export const DEFAULT_ORDER_FORM: OrderForm = {
@@ -66,6 +89,7 @@ export const DEFAULT_ORDER_FORM: OrderForm = {
   side: 'buy',
   amount: '',
   price: '',
+  quote: 'SOL',
 };
 
 export interface OrderIssue {
@@ -75,68 +99,71 @@ export interface OrderIssue {
 
 export interface OrderTerms {
   side: OrderSide;
-  /** Escrowed now: lamports for a buy, token base units for a sell. */
+  /** Escrowed now: the payment asset's base units for a buy, token base units for a sell. */
   amountIn: bigint;
-  /** The least the owner must end up holding: token base units for a buy, lamports for a sell. */
+  /** The least the owner must end up holding: token base units for a buy, the payment asset's base units for a sell. */
   minOut: bigint;
-  /** The price as lamports per whole token. */
-  priceLamports: bigint;
+  /** The price as the payment asset's base units per whole token. */
+  priceQuote: bigint;
 }
 
 export interface OrderContext {
   decimals: number;
-  /** Smallest order the program accepts for SOL, in lamports (read from the program's asset account). */
-  minLamports: bigint;
-  /** What the owner can escrow right now: SOL (wrapped or not) for a buy, tokens for a sell. */
+  /** Smallest order the program accepts for the payment asset, in its base units (read from the program's asset account). */
+  minQuote: bigint;
+  /** What the owner can escrow right now: the payment asset (for SOL, wrapped or not) for a buy, tokens for a sell. */
   available: bigint;
+  /** The payment asset; SOL if absent. */
+  quote?: QuoteAsset;
 }
 
 const ceilDiv = (a: bigint, b: bigint): bigint => (a + b - 1n) / b;
 
 /** Turns what the person typed into exact amounts. Every rounding goes the way that protects the owner. */
-export function orderTerms(form: OrderForm, decimals: number): OrderTerms | null {
-  const price = toSmallestUnit(form.price.trim(), SOL_DECIMALS);
-  const amount = toSmallestUnit(form.amount.trim(), form.side === 'buy' ? SOL_DECIMALS : decimals);
+export function orderTerms(form: OrderForm, decimals: number, quote: QuoteAsset = QUOTE_SOL): OrderTerms | null {
+  const price = toSmallestUnit(form.price.trim(), quote.decimals);
+  const amount = toSmallestUnit(form.amount.trim(), form.side === 'buy' ? quote.decimals : decimals);
   if (price === null || amount === null) return null;
-  const priceLamports = BigInt(price);
+  const priceQuote = BigInt(price);
   const amountIn = BigInt(amount);
-  if (priceLamports <= 0n || amountIn <= 0n) return null;
+  if (priceQuote <= 0n || amountIn <= 0n) return null;
   const unit = 10n ** BigInt(decimals);
-  // Buy: tokens = spend / price, rounded UP, so the order demands at least the price. Sell: SOL = tokens x price, rounded UP.
-  const minOut = form.side === 'buy' ? ceilDiv(amountIn * unit, priceLamports) : ceilDiv(amountIn * priceLamports, unit);
+  // Buy: tokens = spend / price, rounded UP, so the order demands at least the price. Sell: payment = tokens x price, rounded UP.
+  const minOut = form.side === 'buy' ? ceilDiv(amountIn * unit, priceQuote) : ceilDiv(amountIn * priceQuote, unit);
   if (minOut <= 0n || amountIn > U64_MAX || minOut > U64_MAX) return null;
-  return { side: form.side, amountIn, minOut, priceLamports };
+  return { side: form.side, amountIn, minOut, priceQuote };
 }
 
 export function validateOrder(form: OrderForm, isAddress: (s: string) => boolean, ctx: OrderContext | null): OrderIssue[] {
   const issues: OrderIssue[] = [];
+  const quote = ctx?.quote ?? quoteBySymbol(form.quote) ?? QUOTE_SOL;
   if (!isAddress(form.mint.trim())) issues.push({ field: 'mint', message: 'Paste the token’s address.' });
   if (!form.price.trim() || !/^\d+(\.\d+)?$/.test(form.price.trim()))
     issues.push({
       field: 'price',
-      message: 'Enter the price in SOL per token, for example 0.00005.',
+      message: quote.isSol ? 'Enter the price in SOL per token, for example 0.00005.' : `Enter the price in ${quote.symbol} per token, for example 0.05.`,
     });
   if (!form.amount.trim() || !/^\d+(\.\d+)?$/.test(form.amount.trim()))
     issues.push({
       field: 'amount',
-      message: form.side === 'buy' ? 'Enter how much SOL to spend.' : 'Enter how many tokens to sell.',
+      message: form.side === 'buy' ? `Enter how much ${quote.symbol} to spend.` : 'Enter how many tokens to sell.',
     });
   if (issues.length || !ctx) return issues;
 
-  const terms = orderTerms(form, ctx.decimals);
+  const terms = orderTerms(form, ctx.decimals, quote);
   if (!terms) {
     issues.push({
       field: 'amount',
-      message: 'Those numbers do not make a valid order. Check the amount and price (at most 9 decimals for SOL).',
+      message: `Those numbers do not make a valid order. Check the amount and price (at most ${quote.decimals} decimals for ${quote.symbol}).`,
     });
     return issues;
   }
   // A buy is measured by what it spends, a sell by what it must bring in.
   const size = terms.side === 'buy' ? terms.amountIn : terms.minOut;
-  if (size < ctx.minLamports)
+  if (size < ctx.minQuote)
     issues.push({
       field: 'amount',
-      message: `The smallest order is ${fromSmallestUnit(ctx.minLamports, SOL_DECIMALS)} SOL.`,
+      message: `The smallest order is ${fromSmallestUnit(ctx.minQuote, quote.decimals)} ${quote.symbol}.`,
     });
   if (terms.amountIn > ctx.available)
     issues.push({
@@ -161,8 +188,8 @@ export interface OrderPreview {
 
 const grouped = (text: string): string => text.replace(/^(\d+)/, (whole) => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 
-export function previewOrder(terms: OrderTerms, decimals: number): OrderPreview {
-  const sol = (l: bigint) => `${fromSmallestUnit(l, SOL_DECIMALS)} SOL`;
+export function previewOrder(terms: OrderTerms, decimals: number, quote: QuoteAsset = QUOTE_SOL): OrderPreview {
+  const sol = (l: bigint) => `${fromSmallestUnit(l, quote.decimals)} ${quote.symbol}`;
   const tok = (t: bigint) => `${grouped(fromSmallestUnit(t, decimals))} tokens`;
   if (terms.side === 'buy') {
     return {
@@ -175,14 +202,14 @@ export function previewOrder(terms: OrderTerms, decimals: number): OrderPreview 
   return {
     escrowed: tok(terms.amountIn),
     atLeast: sol(terms.minOut),
-    // The sell fee is taken from the SOL that comes back; at the limit price that is about this much.
+    // The sell fee is taken from the payment that comes back; at the limit price that is about this much.
     fillFee: sol(feeCeil(terms.minOut, ORDER_SELL_FEE_BPS)),
     // The cancel fee on a sell is taken in the token that was escrowed.
     cancelFee: tok(feeCeil(terms.amountIn, ORDER_CANCEL_FEE_BPS)),
   };
 }
 
-export function orderDisclosures(side: OrderSide): { severity: 'info' | 'caution'; text: string }[] {
+export function orderDisclosures(side: OrderSide, quote: QuoteAsset = QUOTE_SOL): { severity: 'info' | 'caution'; text: string }[] {
   const common: { severity: 'info' | 'caution'; text: string }[] = [
     {
       severity: 'caution',
@@ -205,29 +232,42 @@ export function orderDisclosures(side: OrderSide): { severity: 'info' | 'caution
       text: 'An order is filled in pieces if the market only reaches your price for part of it. Each piece is at least 5% of the order.',
     },
   ];
+  const q = quote.symbol;
+  const venue = quote.isSol
+    ? []
+    : [
+        {
+          severity: 'info' as const,
+          text: `${q} orders are filled on the token’s Meteora pool, which only exists once the token has graduated from its curve. If the pool is thin, your order may only fill in part, or not at all.`,
+        },
+      ];
   const specific =
     side === 'buy'
       ? [
           {
             severity: 'info' as const,
-            text: 'To place a buy, the SOL you spend is turned into wrapped SOL and held in escrow. If you cancel, you get wrapped SOL back and can turn it back into SOL here.',
+            text: quote.isSol
+              ? 'To place a buy, the SOL you spend is turned into wrapped SOL and held in escrow. If you cancel, you get wrapped SOL back and can turn it back into SOL here.'
+              : `To place a buy, the ${q} you spend is held in escrow. If you cancel, the unspent ${q} comes back to your wallet.`,
           },
           {
             severity: 'info' as const,
-            text: `If it fills, Aretia charges ${percentText(ORDER_BUY_FEE_BPS)} of what you spent. If you cancel, Aretia charges ${percentText(ORDER_CANCEL_FEE_BPS)} of what is unfilled.`,
+            text: `If it fills, Aretia charges ${percentText(ORDER_BUY_FEE_BPS)} of the ${q} you spent. If you cancel, Aretia charges ${percentText(ORDER_CANCEL_FEE_BPS)} of what is unfilled.`,
           },
         ]
       : [
           {
             severity: 'info' as const,
-            text: 'To place a sell, your tokens are held in escrow. You are paid in wrapped SOL, which you can turn back into SOL here.',
+            text: quote.isSol
+              ? 'To place a sell, your tokens are held in escrow. You are paid in wrapped SOL, which you can turn back into SOL here.'
+              : `To place a sell, your tokens are held in escrow. You are paid in ${q}.`,
           },
           {
             severity: 'info' as const,
-            text: `If it fills, Aretia charges ${percentText(ORDER_SELL_FEE_BPS)} of the SOL you receive. If you cancel, Aretia charges ${percentText(ORDER_CANCEL_FEE_BPS)} of the tokens still unfilled, taken in the token.`,
+            text: `If it fills, Aretia charges ${percentText(ORDER_SELL_FEE_BPS)} of the ${q} you receive. If you cancel, Aretia charges ${percentText(ORDER_CANCEL_FEE_BPS)} of the tokens still unfilled, taken in the token.`,
           },
         ];
-  return [...specific, ...common];
+  return [...venue, ...specific, ...common];
 }
 
 // ---------------------------------------------------------------- reading the program's accounts
@@ -298,10 +338,10 @@ export function parseAssetAccount(keyToString: (bytes: Uint8Array) => string, da
   };
 }
 
-/** Where the limit stands for a person: their price, from what is left to do. Null when nothing is left. */
-export function limitPriceLamports(o: Pick<OrderAccount, 'inRemaining' | 'minOutRemaining' | 'side'>, decimals: number): bigint | null {
+/** Where the limit stands for a person: their price, from what is left to do, in the payment asset's base units per whole token. Null when nothing is left. */
+export function limitPrice(o: Pick<OrderAccount, 'inRemaining' | 'minOutRemaining' | 'side'>, decimals: number): bigint | null {
   if (o.inRemaining <= 0n || o.minOutRemaining <= 0n) return null;
   const unit = 10n ** BigInt(decimals);
-  // Buy: lamports in per token out. Sell: lamports out per token in. Both are "lamports per whole token".
+  // Buy: payment in per token out. Sell: payment out per token in. Both are "payment per whole token".
   return o.side === 'buy' ? (o.inRemaining * unit) / o.minOutRemaining : (o.minOutRemaining * unit) / o.inRemaining;
 }

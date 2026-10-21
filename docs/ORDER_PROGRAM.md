@@ -73,7 +73,7 @@ chain can see them. Real privacy would need commit-reveal or encrypted orders an
 - **Spam.** The USD 50 minimum plus the rent paid by the creator limits it. The price is read from the pool at creation, and an
   oracle-free check is imprecise, so the USD minimum is enforced by the app and re-checked on-chain only against a configured
   per-asset minimum amount that the admin multisig updates. Stale values are a known weakness.
-- **Pairs.** Only pairs with a pool are listed. A SOL-paired token cannot take USDC orders in v1.
+- **Pairs.** Only pairs with a pool are listed. USDC and USDT orders open once a token has graduated to its Meteora pool; until then only SOL orders can fill.
 - **Fee asset.** Owner decision: all fees are paid in the payment asset (USDC, USDT, SOL, BNB, ETH, POL). Buy fee is deducted from the amount escrowed; the cancel fee comes out of the refund.
 
 ## 7a. Which curve (decision recorded 2026-10-21)
@@ -105,11 +105,11 @@ immutable per deployment.
 | O1  | Solana program `programs/aretia-orders` (24 + 5 tests)                            | Built, tested in LiteSVM, **not deployed**                                |
 | O1b | Venue adapter for the web wallet's curve `programs/aretia-orders-web-curve-venue` | Built; tested against the curve's real binary (8 tests)                   |
 | O2  | Order index and private per-user API (`apps/launch-api`)                          | Built, tested (privacy, idempotence, resume)                              |
-| O3  | Web wallet "Limit orders" card (Aretia-Finance)                                   | Built, tested, **off** (`PUBLIC_ORDERS_ENABLED`; no program address)      |
-| O4  | Aretia Keeper `apps/order-keeper`                                                 | Built, tested on a fake chain, dry-run by default, never run on a network |
-| O5  | EVM contract `AretiaOrders.sol` (21 tests on a real EVM)                          | Built; **no EVM client, keeper or UI yet**; pooled escrow (see section 7) |
+| O3  | Web wallet "Limit orders" card (Aretia-Finance)                                   | Built, tested, **off**; pays in SOL, or USDC/USDT for graduated tokens    |
+| O4  | Aretia Keeper `apps/order-keeper` (Solana curve and Meteora pool, and EVM)        | Built, tested on a fake chain, dry-run by default, never run on a network |
+| O5  | EVM contract `AretiaOrders.sol` (21 tests on a real EVM)                          | Built, with client, keeper and a web card (**off**: `PUBLIC_ORDERS_EVM_ENABLED`, no deployment); pooled escrow (section 7) |
 | O6  | Devnet / testnet runs                                                             | **Not done** (no network access from the build environment)               |
 | O7  | Mainnet                                                                           | **Not authorised.** Needs the owner's explicit go-ahead                   |
 
-Not built: an adapter for tokens that have graduated to the Meteora pool; EVM client, keeper and UI; non-SOL payment assets on Solana
-(USDC, USDT) for the keeper and the card; the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.
+Meteora pool (graduated tokens): no adapter program is needed; the order program calls Meteora itself, proved against the real Meteora binary.
+Not built: the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.

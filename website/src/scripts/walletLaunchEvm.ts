@@ -22,6 +22,7 @@ import {
 } from './walletLaunchEvmCore';
 import { createEvmPool } from './walletPoolEvm';
 import { createEvmCurve } from './walletCurveEvm';
+import { createEvmOrders } from './walletOrdersEvm';
 import { createEvmAretiaPool } from './walletAretiaPoolEvm';
 import { EvmLaunchFlow, friendlyEvmError, type EvmOutcome, type EvmProgress, type EvmReview } from './walletLaunchEvmFlow';
 
@@ -92,6 +93,8 @@ function withAddNetwork(adapter: EvmWalletAdapter, chain: LaunchEvmChain): Pick<
 export interface EvmMarketRoots {
   pool: HTMLElement;
   curve: HTMLElement;
+  /** Where the limit-orders card is drawn, when the build has it. */
+  orders?: HTMLElement | null;
   /** Where Aretia's own pool is drawn, when the build has it. */
   aretiaPool?: HTMLElement | null;
 }
@@ -114,6 +117,9 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   // Aretia's own pool (docs/ARETIA_POOL_EVM.md): off unless the site is built with PUBLIC_ARETIA_POOL_EVM_ENABLED=1, and even then it does nothing on a network without a deployed contract.
   const aretiaPool = import.meta.env.PUBLIC_ARETIA_POOL_EVM_ENABLED === '1' ? createEvmAretiaPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
   const curve = import.meta.env.PUBLIC_CURVE_ENABLED === '1' ? createEvmCurve({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
+
+  // Limit orders (docs/ORDER_PROGRAM.md): off unless the site is built with PUBLIC_ORDERS_EVM_ENABLED=1, and even then it does nothing on a network without a deployed contract (none has one).
+  const orders = import.meta.env.PUBLIC_ORDERS_EVM_ENABLED === '1' ? createEvmOrders({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) }) : null;
 
   const set = (f: Partial<EvmLaunchForm>): void => {
     form = { ...form, ...f };
@@ -429,13 +435,15 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       aretiaPool?.draw(markets?.aretiaPool ?? markets?.pool ?? card, redraw, form.chain, outcome?.token ?? null);
       curve?.draw(markets?.curve ?? card, redraw, form.chain, outcome?.token ?? null);
       if (markets && !curve) markets.curve.dataset.stage = 'off';
+      if (orders && markets?.orders) orders.draw(markets.orders, redraw, form.chain);
     },
-    isBusy: () => busy || pool.isBusy() || (aretiaPool?.isBusy() ?? false) || (curve?.isBusy() ?? false),
+    isBusy: () => busy || pool.isBusy() || (aretiaPool?.isBusy() ?? false) || (curve?.isBusy() ?? false) || (orders?.isBusy() ?? false),
     stage: () => stage,
     reset(): void {
       pool.reset();
       aretiaPool?.reset();
       curve?.reset();
+      orders?.reset();
       stage = 'form';
       review = null;
       outcome = null;

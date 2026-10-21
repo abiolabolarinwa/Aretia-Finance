@@ -14,7 +14,9 @@ import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlo
 import { curveProblems, parseCurveAccount, type CurveState } from './walletCurveCore';
 import {
   ORDER_ACCOUNT_SIZE,
-  limitPriceLamports,
+  QUOTE_SOL,
+  quoteByMint,
+  limitPrice,
   orderDisclosures,
   orderTerms,
   parseAssetAccount,
@@ -22,6 +24,7 @@ import {
   previewOrder,
   validateOrder,
   type OrderAccount,
+  type QuoteAsset,
   type OrderForm,
   type OrderIssue,
   type OrderPreview,
@@ -36,6 +39,8 @@ import {
   inspectOrderTransaction,
   orderAddress,
   ordersAssetAddress,
+  METEORA_DAMM_V2_PROGRAM,
+  meteoraPoolAddressOf,
   ordersConfigAddress,
   unwrapSolInstruction,
   wrapSolInstructions,
@@ -78,12 +83,18 @@ export interface Market {
   mint: string;
   decimals: number;
   curve: CurveState;
-  /** The program's smallest order for SOL, in lamports. */
-  minLamports: bigint;
-  /** Plain SOL in the wallet. */
+  /** What the order is paid in. */
+  quote: QuoteAsset;
+  /** Where it fills: the web wallet's curve while the token is still on it, otherwise the Meteora pool it graduated into. */
+  venue: 'curve' | 'pool';
+  /** The program's smallest order for this payment asset, in its base units. */
+  minQuote: bigint;
+  /** Plain SOL in the wallet (for fees, and for a SOL buy). */
   sol: bigint;
-  /** SOL already wrapped (a buy uses this first). */
+  /** SOL already wrapped (a SOL buy uses this first). */
   wrapped: bigint;
+  /** The wallet's balance of a stablecoin payment asset; 0 for SOL. */
+  quoteBalance: bigint;
   tokens: bigint;
 }
 
@@ -92,6 +103,7 @@ export interface PlaceReview {
   owner: string;
   mint: string;
   terms: OrderTerms;
+  quote: QuoteAsset;
   preview: OrderPreview;
   disclosures: { severity: 'info' | 'caution'; text: string }[];
   nonce: bigint;
@@ -120,7 +132,9 @@ export interface OrderRow {
   address: string;
   account: OrderAccount;
   decimals: number | null;
-  /** The price the order is waiting for, in lamports per whole token. */
+  /** The payment asset, if it is one this page knows. */
+  quote: QuoteAsset | null;
+  /** The price the order is waiting for, in the payment asset's base units per whole token. */
   limit: bigint | null;
 }
 
@@ -134,7 +148,7 @@ const ERRORS: [RegExp, string][] = [
   [/LimitNotMet|0x1790/i, 'the price is not good enough'],
   [/BelowMinimum/i, 'the order is smaller than the minimum'],
   [/NotALaunchToken/i, 'this is not an Aretia Launch token'],
-  [/AssetNotEnabled/i, 'SOL orders are not switched on'],
+  [/AssetNotEnabled/i, 'orders in this payment asset are not switched on'],
   [/Paused/i, 'orders are paused'],
   [/insufficient funds|0x1\b/i, 'the wallet does not hold enough'],
 ];
@@ -152,7 +166,7 @@ export class OrdersFlow {
 
   // ---------------------------------------------------------------- reading
 
-  async loadMarket(owner: string, mint: string): Promise<Market | { problem: string }> {
+  async loadMarket(owner: string, mint: string, quote: QuoteAsset = QUOTE_SOL): Promise<Market | { problem: string }> {
     const { web3, program, curveProgram } = this.d;
     if (!isSolanaAddress(mint)) return { problem: 'That is not a token address.' };
     const m = await this.d.fetchAccount(mint);
@@ -167,24 +181,38 @@ export class OrdersFlow {
       return {
         problem: 'This token has no Aretia bonding curve, so it cannot have limit orders.',
       };
-    const problems = curveProblems(curve);
-    if (problems.length) return { problem: `The curve does not look healthy: ${problems[0]}` };
-    if (curve.status !== 'trading')
+    let venue: Market['venue'];
+    if (curve.status === 'trading') {
+      const problems = curveProblems(curve);
+      if (problems.length) return { problem: `The curve does not look healthy: ${problems[0]}` };
+      if (!quote.isSol) return { problem: `While this token is still on its curve only SOL orders can fill. ${quote.symbol} orders open once it graduates to its pool.` };
+      venue = 'curve';
+    } else if (curve.status === 'migrated') {
+      // The token lives on a Meteora pool now. An order can only fill if the pool for this payment asset really exists.
+      const pool = await this.d.fetchAccount(meteoraPoolAddressOf(web3, mint, quote.mint));
+      if (!pool || pool.owner !== METEORA_DAMM_V2_PROGRAM) return { problem: `This token has no ${quote.symbol} pool, so an order in ${quote.symbol} could never fill.` };
+      venue = 'pool';
+    } else {
       return {
-        problem: 'This token’s curve is not trading (it has sold out or moved to a pool), so orders cannot fill.',
+        problem: 'This token’s curve is not trading (it has sold out and not yet moved to a pool), so orders cannot fill.',
       };
-    const asset = await this.d.fetchAccount(ordersAssetAddress(web3, program, WRAPPED_SOL_MINT));
+    }
+    const asset = await this.d.fetchAccount(ordersAssetAddress(web3, program, quote.mint));
     const info = asset && asset.owner === program ? parseAssetAccount((b) => new web3.PublicKey(b).toBase58(), asset.data) : null;
-    if (!info || !info.enabled) return { problem: 'Limit orders in SOL are not switched on.' };
+    if (!info || !info.enabled) return { problem: `Limit orders in ${quote.symbol} are not switched on.` };
     const tokens = accountAmount((await this.d.fetchAccount(ataAddress(web3, owner, mint, TOKEN_2022_PROGRAM_ID)))?.data ?? null) ?? 0n;
     const wrapped = accountAmount((await this.d.fetchAccount(ataAddress(web3, owner, WRAPPED_SOL_MINT, TOKEN_PROGRAM_ID)))?.data ?? null) ?? 0n;
+    const quoteBalance = quote.isSol ? 0n : (accountAmount((await this.d.fetchAccount(ataAddress(web3, owner, quote.mint, TOKEN_PROGRAM_ID)))?.data ?? null) ?? 0n);
     return {
       mint,
       decimals: facts.decimals,
       curve,
-      minLamports: info.minAmount,
+      quote,
+      venue,
+      minQuote: info.minAmount,
       sol: await this.d.balanceOf(owner),
       wrapped,
+      quoteBalance,
       tokens,
     };
   }
@@ -204,11 +232,13 @@ export class OrdersFlow {
         decimalsOf.set(account.launchMint, m ? (parseMintAccount(web3, m.owner, m.data)?.decimals ?? null) : null);
       }
       const decimals = decimalsOf.get(account.launchMint) ?? null;
+      const quote = quoteByMint(account.quoteMint);
       rows.push({
         address,
         account,
         decimals,
-        limit: decimals === null ? null : limitPriceLamports(account, decimals),
+        quote,
+        limit: decimals === null || !quote ? null : limitPrice(account, decimals),
       });
     }
     return rows;
@@ -217,16 +247,19 @@ export class OrdersFlow {
   // ---------------------------------------------------------------- placing
 
   prepareForm(form: OrderForm, market: Market): { issues: OrderIssue[]; terms: OrderTerms | null } {
-    // A buy can use SOL already wrapped plus plain SOL (less a little kept back for fees); a sell uses tokens.
-    const available = form.side === 'buy' ? market.wrapped + (market.sol > PLACE_OVERHEAD_FALLBACK_LAMPORTS ? market.sol - PLACE_OVERHEAD_FALLBACK_LAMPORTS : 0n) : market.tokens;
+    // A SOL buy can use SOL already wrapped plus plain SOL (less a little kept back for fees); a stablecoin buy uses that
+    // stablecoin; a sell uses tokens.
+    const solSpendable = market.wrapped + (market.sol > PLACE_OVERHEAD_FALLBACK_LAMPORTS ? market.sol - PLACE_OVERHEAD_FALLBACK_LAMPORTS : 0n);
+    const available = form.side === 'buy' ? (market.quote.isSol ? solSpendable : market.quoteBalance) : market.tokens;
     const issues = validateOrder(form, isSolanaAddress, {
       decimals: market.decimals,
-      minLamports: market.minLamports,
+      minQuote: market.minQuote,
       available,
+      quote: market.quote,
     });
     return {
       issues,
-      terms: issues.length ? null : orderTerms(form, market.decimals),
+      terms: issues.length ? null : orderTerms(form, market.decimals, market.quote),
     };
   }
 
@@ -236,7 +269,7 @@ export class OrdersFlow {
     const nonce = this.d.newNonce();
     const order = orderAddress(web3, program, owner, nonce);
     const ixs: Web3.TransactionInstruction[] = [];
-    if (terms.side === 'buy') {
+    if (terms.side === 'buy' && market.quote.isSol) {
       const shortfall = terms.amountIn > market.wrapped ? terms.amountIn - market.wrapped : 0n;
       ixs.push(...wrapSolInstructions(web3, owner, shortfall));
     }
@@ -247,15 +280,17 @@ export class OrdersFlow {
         launchMint: market.mint,
         launchTokenProgram: TOKEN_2022_PROGRAM_ID,
         curve: curveAddressOf(web3, curveProgram, market.mint),
+        quoteMint: market.quote.mint,
         side: terms.side,
         nonce,
         amountIn: terms.amountIn,
         minOut: terms.minOut,
       }),
     );
-    const plainSolNeeded = (terms.side === 'buy' && terms.amountIn > market.wrapped ? terms.amountIn - market.wrapped : 0n) + PLACE_OVERHEAD_FALLBACK_LAMPORTS;
+    const plainSolNeeded = (terms.side === 'buy' && market.quote.isSol && terms.amountIn > market.wrapped ? terms.amountIn - market.wrapped : 0n) + PLACE_OVERHEAD_FALLBACK_LAMPORTS;
     if (market.sol < plainSolNeeded + SAFETY_MARGIN_LAMPORTS) blockers.push('Your wallet does not hold enough SOL to cover this and the fees shown, with a small margin.');
     if (terms.side === 'sell' && terms.amountIn > market.tokens) blockers.push('More than your wallet holds of this token.');
+    if (terms.side === 'buy' && !market.quote.isSol && terms.amountIn > market.quoteBalance) blockers.push(`More ${market.quote.symbol} than your wallet holds.`);
     const tx = this.assemble(ixs, owner, await this.blockhash());
     const trial = await this.d.simulate(tx);
     if (!trial.ok) blockers.push(`The network would refuse this in a trial run: ${explain(trial.error)}.`);
@@ -264,8 +299,9 @@ export class OrdersFlow {
       owner,
       mint: market.mint,
       terms,
-      preview: previewOrder(terms, market.decimals),
-      disclosures: orderDisclosures(terms.side),
+      quote: market.quote,
+      preview: previewOrder(terms, market.decimals, market.quote),
+      disclosures: orderDisclosures(terms.side, market.quote),
       nonce,
       order,
       network: PLACE_OVERHEAD_FALLBACK_LAMPORTS,
@@ -295,6 +331,7 @@ export class OrdersFlow {
       const t = review.terms;
       if (row.owner !== review.owner) differences.push('The order names a different owner.');
       if (row.launchMint !== review.mint) differences.push('The order is for a different token.');
+      if (row.quoteMint !== review.quote.mint) differences.push('The order is paid in a different asset.');
       if (row.side !== t.side) differences.push('The order is on the wrong side.');
       if (row.inTotal !== t.amountIn || row.inRemaining !== t.amountIn) differences.push('The order holds a different amount than you approved.');
       if (row.minOutRemaining !== t.minOut) differences.push('The order’s price is not the one you approved.');
@@ -322,9 +359,11 @@ export class OrdersFlow {
     }
     const feeRecipient = new web3.PublicKey(cfg.data.subarray(8 + 32, 8 + 64)).toBase58();
     if (row.account.status !== 1) blockers.push('This order is being filled right now. Try again in a moment.');
+    if (row.account.quoteTokenProgram !== TOKEN_PROGRAM_ID) blockers.push('This order’s payment asset is not one this page can cancel safely.');
     const ix = cancelOrderInstruction(web3, {
       programId: program,
       owner,
+      quoteMint: row.account.quoteMint,
       launchMint: row.account.launchMint,
       launchTokenProgram: row.account.launchTokenProgram,
       curve: curveAddressOf(web3, curveProgram, row.account.launchMint),
@@ -340,6 +379,7 @@ export class OrdersFlow {
       const waived = cancelOrderFeeFrozenInstruction(web3, {
         programId: program,
         owner,
+        quoteMint: row.account.quoteMint,
         launchMint: row.account.launchMint,
         launchTokenProgram: row.account.launchTokenProgram,
         curve: curveAddressOf(web3, curveProgram, row.account.launchMint),

@@ -2,10 +2,18 @@ import * as web3 from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import orderFixture from './__fixtures__/orders/order.json';
 import {
+  QUOTE_SOL,
+  QUOTE_USDC,
+  QUOTE_USDT,
+  quoteAssetsFor,
+  quoteByMint,
+  orderDisclosures as disclosuresFor,
+  previewOrder as previewFor,
+  validateOrder as validateFor,
   DEFAULT_ORDER_FORM,
   ORDERS_PROGRAM_ID_MAINNET,
   feeCeil,
-  limitPriceLamports,
+  limitPrice,
   orderDisclosures,
   orderTerms,
   ordersFlagOn,
@@ -31,7 +39,7 @@ const form = (over: Partial<OrderForm> = {}): OrderForm => ({
 });
 const ctx = (over: Partial<OrderContext> = {}): OrderContext => ({
   decimals: 6,
-  minLamports: 100_000_000n,
+  minQuote: 100_000_000n,
   available: 5_000_000_000n,
   ...over,
 });
@@ -54,7 +62,7 @@ describe('orderTerms', () => {
       side: 'buy',
       amountIn: 1_000_000_000n,
       minOut: 20_000_000_000n,
-      priceLamports: 50_000n,
+      priceQuote: 50_000n,
     });
   });
 
@@ -195,8 +203,8 @@ describe('reading the program’s accounts (a real account written by the compil
   it('shows the price an order is waiting for', () => {
     const o = parseOrderAccount(keyOf, unhex(g.createdDataHex))!;
     // 1,000,000,000 lamports in for 500,000,000 base units (500 tokens at 6 decimals): 2,000,000 lamports (0.002 SOL) a token.
-    expect(limitPriceLamports(o, 6)).toBe(2_000_000n);
-    expect(limitPriceLamports({ ...o, inRemaining: 0n }, 6)).toBeNull();
+    expect(limitPrice(o, 6)).toBe(2_000_000n);
+    expect(limitPrice({ ...o, inRemaining: 0n }, 6)).toBeNull();
   });
 
   it('reads an asset account', () => {
@@ -208,5 +216,43 @@ describe('reading the program’s accounts (a real account written by the compil
       enabled: true,
     });
     expect(parseAssetAccount(keyOf, data.subarray(1))).toBeNull();
+  });
+});
+
+describe('payment assets', () => {
+  it('mainnet offers SOL, USDC and USDT; devnet only SOL (the stablecoin mints are mainnet’s)', () => {
+    expect(quoteAssetsFor('mainnet').map((q) => q.symbol)).toEqual(['SOL', 'USDC', 'USDT']);
+    expect(quoteAssetsFor('devnet').map((q) => q.symbol)).toEqual(['SOL']);
+    expect(quoteByMint(QUOTE_USDC.mint)).toBe(QUOTE_USDC);
+    expect(quoteByMint('11111111111111111111111111111111')).toBeNull();
+  });
+
+  it('sizes a USDC order with six decimals and rounds in the owner’s favour', () => {
+    const form = { ...DEFAULT_ORDER_FORM, mint: 'x', side: 'buy' as const, amount: '100', price: '0.05', quote: 'USDC' as const };
+    expect(orderTerms(form, 6, QUOTE_USDC)).toMatchObject({ amountIn: 100_000_000n, priceQuote: 50_000n, minOut: 2_000_000_000n });
+    expect(orderTerms({ ...form, price: '0.0000001' }, 6, QUOTE_USDC)).toBeNull(); // more than six decimals
+    expect(orderTerms({ ...form, side: 'sell', amount: '2000', price: '0.05' }, 6, QUOTE_USDT)).toMatchObject({ amountIn: 2_000_000_000n, minOut: 100_000_000n });
+  });
+
+  it('says USDC, not SOL, in what the person is told', () => {
+    const terms = orderTerms({ ...DEFAULT_ORDER_FORM, mint: 'x', amount: '100', price: '0.05', quote: 'USDC' }, 6, QUOTE_USDC)!;
+    expect(previewFor(terms, 6, QUOTE_USDC)).toMatchObject({ escrowed: '100 USDC', fillFee: '1.5 USDC', cancelFee: '0.58 USDC' });
+    const text = disclosuresFor('buy', QUOTE_USDC)
+      .map((d) => d.text)
+      .join(' ');
+    expect(text).toContain('USDC');
+    expect(text).not.toContain('wrapped SOL');
+    expect(text).toContain('Meteora pool');
+    expect(
+      disclosuresFor('buy', QUOTE_SOL)
+        .map((d) => d.text)
+        .join(' '),
+    ).toContain('wrapped SOL');
+  });
+
+  it('checks the minimum in the asset’s own units', () => {
+    const form = { ...DEFAULT_ORDER_FORM, mint: 'x', amount: '10', price: '0.05', quote: 'USDC' as const };
+    const issues = validateFor(form, () => true, { decimals: 6, minQuote: 50_000_000n, available: 1_000_000_000n, quote: QUOTE_USDC });
+    expect(issues[0]?.message).toBe('The smallest order is 50 USDC.');
   });
 });

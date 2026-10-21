@@ -94,7 +94,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
   function placeRoots(): void {
     const sol = onSolana();
     for (const sel of ['[data-pool-root]', '[data-curve-root]']) root(sel)?.toggleAttribute('hidden', !sol);
-    for (const sel of ['[data-evm-pool-root]', '[data-evm-curve-root]', '[data-evm-aretia-pool-root]']) root(sel)?.toggleAttribute('hidden', sol);
+    for (const sel of ['[data-evm-pool-root]', '[data-evm-curve-root]', '[data-evm-aretia-pool-root]', '[data-evm-orders-root]']) root(sel)?.toggleAttribute('hidden', sol);
   }
 
   // ---------------------------------------------------------------- network chips

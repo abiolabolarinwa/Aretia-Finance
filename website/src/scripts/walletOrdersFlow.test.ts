@@ -99,6 +99,8 @@ function harness(
     tokens?: bigint;
     reject?: boolean;
     simError?: string | null;
+    /** Fail a fee-bearing cancel with the frozen-account error, so the fee-frozen fallback is exercised. */
+    frozenFee?: boolean;
     confirm?: 'confirmed' | 'failed' | 'pending';
     afterSend?: (accounts: Map<string, Acc>, tx: web3.Transaction) => void;
   } = {},

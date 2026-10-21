@@ -52,7 +52,7 @@ export const FINALITY_FAST = 1000;
 export const FINALITY_STANDARD = 2000;
 
 /** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
-export const MOVE_CAP_RAW = 250_000_000n;
+export const MOVE_CAP_RAW = 10_000_000_000n; // 10,000 USDC (6 decimals)
 /** Largest fee a burn may allow Circle to take, in basis points of the amount (the safety engine's default ceiling). */
 export const MAX_FEE_BPS = 100;
 

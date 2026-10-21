@@ -58,7 +58,7 @@ describe('H-3: the builder derives contracts from Aretia\'s tables and refuses a
     await expect(p.buildSettlement(quoteOf({ raw: { minFinalityThreshold: 1000 } }))).rejects.toThrow(/different kind/);
     await expect(p.buildSettlement(quoteOf({ raw: { amount: 10_000_000_000n } }))).rejects.toThrow(/amounts do not agree/);
     await expect(p.buildSettlement(quoteOf({ raw: { amount: '100000000' } }))).rejects.toThrow(/amounts do not agree/);
-    await expect(p.buildSettlement(quoteOf({ intent: { sourceAmount: 10_000_000_000n } }))).rejects.toThrow(/above the limit/);
+    await expect(p.buildSettlement(quoteOf({ intent: { sourceAmount: 20_000_000_000n } }))).rejects.toThrow(/above the limit/);
     await expect(p.buildSettlement(quoteOf({ intent: { sourceAmount: MOVE_CAP_RAW + 1n } }))).rejects.toThrow(/above the limit/);
     await expect(p.buildSettlement(quoteOf({ raw: { maxFee: 2_000_000n } }))).rejects.toThrow(/fee above the ceiling/); // 2% of the amount
     await expect(p.buildSettlement(quoteOf({ raw: { maxFee: -1n } }))).rejects.toThrow(/fee above the ceiling/);
@@ -209,5 +209,13 @@ describe('the EVM claim must mint to this move (re-audit)', () => {
     expect(cctpTransactionProblems(intent, claim(message(6, ATTACKER))).join(' ')).toMatch(/someone other/);
     expect(cctpTransactionProblems(intent, claim(message(3, VICTIM))).join(' ')).toMatch(/different network/);
     expect(cctpTransactionProblems(intent, claim('0xabcd')).join(' ')).toMatch(/too short/);
+  });
+});
+
+describe('the single-move cap', () => {
+  it('is 10,000 USDC: exactly the cap builds, one unit more is refused', async () => {
+    expect(MOVE_CAP_RAW).toBe(10_000_000_000n);
+    const p = provider();
+    await expect(p.buildSettlement(quoteOf({ intent: { sourceAmount: MOVE_CAP_RAW + 1n } }))).rejects.toThrow(/above the limit/);
   });
 });

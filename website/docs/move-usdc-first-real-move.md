@@ -3,7 +3,7 @@
 Goal: prove one real EVM-to-EVM move with Circle's CCTP, with a small amount, and record it. Nothing in Move USDC has moved real money yet (`real-cctp-move` is not done in `docs/aretia-swings/readiness-attestations.json`). Do this before anyone else uses it.
 
 ## 0. Before you start
-- **Amount:** 2 USDC. The per-move cap in the page is 250 USDC; do not raise it.
+- **Amount:** 2 USDC. The per-move cap in the page is 10,000 USDC (raised from 250 on 2026-10-21); keep the first real move small anyway.
 - **Route (pick one):**
   - *Fastest first test:* **Polygon to Base**, standard. Polygon's standard attestation is about 8 seconds, so the whole move is a few minutes.
   - *The common route:* **Base to Arbitrum**, standard. Attestation is about 19 minutes; this also tests the long wait and coming back to the page.

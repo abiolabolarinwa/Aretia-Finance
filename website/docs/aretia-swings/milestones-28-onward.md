@@ -99,7 +99,7 @@ State of 0 to 27 at the start (inspected, not assumed): the standalone engine (d
 ## Milestone 36: settlement safety engine
 
 **Status:** complete and wired into the Move USDC start button.
-**Implemented:** `src/swings/settlement/safety.ts`: `assessSettlement` returns allow, confirm or block. It blocks on anything it cannot verify (no balance, no cap configured, no declared provider addresses), a network that is off, an invalid address, a recipient the user did not choose, an amount over the cap (`MOVE_CAP_RAW`, 250 USDC while proving), too little balance, a nearly-expired quote, a high-risk route, a fee above 1% and a duplicate in-flight move. It asks for acknowledgement when there is no gas to claim with, the recipient is another account on purpose, or the route is medium risk.
+**Implemented:** `src/swings/settlement/safety.ts`: `assessSettlement` returns allow, confirm or block. It blocks on anything it cannot verify (no balance, no cap configured, no declared provider addresses), a network that is off, an invalid address, a recipient the user did not choose, an amount over the cap (`MOVE_CAP_RAW`, 10,000 USDC since 2026-10-21; 250 USDC while proving), too little balance, a nearly-expired quote, a high-risk route, a fee above 1% and a duplicate in-flight move. It asks for acknowledgement when there is no gas to claim with, the recipient is another account on purpose, or the route is medium risk.
 **Tests:** `safety.test.ts`, 7. **Typecheck/Lint/Build:** pass.
 
 ## Milestones 37 to 41: ramps (domain, first provider, routing, Buy, Sell)

@@ -107,9 +107,9 @@ immutable per deployment.
 | O2  | Order index and private per-user API (`apps/launch-api`)                          | Built, tested (privacy, idempotence, resume)                              |
 | O3  | Web wallet "Limit orders" card (Aretia-Finance)                                   | Built, tested, **off**; pays in SOL, or USDC/USDT for graduated tokens    |
 | O4  | Aretia Keeper `apps/order-keeper` (Solana curve and Meteora pool, and EVM)        | Built, tested on a fake chain, dry-run by default, never run on a network |
-| O5  | EVM contract `AretiaOrders.sol` (21 tests on a real EVM)                          | Built, with client and keeper; **no EVM UI yet**; pooled escrow (section 7) |
+| O5  | EVM contract `AretiaOrders.sol` (21 tests on a real EVM)                          | Built, with client, keeper and a web card (**off**: `PUBLIC_ORDERS_EVM_ENABLED`, no deployment); pooled escrow (section 7) |
 | O6  | Devnet / testnet runs                                                             | **Not done** (no network access from the build environment)               |
 | O7  | Mainnet                                                                           | **Not authorised.** Needs the owner's explicit go-ahead                   |
 
 Meteora pool (graduated tokens): no adapter program is needed; the order program calls Meteora itself, proved against the real Meteora binary.
-Not built: the EVM card; the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.
+Not built: the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.

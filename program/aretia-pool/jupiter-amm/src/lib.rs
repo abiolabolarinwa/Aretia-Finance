@@ -10,7 +10,9 @@
 //!
 //! Account order of the pool's `swap` (data: tag, is_buy: bool, amount_in: u64, min_out: u64):
 //!   trader (signer, writable), pool (w), sol_vault (w), mint, token vault (w), trader token (w), trader wrapped SOL (w),
-//!   fee wrapped SOL (w), Token-2022 program, Token program.
+//!   fee wrapped SOL (w), Token-2022 program, Token program; then four optional accounts that let the swap open the fee wallet's
+//!   wrapped-SOL account if it was closed (the trader pays its rent): fee wallet, native mint, System program, associated-token
+//!   program. This adapter always passes them, so a closed fee account never stops routing.
 use anyhow::{anyhow, bail, ensure, Result};
 use jupiter_amm_interface::{AccountMap, Amm, AmmContext, ClockRef, KeyedAccount, Quote, QuoteParams, Swap, SwapAndAccountMetas, SwapMode, SwapParams};
 use rust_decimal::Decimal;
@@ -25,6 +27,7 @@ pub const FEE_WALLET: Pubkey = pubkey!("2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aV
 pub const TOKEN_PROGRAM: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const ATA_PROGRAM: Pubkey = pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+pub const SYSTEM_PROGRAM: Pubkey = pubkey!("11111111111111111111111111111111");
 
 /// Anchor's tag for `Pool` accounts: sha256("account:Pool")[0..8].
 pub const POOL_TAG: [u8; 8] = [241, 154, 109, 4, 17, 177, 109, 188];
@@ -171,6 +174,10 @@ impl Amm for AretiaPoolAmm {
             w(associated(&FEE_WALLET, &WSOL, &TOKEN_PROGRAM)),
             r(TOKEN_2022_PROGRAM),
             r(TOKEN_PROGRAM),
+            r(FEE_WALLET),
+            r(WSOL),
+            r(SYSTEM_PROGRAM),
+            r(ATA_PROGRAM),
         ];
         // PLACEHOLDER: Jupiter assigns the variant for a new AMM.
         Ok(SwapAndAccountMetas { swap: Swap::TokenSwap, account_metas })
@@ -180,7 +187,7 @@ impl Amm for AretiaPoolAmm {
         Box::new(self.clone())
     }
     fn get_accounts_len(&self) -> usize {
-        10
+        14
     }
     fn is_active(&self) -> bool {
         self.state.l > 0 && self.state.x as u128 + self.state.vx as u128 > 0
@@ -308,6 +315,9 @@ mod tests {
             assert_eq!((m[5].pubkey, m[6].pubkey), (tok_acc, wsol_acc), "token account, then wrapped-SOL account, whichever way it trades");
             assert_eq!(m[7].pubkey, associated(&FEE_WALLET, &WSOL, &TOKEN_PROGRAM));
             assert_eq!((m[8].pubkey, m[9].pubkey), (TOKEN_2022_PROGRAM, TOKEN_PROGRAM));
+            // The trailing accounts that let the swap open a closed fee account, read-only.
+            assert_eq!([m[10].pubkey, m[11].pubkey, m[12].pubkey, m[13].pubkey], [FEE_WALLET, WSOL, SYSTEM_PROGRAM, ATA_PROGRAM]);
+            assert!(m.iter().skip(10).all(|k| !k.is_writable));
             assert!(m.iter().skip(1).all(|k| !k.is_signer));
         }
         let mut bad = params(true);

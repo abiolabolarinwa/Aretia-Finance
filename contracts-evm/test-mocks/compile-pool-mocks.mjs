@@ -1,8 +1,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-const require = createRequire(import.meta.url);
-const solc = require('solc');
+// solc is looked up from the current folder first (e.g. contracts-evm/test with its node_modules), then next to this file.
+const solc = (() => {
+  try {
+    return createRequire(join(process.cwd(), 'noop.js'))('solc');
+  } catch {
+    return createRequire(import.meta.url)('solc');
+  }
+})();
 const dir = process.argv[2];
 const file = 'PoolMocks.sol';
 const source = readFileSync(join(dir, 'test-mocks', file), 'utf8').replace(/\r\n/g, '\n');

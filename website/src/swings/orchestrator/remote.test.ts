@@ -48,7 +48,7 @@ describe('secureId', () => {
 describe('recovery copies', () => {
   const setup = (enabled = true) => {
     const s = server();
-    const mirror = new RecordMirror(s.fetchImpl);
+    const mirror = new RecordMirror(s.fetchImpl, undefined, null);
     const results: string[] = [];
     const store = mirroredExecutionStore(new InMemoryExecutionStore(), mirror, () => enabled, (r) => results.push(r));
     const provider = new MockSettlementProvider({ now: () => NOW });
@@ -116,8 +116,12 @@ describe('recovery copies', () => {
     const { s, orch, provider } = setup();
     const rec = await orch.create(await provider.getQuote(intent));
     await settle();
-    const mirror = new RecordMirror(s.fetchImpl);
-    expect(await mirror.push('settlement', { ...rec, version: 7, state: 'QUOTED' } as never, 6)).toBe('conflict');
+    const before = s.rows.get(rec.id)!.version;
+    const mirror = new RecordMirror(s.fetchImpl, undefined, null);
+    // a second browser holds no write token for this record (H-3), so its upload is refused whatever version it names
+    expect(await mirror.push('settlement', { ...rec, version: 7, state: 'QUOTED' } as never, 6)).not.toBe('saved');
+    expect(await mirror.push('settlement', { ...rec, version: before + 1, state: 'QUOTED' } as never, before)).not.toBe('saved');
+    expect(s.rows.get(rec.id)!.version).toBe(before);
   });
 
   it('works with the browser-storage store too', async () => {

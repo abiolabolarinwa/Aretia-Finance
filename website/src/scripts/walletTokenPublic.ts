@@ -9,6 +9,8 @@ import { fetchPairDetail, type PairDetail } from '../swings/charts/pairDetail.js
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
 import { compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { searchTokens } from '../swings/tokens/globalSearch.js';
+import { cleanText, isUnsafeName } from '../swings/tokens/safeText.js';
+import { impersonationWarning } from '../swings/tokens/impersonation.js';
 import { publicRead, readErc20 } from '../swings/chains/evmSession.js';
 import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
@@ -165,8 +167,27 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
   about.body.append(el('p', 'tkp-fine', 'Reading the chain…'));
   market.body.append(el('p', 'tkp-fine', 'Looking for the pool this token trades on…'));
 
-  const setIdentity = (sym: string, name: string, icon: string | null): void => {
+  // A warning above everything else when the name is hidden or imitates a well-known token.
+  const nameWarn = el('p', 'tkp-fine tkp-warn');
+  nameWarn.setAttribute('role', 'alert');
+  nameWarn.hidden = true;
+  root.prepend(nameWarn);
+
+  const setIdentity = (rawSym: string, rawName: string, icon: string | null): void => {
+    // Names come from the token's creator: invisible and stacking characters are dropped, and a look-alike or abusive name is not shown.
+    let sym = cleanText(rawSym, 32);
+    let name = cleanText(rawName, 64);
     if (!sym) return;
+    if (isUnsafeName(sym, name)) {
+      nameWarn.textContent = 'This token’s name is hidden: it is abusive or uses look-alike letters to pass for another token. Check the address before you buy.';
+      nameWarn.hidden = false;
+      sym = shortAddress(address);
+      name = '';
+    } else {
+      const imitates = impersonationWarning(chain, address, sym, name);
+      nameWarn.textContent = imitates ?? '';
+      nameWarn.hidden = imitates === null;
+    }
     symbol = sym;
     nameEl.textContent = sym;
     subEl.textContent = `${name ? `${name} · ` : ''}${info.name}`;

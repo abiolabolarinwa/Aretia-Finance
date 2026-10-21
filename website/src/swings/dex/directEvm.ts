@@ -603,7 +603,7 @@ export class DirectEvmProvider implements DexProvider {
     }
 
     const fee = feePlan.state === 'ready' ? evmFeeTransfer(taker, raw.nativeIn ? EVM_NATIVE_ADDRESS : raw.path[0]!, feePlan.fee, feePlan.treasury) : null;
-    if (fee) warnings.push(`The Aretia fee of ${FEE_PERCENT} travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step.`);
+    if (fee) warnings.push(`The Aretia fee of ${FEE_PERCENT} travels with the swap. A wallet that can batch asks you once; otherwise it asks for each step, and the fee is then a separate transaction sent before the swap: it is not refunded if you decline the swap or the swap fails.`);
     const payload: EvmSwapPayload = { chainId: info.evmChainId, taker, approval, ...(permit2 ? { permit2 } : {}), ...(fee ? { fee } : {}), swap: { from: taker, to: plan.to, data: plan.data, value: '0x' + plan.value.toString(16) } };
     return { quoteId: quote.id, chain, payload, simulation: { ok: blockers.length === 0, blockers, warnings }, preparedAt: this.now() };
   }

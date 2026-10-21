@@ -6,12 +6,14 @@
 //   $env:SUPABASE_URL = "https://<project>.supabase.co"; $env:SUPABASE_SERVICE_ROLE_KEY = "<service key>"
 //   node scripts/referral-export.mjs                 the list, as text
 //   node scripts/referral-export.mjs --csv           the same as CSV (to a file: redirect with > owed.csv)
+//   node scripts/referral-export.mjs --no-recheck    skip asking the chains again (by default every unpaid payment is re-read
+//                                                    and anything no longer final, failed or missing is left out and listed)
 //
 // After paying a referrer, mark their rows paid in the Supabase SQL editor so they drop off the list (replace the address and the time):
 //   update public.referral_credits set paid_at = <ms since 1970> where referrer = 'evm:0x...' and chain = 'ethereum' and paid_at is null and status = 'credited';
 // To switch a referrer off after abuse:
 //   insert into public.referral_revocations (referrer, reason, revoked_at) values ('evm:0x...', 'why', <ms since 1970>);
-import { owedByReferrer, renderCsv, renderExport } from './referralExportCore.mjs';
+import { owedByReferrer, recheckRows, renderCsv, renderExport } from './referralExportCore.mjs';
 
 const base = (process.env.SUPABASE_URL ?? '').trim().replace(/\/+$/, '');
 const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
@@ -32,8 +34,10 @@ async function table(path) {
 }
 
 try {
-  const [credits, revoked] = await Promise.all([table('referral_credits?select=chain,asset,referrer,fee_raw,share_raw,status,paid_at&order=created_at.asc'), table('referral_revocations?select=referrer')]);
-  const groups = owedByReferrer(credits, revoked.map((r) => r.referrer));
+  const [credits, revoked] = await Promise.all([table('referral_credits?select=chain,tx,asset,referrer,fee_raw,share_raw,status,paid_at,created_at&order=created_at.asc'), table('referral_revocations?select=referrer')]);
+  const notFinal = process.argv.includes('--no-recheck') ? new Set() : await recheckRows(credits);
+  if (notFinal.size > 0) console.error(`Left out, not final or not found on chain (do not pay; check again later):\n${[...notFinal].join('\n')}`);
+  const groups = owedByReferrer(credits, revoked.map((r) => r.referrer), notFinal);
   process.stdout.write(process.argv.includes('--csv') ? renderCsv(groups) : renderExport(groups) + '\n');
 } catch (e) {
   console.error(String(e instanceof Error ? e.message : e).split(key).join('[key]'));

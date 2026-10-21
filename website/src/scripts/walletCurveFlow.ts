@@ -73,7 +73,8 @@ export interface CurveFlowDeps {
   /** Seconds since 1970, from the network's own clock when it has one. */
   nowSecs(): number;
   /** The mint of the position NFT an owner holds (a Token-2022 account with exactly one token of a mint other than `exceptMint`), or null. */
-  positionNft?(owner: string, exceptMint: string): Promise<string | null>;
+  /** The graduated position held by `owner` (the migrator) in `pool`, read from Meteora's Position accounts, with its own pool field. */
+  positionNft?(owner: string, pool: string): Promise<{ nft: string; pool: string } | null>;
   sleep?(ms: number): Promise<void>;
 }
 
@@ -179,6 +180,11 @@ export class CurveFlow {
     if (!acc) return null;
     const c = parseCurveAccount(web3, acc.owner, program, acc.data);
     return c && c.mint === mint ? c : null;
+  }
+
+  /** A wallet's live balance of the token (its Token-2022 account), for example the curve opener's. */
+  async heldBy(owner: string, mint: string): Promise<bigint> {
+    return this.tokensHeld(owner, mint);
   }
 
   private async tokensHeld(owner: string, mint: string): Promise<bigint> {
@@ -298,8 +304,14 @@ export class CurveFlow {
     if (tokensIn > held) blockers.push('More than your wallet holds of this token.');
     const quote = quoteSell(curve, curve.curveTokens, tokensIn, curve.feeBps);
     if (!quote) {
-      blockers.push('That amount cannot be sold back to the curve.');
+      // quoteSell refuses both a sale beyond what the curve has sold and one too small to pay anything (audit L-8).
+      blockers.push(curve.realTok + tokensIn > curve.curveTokens ? 'That amount cannot be sold back to the curve.' : 'That amount is too small: the curve would pay you 0 SOL for it, and the tokens would be lost. Sell a larger amount.');
       return { kind: 'sell', trader, mint: curve.mint, curve, quote: null, tokensIn, minOut: 0n, tokensBefore: held, instructions: [], network: 0n, balance, blockers };
+    }
+    // The program accepts a sale that pays nothing (audit L-8) and the tokens would be gone for 0 lamports: refuse it here.
+    if (quote.net === 0n) {
+      blockers.push('That amount is too small: the curve would pay you 0 SOL for it, and the tokens would be lost. Sell a larger amount.');
+      return { kind: 'sell', trader, mint: curve.mint, curve, quote, tokensIn, minOut: 0n, tokensBefore: held, instructions: [], network: 0n, balance, blockers };
     }
     const min = minOut(quote.net, slippageBps);
     const instructions = buildSell(web3, program, trader, curve.mint, tokensIn, min);
@@ -397,9 +409,11 @@ export class CurveFlow {
     const blockers: string[] = [];
     if (curve.status !== 'migrated' || !curve.pool) blockers.push('This curve has not moved into its pool, so there are no pool fees yet.');
     const migrator = migratorAddress(web3, program, curveAddress(web3, program, curve.mint));
-    const nft = curve.status === 'migrated' && this.d.positionNft ? await this.d.positionNft(migrator, curve.mint).catch(() => null) : null;
+    const found = curve.status === 'migrated' && curve.pool && this.d.positionNft ? await this.d.positionNft(migrator, curve.pool).catch(() => null) : null;
+    const nft = found?.nft ?? null;
     if (curve.status === 'migrated' && !nft) blockers.push('The pool’s position could not be found from the network just now. Try again in a moment.');
-    if (nft && curve.pool && migrateAddresses(web3, curve.mint, nft).pool !== curve.pool) blockers.push('The position found does not belong to this curve’s pool.');
+    // The position's own pool field must be this curve's pool, and so must the pool the claim instruction names.
+    if (found && curve.pool && (found.pool !== curve.pool || migrateAddresses(web3, curve.mint, found.nft).pool !== curve.pool)) blockers.push('The position found does not belong to this curve’s pool.');
     const balance = await this.d.balanceOf(caller);
     const instructions = nft ? buildClaimFees(web3, program, caller, curve.mint, nft) : [];
     const network = nft && blockers.length === 0 ? await this.price(instructions, caller, balance, 0n, 10_000n, blockers) : 0n;

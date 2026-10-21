@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planForOwner, telegramText, MAX_MESSAGES_PER_RUN, type OwnerWatch } from './plan.js';
+import { messageSymbol, planForOwner, telegramText, MAX_MESSAGES_PER_RUN, type OwnerWatch } from './plan.js';
 import { watchKey } from '../account/priceAlerts.js';
 import type { PriceOrder } from '../account/priceOrders.js';
 
@@ -41,5 +41,17 @@ describe('planForOwner', () => {
   });
   it('writes the Telegram text with the link', () => {
     expect(telegramText({ kind: 'move', title: 'T1 ▲ +10.0%', body: '$1.1, was $1', url: '/wallet#/favourites' }, 'https://aretiafinance.org')).toBe('🔔 T1 ▲ +10.0%\n$1.1, was $1\nhttps://aretiafinance.org/wallet#/favourites');
+  });
+});
+
+describe('symbols in messages (audit I-26)', () => {
+  it('cannot become a link or a username in Telegram', () => {
+    expect(messageSymbol('evil.com/claim')).toBe('evilcomclaim');
+    expect(messageSymbol('https://t.me/x')).toBe('httpstmex');
+    expect(messageSymbol('@scam_bot')).toBe('scam_bot');
+    expect(messageSymbol('U‮SDC')).toBe('USDC');
+    expect(messageSymbol('')).toBe('Token');
+    const plan = planForOwner(watch({ favourites: [{ ...fav(1), symbol: 'claim.example.org' }] }), { [k(1)]: 2 }, 0);
+    expect(telegramText(plan.messages[0]!, 'https://aretiafinance.org')).not.toMatch(/claim\.example/);
   });
 });

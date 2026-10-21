@@ -54,7 +54,7 @@ interface Case {
 const cases: Case[] = [
   {
     name: 'approve',
-    tx: buildApproveTx(CREATOR, TOKEN, CURVE, 10n ** 27n),
+    tx: buildApproveTx(CREATOR, TOKEN, CURVE, 10n ** 27n, 1),
     inspect: (tx, id) => inspectApprove(tx, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, id),
     value: 0n,
   },
@@ -97,6 +97,14 @@ const cases: Case[] = [
 ];
 
 describe.each(cases)('the $name transaction', (c) => {
+  it('L-1: carries the chain id and is refused without it or with another', () => {
+    expect(c.tx.chainId).toBe('0x1');
+    const { chainId: _dropped, ...unbound } = c.tx;
+    void _dropped;
+    expect(c.inspect(unbound, 1).join(' ')).toMatch(/not bound/);
+    expect(c.inspect({ ...c.tx, chainId: '0x38' }, 1).join(' ')).toMatch(/not bound/);
+  });
+
   it('is accepted by the inspector on the right network, with a gas limit or without', () => {
     expect(c.inspect(c.tx, 1)).toEqual([]);
     expect(c.inspect({ ...c.tx, gas: '0x30d40' }, 1)).toEqual([]);
@@ -141,11 +149,11 @@ describe.each(cases)('the $name transaction', (c) => {
 
 describe('details worth their own test', () => {
   it('approves exactly the tokens to the curve and never unlimited', () => {
-    const tx = buildApproveTx(CREATOR, TOKEN, CURVE, 10n ** 27n);
+    const tx = buildApproveTx(CREATOR, TOKEN, CURVE, 10n ** 27n, 1);
     expect(inspectApprove(tx, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, 1)).toEqual([]);
-    const unlimited = buildApproveTx(CREATOR, TOKEN, CURVE, (1n << 256n) - 1n);
+    const unlimited = buildApproveTx(CREATOR, TOKEN, CURVE, (1n << 256n) - 1n, 1);
     expect(inspectApprove(unlimited, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, 1).join(' ')).toMatch(/different amount/);
-    const toSomeoneElse = buildApproveTx(CREATOR, TOKEN, OTHER, 10n ** 27n);
+    const toSomeoneElse = buildApproveTx(CREATOR, TOKEN, OTHER, 10n ** 27n, 1);
     expect(inspectApprove(toSomeoneElse, { chain, from: CREATOR, token: TOKEN, amount: 10n ** 27n }, 1).join(' ')).toMatch(/someone other than the Aretia curve/);
   });
 

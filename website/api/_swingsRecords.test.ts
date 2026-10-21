@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanRecord, handleRecords, type RecordsEnv } from './_swingsRecords.js';
+import { cleanRecord, handleRecords, recordWriteToken, type RecordsEnv } from './_swingsRecords.js';
 
 const ORIGIN = 'https://aretiafinance.org';
 const ENV: RecordsEnv = { SUPABASE_URL: 'https://db.example.co', SUPABASE_SERVICE_ROLE_KEY: 'service-key-VALUE' };
@@ -70,11 +70,12 @@ describe('PUT', () => {
 
   it('updates only when the database matches the version the caller last saw, and refuses a stale write', async () => {
     const ok = db(() => new Response(JSON.stringify([{ id: ID }])));
-    const out = await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ version: 3, state: 'SETTLEMENT_PENDING' }), expectedVersion: 2 }, fetchImpl: ok.fetchImpl });
+    const writeToken = recordWriteToken('service-key-VALUE', ID);
+    const out = await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ version: 3, state: 'SETTLEMENT_PENDING' }), expectedVersion: 2, writeToken }, fetchImpl: ok.fetchImpl });
     expect(out.status).toBe(200);
     expect(ok.calls[0]!.method).toBe('PATCH');
     expect(ok.calls[0]!.url).toContain(`id=eq.${ID}&version=eq.2&kind=eq.settlement`);
-    const stale = await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ version: 3 }), expectedVersion: 2 }, fetchImpl: db(() => new Response('[]')).fetchImpl });
+    const stale = await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ version: 3 }), expectedVersion: 2, writeToken }, fetchImpl: db(() => new Response('[]')).fetchImpl });
     expect(stale.status).toBe(409);
   });
 
@@ -86,6 +87,25 @@ describe('PUT', () => {
     expect((await call({ method: 'PUT', body: { kind: 'settlement', record: rec(), expectedVersion: 0 }, contentType: 'text/plain', fetchImpl: d.fetchImpl })).status).toBe(415);
     expect((await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ big: 'x'.repeat(200_000) }), expectedVersion: 0 }, fetchImpl: d.fetchImpl })).status).toBe(413);
     expect(d.calls).toEqual([]);
+  });
+});
+
+describe('H-3: only the creator can change a record', () => {
+  it('answers a write token bound to the id on creation, and refuses an update without it, with another id\'s, or forged', async () => {
+    const made = await call({ method: 'PUT', body: { kind: 'settlement', record: rec(), expectedVersion: 0 }, fetchImpl: db(() => new Response(null, { status: 201 })).fetchImpl });
+    const token = (JSON.parse(made.body) as { writeToken: string }).writeToken;
+    expect(token).toMatch(/^rw1\./);
+    const other = recordWriteToken('service-key-VALUE', 'x_' + 'f'.repeat(24));
+    const forged = recordWriteToken('attacker-secret', ID);
+    // a third party who knows the recovery code tries to swap in their own quote (the H-3 record)
+    const evil = rec({ version: 2, quote: { intent: { recipient: '0x' + 'e'.repeat(40) } } });
+    for (const writeToken of [undefined, other, forged, 'rw1.x.y']) {
+      const d = db(() => new Response(JSON.stringify([{ id: ID }])));
+      expect((await call({ method: 'PUT', body: { kind: 'settlement', record: evil, expectedVersion: 1, writeToken }, fetchImpl: d.fetchImpl })).status).toBe(403);
+      expect(d.calls).toEqual([]);
+    }
+    const d = db(() => new Response(JSON.stringify([{ id: ID }])));
+    expect((await call({ method: 'PUT', body: { kind: 'settlement', record: rec({ version: 2 }), expectedVersion: 1, writeToken: token }, fetchImpl: d.fetchImpl })).status).toBe(200);
   });
 });
 

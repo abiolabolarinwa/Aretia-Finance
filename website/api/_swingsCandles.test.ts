@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetRateLimit } from './_rpcProxy.js';
-import { handleCandles } from './_swingsCandles.js';
+import { handleCandles, TRACKS_PER_IP } from './_swingsCandles.js';
+import { resetBudgets } from './_limits.js';
 import { buildCandles } from '../src/swings/market/candles.js';
 
 const POOL = 'Pool1111111111111111111111111111111111111111';
@@ -83,5 +84,43 @@ describe('candles from recorded prices', () => {
     const out = await handleCandles(input({ chain: 'solana', pool: POOL }, fetchImpl));
     expect(out.status).toBe(502);
     expect(out.body).not.toContain('secret');
+  });
+});
+
+describe('L-27: only known pools are tracked', () => {
+  beforeEach(() => {
+    resetRateLimit();
+    resetBudgets();
+  });
+  const world = (registry: (url: string) => unknown[] = () => [], ticks: unknown[] = []) => {
+    const seen: string[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      seen.push(`${init?.method ?? 'GET'} ${url}`);
+      if (url.includes('pool_ticks')) return new Response(JSON.stringify(ticks));
+      if (url.includes('token_registry')) return new Response(JSON.stringify(registry(url)));
+      return new Response('');
+    }) as unknown as typeof fetch;
+    return { seen, fetchImpl, tracked: () => seen.filter((s) => s.startsWith('POST') && s.includes('tracked_pools')).length };
+  };
+
+  it('does not track a made-up pool', async () => {
+    const w = world();
+    expect((await handleCandles(input({ chain: 'solana', pool: POOL }, w.fetchImpl))).status).toBe(200);
+    expect(w.tracked()).toBe(0);
+  });
+
+  it('tracks a pool a registry token names', async () => {
+    const w = world((url) => (url.includes('pools=cs.') && decodeURIComponent(url).includes(POOL) ? [{ key: 'solana:x' }] : []));
+    await handleCandles(input({ chain: 'solana', pool: POOL }, w.fetchImpl));
+    expect(w.tracked()).toBe(1);
+    const evm = world((url) => (url.includes('market-%3E%3Epool') || url.includes('market->>pool=ilike') ? [{ key: 'base:x' }] : []));
+    await handleCandles(input({ chain: 'base', pool: '0x' + 'AB'.repeat(20) }, evm.fetchImpl));
+    expect(evm.tracked()).toBe(1);
+  });
+
+  it('caps new marks per IP', async () => {
+    const w = world(() => [], [{ ts: NOW - 5000, price: 1 }]);
+    for (let i = 0; i < TRACKS_PER_IP + 5; i++) await handleCandles(input({ chain: 'solana', pool: POOL }, w.fetchImpl));
+    expect(w.tracked()).toBe(TRACKS_PER_IP);
   });
 });

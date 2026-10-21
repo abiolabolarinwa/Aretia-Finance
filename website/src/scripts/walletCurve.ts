@@ -19,6 +19,7 @@ import {
   curvePreview,
   curveProgressPercent,
   curveShareHash,
+  outsideSupply,
   parseCurveHash,
   curveProgramFor,
   solToLamports,
@@ -34,6 +35,8 @@ import { CurveFlow, type CurveFlowDeps, type CurveOutcome, type CurveProgress, t
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateWithBalance, waitForConfirmation } from './walletSend';
 import type { PoolToken } from './walletPoolCore';
 import { appendTokenShare } from './walletTokenLinks';
+import { METEORA_POSITION_DISCRIMINATOR, pickMigratedPosition, POSITION_POOL_OFFSET } from './walletCurveTx';
+import { METEORA_PROGRAM_ID } from './walletPoolTx';
 
 export interface CurveHost {
   getAddress(): string | null;
@@ -109,6 +112,8 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
   let lookup = '';
   let curve: CurveState | null = null;
   let curveToken: PoolToken | null = null;
+  /** The opener's live balance of the curve's token, read when the curve is looked up (null if it could not be read). */
+  let openerHeld: bigint | null = null;
   let lookupNote: string | null = null;
   let buyText = '';
   let sellText = '';
@@ -132,11 +137,17 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       signAndSubmit: (tx, extra) => signAndSubmitTransaction(tx, extra),
       confirm: (signature) => waitForConfirmation(signature),
       nowSecs: () => Math.floor(Date.now() / 1000),
-      // The graduated position's NFT: the one Token-2022 account the migrator holds with exactly one token of another mint.
-      positionNft: async (owner, exceptMint) => {
-        const r = await rpcCall<{ value: { account: { data: { parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { programId: TOKEN_2022_PROGRAM_ID }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
-        const nfts = r.value.map((a) => a.account.data.parsed?.info).filter((i) => i && i.mint && i.mint !== exceptMint && i.tokenAmount?.amount === '1');
-        return nfts.length === 1 ? nfts[0]!.mint! : null;
+      // The graduated position: from Meteora's Position accounts for this pool (filtered by their `pool` field), the one whose
+      // NFT the migrator holds. A token someone sends to the migrator can no longer make the lookup ambiguous.
+      positionNft: async (owner, pool) => {
+        const [positions, held] = await Promise.all([
+          rpcCall<{ pubkey: string; account: { data: [string, string] } }[]>('getProgramAccounts', [METEORA_PROGRAM_ID, { encoding: 'base64', commitment: 'confirmed', filters: [{ memcmp: { offset: 0, bytes: btoa(String.fromCharCode(...METEORA_POSITION_DISCRIMINATOR)), encoding: 'base64' } }, { memcmp: { offset: POSITION_POOL_OFFSET, bytes: pool } }] }]),
+          rpcCall<{ value: { account: { data: { parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { programId: TOKEN_2022_PROGRAM_ID }, { encoding: 'jsonParsed', commitment: 'confirmed' }]),
+        ]);
+        const mints = new Set(held.value.map((a) => a.account.data.parsed?.info).filter((i) => i?.mint && i.tokenAmount?.amount === '1').map((i) => i!.mint!));
+        const accounts = positions.map((p) => ({ address: p.pubkey, data: Uint8Array.from(atob(p.account.data[0]), (c) => c.charCodeAt(0)) }));
+        const found = pickMigratedPosition(web3, accounts, pool, mints);
+        return found ? { nft: found.nft, pool: found.pool } : null;
       },
     });
     return flow;
@@ -335,7 +346,15 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
     row(dl, 'Progress', bar);
     row(dl, 'Fee', `${c.feeBps / 100}% of each trade, to Aretia`);
     if (c.pool) row(dl, 'Pool', link(short(c.pool), `https://app.meteora.ag/dammv2/${encodeURIComponent(c.pool)}`));
+    const out = outsideSupply(c, curveToken.supply, openerHeld);
+    row(dl, 'Supply outside this curve', `${out.outsidePercent}% (${amountText(out.outside, dec)} tokens)`);
+    row(dl, 'The opener holds now', out.opener === null ? 'could not be read' : `${amountText(out.opener, dec)} tokens (${out.openerPercent}% of supply)`);
     card.append(dl);
+    // Audit M-3: tokens that never went into the curve can be sold into it ahead of buyers.
+    if (out.outside > 0n) {
+      const warn = errorBox(`${out.outsidePercent}% of supply is outside this curve; holders of it can sell ahead of you. The opener's wallet holds ${out.opener === null ? 'an unknown amount' : `${out.openerPercent}%`} right now. If outside tokens are sold here, the SOL buyers paid leaves the curve, and buyers may then be unable to sell back.`);
+      card.append(warn);
+    } else card.append(h('p', 'wapp__fine', 'All of this token’s supply went into this curve and its pool reserve, so nobody holds tokens that can be sold into it ahead of buyers.'));
     card.append(copyButton('Copy link to this curve', shareLink(c.mint)));
 
     const slip = h('div', 'wapp-ln__field');
@@ -634,6 +653,7 @@ export function initCurve(host: CurveHost, opts: CurveOptions = {}): CurveCard {
       else {
         curve = found;
         curveToken = await f.loadToken(host.getAddress() ?? found.creator, mint);
+        openerHeld = await f.heldBy(found.creator, mint).catch(() => null);
         if (!curveToken) {
           curve = null;
           lookupNote = 'That curve’s token could not be read.';

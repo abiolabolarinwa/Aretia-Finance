@@ -6,6 +6,8 @@
  *   prepare*                 work out the numbers, build the transactions, refuse anything that is wrong, and price the gas
  *   create / buy / sell /    check each transaction against what was approved (independent inspector), simulate it, make sure the wallet is
  *   graduate / abort         on the right network and account, have the wallet send it, wait for the receipt, then read the result back
+ *   rescue                   a graduation blocked by a pre-made exchange pair (review M-4, L-12), through Aretia's rescue helper when one is
+ *                            deployed for the chain: an approval to the helper (only when tokens are needed), then `rescue(token, maxTokens)`
  * An approval and the action it enables are two transactions. If the second cannot go ahead the approval stays in place for exactly the tokens
  * approved and nothing else has happened; the error says so.
  */
@@ -20,6 +22,10 @@ import {
   evmCanGraduate,
   evmCurveProblems,
   evmMinOut,
+  evmPairBlocks,
+  parseRescuePlan,
+  type EvmPairState,
+  type EvmRescuePlan,
   evmQuoteBuy,
   evmQuoteSell,
   evmStart,
@@ -46,8 +52,13 @@ import {
   inspectBuy,
   inspectCreate,
   inspectGraduate,
+  inspectRescue,
+  inspectRescueApprove,
   inspectSell,
+  buildRescueTx,
+  rescueQuoteData,
 } from './walletCurveEvmTx';
+import { SEL as PAIR_SEL } from './walletPoolEvmTx';
 
 export interface EvmCurveFlowDeps extends EvmFlowDeps {
   /** Unix seconds. */
@@ -106,6 +117,22 @@ export interface EvmGraduateReview extends ReviewBase {
   token: string;
   curve: EvmCurveState;
   tx: EvmTxRequest;
+  /** The exchange pair for the token, if one exists already. */
+  pair?: EvmPairState | null;
+  /** True when a pre-made pair blocks the plain graduation and a rescue helper is configured: the page offers "Graduate anyway". */
+  rescuable?: boolean;
+}
+export interface EvmRescueReview extends ReviewBase {
+  kind: 'rescue';
+  token: string;
+  curve: EvmCurveState;
+  plan: EvmRescuePlan | null;
+  /** The approval to the helper, only when the repair needs tokens. */
+  approveTx: EvmTxRequest | null;
+  tx: EvmTxRequest;
+  maxTokens: bigint;
+  wei: bigint;
+  tokensBefore: bigint;
 }
 export interface EvmAbortReview extends ReviewBase {
   kind: 'abort';
@@ -113,7 +140,7 @@ export interface EvmAbortReview extends ReviewBase {
   curve: EvmCurveState;
   tx: EvmTxRequest;
 }
-export type EvmCurveReview = EvmCreateReview | EvmBuyReview | EvmSellReview | EvmGraduateReview | EvmAbortReview;
+export type EvmCurveReview = EvmCreateReview | EvmBuyReview | EvmSellReview | EvmGraduateReview | EvmAbortReview | EvmRescueReview;
 
 export type EvmCurveProgress = 'checking' | 'approving' | 'confirming-approve' | 'sending' | 'confirming' | 'verifying' | 'done';
 
@@ -125,6 +152,8 @@ export interface EvmCurveOutcome {
   tokensAfter?: bigint;
 }
 
+/** `curve()` on the rescue helper: the curve it graduates for. */
+const CURVE_SEL_HELPER_CURVE = '0x7165485d';
 const SEL = { name: '0x06fdde03', symbol: '0x95d89b41', decimals: '0x313ce567', totalSupply: '0x18160ddd', balanceOf: '0x70a08231' } as const;
 const asBig = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a-fA-F]+$/.test(v) ? BigInt(v) : null);
 const wordOf = (v: unknown): bigint | null => (typeof v === 'string' && /^0x[0-9a-fA-F]{64}$/.test(v) ? BigInt(v) : null);
@@ -177,6 +206,37 @@ export class EvmCurveFlow {
   async loadCurve(chain: EvmCurveChain, token: string): Promise<EvmCurveState | null> {
     const c = parseCurveReturn(await this.call(chain.curve, curveReadData(token)));
     return c && c.status !== 'none' ? c : null;
+  }
+
+  /**
+   * The token/wrapped-coin pair on the curve's exchange (looked up through the exchange's factory), with its reserves and any unsynced
+   * balance. Null when there is no pair yet. Throws when the network cannot be read.
+   */
+  async loadPair(chain: EvmCurveChain, token: string): Promise<EvmPairState | null> {
+    const { dex } = chain;
+    const got = await this.call(dex.factory, PAIR_SEL.getPair + pad(token) + pad(dex.wrapped));
+    if (typeof got !== 'string' || !/^0x0{24}[0-9a-fA-F]{40}$/.test(got)) throw new Error('The exchange did not answer with a pair address.');
+    const pair = '0x' + got.slice(26).toLowerCase();
+    if (/^0x0{40}$/.test(pair)) return null;
+    const [res, t0, balT, balC] = await Promise.all([this.call(pair, PAIR_SEL.getReserves), this.call(pair, PAIR_SEL.token0), this.call(token, SEL.balanceOf + pad(pair)), this.call(dex.wrapped, SEL.balanceOf + pad(pair))]);
+    if (typeof res !== 'string' || !/^0x[0-9a-fA-F]{192}$/.test(res) || typeof t0 !== 'string') throw new Error('The pair could not be read.');
+    const r0 = BigInt('0x' + res.slice(2, 66));
+    const r1 = BigInt('0x' + res.slice(66, 130));
+    const tokenIsZero = t0.slice(-40).toLowerCase() === token.slice(2).toLowerCase();
+    const [reserveToken, reserveCoin] = tokenIsZero ? [r0, r1] : [r1, r0];
+    const bt = wordOf(balT) ?? reserveToken;
+    const bc = wordOf(balC) ?? reserveCoin;
+    return { pair, reserveToken, reserveCoin, unsyncedToken: bt > reserveToken ? bt - reserveToken : 0n, unsyncedCoin: bc > reserveCoin ? bc - reserveCoin : 0n };
+  }
+
+  /** The total supply of a token, or null if it cannot be read. */
+  async totalSupply(token: string): Promise<bigint | null> {
+    return wordOf(await this.call(token, SEL.totalSupply));
+  }
+
+  /** A wallet's balance of a token (0 if it cannot be read). */
+  async balanceOf(token: string, who: string): Promise<bigint> {
+    return this.tokenBalance(token, who);
   }
 
   private async tokenBalance(token: string, who: string): Promise<bigint> {
@@ -239,7 +299,7 @@ export class EvmCurveFlow {
       if (!firstBuy) blockers.push('Your first buy is too small to get any tokens.');
       else minFirstBuyOut = firstBuy.tokensOut;
     }
-    const approveTx = buildApproveTx(config.creator, config.token, chain.curve, config.totalRaw);
+    const approveTx = buildApproveTx(config.creator, config.token, chain.curve, config.totalRaw, chain.chainId);
     const createTx = buildCreateTx(config, minFirstBuyOut);
     try {
       if (await this.checkChain(chain, blockers)) {
@@ -347,7 +407,7 @@ export class EvmCurveFlow {
     if (curve.status !== 'trading' && curve.status !== 'aborted') blockers.push('This curve is not open for selling.');
     const quote = evmQuoteSell(curve, curve.curveTokens, tokens);
     const minOut = quote ? evmMinOut(quote.net, slippageBps) : 0n;
-    const approveTx = buildApproveTx(account, token, chain.curve, tokens);
+    const approveTx = buildApproveTx(account, token, chain.curve, tokens, chain.chainId);
     const tx = buildSellTx(account, chain, token, tokens, minOut);
     let gasCostWei: bigint | null = null;
     let coinBalance = 0n;
@@ -404,7 +464,92 @@ export class EvmCurveFlow {
     const blockers = evmCurveProblems(curve);
     if (!evmCanGraduate(curve)) blockers.push('This curve has not sold out, or has already moved on.');
     const tx = buildGraduateTx(account, chain, token);
-    return this.prepareSimple('graduate', chain, account, curve, token, tx, blockers, GRADUATE_GAS_CEILING);
+    // A pair made on the exchange before graduation, holding anything at all, makes the curve's own graduate revert (review M-4): find
+    // it first, so the page can say so plainly instead of guessing from a failed estimate.
+    let pair: EvmPairState | null;
+    let rescuable = false;
+    try {
+      pair = await this.loadPair(chain, token);
+    } catch {
+      pair = null;
+    }
+    if (evmPairBlocks(pair)) {
+      const what = pairText(pair!, chain.symbol);
+      if (chain.rescue) {
+        rescuable = true;
+        blockers.push(`Someone already made this token’s pool on ${chain.dex.name} and left ${what} in it, which blocks the normal move into a pool. Use “Graduate anyway”: Aretia’s rescue helper repairs that pool to the curve’s price and moves the curve into it in one transaction.`);
+      } else {
+        blockers.push(`Someone already made this token’s pool on ${chain.dex.name} and left ${what} in it, which blocks the normal move into a pool. Aretia’s rescue helper, which can repair that in one transaction, is not deployed on ${chain.name} yet, so this page cannot do it. Seven days after the curve sold out, anyone can unwind it here so holders can sell back along the curve.`);
+      }
+    }
+    const r = await this.prepareSimple('graduate', chain, account, curve, token, tx, blockers, GRADUATE_GAS_CEILING);
+    return { ...r, pair, rescuable };
+  }
+
+  /** "Graduate anyway": the rescue helper's plan, read from the helper itself, with an approval only when the repair needs tokens. */
+  async prepareRescue(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string): Promise<EvmRescueReview> {
+    const blockers = evmCurveProblems(curve);
+    if (!evmCanGraduate(curve)) blockers.push('This curve has not sold out, or has already moved on.');
+    let plan: EvmRescuePlan | null = null;
+    let gasCostWei: bigint | null = null;
+    let coinBalance = 0n;
+    let tokensBefore = 0n;
+    const helper = chain.rescue;
+    if (!helper) blockers.push(`Aretia’s rescue helper is not deployed on ${chain.name} yet.`);
+    try {
+      if (helper && (await this.checkChain(chain, blockers))) {
+        const code = await this.d.read('eth_getCode', [helper, 'latest']);
+        if (typeof code !== 'string' || code === '0x') blockers.push('The rescue helper is not on this network at the address this page expects, so nothing was sent.');
+        else {
+          const curveOf = await this.call(helper, CURVE_SEL_HELPER_CURVE);
+          if (typeof curveOf !== 'string' || curveOf.slice(-40).toLowerCase() !== chain.curve.slice(2)) blockers.push('The rescue helper at this address is not the one for this curve, so nothing was sent.');
+          plan = parseRescuePlan(await this.call(helper, rescueQuoteData(token)));
+          if (!plan) blockers.push('The rescue helper could not work out a repair for this pool.');
+        }
+        coinBalance = asBig(await this.d.read('eth_getBalance', [account, 'latest'])) ?? 0n;
+        tokensBefore = await this.tokenBalance(token, account);
+        if (plan && plan.tokensIn > tokensBefore) blockers.push(`The repair needs ${plan.tokensIn} of the token’s smallest units from your wallet, and it holds fewer. Anyone holding a few of these tokens can do this.`);
+        const price = await this.gasPrice();
+        if (price === null) blockers.push('The network did not give a gas price. Try again in a moment.');
+        else {
+          gasCostWei = (GRADUATE_GAS_CEILING + (plan && plan.tokensIn > 0n ? 80_000n : 0n)) * price;
+          if (plan && coinBalance < plan.coinIn + gasCostWei) blockers.push(`You need more ${chain.symbol}: the coin the repair needs plus the network gas.`);
+        }
+      }
+    } catch {
+      blockers.push('The network could not be reached to check this. Try again in a moment.');
+    }
+    const maxTokens = plan?.tokensIn ?? 0n;
+    const wei = plan?.coinIn ?? 0n;
+    const approveTx = helper && maxTokens > 0n ? buildApproveTx(account, token, helper, maxTokens, chain.chainId) : null;
+    const tx = buildRescueTx(account, helper ?? '0x0000000000000000000000000000000000000000', token, maxTokens, wei, chain.chainId);
+    return { kind: 'rescue', chain, account, token, curve, plan, approveTx, tx, maxTokens, wei, tokensBefore, gasCostWei, coinBalance, blockers };
+  }
+
+  async rescue(review: EvmRescueReview, progress: (p: EvmCurveProgress) => void = () => undefined): Promise<EvmCurveOutcome> {
+    const { chain, token } = review;
+    const hashes: string[] = [];
+    await this.begin(review, progress);
+    if (review.approveTx) {
+      const approveHash = await this.runTx(review.approveTx, (tx, id) => inspectRescueApprove(tx, { chain, from: review.account, token, amount: review.maxTokens }, id), 'approval', progress, 'approving', 'confirming-approve');
+      hashes.push(approveHash);
+      const allowance = wordOf(await this.call(token, CURVE_SEL.allowance + pad(review.account) + pad(chain.rescue!)));
+      if (allowance !== review.maxTokens) throw new EvmCurveError(`The approval confirmed but the allowance is not exactly what you approved, so nothing else was sent. (${approveHash})`);
+    }
+    let hash: string;
+    try {
+      hash = await this.runTx(review.tx, (tx, id) => inspectRescue(tx, { chain, from: review.account, token, maxTokens: review.maxTokens, wei: review.wei, maxWei: review.plan?.coinIn ?? 0n }, id), 'rescue', progress, 'sending', 'confirming');
+    } catch (e) {
+      if (!review.approveTx) throw e;
+      throw new EvmCurveError(`${e instanceof Error ? e.message : String(e)} The approval to the rescue helper is in place for exactly the tokens shown, and only your own wallet can use it. You can start again.`, false);
+    }
+    hashes.push(hash);
+    progress('verifying');
+    const state = await this.readBack(() => this.loadCurve(chain, token));
+    const differences: string[] = [];
+    if (!state || state.status !== 'migrated') differences.push('The curve does not show as moved into a pool.');
+    progress('done');
+    return { hashes, token, differences };
   }
 
   async prepareAbort(chain: EvmCurveChain, account: string, curve: EvmCurveState, token: string): Promise<EvmAbortReview> {
@@ -426,7 +571,7 @@ export class EvmCurveFlow {
           gasCostWei = gasCeiling * price;
           if (coinBalance < gasCostWei) blockers.push(`You need more ${chain.symbol} for the network gas${kind === 'graduate' ? ', which is large because the pool is created' : ''}.`);
         }
-        if (blockers.length === 0 && (await this.estimate(tx)) === null) blockers.push(kind === 'graduate' ? 'The network would refuse this: most likely a pool for this token already exists at another price.' : 'The network would not accept this, so nothing was sent.');
+        if (blockers.length === 0 && (await this.estimate(tx)) === null) blockers.push(kind === 'graduate' ? `The network would refuse this${this.lastEstimateFailure || ': most likely a pool for this token already exists at another price'}.` : 'The network would not accept this, so nothing was sent.');
       }
     } catch {
       blockers.push('The network could not be reached to check this. Try again in a moment.');
@@ -558,9 +703,12 @@ const REASONS: [RegExp, string][] = [
   [/not trading/i, ': the curve is not open for this'],
   [/not sold out/i, ': the curve has not sold out'],
   [/too early/i, ': it is too early'],
+  // The exchange's own words when a pair made before graduation holds only one side (or dust): its `quote` needs both reserves above zero.
+  [/UniswapV2Library: INSUFFICIENT_LIQUIDITY|PancakeLibrary: INSUFFICIENT_LIQUIDITY|INSUFFICIENT_LIQUIDITY(?!_)/i, ': a pool for this token was already made on the exchange with almost nothing in it, which blocks the move into a pool'],
   [/INSUFFICIENT_[AB]_AMOUNT|pool price/i, ': a pool for this token already exists at another price'],
   [/not from the factory/i, ': the token was not made by Aretia’s factory'],
-  [/exists/i, ': a curve for this token already exists'],
+  // Only the curve's own one-word reason: not any message that merely contains the word (e.g. "already exists with liquidity").
+  [/(?:reverted:?\s*|reason string\s*['"]|message['"]?\s*:\s*['"])exists['"]?(?:\s|$|[.,)])/i, ': a curve for this token already exists'],
   [/allowance/i, ': the approval is missing'],
   [/OutOfFunds|insufficient funds|exceeds balance/i, ': your wallet holds less than the amount plus the network fee'],
 ];
@@ -568,4 +716,14 @@ function reasonOf(e: unknown): string {
   const text = e instanceof Error ? e.message : String(e);
   for (const [re, words] of REASONS) if (re.test(text)) return words;
   return '';
+}
+
+/** "1 wei of WETH", "12 token units and 3 wei of WETH (not synced)". */
+function pairText(p: EvmPairState, symbol: string): string {
+  const parts: string[] = [];
+  const coin = p.reserveCoin + p.unsyncedCoin;
+  const tok = p.reserveToken + p.unsyncedToken;
+  if (tok > 0n) parts.push(`${tok} of the token’s smallest units`);
+  if (coin > 0n) parts.push(`${coin} wei of wrapped ${symbol}`);
+  return parts.join(' and ') + (p.unsyncedCoin > 0n || p.unsyncedToken > 0n ? ' (some of it not yet synced)' : '');
 }

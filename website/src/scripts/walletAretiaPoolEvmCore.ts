@@ -3,6 +3,9 @@
  * no keys.
  *
  * The contract is contracts-evm/AretiaPool.sol (design record: docs/ARETIA_POOL_EVM.md). It is UNAUDITED and not deployed on any mainnet.
+ * This file follows the build after the October 2026 review: deadlines on every trade and liquidity call, the protocol share owed and
+ * withdrawn separately (never sent inside a trade), the creator's liquidity always locked, `pools()` reporting how much is locked, and
+ * LP-fee rounding carried (`accRemainder`).
  * This file is its web side. The maths is the contract's, in BigInt, written to match it exactly and checked against the compiled
  * contract by walletAretiaPoolEvmContract.test.ts.
  *
@@ -19,7 +22,10 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
   ethereum: null,
   polygon: null,
   bscTestnet: null,
-  sepolia: '0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421',
+  // The Sepolia deployment 0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421 is the OLD build (pre October 2026 review: no deadlines, fee pushed
+  // inside trades, optional lock). This page now speaks the NEW build's ABI, so it is off until the new build is deployed with
+  // website/scripts/pool-evm.mjs and its address (and deploy block below) written here.
+  sepolia: null,
   polygonAmoy: null,
 };
 
@@ -32,7 +38,8 @@ export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, 
   ethereum: null,
   polygon: null,
   bscTestnet: null,
-  sepolia: 11939451,
+  // Set with the new build's address (the old build's block was 11939451).
+  sepolia: null,
   polygonAmoy: null,
 };
 
@@ -53,6 +60,8 @@ export const POOL_MIN_DL = 1000n;
 export const POOL_MAX = 1n << 112n;
 export const POOL_SCALE_BITS = 64n;
 export const POOL_SLIPPAGE_BPS_DEFAULT = 100;
+/** Every trade and liquidity call carries a deadline this far ahead of when it is built. The inspector accepts at most an hour. */
+export const POOL_DEADLINE_SECS = 20 * 60;
 
 const BPS = 10_000n;
 const ceilDiv = (a: bigint, b: bigint): bigint => a / b + (a % b === 0n ? 0n : 1n);
@@ -100,6 +109,8 @@ export interface EvmPoolMath {
   l: bigint;
   acc: bigint;
   feeReserve: bigint;
+  /** LP fee (scaled by 2^64) not yet spread into `acc`; carried to the next fee. Missing means zero. */
+  accRemainder?: bigint;
 }
 
 /** The fee, and how it splits: protocol is taken at once, lp is credited to positions. protocol + lp === fee exactly. */
@@ -108,7 +119,11 @@ export function splitFee(fee: bigint): { protocol: bigint; lp: bigint } {
   return { protocol, lp: fee - protocol };
 }
 
-const credit = (m: EvmPoolMath, lp: bigint): { acc: bigint; feeReserve: bigint } => ({ acc: m.acc + (lp << POOL_SCALE_BITS) / m.l, feeReserve: m.feeReserve + lp });
+/** The contract's `_creditFees`: the LP part is spread into `acc`, the remainder carried. */
+const credit = (m: EvmPoolMath, lp: bigint): { acc: bigint; feeReserve: bigint; accRemainder: bigint } => {
+  const scaled = (lp << POOL_SCALE_BITS) + (m.accRemainder ?? 0n);
+  return { acc: m.acc + scaled / m.l, feeReserve: m.feeReserve + lp, accRemainder: scaled % m.l };
+};
 
 export interface EvmPoolBuyQuote {
   gross: bigint;
@@ -212,14 +227,29 @@ export function poolPriceText(m: Pick<EvmPoolMath, 'x' | 'y' | 'l'>, decimals: n
 export interface EvmPoolState extends EvmPoolMath {
   creator: string;
   createdAt: bigint;
+  /** Liquidity locked for good across every position. Never falls; at least the creator's starting liquidity. */
+  locked: bigint;
+  accRemainder: bigint;
 }
 
-/** Decodes the answer of `pools(address)`: eight 32-byte words. Null for anything else, or for a pool that does not exist. */
+/** Decodes the answer of `pools(address)`: ten 32-byte words. Null for anything else, or for a pool that does not exist. */
 export function parsePoolReturn(hex: unknown): EvmPoolState | null {
-  if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]{512}$/.test(hex)) return null;
+  if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]{640}$/.test(hex)) return null;
   const w = (i: number): bigint => BigInt('0x' + hex.slice(2 + i * 64, 2 + (i + 1) * 64));
-  if (w(0) === 0n || w(1) >> 160n !== 0n || w(2) >> 64n !== 0n) return null;
-  return { feeBps: w(0), creator: '0x' + hex.slice(2 + 64 + 24, 2 + 128).toLowerCase(), createdAt: w(2), x: w(3), y: w(4), l: w(5), acc: w(6), feeReserve: w(7) };
+  if (w(0) === 0n || w(1) >> 160n !== 0n || w(2) >> 64n !== 0n || w(8) > w(5)) return null;
+  return { feeBps: w(0), creator: '0x' + hex.slice(2 + 64 + 24, 2 + 128).toLowerCase(), createdAt: w(2), x: w(3), y: w(4), l: w(5), acc: w(6), feeReserve: w(7), locked: w(8), accRemainder: w(9) };
+}
+
+/** The share of the pool's liquidity that is locked for good, in basis points (rounded down), or null for an empty pool. */
+export const lockedShareBps = (p: Pick<EvmPoolState, 'locked' | 'l'>): number | null => (p.l === 0n ? null : Number((p.locked * BPS) / p.l));
+
+/** "x% of liquidity locked", with a warning when anything can be withdrawn. */
+export function lockedShareText(p: Pick<EvmPoolState, 'locked' | 'l'>): { text: string; warn: boolean } {
+  const bps = lockedShareBps(p);
+  if (bps === null) return { text: 'No liquidity', warn: true };
+  const pct = bps === 10_000 ? '100' : (bps / 100).toFixed(2).replace(/\.?0+$/, '');
+  const text = `${pct}% of liquidity locked for good`;
+  return bps === 10_000 ? { text, warn: false } : { text: `${text}. The other ${((10_000 - bps) / 100).toFixed(2).replace(/\.?0+$/, '')}% can be withdrawn by whoever added it, taking coin out of the pool.`, warn: true };
 }
 
 /** Decodes the answer of `positions(address,address)`: six words. */
@@ -353,7 +383,7 @@ export function validateEvmPool(form: EvmPoolForm, creator: string, token: EvmPo
 }
 
 /** The pool as it will be the moment it opens (no real coin yet), for quoting a first buy and showing the start. */
-export const openingMath = (c: Pick<EvmPoolConfig, 'x0' | 'l0' | 'y0' | 'feeBps'>): EvmPoolMath => ({ feeBps: BigInt(c.feeBps), x: c.x0, y: c.y0, l: c.l0, acc: 0n, feeReserve: 0n });
+export const openingMath = (c: Pick<EvmPoolConfig, 'x0' | 'l0' | 'y0' | 'feeBps'>): EvmPoolMath => ({ feeBps: BigInt(c.feeBps), x: c.x0, y: c.y0, l: c.l0, acc: 0n, feeReserve: 0n, accRemainder: 0n });
 
 export interface EvmPoolPreview {
   startPrice: string;
@@ -375,13 +405,13 @@ export type PoolDisclosureKind = 'create' | 'buy' | 'sell' | 'add' | 'remove' | 
 
 export function evmPoolDisclosures(kind: PoolDisclosureKind, symbol: string): { severity: 'info' | 'caution'; text: string }[] {
   const unaudited = { severity: 'caution' as const, text: 'The Aretia Pool contract is new and has not been independently audited. Do not put in more than you can lose entirely.' };
-  const fees = { severity: 'info' as const, text: 'Every trade pays the pool’s fee. 20% of it goes to Aretia in the same transaction, and 80% goes to the people providing liquidity. Nothing else is taken.' };
+  const fees = { severity: 'info' as const, text: 'Every trade pays the pool’s fee. 20% of it is owed to Aretia (kept in the contract and paid to Aretia’s fee address separately, so it can never hold up your trade), and 80% goes to the people providing liquidity. Nothing else is taken.' };
   switch (kind) {
     case 'create':
       return [
         { severity: 'info', text: `Two transactions: first you approve exactly the tokens going in, then the pool takes them. You put in tokens only, with no ${symbol}. The price you set is where buyers start.` },
         { severity: 'info', text: 'Your liquidity is locked for good. Nobody, including you and Aretia, can ever take it out. You can still claim the trading fees it earns, as often as you like, and point them at another wallet.' },
-        { severity: 'caution', text: 'Aretia charges a flat creation fee in the same transaction. Other apps and routers do not know this pool, so nobody can find or trade it through them yet.' },
+        { severity: 'caution', text: 'Aretia charges a flat creation fee in the same transaction (owed to Aretia and paid out separately). Other apps and routers do not know this pool, so nobody can find or trade it through them yet.' },
         fees,
         unaudited,
       ];

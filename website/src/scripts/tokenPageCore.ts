@@ -8,6 +8,7 @@ import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
 import { fromSmallestUnit } from './walletTools.js';
 import type { MintFacts } from './walletLaunchChain.js';
+import { extensionClass, extensionLabel, judgeExtensions } from '../swings/tokens/token2022.js';
 import { curveProgressPercent, priceText, type CurveState } from './walletCurveCore.js';
 import { evmPriceText, type EvmCurveState } from './walletCurveEvmCore.js';
 
@@ -77,25 +78,34 @@ const WHOLE = (raw: bigint, decimals: number): string => {
 };
 export const formatSupply = WHOLE;
 
-const TRANSFER_FEE_EXTENSION = 1;
-
 /**
  * Facts from a Solana mint account (SPL Token or Token-2022). Whether the supply is fixed is "mint authority given up",
- * which is exactly what the chain records; "freeze" likewise.
+ * which is exactly what the chain records; "freeze" likewise. Every Token-2022 extension that is more than a name or a
+ * group label is listed with what it lets its owner do: a permanent delegate, a transfer hook or a pause switch make
+ * "supply fixed" and "freeze given up" beside the point, so those are then not shown in green.
  */
 export function solanaMintFacts(m: MintFacts): Fact[] {
+  // Each extension judged with the authorities inside it, so a delegate, hook or pause switch nobody holds is not called dangerous.
+  const verdicts = judgeExtensions(m.extensions, m.extensionDetails ?? {});
+  const bad = verdicts.filter((v) => v.class === 'bad');
+  const warn = verdicts.filter((v) => v.class === 'warn');
+  const givenUp = verdicts.filter((v) => v.class === 'neutral' && extensionClass(v.type) !== 'neutral');
+  const good: Fact['tone'] = bad.length > 0 ? 'plain' : 'good';
+  const caveat = bad.length > 0 ? ', but see the extensions below' : '';
   const out: Fact[] = [{ label: 'Total supply', value: WHOLE(m.supply, m.decimals), tone: 'plain' }];
   out.push(
     m.mintAuthority === null
-      ? { label: 'Supply', value: 'Fixed: the mint power is given up, so no more can ever be created', tone: 'good' }
+      ? { label: 'Supply', value: `Fixed: the mint power is given up, so no more can ever be created${caveat}`, tone: good }
       : { label: 'Supply', value: `Not fixed: ${shortAddress(m.mintAuthority)} can still create more`, tone: 'warn' },
   );
   out.push(
     m.freezeAuthority === null
-      ? { label: 'Freeze power', value: 'Given up: no one can freeze holders', tone: 'good' }
+      ? { label: 'Freeze power', value: `Given up: no one can freeze holders${caveat}`, tone: good }
       : { label: 'Freeze power', value: `Held by ${shortAddress(m.freezeAuthority)}, who can freeze a holder’s tokens`, tone: 'warn' },
   );
-  if (m.extensions.includes(TRANSFER_FEE_EXTENSION)) out.push({ label: 'Transfer fee', value: 'This token takes a fee on every transfer (set by the token itself)', tone: 'warn' });
+  for (const v of bad) out.push({ label: extensionLabel(v.type), value: `Dangerous: ${v.meaning || 'an extension Aretia does not describe; treat it as a power over your tokens'}`, tone: 'warn' });
+  for (const v of warn) out.push({ label: extensionLabel(v.type), value: `Check before you trade: ${v.meaning || 'it changes what you see'}`, tone: 'warn' });
+  for (const v of givenUp) out.push({ label: extensionLabel(v.type), value: `Given up: ${v.meaning}`, tone: 'good' });
   out.push({ label: 'Decimals', value: String(m.decimals), tone: 'plain' });
   return out;
 }

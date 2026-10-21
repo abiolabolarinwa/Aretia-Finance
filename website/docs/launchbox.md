@@ -14,9 +14,24 @@ The creation count is also a check: the API reports, per chain, `expected` (what
 
 Run it: `GET /api/launchbox-run` with `Authorization: Bearer $CRON_SECRET` (Vercel's cron sends that itself, once a day, `vercel.json`). It also catches up by itself when someone opens Launch Box and the index has been quiet for five minutes. For a five-minute schedule from Supabase, run `supabase/cron/launchbox-every-5-minutes.sql` once (optional).
 
+## What the public list shows (Solana)
+
+A Solana creation is two transactions, and the first leaves the creator holding the mint authority with nothing minted. Every creation the indexer accepts is stored, with where it stands (migration 0015):
+
+| State | Shown? | How it changes |
+| --- | --- | --- |
+| pending (nothing minted, or a mint authority still set) | no | shown once a read finds the supply minted, the authority gone and the rest of the launch rule kept |
+| never checked (`checked_at` empty) | no | the next read decides |
+| failing once (`fail_count` 1) | as before | a good read resets the count |
+| hidden (`hidden_at`, `hidden_reason`) | no | after two failing reads in a row; shown again as soon as a read finds the mint keeping the rule |
+
+Nothing is ever deleted, so a node that answers wrongly once cannot take a token off the list, and a creator who finishes the second transaction after the three-day pending window is listed when that read comes. Every run re-checks stored Solana tokens with a share of the time of its own (35% of the run by default): pending, hidden, never-checked and never-minted rows first, then every row a hundred at a time, carrying on from where the last run stopped (`recheckAfter` in the cursor's stats), so a list of any length is covered.
+
+The schedule: Vercel's cron runs the indexer once a day (`0 4 * * *`). A more frequent Vercel cron needs a paid plan, so it is not set here; `supabase/cron/launchbox-every-5-minutes.sql` (optional) and the page-visit catch-up make it more often. The daily cadence is safe because `/api/launchbox` lists only rows that are not pending, not hidden and, on Solana, already read and found keeping the rule: an unchecked token waits for a run rather than being shown.
+
 ## Set-up (owner)
 
-Run migration 0012 once. Until it is run the page says "Launch Box is being set up" and lists nothing.
+Run migrations 0012 and 0015 once. Until 0012 is run the page says "Launch Box is being set up" and lists nothing; with 0012 but not 0015 it says the same (the list asks for 0015's columns). After 0015, Solana rows stored earlier are not shown until the indexer has read them once (the next run, or the catch-up when someone opens Launch Box).
 
 ```
 SUPABASE_DB_URL=postgresql://... npm run db:migrate

@@ -4,7 +4,7 @@ import BN from 'bn.js';
 import { describe, expect, it } from 'vitest';
 import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore';
 import { LAUNCH_PROTECTION_MINUTES, LAUNCH_PROTECTION_START_BPS, POOL_TRADING_FEES_BPS, poolDisclosures, protectionSchedule, POOL_FEE_ADDRESS, POOL_FEE_LAMPORTS, WSOL_MINT, type PoolConfig } from './walletPoolCore';
-import { assemblePool, buildPool, expectedBaseFee, inspectPool, poolMath, tokenBadge, type PoolLibs } from './walletPoolTx';
+import { assemblePool, buildPool, expectedBaseFee, expectedSqrtPrice, impliedTokenAmount, inspectPool, isqrt, poolMath, tokenBadge, type PoolLibs } from './walletPoolTx';
 
 const CREATOR = '4joSwCz3iJypFANhYLWund75Rh6wZPLaCChpjqP2PopX';
 const OTHER = '3FyoJdvC7FaZDEt5YoLHF3PB2xo3vtp4GWTBTN6cyzZg';
@@ -182,5 +182,47 @@ describe('launch protection', () => {
     expect(on).toMatch(/starts at 5% and falls in a straight line to 0.25%/);
     expect(on).toMatch(/first buyers pay more/);
     expect(poolDisclosures(config()).map((d) => d.text).join(' ')).toMatch(/Launch protection is off/);
+  });
+});
+
+describe('L-25: the inspector does not take the SDK\'s word for price, liquidity or pool address', () => {
+  /** A copy of the SDK with one helper replaced, as a faulty or tampered release would behave. */
+  const faulty = (over: Partial<typeof sdk>): PoolLibs => ({ ...libs, sdk: { ...sdk, ...over } as typeof sdk });
+
+  it('the integer price maths agrees with the SDK to within rounding, across decimals and prices', () => {
+    for (const [price, decimals] of [['0.000001', 6], ['0.5', 9], ['123456789.123456789012', 0], ['0.000000000001', 12]] as const) {
+      const mine = expectedSqrtPrice(price, decimals)!;
+      const theirs = BigInt(sdk.getSqrtPriceFromPrice(price, decimals, 9).toString());
+      expect(mine > theirs ? mine - theirs : theirs - mine).toBeLessThanOrEqual(2n + mine / 10n ** 12n);
+    }
+    expect(isqrt(10n ** 40n)).toBe(10n ** 20n);
+    expect(isqrt(2n ** 128n - 1n)).toBe(2n ** 64n - 1n);
+    expect(expectedSqrtPrice('1e-6', 6)).toBeNull();
+    expect(impliedTokenAmount(1n, 0n, 1n)).toBeNull();
+  });
+
+  it('an SDK that computes the wrong starting price (both in the transaction and in its own maths) is caught', async () => {
+    const bad = faulty({ getSqrtPriceFromPrice: ((p: string, a: number, b: number) => sdk.getSqrtPriceFromPrice(p, a, b).muln(2)) as typeof sdk.getSqrtPriceFromPrice });
+    const c = config();
+    const b = await buildPool(web3, bad, c, NFT);
+    const tx = assemblePool(web3, b.instructions, c.creator, BLOCKHASH, 1);
+    expect(inspectPool(web3, tx, { config: c, nft: NFT, pool: b.pool, math: b.math }).join(' ')).toMatch(/does not work out to the price you entered/);
+  });
+
+  it('liquidity that would take more tokens than shown, or far fewer, is caught even when the builder\'s maths agrees', async () => {
+    for (const scale of [(x: BN) => x.muln(2), (x: BN) => x.divn(2)]) {
+      const x = await built();
+      const more = scale(x.b.math.liquidity);
+      const bytes = more.toArrayLike(Buffer, 'le', 16);
+      x.tx.instructions[5] = withData(x.tx.instructions[5]!, (d) => bytes.copy(d, 72));
+      x.tx.instructions[6] = withData(x.tx.instructions[6]!, (d) => bytes.copy(d, 8));
+      expect(inspectPool(web3, x.tx, { ...x.input, math: { ...x.input.math, liquidity: more } }).join(' ')).toMatch(/liquidity does not match the amount of tokens/);
+    }
+  });
+
+  it('a pool address that is not the one derived from the two tokens is caught, even if the screen was shown the same one', async () => {
+    const x = await built();
+    x.tx.instructions[5] = withKey(x.tx.instructions[5]!, 5, other);
+    expect(inspectPool(web3, x.tx, { ...x.input, pool: OTHER }).join(' ')).toMatch(/not the one fixed by the two tokens/);
   });
 });

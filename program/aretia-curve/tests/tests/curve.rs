@@ -505,3 +505,68 @@ fn graduated_pool_fees_are_taken_in_sol_and_paid_to_aretia() {
     l.env.warp_seconds(1);
     assert_fails_with(l.env.send(&[claim_pool_fees_ix(&caller.pubkey(), &l.mint, &a)], &[&caller]), "NothingToClaim");
 }
+
+// ---------------------------------------------------------------- regressions for the 2026-10 review (docs/audit/2026-10-full-review)
+
+/// L-8: the PoC sold 262,144 raw units for 0 lamports and the tokens were lost. Now a sell that would pay nothing after the
+/// fee is refused, the seller keeps the tokens, and the smallest sell that pays something still works.
+#[test]
+fn l8_a_sell_that_pays_nothing_is_refused() {
+    let mut l = launch(10 * SOL, SUPPLY);
+    let b = funded_buyer(&mut l, 100);
+    l.env.send(&[buy_ix(&b.pubkey(), &l.mint, SOL, 0)], &[&b]).expect("buy");
+    let c0 = l.env.curve(&l.mint);
+    let m = c0.math();
+    // The largest power of two whose SOL out, after the fee, is zero: the PoC's amount.
+    let net = |t: u64| {
+        let k = m.v_sol as u128 * m.v_tok as u128;
+        let nvt = m.v_tok as u128 + t as u128;
+        let gross = (m.v_sol as u128 - (k / nvt + u128::from(k % nvt != 0))) as u64;
+        gross - curve_math::fee_up(gross, FEE_BPS).min(gross)
+    };
+    let mut t = 1u64;
+    while net(t * 2) == 0 {
+        t *= 2;
+    }
+    let tok = ata(&b.pubkey(), &l.mint, &TOKEN_2022);
+    let tok0 = l.env.token_amount(&tok);
+    assert_fails_with(l.env.send(&[sell_ix(&b.pubkey(), &l.mint, t, 0)], &[&b]), "TradeTooSmall");
+    assert_eq!(l.env.token_amount(&tok), tok0, "the seller kept the tokens");
+    assert_eq!(l.env.curve(&l.mint).real_tok, c0.real_tok);
+    let mut lo = t;
+    while net(lo) == 0 {
+        lo += 1;
+    }
+    let lam0 = l.env.lamports(&b.pubkey());
+    l.env.send(&[sell_ix(&b.pubkey(), &l.mint, lo, 1)], &[&b]).expect("the first sell that pays something");
+    assert!(l.env.lamports(&b.pubkey()) > lam0);
+}
+
+/// I-13: a rise in rent after a curve opened must not freeze its sells (the floor is the rent the vault paid).
+#[test]
+fn i13_a_rise_in_rent_does_not_freeze_sells() {
+    let mut l = launch(10 * SOL, SUPPLY);
+    let b = funded_buyer(&mut l, 100);
+    l.env.send(&[buy_ix(&b.pubkey(), &l.mint, 2 * SOL, 0)], &[&b]).expect("buy");
+    let mut rent: solana_rent::Rent = l.env.svm.get_sysvar();
+    rent.lamports_per_byte *= 2;
+    l.env.svm.set_sysvar(&rent);
+    let held = l.env.token_amount(&ata(&b.pubkey(), &l.mint, &TOKEN_2022));
+    // The program no longer refuses (before the fix this first sell failed with Insolvent).
+    l.env.send(&[sell_ix(&b.pubkey(), &l.mint, held / 2, 1)], &[&b]).expect("selling still works after rent doubled");
+    // Emptying the vault below the new rent-exempt minimum is refused by the runtime itself (a rent-exempt account may not
+    // become rent-paying), not by the program; anyone can clear it by sending the vault the difference, which the curve ignores.
+    let rest = held - held / 2;
+    let r = l.env.send(&[sell_ix(&b.pubkey(), &l.mint, rest, 1)], &[&b]);
+    assert!(err_text(&r).contains("InsufficientFundsForRent") && !err_text(&r).contains("Insolvent"), "{}", err_text(&r));
+    let vault = sol_vault_pda(&curve_pda(&l.mint));
+    let top_up = l.env.svm.minimum_balance_for_rent_exemption(0);
+    let mut d = vec![2, 0, 0, 0];
+    d.extend_from_slice(&top_up.to_le_bytes());
+    let payer = l.env.payer.pubkey();
+    let gift = solana_instruction::Instruction::new_with_bytes(SYSTEM, &d, vec![solana_instruction::AccountMeta::new(payer, true), solana_instruction::AccountMeta::new(vault, false)]);
+    l.env.send(&[gift], &[]).expect("top up the vault");
+    l.env.send(&[sell_ix(&b.pubkey(), &l.mint, rest, 1)], &[&b]).expect("and then selling everything back works");
+    let c = l.env.curve(&l.mint);
+    assert_eq!(c.real_tok, c.curve_tokens);
+}

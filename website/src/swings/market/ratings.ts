@@ -12,6 +12,8 @@ export interface Rating {
   address: string;
   status: RiskStatus | null;
   score: number | null;
+  /** The issuer still holds an admin power (mint, freeze, pause, upgrade...). Older servers may leave it out. */
+  adminPowers?: boolean;
   lockedPct: number | null;
 }
 
@@ -25,7 +27,7 @@ export function applyRatings(rows: readonly MarketRow[], ratings: readonly Ratin
     if (!r) return row;
     return {
       ...row,
-      risk: r.status ? { status: r.status, label: RISK_LABELS[r.status] ?? r.status, score: r.score, basis: 'registry' as const } : row.risk,
+      risk: r.status ? { status: r.status, label: RISK_LABELS[r.status] ?? r.status, score: r.score, basis: 'registry' as const, ...(r.adminPowers === true ? { adminPowers: true } : {}) } : row.risk,
       lockedPct: row.lockedPct ?? r.lockedPct,
     };
   });

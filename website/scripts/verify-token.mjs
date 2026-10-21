@@ -12,7 +12,7 @@
 // Exit code 0 only when both automated checks pass. See docs/verified-badge.md.
 import { writeFileSync } from 'node:fs';
 import { EVM_CHAINS } from './revenueReportCore.mjs';
-import { automatedPass, checkEvm, checkSolana, readSolanaMint, renderReport } from './verifyTokenCore.mjs';
+import { EIP1967_SLOT, automatedPass, checkEvm, checkSolana, readSolanaMint, renderReport } from './verifyTokenCore.mjs';
 
 const [chain, token] = process.argv.slice(2);
 const outAt = process.argv.indexOf('--out');
@@ -45,17 +45,24 @@ if (chain === 'solana') {
   if (!/^0x[0-9a-fA-F]{40}$/.test(token)) fail('that is not an address (0x followed by 40 letters and numbers).');
   const url = process.env[`${chain.toUpperCase()}_RPC_URL`] || c.rpc;
   const code = await rpc(url, 'eth_getCode', [token, 'latest']);
-  const supply = async () => {
+  // checkEvm fails EIP-7702 delegated accounts (code 0xef0100 + address) and any code with a DELEGATECALL; say so early, too.
+  if (typeof code === 'string' && code.toLowerCase().startsWith('0xef0100')) console.error('Note: this address is an EIP-7702 delegated account, not a token contract.');
+  // The supply at two different blocks (about a minute apart on every chain), and the EIP-1967 implementation slot.
+  const latest = Number.parseInt(await rpc(url, 'eth_blockNumber', []), 16);
+  if (!Number.isSafeInteger(latest) || latest < 50) fail('the node gave no block number.');
+  const blocks = [latest - 30, latest];
+  const supply = async (block) => {
     try {
-      const v = await rpc(url, 'eth_call', [{ to: token, data: '0x18160ddd' }, 'latest']);
+      const v = await rpc(url, 'eth_call', [{ to: token, data: '0x18160ddd' }, '0x' + block.toString(16)]);
       return /^0x[0-9a-fA-F]{64}$/.test(v) ? BigInt(v).toString() : null;
     } catch {
       return null;
     }
   };
-  const a = await supply();
-  const b = await supply();
-  automated = checkEvm(code, a, b);
+  const a = await supply(blocks[0]);
+  const b = await supply(blocks[1]);
+  const implementationSlot = await rpc(url, 'eth_getStorageAt', [token, EIP1967_SLOT, 'latest']).catch(() => null);
+  automated = checkEvm(code, a, b, { implementationSlot, blocks });
 }
 
 const text = renderReport({ chain, token, when: new Date().toISOString(), automated });

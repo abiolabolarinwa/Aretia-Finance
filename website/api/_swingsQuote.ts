@@ -85,6 +85,14 @@ function withTimeout<T>(work: Promise<T>): Promise<T> {
 
 const STATUS_FOR: Readonly<Record<string, number>> = { invalid: 400, 'no-route': 404, 'not-enabled': 403, expired: 410, 'rate-limited': 429 };
 
+/** The prepared transaction as integrators receive it. Every step a swap needs is included, or the swap they send would revert. */
+export function publicTransaction(kind: 'solana' | 'evm', raw: unknown): Record<string, unknown> {
+  const payload = raw as { transaction?: { serialize(): Uint8Array }; steps?: string[]; chainId?: number; approval?: unknown; permit2?: unknown; swap?: unknown };
+  if (kind === 'solana' && payload.transaction) return { encoding: 'base64', unsigned: true, data: Buffer.from(payload.transaction.serialize()).toString('base64'), steps: payload.steps ?? [] };
+  // In the order they are sent: the token approval, Permit2's own approval of the router (Uniswap V4), then the swap.
+  return { chainId: payload.chainId, approval: payload.approval ?? null, permit2: payload.permit2 ?? null, swap: payload.swap };
+}
+
 export async function handleQuote(input: QuoteInput): Promise<QuoteOutput> {
   const headers: Record<string, string> = { 'cache-control': 'no-store', 'content-type': 'application/json', 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
   const reply = (status: number, payload: unknown): QuoteOutput => ({ status, body: JSON.stringify(payload, bigintsToStrings), headers });
@@ -145,12 +153,7 @@ export async function handleQuote(input: QuoteInput): Promise<QuoteOutput> {
     if (q.prepare === '1') {
       const prepared = await withTimeout(provider.buildTransaction(quote));
       body.simulation = prepared.simulation;
-      const payload = prepared.payload as { transaction?: { serialize(): Uint8Array }; steps?: string[]; chainId?: number; approval?: unknown; swap?: unknown };
-      if (info.kind === 'solana' && payload.transaction) {
-        body.transaction = { encoding: 'base64', unsigned: true, data: Buffer.from(payload.transaction.serialize()).toString('base64'), steps: payload.steps ?? [] };
-      } else {
-        body.transaction = { chainId: payload.chainId, approval: payload.approval ?? null, swap: payload.swap };
-      }
+      body.transaction = publicTransaction(info.kind, prepared.payload);
     }
     return reply(200, body);
   } catch (e) {

@@ -2,24 +2,34 @@
  * /api/swings-records: optional recovery copies of Swings executions and plans (see supabase/migrations/0005).
  *
  *   GET  ?id=<record id>                          the record, or 404
- *   PUT  { kind, record, expectedVersion }        create (expectedVersion 0) or update (the stored version must match)
+ *   PUT  { kind, record, expectedVersion, writeToken? }  create (expectedVersion 0; answers a writeToken) or update (the stored
+ *                                                 version must match, and the writeToken issued at creation must be sent)
  *
  * What keeps it safe:
  *  - the record's long random id is the only key. There is no listing and no search, so nobody can find another
  *    person's record without already holding its id;
  *  - nothing is stored unless it is a well-formed record of a known kind and state, small, shallow, and free of
  *    secret-looking fields, so the table cannot become a place to put keys or personal documents;
+ *  - only the browser that created a record can change it: creating answers a server-signed write token bound to the id, and an
+ *    update without it is refused, so someone who learns a recovery code cannot overwrite the record behind it;
  *  - writes are version-checked in the database itself (a stale write is refused with 409), so two tabs cannot clobber
  *    each other;
  *  - same allowed-origin rule and rate limit as the other functions; off unless the database is configured.
  */
 import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
 import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
+import { openToken, sessionSecret, signToken } from './_swingsAuth.js';
 
 export interface RecordsEnv extends ProxyEnv {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  SWINGS_SESSION_SECRET?: string;
 }
+
+const WRITE_KIND = 'rw1';
+/** The token that lets its holder update the record `id`. */
+export const recordWriteToken = (secret: string, id: string): string => signToken(secret, WRITE_KIND, { id });
+const canWrite = (secret: string, id: string, token: unknown): boolean => openToken(secret, WRITE_KIND, token)?.id === id;
 
 export const RECORD_ID = /^[a-z0-9_]{24,72}$/;
 const EXECUTION_STATES = ['CREATED', 'QUOTED', 'AWAITING_SIGNATURE', 'SOURCE_SUBMITTED', 'SOURCE_CONFIRMED', 'SETTLEMENT_PENDING', 'DESTINATION_RECEIVED', 'DESTINATION_EXECUTED', 'COMPLETED', 'FAILED', 'EXPIRED', 'REFUNDED'];
@@ -99,7 +109,7 @@ export async function handleRecords(input: RecordsInput): Promise<{ status: numb
 
     if (!(input.contentType ?? '').toLowerCase().includes('json')) return err(415, 'content-type');
     if (new TextEncoder().encode(input.body).length > MAX_BODY) return err(413, 'too-large');
-    let parsed: { kind?: unknown; record?: unknown; expectedVersion?: unknown };
+    let parsed: { kind?: unknown; record?: unknown; expectedVersion?: unknown; writeToken?: unknown };
     try {
       parsed = JSON.parse(input.body) as typeof parsed;
     } catch {
@@ -111,12 +121,14 @@ export async function handleRecords(input: RecordsInput): Promise<{ status: numb
     const expected = parsed.expectedVersion;
     if (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 0) return err(400, 'expectedVersion');
     if (value.version !== expected + 1) return err(400, 'version-step');
+    const secret = sessionSecret(input.env) ?? key;
+    if (expected > 0 && !canWrite(secret, value.id, parsed.writeToken)) return err(403, 'write-token');
     const row = { id: value.id, kind: value.kind, version: value.version, state: value.state, body: value.body, updated_at: input.now };
 
     if (expected === 0) {
       const res = await input.fetchImpl(table, { method: 'POST', headers: { ...db, prefer: 'return=minimal' }, body: JSON.stringify({ ...row, created_at: input.now }) });
       if (res.status === 409) return err(409, 'conflict');
-      return res.ok ? reply(201, { ok: true, version: value.version }) : err(502, 'database');
+      return res.ok ? reply(201, { ok: true, version: value.version, writeToken: recordWriteToken(secret, value.id) }) : err(502, 'database');
     }
     // The version check happens inside the database: the update matches only the version the caller last saw.
     const res = await input.fetchImpl(`${table}?id=eq.${encodeURIComponent(value.id)}&version=eq.${expected}&kind=eq.${value.kind}`, { method: 'PATCH', headers: { ...db, prefer: 'return=representation' }, body: JSON.stringify({ version: row.version, state: row.state, body: row.body, updated_at: row.updated_at }) });

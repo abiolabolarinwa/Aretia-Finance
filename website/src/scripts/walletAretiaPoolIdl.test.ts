@@ -15,7 +15,7 @@ const size = (fields: { type: string }[]) => 8 + fields.reduce((n, f) => n + SIZ
 
 describe('the IDL that integrators read matches the program and the web builders', () => {
   it('lists exactly the program’s instructions, with the tags Anchor computes', () => {
-    const names = [...program.matchAll(/pub fn (\w+)\(ctx: Context/g)].map((m) => m[1]!);
+    const names = [...program.matchAll(/pub fn (\w+)(?:<'info>)?\(ctx: Context/g)].map((m) => m[1]!);
     const camel = (s: string) => s.replace(/_(\w)/g, (_, c: string) => c.toUpperCase());
     expect(idl.instructions.map((i: { name: string }) => i.name)).toEqual(names.map(camel));
     const tags: Record<string, Uint8Array> = { createPool: DISC.createPool, swap: DISC.swap, addLiquidity: DISC.addLiquidity, removeLiquidity: DISC.removeLiquidity, claimFees: DISC.claimFees, transferPosition: DISC.transferPosition, setRecipient: DISC.setRecipient, lockLiquidity: DISC.lockLiquidity };

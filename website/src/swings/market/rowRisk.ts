@@ -10,7 +10,7 @@
  * A token that could not be read says "Couldn't check" and why, rather than a label that means nothing.
  */
 import type { TokenRisk } from '../core/types.js';
-import { assessMarketData, RISK_LABELS } from '../tokens/risk.js';
+import { assessMarketData, hasAdminPowerWarning, RISK_LABELS } from '../tokens/risk.js';
 import type { MarketRow } from './types.js';
 
 export type RowRisk = NonNullable<MarketRow['risk']>;
@@ -49,7 +49,7 @@ export function marketReading(r: MarketRow, now = Date.now()): TokenRisk {
   return assessMarketData({ liquidityUsd: r.liquidityUsd, volume24hUsd: r.volume24hUsd, poolCount: r.pool ? 1 : null, ageHours: r.ageMs === null ? null : r.ageMs / 3_600_000 }, { now });
 }
 
-export const toRowRisk = (risk: TokenRisk, basis: NonNullable<RowRisk['basis']>): RowRisk => ({ status: risk.status, label: RISK_LABELS[risk.status] ?? risk.status, score: risk.score, basis });
+export const toRowRisk = (risk: TokenRisk, basis: NonNullable<RowRisk['basis']>): RowRisk => ({ status: risk.status, label: RISK_LABELS[risk.status] ?? risk.status, score: risk.score, basis, ...(hasAdminPowerWarning(risk) ? { adminPowers: true } : {}) });
 
 /** A rating that says something: it has a status other than "unknown" and a score. */
 const meaningful = (risk: RowRisk | null): risk is RowRisk => risk !== null && risk.status !== 'unknown' && risk.score !== null;
@@ -66,6 +66,18 @@ export function withMarketReading(r: MarketRow, now = Date.now()): MarketRow {
 
 export const bandOf = (status: string): Band => (status === 'high' || status === 'restricted' ? 'red' : status === 'elevated' || status === 'new' ? 'orange' : status === 'established' || status === 'verified' ? 'green' : status === 'unverified' ? 'yellow' : 'grey');
 
+/** The band for a full assessment: a token whose issuer still holds admin powers is never drawn green. */
+export const riskBand = (risk: TokenRisk): Band => {
+  const band = bandOf(risk.status);
+  return band === 'green' && hasAdminPowerWarning(risk) ? 'yellow' : band;
+};
+
+/** The label for a full assessment, naming the issuer's control when the track record alone would read as safe. */
+export const riskLabel = (risk: TokenRisk): string => {
+  const label = RISK_LABELS[risk.status] ?? risk.status;
+  return bandOf(risk.status) === 'green' && hasAdminPowerWarning(risk) ? `${label}, issuer controls` : label;
+};
+
 const toneOf = (status: string): Tone => (status === 'high' || status === 'restricted' ? 'bad' : status === 'elevated' ? 'warn' : status === 'established' || status === 'verified' ? 'on' : 'off');
 
 /** How a row's rating is drawn and explained. */
@@ -75,13 +87,26 @@ export function ratingView(r: MarketRow, state: CheckState | undefined): RatingV
     const label = risk.label;
     const band = bandOf(risk.status);
     if (risk.basis === 'market') {
+      // A market reading cannot see what the contract can do, so it is never drawn green.
+      const soft = band === 'green' ? 'yellow' : band;
       return {
         label,
-        tone: toneOf(risk.status),
-        band,
+        tone: soft === band ? toneOf(risk.status) : 'off',
+        band: soft,
         soft: true,
         checking: state !== 'failed',
         title: `${state === 'failed' ? 'Market reading only. The on-chain check could not be made.' : 'Market reading, from liquidity, trading and age. The contract is being checked.'} Behind the colour: concern score ${risk.score}/100 (higher means more concerns). It cannot see what the contract is able to do, so it is not a safety check.`,
+      };
+    }
+    if (band === 'green' && risk.adminPowers) {
+      // A long track record, but someone can still freeze, mint, pause or upgrade it: never green.
+      return {
+        label: `${label}, issuer controls`,
+        tone: 'off',
+        band: 'yellow',
+        soft: false,
+        checking: false,
+        title: `${risk.basis === 'registry' ? 'From Aretia\'s token registry.' : 'Checked on-chain by Aretia.'} Long-lived with deep trading, but its issuer still holds powers over it (such as freezing, minting, pausing or upgrading). Concern score ${risk.score}/100. A rating is not advice and not a guarantee.`,
       };
     }
     return {

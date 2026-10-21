@@ -20,17 +20,66 @@ export function secureId(prefix: string): string {
 
 export type MirrorResult = 'saved' | 'conflict' | 'unavailable';
 
+const WRITE_TOKENS_KEY = 'aretia-swings-record-write-v1';
+interface TokenStore {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+}
+const defaultStore = (): TokenStore | null => {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+};
+
 export class RecordMirror {
+  /** The server's write token for each record this browser created; only its holder can update the server copy. */
+  private readonly tokens = new Map<string, string>();
+  /** Uploads of one record go one after another, so an update never overtakes the creation that brings its write token. */
+  private readonly queue = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
     private readonly base = '/api/swings-records',
-  ) {}
+    private readonly store: TokenStore | null = defaultStore(),
+  ) {
+    try {
+      const saved = JSON.parse(this.store?.getItem(WRITE_TOKENS_KEY) ?? '{}') as Record<string, unknown>;
+      for (const [id, t] of Object.entries(saved)) if (typeof t === 'string') this.tokens.set(id, t);
+    } catch {
+      // none remembered
+    }
+  }
+
+  private remember(id: string, token: string): void {
+    this.tokens.set(id, token);
+    try {
+      this.store?.setItem(WRITE_TOKENS_KEY, JSON.stringify(Object.fromEntries([...this.tokens].slice(-200))));
+    } catch {
+      // kept for this page only
+    }
+  }
 
   /** Uploads one version of a record. `expectedVersion` is the version the server should currently hold (0 = new). */
-  async push(kind: 'settlement' | 'plan', record: { id: string; version: number }, expectedVersion: number): Promise<MirrorResult> {
+  push(kind: 'settlement' | 'plan', record: { id: string; version: number }, expectedVersion: number): Promise<MirrorResult> {
+    const run = (this.queue.get(record.id) ?? Promise.resolve()).then(() => this.send(kind, record, expectedVersion));
+    this.queue.set(record.id, run);
+    void run.finally(() => {
+      if (this.queue.get(record.id) === run) this.queue.delete(record.id);
+    });
+    return run;
+  }
+
+  private async send(kind: 'settlement' | 'plan', record: { id: string; version: number }, expectedVersion: number): Promise<MirrorResult> {
     try {
-      const res = await this.fetchImpl(this.base, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, record: JSON.parse(encode(record)), expectedVersion }) });
+      const writeToken = expectedVersion > 0 ? this.tokens.get(record.id) : undefined;
+      const res = await this.fetchImpl(this.base, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, record: JSON.parse(encode(record)), expectedVersion, ...(writeToken ? { writeToken } : {}) }) });
       if (res.status === 409) return 'conflict';
+      if (res.ok && expectedVersion === 0) {
+        const body = (await res.json().catch(() => null)) as { writeToken?: unknown } | null;
+        if (typeof body?.writeToken === 'string') this.remember(record.id, body.writeToken);
+      }
       return res.ok ? 'saved' : 'unavailable';
     } catch {
       return 'unavailable';

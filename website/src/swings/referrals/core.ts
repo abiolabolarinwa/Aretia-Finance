@@ -16,6 +16,8 @@ export const REFERRAL_CONFIG = {
   dailyCapPerReferrer: 200,
   /** The most swaps credited for one trader in 24 hours. */
   dailyCapPerTrader: 40,
+  /** The most rows (credited or not) stored for one trader in 24 hours; past it, reports are not stored at all. */
+  dailyRowsPerTrader: 80,
   /** This many credits from one trader with the same asset and the same fee inside `washWindowMinutes` look like a script, not a person. */
   washRepeat: 6,
   washWindowMinutes: 10,
@@ -150,6 +152,8 @@ export interface StoredRef {
   ref: string;
   at: number;
   expiresAt: number;
+  /** The server's signed record of when this link visit was first reported (op 'capture'); a referral binds only from it. */
+  capture?: string;
 }
 
 export interface KeyValue {
@@ -185,6 +189,31 @@ export function captureFromSearch(search: string, store: KeyValue | null, now: n
     return null;
   }
   return value;
+}
+
+/** Keeps the server's capture token next to the stored referrer it was issued for. Returns whether it was kept. */
+export function storeCapture(store: KeyValue | null, now: number, ref: string, capture: string): boolean {
+  const existing = readStoredRef(store, now);
+  if (!existing || existing.ref !== ref || typeof capture !== 'string' || capture.length > 1000) return false;
+  try {
+    store?.setItem(REF_STORAGE_KEY, JSON.stringify({ ...existing, capture }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Forgets a capture token the server refused, keeping the stored referrer, so a fresh capture is requested. */
+export function dropCapture(store: KeyValue | null, now: number): void {
+  const existing = readStoredRef(store, now);
+  if (!existing?.capture) return;
+  const { capture: _drop, ...rest } = existing;
+  void _drop;
+  try {
+    store?.setItem(REF_STORAGE_KEY, JSON.stringify(rest));
+  } catch {
+    // nothing stored: the next report asks again anyway
+  }
 }
 
 /** The link a referrer shares. */

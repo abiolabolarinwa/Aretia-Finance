@@ -35,6 +35,31 @@ export function isSolanaAddress(value: string): boolean {
   return bytes.length === 32;
 }
 
+/** The 32 bytes of a base58 Solana address, or null when it is not one. */
+export function base58Bytes(value: string): Uint8Array | null {
+  if (!isSolanaAddress(value)) return null;
+  const bytes: number[] = [];
+  for (const ch of value) {
+    let carry = BASE58.indexOf(ch);
+    for (let i = 0; i < bytes.length; i++) {
+      carry += bytes[i]! * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (const ch of value) {
+    if (ch !== '1') break;
+    bytes.push(0);
+  }
+  return Uint8Array.from(bytes.reverse());
+}
+
+const sameBytes = (a: Uint8Array | null, b: Uint8Array | null): boolean => a !== null && b !== null && a.length === b.length && a.every((x, i) => x === b[i]);
+
 // ------------------------------------------------------------------ Shield
 
 /** The System Program id (32 zero bytes in base58), owner of every plain wallet account. */
@@ -362,4 +387,137 @@ export function judgeSwapSimulation(args: {
     if (o.post < o.pre) problems.push(`The simulation shows this swap also reducing your ${o.symbol} balance. It was blocked.`);
   }
   return { problems, paid, received, solOverhead };
+}
+
+// ------------------------------------------------------------------ Swap instruction allow-list
+
+export const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget111111111111111111111111111111';
+/** Jupiter's v6 aggregator program, the only program allowed to carry the swap itself. */
+export const JUPITER_V6_PROGRAM_ID = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
+const WSOL_MINT = 'So11111111111111111111111111111111111111112';
+
+/** One instruction as Jupiter's swap-instructions API returns it, with its data already decoded from base64. */
+export interface PlainInstruction {
+  programId: string;
+  accounts: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+  data: Uint8Array;
+}
+
+const u32At = (d: Uint8Array, at: number): number | null => (d.length >= at + 4 ? new DataView(d.buffer, d.byteOffset, d.byteLength).getUint32(at, true) : null);
+const u64At = (d: Uint8Array, at: number): bigint | null => (d.length >= at + 8 ? new DataView(d.buffer, d.byteOffset, d.byteLength).getBigUint64(at, true) : null);
+
+/**
+ * Checks every instruction a third party (Jupiter) put in a swap against an allow-list of programs and instruction kinds, and
+ * returns what it refuses. Balance checks alone cannot see an instruction that changes control without moving a balance (an
+ * approval, a new authority, the wallet reassigned to another program), so anything not plainly part of a swap is refused:
+ *
+ *  - ComputeBudget: unit limit and price, heap size, loaded-data limit; the priority fee they imply is capped.
+ *  - System: `transfer` (only into the wallet's own wSOL account, to wrap SOL) and `createAccount` (only for a token account).
+ *    `assign`, `allocate`, the seeded variants and every nonce instruction are refused.
+ *  - Associated Token Account: `create` and `createIdempotent`.
+ *  - SPL Token and Token-2022: `syncNative`; `closeAccount` paying the wallet; `initializeAccount3` of a wSOL account the wallet
+ *    owns; `transfer`/`transferChecked` only into the wallet's own wSOL account. Approvals, authority changes and the rest are refused.
+ *  - Jupiter v6, for the swap instruction only (and the swap instruction must be Jupiter's).
+ *
+ * Aretia's own fee instructions are built by this code and are not passed in.
+ */
+export function vetSwapInstructions(list: { role: 'swap' | 'support'; ix: PlainInstruction }[], ctx: { user: string; wsolAccount: string; maxPriorityLamports: number }): string[] {
+  const problems = new Set<string>();
+  const refuse = (what: string): void => void problems.add(`The swap from Jupiter includes ${what}, which Aretia does not allow in a swap. It was blocked.`);
+  const user = base58Bytes(ctx.user);
+  const key = (ix: PlainInstruction, i: number): string | null => ix.accounts[i]?.pubkey ?? null;
+  let unitLimit: number | null = null;
+  let microLamportsPerUnit: bigint | null = null;
+  const swaps = list.filter((x) => x.role === 'swap');
+  if (swaps.length !== 1 || swaps[0]!.ix.programId !== JUPITER_V6_PROGRAM_ID) refuse('a swap instruction that is not from the Jupiter v6 program');
+
+  for (const { role, ix } of list) {
+    const d = ix.data;
+    if (role === 'swap') continue;
+    switch (ix.programId) {
+      case COMPUTE_BUDGET_PROGRAM_ID: {
+        const tag = d[0];
+        if (tag === 2 && d.length === 5) unitLimit = u32At(d, 1);
+        else if (tag === 3 && d.length === 9) microLamportsPerUnit = u64At(d, 1);
+        else if (!((tag === 1 || tag === 4) && d.length === 5)) refuse('an unknown compute-budget instruction');
+        break;
+      }
+      case SYSTEM_PROGRAM_ID: {
+        const tag = u32At(d, 0);
+        if (tag === 2 && d.length === 12) {
+          if (key(ix, 1) !== ctx.wsolAccount) refuse('a SOL transfer to an account other than your own wrapped-SOL account');
+        } else if (tag === 0 && d.length === 52) {
+          const owner = d.subarray(20, 52);
+          if (!sameBytes(owner, base58Bytes(TOKEN_PROGRAM_ID)) && !sameBytes(owner, base58Bytes(TOKEN_2022_PROGRAM_ID))) refuse('a new account handed to a program other than the token programs');
+        } else {
+          refuse(tag === 1 || tag === 10 ? 'an instruction that reassigns an account to another program' : tag === 8 || tag === 9 ? 'an instruction that allocates account space' : tag !== null && tag >= 4 && tag <= 7 ? 'a durable-nonce instruction' : 'an unexpected System Program instruction');
+        }
+        break;
+      }
+      case ATA_PROGRAM_ID:
+        if (!(d.length === 0 || (d.length === 1 && (d[0] === 0 || d[0] === 1)))) refuse('an unexpected associated-token-account instruction');
+        break;
+      case TOKEN_PROGRAM_ID:
+      case TOKEN_2022_PROGRAM_ID: {
+        const tag = d[0];
+        if (tag === 17 && d.length === 1) break; // SyncNative
+        if (tag === 9 && d.length === 1) {
+          if (key(ix, 1) !== ctx.user) refuse('a token-account closure that pays someone other than you');
+          break;
+        }
+        if (tag === 18 && d.length === 33) {
+          if (key(ix, 1) !== WSOL_MINT || !sameBytes(d.subarray(1, 33), user)) refuse('a new token account that is not your own wrapped-SOL account');
+          break;
+        }
+        if ((tag === 3 && d.length === 9) || (tag === 12 && d.length === 10)) {
+          const dest = tag === 3 ? key(ix, 1) : key(ix, 2);
+          if (dest !== ctx.wsolAccount || (tag === 12 && key(ix, 1) !== WSOL_MINT)) refuse('a token transfer to an account other than your own wrapped-SOL account');
+          break;
+        }
+        refuse(tag === 4 || tag === 13 ? 'a token approval (it would let someone else spend your tokens)' : tag === 6 ? 'a change of token-account authority' : 'an unexpected token instruction');
+        break;
+      }
+      default:
+        refuse(ix.programId === JUPITER_V6_PROGRAM_ID ? 'a second Jupiter instruction outside the swap' : `an instruction for a program Aretia does not recognise (${ix.programId.slice(0, 8)}…)`);
+    }
+  }
+  // The priority fee goes to the network, but it is still the person's SOL: no more than was asked of Jupiter.
+  if (microLamportsPerUnit !== null) {
+    const limit = BigInt(unitLimit ?? 1_400_000);
+    if ((microLamportsPerUnit * limit) / 1_000_000n > BigInt(ctx.maxPriorityLamports)) refuse('a priority fee above the limit Aretia asked for');
+  }
+  return [...problems];
+}
+
+/** The parts of a token account's data that say who controls it: owner, delegate, close authority. */
+export function tokenAccountControl(data: Uint8Array): { owner: Uint8Array; delegate: Uint8Array; closeAuthority: Uint8Array; mint: Uint8Array } | null {
+  if (data.length < 165) return null;
+  return { mint: data.subarray(0, 32), owner: data.subarray(32, 64), delegate: data.subarray(72, 108), closeAuthority: data.subarray(129, 165) };
+}
+
+/**
+ * Compares a token account before and after a simulated swap: its owner, delegate and close authority must not change. Returns
+ * what changed, or null. An account that the swap closes is fine (its rent comes back to the wallet; closing a token account needs a zero balance, or wSOL).
+ */
+export function tokenControlChange(pre: Uint8Array, post: Uint8Array | null): string | null {
+  if (post === null) return null;
+  const a = tokenAccountControl(pre);
+  const b = tokenAccountControl(post);
+  if (!a || !b) return 'its layout';
+  if (!sameBytes(a.owner, b.owner)) return 'its owner';
+  if (!sameBytes(a.delegate, b.delegate)) return 'who may spend from it';
+  if (!sameBytes(a.closeAuthority, b.closeAuthority)) return 'who may close it';
+  return null;
+}
+
+/** True when the token account's owner field is this wallet. */
+export function tokenAccountOwnedBy(data: Uint8Array, owner: string): boolean {
+  const c = tokenAccountControl(data);
+  return c !== null && sameBytes(c.owner, base58Bytes(owner));
+}
+
+/** True when the token account holds wrapped SOL. */
+export function isWsolAccount(data: Uint8Array): boolean {
+  const c = tokenAccountControl(data);
+  return c !== null && sameBytes(c.mint, base58Bytes(WSOL_MINT));
 }

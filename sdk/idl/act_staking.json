@@ -28,11 +28,13 @@
             "seeds": [{ "kind": "const", "value": [118, 97, 117, 108, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }]
           }
         },
-        { "name": "mint" },
+        { "name": "mint", "address": "7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG" },
         { "name": "vault", "writable": true },
         { "name": "token_program" },
         { "name": "associated_token_program" },
-        { "name": "system_program", "address": "11111111111111111111111111111111" }
+        { "name": "system_program", "address": "11111111111111111111111111111111" },
+        { "name": "program", "address": "DpaKPgqdcoY2pQFrHc5xgP4eegbnaCWuRVYFMrrzThtH" },
+        { "name": "program_data", "docs": ["This program's ProgramData account (PDA of [program id] under BPFLoaderUpgradeab1e11111111111111111111111). The signer must be its upgrade authority."] }
       ],
       "args": [
         { "name": "tiers", "type": { "array": ["u64", 5] } },
@@ -181,9 +183,11 @@
     { "code": 6004, "name": "NothingStaked", "msg": "Nothing is staked for this wallet." },
     { "code": 6005, "name": "StillLocked", "msg": "This position's lock has not yet matured." },
     { "code": 6006, "name": "InvalidTierTable", "msg": "Tier thresholds must start at 0 and strictly increase." },
-    { "code": 6007, "name": "InvalidDurationTable", "msg": "Duration options must be non-zero days with a multiplier of at least 1.00x." },
+    { "code": 6007, "name": "InvalidDurationTable", "msg": "Duration options must be distinct, between 1 and 3,650 days, with multipliers between 1.00x and 10.00x." },
     { "code": 6008, "name": "MathOverflow", "msg": "Arithmetic overflow." },
-    { "code": 6009, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." }
+    { "code": 6009, "name": "InvalidNewAuthority", "msg": "New authority cannot be the default (all-zero) pubkey." },
+    { "code": 6010, "name": "NotUpgradeAuthority", "msg": "Only the program's upgrade authority may initialise the config." },
+    { "code": 6011, "name": "WrongMint", "msg": "The config can only be initialised for the ACT mint." }
   ],
   "types": [
     {

@@ -8,6 +8,8 @@ import {
   POOL_ACCOUNT_SIZE,
   POSITION_ACCOUNT_SIZE,
   addLiquidity,
+  addingOpen,
+  MIN_LIQUIDITY,
   PRICE_RANGES,
   virtualTokens,
   atTime,
@@ -65,7 +67,7 @@ describe('the maths matches the Rust pool-math, step by step', () => {
           const r = addLiquidity(p, amt);
           if (r) [next, got] = [r.next, { tokensIn: r.tokensIn, solIn: r.solIn }];
         } else {
-          const r = removeLiquidity(p, amt);
+          const r = removeLiquidity(p, amt, BigInt((step as { available?: string }).available ?? step.amount));
           if (r) [next, got] = [r.next, { tokensOut: r.tokensOut, solOut: r.solOut }];
         }
         if (want === null) {
@@ -290,5 +292,25 @@ describe('reading the program’s accounts', () => {
     const pos = { pool: '', owner: CREATOR, shares: 1_000n, locked: 1_000n, checkpoint: 0n, pending: 5n, recipient: CREATOR, id: CREATOR, bump: 255 };
     // acc = 9 + 2^64; shares * acc >> 64 = 1000 + (9000 >> 64 = 0)
     expect(claimable(p, pos)).toBe(1_005n);
+  });
+});
+
+describe('the 2026-10 review fixes, mirrored from pool-math', () => {
+  const p = openPool(1_000_000_000n, 0n, 10_000_000_000n, 25)!;
+  it('never lets the pool be emptied (L-23)', () => {
+    expect(removeLiquidity(p, p.l, p.l)).toBeNull();
+    expect(removeLiquidity(p, p.l - MIN_LIQUIDITY + 1n, p.l)).toBeNull();
+    expect(removeLiquidity(p, p.l - MIN_LIQUIDITY, p.l)!.next.l).toBe(MIN_LIQUIDITY);
+  });
+  it('lets a remover take all of a small unlocked balance (I-15)', () => {
+    expect(removeLiquidity(p, 500n, 10_000n)).toBeNull();
+    expect(removeLiquidity(p, 500n, 500n)).not.toBeNull();
+  });
+  it('opens adding only when the launch fee is back at the base (L-22)', () => {
+    const s = { ...p, feeStartBps: 2_500, decaySecs: 900, startTs: 1_000n };
+    expect(addingOpen(s, 1_000n)).toBe(false);
+    expect(addingOpen(s, 1_899n)).toBe(false);
+    expect(addingOpen(s, 1_900n)).toBe(true);
+    expect(addingOpen(p, 0n)).toBe(true);
   });
 });

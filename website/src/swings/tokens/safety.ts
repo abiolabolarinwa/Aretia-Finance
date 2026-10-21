@@ -5,6 +5,7 @@
  * unchecked rather than counted as safe.
  */
 import type { RiskStatus, TokenRisk } from '../core/types.js';
+import { hasAdminPowerWarning } from './risk.js';
 
 export type SafetyTone = 'ok' | 'info' | 'warn' | 'bad';
 
@@ -37,7 +38,8 @@ export function describeSafety(risk: TokenRisk | null): SafetyView {
   if (!risk) {
     return { tone: 'info', headline: 'No safety assessment could be made for this token. Check it yourself before buying.', concerns: [], passed: 0, unchecked: [], needsAcknowledgement: false };
   }
-  const h = HEADLINE[risk.status];
+  const issuerControls = (risk.status === 'established' || risk.status === 'verified') && hasAdminPowerWarning(risk);
+  const h = issuerControls ? { text: 'Long-lived and widely traded, but its issuer still holds powers over it (listed below), such as freezing or upgrading.', tone: 'info' as const } : HEADLINE[risk.status];
   const bad = risk.signals.filter((s) => s.state === 'bad');
   const warn = risk.signals.filter((s) => s.state === 'warn');
   const concerns = [...bad.map((s) => ({ text: `${s.label}: ${s.detail}`, severe: true })), ...warn.map((s) => ({ text: `${s.label}: ${s.detail}`, severe: false }))];

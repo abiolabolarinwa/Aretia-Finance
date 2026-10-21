@@ -10,6 +10,7 @@ import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/c
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { describeSafety } from '../swings/tokens/safety.js';
 import { ratingView } from '../swings/market/rowRisk.js';
+import { padlockShown } from '../swings/market/lock.js';
 import { ratingGuide } from './walletRatingGuide.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { WatchStore } from '../swings/shield/watch.js';
@@ -229,13 +230,13 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const g = el('div', 'wapp-mp__grid');
     const liq = cell('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), 4);
     // A padlock beside the figure when the pool's liquidity is shown to be locked.
-    if (r.lockedPct !== null && r.lockedPct !== undefined) {
+    if (padlockShown(r.lockedPct, r.risk)) {
       const timed = r.lockInfo?.kind === 'time-locked';
       const lock = el('span', `wapp-mp__lock${timed ? ' is-timed' : ''}`);
       lock.innerHTML = LOCK_ICON;
       lock.title = lockTitle(r.lockedPct, r.lockInfo);
       lock.setAttribute('role', 'img');
-      lock.setAttribute('aria-label', `Liquidity locked, ${r.lockedPct.toFixed(1)} percent ${timed ? 'in a locker' : 'burned'}`);
+      lock.setAttribute('aria-label', timed ? `Liquidity locked, ${r.lockedPct.toFixed(1)} percent in a locker` : `Liquidity tokens burned, ${r.lockedPct.toFixed(1)} percent`);
       liq.querySelector('.wapp-mp__v')?.prepend(lock);
     }
     g.append(liq, cell('FDV', compactUsd(d?.fdvUsd ?? null), 4), cell('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), 4));

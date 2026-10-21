@@ -18,6 +18,7 @@ import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
 import type { EvmFlowDeps } from './walletLaunchEvmFlow';
 import { createAddress, findFactoryNonce } from './walletCurveEvmCore';
 import {
+  POOL_DEADLINE_SECS,
   POOL_SLIPPAGE_BPS_DEFAULT,
   evmMaxIn,
   evmMinOut,
@@ -134,6 +135,9 @@ const APPROVE_GAS_CEILING = 80_000n;
 
 export class EvmPoolFlow {
   constructor(private readonly d: EvmPoolFlowDeps) {}
+
+  /** A deadline for a call built now: POOL_DEADLINE_SECS ahead. */
+  private deadline = (): bigint => BigInt(this.d.nowSeconds() + POOL_DEADLINE_SECS);
 
   private sleep = (ms: number) => (this.d.sleep ?? ((n: number) => new Promise<void>((r) => setTimeout(r, n))))(ms);
   private call = (to: string, data: string): Promise<unknown> => this.d.read('eth_call', [{ to, data }, 'latest']);
@@ -260,7 +264,7 @@ export class EvmPoolFlow {
   private approveStep(chain: EvmPoolChain, account: string, token: string, amount: bigint): PoolStep {
     return {
       what: 'approval',
-      tx: buildApproveTx(account, token, chain.pool, amount),
+      tx: buildApproveTx(account, token, chain.pool, amount, chain.chainId),
       inspect: (tx, id) => inspectApprove(tx, { chain, from: account, token, amount }, id),
       progress: ['approving', 'confirming-approve'],
       allowance: { token, amount },
@@ -281,11 +285,12 @@ export class EvmPoolFlow {
       else minFirstBuyOut = buyQuote.tokensOut;
     }
     const approve = this.approveStep(chain, config.creator, config.token, config.x0);
-    const createTx = buildCreateTx(config, minFirstBuyOut);
+    const deadline = this.deadline();
+    const createTx = buildCreateTx(config, minFirstBuyOut, deadline);
     const create: PoolStep = {
       what: 'pool creation',
       tx: createTx,
-      inspect: (tx, id) => inspectCreate(tx, { config, minFirstBuyOut }, id),
+      inspect: (tx, id) => inspectCreate(tx, { config, minFirstBuyOut, deadline, nowSeconds: this.d.nowSeconds() }, id),
       progress: ['sending', 'confirming'],
     };
     // The existing-pool check needs the chain; do it inside fill's try via a pre-read.
@@ -318,8 +323,9 @@ export class EvmPoolFlow {
     const quote = poolQuoteBuy(pool, wei);
     if (!quote) blockers.push('That amount is too small to buy any tokens.');
     const minOut = quote ? evmMinOut(quote.tokensOut, slippageBps) : 0n;
-    const tx = buildBuyTx(account, chain, token, minOut, wei);
-    const step: PoolStep = { what: 'purchase', tx, inspect: (t, id) => inspectBuy(t, { chain, from: account, token, wei, minOut }, id), progress: ['sending', 'confirming'] };
+    const deadline = this.deadline();
+    const tx = buildBuyTx(account, chain, token, minOut, wei, deadline);
+    const step: PoolStep = { what: 'purchase', tx, inspect: (t, id) => inspectBuy(t, { chain, from: account, token, wei, minOut, deadline, nowSeconds: this.d.nowSeconds() }, id), progress: ['sending', 'confirming'] };
     return this.fill({ kind: 'buy', chain, account, token, steps: [step], coinOut: wei, blockers, expect: {}, buyQuote: quote, minOut }, quote ? tx : null, ACTION_GAS_CEILING, 'The network would not accept this purchase, so nothing was sent', 0n);
   }
 
@@ -329,8 +335,9 @@ export class EvmPoolFlow {
     if (!quote) blockers.push('That amount cannot be sold to the pool: it would need more coin than buyers have paid in.');
     const minOut = quote ? evmMinOut(quote.net, slippageBps) : 0n;
     const approve = this.approveStep(chain, account, token, tokens);
-    const tx = buildSellTx(account, chain, token, tokens, minOut);
-    const step: PoolStep = { what: 'sale', tx, inspect: (t, id) => inspectSell(t, { chain, from: account, token, tokens, minCoinOut: minOut }, id), progress: ['sending', 'confirming'] };
+    const deadline = this.deadline();
+    const tx = buildSellTx(account, chain, token, tokens, minOut, deadline);
+    const step: PoolStep = { what: 'sale', tx, inspect: (t, id) => inspectSell(t, { chain, from: account, token, tokens, minCoinOut: minOut, deadline, nowSeconds: this.d.nowSeconds() }, id), progress: ['sending', 'confirming'] };
     const r = await this.fill({ kind: 'sell', chain, account, token, steps: [approve, step], coinOut: 0n, blockers, expect: {}, sellQuote: quote, minOut }, approve.tx, APPROVE_GAS_CEILING + ACTION_GAS_CEILING, 'The network would not accept the approval, so nothing was sent', tokens);
     r.expect.tokensAfter = r.tokensBefore - tokens;
     return r;
@@ -345,8 +352,9 @@ export class EvmPoolFlow {
     const maxTokens = quote ? evmMaxIn(quote.tokens, slippageBps) : 0n;
     const coinWei = quote ? evmMaxIn(quote.coin, slippageBps) : 0n;
     const approve = this.approveStep(chain, account, token, maxTokens);
-    const tx = buildAddTx(account, chain, token, dl, maxTokens, coinWei);
-    const step: PoolStep = { what: 'deposit', tx, inspect: (t, id) => inspectAdd(t, { chain, from: account, token, dl, maxTokens, coinWei }, id), progress: ['sending', 'confirming'] };
+    const deadline = this.deadline();
+    const tx = buildAddTx(account, chain, token, dl, maxTokens, coinWei, deadline);
+    const step: PoolStep = { what: 'deposit', tx, inspect: (t, id) => inspectAdd(t, { chain, from: account, token, dl, maxTokens, coinWei, deadline, nowSeconds: this.d.nowSeconds() }, id), progress: ['sending', 'confirming'] };
     const before = await this.loadPosition(chain, token, account).catch(() => null);
     const r = await this.fill({ kind: 'add', chain, account, token, steps: [approve, step], coinOut: coinWei, blockers, expect: {} }, quote ? approve.tx : null, APPROVE_GAS_CEILING + ACTION_GAS_CEILING, 'The network would not accept the approval, so nothing was sent', maxTokens);
     r.expect.sharesAfter = (before?.open ? before.shares : 0n) + dl;
@@ -360,8 +368,9 @@ export class EvmPoolFlow {
     if (!quote) blockers.push('The pool cannot be emptied: a small amount of liquidity always stays.');
     const minTokens = quote ? evmMinOut(quote.tokens, slippageBps) : 0n;
     const minCoin = quote ? evmMinOut(quote.coin, slippageBps) : 0n;
-    const tx = buildRemoveTx(account, chain, token, dl, minTokens, minCoin);
-    const step: PoolStep = { what: 'withdrawal', tx, inspect: (t, id) => inspectRemove(t, { chain, from: account, token, dl, minTokens, minCoin }, id), progress: ['sending', 'confirming'] };
+    const deadline = this.deadline();
+    const tx = buildRemoveTx(account, chain, token, dl, minTokens, minCoin, deadline);
+    const step: PoolStep = { what: 'withdrawal', tx, inspect: (t, id) => inspectRemove(t, { chain, from: account, token, dl, minTokens, minCoin, deadline, nowSeconds: this.d.nowSeconds() }, id), progress: ['sending', 'confirming'] };
     const r = await this.fill({ kind: 'remove', chain, account, token, steps: [step], coinOut: 0n, blockers, expect: { sharesAfter: position.shares - dl } }, quote ? tx : null, ACTION_GAS_CEILING, 'The network would not accept this withdrawal, so nothing was sent', 0n);
     if (quote) r.expect.minTokensAfter = r.tokensBefore + minTokens;
     return r;
@@ -388,7 +397,8 @@ export class EvmPoolFlow {
     const blockers: string[] = [];
     if (!position.open) blockers.push('You have no position in this pool.');
     if (!/^0x[0-9a-fA-F]{40}$/.test(to) || to.toLowerCase() === account.toLowerCase()) blockers.push('Name a different wallet address.');
-    else if ((await this.loadPosition(chain, token, to).catch(() => null))?.open) blockers.push('That wallet already has a position in this pool.');
+    // The contract merges into a position the other wallet already has (shares, locked shares and settled fees add up; it keeps its own
+    // fee recipient), so an existing position there is no longer a blocker.
     const tx = buildTransferTx(account, chain, token, to);
     const step: PoolStep = { what: 'transfer', tx, inspect: (t, id) => inspectTransfer(t, { chain, from: account, token, to }, id), progress: ['sending', 'confirming'] };
     return this.fill({ kind: 'transfer', chain, account, token, steps: [step], coinOut: 0n, blockers, expect: { positionGone: true, positionAt: to.toLowerCase() } }, blockers.length === 0 ? tx : null, ACTION_GAS_CEILING, 'The network would not accept this transfer, so nothing was sent', 0n);

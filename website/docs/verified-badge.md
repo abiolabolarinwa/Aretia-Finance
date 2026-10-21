@@ -7,7 +7,7 @@ The badge is a record of four checks that Aretia ran on one day. Nothing more.
 On the date shown, Aretia checked that:
 
 1. **The supply is fixed.** No one can create more of the token.
-2. **Special powers are given up.** Solana: the mint authority and the freeze authority are gone, and the mint has no transfer-fee, permanent-delegate, transfer-hook or frozen-by-default extension. Ethereum-style chains (BNB Chain, Ethereum, Polygon): the token's code has no mint, pause, owner, ownership-transfer or blacklist function.
+2. **Special powers are given up.** Solana: the mint authority and the freeze authority are gone, and the mint has no Token-2022 extension except the name, metadata and group ones (types 18 to 23); interest-bearing (10) passes but is flagged for the reviewer, and anything else fails. Ethereum-style chains (BNB Chain, Ethereum, Polygon): the token is not a proxy (EIP-1167 minimal proxy, EIP-1967 implementation slot, or an upgrade function), not an EIP-7702 delegated account (code `0xef0100` + address), and its code has no DELEGATECALL opcode (found by walking the instructions and skipping PUSH data and the trailing compiler metadata); its code has no mint, pause, owner, ownership-transfer or blacklist function, and its total supply is the same at two different blocks.
 3. **The project link matches the claim.** A person at Aretia checked that the project link and the creator named in the request are the ones the token points to.
 4. **A locked pool exists.** A trading pool or curve for the token exists and its liquidity is locked, checked on the chain.
 
@@ -33,8 +33,8 @@ The same words are in the badge's tooltip and dialog (`src/lib/verified.ts`, `DE
 The script is read-only: it asks a public node, uses no key and sends nothing. Use `--out evidence.txt` to save the report.
 It exits 0 only when checks 1 and 2 both pass. Its limits, plainly:
 
-- On Ethereum-style chains it looks for function selectors in the contract's code. That catches the usual ways of keeping control, but it is a scan, not a proof: code can hide a power (a proxy, a hidden function). A person reads the code or its verified source before the badge is granted.
-- It reads the mint account as it is now. A Token-2022 extension it does not know is not flagged, so an unfamiliar extension list is a reason for a person to look.
+- On Ethereum-style chains it looks for function selectors in the contract's code. That catches the usual ways of keeping control, but it is a scan, not a proof: code can hide a power (a hidden function); proxies it recognises always fail. A person reads the code or its verified source before the badge is granted.
+- It reads the mint account as it is now. Every extension is listed in the report by number and name; one it does not know fails.
 - A token that fails is not badged. For example, ACT itself has a Token-2022 transfer fee by design, so check 2 fails for it, and it would not carry this badge. The badge is not a statement about whether a design choice is good, only about which powers exist.
 
 ## Recording a token

@@ -2,6 +2,7 @@
  * Pure helpers behind the dashboard's holdings: reading token accounts straight from the chain, merging that with
  * Jupiter's balance list, and deciding which holdings the table shows. No network and no DOM, so they can be tested.
  */
+import { choosePricePool } from '../swings/charts/pool.js';
 
 /** A balance for one mint before names and prices are looked up. */
 export interface RawBalance {
@@ -85,4 +86,76 @@ export function splitByPrice<T extends { mint: string; value: number | null }>(
   const hiddenUnpriced: T[] = [];
   for (const h of holdings) (h.value !== null || (typeof nativeMint === 'string' ? h.mint === nativeMint : nativeMint(h.mint)) ? shown : hiddenUnpriced).push(h);
   return { shown, hiddenUnpriced };
+}
+
+/**
+ * Whether a holding's value counts toward the portfolio total (and the split by value). A thin price (a shallow pool, an
+ * unknown depth, or a pool not paired with a major token) is shown on its row, marked "thin", but never added: one
+ * airdropped token with a made-up price could otherwise turn the total into any number its creator likes.
+ */
+export const countsTowardTotal = (h: { value: number | null; thin?: boolean }): boolean => h.value !== null && Number.isFinite(h.value) && h.thin !== true;
+
+/** The portfolio total from the holdings whose value counts, and how many priced holdings were left out as thin. */
+export function portfolioTotal(holdings: readonly { value: number | null; thin?: boolean }[]): { sum: number; counted: number; thinLeftOut: number } {
+  let sum = 0;
+  let counted = 0;
+  let thinLeftOut = 0;
+  for (const h of holdings) {
+    if (countsTowardTotal(h)) {
+      sum += h.value!;
+      counted++;
+    } else if (h.value !== null) thinLeftOut++;
+  }
+  return { sum, counted, thinLeftOut };
+}
+
+// ---------------------------------------------------------------- prices from market feeds
+
+/** Below this much money in the pool behind a price, the holding is not given a value at all: a dust pool can claim any price. */
+export const MIN_PRICE_LIQUIDITY_USD = 1_000;
+/** Below this, a price is shown but marked thin. */
+export const THIN_LIQUIDITY_USD = 10_000;
+
+export interface FeedPrice {
+  price: number;
+  thin: boolean;
+}
+
+/** A price with the liquidity behind it (null when the feed gives none): dropped under the floor, marked thin when shallow or unknown. */
+export function priceWithLiquidity(price: number, liquidityUsd: number | null, quoteIsMajor = true): FeedPrice | null {
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (liquidityUsd !== null && !(liquidityUsd >= MIN_PRICE_LIQUIDITY_USD)) return null;
+  return { price, thin: liquidityUsd === null || liquidityUsd < THIN_LIQUIDITY_USD || !quoteIsMajor };
+}
+
+export interface DexPricePair {
+  baseToken?: { address?: string };
+  quoteToken?: { address?: string };
+  priceUsd?: string;
+  liquidity?: { usd?: number };
+}
+
+/**
+ * Each mint's price from DexScreener's pairs (charts/pool.ts `choosePricePool`): the deepest pool paired with a major token (`majors`,
+ * lower-case) when it holds at least $1,000 and 5% of the mint's deepest pool; otherwise the deepest pool, always marked thin. So a pool
+ * against a made-up token that reports a huge liquidity can never give an unmarked price (and a thin price is not added to the total),
+ * and a $3 WSOL pool cannot set the price of a token that trades millions against another token.
+ */
+export function dexScreenerPrices(pairs: readonly DexPricePair[], majors: ReadonlySet<string>): Map<string, FeedPrice> {
+  const byMint = new Map<string, { p: DexPricePair; major: boolean; liq: number }[]>();
+  for (const p of pairs) {
+    const mint = p.baseToken?.address;
+    if (!mint || !p.priceUsd) continue;
+    const major = majors.has((p.quoteToken?.address ?? '').toLowerCase());
+    const liq = typeof p.liquidity?.usd === 'number' && Number.isFinite(p.liquidity.usd) ? p.liquidity.usd : 0;
+    byMint.set(mint, [...(byMint.get(mint) ?? []), { p, major, liq }]);
+  }
+  const out = new Map<string, FeedPrice>();
+  for (const [mint, pools] of byMint) {
+    const chosen = choosePricePool(pools);
+    if (!chosen) continue;
+    const priced = priceWithLiquidity(Number(chosen.pool.p.priceUsd), chosen.pool.liq, chosen.majorBacked);
+    if (priced) out.set(mint, priced);
+  }
+  return out;
 }

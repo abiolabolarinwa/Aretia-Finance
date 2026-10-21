@@ -6,13 +6,15 @@
  */
 import { decodeAbiString } from '../swings/chains/evmSession.js';
 import type { EvmRead } from '../swings/chains/evmSession.js';
-import { EVM_POOL_DEPLOY_BLOCKS, EVM_POOL_ADDRESSES, EVM_POOL_TEST_FACTORIES, evmPoolChain, type EvmPoolChain } from './walletAretiaPoolEvmCore';
+import { EVM_POOL_DEPLOY_BLOCKS, EVM_POOL_ADDRESSES, EVM_POOL_TEST_FACTORIES, evmPoolChain, type EvmPoolChain, type EvmPosition } from './walletAretiaPoolEvmCore';
 import { EvmPoolFlow, type EvmPoolFlowDeps, type EvmPoolOutcome, type EvmPoolProgress } from './walletAretiaPoolEvmFlow';
 import { ownerLogFilters, rowFrom, sortRows, tokensFromLogs, type EvmPoolRow } from './walletYourPoolsEvmCore';
 import type { LaunchEvmChainKey } from './walletLaunchEvmCore';
 
 /** The most tokens listed per network at once. A wallet with more sees the first ones and a note. */
 export const MAX_EVM_POSITIONS = 50;
+/** The most tokens from the logs whose position is read per network, before filtering to live positions and capping at MAX_EVM_POSITIONS. */
+export const MAX_EVM_SCAN = 500;
 /** The widest block range one log request asks for; halved when a node refuses it. */
 export const LOG_RANGE = 40_000;
 const MIN_RANGE = 500;
@@ -83,11 +85,19 @@ export class YourEvmPools {
         const flow = this.flowFor(chain.key);
         const read = this.readerFor(chain.key);
         const found = await this.findTokens(chain, owner);
-        if (found.length > MAX_EVM_POSITIONS) truncated = true;
-        for (const token of found.slice(0, MAX_EVM_POSITIONS)) {
-          const [pool, position] = await Promise.all([flow.loadPool(chain, token), flow.loadPosition(chain, token, owner)]);
-          // A position can have been handed on since the log: only what the contract shows now is listed.
-          if (!pool || !position || !position.open) continue;
+        // Filter BEFORE capping (review finding L-19): anyone can hand this wallet dust positions, and fully withdrawn positions used to
+        // stay open, so capping the raw log list first could push real positions off the page. Only positions the contract shows now
+        // as open with shares (or with fees still to claim) count; at most MAX_EVM_SCAN tokens are looked at.
+        if (found.length > MAX_EVM_SCAN) truncated = true;
+        const live: { token: string; position: EvmPosition }[] = [];
+        for (const token of found.slice(0, MAX_EVM_SCAN)) {
+          const position = await flow.loadPosition(chain, token, owner);
+          if (position && position.open && (position.shares > 0n || position.pending > 0n)) live.push({ token, position });
+        }
+        if (live.length > MAX_EVM_POSITIONS) truncated = true;
+        for (const { token, position } of live.slice(0, MAX_EVM_POSITIONS)) {
+          const pool = await flow.loadPool(chain, token);
+          if (!pool) continue;
           const [sym, dec] = await Promise.all([read('eth_call', [{ to: token, data: SEL.symbol }, 'latest']).catch(() => null), read('eth_call', [{ to: token, data: SEL.decimals }, 'latest']).catch(() => null)]);
           const symbol = decodeAbiString(sym) ?? `${token.slice(0, 6)}…${token.slice(-4)}`;
           const decimals = wordOf(dec);

@@ -139,7 +139,7 @@ export interface SellQuote {
   next: CurveMath;
 }
 
-/** Exact-input sell: SOL down, fee up. Refuses to put back more tokens than the curve has sold. */
+/** Exact-input sell: SOL down, fee up. Refuses to put back more tokens than the curve has sold, or to pay the seller nothing. */
 export function quoteSell(c: CurveMath, curveTokens: bigint, tokensIn: bigint, feeBps: number): SellQuote | null {
   if (feeBps < 0 || BigInt(feeBps) >= BPS || tokensIn <= 0n || tokensIn > U64_MAX) return null;
   const realTok = c.realTok + tokensIn;
@@ -150,6 +150,8 @@ export function quoteSell(c: CurveMath, curveTokens: bigint, tokensIn: bigint, f
   const gross = c.vSol - newVs;
   if (gross < 0n || gross > c.realSol) return null;
   const fee = feeUp(gross, feeBps) < gross ? feeUp(gross, feeBps) : gross;
+  // The program refuses a sell that would pay the seller nothing after the fee (the tokens would be lost).
+  if (gross === fee) return null;
   return { gross, fee, net: gross - fee, next: { vSol: newVs, vTok: newVt, realSol: c.realSol - gross, realTok } };
 }
 
@@ -318,6 +320,32 @@ export interface CurveState extends CurveMath {
   createdAt: bigint;
   soldOutAt: bigint;
   pool: string | null;
+}
+
+/** A share of a total as a percentage with two decimals, rounded up so a sliver never shows as 0.00%. */
+const percentUp = (part: bigint, whole: bigint): string => {
+  if (whole <= 0n || part <= 0n) return '0';
+  const hundredths = ceilDiv(part * 10_000n, whole);
+  return `${hundredths / 100n}.${String(hundredths % 100n).padStart(2, '0')}`.replace(/\.?0+$/, '') || '0';
+};
+
+export interface OutsideSupply {
+  /** Raw tokens of the mint's supply that never went into this curve (curve plus pool reserve). */
+  outside: bigint;
+  outsidePercent: string;
+  /** The opener's live balance and its share of supply, when it was read. */
+  opener: bigint | null;
+  openerPercent: string | null;
+}
+
+/**
+ * How much of a token's supply sits outside its curve (audit M-3). The program does not tie the curve's total to the supply, so
+ * anyone holding the rest can sell it into the curve ahead of buyers, taking their SOL and leaving the curve unable to buy back.
+ */
+export function outsideSupply(c: Pick<CurveState, 'curveTokens' | 'lpTokens'>, supply: bigint, openerBalance: bigint | null): OutsideSupply {
+  const inCurve = c.curveTokens + c.lpTokens;
+  const outside = supply > inCurve ? supply - inCurve : 0n;
+  return { outside, outsidePercent: percentUp(outside, supply), opener: openerBalance, openerPercent: openerBalance === null ? null : percentUp(openerBalance, supply) };
 }
 
 /** Reads a curve account. Null unless it is exactly the right size and starts with the curve discriminator. */

@@ -19,10 +19,12 @@ import { initYourPools } from './walletYourPools';
 import { mountLaunchFeatured } from './walletFeatured';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
+import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
 import { sidebarItemFor } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
-import { lamportsToBalance, mergeBalances, parseTokenAccountsResult, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type RawBalance } from './walletHoldings';
-import { loadWeb3, planSend, rpcCall, resolveName, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
+import { countsTowardTotal, dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, portfolioTotal, priceWithLiquidity, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type DexPricePair, type RawBalance } from './walletHoldings';
+import { majorsOf } from '../swings/charts/pool.js';
+import { loadWeb3, planSend, rpcCall, resolveName, sendPlanChanged, signAndSubmit, simulatePlan, waitForConfirmation, type SendPlan, type SendRequest, type Simulation } from './walletSend';
 import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, type AccountSnapshot } from './walletTools';
 
 /**
@@ -147,11 +149,8 @@ interface JupToken {
   icon?: string;
   usdPrice?: number;
   decimals?: number;
-}
-interface DexPair {
-  baseToken?: { address?: string };
-  priceUsd?: string;
-  liquidity?: { usd?: number };
+  /** The money in the token's pools, in US dollars, as Jupiter reports it. */
+  liquidity?: number;
 }
 
 const inBatches = <T>(items: readonly T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
@@ -220,25 +219,19 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   }
 
   const prices = new Map<string, { price: number; source: 'Jupiter' | 'DexScreener' | 'GeckoTerminal'; thin: boolean }>();
+  // Every price carries the liquidity behind it: under $1,000 there is no value at all, and a shallow or unknown pool is marked thin.
   for (const [mint, token] of meta) {
-    if (typeof token.usdPrice === 'number' && token.usdPrice > 0) prices.set(mint, { price: token.usdPrice, source: 'Jupiter', thin: false });
+    const priced = typeof token.usdPrice === 'number' ? priceWithLiquidity(token.usdPrice, typeof token.liquidity === 'number' ? token.liquidity : null) : null;
+    if (priced) prices.set(mint, { ...priced, source: 'Jupiter' });
   }
   // Both fallbacks take at most 30 mints per request. A wallet can hold more unpriced mints than that (and unpriced
   // tokens are hidden by default), so every batch is asked, not just the first.
   const unpriced = mints.filter((m) => !prices.has(m));
   await Promise.allSettled(
     inBatches(unpriced, 30).map(async (batch) => {
-      const pairs = await getJson<DexPair[]>(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(',')}`);
-      const best = new Map<string, DexPair>();
-      for (const p of pairs) {
-        const mint = p.baseToken?.address;
-        if (!mint || !p.priceUsd) continue;
-        if (!best.has(mint) || (p.liquidity?.usd ?? 0) > (best.get(mint)?.liquidity?.usd ?? 0)) best.set(mint, p);
-      }
-      for (const [mint, p] of best) {
-        const price = Number(p.priceUsd);
-        if (Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'DexScreener', thin: (p.liquidity?.usd ?? 0) < 10_000 });
-      }
+      const pairs = await getJson<DexPricePair[]>(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(',')}`);
+      // Pools against SOL or a main stablecoin first, then depth: a pool against a made-up token cannot set the price.
+      for (const [mint, p] of dexScreenerPrices(pairs, majorsOf('solana'))) if (batch.includes(mint)) prices.set(mint, { ...p, source: 'DexScreener' });
     }),
   );
   // A token neither Jupiter nor DexScreener prices (DexScreener can lag on a new pool) may still be priced by
@@ -246,10 +239,13 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   const stillUnpriced = mints.filter((m) => !prices.has(m));
   await Promise.allSettled(
     inBatches(stillUnpriced, 30).map(async (batch) => {
-      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${batch.join(',')}`);
+      const r = await getJson<{ data?: { attributes?: { token_prices?: Record<string, string>; total_reserve_in_usd?: Record<string, string> } } }>(`https://api.geckoterminal.com/api/v2/simple/networks/solana/token_price/${batch.join(',')}?include_total_reserve_in_usd=true`);
+      const reserves = r.data?.attributes?.total_reserve_in_usd ?? {};
       for (const [mint, value] of Object.entries(r.data?.attributes?.token_prices ?? {})) {
-        const price = Number(value);
-        if (batch.includes(mint) && Number.isFinite(price) && price > 0) prices.set(mint, { price, source: 'GeckoTerminal', thin: false });
+        const reserve = Number(reserves[mint]);
+        // No reserve figure: no value, rather than a price nothing stands behind.
+        const priced = batch.includes(mint) && Number.isFinite(reserve) ? priceWithLiquidity(Number(value), reserve) : null;
+        if (priced) prices.set(mint, { ...priced, source: 'GeckoTerminal' });
       }
     }),
   );
@@ -524,7 +520,7 @@ export function initWalletApp(): void {
     if (!box || !bar || !legend) return;
     bar.textContent = '';
     legend.textContent = '';
-    const priced = (all ?? []).filter((h) => (h.value ?? 0) > 0);
+    const priced = (all ?? []).filter((h) => countsTowardTotal(h) && (h.value ?? 0) > 0);
     box.hidden = priced.length === 0 || sum <= 0;
     if (box.hidden) return;
     const shades = ['#ffffff', '#cfc7ff', '#a595ff', '#7a66f5'];
@@ -584,13 +580,14 @@ export function initWalletApp(): void {
       return;
     }
     const priced = all.filter((h) => h.value !== null);
-    const sum = priced.reduce((s, h) => s + (h.value ?? 0), 0);
+    // Thin prices are shown on their rows but not added (audit L-29): see countsTowardTotal.
+    const { sum, counted, thinLeftOut } = portfolioTotal(all);
     const { shown, hiddenUnpriced } = splitByPrice(all, isNativeMint, showUnpriced);
     // How many tokens the toggle governs: those with no price, other than the native coin.
     const unpricedCount = priced.length > 0 ? all.filter((h) => h.value === null && !isNativeMint(h.mint)).length : 0;
-    total.textContent = priced.length > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
+    total.textContent = counted > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
     renderAllocation(all, sum);
-    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced`;
+    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced${thinLeftOut > 0 ? `; ${thinLeftOut} with a thin price not counted in the total` : ''}`;
     if (all.length === 0) return;
 
     const mask = (t: string) => (amountsHidden ? '••••' : t);
@@ -600,7 +597,7 @@ export function initWalletApp(): void {
     );
     const tbody = el('tbody');
     for (const h of shown) {
-      const weight = h.value !== null && sum > 0 ? (h.value / sum) * 100 : null;
+      const weight = countsTowardTotal(h) && sum > 0 ? (h.value! / sum) * 100 : null;
       const bar = el('span', { class: 'wapp-bar' }, [el('span')]);
       (bar.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(100, weight ?? 0))}%`;
       const priceCell = el('td', { class: 'num' });
@@ -833,17 +830,23 @@ export function initWalletApp(): void {
     ];
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
     if (plan.recipientIsContract) card.append(banner('warn', 'This address is a smart contract, not a normal wallet. Funds sent to a contract that does not expect them can be lost. Send only if you know what it does.'));
+    // Shield's guard, as on Solana Send: is it an address you know, a copy-cat of one, or a first time.
+    const guard = plan.blockers.length === 0 ? sendRecipientGuard(req.to, shield.book().list(), evmAccount) : null;
+    if (guard) for (const f of guard.findings) card.append(banner(f.severity === 'bad' ? 'warn' : f.severity === 'ok' ? 'ok' : 'info', f.severity === 'ok' || f.severity === 'info' ? f.title : `${f.title} ${f.detail}`));
     for (const b of plan.blockers) card.append(banner('warn', b));
     const canGo = plan.blockers.length === 0 && plan.tx !== null;
     const ack = el('input', { attrs: { type: 'checkbox', id: 'send-ack' } });
     if (canGo && plan.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-ack' } }, [ack, el('span', { text: 'I know this address is a contract and I want to send to it anyway.' })]));
+    const guardAck = el('input', { attrs: { type: 'checkbox', id: 'send-guard-ack' } });
+    if (canGo && guard?.needsAck) card.append(el('label', { class: 'wapp__check', attrs: { for: 'send-guard-ack' } }, [guardAck, el('span', { text: 'I compared every character of this address with the one I meant to use, and it is the same.' })]));
     const status = el('div', { attrs: { 'aria-live': 'polite' } });
     const actions = el('div', { class: 'wapp__row-actions' });
     const confirm = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Confirm in my wallet', attrs: { type: 'button' } });
     const cancel = el('button', { class: 'wapp__btn wapp__btn--ghost', text: canGo ? 'Cancel' : 'Back', attrs: { type: 'button' } });
-    const sync = () => (confirm.disabled = !canGo || sendBusy || (plan.needsAck && !ack.checked));
+    const sync = () => (confirm.disabled = sendConfirmDisabled({ canGo, busy: sendBusy, needsAck: plan.needsAck, ack: ack.checked, guard, guardAck: guardAck.checked }));
     sync();
     ack.addEventListener('change', sync);
+    guardAck.addEventListener('change', sync);
     cancel.addEventListener('click', () => (out.textContent = ''));
     confirm.addEventListener('click', async () => {
       if (sendBusy) return;
@@ -852,7 +855,10 @@ export function initWalletApp(): void {
       status.textContent = '';
       status.append(banner('info', 'Waiting for your wallet to approve…'));
       try {
+        if (guard?.needsAck && !guardAck.checked) throw new Error('Compare the address and tick the box first.');
         const hash = await sendEvmTransfer(plan, await ensureEvmWallet());
+        // Remembered from now on, so a copy-cat of it can be caught next time.
+        shield.book().rememberSent(req.to);
         status.textContent = '';
         const link = el('a', { text: 'View transaction', attrs: { href: `${EVM_EXPLORER_TX[req.chain] ?? ''}${hash}`, target: '_blank', rel: 'noopener noreferrer' } });
         status.append(el('p', { class: 'wapp__banner wapp__banner--info' }, [document.createTextNode('Sent. Waiting for confirmation… '), link]));
@@ -912,7 +918,7 @@ export function initWalletApp(): void {
     return dl;
   }
 
-  function renderSendReview(plan: SendPlan, sim: Simulation | null, name: string | null, req: SendRequest, plannedAt: number): void {
+  function renderSendReview(plan: SendPlan, sim: Simulation | null, name: string | null, req: SendRequest, plannedAt: number, notice?: string): void {
     const { out } = sendEls();
     if (!out) return;
     out.textContent = '';
@@ -927,6 +933,7 @@ export function initWalletApp(): void {
     ];
     if (plan.createsDestAta) rows.push(['Opens recipient account', `about ${sol(plan.rentLamports)}, paid by you`]);
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
+    if (notice) card.append(banner('warn', notice));
 
     if (plan.mint === ACT_INFO.mint) {
       const received = Number(plan.amountText) * (1 - ACT_INFO.transferFee.totalPercent / 100);
@@ -972,6 +979,10 @@ export function initWalletApp(): void {
           active = await planSend(req);
           const again = active.blockers.length === 0 ? await simulatePlan(active) : null;
           if (active.blockers.length > 0 || !again?.ok) return void renderSendReview(active, again, name, req, Date.now());
+          // Never sign something other than what was reviewed: if the rebuild differs (for example it now opens the recipient's
+          // token account, with rent), show the new review instead.
+          const changed = sendPlanChanged(plan, active);
+          if (changed.length > 0) return void renderSendReview(active, again, name, req, Date.now(), `The transfer changed since you reviewed it: ${changed.join('; ')}. Check it again, then confirm.`);
         }
         const signature = await signAndSubmit(active);
         // Remembered from now on, so a copy-cat of it can be caught next time.

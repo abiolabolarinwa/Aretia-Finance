@@ -213,7 +213,9 @@ describe('recovery from an interruption', () => {
     await expect(b.orch.start(stuck.id)).rejects.toThrow(/cannot continue by itself/);
     const fixed = await b.orch.resolveAttention(stuck.id, { stepId: 'approve', sent: false });
     expect(fixed.needsAttention).toBeNull();
-    expect((await b.orch.start(stuck.id)).state).toBe('SETTLEMENT_PENDING');
+    // The reloaded page never signs the saved quote: it is retired, and the move is quoted again.
+    expect((await b.orch.start(stuck.id)).state).toBe('EXPIRED');
+    expect(b.gateway.sent).toEqual([]);
   });
 
   it('an unclear failure while sending (not a plain refusal) is never retried: the step is flagged, not reset', async () => {

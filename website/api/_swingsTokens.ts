@@ -6,6 +6,7 @@
  * The browser never sees database credentials: SUPABASE_SERVICE_ROLE_KEY lives in the server
  * environment. Without SUPABASE_URL and the key both endpoints answer 503 "not configured".
  */
+import { bearerMatches } from './_secrets.js';
 import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit, PUBLIC_FALLBACK_RPC, type ProxyEnv } from './_rpcProxy.js';
 import { CHAIN_IDS, isChainId, type ChainId } from '../src/swings/core/types.js';
@@ -21,6 +22,7 @@ import { publicRead } from '../src/swings/chains/evmSession.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from '../src/swings/tokens/enrich.js';
 import { fetchPoolMarkets, refreshSnapshots, type RefreshResult } from '../src/swings/market/snapshot.js';
 import { checkLock } from '../src/swings/market/lock.js';
+import { hasAdminPowerWarning } from '../src/swings/tokens/risk.js';
 import { SupabaseTickStore, type TickInput } from '../src/swings/market/tickStore.js';
 import type { RiskStatus, TokenMarket } from '../src/swings/core/types.js';
 
@@ -110,11 +112,13 @@ export async function handleTokens(input: TokensInput): Promise<TokensOutput> {
   const service = new TokenRegistryService(repo, () => input.now);
   try {
     if (input.query.q !== undefined) return json(200, { results: await service.search(input.query.q, 20) }, headers);
-    // The ratings of tokens already on a screen: only what a table needs (rating and burned-liquidity share), by address.
+    // The ratings of tokens already on a screen: only what a table needs (rating, whether the issuer still holds admin
+    // powers, and burned-liquidity share), by address. Without adminPowers a registry row would draw a token whose issuer
+    // can still mint or freeze in green.
     if (input.query.addresses !== undefined) {
       const wanted = [...new Set(input.query.addresses.split(',').map((a) => a.trim()).filter((a) => /^[A-Za-z0-9]{20,100}$/.test(a)))].slice(0, 80);
       const records = await repo.findByAddresses([...wanted, ...wanted.map((a) => a.toLowerCase())]);
-      return json(200, { ratings: records.map((r) => ({ chain: r.ref.chain, address: r.ref.address, status: r.risk?.status ?? null, score: r.risk?.score ?? null, lockedPct: r.market?.lock && r.market.lock.pct >= 50 ? r.market.lock.pct : null })) }, headers);
+      return json(200, { ratings: records.map((r) => ({ chain: r.ref.chain, address: r.ref.address, status: r.risk?.status ?? null, score: r.risk?.score ?? null, adminPowers: hasAdminPowerWarning(r.risk), lockedPct: r.market?.lock && r.market.lock.pct >= 50 ? r.market.lock.pct : null })) }, headers);
     }
     return json(200, { tokens: await service.listNew(parseFilter(input.query)) }, headers);
   } catch (e) {
@@ -152,7 +156,7 @@ export async function handleDiscover(input: TokensInput): Promise<TokensOutput> 
   const headers = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
   // Constant behaviour for a missing secret: nothing runs unless one is configured and presented.
-  if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  if (!bearerMatches(input.authorization, secret)) return json(401, { error: 'unauthorized' }, headers);
   // `?chain=base` looks at one network only, so each network can be run on its own and a slow one cannot hold up the rest.
   const only = input.query.chain ? (isChainId(input.query.chain) ? input.query.chain : null) : undefined;
   if (only === null) return json(400, { error: 'chain' }, headers);

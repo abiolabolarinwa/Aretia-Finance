@@ -27,9 +27,11 @@ pub const MAX_SNIPER_BPS: u16 = 2_500;
 pub const MAX_DECAY_SECS: u32 = 3_600;
 /// Smallest token deposit a pool may be created with, in raw units.
 pub const MIN_TOKENS: u64 = 1_000;
-/// Smallest liquidity a pool may be created with: 0.01 SOL of virtual reserve.
+/// Smallest liquidity a pool may be created with: 0.01 SOL of virtual reserve. It is also the floor that always stays in the
+/// pool: removing can never take `l` below it, so a pool can never be emptied into a dead account that cannot be used or
+/// re-created for its mint (L-23; the EVM pool keeps the same rule with its own `MIN_L`).
 pub const MIN_LIQUIDITY: u64 = 10_000_000;
-/// Smallest liquidity change by adding or removing (removing everything that is left is always allowed).
+/// Smallest liquidity change by adding or removing. A remover may always take all of their own unlocked shares, however few.
 pub const MIN_LIQUIDITY_DELTA: u64 = 1_000;
 /// Every amount going into a pool is held below this, so sums of reserves cannot overflow and `X * Y` fits u128.
 pub const MAX_AMOUNT: u64 = 1 << 62;
@@ -79,6 +81,12 @@ pub fn effective_fee_bps(base_bps: u16, start_bps: u16, decay_secs: u32, start_t
     let left = decay_secs as u64 - elapsed;
     let extra = ceil_div((start_bps - base_bps) as u128 * left as u128, decay_secs as u128) as u16;
     base_bps + extra
+}
+
+/// True when liquidity may be added at `now`: only once the launch fee is back at the base fee. While the creator's launch
+/// schedule is above the base, `add` is refused, so nobody can add just in time to take the launch fee and leave (L-22).
+pub fn adding_open(base_bps: u16, start_bps: u16, decay_secs: u32, start_ts: i64, now: i64) -> bool {
+    effective_fee_bps(base_bps, start_bps, decay_secs, start_ts, now) == base_bps
 }
 
 /// True when a launch-protection schedule is inside what the program allows. `(0, 0)` means no schedule.
@@ -249,10 +257,11 @@ pub struct Remove {
     pub sol_out: u64,
 }
 
-/// Removes `dl` of liquidity. The provider receives both sides rounded down. Anything smaller than
-/// `MIN_LIQUIDITY_DELTA` is refused unless it is everything that is left.
-pub fn remove(p: &Pool, dl: u64) -> Option<(Remove, Pool)> {
-    if p.l == 0 || dl == 0 || dl > p.l || (dl < MIN_LIQUIDITY_DELTA && dl != p.l) {
+/// Removes `dl` of liquidity. The provider receives both sides rounded down. The pool always keeps at least
+/// `MIN_LIQUIDITY`, so `l` never reaches zero. Anything smaller than `MIN_LIQUIDITY_DELTA` is refused unless it is all of
+/// `available`, the remover's whole unlocked balance (so a position left with a few shares can still take them out).
+pub fn remove(p: &Pool, dl: u64, available: u64) -> Option<(Remove, Pool)> {
+    if dl == 0 || dl > p.l || p.l - dl < MIN_LIQUIDITY || (dl < MIN_LIQUIDITY_DELTA && dl != available) {
         return None;
     }
     let dx = p.x as u128 * dl as u128 / p.l as u128;

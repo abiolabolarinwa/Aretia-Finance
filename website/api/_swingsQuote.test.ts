@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { handleQuote, type QuoteInput } from './_swingsQuote';
+import { handleQuote, publicTransaction, type QuoteInput } from './_swingsQuote';
 import { resetRateLimit } from './_rpcProxy';
 
 const SOL = 'So11111111111111111111111111111111111111112';
@@ -58,5 +58,17 @@ describe('public quote API', () => {
     for (let i = 0; i < 125; i++) last = (await handleQuote(input())).status;
     expect(last).toBe(429);
     expect((await handleQuote(input({ ip: '9.9.9.9' }))).status).not.toBe(429);
+  });
+});
+
+describe('I-20: the public EVM transaction carries every step', () => {
+  it('includes the Permit2 approval of a Uniswap V4 route, between the token approval and the swap', () => {
+    const approval = { tx: { from: '0x1', to: '0x2', data: '0x095ea7b3' } };
+    const permit2 = { tx: { from: '0x1', to: '0x000000000022d473030f116ddee9f6b43ac78ba3', data: '0x87517c45' } };
+    const swap = { from: '0x1', to: '0x3', data: '0x' };
+    const out = publicTransaction('evm', { chainId: 8453, taker: '0x1', approval, permit2, swap });
+    expect(Object.keys(out)).toEqual(['chainId', 'approval', 'permit2', 'swap']);
+    expect(out.permit2).toEqual(permit2);
+    expect(publicTransaction('evm', { chainId: 1, approval: null, swap }).permit2).toBeNull();
   });
 });

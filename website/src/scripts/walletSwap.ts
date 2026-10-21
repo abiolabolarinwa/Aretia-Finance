@@ -1,11 +1,13 @@
 /**
  * Swaps for the web wallet, using Jupiter's Swap API behind our own screen.
  *
- * Jupiter quotes the route and supplies the swap instructions; this page adds Aretia's 1% fee as one
+ * Jupiter quotes the route and supplies the swap instructions; this page adds Aretia's fee as one
  * extra transfer and assembles the transaction itself. Because the swap instructions come from a third
- * party, nothing is signed on trust: the page decodes it, checks the fee payer, simulates it on our
- * RPC with the wallet's own balances watched, and judges the swap by what it would do to those
- * balances (see judgeSwapSimulation). Only then does it ask the connected wallet to sign, checks the
+ * party, nothing is signed on trust: every instruction must be on an allow-list of programs and
+ * instruction kinds (see vetSwapInstructions), the page checks the fee payer, simulates it on our RPC
+ * with every account of the wallet's that the transaction can write to watched, and judges the swap by
+ * what it would do to those balances and their authorities (see judgeSwapSimulation). Only then does it
+ * ask the connected wallet to sign, checks the
  * wallet returned the same transaction, and submits it through the RPC proxy. Keys never leave the
  * wallet.
  *
@@ -27,8 +29,14 @@ import {
   SWAP_FEE_WALLET,
   SWAP_SOL_OVERHEAD_LAMPORTS,
   TOKEN_2022_PROGRAM_ID,
+  SYSTEM_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  tokenAccountOwnedBy,
+  tokenControlChange,
   transferCheckedInstruction,
+  vetSwapInstructions,
+  isWsolAccount,
+  type PlainInstruction,
   type SwapSimulation,
   type SwapVerdict,
 } from './walletTools';
@@ -39,7 +47,7 @@ export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const MAX_PRIORITY_LAMPORTS = 500_000;
 /** Longest a quote may be reused when building a swap. */
 const QUOTE_MAX_AGE_MS = 8_000;
-/** Accounts watched in one simulation. */
+/** Accounts watched in one simulation (the RPC's limit for one read). A swap that writes to more is refused. */
 const MAX_WATCHED = 100;
 
 export interface TokenInfo {
@@ -208,6 +216,8 @@ function toBase64(bytes: Uint8Array): string {
 
 interface SimAccount {
   lamports: number;
+  /** The program that owns the account. */
+  owner?: string;
   data: [string, string];
 }
 
@@ -267,6 +277,15 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     }
   }
 
+  // Every instruction Jupiter sent must be on the allow-list, before anything is simulated or shown for signing.
+  const plain = (i: JupInstruction): PlainInstruction => ({ programId: i.programId, accounts: i.accounts, data: bytesFromBase64(i.data) });
+  const jupiterInstructions = [
+    ...[...(built.computeBudgetInstructions ?? []), ...(built.setupInstructions ?? [])].map((i) => ({ role: 'support' as const, ix: plain(i) })),
+    { role: 'swap' as const, ix: plain(built.swapInstruction) },
+    ...[...(built.cleanupInstruction ? [built.cleanupInstruction] : []), ...(built.otherInstructions ?? [])].map((i) => ({ role: 'support' as const, ix: plain(i) })),
+  ];
+  blockers.push(...vetSwapInstructions(jupiterInstructions, { user: args.user, wsolAccount: ataAddress(web3, args.user, SOL_MINT, TOKEN_PROGRAM_ID), maxPriorityLamports: MAX_PRIORITY_LAMPORTS }));
+
   // Assemble the transaction: Jupiter's setup, then the fee, then the swap and clean-up.
   const toInstruction = (i: JupInstruction): Web3.TransactionInstruction =>
     new web3.TransactionInstruction({
@@ -301,9 +320,14 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   }
   if (transaction.message.header.numRequiredSignatures !== 1) blockers.push('The swap transaction asks for a signature from someone other than your wallet. It was blocked.');
 
-  const others = args.heldOthers.filter((h) => h.mint !== SOL_MINT && h.mint !== args.from.mint && h.mint !== args.to.mint).slice(0, Math.floor((MAX_WATCHED - 3) / 2));
-  const otherAddrs = others.map((h) => [ataAddress(web3, args.user, h.mint, TOKEN_PROGRAM_ID), ataAddress(web3, args.user, h.mint, TOKEN_2022_PROGRAM_ID)] as const);
-  const addresses = [args.user, ...(inAta ? [inAta] : []), ...(outAta ? [outAta] : []), ...otherAddrs.flat()];
+  // Watched: the wallet, the two token accounts of the swap, and every other account the transaction can write to (an account
+  // it cannot write to cannot change). Those that turn out to be token accounts of this wallet are held to "nothing lost, no
+  // new authority", whatever their address; the rest (pools, vaults, Aretia's fee account) are not the wallet's.
+  const writable = [...new Set(instructions.flatMap((i) => i.keys.filter((k) => k.isWritable).map((k) => k.pubkey.toBase58())))];
+  const swapAccounts = [args.user, ...(inAta ? [inAta] : []), ...(outAta ? [outAta] : [])];
+  const extra = writable.filter((a) => !swapAccounts.includes(a));
+  if (swapAccounts.length + extra.length > MAX_WATCHED) blockers.push('This route touches more accounts than Aretia can check in one simulation. It was blocked; try a smaller amount or a different pair.');
+  const addresses = [...swapAccounts, ...extra].slice(0, MAX_WATCHED);
 
   const wire = toBase64(transaction.serialize());
   const [pre, simResult] = await Promise.all([
@@ -315,11 +339,30 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
   ]);
   const post = simResult.value.accounts ?? [];
 
+  const dataOf = (a: SimAccount | null | undefined): Uint8Array | null => (a ? bytesFromBase64(a.data[0]) : null);
   const tokenAmount = (a: SimAccount | null | undefined): bigint | null => (a ? (parseTokenAccount(bytesFromBase64(a.data[0]))?.amount ?? 0n) : null);
-  let idx = 1;
-  const inIdx = inAta ? idx++ : -1;
-  const outIdx = outAta ? idx++ : -1;
-  const sumOther = (list: (SimAccount | null | undefined)[], i: number): bigint => (tokenAmount(list[i]) ?? 0n) + (tokenAmount(list[i + 1]) ?? 0n);
+  const isUserToken = (a: SimAccount | null | undefined): boolean => !!a && (a.owner === TOKEN_PROGRAM_ID || a.owner === TOKEN_2022_PROGRAM_ID) && tokenAccountOwnedBy(dataOf(a)!, args.user);
+  const inIdx = inAta ? 1 : -1;
+  const outIdx = outAta ? swapAccounts.length - 1 : -1;
+  const ran = simResult.value.err === null;
+  const symbolOf = (data: Uint8Array): string => {
+    const mint = new web3.PublicKey(data.subarray(0, 32)).toBase58();
+    return args.heldOthers.find((h) => h.mint === mint)?.symbol ?? `the token ${mint.slice(0, 4)}…${mint.slice(-4)}`;
+  };
+  const others: SwapSimulation['others'] = [];
+  addresses.forEach((_, n) => {
+    const before = pre.value[n];
+    if (n === 0 || !isUserToken(before)) return;
+    // No account of the wallet may get a new owner, delegate or close authority, whatever its balance does.
+    const changed = ran ? tokenControlChange(dataOf(before)!, dataOf(post[n])) : null;
+    if (changed) blockers.push(`The simulation shows this swap changing ${changed} for one of your token accounts. It was blocked.`);
+    // The two accounts of the swap are judged below; a wSOL account that is closed has paid its SOL back into the wallet.
+    if (n === inIdx || n === outIdx || (isWsolAccount(dataOf(before)!) && !post[n])) return;
+    others.push({ symbol: symbolOf(dataOf(before)!), pre: tokenAmount(before) ?? 0n, post: tokenAmount(post[n]) ?? 0n });
+  });
+  // A wallet reassigned to another program keeps its balance but is no longer the person's to spend.
+  if (ran && post[0]?.owner !== undefined && post[0].owner !== SYSTEM_PROGRAM_ID) blockers.push('The simulation shows this swap handing your wallet account to another program. It was blocked.');
+
   const rawFailure = simResult.value.err === null ? null : ((simResult.value.logs ?? []).filter((l) => /failed|error|insufficient|slippage/i.test(l)).pop() ?? JSON.stringify(simResult.value.err));
   // Jupiter's custom error 0x1771 is its slippage check: the price moved past the allowance.
   const failure = rawFailure !== null && /0x1771\b/i.test(rawFailure) ? 'the price moved more than your slippage setting allows. Review again for a fresh price, or raise the slippage.' : rawFailure;
@@ -330,7 +373,7 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     inPost: inIdx >= 0 ? (tokenAmount(post[inIdx]) ?? 0n) : null,
     outPre: outIdx >= 0 ? (tokenAmount(pre.value[outIdx]) ?? 0n) : null,
     outPost: outIdx >= 0 ? tokenAmount(post[outIdx]) : null,
-    others: others.map((h, n) => ({ symbol: h.symbol, pre: sumOther(pre.value, idx + n * 2), post: sumOther(post, idx + n * 2) })),
+    others,
     error: failure,
   };
   const verdict = judgeSwapSimulation({

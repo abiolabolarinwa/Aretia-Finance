@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetRateLimit } from './_rpcProxy.js';
-import { handlePools, resetPoolCache } from './_swingsPools.js';
+import { handlePools, resetPoolCache, SCANS_PER_MINUTE } from './_swingsPools.js';
+import { resetBudgets } from './_limits.js';
 import { scanQueries } from '../src/swings/solana/poolScan.js';
 import { aretiaPoolHints } from '../src/swings/solana/poolHints.js';
 
@@ -13,6 +14,7 @@ describe('pools found from the chain', () => {
   beforeEach(() => {
     resetRateLimit();
     resetPoolCache();
+    resetBudgets();
   });
 
   it('asks seven questions per token, with the mint at the right place of each pool layout', () => {
@@ -26,7 +28,8 @@ describe('pools found from the chain', () => {
     let calls = 0;
     const f = (async (_u: string, init?: RequestInit) => {
       calls++;
-      const m = JSON.parse(String(init?.body)) as { params: [string] };
+      const m = JSON.parse(String(init?.body)) as { method: string; params: [string] };
+      if (m.method === 'getAccountInfo') return new Response(JSON.stringify({ result: { value: { owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', space: 82 } } }));
       return new Response(JSON.stringify({ result: m.params[0] === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8' ? [{ pubkey: POOL }] : [] }));
     }) as unknown as typeof fetch;
     const a = await handlePools(base({ mint: MINT }, f));
@@ -56,5 +59,39 @@ describe('pools found from the chain', () => {
     expect(urls).toEqual([`/api/swings-pools?mint=${MINT}`]);
     const empty = (async (u: string) => (u.startsWith('/api/') ? new Response(JSON.stringify({ pools: [] })) : new Response(JSON.stringify([{ pairAddress: POOL }])))) as unknown as typeof fetch;
     expect(await aretiaPoolHints(empty)(MINT)).toEqual([POOL]);
+  });
+
+  it('L-27: a made-up mint costs one account read and no program-wide scan', async () => {
+    const methods: string[] = [];
+    const f = (async (_u: string, init?: RequestInit) => {
+      const m = JSON.parse(String(init?.body)) as { method: string };
+      methods.push(m.method);
+      return new Response(JSON.stringify({ result: m.method === 'getAccountInfo' ? { value: null } : [] }));
+    }) as unknown as typeof fetch;
+    expect(JSON.parse((await handlePools(base({ mint: MINT }, f))).body)).toEqual({ pools: [] });
+    await handlePools(base({ mint: MINT }, f));
+    expect(methods).toEqual(['getAccountInfo']);
+    // an account that is not a token mint (owned by the system program) is the same
+    const g = (async (_u: string, init?: RequestInit) => {
+      const m = JSON.parse(String(init?.body)) as { method: string };
+      methods.push(m.method);
+      return new Response(JSON.stringify({ result: m.method === 'getAccountInfo' ? { value: { owner: '11111111111111111111111111111111' } } : [] }));
+    }) as unknown as typeof fetch;
+    await handlePools(base({ mint: POOL }, g));
+    expect(methods.filter((x) => x === 'getProgramAccounts')).toHaveLength(0);
+  });
+
+  it('L-27: scans share a global per-minute budget, and the provider error text is never returned', async () => {
+    const f = (async (_u: string, init?: RequestInit) => {
+      const m = JSON.parse(String(init?.body)) as { method: string };
+      if (m.method === 'getAccountInfo') return new Response(JSON.stringify({ result: { value: { owner: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' } } }));
+      return new Response(JSON.stringify({ error: { message: 'plan limit for key abc123 at provider.internal' } }));
+    }) as unknown as typeof fetch;
+    const first = await handlePools(base({ mint: MINT }, f, { env: { SOLANA_RPC_URL: 'https://keyed.example' } }));
+    expect(first.body).not.toContain('abc123');
+    expect(first.body).not.toContain('keyedReason');
+    const statuses: number[] = [];
+    for (let i = 0; i < SCANS_PER_MINUTE + 2; i++) statuses.push((await handlePools(base({ mint: MINT }, f, { ip: `7.7.7.${i}` }))).status);
+    expect(statuses.at(-1)).toBe(429);
   });
 });

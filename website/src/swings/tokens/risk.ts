@@ -8,6 +8,7 @@
  *  - The result is a risk classification, never a safety claim: there is no "safe" status.
  */
 import type { RiskSignal, RiskStatus, TokenRisk } from '../core/types.js';
+import { extensionLabel, judgeExtensions, type ExtensionDetails } from './token2022.js';
 
 /** Facts about a Solana mint. `undefined`/`null` means "could not be determined". */
 export interface SolanaRiskFacts {
@@ -15,6 +16,10 @@ export interface SolanaRiskFacts {
   freezeAuthoritySet?: boolean | null;
   /** Token-2022 mint with extensions (for example a transfer fee or hook). */
   hasExtensions?: boolean | null;
+  /** The extension types themselves. When known, they are judged one by one (see tokens/token2022.ts) instead of `hasExtensions`. */
+  extensionTypes?: readonly number[] | null;
+  /** The authorities read from inside the extensions (tokens/token2022.ts `readExtensionDetails`), so a power given up is not held against the token. */
+  extensionDetails?: ExtensionDetails | null;
   /** Share of supply held by the 10 largest accounts, 0..100. Pool vaults are not excluded, so this can overstate. */
   top10Pct?: number | null;
   /** 'wallets' when program-controlled accounts (pools, vaults) were excluded; otherwise 'all'. */
@@ -107,7 +112,12 @@ class Builder {
     const total = this.signals.reduce((sum, s) => sum + s.weight, 0);
     const score = evaluated >= MIN_SIGNALS_FOR_SCORE ? Math.min(100, total) : null;
     const noBad = !this.signals.some((s) => s.state === 'bad');
-    return { score, status: classify(score, this.restricted, options.verified === true, ageHours, established && noBad), signals: this.signals, unavailable: this.unavailable, assessedAt: options.now ?? Date.now() };
+    // "Established" is a track record: a low score apart from the issuer's own powers, and no red flag. A large issued token
+    // (USDC, USDT) keeps that track record while its issuer can still freeze or upgrade it; the rating view draws that case
+    // yellow, never green (see hasAdminPowerWarning), so admin powers are never hidden behind a green badge.
+    const otherScore = this.signals.filter((s) => !ADMIN_POWER_SIGNALS.has(s.id)).reduce((sum, s) => sum + s.weight, 0);
+    const low = score !== null && otherScore < ESTABLISHED.maxScore;
+    return { score, status: classify(score, this.restricted, options.verified === true, ageHours, established && noBad && low), signals: this.signals, unavailable: this.unavailable, assessedAt: options.now ?? Date.now() };
   }
 }
 
@@ -116,7 +126,14 @@ class Builder {
  * serious red flag. It is a description of track record, not an endorsement and not a claim of safety: the
  * score and every signal stay visible, including admin powers such as minting, blacklisting or upgrading.
  */
-export const ESTABLISHED = { minAgeHours: 24 * 365, minLiquidityUsd: 5_000_000, minVolume24hUsd: 500_000 } as const;
+export const ESTABLISHED = { minAgeHours: 24 * 365, minLiquidityUsd: 5_000_000, minVolume24hUsd: 500_000, maxScore: 15 } as const;
+
+/** Signals that describe a power someone holds over the token or its holders (minting, freezing, pausing, upgrading, and the like). */
+export const ADMIN_POWER_SIGNALS: ReadonlySet<string> = new Set(['mint-authority', 'freeze-authority', 'extensions', 'owner', 'proxy', 'mint', 'blacklist', 'pause', 'restrictions']);
+
+/** Whether an assessment found an admin power still held. */
+export const hasAdminPowerWarning = (risk: Pick<TokenRisk, 'signals'> | null | undefined): boolean => !!risk && risk.signals.some((s) => ADMIN_POWER_SIGNALS.has(s.id) && (s.state === 'warn' || s.state === 'bad'));
+
 const isEstablished = (f: { ageHours?: number | null; liquidityUsd?: number | null; volume24hUsd?: number | null }): boolean =>
   (f.ageHours ?? 0) >= ESTABLISHED.minAgeHours && (f.liquidityUsd ?? 0) >= ESTABLISHED.minLiquidityUsd && (f.volume24hUsd ?? 0) >= ESTABLISHED.minVolume24hUsd;
 
@@ -134,7 +151,16 @@ export function assessSolanaToken(f: SolanaRiskFacts, options: RiskOptions = {})
   const b = new Builder();
   b.flag('mint-authority', 'Mint authority', f.mintAuthoritySet, 'Mint authority is revoked: no new tokens can be created.', 'Mint authority is still set: more tokens can be created at any time.', 25);
   b.flag('freeze-authority', 'Freeze authority', f.freezeAuthoritySet, 'No freeze authority.', 'A freeze authority is set: holder accounts can be frozen.', 20);
-  b.flag('extensions', 'Token-2022 extensions', f.hasExtensions, 'No Token-2022 extensions.', 'Token-2022 extensions are present (for example a transfer fee or hook). Read what they do before trading.', 5);
+  if (f.extensionTypes !== undefined && f.extensionTypes !== null) {
+    const verdicts = judgeExtensions(f.extensionTypes, f.extensionDetails ?? {});
+    const bad = verdicts.filter((v) => v.class === 'bad');
+    const warn = verdicts.filter((v) => v.class === 'warn');
+    const say = (vs: typeof verdicts): string => vs.map((v) => `${extensionLabel(v.type)}${v.meaning ? `: ${v.meaning}` : ''}`).join('; ');
+    if (verdicts.some((v) => v.trap)) b.restricted = true;
+    if (bad.length > 0) b.add('extensions', 'Token-2022 extensions', 'bad', `Dangerous extensions: ${say(bad)}.${warn.length ? ` Also: ${say(warn)}.` : ''}`, 40);
+    else if (warn.length > 0) b.add('extensions', 'Token-2022 extensions', 'warn', `Check before you trade: ${say(warn)}.`, 10);
+    else b.add('extensions', 'Token-2022 extensions', 'ok', f.extensionTypes.length > 0 ? 'Only name and metadata extensions, or extensions whose powers are given up.' : 'No Token-2022 extensions.');
+  } else b.flag('extensions', 'Token-2022 extensions', f.hasExtensions, 'No Token-2022 extensions.', 'Token-2022 extensions are present (for example a transfer fee or hook). Read what they do before trading.', 5);
   b.concentration(f.top10Pct, f.top10Basis);
   b.liquidity(f.liquidityUsd, f.poolCount);
   b.activity(f.volume24hUsd);
@@ -189,7 +215,8 @@ export function assessMarketData(f: MarketRiskFacts, options: RiskOptions = {}):
   b.liquidity(f.liquidityUsd, f.poolCount);
   b.activity(f.volume24hUsd);
   b.age(f.ageHours);
-  return b.result(options, f.ageHours, isEstablished(f));
+  // Market data cannot see what the contract can do, so it never earns the green "Established" on its own.
+  return b.result(options, f.ageHours, false);
 }
 
 /** Plain-language label for the UI. Deliberately has no 'safe' wording. */

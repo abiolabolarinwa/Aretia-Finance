@@ -132,12 +132,12 @@ describe('quotes', () => {
 describe('transactions', () => {
   it('builds an approval for exactly the amount and a burn to the stated recipient, nothing more', async () => {
     const { p } = provider('standard');
-    const q = await p.getQuote(intent());
+    const q = await p.getQuote(intent({ sourceAmount: 100_000_000n }));
     const txs = await p.buildSettlement(q);
     expect(txs.map((t) => t.stepId)).toEqual(['approve', 'burn']);
     const approve = txs[0]!.unsigned as { tx: { to: string; data: string } };
     expect(approve.tx.to).toBe(CCTP_USDC.ethereum);
-    expect(approve.tx.data).toBe(encodeFunction('approve(address,uint256)', [CCTP_CONTRACTS.tokenMessenger, 1_000_000_000n]));
+    expect(approve.tx.data).toBe(encodeFunction('approve(address,uint256)', [CCTP_CONTRACTS.tokenMessenger, 100_000_000n]));
     const burn = txs[1]!.unsigned as { tx: { to: string; data: string; from: string } };
     expect(burn.tx.to).toBe(CCTP_CONTRACTS.tokenMessenger);
     expect(burn.tx.from).toBe(SENDER);

@@ -27,7 +27,7 @@ export const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget1111111111111111111111111111
 export const SOLANA_CCTP_PROGRAMS: readonly string[] = [TOKEN_MESSENGER_MINTER_V2, MESSAGE_TRANSMITTER_V2, TOKEN_PROGRAM_ID, SYSTEM_PROGRAM, ATA_PROGRAM, COMPUTE_BUDGET_PROGRAM];
 
 /** Anchor instruction discriminators: the first 8 bytes of sha256("global:<name>"), from the program source's names. */
-const DISC_DEPOSIT_FOR_BURN = Uint8Array.from([0xd7, 0x3c, 0x3d, 0x2e, 0x72, 0x37, 0x80, 0xb0]);
+export const DISC_DEPOSIT_FOR_BURN = Uint8Array.from([0xd7, 0x3c, 0x3d, 0x2e, 0x72, 0x37, 0x80, 0xb0]);
 const DISC_RECEIVE_MESSAGE = Uint8Array.from([0x26, 0x90, 0x7f, 0xe1, 0x1f, 0xe1, 0xee, 0x19]);
 
 // Message layout (CCTP V2): version(4) sourceDomain(4) destinationDomain(4) nonce(32) sender(32) recipient(32)

@@ -6,6 +6,7 @@ import { SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { CHAINS } from '../swings/core/types.js';
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { lookupAddress } from './walletAddressLookup.js';
+import { imitationChip } from '../lib/imitationChip';
 
 export const OPEN_TOKEN_EVENT = 'aretia:open-token';
 
@@ -88,7 +89,7 @@ export function mountTokenSearch(): void {
       const btn = el('button', { class: 'wapp-search__item', attrs: { type: 'button', tabindex: '-1' } });
       btn.append(
         logoFor(h),
-        el('span', { class: 'wapp-search__text' }, [el('strong', { text: h.symbol }), el('small', { text: `${h.name || 'No name'} · ${CHAINS[h.chain].name} · ${short(h.address)}` })]),
+        el('span', { class: 'wapp-search__text' }, [el('strong', { text: h.symbol }, [imitationChip(h.chain, h.address, h.symbol, h.name)]), el('small', { text: `${h.name || 'No name'} · ${CHAINS[h.chain].name} · ${short(h.address)}` })]),
         el('span', { class: 'wapp-search__side' }, [h.fresh ? el('span', { class: 'wapp-search__new', text: 'New' }) : null, h.liquidityUsd !== null ? el('small', { text: `liq ${usd(h.liquidityUsd)}` }) : null]),
       );
       btn.addEventListener('mousedown', (e) => e.preventDefault());

@@ -17,7 +17,7 @@ export interface RuntimeConfig {
   /** The server can keep an optional recovery copy of executions. */
   recordsConfigured?: boolean;
   analytics: boolean;
-  /** Whether the non-core aggregator providers (Jupiter, 0x) may take part. The operator can switch them off. */
+  /** Whether the non-core aggregator providers (Jupiter, 0x) may take part: only when the server says so, never by default. */
   aggregators: boolean;
   /**
    * Staged rollout: SHA-256 hashes of the wallet addresses allowed to review and sign swaps, or null for everyone.
@@ -29,18 +29,18 @@ export interface RuntimeConfig {
   loaded: boolean;
 }
 
-export const runtime: RuntimeConfig = { evmConfigured: false, evmChains: [], tokensConfigured: false, analytics: false, aggregators: true, canary: null, protectedSubmit: false, loaded: false };
+export const runtime: RuntimeConfig = { evmConfigured: false, evmChains: [], tokensConfigured: false, analytics: false, aggregators: false, canary: null, protectedSubmit: false, loaded: false };
 
 /** Pure reading of a status response: anything unexpected leaves the safe default (all off). */
 export function parseStatus(body: unknown): Omit<RuntimeConfig, 'loaded'> {
-  const off = { evmConfigured: false, evmChains: [] as ChainId[], tokensConfigured: false, analytics: false, aggregators: true, canary: null as string[] | null, protectedSubmit: false };
+  const off = { evmConfigured: false, evmChains: [] as ChainId[], tokensConfigured: false, analytics: false, aggregators: false, canary: null as string[] | null, protectedSubmit: false };
   if (typeof body !== 'object' || body === null) return off;
   const b = body as Record<string, unknown>;
   const evm = typeof b.evm === 'object' && b.evm !== null ? (b.evm as Record<string, unknown>) : {};
   const configured = evm.configured === true;
   const chains = Array.isArray(evm.chains) ? evm.chains.filter((c): c is ChainId => isChainId(c) && CHAINS[c].kind === 'evm') : [];
   const canary = Array.isArray(b.canary) ? b.canary.filter((h): h is string => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h)) : null;
-  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, recordsConfigured: b.records === true, analytics: b.analytics === true, aggregators: b.aggregators !== false, canary, protectedSubmit: b.protectedSubmit === true };
+  return { evmConfigured: configured, evmChains: chains, tokensConfigured: b.tokens === true, recordsConfigured: b.records === true, analytics: b.analytics === true, aggregators: b.aggregators === true, canary, protectedSubmit: b.protectedSubmit === true };
 }
 
 export async function loadRuntime(fetchImpl: typeof fetch = fetch): Promise<void> {

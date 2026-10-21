@@ -8,7 +8,7 @@ import { browserStorage } from '../swings/history.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, isChainId, type ChainId } from '../swings/core/types.js';
 import { HUB_TOKENS } from '../swings/dex/hubs.js';
 import { KNOWN_TOKENS } from './walletTools.js';
-import { REFERRAL_CONFIG, captureFromSearch, readStoredRef, referralLink, referrerPercentOfVolume, type KeyValue } from '../swings/referrals/core.js';
+import { REFERRAL_CONFIG, captureFromSearch, dropCapture, readStoredRef, referralLink, referrerPercentOfVolume, storeCapture, type KeyValue } from '../swings/referrals/core.js';
 import { takeFeeTxs } from '../swings/referrals/feeTxLog.js';
 
 const QUEUE_KEY = 'aretia-referral-queue-v1';
@@ -25,10 +25,32 @@ export function registerReferralSigner(fn: () => Signer | null): void {
   signerNow = fn;
 }
 
+/**
+ * Asks the server to sign the time of this link visit, once per stored referrer. A referral binds only from that signed time, so
+ * swaps made before the visit never earn anything.
+ */
+async function ensureCapture(): Promise<string | undefined> {
+  const store = browserStorage() as KeyValue | null;
+  const stored = readStoredRef(store, Date.now());
+  if (!stored) return undefined;
+  if (stored.capture) return stored.capture;
+  try {
+    const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'capture', ref: stored.ref }) });
+    const body = (await res.json().catch(() => null)) as { capture?: string } | null;
+    if (res.ok && typeof body?.capture === 'string') {
+      storeCapture(store, Date.now(), stored.ref, body.capture);
+      return body.capture;
+    }
+  } catch {
+    // tried again on the next page or report
+  }
+  return undefined;
+}
+
 /** Stores the first-touch referrer from the page address. Called on every page; touches nothing when there is no `?ref=`. */
 export function captureReferrer(): void {
   try {
-    captureFromSearch(location.search, browserStorage() as KeyValue | null, Date.now());
+    if (captureFromSearch(location.search, browserStorage() as KeyValue | null, Date.now())) void ensureCapture();
   } catch {
     // no storage: no referral, nothing else changes
   }
@@ -71,6 +93,7 @@ export async function flushReferrals(): Promise<void> {
   flushing = true;
   try {
     const ref = readStoredRef(browserStorage() as KeyValue | null, Date.now())?.ref;
+    const capture = await ensureCapture();
     const keep: Queued[] = [];
     for (const item of readQueue()) {
       if (Date.now() - item.at >= MAX_AGE_MS) continue;
@@ -80,7 +103,13 @@ export async function flushReferrals(): Promise<void> {
         continue;
       }
       try {
-        const r = await account.call<{ results?: { result: string }[] }>(session, { op: 'record', ref, chain: item.chain, txs: item.txs, swapTx: item.txs[item.txs.length - 1] }, API);
+        const r = await account.call<{ reason?: string; results?: { result: string }[] }>(session, { op: 'record', ref, capture, chain: item.chain, txs: item.txs, swapTx: item.txs[item.txs.length - 1] }, API);
+        // A capture the server no longer accepts (its secret changed) is dropped so the next report gets a new one; the swap is kept.
+        if (r.reason === 'bad-capture') {
+          dropCapture(browserStorage() as KeyValue | null, Date.now());
+          keep.push(item);
+          continue;
+        }
         // A transaction the node could not show yet is tried again; everything else is final.
         if ((r.results ?? []).some((x) => x.result === 'pending' || x.result === 'unreadable')) keep.push(item);
       } catch {

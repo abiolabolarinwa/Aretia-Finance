@@ -3,7 +3,9 @@ import { PUBLIC_EVM_RPC } from '../src/swings/chains/evmSession.js';
 import { SWAP_FEE_WALLET } from '../src/scripts/walletTools.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { handleReferrals, type ReferralsInput } from './_swingsReferrals.js';
+import { handleReferrals, issueCapture, type ReferralsInput } from './_swingsReferrals.js';
+import { resetBudgets } from './_limits.js';
+import { parseReferrer } from '../src/swings/referrals/core.js';
 import { DEFAULT_EVM_FEE_ADDRESS, EVM_READ_RPC } from './_referralVerify.js';
 
 const NOW = 1_800_000_000_000;
@@ -21,7 +23,7 @@ const SOL_REF = '4Nd1mBQtrMJVYVfKGkqmKMo8WhEKUuf3fEdSm7X1E6SG';
 const SIG = '5' + 'j'.repeat(86);
 
 /** An in-memory stand-in for the three referral tables, answering just the PostgREST calls the handler makes. */
-function fakeWorld(opts: { evmTx?: Record<string, { from: string; to: string; value?: string; logs?: unknown[]; status?: string; blockTime?: number; pending?: boolean }>; solTx?: Record<string, unknown> } = {}) {
+function fakeWorld(opts: { evmTx?: Record<string, { from: string; to: string; value?: string; logs?: unknown[]; status?: string; blockTime?: number; pending?: boolean }>; solTx?: Record<string, unknown>; depth?: number } = {}) {
   const bindings: Record<string, string | number>[] = [];
   const credits: Record<string, string | number>[] = [];
   const revocations: Record<string, string | number>[] = [];
@@ -42,24 +44,31 @@ function fakeWorld(opts: { evmTx?: Record<string, { from: string; to: string; va
         if (!dup) rows.push(row);
         return ok(dup ? [] : [row], 201);
       }
+      if (path === 'account_sessions') return ok([]);
       let out = rows.filter((r) =>
         [...params.entries()].every(([k, v]) => {
           if (v.startsWith('eq.')) return String(r[k]) === v.slice(3);
           if (v.startsWith('gte.')) return Number(r[k]) >= Number(v.slice(4));
-          if (k === 'or') {
-            const m = /^\(referrer\.eq\.(.+),trader\.eq\.(.+)\)$/.exec(v)!;
-            return r.referrer === m[1] || r.trader === m[2];
-          }
+          if (v.startsWith('lte.')) return Number(r[k]) <= Number(v.slice(4));
           return true;
         }),
       );
-      out = out.slice(0, 5000);
+      const order = params.get('order');
+      if (order) {
+        const [col, dir] = order.split('.');
+        out = [...out].sort((a, b) => (Number(a[col!]) - Number(b[col!])) * (dir === 'desc' ? -1 : 1));
+      }
+      out = out.slice(0, Number(params.get('limit') ?? 5000));
       return ok(out);
     }
     // chain nodes
     const req = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
     const reply = (result: unknown) => ok({ jsonrpc: '2.0', id: 1, result });
-    if (req.method === 'getTransaction') return reply(opts.solTx?.[String(req.params[0])] ?? null);
+    if (req.method === 'getTransaction') {
+      calls.push(`rpc getTransaction ${JSON.stringify(req.params[1])}`);
+      return reply(opts.solTx?.[String(req.params[0])] ?? null);
+    }
+    if (req.method === 'eth_blockNumber') return reply('0x' + (0x10 + (opts.depth ?? 10_000)).toString(16));
     const hash = String(req.params[0]);
     const t = opts.evmTx?.[hash];
     if (req.method === 'eth_getTransactionByHash') return reply(t && !t.pending ? { from: t.from, to: t.to, value: t.value ?? '0x0' } : null);
@@ -83,11 +92,22 @@ interface Reply {
 const session = (owner: string, now = NOW) => `Bearer ${issueSession(KEY, owner, now).token}`;
 const feeLog = (token: string, from: string, amount: bigint) => ({ address: token, topics: [TRANSFER, pad(from), pad(FEE)], data: '0x' + amount.toString(16).padStart(64, '0') });
 
+/** A link visit the server recorded an hour before the swaps in these tests. */
+const capture = (ref: string, at = NOW - 3_600_000): string | undefined => {
+  const parsed = parseReferrer(ref);
+  return parsed ? issueCapture(KEY, parsed.owner, at) : undefined;
+};
+
 function call(world: ReturnType<typeof fakeWorld>, body: unknown, over: Partial<ReferralsInput> & { as?: string } = {}) {
+  const b = body as Record<string, unknown>;
+  if (typeof b.ref === 'string' && !('capture' in b)) body = { ...b, capture: capture(b.ref) };
   return handleReferrals({ method: 'POST', origin: ORIGIN, authorization: session(over.as ?? `evm:${TRADER}`), ip: '1.1.1.1', body, env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: KEY }, fetchImpl: world.fetchImpl, now: NOW, ...over }).then((r) => ({ status: r.status, data: JSON.parse(r.body || '{}') as Reply }));
 }
 
-beforeEach(() => resetRateLimit());
+beforeEach(() => {
+  resetRateLimit();
+  resetBudgets();
+});
 
 describe('the api door', () => {
   it('refuses other origins, wrong methods, a missing database and a missing or forged session', async () => {
@@ -198,7 +218,7 @@ describe('recording a swap on an EVM chain', () => {
 
   it('records but does not pay beyond the daily cap, and a Solana referrer on an EVM chain', async () => {
     const w = fakeWorld({ evmTx: { [HASH(1)]: swap() } });
-    w.bindings.push({ trader: `evm:${TRADER}`, referrer: `evm:${REFERRER}`, bound_at: NOW - 1000, expires_at: NOW + 1e9 });
+    w.bindings.push({ trader: `evm:${TRADER}`, referrer: `evm:${REFERRER}`, bound_at: NOW - 3_600_000, expires_at: NOW + 1e9 });
     for (let i = 0; i < 200; i++) w.credits.push({ chain: 'ethereum', tx: HASH(1000 + i), asset: USDC_ETH, trader: `evm:0x${String(i).padStart(40, '0')}`, referrer: `evm:${REFERRER}`, fee_raw: String(1000 + i), share_raw: '1', status: 'credited', tx_at: NOW - 60_000, created_at: NOW - 60_000 });
     const r = await call(w, { op: 'record', chain: 'ethereum', txs: [HASH(1)] });
     expect(r.data.results[0].result).toBe('capped');
@@ -306,5 +326,114 @@ describe('a referrer reading their own numbers', () => {
     w.revocations.push({ referrer: `evm:${REFERRER}`, reason: 'abuse', revoked_at: NOW });
     const r = await call(w, { op: 'mine' }, { as: `evm:${REFERRER}` });
     expect(r.data).toMatchObject({ revoked: true, totals: [] });
+  });
+});
+
+describe('audit regressions (2026-10 review)', () => {
+  const swap = (over: Record<string, unknown> = {}) => ({ from: TRADER, to: USDC_ETH, logs: [feeLog(USDC_ETH, TRADER, 5_800_000n)], blockTime: NOW - 60_000, ...over });
+  const H = '0x' + 'ab'.repeat(32);
+  /** Flips the case of the hex letters of H by the bits of i. */
+  const variant = (i: number): string => {
+    let k = 0;
+    return '0x' + [...H.slice(2)].map((c) => (/[a-f]/.test(c) ? ((i >> k++) & 1 ? c.toUpperCase() : c) : c)).join('');
+  };
+  const bound = (w: ReturnType<typeof fakeWorld>, at = NOW - 3_600_000) => w.bindings.push({ trader: `evm:${TRADER}`, referrer: `evm:${REFERRER}`, bound_at: at, expires_at: at + 90 * 86_400_000 });
+
+  it('M-1: one fee payment is credited once, whatever the letter case of its hash', async () => {
+    const w = fakeWorld({ evmTx: { [H]: swap() } });
+    bound(w);
+    let credited = 0;
+    const results: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      resetBudgets();
+      const r = await call(w, { op: 'record', chain: 'ethereum', txs: [variant(i)] });
+      credited += r.data.credited ?? 0;
+      results.push(r.data.results[0]!.result);
+    }
+    expect(credited).toBe(1);
+    expect(results.slice(1).every((x) => x === 'already-recorded')).toBe(true);
+    expect(w.credits).toHaveLength(1);
+    expect(w.credits[0]!.tx).toBe(H);
+    // two spellings in one request are one transaction
+    const w2 = fakeWorld({ evmTx: { [H]: swap() } });
+    bound(w2);
+    expect((await call(w2, { op: 'record', chain: 'ethereum', txs: [H, H.toUpperCase().replace('0X', '0x')] })).data.results).toHaveLength(1);
+    // anything that is not a hash is refused before any lookup
+    expect((await call(w2, { op: 'record', chain: 'ethereum', txs: ['0x' + 'zz'.repeat(32)] })).status).toBe(400);
+  });
+
+  it('L-6: an EVM payment is not credited until it is buried under the chain confirmation depth', async () => {
+    const shallow = fakeWorld({ evmTx: { [H]: swap() }, depth: 5 });
+    bound(shallow);
+    expect((await call(shallow, { op: 'record', chain: 'ethereum', txs: [H] })).data.results[0]!.result).toBe('pending');
+    expect(shallow.credits).toHaveLength(0);
+    const deep = fakeWorld({ evmTx: { [H]: swap() }, depth: 64 });
+    bound(deep);
+    expect((await call(deep, { op: 'record', chain: 'ethereum', txs: [H] })).data.credited).toBe(1);
+  });
+
+  it('L-6: a Solana payment is read at finalized commitment', async () => {
+    const w = fakeWorld();
+    await call(w, { op: 'record', ref: SOL_REF, chain: 'solana', txs: [SIG] }, { as: `solana:${SOL_TRADER}` });
+    expect(w.calls.find((c) => c.startsWith('rpc getTransaction'))).toContain('"commitment":"finalized"');
+  });
+
+  it('L-7: a transaction made before the link visit is never credited, and a binding needs a server-signed capture', async () => {
+    const before = fakeWorld({ evmTx: { [H]: swap({ blockTime: NOW - 60_000 }) } });
+    const late = await call(before, { op: 'record', ref: REFERRER, capture: capture(REFERRER, NOW - 30_000), chain: 'ethereum', txs: [H] });
+    expect(late.data.results[0]!.result).toBe('before-binding');
+    expect(before.credits).toHaveLength(0);
+    expect(before.bindings[0]).toMatchObject({ bound_at: NOW - 30_000 });
+
+    const noCapture = fakeWorld({ evmTx: { [H]: swap() } });
+    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: undefined, chain: 'ethereum', txs: [H] })).data.reason).toBe('no-capture');
+    const forged = issueCapture('another-secret', `evm:${REFERRER}`, NOW - 3_600_000);
+    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: forged, chain: 'ethereum', txs: [H] })).data.reason).toBe('bad-capture');
+    const expired = capture(REFERRER, NOW - 91 * 86_400_000);
+    expect((await call(noCapture, { op: 'record', ref: REFERRER, capture: expired, chain: 'ethereum', txs: [H] })).data.reason).toBe('bad-capture');
+    expect(noCapture.bindings).toHaveLength(0);
+    // a capture naming the trader is self-referral, refused
+    expect((await call(noCapture, { op: 'record', ref: TRADER, chain: 'ethereum', txs: [H] })).data.reason).toBe('self');
+  });
+
+  it('L-7: the capture is issued without sign-in, only for a valid referrer, and binds from its own time', async () => {
+    const w = fakeWorld({ evmTx: { [H]: swap() } });
+    const got = await call(w, { op: 'capture', ref: REFERRER }, { authorization: null, now: NOW - 120_000 });
+    expect(got.status).toBe(200);
+    const token = (JSON.parse(JSON.stringify(got.data)) as unknown as { capture: string }).capture;
+    expect((await call(w, { op: 'capture', ref: 'junk' }, { authorization: null })).status).toBe(400);
+    const r = await call(w, { op: 'record', capture: token, chain: 'ethereum', txs: [H] });
+    expect(r.data.credited).toBe(1);
+    expect(w.bindings[0]).toMatchObject({ referrer: `evm:${REFERRER}`, bound_at: NOW - 120_000 });
+  });
+
+  it('L-5: the referrer cap is found even behind thousands of other rows', async () => {
+    const w = fakeWorld({ evmTx: { [H]: swap() } });
+    bound(w);
+    for (let i = 0; i < 2500; i++) w.credits.push({ chain: 'ethereum', tx: HASH(10_000 + i), asset: USDC_ETH, trader: `evm:0x${String(i).padStart(40, 'f')}`, referrer: `evm:${REFERRER}`, fee_raw: '7', share_raw: '0', status: 'flagged', tx_at: NOW - 30_000, created_at: NOW - 30_000 });
+    for (let i = 0; i < 200; i++) w.credits.push({ chain: 'ethereum', tx: HASH(20_000 + i), asset: USDC_ETH, trader: `evm:0x${String(i).padStart(40, '0')}`, referrer: `evm:${REFERRER}`, fee_raw: String(1000 + i), share_raw: '1', status: 'credited', tx_at: NOW - 120_000, created_at: NOW - 120_000 });
+    expect((await call(w, { op: 'record', chain: 'ethereum', txs: [H] })).data.results[0]!.result).toBe('capped');
+  });
+
+  it('L-5: past the daily row limit nothing more is stored for a trader', async () => {
+    const w = fakeWorld({ evmTx: { [H]: swap() } });
+    bound(w);
+    for (let i = 0; i < 80; i++) w.credits.push({ chain: 'ethereum', tx: HASH(30_000 + i), asset: USDC_ETH, trader: `evm:${TRADER}`, referrer: `evm:${REFERRER}`, fee_raw: '1', share_raw: '0', status: 'capped', tx_at: NOW - 60_000, created_at: NOW - 60_000 });
+    const r = await call(w, { op: 'record', chain: 'ethereum', txs: [H] });
+    expect(r.data.results[0]!.result).toBe('daily-limit');
+    expect(w.credits).toHaveLength(80);
+  });
+
+  it('L-5: record is rate-limited per signed-in owner and per IP', async () => {
+    const w = fakeWorld();
+    bound(w);
+    const statuses: number[] = [];
+    for (let i = 0; i < 8; i++) statuses.push((await call(w, { op: 'record', chain: 'ethereum', txs: [HASH(1)] }, { ip: `9.9.9.${i}` })).status);
+    expect(statuses.slice(0, 6).every((s) => s === 200)).toBe(true);
+    expect(statuses[7]).toBe(429);
+    resetBudgets();
+    const perIp: number[] = [];
+    for (let i = 0; i < 22; i++) perIp.push((await call(w, { op: 'record', chain: 'ethereum', txs: [HASH(1)] }, { as: `evm:0x${String(i).padStart(40, '3')}` })).status);
+    expect(perIp.at(-1)).toBe(429);
   });
 });

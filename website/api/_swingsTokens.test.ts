@@ -36,6 +36,13 @@ describe('token registry API', () => {
     expect(out.status).toBe(502);
     expect(out.body).not.toContain('secret');
   });
+  it('marks a rated token whose issuer still holds admin powers, so a table never draws it green', async () => {
+    const mint = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+    const row = { chain: 'solana', address: mint, risk: { status: 'established', score: 5, signals: [{ id: 'mint-authority', state: 'warn', weight: 0 }, { id: 'freeze-authority', state: 'warn', weight: 0 }] }, market: null };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([row]), { status: 200 })) as unknown as typeof fetch;
+    const out = JSON.parse((await handleTokens(input({ query: { addresses: mint }, fetchImpl }))).body) as { ratings: { adminPowers: boolean; status: string }[] };
+    expect(out.ratings).toEqual([{ chain: 'solana', address: mint, status: 'established', score: 5, adminPowers: true, lockedPct: null }]);
+  });
   it('parses filters and ignores junk', () => {
     expect(parseFilter({ chain: 'base', maxAgeHours: '6', minLiquidityUsd: '-5', risk: 'high,safe,elevated', sort: 'volume', limit: '10.7' })).toEqual({ chain: 'base', maxAgeHours: 6, riskStatuses: ['high', 'elevated'], sort: 'volume', limit: 10 });
     expect(parseFilter({ chain: 'doge' })).toEqual({});

@@ -375,7 +375,17 @@ pub fn create_pool_ix_full(creator: &Address, owner: &Address, position_id: &Add
 }
 
 pub fn swap_ix(trader: &Address, mint: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> Instruction {
+    let mut ix = swap_ix_bare(trader, mint, is_buy, amount_in, min_out);
+    ix.accounts.extend(fee_wsol_open_accounts());
+    ix
+}
+/// The swap with only its ten fixed accounts (what an older client or router sends).
+pub fn swap_ix_bare(trader: &Address, mint: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> Instruction {
     swap_ix_with(trader, mint, &ata(trader, mint, &TOKEN_2022), &FEE_WALLET, is_buy, amount_in, min_out)
+}
+/// The optional trailing accounts that let a swap open the fee wallet's wrapped-SOL account if it is missing.
+pub fn fee_wsol_open_accounts() -> Vec<AccountMeta> {
+    vec![m(FEE_WALLET, false, false), m(WSOL, false, false), m(SYSTEM, false, false), m(ATA_PROGRAM, false, false)]
 }
 /// `fee_wallet` is the OWNER of the fee's wrapped-SOL account (so a wrong one is refused).
 pub fn swap_ix_with(trader: &Address, mint: &Address, trader_token: &Address, fee_wallet: &Address, is_buy: bool, amount_in: u64, min_out: u64) -> Instruction {

@@ -28,15 +28,39 @@ export function fromUnits(raw, decimals) {
   return `${n / d}${frac ? '.' + frac : ''}`;
 }
 
+/** The key one on-chain payment is known by: an EVM hash in any letter case is the same transaction; a Solana signature is case-sensitive. */
+export const paymentKey = (r) => `${r.chain}|${r.chain === 'solana' ? r.tx : String(r.tx ?? '').toLowerCase()}|${r.asset}`;
+
 /**
- * Groups credit rows (as stored: chain, asset, referrer, share_raw, fee_raw, status, paid_at) by referrer, chain and coin.
- * Only `credited` rows that have not been marked paid count as owed; those of a revoked referrer are shown as void, not owed.
+ * The credited rows that may be paid: one per on-chain payment (EVM hashes grouped by lower case, keeping the earliest credited row,
+ * so a copy stored under another letter case before migration 0013 is never paid twice), and none listed in `notFinal` (keys from
+ * `recheckRows` of payments that are no longer on chain or not final).
  */
-export function owedByReferrer(rows, revokedReferrers = []) {
+export function payableRows(rows, notFinal = new Set()) {
+  const seen = new Set();
+  const out = [];
+  const ordered = [...rows].sort((a, b) => Number(a.created_at ?? 0) - Number(b.created_at ?? 0));
+  for (const r of ordered) {
+    if (r.status !== 'credited') continue;
+    if (r.tx !== undefined) {
+      const k = paymentKey(r);
+      if (seen.has(k) || notFinal.has(k)) continue;
+      seen.add(k);
+    }
+    out.push(r);
+  }
+  return out;
+}
+
+/**
+ * Groups credit rows (as stored: chain, tx, asset, referrer, share_raw, fee_raw, status, paid_at, created_at) by referrer, chain and
+ * coin. Only `credited` rows that have not been marked paid count as owed, once per payment; those of a revoked referrer are shown as
+ * void, not owed.
+ */
+export function owedByReferrer(rows, revokedReferrers = [], notFinal = new Set()) {
   const revoked = new Set(revokedReferrers);
   const map = new Map();
-  for (const r of rows) {
-    if (r.status !== 'credited') continue;
+  for (const r of payableRows(rows, notFinal)) {
     const k = `${r.referrer}|${r.chain}|${r.asset}`;
     const g = map.get(k) ?? { referrer: r.referrer, chain: r.chain, asset: r.asset, swaps: 0, fee: 0n, owed: 0n, paid: 0n, void: 0n };
     g.swaps += 1;
@@ -71,4 +95,52 @@ export function renderCsv(groups) {
   const out = ['referrer,chain,asset,symbol,swaps,fee_raw,owed_raw,paid_raw,void_raw'];
   for (const g of groups) out.push([bare(g.referrer), g.chain, g.asset, assetInfo(g.chain, g.asset)?.symbol ?? '', g.swaps, g.fee, g.owed, g.paid, g.void].join(','));
   return out.join('\n') + '\n';
+}
+
+/** Public read nodes, the same as api/_referralVerify.ts EVM_READ_RPC, and its confirmation depths. */
+export const EXPORT_RPC = {
+  solana: 'https://solana-rpc.publicnode.com',
+  ethereum: 'https://ethereum-rpc.publicnode.com',
+  bnb: 'https://bsc-rpc.publicnode.com',
+  polygon: 'https://polygon-bor-rpc.publicnode.com',
+  base: 'https://base-rpc.publicnode.com',
+  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  optimism: 'https://optimism-rpc.publicnode.com',
+  avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
+  robinhood: 'https://robinhood-rpc.publicnode.com',
+};
+export const EXPORT_CONFIRMATIONS = { ethereum: 64, bnb: 30, polygon: 64, base: 60, arbitrum: 480, optimism: 60, avalanche: 1, robinhood: 480 };
+
+/**
+ * Before paying: asks the chain again about every unpaid credited payment. Returns the keys (`paymentKey`) of those that are not
+ * there any more, failed, or are not final (Solana: not `finalized`; EVM: fewer than the confirmation depth). A payment that cannot
+ * be read is counted as not final, so nothing unconfirmed is paid. `fetchImpl` and `rpc` are injectable for tests.
+ */
+export async function recheckRows(rows, fetchImpl = fetch, rpc = EXPORT_RPC) {
+  const call = async (chain, method, params) => {
+    const res = await fetchImpl(rpc[chain], { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    if (!res.ok) throw new Error(`node ${res.status}`);
+    const body = await res.json();
+    if (body.error) throw new Error('node error');
+    return body.result ?? null;
+  };
+  const bad = new Set();
+  const heads = new Map();
+  for (const r of payableRows(rows.filter((x) => !x.paid_at))) {
+    const k = paymentKey(r);
+    try {
+      if (r.chain === 'solana') {
+        const st = (await call('solana', 'getSignatureStatuses', [[r.tx], { searchTransactionHistory: true }]))?.value?.[0];
+        if (!st || st.err !== null || st.confirmationStatus !== 'finalized') bad.add(k);
+        continue;
+      }
+      const receipt = await call(r.chain, 'eth_getTransactionReceipt', [String(r.tx).toLowerCase()]);
+      if (!heads.has(r.chain)) heads.set(r.chain, BigInt(await call(r.chain, 'eth_blockNumber', [])));
+      const depth = BigInt(EXPORT_CONFIRMATIONS[r.chain] ?? 64);
+      if (!receipt || receipt.status !== '0x1' || !receipt.blockNumber || heads.get(r.chain) - BigInt(receipt.blockNumber) + 1n < depth) bad.add(k);
+    } catch {
+      bad.add(k);
+    }
+  }
+  return bad;
 }

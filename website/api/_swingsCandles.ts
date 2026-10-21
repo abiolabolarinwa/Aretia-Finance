@@ -1,9 +1,13 @@
 /**
  * GET /api/swings-candles?chain=&pool=&tf=: candles built from the prices Aretia has recorded for a pool (pool_ticks).
- * Asking for a pool also marks it as tracked, so the refresh job starts recording it if it was not. The answer says how
- * far back the recording goes, and an empty one is honest about it: the page then falls back to the outside chart.
+ * Asking for a pool also marks it as tracked, so the refresh job starts recording it if it was not, but only a pool Aretia
+ * already knows (it has recorded prices, or a token in the registry names it), and no more than TRACKS_PER_IP new marks per IP
+ * per ten minutes, so made-up addresses cannot push real pools out of the refresh job's slots. Old marks are pruned by the
+ * database (migration 0014). The answer says how far back the recording goes, and an empty one is honest about it: the page
+ * then falls back to the outside chart.
  */
-import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
+import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
+import { overBudget } from './_limits.js';
 import { isOriginAllowed, overLimit } from './_rpcProxy.js';
 import { isChainId } from '../src/swings/core/types.js';
 import { buildCandles, isTimeframe, TIMEFRAMES } from '../src/swings/market/candles.js';
@@ -12,6 +16,22 @@ import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const POOL = /^[A-Za-z0-9]{20,100}$/;
 const RANGE_CANDLES = 300;
+export const TRACKS_PER_IP = 30;
+
+/** Whether a token in the registry names this pool, as its market pool or among its pools. */
+async function knownPool(url: string, key: string, fetchImpl: typeof fetch, chain: string, pool: string, given: string): Promise<boolean> {
+  const ask = async (filter: string): Promise<boolean> => {
+    const res = await fetchImpl(`${url}/rest/v1/token_registry?chain=eq.${chain}&${filter}&select=key&limit=1`, { headers: supabaseHeaders(key) });
+    if (!res.ok) return false;
+    const rows = (await res.json().catch(() => [])) as unknown[];
+    return Array.isArray(rows) && rows.length > 0;
+  };
+  // The pool is plain letters and digits (checked by POOL), so it needs no quoting; an EVM pool is compared without case.
+  const market = chain === 'solana' ? `market->>pool=eq.${pool}` : `market->>pool=ilike.${pool}`;
+  const listed = [...new Set([pool, given])].map((p) => `pools=cs.${encodeURIComponent(JSON.stringify([{ address: p }]))}`);
+  const answers = await Promise.all([ask(market), ...listed.map(ask)]);
+  return answers.some(Boolean);
+}
 
 const json = (status: number, data: unknown, headers: Record<string, string>): TokensOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
 
@@ -38,7 +58,8 @@ export async function handleCandles(input: TokensInput): Promise<TokensOutput> {
   try {
     const bucket = TIMEFRAMES[tf];
     const ticks = await store.list(chain, poolKey, input.now - bucket * RANGE_CANDLES);
-    await store.track(chain, poolKey, input.now).catch(() => undefined);
+    const known = ticks.length > 0 || (await knownPool(url, key, input.fetchImpl, chain, poolKey, pool).catch(() => false));
+    if (known && !overBudget(`candles-track:${input.ip}`, input.now, TRACKS_PER_IP, 10 * 60_000)) await store.track(chain, poolKey, input.now).catch(() => undefined);
     const candles = buildCandles(ticks, bucket).slice(-RANGE_CANDLES);
     return json(200, { chain, pool: poolKey, tf, since: ticks[0]?.ts ?? null, candles }, headers);
   } catch {

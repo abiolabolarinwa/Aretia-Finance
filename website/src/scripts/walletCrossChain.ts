@@ -5,7 +5,7 @@
 import { CHAINS, SwingsError, type ChainId } from '../swings/core/types.js';
 import { restoreFromCode } from '../swings/orchestrator/remote.js';
 import { runtime } from '../swings/runtime.js';
-import { CCTP_USDC } from '../swings/settlement/cctp.js';
+import { CCTP_USDC, MOVE_CAP_RAW } from '../swings/settlement/cctp.js';
 import type { SettlementSearch } from '../swings/settlement/engine.js';
 import type { CrossChainRuntime } from './crossChainRuntime.js';
 import { connectWalletConnect, isProjectId } from '../swings/wallet/walletConnect.js';
@@ -13,7 +13,7 @@ import type { SettlementQuote } from '../swings/settlement/types.js';
 import { isCanaryAllowed } from '../swings/runtime.js';
 import { assessSettlement } from '../swings/settlement/safety.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
-import { explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from '../swings/crosschain/view.js';
+import { checkParties, explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from '../swings/crosschain/view.js';
 
 const CHAIN_CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
 const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', arbitrum: 'https://arbiscan.io/tx/', optimism: 'https://optimistic.etherscan.io/tx/', polygon: 'https://polygonscan.com/tx/', avalanche: 'https://snowtrace.io/tx/', solana: 'https://solscan.io/tx/' };
@@ -29,8 +29,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: stri
 const banner = (kind: 'warn' | 'info' | 'ok', text: string): HTMLElement => el('p', { class: `wapp__banner wapp__banner--${kind}`, text });
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
-/** Largest single move while Swings is being proven with real money. Raised only by a reviewed change here. */
-export const MOVE_CAP_RAW = 250_000_000n;
+/** Largest single move while Swings is being proven with real money. Defined beside the CCTP builder, which applies it again. */
+export { MOVE_CAP_RAW };
 
 const WC_PROJECT_ID = String(import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? '');
 
@@ -183,10 +183,31 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
     }
     card.append(el('p', { class: 'wapp__fine' }, [el('span', { text: 'Recovery code: ' }), el('code', { text: r.id }), el('span', { text: copyOn() ? (rt.state.copyBehind ? ' (the server copy is behind; this browser has the latest)' : ' (a copy is kept on Aretia\'s server)') : ' (kept only in this browser)' })]));
     const actions = el('div', { class: 'wapp__row-actions' });
-    if (v.next === 'sign') {
+    if (v.next === 'sign' && orchestrator.canSign(r.id)) {
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: s.busy ? 'Working…' : 'Continue', attrs: { type: 'button' } });
       b.disabled = s.busy;
       b.addEventListener('click', () => void run(() => orchestrator.start(r.id)));
+      actions.append(b);
+    } else if (v.next === 'sign') {
+      // A saved or restored quote is never signed (anyone can write a recovery copy). It is retired and quoted afresh, which
+      // sends to the accounts connected here and runs every check again before the wallet is asked.
+      card.append(banner('warn', 'This move was saved earlier or restored from a recovery code, so Aretia will not sign it as it is. Get a new quote: it goes to your own connected accounts and is checked again before you sign.'));
+      const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: s.busy ? 'Working…' : 'Get a new quote', attrs: { type: 'button' } });
+      b.disabled = s.busy;
+      b.addEventListener('click', () =>
+        void run(async () => {
+          const i = r.quote.intent;
+          const out = await orchestrator.start(r.id);
+          if (out.state !== 'EXPIRED' && out.state !== 'FAILED') return out;
+          s.record = null;
+          if (CHAIN_CHOICES.includes(i.sourceChain) && CHAIN_CHOICES.includes(i.destinationChain)) {
+            s.from = i.sourceChain;
+            s.to = i.destinationChain;
+            if (typeof i.sourceAmount === 'bigint') s.amount = formatUnits(i.sourceAmount, 6);
+          }
+          await loadBalance();
+          await getQuotes();
+        }));
       actions.append(b);
     }
     if (v.next === 'claim') {
@@ -287,6 +308,9 @@ export function initCrossChain(root: HTMLElement, rt: CrossChainRuntime): { draw
         go.addEventListener('click', () =>
           void run(async () => {
             const q = s.chosen!;
+            const parties = checkParties(q.intent, accountFor);
+            if (parties.error) throw new SwingsError('invalid', parties.error);
+            if (parties.confirmRecipient && !window.confirm(parties.confirmRecipient)) return;
             if (!(await isCanaryAllowed(q.intent.sender))) throw new SwingsError('not-enabled', 'Moving USDC is limited to a first group of wallets while it is being proven. This wallet is not in that group yet.');
             const [native, sourceNative, existing] = await Promise.all([nativeBalance(q.intent.destinationChain, q.intent.recipient), nativeBalance(q.intent.sourceChain, q.intent.sender), store.list()]);
             const verdict = assessSettlement(q, { now: Date.now(), provider: providers.find((p) => p.id === q.providerId) ?? null, enabledChains: CHAIN_CHOICES.filter(isEnabled), sourceBalance: s.balance, destinationNativeBalance: native, sourceNativeBalance: sourceNative, existing, maxAmount: MOVE_CAP_RAW });

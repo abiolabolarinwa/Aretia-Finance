@@ -7,6 +7,7 @@ import { assessEvmToken, assessSolanaToken, type EvmRiskFacts, type SolanaRiskFa
 import type { TokenEnricher } from './discovery.js';
 import type { TokenCandidate } from './registry.js';
 import { CHAINS, type ChainId } from '../core/types.js';
+import { mintExtensionTypes, readExtensionDetails, type ExtensionDetails } from './token2022.js';
 
 type Rpc = <T>(method: string, params: unknown[]) => Promise<T>;
 const TOKEN_2022 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
@@ -20,6 +21,10 @@ export interface MintFacts {
   mintAuthoritySet: boolean;
   freezeAuthoritySet: boolean;
   hasExtensions: boolean;
+  /** The Token-2022 extension types written in the mint ([] for none); null when they could not be read. */
+  extensionTypes: number[] | null;
+  /** The authorities inside the extensions that hand someone a power ({} for none). */
+  extensionDetails: ExtensionDetails;
 }
 
 /** Parses an SPL mint account: authorities are COption tags at byte 0 and 46, supply at 36, decimals at 44. */
@@ -32,6 +37,8 @@ export function parseMintFacts(owner: string, data: Uint8Array): MintFacts | nul
     mintAuthoritySet: view.getUint32(0, true) === 1,
     freezeAuthoritySet: view.getUint32(46, true) === 1,
     hasExtensions: owner === TOKEN_2022 && data.length > 82,
+    extensionTypes: owner === TOKEN_2022 ? mintExtensionTypes(data) : [],
+    extensionDetails: owner === TOKEN_2022 ? readExtensionDetails(data) : {},
   };
 }
 
@@ -91,6 +98,8 @@ export class SolanaTokenEnricher implements TokenEnricher {
       mintAuthoritySet: mint.mintAuthoritySet,
       freezeAuthoritySet: mint.freezeAuthoritySet,
       hasExtensions: mint.hasExtensions,
+      extensionTypes: mint.extensionTypes,
+      extensionDetails: mint.extensionDetails,
       top10Pct,
       top10Basis,
       liquidityUsd: c.liquidityUsd ?? null,

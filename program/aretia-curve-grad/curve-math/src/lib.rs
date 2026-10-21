@@ -147,7 +147,8 @@ pub struct Sell {
 }
 
 /// Exact-input sell: the seller hands in `tokens_in`. The SOL out is rounded down, the fee up. A sell that
-/// would put back more tokens than the curve has ever sold (`curve_tokens` is the most it can hold) is refused.
+/// would put back more tokens than the curve has ever sold (`curve_tokens` is the most it can hold) is refused, and so
+/// is one that would pay the seller nothing after the fee (`net == 0`).
 pub fn sell(c: &Curve, curve_tokens: u64, tokens_in: u64, fee_bps: u16) -> Option<(Sell, Curve)> {
     if fee_bps as u128 >= BPS || tokens_in == 0 {
         return None;
@@ -165,6 +166,11 @@ pub fn sell(c: &Curve, curve_tokens: u64, tokens_in: u64, fee_bps: u16) -> Optio
     }
     let gross = gross as u64;
     let fee = fee_up(gross, fee_bps).min(gross);
+    // A sell that would pay the seller nothing (dust whose SOL rounds to zero, or is all fee) is refused: the tokens would
+    // simply be lost (BONDING_CURVE.md section 8).
+    if gross == fee {
+        return None;
+    }
     let next = Curve { v_sol: new_vs as u64, v_tok: new_vt as u64, real_sol: c.real_sol - gross, real_tok };
     Some((Sell { gross, fee, net: gross - fee }, next))
 }

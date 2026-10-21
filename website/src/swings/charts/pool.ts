@@ -52,6 +52,27 @@ export interface GeckoPool {
 const SOLANA_MAJORS = ['So11111111111111111111111111111111111111112', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'];
 export const majorsOf = (chain: ChainId): Set<string> => new Set((chain === 'solana' ? SOLANA_MAJORS : (HUB_TOKENS[chain] ?? []).map((h) => h.address)).map((a) => a.toLowerCase()));
 
+/**
+ * A pool paired with a major token sets a token's price only with at least this much money in it, so a $3 WSOL pool cannot outrank a
+ * deep pool against a real token. No share of the deepest pool is asked for: reported liquidity can be invented by pairing against a
+ * made-up token, so a fake $90M pool must never be the yardstick that disqualifies a real $3k WSOL pool (audit M-8).
+ */
+export const MAJOR_POOL_MIN_LIQUIDITY_USD = 1_000;
+
+/**
+ * Picks the pool whose price stands for a token: the deepest pool paired with a major token (a main stablecoin or the wrapped native
+ * coin) when one is deep enough to count (MAJOR_POOL_MIN_LIQUIDITY_USD), and otherwise
+ * the deepest pool of all, reported as not major-backed so the caller can say so (name the quote, mark the price thin). Equal depth keeps the
+ * first. Pure.
+ */
+export function choosePricePool<T extends { liq: number; major: boolean }>(pools: readonly T[]): { pool: T; majorBacked: boolean } | null {
+  const deepestOf = (list: readonly T[]): T | undefined => list.reduce<T | undefined>((best, p) => (!best || p.liq > best.liq ? p : best), undefined);
+  const backed = deepestOf(pools.filter((p) => p.major && p.liq >= MAJOR_POOL_MIN_LIQUIDITY_USD));
+  if (backed) return { pool: backed, majorBacked: true };
+  const any = deepestOf(pools);
+  return any ? { pool: any, majorBacked: false } : null;
+}
+
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : v;
   return typeof n === 'number' && Number.isFinite(n) ? n : null;

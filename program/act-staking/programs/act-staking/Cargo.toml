@@ -1,4 +1,5 @@
 [package]
+rust-version = "1.79"
 name = "act-staking"
 version = "0.1.0"
 description = "Aretia Finance -- ACT staking (tiered access infrastructure, Part VIII Sec. 30). Deployed on devnet; not yet on mainnet -- see STAKING_DESIGN.md."
@@ -17,8 +18,14 @@ default = []
 # Local-validator testing ONLY. See the SECONDS_PER_DAY comment in src/lib.rs
 # for exactly what this changes (one constant) and why. Never pass this to a
 # devnet or mainnet build.
-test-fast-clock = []
+test-fast-clock = ["test-mint"]
+# Throwaway test deployments ONLY: `initialize_config` accepts act-presale's
+# devnet test mint instead of real ACT (see ACT_MINT in src/lib.rs). Never
+# pass this to a devnet-primary or mainnet build.
+test-mint = []
 
 [dependencies]
 anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
 anchor-spl = { version = "0.30.1", features = ["token_2022"] }
+# For the `pubkey!` macro (ACT_MINT); pinned like the other programs in this repo.
+solana-program = "=1.18.26"

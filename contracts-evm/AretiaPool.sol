@@ -3,12 +3,15 @@ pragma solidity 0.8.26;
 
 /**
  * Aretia Pool for Ethereum-style chains. UNAUDITED. NOT deployed on any mainnet. Read docs/ARETIA_POOL_EVM.md first.
+ * This is the build after the October 2026 review (M-2, M-9, L-19, L-20, I-3, I-5, I-7); the earlier Sepolia deployment is the OLD build.
  *
  * Aretia's own constant-product swap pool, the same product rules as the Solana program (program/aretia-pool, docs/ARETIA_POOL.md):
  * one pool per token, always against the chain's NATIVE coin (held by this contract directly, never wrapped), single-sided creation
  * at a starting price (the creator deposits only tokens; a virtual coin reserve `l` sets the price), a creator-chosen trading fee of
- * 0.25% or 1%, 20% of every fee taken by the contract on every trade and sent to Aretia's fee address in the same transaction (no
- * claim step), the other 80% accruing to liquidity positions and CLAIMABLE EVEN WHILE THE LIQUIDITY IS LOCKED FOR GOOD.
+ * 0.25% or 1%, 20% of every fee owed to Aretia's fee address (accrued in `protocolOwed` and paid by `withdrawProtocolFees`, which
+ * anyone may call: a trade never sends coin to the fee address, so that address can never freeze trading, review finding M-2), the
+ * other 80% accruing to liquidity positions and CLAIMABLE EVEN WHILE THE LIQUIDITY IS LOCKED FOR GOOD. The creator's initial liquidity
+ * is always locked for good, and every pool tracks how much of its liquidity is locked (`pools(token).locked`, finding M-9).
  *
  * Design rules, kept on purpose:
  *  - IMMUTABLE. No owner, no admin function, no setter, no proxy, no pause. The token factory, the fee recipient and the creation fee
@@ -36,9 +39,9 @@ contract AretiaPool {
 
     /** The Aretia token factory. A pool token must have been deployed by it. */
     address public immutable factory;
-    /** Receives the creation fee and 20% of every trading fee. */
+    /** Is owed the creation fee and 20% of every trading fee, paid out by `withdrawProtocolFees`. */
     address public immutable feeRecipient;
-    /** Flat fee in the chain's coin, paid inside createPool. Equal to the token-creation fee on that chain. */
+    /** Flat fee in the chain's coin, paid inside createPool (owed to the fee address). Equal to the token-creation fee on that chain. */
     uint256 public immutable creationFee;
 
     // ------------------------------------------------------------ constants
@@ -72,6 +75,10 @@ contract AretiaPool {
         uint256 acc;
         /** Liquidity-provider fees accrued and not yet claimed, held outside `y`. */
         uint256 feeReserve;
+        /** Liquidity locked for good across all positions. Never falls. At least the creator's l0. */
+        uint256 locked;
+        /** The part of LP fees (scaled by 2^64) not yet spread into `acc` because it is below one unit per share. Carried to the next fee. */
+        uint256 accRemainder;
     }
 
     struct Position {
@@ -95,21 +102,38 @@ contract AretiaPool {
         address owner;
         uint256 firstBuyWei;
         uint256 minFirstBuyOut;
+        /** Unix seconds after which the call reverts. */
+        uint256 deadline;
     }
 
     mapping(address => Pool) public pools;
     mapping(address => mapping(address => Position)) public positions;
-    /** The sum over every pool of `y + feeReserve`: what the contract must always be able to pay. */
+    /** The sum over every pool of `y + feeReserve`, plus `protocolOwed`: what the contract must always be able to pay. */
     uint256 public totalOwed;
+    /** Creation fees and the protocol's share of trading fees, owed to `feeRecipient` and not yet withdrawn. */
+    uint256 public protocolOwed;
     uint256 private guard = 1;
 
     event Created(address indexed token, address indexed creator, address indexed owner, uint256 x0, uint256 y0, uint256 l0, uint256 feeBps, bool locked);
-    event Swapped(address indexed token, address indexed trader, bool isBuy, uint256 gross, uint256 fee, uint256 protocol, uint256 tokens, uint256 x, uint256 y);
+    /**
+     * One trade. A buy: `coinIn` paid (fee included), `tokensOut` received, `coinOut` and `tokensIn` zero. A sell: `tokensIn` handed in,
+     * `coinOut` received after the fee, `coinIn` and `tokensOut` zero. `fee` is the whole fee, `protocol` Aretia's part of it; `x`, `y`
+     * are the reserves after the trade.
+     */
+    event Swapped(address indexed token, address indexed trader, bool isBuy, uint256 coinIn, uint256 coinOut, uint256 tokensIn, uint256 tokensOut, uint256 fee, uint256 protocol, uint256 x, uint256 y);
     event LiquidityChanged(address indexed token, address indexed owner, bool added, uint256 dl, uint256 tokens, uint256 coin);
     event Claimed(address indexed token, address indexed owner, address recipient, uint256 amount);
     event Locked(address indexed token, address indexed owner, uint256 amount);
     event PositionTransferred(address indexed token, address indexed from, address indexed to);
+    /** `recipient` is the value stored: zero means the owner. */
     event RecipientSet(address indexed token, address indexed owner, address recipient);
+    event PositionClosed(address indexed token, address indexed owner);
+    event ProtocolFeesWithdrawn(address indexed recipient, uint256 amount);
+
+    modifier beforeDeadline(uint256 deadline) {
+        require(block.timestamp <= deadline, "expired");
+        _;
+    }
 
     modifier nonReentrant() {
         require(guard == 1, "reentrant");
@@ -135,10 +159,12 @@ contract AretiaPool {
     /**
      * Opens the pool for `p.token`. `x0` tokens move from the caller (who must have approved this contract) into the pool; `y0` coin
      * (usually zero) goes in beside them; `l0` is the virtual coin reserve that sets the starting price, (y0 + l0) / x0. The position
-     * is opened for `p.owner`, locked for good when `p.lock`. Send exactly `creationFee + y0 + firstBuyWei`: the fee goes to Aretia,
-     * and `firstBuyWei` is the creator's own first buy, made inside the same transaction so nobody can buy before the creator.
+     * is opened for `p.owner` and its liquidity is LOCKED FOR GOOD: `p.lock` must be true (an unlocked creator position could withdraw
+     * buyers' coin, review finding M-9). Send exactly `creationFee + y0 + firstBuyWei`: the fee is owed to Aretia (see
+     * `withdrawProtocolFees`), and `firstBuyWei` is the creator's own first buy, made inside the same transaction so nobody can buy before
+     * the creator. Reverts after `p.deadline`.
      */
-    function createPool(CreateParams calldata p) external payable nonReentrant {
+    function createPool(CreateParams calldata p) external payable nonReentrant beforeDeadline(p.deadline) {
         Pool storage pool = pools[p.token];
         require(pool.feeBps == 0, "exists");
         require(p.token == _createAddress(factory, p.factoryNonce), "not from the factory");
@@ -147,6 +173,7 @@ contract AretiaPool {
         require(p.l0 >= MIN_L && p.l0 < MAX, "l0");
         require(p.y0 < MAX && p.y0 + p.l0 < MAX, "y0");
         require(p.owner != address(0), "owner");
+        require(p.lock, "must lock");
         require(msg.value == creationFee + p.y0 + p.firstBuyWei, "value");
 
         pool.feeBps = p.feeBps;
@@ -155,20 +182,22 @@ contract AretiaPool {
         pool.x = p.x0;
         pool.y = p.y0;
         pool.l = p.l0;
-        totalOwed += p.y0;
-        positions[p.token][p.owner] = Position({open: true, shares: p.l0, locked: p.lock ? p.l0 : 0, checkpoint: 0, pending: 0, recipient: address(0)});
-        emit Created(p.token, msg.sender, p.owner, p.x0, p.y0, p.l0, p.feeBps, p.lock);
+        pool.locked = p.l0;
+        protocolOwed += creationFee;
+        totalOwed += p.y0 + creationFee;
+        positions[p.token][p.owner] = Position({open: true, shares: p.l0, locked: p.l0, checkpoint: 0, pending: 0, recipient: address(0)});
+        emit Created(p.token, msg.sender, p.owner, p.x0, p.y0, p.l0, p.feeBps, true);
+        emit Locked(p.token, p.owner, p.l0);
 
         _pull(p.token, msg.sender, p.x0);
-        if (creationFee > 0) _send(feeRecipient, creationFee);
         if (p.firstBuyWei > 0) _buy(p.token, msg.sender, p.firstBuyWei, p.minFirstBuyOut);
         require(address(this).balance >= totalOwed, "insolvent");
     }
 
     // ------------------------------------------------------------ swap
 
-    /** Pays `msg.value` for tokens. Reverts unless at least `minTokensOut` result. All of the payment is used. */
-    function buy(address token, uint256 minTokensOut) external payable nonReentrant {
+    /** Pays `msg.value` for tokens. Reverts unless at least `minTokensOut` result, or after `deadline`. All of the payment is used. */
+    function buy(address token, uint256 minTokensOut, uint256 deadline) external payable nonReentrant beforeDeadline(deadline) {
         _buy(token, msg.sender, msg.value, minTokensOut);
     }
 
@@ -183,18 +212,16 @@ contract AretiaPool {
         p.x -= out;
         p.y += net;
         require(p.y + p.l < MAX, "size");
-        p.feeReserve += lp;
-        p.acc += (lp << SCALE_BITS) / p.l;
-        totalOwed += net + lp;
-        emit Swapped(token, buyer, true, gross, fee, protocol, out, p.x, p.y);
+        _creditFees(p, lp, protocol);
+        totalOwed += net + lp + protocol;
+        _emitSwap(token, buyer, true, gross, out, fee, protocol);
 
         _push(token, buyer, out);
-        if (protocol > 0) _send(feeRecipient, protocol);
         require(address(this).balance >= totalOwed, "insolvent");
     }
 
-    /** Sells `tokensIn` back (the caller must have approved this contract). Reverts unless at least `minCoinOut` reaches the caller. */
-    function sell(address token, uint256 tokensIn, uint256 minCoinOut) external nonReentrant {
+    /** Sells `tokensIn` back (the caller must have approved this contract). Reverts unless at least `minCoinOut` reaches the caller, or after `deadline`. */
+    function sell(address token, uint256 tokensIn, uint256 minCoinOut, uint256 deadline) external nonReentrant beforeDeadline(deadline) {
         Pool storage p = pools[token];
         require(p.feeBps != 0, "no pool");
         (uint256 gross, uint256 fee) = _quoteSell(p, tokensIn);
@@ -205,14 +232,12 @@ contract AretiaPool {
 
         p.x += tokensIn;
         p.y -= gross;
-        p.feeReserve += lp;
-        p.acc += (lp << SCALE_BITS) / p.l;
-        totalOwed = totalOwed - gross + lp;
-        emit Swapped(token, msg.sender, false, gross, fee, protocol, tokensIn, p.x, p.y);
+        _creditFees(p, lp, protocol);
+        totalOwed = totalOwed - gross + lp + protocol;
+        _emitSwap(token, msg.sender, false, net, tokensIn, fee, protocol);
 
         _pull(token, msg.sender, tokensIn);
         if (net > 0) _send(msg.sender, net);
-        if (protocol > 0) _send(feeRecipient, protocol);
         require(address(this).balance >= totalOwed, "insolvent");
     }
 
@@ -221,9 +246,9 @@ contract AretiaPool {
     /**
      * Adds `dl` of liquidity at the pool's current price. The caller pays tokens `ceil(x*dl/l)` (must have approved them) and coin
      * `ceil(y*dl/l)` out of `msg.value`; anything extra is sent back. Reverts if the tokens exceed `maxTokens`. Opens the caller's
-     * position if it has none. Settles pending fees first.
+     * position if it has none. Settles pending fees first. Reverts after `deadline`.
      */
-    function addLiquidity(address token, uint256 dl, uint256 maxTokens) external payable nonReentrant {
+    function addLiquidity(address token, uint256 dl, uint256 maxTokens, uint256 deadline) external payable nonReentrant beforeDeadline(deadline) {
         Pool storage p = pools[token];
         require(p.feeBps != 0, "no pool");
         require(dl >= MIN_DL, "dl");
@@ -254,9 +279,10 @@ contract AretiaPool {
 
     /**
      * Removes `dl` of the caller's UNLOCKED liquidity and pays out `floor(x*dl/l)` tokens and `floor(y*dl/l)` coin. Reverts below
-     * the minimums. The pool can never be emptied: at least MIN_L of liquidity always stays.
+     * the minimums or after `deadline`. The pool can never be emptied: at least MIN_L of liquidity always stays. A position left with no
+     * shares and no pending fees is closed (deleted).
      */
-    function removeLiquidity(address token, uint256 dl, uint256 minTokens, uint256 minCoin) external nonReentrant {
+    function removeLiquidity(address token, uint256 dl, uint256 minTokens, uint256 minCoin, uint256 deadline) external nonReentrant beforeDeadline(deadline) {
         Pool storage p = pools[token];
         Position storage pos = positions[token][msg.sender];
         require(pos.open, "no position");
@@ -273,13 +299,14 @@ contract AretiaPool {
         p.l -= dl;
         totalOwed -= coin;
         emit LiquidityChanged(token, msg.sender, false, dl, tokens, coin);
+        _closeIfEmpty(token, msg.sender, pos);
 
         if (tokens > 0) _push(token, msg.sender, tokens);
         if (coin > 0) _send(msg.sender, coin);
         require(address(this).balance >= totalOwed, "insolvent");
     }
 
-    /** Pays the caller's position its settled fees, to its recipient. Works on locked liquidity. */
+    /** Pays the caller's position its settled fees, to its recipient. Works on locked liquidity. Closes a position left with nothing. */
     function claimFees(address token) external nonReentrant {
         Pool storage p = pools[token];
         Position storage pos = positions[token][msg.sender];
@@ -292,6 +319,7 @@ contract AretiaPool {
         totalOwed -= amount;
         address to = pos.recipient == address(0) ? msg.sender : pos.recipient;
         emit Claimed(token, msg.sender, to, amount);
+        _closeIfEmpty(token, msg.sender, pos);
         _send(to, amount);
         require(address(this).balance >= totalOwed, "insolvent");
     }
@@ -302,18 +330,30 @@ contract AretiaPool {
         require(pos.open, "no position");
         require(amount > 0 && amount <= pos.shares - pos.locked, "unlocked shares");
         pos.locked += amount;
+        pools[token].locked += amount;
         emit Locked(token, msg.sender, amount);
     }
 
-    /** Hands the whole position (locked liquidity, settled fees and all) to `to`, who must have no position in this pool. The fee payee resets to `to`. */
+    /**
+     * Hands the whole position (locked liquidity, settled fees and all) to `to`. If `to` already has a position in this pool the two are
+     * MERGED into it (shares, locked shares and pending fees add up; `to` keeps its own fee recipient), so nobody can block transfers to
+     * an address by giving it a dust position first (review finding L-19). A new position's fee payee is `to` itself.
+     */
     function transferPosition(address token, address to) external nonReentrant {
         Pool storage p = pools[token];
         Position storage pos = positions[token][msg.sender];
         require(pos.open, "no position");
         require(to != address(0) && to != msg.sender, "to");
-        require(!positions[token][to].open, "recipient has a position");
         _settle(p, pos);
-        positions[token][to] = Position({open: true, shares: pos.shares, locked: pos.locked, checkpoint: pos.checkpoint, pending: pos.pending, recipient: address(0)});
+        Position storage dst = positions[token][to];
+        if (dst.open) {
+            _settle(p, dst);
+            dst.shares += pos.shares;
+            dst.locked += pos.locked;
+            dst.pending += pos.pending;
+        } else {
+            positions[token][to] = Position({open: true, shares: pos.shares, locked: pos.locked, checkpoint: pos.checkpoint, pending: pos.pending, recipient: address(0)});
+        }
         delete positions[token][msg.sender];
         emit PositionTransferred(token, msg.sender, to);
     }
@@ -323,16 +363,32 @@ contract AretiaPool {
         Position storage pos = positions[token][msg.sender];
         require(pos.open, "no position");
         pos.recipient = recipient == msg.sender ? address(0) : recipient;
-        emit RecipientSet(token, msg.sender, recipient);
+        emit RecipientSet(token, msg.sender, pos.recipient);
+    }
+
+    /**
+     * Pays everything owed to the fee address (creation fees and the protocol share of trading fees) to `feeRecipient`. Anyone may call it;
+     * the coin can only go to `feeRecipient`. If that address refuses coin, only this call fails: trading is unaffected.
+     */
+    function withdrawProtocolFees() external nonReentrant {
+        uint256 amount = protocolOwed;
+        require(amount > 0, "nothing");
+        protocolOwed = 0;
+        totalOwed -= amount;
+        emit ProtocolFeesWithdrawn(feeRecipient, amount);
+        _send(feeRecipient, amount);
+        require(address(this).balance >= totalOwed, "insolvent");
     }
 
     // ------------------------------------------------------------ views for pages
 
-    /** What a buy of `coin` would do right now: fee, tokens out. Zeros if it could not. */
+    /** What a buy of `coin` would do right now: fee, tokens out. Zeros if it could not (including when `buy` would revert on the size limit). */
     function quoteBuy(address token, uint256 coin) external view returns (uint256 fee, uint256 tokensOut) {
         Pool storage p = pools[token];
         if (p.feeBps == 0 || coin == 0 || coin >= MAX) return (0, 0);
-        (fee, , tokensOut) = _quoteBuyView(p, coin);
+        uint256 net;
+        (fee, net, tokensOut) = _quoteBuyView(p, coin);
+        if (tokensOut == 0 || p.y + net + p.l >= MAX) return (0, 0);
     }
 
     /** What selling `tokens` would do right now: gross coin, fee. Zeros if it could not. */
@@ -382,6 +438,33 @@ contract AretiaPool {
         bool ok;
         (ok, gross, fee) = _sellMath(p, tokensIn);
         require(ok, "amount");
+    }
+
+    /**
+     * Credits a trade's fees: `protocol` to Aretia, `lp` to liquidity positions through `acc`. The part of `lp << 64` that does not divide
+     * evenly by `l` is carried in `accRemainder` to the next fee instead of being lost (review finding I-5).
+     */
+    function _creditFees(Pool storage p, uint256 lp, uint256 protocol) private {
+        protocolOwed += protocol;
+        p.feeReserve += lp;
+        uint256 scaled = (lp << SCALE_BITS) + p.accRemainder;
+        p.acc += scaled / p.l;
+        p.accRemainder = scaled % p.l;
+    }
+
+    /** Emits `Swapped` for a buy (`coin` paid in, `tokens` out) or a sell (`tokens` in, `coin` paid out after the fee). */
+    function _emitSwap(address token, address trader, bool isBuy, uint256 coin, uint256 tokens, uint256 fee, uint256 protocol) private {
+        Pool storage p = pools[token];
+        if (isBuy) emit Swapped(token, trader, true, coin, 0, 0, tokens, fee, protocol, p.x, p.y);
+        else emit Swapped(token, trader, false, 0, coin, tokens, 0, fee, protocol, p.x, p.y);
+    }
+
+    /** Deletes a position with no shares and no pending fees, so it no longer shows as open (review finding L-19). */
+    function _closeIfEmpty(address token, address owner, Position storage pos) private {
+        if (pos.shares == 0 && pos.pending == 0) {
+            delete positions[token][owner];
+            emit PositionClosed(token, owner);
+        }
     }
 
     /** Moves the position's earned fees into `pending`. Credits are rounded down, so claims never sum to more than was credited. */

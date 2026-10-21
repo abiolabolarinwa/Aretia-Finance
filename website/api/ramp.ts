@@ -26,6 +26,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const out = await handleRamp({
     method: req.method ?? 'GET',
     origin: requestOrigin(req.headers),
+    authorization: one(req.headers.authorization),
     ip: clientIp(req.headers),
     contentType: one(req.headers['content-type']),
     body,

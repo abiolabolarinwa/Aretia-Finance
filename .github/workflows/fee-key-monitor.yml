@@ -1,0 +1,89 @@
+name: fee-key-monitor
+
+# Audit M-2: the deployed Aretia curves pay the EVM fee address inside every trade, so code at that address (an EIP-7702 delegation)
+# could freeze or censor every buy and sell. Each hour this asks Ethereum, BNB Chain and Polygon whether the address has code.
+#  - Code found (exit 1): opens an issue labelled `security` (or comments on the open one) with the details, and fails the run.
+#  - Chains unreadable (exit 2): a warning. Three runs in a row (exit 3): the monitor is blind, so the same issue is opened and the run
+#    fails. The count is kept between runs in the Actions cache.
+# A failed run notifies only whoever has turned on notifications for failed workflows (by default, the person who last changed this
+# file's schedule); the issue is the alert everyone with access can see. Optional repository secrets ETHEREUM_RPC_URL, BNB_RPC_URL and
+# POLYGON_RPC_URL replace the public nodes (keyed URLs are secrets; the script prints only their domain).
+# Scheduled workflows run only from the default branch, and GitHub turns them off after 60 days without activity in the repository.
+# See docs/operations/fee-key-monitor.md.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: fee-key-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Actions are pinned by tag, not by commit SHA: pin them to full SHAs once verified against the actions' own repositories.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore the count of unreadable runs
+        uses: actions/cache/restore@v4
+        with:
+          path: .fee-key-monitor
+          key: fee-key-monitor-${{ github.run_id }}
+          restore-keys: fee-key-monitor-
+      - name: Check the fee address for code
+        id: monitor
+        working-directory: website
+        env:
+          ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
+          BNB_RPC_URL: ${{ secrets.BNB_RPC_URL }}
+          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
+          FEE_MONITOR_STATE: ${{ github.workspace }}/.fee-key-monitor/state.json
+          FEE_MONITOR_REPORT: ${{ github.workspace }}/.fee-key-monitor/report.md
+        run: |
+          set +e
+          node scripts/fee-key-monitor.mjs
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Save the count of unreadable runs
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .fee-key-monitor
+          key: fee-key-monitor-${{ github.run_id }}
+      - name: Open or update the security issue
+        if: steps.monitor.outputs.code == '1' || steps.monitor.outputs.code == '3'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.monitor.outputs.code }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$CODE" = "1" ]; then title="ALERT: the Aretia EVM fee address has code (fee-key monitor)"; else title="Fee-key monitor cannot read the chains (3 runs in a row)"; fi
+          body_file=.fee-key-monitor/report.md
+          [ -s "$body_file" ] || echo "The monitor exited $CODE without a report." > "$body_file"
+          printf '\nRun: %s\n' "$RUN_URL" >> "$body_file"
+          gh label create security --repo "$GITHUB_REPOSITORY" --color B60205 --description "Security alerts" 2>/dev/null || true
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label security --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file "$body_file"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label security --body-file "$body_file"
+          fi
+      - name: Result
+        env:
+          CODE: ${{ steps.monitor.outputs.code }}
+        run: |
+          case "$CODE" in
+            0) echo "No code at the fee address on any chain." ;;
+            2) echo "::warning::Some chains could not be read; nothing proven for them this hour." ;;
+            1) echo "::error::ALERT: the Aretia fee address has code (EIP-7702?). An issue labelled security has the details. See docs/operations/fee-key-monitor.md."; exit 1 ;;
+            3) echo "::error::The chains could not be read 3 runs in a row: the monitor is blind. Check the RPC secrets."; exit 1 ;;
+            *) echo "::error::The monitor did not finish (exit '$CODE')."; exit 1 ;;
+          esac

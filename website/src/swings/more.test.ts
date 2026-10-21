@@ -8,7 +8,8 @@ import { decodeAbiString, evmGasProblem, publicRead, readBalance, readErc20 } fr
 import { sourceVerified, zeroXTokenTax } from './tokens/explorer.js';
 import { EvmTokenEnricher, SolanaTokenEnricher } from './tokens/enrich.js';
 import { assessSolanaToken } from './tokens/risk.js';
-import { Evm0xProvider, ZEROX_ALLOWANCE_HOLDER, ZEROX_TRUSTED_CONTRACTS } from './providers/evm0x.js';
+import { Evm0xProvider, ZEROX_ALLOWANCE_HOLDER, ZEROX_SETTLER_REGISTRY, ZEROX_TRUSTED_CONTRACTS } from './providers/evm0x.js';
+import { TEST_SETTLER, registryAnswer, zeroXSwapData } from './providers/__fixtures__/zeroX.js';
 import { AretiaRouter } from './router/router.js';
 import { EVM_NATIVE_ADDRESS, type SwapRequest } from './core/types.js';
 
@@ -22,7 +23,17 @@ describe('runtime enablement', () => {
       const s = parseStatus(body);
       expect(s.evmChains).toEqual([]);
       expect(s.evmConfigured).toBe(false);
+      // L-13: the aggregators stay off unless the server says, in so many words, they are on.
+      expect(s.aggregators).toBe(false);
     }
+  });
+  it('turns the aggregators on only for an explicit true, and starts with them off', async () => {
+    expect(parseStatus({ aggregators: true }).aggregators).toBe(true);
+    for (const v of [undefined, 'true', 1, null, false]) expect(parseStatus({ aggregators: v }).aggregators).toBe(false);
+    const { runtime, loadRuntime } = await import('./runtime.js');
+    expect(runtime.aggregators).toBe(false);
+    await loadRuntime((async () => Promise.reject(new Error('offline'))) as never);
+    expect(runtime.aggregators).toBe(false);
   });
   it('lists only real EVM chains', () => {
     expect(parseStatus({ evm: { configured: true, chains: ['base', 'solana', 'dogechain', 'polygon'] } }).evmChains).toEqual(['base', 'polygon']);
@@ -234,24 +245,25 @@ describe('Solana holder concentration excludes program-controlled accounts', () 
   });
 });
 
-/** AllowanceHolder.exec(operator, token, amount, target, data) calldata, as 0x builds it. */
-const execData = (token: string, amount: bigint | string): string => {
-  const w = (hex: string): string => hex.replace(/^0x/, '').padStart(64, '0');
-  return '0x2213bc0b' + w('0'.repeat(40)) + w(token) + w(BigInt(amount).toString(16)) + w('0'.repeat(40)) + w('a0') + w('0');
-};
+/** AllowanceHolder.exec(Settler, token, amount, Settler, Settler.execute(...)) calldata, as 0x builds it. */
+const execData = (token: string, amount: bigint | string, recipient: string, buyToken: string, minAmountOut: bigint): string => zeroXSwapData({ token, amount: BigInt(amount), recipient, buyToken, minAmountOut });
 
 describe('0x trusted contracts and token taxes', () => {
   const user = '0x' + '1'.repeat(40);
   const request: SwapRequest = { chain: 'base', from: { chain: 'base', address: TOKEN }, to: { chain: 'base', address: '0x' + '3'.repeat(40) }, amountIn: 1_000_000n, slippageBps: 100, account: { chain: 'base', address: user } };
   const response = (tax?: { buyTaxBps?: string; sellTaxBps?: string }, to = ZEROX_ALLOWANCE_HOLDER) => ({
     buyAmount: '5000', minBuyAmount: '4950', liquidityAvailable: true, route: { fills: [] }, issues: { allowance: null, balance: null },
-    transaction: { to, data: execData(TOKEN, 1_000_000n), value: '0', gas: '100000' }, ...(tax ? { tokenMetadata: { buyToken: tax } } : {}),
+    transaction: { to, data: execData(TOKEN, 1_000_000n, user, '0x' + '3'.repeat(40), 4950n), value: '0', gas: '100000' }, ...(tax ? { tokenMetadata: { buyToken: tax } } : {}),
   });
-  const provider = (body: unknown) => new Evm0xProvider({ quote: async () => body, rpc: async () => '0x', now: () => 1 });
+  // The node answers the Settler registry with the test Settler, and nothing else.
+  const rpc = async (_c: unknown, method: string, params: unknown[]) => (method === 'eth_call' && (params[0] as { to?: string }).to === ZEROX_SETTLER_REGISTRY ? registryAnswer(TEST_SETTLER) : '0x');
+  const provider = (body: unknown) => new Evm0xProvider({ quote: async () => body, rpc, now: () => 1 });
 
   it('ships the AllowanceHolder from 0x docs for the four EVM chains and nothing for Solana', () => {
     expect(Object.keys(ZEROX_TRUSTED_CONTRACTS).sort()).toEqual(['base', 'bnb', 'ethereum', 'polygon']);
     for (const c of Object.values(ZEROX_TRUSTED_CONTRACTS)) expect(c!.swapTargets).toEqual([ZEROX_ALLOWANCE_HOLDER]);
+    // Settler moves every few weeks, so it is read from 0x's registry rather than pinned.
+    for (const c of Object.values(ZEROX_TRUSTED_CONTRACTS)) expect(c!.settlers).toBe('registry');
   });
   it('builds against the documented address and refuses any other target by default', async () => {
     const ok = provider(response());
@@ -349,10 +361,16 @@ describe('proxied EVM tokens are analysed through their implementation', () => {
 
 describe('Established classification', () => {
   const deep = { liquidityUsd: 9e6, volume24hUsd: 1e6, poolCount: 3, ageHours: 24 * 400 };
-  it('describes a long, deep, active track record without hiding admin powers', async () => {
+  it('is not given to a long, deep, active token that keeps admin powers, which stay visible (audit L-16)', async () => {
     const { assessEvmToken, RISK_LABELS } = await import('./tokens/risk.js');
+    const { ratingView, toRowRisk } = await import('./market/rowRisk.js');
     const usdcLike = assessEvmToken({ ...deep, owner: 'set', isProxy: true, canMint: true, canBlacklist: true, canPause: true });
-    expect(usdcLike.status).toBe('established');
+    // Its track record stands, but it is drawn yellow with the issuer's powers named: never green, and not red like a scam.
+    const view = ratingView({ risk: toRowRisk(usdcLike, 'onchain') } as never, undefined);
+    expect(view.band).toBe('yellow');
+    expect(view.label).toBe('Established, issuer controls');
+    expect(assessEvmToken({ ...deep, owner: 'renounced', isProxy: false, canMint: false, canBlacklist: false, canPause: false }).status).toBe('established');
+    expect(ratingView({ risk: toRowRisk(assessEvmToken({ ...deep, owner: 'renounced', isProxy: false, canMint: false, canBlacklist: false, canPause: false }), 'onchain') } as never, undefined).band).toBe('green');
     expect(usdcLike.score).toBeGreaterThanOrEqual(60);
     expect(usdcLike.signals.filter((s) => s.state === 'warn').length).toBeGreaterThanOrEqual(4);
     expect(RISK_LABELS.established).toBe('Established');

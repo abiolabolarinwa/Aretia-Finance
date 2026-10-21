@@ -241,8 +241,14 @@ describe('swap', () => {
       wsolAccount(web3, LAUNCH_FEE_ADDRESS),
       TOKEN_2022_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
+      // L-21: what the program needs to open Aretia's wrapped-SOL fee account again if it was closed.
+      LAUNCH_FEE_ADDRESS,
+      WSOL_MINT,
+      '11111111111111111111111111111111',
+      'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
     ]);
     expect(ix.keys[0]).toMatchObject({ isSigner: true, isWritable: true });
+    expect(ix.keys.slice(10).every((k) => !k.isSigner && !k.isWritable)).toBe(true);
   });
   it('refuses a wrap of a different amount, an unwrap into someone else’s account, and a missing unwrap', () => {
     const ixs = buildSwapSteps(web3, PROGRAM, buy);
@@ -265,7 +271,7 @@ describe('swap', () => {
   it('refuses another trader token account, wrapped-SOL account, Aretia fee account, vault or pool', () => {
     const ixs = buildSwapSteps(web3, PROGRAM, buy);
     const at = poolAt(ixs);
-    for (const i of [1, 2, 4, 5, 6, 7]) {
+    for (const i of [1, 2, 4, 5, 6, 7, 10, 11, 12, 13]) {
       expect(inspectSwap(web3, tx(change(ixs, at, (ix) => tamper(ix, { keys: { [i]: { pubkey: other } } }))), { ...buy, program: PROGRAM }).join(' '), `account ${i}`).toMatch(/unexpected account in position/);
     }
   });
@@ -289,6 +295,15 @@ describe('claim, lock, set recipient, transfer', () => {
     expect(c[poolAt(c)]!.keys[3]!.pubkey.toBase58()).toBe(positionAddress(web3, PROGRAM, pool, CREATOR));
     expect(inspectClaim(web3, tx(c, OTHER), { program: PROGRAM, owner: OTHER, mint: MINT, recipient: OTHER, positionId: CREATOR })).toEqual([]);
     expect(inspectClaim(web3, tx(c, OTHER), { program: PROGRAM, owner: OTHER, mint: MINT, recipient: OTHER }).join(' ')).toMatch(/position 4/);
+  });
+  it('refuses to send a position or its fees to the pool or the empty address (M-5, I-16)', () => {
+    const pool = poolAddress(web3, PROGRAM, MINT);
+    for (const bad of [pool, '11111111111111111111111111111111']) {
+      const t = buildTransferPosition(web3, PROGRAM, CREATOR, MINT, bad);
+      expect(inspectTransferPosition(web3, tx([t]), { program: PROGRAM, owner: CREATOR, mint: MINT, newOwner: bad }).join(' ')).toMatch(/lock it/);
+      const s = buildSetRecipient(web3, PROGRAM, CREATOR, MINT, bad);
+      expect(inspectSetRecipient(web3, tx([s]), { program: PROGRAM, owner: CREATOR, mint: MINT, recipient: bad }).join(' ')).toMatch(/nobody could use them/);
+    }
   });
   it('lock, set recipient and transfer are one step each, checked byte for byte', () => {
     const l = buildLock(web3, PROGRAM, CREATOR, MINT, 77n);

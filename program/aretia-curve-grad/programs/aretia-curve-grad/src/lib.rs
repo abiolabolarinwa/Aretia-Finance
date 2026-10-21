@@ -32,8 +32,7 @@ use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, Transfer
 
 use curve_math::Curve as Math;
 
-// The mainnet program id: its own key, made by the owner and kept outside the repo. The devnet test program (9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4)
-// was built before this change and keeps running its old build; it cannot be upgraded from this source, because the id is written into the program.
+// The DEVNET program id of this graduating copy (docs/ARETIA_POOL.md). A mainnet build needs its own id; see `ARETIA_POOL_PROGRAM` below.
 declare_id!("Ak12tX3J3m5rSmWLXUttyDpVAsniszkfvVG1GgWmnuBm");
 
 /// Aretia's management-fee wallet (the same one the Launch page and the swap fee use).
@@ -47,8 +46,13 @@ pub const ABORT_AFTER_SECS: i64 = 7 * 24 * 60 * 60;
 /// The most SOL a caller may lend the migrator to pay the pool's rent; whatever is left is sent straight back.
 pub const MAX_RENT_BUDGET: u64 = 200_000_000;
 
-/// The Aretia Pool program this curve graduates into (the DEVNET test program: a mainnet build needs the mainnet pool program id).
+/// The Aretia Pool program this curve graduates into. A default build is the DEVNET one (the devnet test pool program). A build
+/// with `--features mainnet` does not compile until the mainnet pool program id (and this program's own mainnet id) are written
+/// in, so a mainnet build can never ship pointing at the devnet pool (L-31; docs/ARETIA_POOL.md).
+#[cfg(not(feature = "mainnet"))]
 pub const ARETIA_POOL_PROGRAM: Pubkey = pubkey!("4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc");
+#[cfg(feature = "mainnet")]
+compile_error!("aretia-curve-grad: no mainnet Aretia Pool program id yet. Set ARETIA_POOL_PROGRAM (and declare_id!) for mainnet here before building with --features mainnet.");
 /// The pool's trading fee when it graduates: 0.25%, the same as the Meteora route.
 pub const POOL_FEE_BPS: u16 = 25;
 /// The wrapped-SOL (native) mint: the pool's SOL side is a wrapped-SOL token account.
@@ -133,6 +137,7 @@ pub mod aretia_curve_grad {
         require!(b.tokens_out >= min_tokens_out, CurveError::Slippage);
 
         // Effects first.
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), c.real_sol);
         c.set_math(&next);
         let now = Clock::get()?.unix_timestamp;
         if b.sold_out {
@@ -171,7 +176,7 @@ pub mod aretia_curve_grad {
         )?;
         ctx.accounts.vault.reload()?;
         require!(ctx.accounts.vault.amount == before - b.tokens_out, CurveError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol, surplus)?;
 
         emit!(Traded { curve: curve_key, trader: ctx.accounts.buyer.key(), is_buy: true, lamports: b.gross, fee: b.fee, tokens: b.tokens_out, v_sol, v_tok, real_sol, ts: now });
         Ok(())
@@ -185,6 +190,7 @@ pub mod aretia_curve_grad {
         let (s, next) = curve_math::sell(&c.math(), c.curve_tokens, tokens_in, c.fee_bps).ok_or(CurveError::TradeTooSmall)?;
         require!(s.net >= min_lamports_out, CurveError::Slippage);
 
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), c.real_sol);
         c.set_math(&next);
         let (curve_key, sol_bump) = (c.key(), c.sol_bump);
         let (v_sol, v_tok, real_sol) = (c.v_sol, c.v_tok, c.real_sol);
@@ -219,7 +225,7 @@ pub mod aretia_curve_grad {
                 s.fee,
             )?;
         }
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), real_sol, surplus)?;
 
         emit!(Traded { curve: curve_key, trader: ctx.accounts.seller.key(), is_buy: false, lamports: s.gross, fee: s.fee, tokens: tokens_in, v_sol, v_tok, real_sol, ts: now });
         Ok(())
@@ -245,6 +251,7 @@ pub mod aretia_curve_grad {
 
         // Effects first: after this nothing can sell, buy, or migrate again.
         curve.status = Status::Migrated;
+        let surplus = vault_surplus(&ctx.accounts.sol_vault.to_account_info(), curve.real_sol);
         curve.real_sol = 0;
         curve.pool = pool_expected;
 
@@ -287,7 +294,7 @@ pub mod aretia_curve_grad {
         )?;
         token::sync_native(CpiContext::new(ctx.accounts.sol_token_program.to_account_info(), token::SyncNative { account: ctx.accounts.migrator_wsol.to_account_info() }))?;
         require!(token_amount(&migrator_wsol, &WSOL, &migrator_key, &token::ID)? == wsol_pre + sol_to_move, CurveError::UnexpectedBalance);
-        require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0)?;
+        require_solvent(&ctx.accounts.sol_vault.to_account_info(), 0, surplus)?;
         require!(token_amount(&migrator_token, &mint_key, &migrator_key, &anchor_spl::token_2022::ID)? == tok_pre + tokens_to_move, CurveError::UnexpectedBalance);
 
         // 3. Open the pool. The migrator is the creator and pays the pool's fee and rent; the position belongs to the curve's creator and is locked.
@@ -390,9 +397,18 @@ fn token_amount(info: &AccountInfo, mint: &Pubkey, owner: &Pubkey, program: &Pub
     Ok(u64::from_le_bytes(data[64..72].try_into().unwrap()))
 }
 
-/// The SOL vault must always hold the rent-exempt minimum plus every lamport the curve owes holders.
-fn require_solvent(sol_vault: &AccountInfo, real_sol: u64) -> Result<()> {
-    let min = Rent::get()?.minimum_balance(0);
+/// What the SOL vault holds beyond what the curve owes holders: the rent it paid when it was opened, plus any donation.
+fn vault_surplus(sol_vault: &AccountInfo, real_sol: u64) -> u64 {
+    sol_vault.lamports().saturating_sub(real_sol)
+}
+
+/// The SOL vault must always hold every lamport the curve owes holders plus its rent. The rent part is the rent-exempt minimum
+/// now, or what the vault held beyond its debt before this instruction (`surplus_before`, which is at least the rent it paid
+/// when opened), whichever is lower. So a later rise in rent cannot freeze sells on a vault that paid the old rent (I-13), a
+/// fall in rent only lowers the floor, and no instruction can ever pay out of that surplus. No stored field is needed, so the
+/// account layout is unchanged (BONDING_CURVE.md section 11b).
+fn require_solvent(sol_vault: &AccountInfo, real_sol: u64, surplus_before: u64) -> Result<()> {
+    let min = vault_rent_floor(Rent::get()?.minimum_balance(0), surplus_before);
     require!(sol_vault.lamports() >= min.checked_add(real_sol).ok_or(CurveError::BadParameters)?, CurveError::Insolvent);
     Ok(())
 }
@@ -726,9 +742,24 @@ pub enum CurveError {
     PoolPriceMismatch,
 }
 
+/// The rent part of the solvency floor: the rent-exempt minimum of a 0-byte account now, capped at what the vault held beyond
+/// its debt before the instruction.
+fn vault_rent_floor(rent_now: u64, surplus_before: u64) -> u64 {
+    rent_now.min(surplus_before)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_vault_rent_floor_is_what_a_vault_paid_and_never_more() {
+        let paid = Rent::default().minimum_balance(0);
+        assert_eq!(vault_rent_floor(paid, paid), paid);
+        assert_eq!(vault_rent_floor(2 * paid, paid), paid, "a rise in rent does not raise the floor above what the vault paid");
+        assert_eq!(vault_rent_floor(paid / 2, paid), paid / 2, "a fall in rent lowers it");
+        assert_eq!(vault_rent_floor(paid, paid + 5), paid, "a donation does not raise it");
+    }
 
     fn base() -> Vec<u8> {
         let mut d = vec![0u8; 82];

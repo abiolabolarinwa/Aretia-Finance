@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SwingsError } from '../swings/core/types.js';
 import { DEAD_ADDRESS, DEFAULT_POOL_FORM, POOL_DEXES, POOL_FEE_ADDRESS, poolConfigOf, validatePoolForm, type PoolConfig, type PoolForm } from './walletPoolEvmCore';
-import { ADD_LIQUIDITY_ETH_SELECTOR, APPROVE_SELECTOR, SEL, buildAddTx, buildApproveTx, buildFeeTx, encodeTransfer, inspectFeeTx, decodeAddLiquidityEth, decodeApprove, encodeAddLiquidityEth, encodeApprove, inspectAddTx, inspectApproveTx } from './walletPoolEvmTx';
+import { ADD_LIQUIDITY_ETH_SELECTOR, APPROVE_SELECTOR, SEL, buildAddTx, buildApproveTx, buildFeeTx, encodeTransfer, inspectFeeTx, decodeAddLiquidityEth, decodeApprove, encodeAddLiquidityEth, encodeApprove, inspectAddTx, inspectApproveTx, buildSeedTx, inspectSeedTx, SEEDER_SEL } from './walletPoolEvmTx';
 import { PoolError, PoolFlow, type PoolFlowDeps } from './walletPoolEvmFlow';
 
 const CREATOR = '0x1111111111111111111111111111111111111111';
@@ -79,6 +79,9 @@ describe('inspectors', () => {
   });
   it('refuse a different network, sender or extra field', () => {
     expect(inspectApproveTx(approve(), config(), 1).join(' ')).toMatch(/network 1/);
+    // Audit L-1: a transaction not bound to the pool's network, or bound to another, is refused even when the wallet looks right.
+    expect(inspectApproveTx({ ...approve(), chainId: undefined } as never, config(), 56).join(' ')).toMatch(/not bound/);
+    expect(inspectApproveTx({ ...approve(), chainId: '0x1' }, config(), 56).join(' ')).toMatch(/not bound/);
     expect(inspectAddTx({ ...add(), from: OTHER }, config(), 56, NOW).join(' ')).toMatch(/not from the account/);
     expect(inspectAddTx({ ...add(), nonce: '0x1' } as never, config(), 56, NOW).join(' ')).toMatch(/unexpected field/);
   });
@@ -114,7 +117,7 @@ describe('inspectors', () => {
 const w = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
 const aw = (a: string) => '0x' + a.slice(2).padStart(64, '0');
 
-function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3; feeRejectOnce?: boolean } = {}) {
+function world(s: { factory?: string; wrapped?: string; routerCode?: string; tokenBal?: bigint; coinBal?: bigint; existing?: [bigint, bigint]; approveFails?: boolean; allowance?: bigint; addEstimateFails?: boolean; receipt1?: 'ok' | 'fail' | 'none'; receipt2?: 'ok' | 'fail'; reserves?: [bigint, bigint]; lp?: bigint; feeBal?: bigint; feeDecimals?: bigint; feeReceipt?: 'ok' | 'fail'; account?: string; chainId?: number; rejectAt?: 1 | 2 | 3; feeRejectOnce?: boolean; lpSupply?: bigint; seeder?: string; seederQuote?: [boolean, bigint, bigint]; seederRouter?: string } = {}) {
   const sent: { to?: string; data?: string; value?: string; gas?: string }[] = [];
   let approved = false;
   let opened = false;
@@ -138,11 +141,18 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
       if (c.to === dex.stables.USDC.address && d.startsWith(SEL.balanceOf)) return w(s.feeBal ?? 100n * 10n ** 18n);
       if (c.to === dex.router && d === SEL.routerFactory) return aw(s.factory ?? dex.factory);
       if (c.to === dex.router && d === SEL.routerWeth) return aw(s.wrapped ?? dex.wrapped);
+      if (c.to === TOKEN && d.startsWith(SEL.balanceOf) && d.toLowerCase().endsWith(PAIR.slice(2).toLowerCase())) return w(s.existing?.[0] ?? 0n);
       if (c.to === TOKEN && d.startsWith(SEL.balanceOf)) return w(s.tokenBal ?? TOKENS);
       if (c.to === TOKEN && d.startsWith(SEL.allowance)) return w(s.allowance ?? (approved ? TOKENS : 0n));
       if (c.to === dex.factory && d.startsWith(SEL.getPair)) return aw(s.existing || opened ? PAIR : '0x' + '0'.repeat(40));
       if (c.to === PAIR && d === SEL.getReserves) return '0x' + (opened ? (s.reserves ?? [TOKENS, COIN])[0] : (s.existing?.[0] ?? 0n)).toString(16).padStart(64, '0') + (opened ? (s.reserves ?? [TOKENS, COIN])[1] : (s.existing?.[1] ?? 0n)).toString(16).padStart(64, '0') + '0'.repeat(64);
       if (c.to === PAIR && d === SEL.token0) return aw(TOKEN);
+      if (c.to === PAIR && d === SEL.totalSupply) return w(s.lpSupply ?? (s.existing && (s.existing[0] > 0n || s.existing[1] > 0n) ? 1000n : 0n));
+      if (s.seeder && c.to === s.seeder && d.startsWith(SEEDER_SEL.router)) return '0x' + '0'.repeat(24) + (s.seederRouter ?? dex.router).slice(2);
+      if (s.seeder && c.to === s.seeder && d.startsWith(SEEDER_SEL.quote)) {
+        const q = s.seederQuote ?? [true, TOKENS, COIN];
+        return '0x' + [q[0] ? 1n : 0n, BigInt(PAIR), q[1], q[2]].map((v) => v.toString(16).padStart(64, '0')).join('');
+      }
       if (c.to === PAIR && d.startsWith(SEL.balanceOf)) return w(s.lp ?? 1000n);
       return '0x';
     }
@@ -163,7 +173,7 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
         if (s.rejectAt === sent.length + 1) throw new SwingsError('rejected', 'no');
         sent.push(tx);
         if (tx.to === TOKEN) approved = true;
-        else if (tx.to === dex.router) opened = true;
+        else if (tx.to === dex.router || (s.seeder && tx.to === s.seeder)) opened = true;
         return '0x' + String(sent.length).padStart(2, '0').padStart(64, '0');
       },
     },
@@ -172,7 +182,7 @@ function world(s: { factory?: string; wrapped?: string; routerCode?: string; tok
     nowSeconds: () => NOW,
     sleep: async () => undefined,
   };
-  return { flow: new PoolFlow(deps), sent };
+  return { flow: new PoolFlow(deps, s.seeder ? { bnb: s.seeder } : {}), sent };
 }
 
 describe('PoolFlow', () => {
@@ -205,7 +215,44 @@ describe('PoolFlow', () => {
     expect((await world({ tokenBal: TOKENS - 1n }).flow.prepare(config())).blockers.join(' ')).toMatch(/fewer ATEST/);
     expect((await world({ coinBal: COIN }).flow.prepare(config())).blockers.join(' ')).toMatch(/need more BNB/);
     expect((await world({ existing: [1n, 1n] }).flow.prepare(config())).blockers.join(' ')).toMatch(/already exists with liquidity/);
-    expect((await world({ existing: [0n, 0n] }).flow.prepare(config())).blockers).toEqual([]);
+  });
+  it('a pair made first with dust and no liquidity tokens (M-4): explains when no seeder is deployed', async () => {
+    const msg = (await world({ existing: [0n, 1n], lpSupply: 0n }).flow.prepare(config())).blockers.join(' ');
+    expect(msg).toMatch(/left a few coins or tokens in it without adding liquidity/);
+    expect(msg).toMatch(/pair seeder.*not deployed/);
+  });
+  it('a pair made first with dust (M-4): opens it through the configured seeder, approval and call checked exactly', async () => {
+    const SEEDER = '0x5eed000000000000000000000000000000005eed';
+    const x = world({ existing: [0n, 1n], lpSupply: 0n, seeder: SEEDER, seederQuote: [true, TOKENS, COIN - 1n], allowance: TOKENS });
+    const review = await x.flow.prepare(config());
+    expect(review.blockers).toEqual([]);
+    expect(review.seed).toMatchObject({ seeder: SEEDER, tokensPaid: TOKENS, coinPaid: COIN - 1n });
+    expect(decodeApprove(review.approveTx.data as string)).toEqual({ spender: SEEDER, amount: TOKENS });
+    // The router-approval inspector refuses the seeder approval, and the seeder inspector refuses anything else.
+    expect(inspectApproveTx(review.approveTx, config(), 56).length).toBeGreaterThan(0);
+    expect(inspectApproveTx(review.approveTx, config(), 56, { seeder: SEEDER, amount: TOKENS })).toEqual([]);
+    const seedTx = buildSeedTx(config(), SEEDER);
+    expect(inspectSeedTx(seedTx, config(), SEEDER, 56)).toEqual([]);
+    expect(inspectSeedTx({ ...seedTx, to: OTHER }, config(), SEEDER, 56).length).toBeGreaterThan(0);
+    expect(inspectSeedTx(buildSeedTx({ ...config(), lpTo: OTHER }, SEEDER), config(), SEEDER, 56).length).toBeGreaterThan(0);
+    expect(inspectSeedTx({ ...seedTx, value: '0x1' }, config(), SEEDER, 56).length).toBeGreaterThan(0);
+    await x.flow.create(review);
+    expect(x.sent[1]!.to).toBe(SEEDER);
+    expect(x.sent[1]!.data!.startsWith(SEEDER_SEL.seed)).toBe(true);
+  });
+  it('refuses a configured seeder built for another router, before approving anything to it (re-audit N-3)', async () => {
+    const SEEDER = '0x5eed000000000000000000000000000000005eed';
+    const x = world({ existing: [0n, 1n], lpSupply: 0n, seeder: SEEDER, seederRouter: OTHER });
+    const review = await x.flow.prepare(config());
+    expect(review.blockers.join(' ')).toMatch(/not set up for this exchange/);
+    expect(review.seed).toBeNull();
+  });
+  it('a pair made first holding more than the chosen amounts cannot be seeded', async () => {
+    const SEEDER = '0x5eed000000000000000000000000000000005eed';
+    const msg = (await world({ existing: [0n, 1n], lpSupply: 0n, seeder: SEEDER, seederQuote: [false, 0n, 0n] }).flow.prepare(config())).blockers.join(' ');
+    expect(msg).toMatch(/more in it than your amounts/);
+    const none = await world({ existing: [0n, 0n] }).flow.prepare(config());
+    expect(none.blockers, none.blockers.join(' ')).toEqual([]);
     expect((await world({ approveFails: true }).flow.prepare(config())).blockers.join(' ')).toMatch(/not accept the fee or the approval/);
   });
   it('sends nothing when blocked, the account changed, or the wallet stays on another network', async () => {

@@ -68,7 +68,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (route === 'account') out = await handleAccount({ ...common, body });
   else if (route === 'referrals') out = await handleReferrals({ ...common, body });
   else if (route === 'radar') out = await handleRadar({ ...common, query, body });
-  else if (route === 'notify') out = await handleNotify({ ...common, query, body });
+  else if (route === 'notify') out = await handleNotify({ ...common, query, body, inboxSecret: one(req.headers['x-inbox-secret']) });
   else if (route === 'telegram') out = await handleTelegramWebhook({ ...common, query, body, telegramSecret: one(req.headers['x-telegram-bot-api-secret-token']) });
   else if (route === 'alerts-run') out = await handleAlertsRun({ ...common, query, body });
   else if (route === 'candles') out = await handleCandles({ ...common, query });

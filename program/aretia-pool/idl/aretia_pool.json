@@ -151,6 +151,30 @@
         },
         {
           "name": "solTokenProgram"
+        },
+        {
+          "name": "feeWallet",
+          "docs": [
+            "Optional trailing account (L-21): with the next three, lets the swap open the fee wallet's wrapped-SOL account, the trader paying its rent, if it was closed. Always pass all four. The fee wallet 2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2."
+          ]
+        },
+        {
+          "name": "wsolMint",
+          "docs": [
+            "Optional trailing account: the native mint."
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "docs": [
+            "Optional trailing account: the System program."
+          ]
+        },
+        {
+          "name": "associatedTokenProgram",
+          "docs": [
+            "Optional trailing account: the associated-token program."
+          ]
         }
       ],
       "args": [

@@ -143,7 +143,11 @@ pub mod aretia_pool {
 
     /// Exact-input swap. Buy: `amount_in` wrapped lamports (from `trader_wsol`) for tokens. Sell: `amount_in` tokens for wrapped lamports (to `trader_wsol`). Reverts unless at
     /// least `min_out` comes back (tokens on a buy; lamports after the fee on a sell).
-    pub fn swap(ctx: Context<Swap>, is_buy: bool, amount_in: u64, min_out: u64) -> Result<()> {
+    ///
+    /// If the fee wallet's wrapped-SOL account does not exist (closing it is how a wallet unwraps), the swap opens it again, the
+    /// trader paying its rent, so trading never stops (L-21). For that it needs four optional trailing accounts, in this order: the
+    /// fee wallet, the native mint, the System program and the associated-token program. Clients that always pass them never stall.
+    pub fn swap<'info>(ctx: Context<'_, '_, '_, 'info, Swap<'info>>, is_buy: bool, amount_in: u64, min_out: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let now = Clock::get()?.unix_timestamp;
         // The fee in force now: the creator's launch schedule while it lasts, then the base fee.
@@ -168,6 +172,9 @@ pub mod aretia_pool {
         let sol_prog = ctx.accounts.sol_token_program.to_account_info();
 
         // Interactions.
+        if protocol > 0 && ctx.accounts.fee_wsol.data_is_empty() {
+            open_fee_wsol(&ctx.accounts.trader, &ctx.accounts.fee_wsol.to_account_info(), &sol_prog, ctx.remaining_accounts)?;
+        }
         if is_buy {
             // The trader pays in wrapped SOL: the pool's part into its vault, Aretia's part to the fee wallet's wrapped-SOL account.
             if protocol > 0 {
@@ -210,11 +217,17 @@ pub mod aretia_pool {
     }
 
     /// Adds `dl` of liquidity at the pool's current price. Pays tokens and SOL in proportion, rounded up, and reverts if either
-    /// would be more than the caps. Opens the owner's position if they have none.
+    /// would be more than the caps. Opens the owner's position if they have none. Refused while the creator's launch fee is
+    /// above the base fee, so nobody can add just in time to take the launch fee and leave (L-22).
     pub fn add_liquidity(ctx: Context<AddLiquidity>, dl: u64, max_tokens: u64, max_sol: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let pos = &mut ctx.accounts.position;
-        if pos.owner == Pubkey::default() {
+        let now = Clock::get()?.unix_timestamp;
+        require!(pool_math::adding_open(pool.fee_bps, pool.fee_start_bps, pool.decay_secs, pool.created_at, now), PoolError::LaunchFeeActive);
+        // A position is new only when its account was just created: `pool` is written once, when it is opened, and never
+        // cleared. A position's owner can never be the default key either (see `transfer_position`), so nothing can be
+        // re-initialised and nothing already settled to a position (its checkpoint, its pending fees) is ever rewritten (M-5).
+        if pos.pool == Pubkey::default() {
             // A new position: its id is the owner's own address, or an address that signs for itself, so nobody can take an id in advance.
             require!(ctx.accounts.position_id.key() == ctx.accounts.owner.key() || ctx.accounts.position_id.is_signer, PoolError::BadPositionId);
             pos.pool = pool.key();
@@ -224,13 +237,14 @@ pub mod aretia_pool {
             pos.checkpoint = pool.acc;
             pos.recipient = ctx.accounts.owner.key();
         }
+        require_keys_eq!(pos.pool, pool.key(), PoolError::WrongAccount);
         require_keys_eq!(pos.owner, ctx.accounts.owner.key(), PoolError::NotOwner);
         settle(pos, pool)?;
         let (a, next) = pool_math::add(&pool.math(), dl).ok_or(PoolError::BadParameters)?;
         require!(a.tokens_in <= max_tokens && a.sol_in <= max_sol, PoolError::Slippage);
         pool.set_math(&next);
         pos.shares = pos.shares.checked_add(dl).ok_or(PoolError::BadParameters)?;
-        let (pool_key, now) = (pool.key(), Clock::get()?.unix_timestamp);
+        let pool_key = pool.key();
 
         if a.sol_in > 0 {
             token::transfer(
@@ -257,12 +271,15 @@ pub mod aretia_pool {
     }
 
     /// Removes `dl` of the position's unlocked liquidity. Reverts unless at least `min_tokens` and `min_sol` come back.
+    /// The pool always keeps `MIN_LIQUIDITY` (it can never be emptied, L-23); a position may always take all of its own unlocked
+    /// shares, even fewer than `MIN_LIQUIDITY_DELTA` (I-15).
     pub fn remove_liquidity(ctx: Context<RemoveLiquidity>, dl: u64, min_tokens: u64, min_sol: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let pos = &mut ctx.accounts.position;
         settle(pos, pool)?;
-        require!(dl <= pos.shares - pos.locked, PoolError::Locked);
-        let (r, next) = pool_math::remove(&pool.math(), dl).ok_or(PoolError::BadParameters)?;
+        let unlocked = pos.shares - pos.locked;
+        require!(dl <= unlocked, PoolError::Locked);
+        let (r, next) = pool_math::remove(&pool.math(), dl, unlocked).ok_or(PoolError::BadParameters)?;
         require!(r.tokens_out >= min_tokens && r.sol_out >= min_sol, PoolError::Slippage);
         pool.set_math(&next);
         pos.shares -= dl;
@@ -319,8 +336,12 @@ pub mod aretia_pool {
 
     /// Hands the whole position, its locked part included, to `new_owner`. The fee recipient resets to the new owner, so a sold
     /// position never keeps paying the seller. Fees already settled to the position (`pending`) go with it: claim first if they are yours.
+    /// The new owner may not be the default key (`1111...1111`, which is also the System program's id), nor the pool itself:
+    /// nobody can sign for either, so such a "burn" could only ever be undone by a bug. To give liquidity up for good, lock it
+    /// (`lock_liquidity`); that is the only burn (M-5).
     pub fn transfer_position(ctx: Context<TransferPosition>, new_owner: Pubkey) -> Result<()> {
         let pool = &ctx.accounts.pool;
+        require!(new_owner != Pubkey::default() && new_owner != system_program::ID && new_owner != pool.key(), PoolError::BadRecipient);
         let pos = &mut ctx.accounts.position;
         settle(pos, pool)?;
         let from = pos.owner;
@@ -332,7 +353,9 @@ pub mod aretia_pool {
 
     /// Names the wallet that `claim_fees` pays. Owner only, any time, even on a locked position: the lock covers the liquidity, not
     /// where the fees go.
+    /// Neither the default key nor the pool itself may be named: fees paid there would be lost or land back in the pool (I-16).
     pub fn set_recipient(ctx: Context<SetRecipient>, recipient: Pubkey) -> Result<()> {
+        require!(recipient != Pubkey::default() && recipient != ctx.accounts.pool.key(), PoolError::BadRecipient);
         let pos = &mut ctx.accounts.position;
         pos.recipient = recipient;
         emit!(RecipientSet { pool: pos.pool, owner: pos.owner, recipient, ts: Clock::get()?.unix_timestamp });
@@ -359,6 +382,28 @@ fn settle(pos: &mut Position, pool: &Pool) -> Result<()> {
     pos.pending = pos.pending.checked_add(owed).ok_or(PoolError::BadParameters)?;
     pos.checkpoint = pool.acc;
     Ok(())
+}
+
+/// Opens the fee wallet's wrapped-SOL account again, with the trader paying. The four accounts it needs come after the swap's own
+/// (fee wallet, native mint, System program, associated-token program), each checked by address.
+fn open_fee_wsol<'info>(payer: &Signer<'info>, fee_wsol: &AccountInfo<'info>, token_program: &AccountInfo<'info>, extra: &[AccountInfo<'info>]) -> Result<()> {
+    require!(extra.len() >= 4, PoolError::FeeAccountMissing);
+    let (wallet, wsol, system, ata_program) = (&extra[0], &extra[1], &extra[2], &extra[3]);
+    require!(
+        wallet.key() == FEE_WALLET && wsol.key() == WSOL && system.key() == system_program::ID && ata_program.key() == associated_token::ID,
+        PoolError::FeeAccountMissing
+    );
+    associated_token::create_idempotent(CpiContext::new(
+        ata_program.clone(),
+        associated_token::Create {
+            payer: payer.to_account_info(),
+            associated_token: fee_wsol.clone(),
+            authority: wallet.clone(),
+            mint: wsol.clone(),
+            system_program: system.clone(),
+            token_program: token_program.clone(),
+        },
+    ))
 }
 
 /// Opens `ata` (the associated account of `authority` for `mint`) if it is not there yet. The associated-token program refuses any
@@ -531,9 +576,10 @@ pub struct Swap<'info> {
     /// The trader's wrapped-SOL account: pays on a buy, is paid on a sell.
     #[account(mut, constraint = trader_wsol.mint == WSOL && trader_wsol.owner == trader.key() @ PoolError::WrongAccount)]
     pub trader_wsol: Account<'info, token::TokenAccount>,
-    /// Aretia's wrapped-SOL account: its share of the fee is paid here.
+    /// CHECK: Aretia's wrapped-SOL account (address-checked): its share of the fee is paid here, and the token program checks it is a
+    /// wrapped-SOL account when it is paid. Opened by the swap if it is missing (see `swap`).
     #[account(mut, address = fee_wsol_address())]
-    pub fee_wsol: Account<'info, token::TokenAccount>,
+    pub fee_wsol: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token2022>,
     pub sol_token_program: Program<'info, Token>,
 }
@@ -596,8 +642,8 @@ pub struct ClaimFees<'info> {
     pub sol_vault: Account<'info, token::TokenAccount>,
     #[account(mut, seeds = [b"position", pool.key().as_ref(), position.id.as_ref()], bump = position.bump, has_one = pool, has_one = owner)]
     pub position: Account<'info, Position>,
-    /// A wrapped-SOL account owned by the wallet the position names to receive its fees.
-    #[account(mut, constraint = recipient_wsol.mint == WSOL && recipient_wsol.owner == position.recipient @ PoolError::WrongAccount)]
+    /// A wrapped-SOL account owned by the wallet the position names to receive its fees. Never the pool's own SOL vault (I-16).
+    #[account(mut, constraint = recipient_wsol.mint == WSOL && recipient_wsol.owner == position.recipient && recipient_wsol.key() != sol_vault.key() @ PoolError::WrongAccount)]
     pub recipient_wsol: Account<'info, token::TokenAccount>,
     pub sol_token_program: Program<'info, Token>,
 }
@@ -735,6 +781,12 @@ pub enum PoolError {
     NotOwner,
     #[msg("A wrapped-SOL account is not the one expected.")]
     WrongAccount,
+    #[msg("Aretia's wrapped-SOL fee account is missing: pass the fee wallet, the native mint, the System program and the associated-token program after the swap's accounts so it can be opened.")]
+    FeeAccountMissing,
+    #[msg("Liquidity can be added once the launch fee has fallen back to the pool's base fee.")]
+    LaunchFeeActive,
+    #[msg("That wallet cannot own a position or receive its fees.")]
+    BadRecipient,
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@
  * DexScreener by token address, batched and kept for a minute; an Aretia Curve's status and progress are read from the chain. A token
  * with no pool has no price and says so. If the index has not been set up (its migration not run) the answer says that and lists nothing.
  */
+import { bearerMatches } from './_secrets.js';
 import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { overLimit } from './_rpcProxy.js';
 import { LAUNCH_CHAINS, type CurveView, type LaunchChain, type LaunchView } from '../src/swings/launchbox/core.js';
@@ -93,7 +94,9 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
       await catchingUp;
       cursors = await store.cursors();
     }
-    const stored = await store.list(LIST_LIMIT);
+    // Only what may be shown: no pending creation, no hidden token, and no Solana token the indexer has not yet read and found keeping
+    // the launch rule (core.ts `isPublicListing`). The indexer may run only once a day, so the list never trusts a row before that read.
+    const stored = await store.listPublic(LIST_LIMIT);
     let marketOk = true;
     let staleMarket = false;
     const maps = new Map<LaunchChain, Map<string, MarketInfo>>();
@@ -140,18 +143,18 @@ export async function handleLaunchboxRun(input: LaunchboxInput): Promise<Launchb
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   const secret = input.env.CRON_SECRET?.trim();
   // Nothing runs unless a secret is configured and presented.
-  if (!secret || input.authorization !== `Bearer ${secret}`) return json(401, { error: 'unauthorized' }, headers);
+  if (!bearerMatches(input.authorization, secret)) return json(401, { error: 'unauthorized' }, headers);
   if (input.method !== 'GET' && input.method !== 'POST') return json(405, { error: 'method' }, { ...headers, allow: 'GET, POST' });
   const store = storeFor(input);
   if (!store) return json(503, { error: 'not-configured' }, headers);
   try {
     const report = await runIndexer({ store, fetchImpl: input.fetchImpl, env: input.env, now: () => Date.now(), budgetMs: 40_000 });
-    if (report.missingTable) return json(503, { error: 'no-table', hint: 'Run migration 0012_launchbox.sql (npm run db:migrate).' }, headers);
+    if (report.missingTable) return json(503, { error: 'no-table', hint: 'Run migrations 0012_launchbox.sql and 0015_launchbox_listing.sql (npm run db:migrate).' }, headers);
     const links = await refreshLinks({ store, fetchImpl: input.fetchImpl, env: input.env, now: () => Date.now() }).catch(() => ({ pools: 0, curves: 0, error: 'links failed' }));
     page = null;
     return json(report.ok ? 200 : 207, { ...report, links }, headers);
   } catch (e) {
-    if (e instanceof MissingTableError) return json(503, { error: 'no-table', hint: 'Run migration 0012_launchbox.sql (npm run db:migrate).' }, headers);
+    if (e instanceof MissingTableError) return json(503, { error: 'no-table', hint: 'Run migrations 0012_launchbox.sql and 0015_launchbox_listing.sql (npm run db:migrate).' }, headers);
     return json(500, { error: 'run-failed' }, headers);
   }
 }

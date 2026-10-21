@@ -67,6 +67,7 @@
 - **Client, parties:** the sender must be the connected wallet. Any other recipient requires explicit full-address confirmation.
 - **Client, network:** every EVM step is bound to its network ID.
 - **Server:** records need an HMAC write token to be changed.
+- **Move fee (21 Oct 2026, kept within H-3):** the 0.1% Move USDC fee (added on top) is recomputed from `MOVE_FEE_BPS` whenever a move is built; a quote whose stored fee or burn disagrees is refused. The inspector also decodes Aretia's fee step (native USDC `transfer`, recipient the configured fee address, exactly `moveFeeFor(amount)`, value 0, sender, chain id) and, across the set, requires approval, one fee, one burn in that order, with the approval equal to the burn. On Solana it allows exactly one SPL `TransferChecked` of the fee to the fee wallet's USDC account inside the burn, and the wallet gateway lets exactly that transfer through. Tests: `cctp.fee.test.ts`.
 
 ### 2.2 Medium
 

@@ -32,6 +32,7 @@ import type { SettlementQuote, SettlementTransaction } from './settlement/types.
 const NOW = 5_000_000;
 const ME = '0x' + 'a'.repeat(40);
 const ACT_BASE = '0x' + 'ac'.repeat(20);
+const FEE_ADDRESS = '0x' + '7'.repeat(40);
 const word = (n: bigint): string => '0x' + n.toString(16).padStart(64, '0');
 /** A Circle V2 message minting to ME on Base (domain 6): header of 148 bytes, then the burn body with the recipient at byte 36. */
 const MESSAGE = '0x' + '00'.repeat(8) + '00000006' + '00'.repeat(136) + '00'.repeat(36) + '00'.repeat(12) + 'a'.repeat(40) + '00'.repeat(160);
@@ -54,6 +55,7 @@ function world() {
     if (data.startsWith(sel('burnLimitsPerMessage(address)', [CCTP_USDC.ethereum]))) return word(1_000_000_000_000n);
     if (data.startsWith(sel('allowance(address,address)', [ME, CCTP_CONTRACTS.tokenMessenger]))) return word(w.allowance);
     if (data.startsWith(sel('usedNonces(bytes32)', ['0x' + '0'.repeat(64)]))) return word(w.nonceUsed ? 1n : 0n);
+    if (data.startsWith('0x8e0250ee')) return '0x'; // the burn's simulation before Aretia's fee and before the burn
     throw new Error('unexpected read');
   };
   const fetchImpl = (async (url: string) => {
@@ -93,7 +95,7 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
     const wd = world();
     const telemetry = new Telemetry([], () => NOW);
     const orchStore = observedExecutionStore(new InMemoryExecutionStore(), telemetry);
-    const cctp = new CctpSettlementProvider({ mode: 'standard', read: wd.read as never, fetchImpl: wd.fetchImpl, now: () => NOW });
+    const cctp = new CctpSettlementProvider({ mode: 'standard', read: wd.read as never, fetchImpl: wd.fetchImpl, now: () => NOW, evmFeeAddress: FEE_ADDRESS });
     const orchestrator = new CrossChainOrchestrator({ store: orchStore, providers: [cctp], gateway: wd.gateway, now: () => NOW, newId: () => 'ex1', sleep: async () => undefined, confirmTimeoutMs: 0 });
     const quotes = new Map<string, SettlementQuote>();
     const balances = new Map<string, bigint>([[`ethereum:${CCTP_USDC.ethereum}`, 0n], [`base:${ACT_BASE}`, 0n]]);
@@ -115,10 +117,10 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
   it('plans buy, move, swap; quotes honestly; and discloses every cost separately', async () => {
     const { found, ramp, cctp, quotes } = await build();
     expect(found.plans[0]!.steps.map((s) => s.kind)).toEqual(['ramp-buy', 'settlement', 'swap']);
-    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 240_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
+    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 239_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     quotes.set(sq.id, sq);
     const rampLeg = legFromRamp(ramp.quotes[0]!);
-    const swapLeg: ExecutionLeg = { id: 'sw', kind: 'swap', title: 'Swap USDC for ACT on Base', input: { chain: 'base', assetKey: CCTP_USDC.base!.toLowerCase(), symbol: 'USDC', decimals: 6, amount: 240_000_000n }, output: { chain: 'base', assetKey: ACT_BASE, symbol: 'ACT', decimals: 6, amount: 1_000n }, fees: [], estimatedSeconds: 10, risk: 'low', signatures: 1, expiresAt: NOW + 30_000, notes: [] };
+    const swapLeg: ExecutionLeg = { id: 'sw', kind: 'swap', title: 'Swap USDC for ACT on Base', input: { chain: 'base', assetKey: CCTP_USDC.base!.toLowerCase(), symbol: 'USDC', decimals: 6, amount: 239_000_000n }, output: { chain: 'base', assetKey: ACT_BASE, symbol: 'ACT', decimals: 6, amount: 1_000n }, fees: [], estimatedSeconds: 10, risk: 'low', signatures: 1, expiresAt: NOW + 30_000, notes: [] };
     // The ramp output is on ethereum USDC; connect legs explicitly with the amount the user is expected to receive.
     const connected = [{ ...rampLeg, output: { ...rampLeg.output, amount: null } }, legFromSettlement(sq), swapLeg];
     // The ramp has no price, so the unified quote must say the final amount is unknown, not invent one.
@@ -127,6 +129,8 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
     const lines = disclose(q);
     expect(lines.map((l) => l.kind)).toContain('ramp');
     expect(lines.map((l) => l.kind)).toContain('settlement');
+    // Aretia's Move USDC fee is its own line (0.1% of 239 USDC, added on top), apart from Circle's.
+    expect(lines.find((l) => l.kind === 'aretia-fee')).toMatchObject({ value: '0.239 USDC' });
     // The Aretia fee rides on the one swap in the plan (the third step), on any network once its fee address is set; until then it is blocked, not skipped.
     expect(selectFee(q.legs, ['ethereum', 'ethereum', 'base'], liveFeeConfig('0x1111111111111111111111111111111111111111')).legIndex).toBe(2);
     expect(selectFee(q.legs, ['ethereum', 'ethereum', 'base']).legIndex).toBeNull();
@@ -142,7 +146,7 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
 
   it('runs the whole journey: pay, move, claim, swap; completes only when each step is proven', async () => {
     const { wd, runner, balances, quotes, cctp, orchestrator, planStore, telemetry } = await build();
-    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 240_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
+    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 239_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     quotes.set(sq.id, sq);
     const usdcEth = CCTP_USDC.ethereum!.toLowerCase();
     const ramp: ExecutionLeg = { id: 'r', kind: 'ramp-buy', title: 'Buy USDC', input: { chain: null, assetKey: 'fiat:usd', symbol: 'USD', decimals: 0, amount: 250n }, output: { chain: 'ethereum', assetKey: usdcEth, symbol: 'USDC', decimals: 6, amount: 240_000_000n }, fees: [], estimatedSeconds: 600, risk: 'medium', signatures: 0, expiresAt: NOW + 600_000, notes: [] };
@@ -159,7 +163,7 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
     balances.set(`ethereum:${usdcEth}`, 240_000_000n);
     p = await runner.step(plan.id);
     expect(p.legs[0]!.status).toBe('done');
-    expect(wd.w.sent.map((s) => s.stepId)).toEqual(['approve', 'burn']);
+    expect(wd.w.sent.map((s) => s.stepId)).toEqual(['approve', 'fee', 'burn']);
     expect(p.legs[1]!.status).toBe('active');
     expect(p.state).toBe('RUNNING');
 
@@ -193,7 +197,7 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
 
   it('a settlement that fails after the burn stops the plan, flags the funds as possibly in transit, and nothing later runs', async () => {
     const { wd, runner, balances, quotes, cctp, orchestrator } = await build();
-    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 240_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
+    const sq = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 239_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     quotes.set(sq.id, sq);
     const usdcEth = CCTP_USDC.ethereum!.toLowerCase();
     wd.w.failBurn = true;
@@ -215,7 +219,7 @@ describe('end to end: "buy 250 usd of ACT on Base" with USD in the US', () => {
 
   it('survives a closed tab: a fresh runner on the same stores picks the journey up without sending anything twice', async () => {
     const a = await build();
-    const sq = await a.cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 240_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
+    const sq = await a.cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 239_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     a.quotes.set(sq.id, sq);
     const plan = await a.runner.create(combineLegs('q', [legFromSettlement(sq)]));
     let p = await a.runner.step(plan.id); // approval + burn sent, now waiting on Circle
@@ -238,14 +242,14 @@ describe('end to end: Circle is unreachable', () => {
   it('offers no route and says why, rather than guessing', async () => {
     const { w, read, fetchImpl } = world();
     w.irisDown = true;
-    const p = new CctpSettlementProvider({ mode: 'standard', read: read as never, fetchImpl, now: () => NOW });
+    const p = new CctpSettlementProvider({ mode: 'standard', read: read as never, fetchImpl, now: () => NOW, evmFeeAddress: FEE_ADDRESS });
     const a = await p.supports({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 1n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     expect(a).toEqual({ supported: false, reason: expect.stringMatching(/could not be reached/) });
   });
 
   it('an unreachable provider makes a tracked move "unknown", never failed or complete', async () => {
     const { w, read, fetchImpl } = world();
-    const cctp = new CctpSettlementProvider({ mode: 'standard', read: read as never, fetchImpl, now: () => NOW });
+    const cctp = new CctpSettlementProvider({ mode: 'standard', read: read as never, fetchImpl, now: () => NOW, evmFeeAddress: FEE_ADDRESS });
     const orch = new CrossChainOrchestrator({ store: new InMemoryExecutionStore(), providers: [cctp], gateway: world().gateway, now: () => NOW, newId: () => 'e', sleep: async () => undefined, confirmTimeoutMs: 0 });
     const q = await cctp.getQuote({ sourceChain: 'ethereum', sourceAsset: { chain: 'ethereum', address: CCTP_USDC.ethereum! }, sourceAmount: 100_000_000n, destinationChain: 'base', destinationAsset: { chain: 'base', address: CCTP_USDC.base! }, sender: ME, recipient: ME });
     const g = world();

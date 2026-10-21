@@ -5,8 +5,8 @@
  * coin (SOL, ETH, BNB, POL, AVAX), that coin wrapped, or a main stablecoin (USDC, USDT, ...): see `core/feeAssets.ts`. Paying with
  * any other token (selling it) carries no fee. So the fee always arrives in an asset that is easy to sell, and swapping between two
  * of those assets (USDC to SOL, say) pays it too. It is taken out of the amount the user enters, so what the user spends is exactly
- * what they typed: the fee, plus the rest, which is what is swapped. There is no other Aretia charge; the old ACT buyback has been
- * removed.
+ * what they typed: the fee, plus the rest, which is what is swapped. The only other Aretia charge is the Move USDC fee below
+ * (`MOVE_FEE_BPS`, 0.1% of every Circle CCTP move, taken in USDC on the source chain); the old ACT buyback has been removed.
  *
  * `DEFAULT_FEE_CONFIG` is the neutral baseline (off) that tests and any code without an explicit choice get.
  * `liveFeeConfig` is what the product runs: on for every network, for swaps paid with those assets. Solana's fee goes to the owner's existing fee wallet. An
@@ -24,6 +24,27 @@ export const ARETIA_FEE_BPS = 58;
 export const FEE_PERCENT = `${(ARETIA_FEE_BPS / 100).toFixed(2)}%`;
 /** Hard ceiling on the rate (1%). A config above it is rejected, not clamped. */
 export const MAX_FEE_BPS = 100;
+
+/**
+ * Aretia's fee on every "Move USDC" move (Circle CCTP), on every route (fast and standard) and from every source chain (EVM and
+ * Solana): 10 basis points, 0.1%, of the amount the user enters. It is taken OUT of that amount, in USDC on the source chain, so
+ * what leaves the wallet is exactly what was typed: the fee, plus the rest, which is what is burned (and Circle's own fee, if any, is
+ * then taken from the burn). The fee is always worked out again from this one number, never read back from a saved quote. Raised or
+ * lowered only by a reviewed change here.
+ */
+export const MOVE_FEE_BPS = 10;
+/** The Move USDC rate as it is written on screen, read from the one number above. */
+export const MOVE_FEE_PERCENT = `${MOVE_FEE_BPS / 100}%`;
+
+/**
+ * The Move USDC fee for `entered` raw USDC units (6 decimals): ceil(entered * MOVE_FEE_BPS / 10,000). Rounded UP, so any amount
+ * above zero pays at least one raw unit (0.000001 USDC) and the fee never rounds down to nothing. Zero or less pays nothing (such an
+ * amount is refused anyway).
+ */
+export function moveFeeFor(entered: bigint): bigint {
+  if (entered <= 0n) return 0n;
+  return (entered * BigInt(MOVE_FEE_BPS) + 9_999n) / 10_000n;
+}
 
 export const DEFAULT_FEE_POLICY: AretiaFeePolicy = { enabled: false, rateBps: ARETIA_FEE_BPS };
 

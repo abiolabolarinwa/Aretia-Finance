@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { solanaSignatureStatus, WalletExecutionGateway } from './walletGateway.js';
 import { WalletSessionManager } from '../wallet/sessionManager.js';
 import { NO_CAPABILITIES, type WalletAdapter, type WalletSession } from '../wallet/types.js';
-import { buildDepositForBurn, evmAddressBytes32, SOLANA_CCTP_PROGRAMS } from '../settlement/cctpSolana.js';
+import { buildDepositForBurn, evmAddressBytes32, SOLANA_CCTP_PROGRAMS, SOLANA_USDC, solanaFeeUsdcAccount } from '../settlement/cctpSolana.js';
+import { ataAddress, TOKEN_PROGRAM_ID } from '../../scripts/walletTools.js';
 import type { SettlementTransaction } from '../settlement/types.js';
 
 const OWNER = web3.Keypair.generate().publicKey.toBase58();
@@ -45,6 +46,18 @@ const setup = (account = OWNER, status?: (s: string) => Promise<'confirmed' | 'f
 };
 
 describe('the gateway on Solana', () => {
+  it('lets Aretia\'s fee transfer inside the burn through only when it is the one permitted transfer', async () => {
+    const withFee: SettlementTransaction = { ...burn(), unsigned: { kind: 'solana', transaction: buildDepositForBurn(web3, { owner: OWNER, amount: 10_000_000n, destinationDomain: 6, mintRecipient: evmAddressBytes32('0x' + 'ab'.repeat(20)), maxFee: 0n, minFinalityThreshold: 2000, recentBlockhash: web3.Keypair.generate().publicKey.toBase58(), messageEventKey: web3.Keypair.generate(), aretiaFee: { destination: solanaFeeUsdcAccount(web3), amount: 10_000n } }) } };
+    const permitted = { chain: 'solana' as const, program: TOKEN_PROGRAM_ID, source: ataAddress(web3, OWNER, SOLANA_USDC, TOKEN_PROGRAM_ID), mint: SOLANA_USDC, destination: solanaFeeUsdcAccount(web3), owner: OWNER, amount: 10_000n, decimals: 6 };
+    const { wallet, gateway } = setup();
+    await expect(gateway.send(withFee, { address: OWNER, allowedDestinations: SOLANA_CCTP_PROGRAMS })).rejects.toThrow(/transfers tokens/);
+    await expect(gateway.send(withFee, { address: OWNER, allowedDestinations: SOLANA_CCTP_PROGRAMS, permittedTokenTransfer: { ...permitted, amount: 9_999n } })).rejects.toThrow(/transfers tokens/);
+    await expect(gateway.send(withFee, { address: OWNER, allowedDestinations: SOLANA_CCTP_PROGRAMS, permittedTokenTransfer: { ...permitted, chain: 'base' } })).rejects.toThrow(/transfers tokens/);
+    expect(wallet.sent).toHaveLength(0);
+    expect(await gateway.send(withFee, { address: OWNER, allowedDestinations: SOLANA_CCTP_PROGRAMS, permittedTokenTransfer: permitted })).toBe('5'.repeat(88));
+    expect(wallet.sent).toHaveLength(1);
+  });
+
   it('sends a CCTP burn built for the connected account, once', async () => {
     const { wallet, gateway } = setup();
     expect(await gateway.send(burn(), { address: OWNER, allowedDestinations: SOLANA_CCTP_PROGRAMS })).toBe('5'.repeat(88));

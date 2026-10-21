@@ -49,8 +49,20 @@ export class DeferredSettlementExecutor implements LegExecutor {
     const arrived = now - BigInt(before);
     if (arrived <= 0n) return { status: 'waiting-user', instruction: 'The USDC has not arrived yet.' };
 
-    const search = await this.o.engine.quote({ sourceChain: src, sourceAsset: { chain: src, address: asset }, sourceAmount: arrived, destinationChain: dst, destinationAsset: { chain: dst, address: destAsset }, sender: wallet, recipient: wallet }, 'balanced');
-    const best = search.quotes[0];
+    const ask = (amount: bigint) => this.o.engine.quote({ sourceChain: src, sourceAsset: { chain: src, address: asset }, sourceAmount: amount, destinationChain: dst, destinationAsset: { chain: dst, address: destAsset }, sender: wallet, recipient: wallet }, 'balanced');
+    let search = await ask(arrived);
+    let best: SettlementQuote | undefined = search.quotes[0];
+    // Fees added on top (Aretia's and Circle's) must also come out of what arrived: move a little less, so the total fits.
+    for (let i = 0; i < 4 && best && (best.sourceTotal ?? best.sourceAmount) > arrived; i++) {
+      const amount = best.sourceAmount - ((best.sourceTotal ?? best.sourceAmount) - arrived);
+      if (amount <= 0n) {
+        best = undefined;
+        break;
+      }
+      search = await ask(amount);
+      best = search.quotes[0];
+    }
+    if (best && (best.sourceTotal ?? best.sourceAmount) > arrived) best = undefined;
     if (!best) {
       const why = [...search.declined.map((d) => d.reason), ...search.failures.map((f) => f.message)].join(' ');
       return { status: 'waiting-user', instruction: `${formatUnits(arrived, 6)} USDC arrived on ${CHAINS[src].name}, but no route to ${CHAINS[dst].name} is available right now. Your USDC is safe in your wallet. ${why}`.trim() };

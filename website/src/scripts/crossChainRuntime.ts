@@ -45,7 +45,8 @@ export function createCrossChainRuntime(evm: EvmSession, isEnabled: (chain: Chai
   const store = mirroredExecutionStore(local, mirror, copyOn, (r) => {
     state.copyBehind = r !== 'saved';
   });
-  const providers = cctpProviders({ read: reader, solana: { rpc: rpcCall, web3: loadWeb3 } });
+  // Aretia's Move USDC fee goes to the same EVM fee address as the swap fee; without it, moves from EVM networks are refused.
+  const providers = cctpProviders({ read: reader, solana: { rpc: rpcCall, web3: loadWeb3 }, evmFeeAddress: String(import.meta.env.PUBLIC_ARETIA_EVM_FEE_ADDRESS ?? '') });
   const engine = new SettlementQuoteEngine(providers);
   const orchestrator = new CrossChainOrchestrator({ store, providers, gateway });
 

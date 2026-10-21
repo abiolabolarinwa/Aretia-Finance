@@ -49,6 +49,12 @@ export interface SafetyVerdict {
 
 const addressOk = (chain: ChainId, a: string): boolean => (CHAINS[chain].kind === 'evm' ? /^0x[0-9a-fA-F]{40}$/.test(a) : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a));
 const RISK = { low: 0, medium: 1, high: 2 } as const;
+/** Raw 6-decimal units as exact text (USDC), without importing the view layer. */
+const fmt6 = (raw: bigint): string => {
+  const t = raw.toString().padStart(7, '0');
+  const frac = t.slice(-6).replace(/0+$/, '');
+  return `${t.slice(0, -6)}${frac ? '.' + frac : ''}`;
+};
 
 /**
  * Below this much of the source chain's coin a burn is likely to fail or leave nothing for later. Solana's burn pays a fee and a
@@ -89,8 +95,17 @@ export function assessSettlement(q: SettlementQuote, c: SafetyContext): SafetyVe
   const feeBps = q.sourceAmount > 0n ? Number((q.settlementFee.amount * 10_000n) / q.sourceAmount) : 10_000;
   if (feeBps > maxBps) blockers.push(`The transfer fee is ${(feeBps / 100).toFixed(2)}% of the amount, above the ${(maxBps / 100).toFixed(2)}% allowed.`);
 
+  // The balance must cover everything that leaves it: with fees added on top (Circle CCTP) that is more than the amount entered.
+  const total = q.sourceTotal ?? q.sourceAmount;
+  if (q.sourceTotal !== undefined && q.sourceTotal < q.sourceAmount) blockers.push('The quote takes less than the amount, which cannot be right.');
   if (c.sourceBalance === null) blockers.push('Your balance on the sending network could not be read, so enough funds cannot be confirmed.');
-  else if (c.sourceBalance < q.sourceAmount) blockers.push('Your balance on the sending network is less than the amount.');
+  else if (c.sourceBalance < total) {
+    if (total === q.sourceAmount) blockers.push('Your balance on the sending network is less than the amount.');
+    else {
+      const most = c.provider?.largestAmountFor?.(q, c.sourceBalance) ?? null;
+      blockers.push(`Your balance on the sending network is less than the ${fmt6(total)} USDC this move needs (the amount plus the fees, which are added on top).${most !== null && most > 0n ? ` The most you can move with your balance is ${fmt6(most)} USDC.` : ''}`);
+    }
+  }
 
   if (c.sourceNativeBalance !== undefined) {
     const sym = CHAINS[intent.sourceChain].nativeSymbol;

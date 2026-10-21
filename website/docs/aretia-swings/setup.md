@@ -54,6 +54,12 @@ Rate: 58 bps, `ARETIA_FEE_BPS` in `src/swings/core/fee.ts`, charged on every lis
 
 Test it on staging with the canary wallet first (`real-swap-runbook.md`, step 7).
 
+## The Move USDC fee (0.1%, added on top)
+Rate: 10 bps, `MOVE_FEE_BPS` in `src/swings/core/fee.ts`, on every Circle CCTP move (fast and standard, from EVM and from Solana). It is **added on top** of the amount entered, in USDC on the source network, and Circle's fee is added on top too, so **the recipient receives the full amount entered**; the per-move cap (`MOVE_CAP_RAW`, 10,000 USDC) applies to the amount entered.
+- **EVM source:** a USDC `transfer` to `PUBLIC_ARETIA_EVM_FEE_ADDRESS` (the same address as the swap fee), sent after any approval and before the burn, and only after the burn has been simulated on the node; a fee paid for a burn that then does not confirm is remembered for 30 minutes (by network, sender and amount), so retrying the same move does not pay it again. Without the address set, moves from EVM networks are refused.
+- **Solana source:** an SPL `TransferChecked` to the fee wallet's USDC account inside the burn transaction (all or nothing).
+- **Operator, once:** the fee wallet (`SWAP_FEE_WALLET`, `2tcBrd1J…oZX2`) must have its **USDC associated token account** on Solana. Aretia never opens it at a user's expense; until it exists moves from Solana are refused with a plain message. Check on Solscan; if missing, create it once (for example `spl-token create-account EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --owner 2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2 --fee-payer <your keypair>`).
+
 ## WalletConnect (phone and hardware wallets)
 
 1. Create a free project at the WalletConnect Cloud dashboard (cloud.reown.com) and copy its **project id** (32 characters). It is public by design; it identifies your site, it is not a secret.

@@ -2,6 +2,8 @@
 
 Someone who brings a trader earns a slice of the Aretia swap fee that trader pays. Nothing is paid automatically: the owner pays by hand from a private export.
 
+**Move USDC fees (21 Oct 2026).** A Move USDC move pays Aretia 0.1% of the amount moved, added on top, in USDC on the source chain. If such a fee transaction is reported, it is verified and credited exactly like a swap fee (20% share). This is deliberate: on EVM networks the move's fee is a separate USDC transfer to the fee address, which the chain cannot tell apart from a swap's separate fee transfer; on Solana it is the fee wallet's USDC rise inside the burn transaction. It is one payment in one transaction, so it is credited at most once (unique `(chain, tx, asset)`); the burn transaction itself pays the fee wallet nothing on EVM. The Move tab does not report move fees by itself today, so in practice they are credited only if a page reports them. Edge: a move of exactly 10,000 USDC pays exactly 10 USDC, which matches the flat EVM pool fee and is then not credited.
+
 ## The rules (all in one file: `src/swings/referrals/core.ts`, `REFERRAL_CONFIG`)
 
 | Setting | Default | Meaning |

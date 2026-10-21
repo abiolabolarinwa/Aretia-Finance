@@ -4,6 +4,7 @@
  * and a status never says "done" before the destination has the funds.
  */
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
+import { MOVE_FEE_PERCENT } from '../core/fee.js';
 import type { ExecutionRecord } from '../orchestrator/states.js';
 import type { SettlementIntent, SettlementQuote } from '../settlement/types.js';
 
@@ -34,6 +35,9 @@ export function durationText(seconds: number): string {
 export interface QuoteView {
   provider: string;
   mechanism: string;
+  /** The amount the person entered: with fees on top, this is what the recipient receives. */
+  amountEntered: string;
+  /** Everything that leaves the source balance: the amount, plus any fee added on top. */
   youSend: string;
   youReceive: string;
   /** Each cost on its own line, in its own asset. */
@@ -51,16 +55,19 @@ const USDC_DECIMALS = 6;
 export function viewQuote(q: SettlementQuote, now: number, decimals = USDC_DECIMALS, symbol = 'USDC'): QuoteView {
   const src = CHAINS[q.intent.sourceChain].name;
   const dst = CHAINS[q.intent.destinationChain].name;
+  const onTop = q.sourceTotal !== undefined && q.sourceTotal > q.sourceAmount;
   const fees = [
-    { label: 'Transfer fee', value: q.settlementFee.amount === 0n ? 'None' : `${formatUnits(q.settlementFee.amount, decimals)} ${symbol}` },
+    ...(q.aretiaFee ? [{ label: `Aretia fee (${MOVE_FEE_PERCENT})`, value: `${formatUnits(q.aretiaFee.amount, decimals)} ${symbol}${onTop ? ', added on top' : ''}` }] : []),
+    { label: q.aretiaFee ? 'Circle fee' : 'Transfer fee', value: q.settlementFee.amount === 0n ? 'None' : `${onTop ? 'at most ' : ''}${formatUnits(q.settlementFee.amount, decimals)} ${symbol}${onTop ? ', added on top' : ''}` },
     ...(q.networkFees ?? []).map((f) => ({ label: `Network fee on ${CHAINS[f.chain].name}`, value: `${formatUnits(f.amount, CHAINS[f.chain].nativeDecimals ?? 18)} ${CHAINS[f.chain].nativeSymbol}` })),
     ...(q.networkFees === null ? [{ label: 'Network fees', value: `Not estimated. You pay them in ${CHAINS[q.intent.sourceChain].nativeSymbol} on ${src} and ${CHAINS[q.intent.destinationChain].nativeSymbol} on ${dst}.` }] : []),
   ];
   return {
     provider: q.providerId,
     mechanism: q.route.mechanism,
-    youSend: `${formatUnits(q.sourceAmount, decimals)} ${symbol} on ${src}`,
-    youReceive: `${formatUnits(q.destinationAmount, decimals)} ${symbol} on ${dst}`,
+    amountEntered: `${formatUnits(q.sourceAmount, decimals)} ${symbol}`,
+    youSend: `${formatUnits(q.sourceTotal ?? q.sourceAmount, decimals)} ${symbol} on ${src}`,
+    youReceive: `${onTop ? 'at least ' : ''}${formatUnits(q.destinationAmount, decimals)} ${symbol} on ${dst}`,
     fees,
     time: durationText(q.estimatedSeconds),
     steps: q.route.steps.map((s) => ({ text: s.description, chain: CHAINS[s.chain].name, needsSignature: s.requiresSignature })),

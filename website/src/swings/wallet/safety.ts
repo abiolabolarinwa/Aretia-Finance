@@ -20,6 +20,12 @@ export interface ExecutionExpectation {
   allowedDestinations?: readonly string[];
   /** The session revision seen when the quote was made. If the wallet changed since, the quote is stale. */
   revision?: number;
+  /**
+   * Solana only: the ONE token transfer (TransferChecked) the transaction may make, every field fixed (program, source, mint,
+   * destination, owner, amount, decimals), from Aretia's own constants. Used for Aretia's Move USDC fee. Any other token transfer,
+   * or a second one, is still refused.
+   */
+  permittedTokenTransfer?: { program: string; source: string; mint: string; destination: string; owner: string; amount: bigint; decimals: number } | null;
 }
 
 const same = (a: string, b: string, evm: boolean): boolean => (evm ? a.toLowerCase() === b.toLowerCase() : a === b);
@@ -63,8 +69,8 @@ export function transactionProblems(tx: UnsignedTransaction, session: WalletSess
     if (unknown.length > 0) problems.push('The transaction calls a program Aretia does not recognise.');
     // An approved program id is not enough: the System and Token programs can also move coins or hand over control. The settlement flows
     // never need those instructions (the burn itself runs inside the bridge program), so they are refused by what they do, not by who runs them.
-    const instructions = 'version' in t ? t.message.compiledInstructions.map((i) => ({ program: keys[i.programIdIndex]!, data: i.data })) : t.instructions.map((i) => ({ program: i.programId.toBase58(), data: i.data }));
-    problems.push(...solanaInstructionProblems(instructions));
+    const instructions = 'version' in t ? t.message.compiledInstructions.map((i) => ({ program: keys[i.programIdIndex]!, data: i.data, keys: i.accountKeyIndexes.map((k) => keys[k]!) })) : t.instructions.map((i) => ({ program: i.programId.toBase58(), data: i.data, keys: i.keys.map((k) => k.pubkey.toBase58()) }));
+    problems.push(...solanaInstructionProblems(instructions, expect.permittedTokenTransfer ?? null));
   }
   return problems;
 }
@@ -76,10 +82,27 @@ const SYSTEM_REFUSED = new Map<number, string>([[1, 'assigns an account to anoth
 /** Token instructions that move, burn, approve, close or hand over control: Transfer, Approve, SetAuthority, Burn, CloseAccount, TransferChecked, ApproveChecked, BurnChecked. */
 const TOKEN_REFUSED = new Map<number, string>([[3, 'transfers tokens'], [4, 'lets another account spend your tokens'], [6, 'hands over control of an account'], [8, 'burns tokens directly'], [9, 'closes an account'], [12, 'transfers tokens'], [13, 'lets another account spend your tokens'], [15, 'burns tokens directly']]);
 
-/** What is wrong with these Solana instructions, by what they do. Empty means none of the refused kinds is present. Pure. */
-export function solanaInstructionProblems(instructions: readonly { program: string; data: Uint8Array }[]): string[] {
+/** True when this instruction is exactly the permitted TransferChecked: program, accounts, amount and decimals all match. */
+function isPermittedTransfer(ix: { program: string; data: Uint8Array; keys?: readonly string[] }, p: NonNullable<ExecutionExpectation['permittedTokenTransfer']>): boolean {
+  const d = ix.data;
+  if (ix.program !== p.program || d.length !== 10 || d[0] !== 12 || d[9] !== p.decimals) return false;
+  const amount = new DataView(d.buffer, d.byteOffset, d.byteLength).getBigUint64(1, true);
+  const k = ix.keys ?? [];
+  return amount === p.amount && k.length === 4 && k[0] === p.source && k[1] === p.mint && k[2] === p.destination && k[3] === p.owner;
+}
+
+/**
+ * What is wrong with these Solana instructions, by what they do. Empty means none of the refused kinds is present. Pure. `permitted`,
+ * when given, lets exactly one TransferChecked that matches it in every field through (Aretia's fee); a second one is refused.
+ */
+export function solanaInstructionProblems(instructions: readonly { program: string; data: Uint8Array; keys?: readonly string[] }[], permitted: ExecutionExpectation['permittedTokenTransfer'] = null): string[] {
   const out: string[] = [];
+  let permittedUsed = false;
   for (const ix of instructions) {
+    if (permitted && !permittedUsed && isPermittedTransfer(ix, permitted)) {
+      permittedUsed = true;
+      continue;
+    }
     if (ix.program === SYSTEM_PROGRAM) {
       if (ix.data.length < 4) {
         out.push('The transaction has a System instruction that cannot be read.');

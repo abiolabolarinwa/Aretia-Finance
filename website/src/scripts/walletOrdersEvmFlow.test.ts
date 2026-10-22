@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EvmTxRequest } from '../swings/chains/evmWallet.js';
 import { SwingsError } from '../swings/core/types.js';
 import { keccak256 } from '../swings/core/keccak.js';
+import { createAddress } from './walletCurveEvmCore';
 import { evmOrdersChain, evmOrderTerms, DEFAULT_EVM_ORDER_FORM } from './walletOrdersEvmCore';
 import { EvmOrdersError, EvmOrdersFlow, type EvmMarket } from './walletOrdersEvmFlow';
 import { ORDER_CREATED_TOPIC, ORDERS_SEL, decodeCreateOrder, decodeCancelOrder } from './walletOrdersEvmTx';
@@ -9,7 +10,8 @@ import { ORDER_CREATED_TOPIC, ORDERS_SEL, decodeCreateOrder, decodeCancelOrder }
 const ORDERS = '0x1111111111111111111111111111111111111111';
 const chain = evmOrdersChain('ethereum', { ethereum: { orders: ORDERS, fromBlock: 5 } })!;
 const ME = '0x00000000000000000000000000000000000000aa';
-const TOKEN = '0x00000000000000000000000000000000000000b1';
+// The token is the one the live Ethereum factory would make with its 5th CREATE, so the flow's local proof search finds it.
+const TOKEN = createAddress(chain.factory, 5n);
 const USDC = chain.quotes[1]!;
 const NATIVE = chain.quotes[0]!;
 const PAIR = '0x00000000000000000000000000000000000000e1';
@@ -62,8 +64,13 @@ function harness(
     failReceipt?: boolean;
     account?: string;
     chainId?: number;
+    /** The orders contract has already been shown that the factory made the token. Default: yes. */
+    proven?: boolean;
+    /** The factory's own contract nonce (the next CREATE it would use). */
+    factoryNonce?: bigint;
   } = {},
 ) {
+  let proven = over.proven ?? true;
   const balances = new Map<string, bigint>([
     [`${USDC.address}:${ME}`, over.usdc ?? 1_000_000_000n],
     [`${TOKEN}:${ME}`, over.tokens ?? 5000n * 10n ** 18n],
@@ -81,6 +88,7 @@ function harness(
   const read = async (method: string, params: unknown[]): Promise<unknown> => {
     if (method === 'eth_getCode') return '0x6001';
     if (method === 'eth_chainId') return '0x1';
+    if (method === 'eth_getTransactionCount') return '0x' + (over.factoryNonce ?? 9n).toString(16);
     if (method === 'eth_getBalance') return '0x' + (over.coin ?? 10n ** 18n).toString(16);
     if (method === 'eth_gasPrice') return '0x' + (10n ** 9n).toString(16);
     if (method === 'eth_estimateGas') {
@@ -99,11 +107,19 @@ function harness(
       if (data.startsWith(S.symbol)) return abiString('TKN');
       if (data.startsWith(S.balanceOf)) return '0x' + w(balances.get(`${to}:${arg(0)}`) ?? 0n);
       if (data.startsWith(S.allowance)) return '0x' + w(allowance.get(to) ?? 0n);
+      if (data.startsWith(ORDERS_SEL.proven)) return '0x' + w(proven ? 1n : 0n);
       if (data.startsWith(ORDERS_SEL.minAmount)) return '0x' + w(over.min ?? 50_000_000n);
       if (data.startsWith(S.getPair)) return '0x' + w(over.pair === false ? '0x' + '0'.repeat(40) : PAIR);
       if (data.startsWith(S.getReserves)) return '0x' + w(10n ** 24n) + w(10n ** 24n) + w(0n);
       // A simulation of one of the transactions the flow is about to send: it succeeds unless the test said the contract refuses.
-      if (data.startsWith(S.approve) || data.startsWith(ORDERS_SEL.createOrder) || data.startsWith(ORDERS_SEL.createBuyWithNative) || data.startsWith(ORDERS_SEL.cancel)) return '0x';
+      if (
+        data.startsWith(S.approve) ||
+        data.startsWith(ORDERS_SEL.proveLaunchToken) ||
+        data.startsWith(ORDERS_SEL.createOrder) ||
+        data.startsWith(ORDERS_SEL.createBuyWithNative) ||
+        data.startsWith(ORDERS_SEL.cancel)
+      )
+        return '0x';
       if (data.startsWith(ORDERS_SEL.orders)) {
         const id = BigInt('0x' + data.slice(10));
         const o = orders.get(id);
@@ -122,6 +138,7 @@ function harness(
       const hash = '0x' + sent.length.toString(16).padStart(64, '0');
       const out: { address: string; topics: string[] }[] = [];
       if ((tx.data ?? '').startsWith(S.approve)) allowance.set(tx.to, BigInt('0x' + (tx.data ?? '').slice(-64)));
+      if ((tx.data ?? '').startsWith(ORDERS_SEL.proveLaunchToken)) proven = true;
       const c = decodeCreateOrder(tx.data ?? '');
       if (c) {
         const id = next++;
@@ -283,5 +300,45 @@ describe('listing and cancelling', () => {
     const [row] = await h.flow.listOrders(chain, ME);
     const r = await h.flow.prepareCancel(chain, '0x00000000000000000000000000000000000000bb', row!.record);
     expect(r.blockers.join(' ')).toContain('belongs to a different account');
+  });
+});
+
+describe('the first order for a token: the one-time proof', () => {
+  it('finds the factory nonce locally and says why a token the factory did not make is refused', async () => {
+    const h = harness({ proven: false });
+    const m = await loaded(h);
+    expect(m).toMatchObject({ proven: false, proofNonce: 5n });
+    const other = await harness({ proven: false, factoryNonce: 4n }).flow.loadMarket(chain, ME, TOKEN, USDC); // the factory has only made 3 tokens: nonce 5 is not one of them
+    expect('problem' in other && other.problem).toContain('not made by Aretia’s token factory');
+  });
+
+  it('sends the proof, then the approval, then the order, and the contract is shown the right nonce', async () => {
+    const h = harness({ proven: false });
+    const r = await h.flow.preparePlace(ME, await loaded(h), terms());
+    expect(r.blockers).toEqual([]);
+    expect(r.proveTx).not.toBeNull();
+    const steps: string[] = [];
+    const out = await h.flow.place(r, (p) => steps.push(p));
+    expect(h.sent).toHaveLength(3);
+    expect(h.sent[0]!.to).toBe(ORDERS);
+    expect(h.sent[0]!.data!.startsWith(ORDERS_SEL.proveLaunchToken)).toBe(true);
+    expect(h.sent[1]!.to).toBe(USDC.address);
+    expect(h.sent[2]!.to).toBe(ORDERS);
+    expect(steps).toEqual(expect.arrayContaining(['proving', 'confirming-proof']));
+    expect(out.differences).toEqual([]);
+  });
+
+  it('a proven token goes straight to the approval and the order', async () => {
+    const h = harness();
+    const r = await h.flow.preparePlace(ME, await loaded(h), terms());
+    expect(r.proveTx).toBeNull();
+  });
+
+  it('refuses a proof that was changed after the review, and sends nothing', async () => {
+    const h = harness({ proven: false });
+    const r = await h.flow.preparePlace(ME, await loaded(h), terms());
+    const bad = { ...r, proveTx: { ...r.proveTx!, data: r.proveTx!.data!.slice(0, -1) + '9' } };
+    await expect(h.flow.place(bad)).rejects.toThrow('Not signing');
+    expect(h.sent).toHaveLength(0);
   });
 });

@@ -32,6 +32,8 @@ export const ORDERS_SEL = {
   cancel: selectorOf('cancel(uint256)'),
   orders: selectorOf('orders(uint256)'),
   minAmount: selectorOf('minAmount(address)'),
+  proveLaunchToken: selectorOf('proveLaunchToken(address,uint256)'),
+  proven: selectorOf('proven(address)'),
 } as const;
 export const ORDER_CREATED_TOPIC = topicOf('OrderCreated(uint256,address,address,address,bool,uint256,uint256)');
 
@@ -73,6 +75,14 @@ export const buildCancelOrderTx = (from: string, chain: EvmOrdersChain, id: bigi
 });
 
 export const orderReadData = (id: bigint): string => ORDERS_SEL.orders + word(id);
+export const buildProveTx = (from: string, chain: EvmOrdersChain, token: string, factoryNonce: bigint): EvmTxRequest => ({
+  from,
+  to: chain.orders,
+  data: ORDERS_SEL.proveLaunchToken + addrWord(token) + word(factoryNonce),
+  value: '0x0',
+  chainId: chainHex(chain.chainId),
+});
+export const provenReadData = (token: string): string => ORDERS_SEL.proven + addrWord(token);
 export const minAmountReadData = (quote: string): string => ORDERS_SEL.minAmount + addrWord(quote);
 
 // ---------------------------------------------------------------- decoding
@@ -95,6 +105,11 @@ export const decodeCreateNativeBuy = (data: string): { launchToken: string; minO
   const w = words(data, ORDERS_SEL.createBuyWithNative, 2);
   const launchToken = w ? asAddr(w[0]!) : null;
   return w && launchToken ? { launchToken, minOut: big(w[1]!) } : null;
+};
+export const decodeProve = (data: string): { token: string; factoryNonce: bigint } | null => {
+  const w = words(data, ORDERS_SEL.proveLaunchToken, 2);
+  const token = w ? asAddr(w[0]!) : null;
+  return w && token ? { token, factoryNonce: big(w[1]!) } : null;
 };
 export const decodeCancelOrder = (data: string): bigint | null => {
   const w = words(data, ORDERS_SEL.cancel, 1);
@@ -178,5 +193,19 @@ export function inspectCancelOrder(tx: EvmTxRequest, c: { chain: EvmOrdersChain;
   const id = typeof tx.data === 'string' ? decodeCancelOrder(tx.data) : null;
   if (id === null) p.push('The transaction data is not a plain cancel.');
   else if (id !== c.id) p.push('The cancel is for a different order than you chose.');
+  return p;
+}
+
+/** The one-time proof: sent to the orders contract, naming the token and the factory nonce worked out for it, and carrying nothing. */
+export function inspectProve(tx: EvmTxRequest, c: { chain: EvmOrdersChain; from: string; token: string; factoryNonce: bigint }, walletChainId: number): string[] {
+  const p = common(tx, c.chain, c.from, walletChainId);
+  if (!toIs(tx, c.chain.orders)) p.push('The transaction is not sent to the Aretia orders contract for this network.');
+  if (valueOf(tx) !== 0n) p.push('The proof carries coins, which it should not.');
+  const d = typeof tx.data === 'string' ? decodeProve(tx.data) : null;
+  if (!d) p.push('The transaction data is not a plain proof.');
+  else {
+    if (d.token !== c.token.toLowerCase()) p.push('The proof is for a different token than you chose.');
+    if (d.factoryNonce !== c.factoryNonce) p.push('The proof names a different factory nonce than the one worked out for this token.');
+  }
   return p;
 }

@@ -49,6 +49,8 @@ export interface EvmOrdersChain {
   explorer: string;
   orders: string;
   fromBlock: number;
+  /** The token factory; the orders contract is deployed with it and checks that a token came from it. */
+  factory: string;
   /** The exchange fills go through (the router the contract has whitelisted) and the pair factory used to check a pool exists. */
   router: string;
   pairFactory: string;
@@ -62,7 +64,7 @@ export function evmOrdersChain(key: string, addresses: Readonly<Partial<Record<L
   const chain = chainByKey(k);
   const a = addresses[k];
   const dex = dexFor(k);
-  if (!chain || !dex || !a || !isEvmAddress(a.orders) || a.orders !== a.orders.toLowerCase()) return null;
+  if (!chain || !chain.factory || !dex || !a || !isEvmAddress(a.orders) || a.orders !== a.orders.toLowerCase()) return null;
   return {
     key: k,
     chainId: chain.chainId,
@@ -71,6 +73,7 @@ export function evmOrdersChain(key: string, addresses: Readonly<Partial<Record<L
     explorer: chain.explorer,
     orders: a.orders,
     fromBlock: a.fromBlock,
+    factory: chain.factory,
     router: dex.router,
     pairFactory: dex.factory,
     wrapped: dex.wrapped,

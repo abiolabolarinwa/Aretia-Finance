@@ -29,6 +29,7 @@ describe('where orders are', () => {
       ['USDT', 6, false],
     ]);
     expect(eth.quotes[0]!.address).toBe(eth.wrapped);
+    expect(eth.factory).toBe('0x951a22270faa7d1c25efad2356c414cbddaba324'); // the live Ethereum token factory
     const bnb = evmOrdersChain('bnb', addrs)!;
     expect(bnb.quotes.map((q) => q.decimals)).toEqual([18, 18, 18]); // BNB Chain's stablecoins have 18 decimals
   });

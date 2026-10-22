@@ -11,11 +11,10 @@
  * This walks the imports of every function and fails on any relative import without an extension.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const API = dirname(fileURLToPath(import.meta.url));
+const API = join(process.cwd(), 'api');
 
 /** Static imports and exports ("from './x'"), side-effect imports ("import './x'") and dynamic imports ("import('./x')"). */
 const SPECIFIER = /(?:import|export)\s[^'"]*?from\s+['"](\.[^'"]+)['"]|import\s+['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/g;

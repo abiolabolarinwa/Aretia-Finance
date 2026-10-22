@@ -15,8 +15,8 @@
  *    (The transaction builder and its inspector still handle an unlocked pool, so their tests keep covering both; the form never asks for one.)
  *  - Aretia charges one flat fee, paid in SOL in the same transaction. The pool's own trading fee goes to the creator's position.
  */
-import { isSolanaAddress, toSmallestUnit } from './walletTools';
-import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore';
+import { isSolanaAddress, toSmallestUnit } from './walletTools.js';
+import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore.js';
 
 export const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 export const SOL_DECIMALS = 9;

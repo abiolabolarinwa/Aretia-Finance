@@ -9,9 +9,9 @@
  * Two things keep this off mainnet until it has been audited: the build flag PUBLIC_CURVE_ENABLED, and the mainnet program
  * address below, which is deliberately empty.
  */
-import { isSolanaAddress, toSmallestUnit, fromSmallestUnit } from './walletTools';
-import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore';
-import { tokenBlockers, type PoolToken } from './walletPoolCore';
+import { isSolanaAddress, toSmallestUnit, fromSmallestUnit } from './walletTools.js';
+import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore.js';
+import { tokenBlockers, type PoolToken } from './walletPoolCore.js';
 import type * as Web3 from '@solana/web3.js';
 
 export const CURVE_PROGRAM_ID_DEVNET = '9HVuUHU4mm6PYZFRnY7KzuGsHVSZ8QUVavarJLpJt5f4';

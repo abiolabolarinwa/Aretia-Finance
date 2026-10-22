@@ -14,7 +14,7 @@
  *    the creator's wallet and stays there until the creator does something with it. Nothing here locks it.
  *  - Amounts are whole numbers in the token's smallest unit. No floating point touches an amount.
  */
-import { isSolanaAddress, toSmallestUnit } from './walletTools';
+import { isSolanaAddress, toSmallestUnit } from './walletTools.js';
 
 export const LAUNCH_LIMITS = {
   nameMax: 32,

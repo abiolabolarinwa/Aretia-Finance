@@ -14,8 +14,8 @@
  * Nothing here signs. The wallet signs as the fee payer and the page adds the new token's own key, which it then discards.
  */
 import type * as Web3 from '@solana/web3.js';
-import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
-import { LAUNCH_FEE_ADDRESS, LAUNCH_FEE_LAMPORTS, distributionOf, shareOf, type DistributionLine, type LaunchConfig } from './walletLaunchCore';
+import { ATA_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools.js';
+import { LAUNCH_FEE_ADDRESS, LAUNCH_FEE_LAMPORTS, distributionOf, shareOf, type DistributionLine, type LaunchConfig } from './walletLaunchCore.js';
 
 export const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
 export const RENT_SYSVAR_ID = 'SysvarRent111111111111111111111111111111111';

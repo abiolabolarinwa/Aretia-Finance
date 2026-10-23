@@ -13,8 +13,11 @@
  *   /api/swings-alerts-run the scheduled alert check   (GET, with the cron secret)
  *   /api/launchbox       Launch Box: tokens made through Aretia Launch, with market data (GET)
  *   /api/launchbox-run   the Launch Box indexer (GET, with the cron secret)
+ *   /api/swings-beacon   anonymous visit and outcome counters (POST)
+ *   /api/swings-admin    the owner's private numbers (POST; 404 for anyone but the wallets in ADMIN_WALLETS)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
  */
+import { handleAdmin, handleBeacon } from './_adminStats.js';
 import { handleAccount } from './_swingsAccount.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
@@ -76,6 +79,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'market') out = await handleMarket({ ...common, query });
   else if (route === 'ohlcv') out = await handleOhlcv({ ...common, query });
   else if (route === 'trades') out = await handleTrades({ ...common, query });
+  else if (route === 'beacon') out = await handleBeacon({ ...common, body, country: one(req.headers['x-vercel-ip-country']) });
+  else if (route === 'admin') out = await handleAdmin({ ...common, body });
   else if (route === 'launchbox') out = await handleLaunchbox(common);
   else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };

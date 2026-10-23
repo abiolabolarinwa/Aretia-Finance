@@ -62,6 +62,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <script>
       import { initMotion } from '../scripts/motion';
       initMotion();
+      // Anonymous counters for the owner (a visit, script errors); see siteBeacon.ts and the privacy page.
+      void import('../scripts/siteBeacon').then((m) => m.startSiteBeacon()).catch(() => undefined);
       // A referral link (?ref=<address>) is remembered for the visitor; pages without one load nothing extra.
       if (location.search.includes('ref=')) void import('../scripts/walletReferrals').then((m) => m.captureReferrer()).catch(() => undefined);
     </script>

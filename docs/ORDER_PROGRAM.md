@@ -256,3 +256,9 @@ On the Sepolia deployment from 11h, `contracts-evm/orders/testnet/uni.mjs` added
 **Wallet repo.** The factory-proof fix is now merged into the Wallet repo's `main` (aretia-wallet PR 58; 36 launch-evm order tests pass on it), so the broken `creatorOf` version no longer sits on `main`.
 
 **Hashes.** `contracts-evm/orders/AretiaOrders.build.json` and `AretiaOrders.standard-input.json` (from `testnet/hash.mjs`; solc 0.8.28, optimizer 200 runs, EVM paris) record the sha-256 of the source, creation code and runtime code. The runtime code deployed on Sepolia equals the compiled code except for the trailing compiler-metadata hash (the Sepolia build and the hash build used slightly different compiler inputs), so **byte-exact verification against a block explorer has not been done**; for a mainnet deployment, compile once with `hash.mjs`, deploy that exact creation code, and verify the standard-input JSON on the explorer (needs an explorer API key, not available here).
+
+### 11k. The graduated-token (Meteora) path on devnet (2026-10-23)
+
+With `ORDERS_DEVNET_GRADUATE=1` (and `ORDERS_DEVNET_LEAVE_RESTING=1`), `walletOrders.devnet.ts` makes a token, opens its curve with the smallest target (0.1 SOL), sells the curve out, **moves the token into a Meteora DAMM v2 pool on devnet** with the web wallet's own migrate flow, and places a limit buy for the card's pool venue (the card reported `venue: pool`). The Wallet repo's Solana **keeper** (the same build as in 11g) then found the order: in dry-run it simulated the fill on the pool, and in live mode it sent it and the order account closed. The order program called Meteora itself; no adapter program is involved on this path.
+
+Not proved here: a sell on the pool, USDC/USDT pairs (there is no devnet USDC pool for the test token), partial fills on the pool, and anything on mainnet.

@@ -23,6 +23,8 @@ const ordersProgram = process.env.ORDERS_DEVNET_PROGRAM;
 const venueProgram = process.env.ORDERS_DEVNET_VENUE;
 // Set to leave one fillable order resting (for a keeper to find) instead of cancelling and filling.
 const leaveResting = process.env.ORDERS_DEVNET_LEAVE_RESTING === '1';
+// Set to sell the curve out and move the token into a Meteora pool first (the token has "graduated"), then rest an order on the pool.
+const graduate = process.env.ORDERS_DEVNET_GRADUATE === '1';
 
 const connection = new web3.Connection(RPC, 'confirmed');
 
@@ -123,13 +125,28 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
     const mint = await makeMint(payer, 1_000_000_000_000_000n, 6);
     log.mint = mint;
     const token = (await flow.loadToken(me, mint))!;
-    const v = validateCurve({ ...DEFAULT_CURVE_FORM, mint, tokenAmount: '1,000,000,000', target: '10' }, me, token);
+    const v = validateCurve({ ...DEFAULT_CURVE_FORM, mint, tokenAmount: '1,000,000,000', target: graduate ? '0.1' : '10' }, me, token);
     if (!v.ok) throw new Error(JSON.stringify(v.issues));
     const createReview = await flow.prepareCreate(v.config, token);
     expect(createReview.blockers).toEqual([]);
     const created = await flow.create(createReview);
     expect(created.differences).toEqual([]);
     log.curve = created.curve;
+
+    if (graduate) {
+      // Sell the curve out with an offer larger than what is left, then move it into a Meteora pool (as walletCurve.devnet.ts does).
+      let curve = (await flow.loadCurve(mint))!;
+      const rest = await flow.prepareBuy(me, curve, 500_000_000n);
+      expect(rest.blockers).toEqual([]);
+      expect((await flow.buy(rest)).differences).toEqual([]);
+      curve = (await flow.loadCurve(mint))!;
+      expect(curve.status).toBe('soldOut');
+      const mig = await flow.prepareMigrate(me, curve);
+      expect(mig.blockers).toEqual([]);
+      const moved = await flow.migrate(mig);
+      expect(moved.differences).toEqual([]);
+      log.pool = moved.pool;
+    }
 
     const odeps: OrdersFlowDeps = {
       web3,

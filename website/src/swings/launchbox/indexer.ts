@@ -131,8 +131,19 @@ const pad32 = (a: string): string => a.slice(2).toLowerCase().padStart(64, '0');
 // ---------------------------------------------------------------- EVM
 
 export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadline: number): Promise<ChainReport> {
-  const own = d.env[ENV_KEY[chain]]?.trim();
-  const rpc = new Rpc(own || PUBLIC_EVM_RPC[chain], d.fetchImpl);
+  let own = d.env[ENV_KEY[chain]]?.trim();
+  let rpc = new Rpc(own || PUBLIC_EVM_RPC[chain], d.fetchImpl);
+  // A node the owner configured that is down, expired or wrong must not freeze the index: the free public node is used instead (it
+  // serves recent blocks, which is all the log window needs; older tokens come from the creation count below).
+  if (own) {
+    try {
+      await rpc.call('eth_blockNumber', []);
+    } catch (e) {
+      console.warn(`launchbox: the configured ${chain} node failed (${String(e instanceof Error ? e.message : e).slice(0, 120)}); using the public node`);
+      own = undefined;
+      rpc = new Rpc(PUBLIC_EVM_RPC[chain], d.fetchImpl);
+    }
+  }
   const factory = EVM_FACTORIES[chain];
   const report: ChainReport = { chain, added: 0, cursor: null };
   const row = await d.store.getCursor(chain);
@@ -200,6 +211,7 @@ export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadl
   } catch (e) {
     if (e instanceof MissingTableError) throw e;
     report.error = String(e instanceof Error ? e.message : e).slice(0, 200);
+    console.warn(`launchbox: indexing ${chain} failed: ${report.error}`);
   }
   return report;
 }

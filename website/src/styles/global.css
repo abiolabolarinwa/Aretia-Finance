@@ -1,6 +1,7 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 @import './tokens.css';
+@import './dark.css';
 
 /* Rostex: the bold display face for topical headlines (the one headline
    per page/section that names its subject), layered over Geist everywhere

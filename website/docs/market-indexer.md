@@ -7,7 +7,7 @@ Architecture and decisions: [market-indexer-architecture.md](market-indexer-arch
 | Level | Meaning |
 |---|---|
 | `live-verified` | the real engine ran against a live public node and passed (`src/swings/mi/engine.live.ts`, `npm run test:live`) |
-| `fixture-tested` | creation and swap decoders pass on real logs captured from that DEX's factory (`src/swings/mi/fixtures/real-logs.json`, refreshed by `node scripts/capture-mi-fixtures.mjs`), and a swap prices plausibly |
+| `fixture-tested` | creation and swap decoders pass on real logs captured from that DEX's factory (`src/swings/mi/fixtures/real-logs.json`, refreshed by `node scripts/capture-mi-fixtures.mjs > real-logs.new.json`), and a swap prices plausibly |
 | `address-verified` | the factory address was confirmed on chain; no log of that DEX has been decoded yet |
 | `planned` | not built |
 

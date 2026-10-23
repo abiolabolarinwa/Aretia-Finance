@@ -1,14 +1,16 @@
 /**
  * Captures REAL logs from public nodes for every indexed factory, so decoder tests run on chain data rather than hand-made
  * bytes. For each adapter it saves: a few recent creation logs from the factory, and a few recent swap logs from a busy pool
- * of that factory (the pool of the chain's wrapped native coin and a dollar stablecoin). Output: src/swings/mi/fixtures/real-logs.json
+ * of that factory (the pool of the chain's wrapped native coin and a dollar stablecoin). The merged result (existing file plus what was
+ * captured now) is printed to stdout; redirect it to a temporary file, check it, then move it over src/swings/mi/fixtures/real-logs.json:
  *
- *   node scripts/capture-mi-fixtures.mjs [specId ...]
+ *   node scripts/capture-mi-fixtures.mjs [specId ...] > real-logs.new.json
  *
  * Re-running refreshes the file; a spec that cannot be captured (no busy pool, node refused) is recorded as `error`, never faked.
  */
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
@@ -75,7 +77,12 @@ async function logsBack(chain, head, filter, want, stepBlocks) {
   return found.slice(-want);
 }
 
-const result = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : {};
+let result = {};
+try {
+  result = JSON.parse(readFileSync(out, 'utf8'));
+} catch {
+  // First capture: nothing to merge with.
+}
 const only = process.argv.slice(2);
 for (const s of specs) {
   if (only.length && !only.includes(s.id)) continue;
@@ -127,12 +134,11 @@ for (const s of specs) {
     const blocks = [...new Set([...entry.factoryLogs, ...entry.swapLogs].map((l) => l.blockNumber))];
     entry.blockTimes = {};
     for (const b of blocks) entry.blockTimes[b] = Number.parseInt((await rpc(s.chain, 'eth_getBlockByNumber', [b, false])).timestamp, 16);
-    console.log(s.id, 'ok', entry.factoryLogs.length, 'creations', entry.swapLogs.length, 'swaps');
+    console.error(s.id, 'ok', entry.factoryLogs.length, 'creations', entry.swapLogs.length, 'swaps');
   } catch (e) {
     entry.error = String(e.message ?? e);
-    console.log(s.id, 'ERROR', entry.error);
+    console.error(s.id, 'ERROR', entry.error);
   }
   result[s.id] = entry;
 }
-mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, JSON.stringify(result, null, 1));
+process.stdout.write(JSON.stringify(result, null, 1));

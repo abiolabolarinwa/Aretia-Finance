@@ -98,6 +98,14 @@ const apeSpecs = (): DexAdapterSpec[] =>
  */
 export const EARNED_EVIDENCE: Readonly<Record<string, Evidence>> = earned as Record<string, Evidence>;
 
+/**
+ * Adapters that ran end to end against a live public node (engine.live.ts, `npm run test:live`) and passed. Only an entry
+ * backed by such a run belongs here, with the date and what was observed.
+ */
+export const LIVE_VERIFIED: Readonly<Record<string, { date: string; observed: string }>> = {
+  'pancakeswap-v2-bnb': { date: '2026-10-23', observed: '31 pools and 34 tokens discovered from 2,400 blocks, 371 real swaps decoded and priced, resume from the checkpoint and a repeated backfill changed nothing' },
+};
+
 export function allSpecs(): DexAdapterSpec[] {
   const out: DexAdapterSpec[] = [];
   for (const e of [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3]) {
@@ -105,7 +113,7 @@ export function allSpecs(): DexAdapterSpec[] {
     if (s) out.push(s);
   }
   out.push(...apeSpecs());
-  return out.map((s) => ({ ...s, evidence: EARNED_EVIDENCE[s.id] ?? s.evidence }));
+  return out.map((s) => ({ ...s, evidence: LIVE_VERIFIED[s.id] ? ('live-verified' as Evidence) : (EARNED_EVIDENCE[s.id] ?? s.evidence) }));
 }
 
 export const specById = (id: string): DexAdapterSpec | null => allSpecs().find((s) => s.id === id) ?? null;

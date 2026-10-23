@@ -23,6 +23,10 @@
     { "source": "/api/swings-admin", "destination": "/api/swings-data?route=admin" },
     { "source": "/api/swings-upload", "destination": "/api/swings-data?route=upload" },
     { "source": "/api/swings-meta", "destination": "/api/swings-data?route=meta" },
+    { "source": "/api/v1", "destination": "/api/swings-data?route=mi" },
+    { "source": "/api/v1/:path*", "destination": "/api/swings-data?route=mi&path=:path*" },
+    { "source": "/api/mi-run", "destination": "/api/swings-data?route=mi-run" },
+    { "source": "/api/swings-mi-admin", "destination": "/api/swings-data?route=mi-admin" },
     { "source": "/api/launchbox", "destination": "/api/swings-data?route=launchbox" },
     { "source": "/api/launchbox-run", "destination": "/api/swings-data?route=launchbox-run" }
   ],

@@ -61,6 +61,7 @@ export function computeStats(pool: Pick<MiPool, 'quoteDecimals'>, trades: readon
     asOf: now,
     price,
     priceUsd: u !== null ? toNumber(price) * u : null,
+    quoteUsd: u,
     change: { m5: change.m5 ?? null, h1: change.h1 ?? null, h6: change.h6 ?? null, h24: change.h24 ?? null },
     volumeQuote,
     volumeUsd: u !== null ? { m5: volumeQuote.m5 * u, h1: volumeQuote.h1 * u, h6: volumeQuote.h6 * u, h24: volumeQuote.h24 * u } : { m5: null, h1: null, h6: null, h24: null },

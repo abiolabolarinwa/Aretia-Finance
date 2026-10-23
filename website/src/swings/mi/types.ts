@@ -2,7 +2,7 @@
  * Aretia Market Indexer: the records it keeps. Everything here is derived from chain data the indexer read itself;
  * nothing is copied from an aggregator. Amounts are raw integers as decimal strings, prices are fixed-point decimal strings.
  */
-import type { ChainId } from '../core/types.js';
+import type { MiChain } from './chains.js';
 
 /** Explicit lifecycle of a market (a pool): a token contract alone is never a market. */
 export const POOL_STATES = ['discovered', 'validating', 'awaiting_liquidity', 'active', 'inactive', 'suspended', 'unsupported'] as const;
@@ -17,7 +17,7 @@ export type PoolKind = 'v2' | 'v3';
 export interface MiToken {
   /** `chain:address` (EVM addresses lower-case). */
   key: string;
-  chain: ChainId;
+  chain: MiChain;
   address: string;
   symbol: string;
   name: string;
@@ -33,7 +33,7 @@ export interface MiToken {
 export interface MiPool {
   /** `chain:pool` (EVM addresses lower-case). */
   key: string;
-  chain: ChainId;
+  chain: MiChain;
   address: string;
   adapterId: string;
   dex: string;
@@ -73,6 +73,8 @@ export interface PoolStats {
   /** Latest trade price, quote per base, fixed-point decimal string. */
   price: string | null;
   priceUsd: number | null;
+  /** What one whole quote token was worth in dollars when these numbers were computed (null = unknown). */
+  quoteUsd: number | null;
   /** Price change in basis points over each window; null when the pool had no trade before the window to compare with. */
   change: { m5: number | null; h1: number | null; h6: number | null; h24: number | null };
   volumeQuote: { m5: number; h1: number; h6: number; h24: number };
@@ -87,7 +89,7 @@ export interface PoolStats {
 }
 
 export interface MiTrade {
-  chain: ChainId;
+  chain: MiChain;
   pool: string;
   /** Unique within a pool: `txHash:logIndex`. */
   id: string;
@@ -113,7 +115,7 @@ export interface Checkpoint {
 
 export interface AdapterHealth {
   adapterId: string;
-  chain: ChainId;
+  chain: MiChain;
   head: number | null;
   safeHead: number | null;
   checkpoint: number | null;
@@ -146,5 +148,5 @@ export interface BackfillJob {
   error: string | null;
 }
 
-export const tokenKeyOf = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
+export const tokenKeyOf = (chain: MiChain, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
 export const poolKeyOf = tokenKeyOf;

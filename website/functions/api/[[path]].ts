@@ -14,6 +14,8 @@ const DROP = new Set(['host', 'cf-connecting-ip', 'cf-ray', 'cf-visitor', 'cf-ip
 
 /** Public, shared reads that Vercel marks cacheable (s-maxage). Kept at Cloudflare's edge so a visitor is not sent to Vercel in the US for each one. */
 const EDGE_CACHED = new Set(['/api/swings-ohlcv']);
+/** The Market Indexer's public read API: every GET under it is shared data, and the answer says how long it may be kept (s-maxage). */
+const edgeCacheable = (pathname: string): boolean => EDGE_CACHED.has(pathname) || pathname === '/api/v1' || pathname.startsWith('/api/v1/');
 
 export async function onRequest(context: { request: Request; env: Env; waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
   const { request, env } = context;
@@ -27,7 +29,7 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
   headers.set('x-aretia-proxy-secret', env.CF_PROXY_SECRET);
   headers.set('x-aretia-client-ip', request.headers.get('cf-connecting-ip') ?? '');
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
-  const edge = request.method === 'GET' && EDGE_CACHED.has(incoming.pathname) ? (caches as unknown as { default: Cache }).default : null;
+  const edge = request.method === 'GET' && edgeCacheable(incoming.pathname) ? (caches as unknown as { default: Cache }).default : null;
   // The cache key is the public URL alone: nothing the visitor sent (cookies, headers) changes a public candle answer.
   const cacheKey = new Request(incoming.toString(), { method: 'GET' });
   if (edge) {

@@ -16,7 +16,7 @@ export function nativeUsdReader(chain: MiChainConfig, read: Read, now: () => num
   let cached: { at: number; value: number | null } | null = null;
   return async () => {
     if (cached && now() - cached.at < ttlMs) return cached.value;
-    let value: number | null = null;
+    let value: number | null;
     try {
       value = await compute(chain, read);
     } catch {

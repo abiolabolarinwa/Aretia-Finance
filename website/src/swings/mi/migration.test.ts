@@ -35,10 +35,10 @@ describe('migration 0017_market_indexer', () => {
     expect((await db.query('select pool from mi_trades order by id')).rows).toEqual([{ pool: '0xp1' }]);
 
     await db.exec("insert into mi_jobs (id,adapter_id,from_block,to_block,done_block,status,requested_by,requested_at) values ('j1','a1',1,9,0,'pending','w',1),('j2','a1',1,9,0,'pending','w',2)");
-    const first = (await db.query('select * from public.mi_claim_job()')).rows;
+    const first = (await db.query<{ id: string; status: string }>('select * from public.mi_claim_job()')).rows;
     expect(first.map((r) => r.id)).toEqual(['j1']);
     expect(first[0]!.status).toBe('running');
-    expect((await db.query('select * from public.mi_claim_job()')).rows.map((r) => r.id)).toEqual(['j2']);
+    expect((await db.query<{ id: string }>('select * from public.mi_claim_job()')).rows.map((r) => r.id)).toEqual(['j2']);
     expect((await db.query('select * from public.mi_claim_job()')).rows).toEqual([]);
 
     // Row level security is on and no policy exists: ordinary roles see nothing and cannot write.

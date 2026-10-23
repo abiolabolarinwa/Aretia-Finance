@@ -56,7 +56,8 @@ const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 10
 export function chainConfig(chain: MiChain, env: Record<string, string | undefined> = {}): MiChainConfig {
   if (chain === 'solana') return { id: 'solana', name: CHAINS.solana.name, kind: 'solana', confirmations: 0, maxRange: 0, addressBatch: 0, lookback: 0, quoteTokens: [], rpcUrls: [] };
   const upper = chain.toUpperCase();
-  const override = env[`MI_RPC_${upper}`]?.trim();
+  // MI_RPC_<CHAIN> wins; otherwise the node the token registry already uses (EVM_RPC_<CHAIN>) is reused.
+  const override = (env[`MI_RPC_${upper}`] ?? env[`EVM_RPC_${upper}`])?.trim();
   const confirmations = Number(env[`MI_CONFIRMATIONS_${upper}`]);
   const batch = Number(env[`MI_ADDRESS_BATCH_${upper}`]);
   return {
@@ -69,7 +70,7 @@ export function chainConfig(chain: MiChain, env: Record<string, string | undefin
     lookback: 300,
     quoteTokens: quotesOf(chain),
     // A configured node comes first (server-side secret, may carry a key); the public ones are the fallback.
-    rpcUrls: [...(override ? [override] : []), PUBLIC_EVM_RPC[chain], ...(BACKUP_EVM_RPC[chain] ?? [])],
+    rpcUrls: [...(override && /^https:\/\/[^\s]+$/.test(override) ? [override] : []), PUBLIC_EVM_RPC[chain], ...(BACKUP_EVM_RPC[chain] ?? [])],
   };
 }
 

@@ -6,10 +6,10 @@
  * Idempotence is part of the contract: inserting a token, pool or trade that exists changes nothing.
  */
 import type { AdapterHealth, AuditEntry, BackfillJob, Checkpoint, MiPool, MiToken, MiTrade, PoolState } from './types.js';
-import type { ChainId } from '../core/types.js';
+import type { MiChain } from './chains.js';
 
 export interface PoolQuery {
-  chain?: ChainId;
+  chain?: MiChain;
   dex?: string;
   states?: readonly PoolState[];
   /** Pools that include this token (base or quote), `chain:address`. */
@@ -46,17 +46,17 @@ export interface MiStore {
   /** Pools of one adapter in the given states, for swap following: newest created first, or most recently traded first. Paused pools are never returned. */
   poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: 'newest' | 'recent-trade'): Promise<MiPool[]>;
   listPools(q: PoolQuery): Promise<PoolPage>;
-  countPools(by: { chain?: ChainId; state?: PoolState }): Promise<number>;
+  countPools(by: { chain?: MiChain; state?: PoolState }): Promise<number>;
 
   // ---- trades
   /** Idempotent on (chain, pool, id). `adapterId` is recorded so a reorg can remove an adapter's trades without listing its pools. Returns how many were new. */
   putTrades(adapterId: string, trades: readonly MiTrade[]): Promise<number>;
   /** Newest first. */
-  recentTrades(chain: ChainId, pool: string, limit: number, before?: number): Promise<MiTrade[]>;
+  recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]>;
   /** Oldest first, from `fromSec` (unix seconds) on. */
-  tradesSince(chain: ChainId, pool: string, fromSec: number, limit: number): Promise<MiTrade[]>;
+  tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]>;
   /** The last trade strictly before `beforeSec`, for the price a window opened at. */
-  lastTradeBefore(chain: ChainId, pool: string, beforeSec: number): Promise<MiTrade | null>;
+  lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null>;
   /** Reorg: removes the trades this adapter wrote at or above `block`; returns how many. */
   deleteTradesFrom(adapterId: string, block: number): Promise<number>;
   /** Reorg: removes pools of this adapter created at or above `block`, with their trades; returns how many pools. */
@@ -214,7 +214,7 @@ export class InMemoryMiStore implements MiStore {
     const next = rows.length > q.limit && page.length > 0 ? encodeCursor([metric(page[page.length - 1]!), page[page.length - 1]!.key]) : null;
     return { pools: page.map((p) => ({ ...p })), nextCursor: next };
   }
-  async countPools(by: { chain?: ChainId; state?: PoolState }): Promise<number> {
+  async countPools(by: { chain?: MiChain; state?: PoolState }): Promise<number> {
     return [...this.pools.values()].filter((p) => (!by.chain || p.chain === by.chain) && (!by.state || p.state === by.state)).length;
   }
 
@@ -230,17 +230,17 @@ export class InMemoryMiStore implements MiStore {
     }
     return n;
   }
-  private sortedTrades(chain: ChainId, pool: string): MiTrade[] {
+  private sortedTrades(chain: MiChain, pool: string): MiTrade[] {
     return [...this.trades.values()].filter((t) => t.chain === chain && t.pool === pool).sort((a, b) => a.time - b.time || a.block - b.block || (a.id < b.id ? -1 : 1));
   }
-  async recentTrades(chain: ChainId, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
+  async recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
     const all = this.sortedTrades(chain, pool).filter((t) => before === undefined || t.time < before);
     return all.reverse().slice(0, limit);
   }
-  async tradesSince(chain: ChainId, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
+  async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
     return this.sortedTrades(chain, pool).filter((t) => t.time >= fromSec).slice(0, limit);
   }
-  async lastTradeBefore(chain: ChainId, pool: string, beforeSec: number): Promise<MiTrade | null> {
+  async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
     const all = this.sortedTrades(chain, pool).filter((t) => t.time < beforeSec);
     return all.length ? { ...all[all.length - 1]! } : null;
   }

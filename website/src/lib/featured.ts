@@ -6,7 +6,7 @@
  * "Featured" is a placement, not an endorsement and not a rating: it says only that a token was put here by agreement. Aretia's
  * checks on a token are a separate thing (the "Verified by Aretia" badge, src/lib/verified.ts).
  */
-import { addressOk, httpsUrl, normalise, VERIFY_CHAINS, type VerifyChain } from './verified';
+import { addressOk, httpsUrl, normalise, VERIFY_CHAINS, type VerifyChain } from './verified.js';
 
 export interface FeaturedItem {
   /** A short id, used to tell items apart. */

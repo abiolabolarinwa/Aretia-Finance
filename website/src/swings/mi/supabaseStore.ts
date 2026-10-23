@@ -2,7 +2,7 @@
  * MiStore over Supabase's PostgREST interface (plain fetch, service-role key, server side only). Schema: migration 0017.
  * Idempotence relies on primary keys with `resolution=ignore-duplicates`; counts of what was new come from `return=representation`.
  */
-import type { ChainId } from '../core/types.js';
+import type { MiChain } from './chains.js';
 import { supabaseHeaders } from '../tokens/supabaseAuth.js';
 import { decodeCursor, encodeCursor, type MiStore, type PoolPage, type PoolQuery } from './store.js';
 import type { AdapterHealth, AuditEntry, BackfillJob, Checkpoint, MiPool, MiToken, MiTrade, PoolState } from './types.js';
@@ -20,12 +20,12 @@ const q = (v: string): string => `"${v.replace(/[^A-Za-z0-9:._-]/g, '')}"`;
 const clampLimit = (v: number, max = 1000): number => Math.max(1, Math.min(max, Math.floor(v)));
 export const MAX_OFFSET = 5_000;
 
-const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as ChainId, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null });
+const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as MiChain, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null });
 const tokenToRow = (t: MiToken, now: number): Row => ({ key: t.key, chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, first_seen_at: t.firstSeenAt, first_trade_at: t.firstTradeAt, launchbox_key: t.launchboxKey, updated_at: now });
 
 export const poolFromRow = (r: Row): MiPool => ({
   key: String(r.key),
-  chain: r.chain as ChainId,
+  chain: r.chain as MiChain,
   address: String(r.address),
   adapterId: String(r.adapter_id),
   dex: String(r.dex),
@@ -187,7 +187,7 @@ export class SupabaseMiStore implements MiStore {
     }
     return { pools: page, nextCursor: next };
   }
-  async countPools(by: { chain?: ChainId; state?: PoolState }): Promise<number> {
+  async countPools(by: { chain?: MiChain; state?: PoolState }): Promise<number> {
     const f = [by.chain ? `chain=eq.${by.chain}` : '', by.state ? `state=eq.${by.state}` : ''].filter(Boolean).join('&');
     const res = await this.fetchImpl(`${this.url.replace(/\/$/, '')}/rest/v1/mi_pools?${f}${f ? '&' : ''}select=key`, { method: 'HEAD', headers: { ...supabaseHeaders(this.serviceKey), prefer: 'count=exact' } });
     if (res.status === 404) throw new MiMissingTableError();
@@ -206,15 +206,15 @@ export class SupabaseMiStore implements MiStore {
     }
     return added;
   }
-  private tradeFromRow = (r: Row): MiTrade => ({ chain: r.chain as ChainId, pool: String(r.pool), id: String(r.id), block: nz(r.block), blockHash: String(r.block_hash), time: nz(r.time), side: r.side as 'buy' | 'sell', baseAmount: String(r.base_amount), quoteAmount: String(r.quote_amount), price: String(r.price), maker: String(r.maker) });
-  async recentTrades(chain: ChainId, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
+  private tradeFromRow = (r: Row): MiTrade => ({ chain: r.chain as MiChain, pool: String(r.pool), id: String(r.id), block: nz(r.block), blockHash: String(r.block_hash), time: nz(r.time), side: r.side as 'buy' | 'sell', baseAmount: String(r.base_amount), quoteAmount: String(r.quote_amount), price: String(r.price), maker: String(r.maker) });
+  async recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
     const b = before !== undefined ? `&time=lt.${Math.floor(before)}` : '';
     return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}${b}&select=*&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
   }
-  async tradesSince(chain: ChainId, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
+  async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
     return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}&time=gte.${Math.floor(fromSec)}&select=*&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
   }
-  async lastTradeBefore(chain: ChainId, pool: string, beforeSec: number): Promise<MiTrade | null> {
+  async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
     const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}&time=lt.${Math.floor(beforeSec)}&select=*&order=time.desc,block.desc,id.desc&limit=1`);
     return r[0] ? this.tradeFromRow(r[0]) : null;
   }

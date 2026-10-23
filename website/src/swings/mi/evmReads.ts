@@ -3,6 +3,7 @@
  * could not ask" (a transport failure, which is thrown so the run is retried and no wrong fact is stored).
  */
 import { decodeAbiString } from '../chains/evmSession.js';
+import { cleanText } from '../tokens/safeText.js';
 import { selector, wordToBigInt, wordToAddress, words } from '../engine/abi.js';
 import { RpcError, type Read } from './rpc.js';
 import { PRICE_SCALE, pow10 } from './math.js';
@@ -81,7 +82,8 @@ export async function readToken(read: Read, address: string): Promise<TokenFacts
     }
   };
   const [symbol, name] = [await text('0x95d89b41'), await text('0x06fdde03')];
-  return { symbol: (symbol ?? address.slice(0, 6)).slice(0, 20), name: (name ?? '').slice(0, 60), decimals };
+  // Token text is untrusted: control, zero-width, bidirectional and stacking characters are removed before it is stored or shown.
+  return { symbol: cleanText(symbol ?? '', 20) || address.slice(0, 6), name: cleanText(name ?? '', 60), decimals };
 }
 
 /** V2 `getReserves()`: [reserve0, reserve1], or null when the pool does not answer like a V2 pair. */

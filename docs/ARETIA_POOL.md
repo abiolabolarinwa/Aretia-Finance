@@ -196,7 +196,7 @@ The program is deployed upgradeable, because an immutable unaudited program cann
 
 1. **Devnet**: deployed from the devnet test wallet. Authority stays with it. Worthless money.
 2. **Before any mainnet use**: the owner builds with the mainnet program id (its own keypair, kept outside the repo, as with the curve), deploys from their own wallet, and in the same sitting runs `solana program set-upgrade-authority <program> --new-upgrade-authority GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA` (the treasury Squads 2-of-3 vault).
-3. `website/scripts/pool-solana-mainnet.mjs verify` refuses to pass unless the authority is exactly that vault, the bytes equal the committed artifact (sha-256) and nothing but zeros follows them, the build contains the program id, and the fee wallet is funded.
+3. **The committed `aretia_pool.so` is built for the devnet id and cannot be used on mainnet:** it needs a rebuild with the mainnet id (`aretia-curve-grad` too, which refuses to compile with `--features mainnet` until both ids are set). Deploy rent at the 2026-10-23 rate is about 2.07 SOL for the pool and 1.81 SOL for the graduation program; steps and commands are in `docs/MAINNET_GO_LIVE.md`, and `website/scripts/grad-solana-mainnet.mjs` checks the graduation program. `website/scripts/pool-solana-mainnet.mjs verify` refuses to pass unless the authority is exactly that vault, the bytes equal the committed artifact (sha-256) and nothing but zeros follows them, the build contains the program id, and the fee wallet is funded.
 4. Later options for the multisig: a time-locked upgrade path through Squads, or making the program immutable after an audit. Both are the owner's call.
 
 ## 14. Swings swap registry

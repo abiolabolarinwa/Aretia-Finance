@@ -16,6 +16,7 @@ interface Stats {
   events: Section<{ swaps: Tally[]; problems: Tally[] }>;
   launch: Section<{ tokensCreated: number }>;
   revenue: {
+    income: Section<{ totalUsd: number; lines: { wallet: string; chain: string; stream: string; amount: string; usd: number | null; note?: string }[]; notes: string[] }>;
     heldNow: Section<{ heldUsd: number; holdings: Holding[] }>;
     creationFeesEstimate: Section<{ usd: number | null; lines: { chain: string; tokens: number; feeEach: string; usd: number | null }[] }>;
   };
@@ -97,6 +98,12 @@ function render(stats: Stats): void {
   }
 
   const revenue = card('Revenue through Aretia fees', 'What the page can measure from free data. For income by chain and stream, run the private report on your computer (docs/revenue-report.md).');
+  withSection(revenue, stats.revenue.income, (i) => {
+    revenue.append(el('div', usd(i.totalUsd), 'oa-big'));
+    revenue.append(el('p', `Income received at the Aretia fee wallets in the last ${stats.days} days (as far as the public nodes could be read), before gas.`, 'oa-note'));
+    revenue.append(table(['Wallet · chain · stream', 'Amount', 'USD'], i.lines.map((l) => [`${l.wallet} · ${l.chain} · ${l.stream}`, l.amount, usd(l.usd)])));
+    for (const n of i.notes) revenue.append(el('p', n, 'oa-warn'));
+  });
   withSection(revenue, stats.revenue.heldNow, (h) => {
     revenue.append(el('div', usd(h.heldUsd), 'oa-big'));
     revenue.append(el('p', 'Held at the fee addresses now (not income for the period: before gas, after anything moved out).', 'oa-note'));

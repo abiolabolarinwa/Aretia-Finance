@@ -13,6 +13,7 @@ import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
 import { sessionOwner, sessionSecret } from './_swingsAuth.js';
 import { rest, type Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
+import { readIncome, type Income } from './_adminIncome.js';
 
 export interface AdminEnv extends ProxyEnv {
   SUPABASE_URL?: string;
@@ -20,6 +21,10 @@ export interface AdminEnv extends ProxyEnv {
   SWINGS_SESSION_SECRET?: string;
   /** Comma-separated owner wallets: `0x…` (any case), `evm:0x…`, `solana:<address>`, or a bare Solana address. */
   ADMIN_WALLETS?: string;
+  /** Optional own node URLs, used for the income reading instead of the free public ones (same names as the private revenue report). */
+  ETH_RPC_URL?: string;
+  BNB_RPC_URL?: string;
+  POLYGON_RPC_URL?: string;
 }
 export interface AdminOutput {
   status: number;
@@ -222,9 +227,9 @@ export const SOLANA_FLAT_FEE_LAMPORTS = 50_000_000n;
 export const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
 export const EVM_CHAINS = [
-  { key: 'ethereum', name: 'Ethereum', symbol: 'ETH', coingecko: 'ethereum', rpc: 'https://ethereum-rpc.publicnode.com', creationFeeWei: 4_200_000_000_000_000n, usdc: ['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 6], usdt: ['0xdac17f958d2ee523a2206206994597c13d831ec7', 6] },
-  { key: 'bnb', name: 'BNB Chain', symbol: 'BNB', coingecko: 'binancecoin', rpc: 'https://bsc-rpc.publicnode.com', creationFeeWei: 14_000_000_000_000_000n, usdc: ['0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', 18], usdt: ['0x55d398326f99059ff775485246999027b3197955', 18] },
-  { key: 'polygon', name: 'Polygon', symbol: 'POL', coingecko: 'polygon-ecosystem-token', rpc: 'https://polygon-bor-rpc.publicnode.com', creationFeeWei: 105_000_000_000_000_000_000n, usdc: ['0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', 6], usdt: ['0xc2132d05d31c914a87c6611c10748aeb04b58e8f', 6] },
+  { key: 'ethereum', blocksPerDay: 7200, name: 'Ethereum', symbol: 'ETH', coingecko: 'ethereum', rpc: 'https://ethereum-rpc.publicnode.com', creationFeeWei: 4_200_000_000_000_000n, usdc: ['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 6], usdt: ['0xdac17f958d2ee523a2206206994597c13d831ec7', 6] },
+  { key: 'bnb', blocksPerDay: 28800, name: 'BNB Chain', symbol: 'BNB', coingecko: 'binancecoin', rpc: 'https://bsc-rpc.publicnode.com', creationFeeWei: 14_000_000_000_000_000n, usdc: ['0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', 18], usdt: ['0x55d398326f99059ff775485246999027b3197955', 18] },
+  { key: 'polygon', blocksPerDay: 43200, name: 'Polygon', symbol: 'POL', coingecko: 'polygon-ecosystem-token', rpc: 'https://polygon-bor-rpc.publicnode.com', creationFeeWei: 105_000_000_000_000_000_000n, usdc: ['0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', 6], usdt: ['0xc2132d05d31c914a87c6611c10748aeb04b58e8f', 6] },
 ] as const;
 
 const unit = (raw: bigint, decimals: number): number => Number(raw) / 10 ** decimals;
@@ -269,6 +274,7 @@ export async function readHoldings(fetchImpl: typeof fetch): Promise<{ holdings:
   return { holdings, heldUsd: holdings.reduce((s, h) => s + (h.usd ?? 0), 0), prices };
 }
 
+let incomeCache: { at: number; days: number; value: Income } | null = null;
 let holdingsCache: { at: number; value: Awaited<ReturnType<typeof readHoldings>> } | null = null;
 
 /** Creation fees implied by the Launch Box index: tokens created in the window times the flat fee each chain charges (an estimate). */
@@ -336,6 +342,14 @@ async function buildStats(db: Rest, input: AdminInput, days: number, since: numb
       return value;
     })().catch(() => null),
   ]);
+  const income = held
+    ? await (async () => {
+        if (incomeCache && incomeCache.days === days && input.now - incomeCache.at < 300_000) return incomeCache.value;
+        const value = await readIncome(input.fetchImpl, { solanaWallet: SOLANA_FEE_WALLET, solanaRpc: SOLANA_RPC, usdcMint: SOLANA_USDC_MINT, flatFeeLamports: SOLANA_FLAT_FEE_LAMPORTS, evmAddress: EVM_FEE_ADDRESS, chains: EVM_CHAINS, rpcOverride: { ethereum: input.env.ETH_RPC_URL, bnb: input.env.BNB_RPC_URL, polygon: input.env.POLYGON_RPC_URL } }, input.now, days, held.prices);
+        incomeCache = { at: input.now, days, value };
+        return value;
+      })().catch(() => null)
+    : null;
   const creations = launch.status === 'ok' && held ? estimateCreationRevenue(launch.created, held.prices) : null;
   return {
     generatedAt: new Date(input.now).toISOString(),
@@ -345,13 +359,14 @@ async function buildStats(db: Rest, input: AdminInput, days: number, since: numb
     events,
     launch: launch.status === 'ok' ? { status: 'ok', tokensCreated: launch.created.length } : launch,
     revenue: {
+      income: income ? { status: 'ok', ...income } : { status: 'error', note: 'Income could not be read from the public nodes.' },
       heldNow: held ? { status: 'ok', heldUsd: held.heldUsd, holdings: held.holdings } : { status: 'error', note: 'Balances could not be read from the public nodes.' },
       creationFeesEstimate: creations ? { status: 'ok', ...creations } : { status: 'not-set-up', note: 'Needs the Launch Box index and prices.' },
     },
     limits: [
       'Visits, countries, wallet types, coins and issues are counted by a small beacon in visitors\' browsers from the day migration 0016 was applied. They are self-reported and can be inflated by anyone who calls the endpoint; blockers and Do Not Track visitors are not counted.',
       '"Traders" is the number of distinct wallets that chose to save their swap history to their Aretia account (a floor: swaps made without signing in are not tied to a wallet, and no wallet is stored by the beacon).',
-      '"Held now" is what sits at the fee addresses today, before gas and after anything you moved out; it is not income for the period. For income by chain and stream run scripts/revenue-report.mjs on your own computer (docs/revenue-report.md).',
+      '"Income received" is what arrived at the fee wallets in the window, read from public nodes: Solana up to the newest 120 transactions, EVM stablecoin transfers only (a chain\'s own coin cannot be itemised), and the free nodes may read a shorter window than asked (the notes say so). "Held now" is what sits at the fee addresses today, before gas and after anything you moved out; it is not income for the period. For income by chain and stream run scripts/revenue-report.mjs on your own computer (docs/revenue-report.md).',
       'The creation-fee line is the Launch Box count times the flat fee, an estimate. Swap fees in a chain\'s own coin cannot be itemised from free data.',
       'Dollar figures use CoinGecko prices now. Not accounting or tax advice.',
     ],

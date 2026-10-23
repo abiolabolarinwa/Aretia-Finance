@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as core from '../scripts/revenueReportCore.mjs';
+import { readIncome, solanaEffect, summariseSolanaIncome, sumTransferLogs } from './_adminIncome.js';
 import { resetBudgets } from './_limits.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
@@ -203,5 +204,43 @@ describe('fee addresses stay the ones the private revenue report uses', () => {
       expect(c.usdc).toEqual([k.stables.USDC.address, k.stables.USDC.decimals]);
       expect(c.usdt).toEqual([k.stables.USDT.address, k.stables.USDT.decimals]);
     }
+  });
+});
+
+describe('income at the fee wallets', () => {
+  const W = SOLANA_FEE_WALLET;
+  const tx = (pre: number, post: number, usdcPre = '0', usdcPost = '0') => ({
+    meta: { err: null, preBalances: [pre], postBalances: [post], preTokenBalances: [{ owner: W, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: usdcPre } }], postTokenBalances: [{ owner: W, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: usdcPost } }] },
+    transaction: { message: { accountKeys: [{ pubkey: W }] } },
+  });
+  it('splits flat launch fees from other deposits and counts USDC in, ignoring outflows and failed transactions', () => {
+    const effects = [tx(0, 50_000_000), tx(0, 120_000_000), tx(100, 40), tx(0, 0, '0', '10000000')].map((t) => solanaEffect(t, W, SOLANA_USDC_MINT)!);
+    expect(solanaEffect({ ...tx(0, 5), meta: { ...tx(0, 5).meta, err: { x: 1 } } }, W, SOLANA_USDC_MINT)).toBeNull();
+    expect(summariseSolanaIncome(effects, SOLANA_FLAT_FEE_LAMPORTS)).toEqual({ launches: 1, launchLamports: 50_000_000n, otherCount: 1, otherLamports: 120_000_000n, usdcIn: 10_000_000n });
+  });
+  it('sums ERC-20 transfer values', () => {
+    expect(sumTransferLogs([{ data: '0x' + (5).toString(16).padStart(64, '0') }, { data: '0x' + (7).toString(16).padStart(64, '0') }])).toBe(12n);
+  });
+  it('reads stablecoin income, falls back to a shorter range, and never throws', async () => {
+    const word = (n: number) => '0x' + n.toString(16).padStart(64, '0');
+    const calls: string[] = [];
+    const f = (async (_u: string, init?: RequestInit) => {
+      const req = JSON.parse(String(init?.body)) as { method: string; params: { fromBlock?: string }[] };
+      calls.push(req.method);
+      const ok = (result: unknown) => new Response(JSON.stringify({ result }));
+      if (req.method === 'eth_blockNumber') return ok('0x100000');
+      if (req.method === 'eth_getLogs') {
+        const wide = parseInt(req.params[0]!.fromBlock!, 16) < 0x100000 - 7200 * 2;
+        return wide ? new Response(JSON.stringify({ error: { message: 'range' } })) : ok([{ address: EVM_CHAINS[0].usdc[0], data: word(25_000_000) }]);
+      }
+      return new Response(JSON.stringify({ error: 'x' }), { status: 500 });
+    }) as typeof fetch;
+    const eth = EVM_CHAINS[0];
+    const out = await readIncome(f, { solanaWallet: W, solanaRpc: 'https://sol.test', usdcMint: SOLANA_USDC_MINT, flatFeeLamports: SOLANA_FLAT_FEE_LAMPORTS, evmAddress: EVM_FEE_ADDRESS, chains: [eth] }, NOW, 30, {});
+    const line = out.lines.find((l) => l.chain === 'Ethereum')!;
+    expect(line.usd).toBe(25);
+    expect(line.stream).toContain('last 1 day');
+    expect(out.notes.join(' ')).toContain('only read the last 1 day');
+    expect(out.notes.join(' ')).toContain('Solana income could not be read');
   });
 });

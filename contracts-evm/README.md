@@ -42,3 +42,8 @@ The deployed source is byte-for-byte what was verified on the explorers, so its 
 ## Aretia Pool (UNAUDITED, not deployed on any mainnet)
 
 `AretiaPool.sol` is Aretia's own constant-product swap pool for these chains: single-sided creation with the creator's liquidity locked for good, 0.25% or 1% fee, 20% of every fee owed to Aretia (paid out by anyone with `withdrawProtocolFees()`, never inside a trade), the rest claimable by liquidity positions even while locked for good, a deadline on every trade and liquidity call. The source changed after the October 2026 review; the earlier Sepolia deployment is the old build and must be replaced. Regression tests for the review's findings: `test/pool.test.mjs`. See `docs/ARETIA_POOL_EVM.md`. Rebuild with `compile-pool.mjs`; hostile test stand-ins are `test-mocks/PoolMocks.sol` (built by `test-mocks/compile-pool-mocks.mjs`); deploy and verify with `website/scripts/pool-evm.mjs`.
+
+## Launch factory (locked liquidity)
+
+`AretiaLaunchFactory.sol` creates a token and opens its trading pool with the liquidity locked, in one transaction, so a token made through it cannot have its liquidity pulled. It is the only way the Launch page creates a token. The older `AretiaTokenFactory` (token only, no pool) stays deployed because Aretia Pool and the curve recognise tokens by it, but the page no longer sends creations to it. Deploy and verify steps: `VERIFY-LAUNCH.md`; deploy page: `deploy-launch.html`; tests: `test/launch.test.mjs`.
+

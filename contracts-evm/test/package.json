@@ -4,9 +4,10 @@
   "type": "module",
   "description": "In-process EVM tests for contracts-evm (not a website dependency). See README.md.",
   "scripts": {
-    "test": "node --test rescue.test.mjs seeder.test.mjs pool.test.mjs",
+    "test": "node --test rescue.test.mjs seeder.test.mjs pool.test.mjs launch.test.mjs",
     "compile:helpers": "node ../compile-helpers.mjs ..",
-    "compile:pool": "node ../compile-pool.mjs .."
+    "compile:pool": "node ../compile-pool.mjs ..",
+    "compile:launch": "node ../compile-launch.mjs .."
   },
   "devDependencies": {
     "@ethereumjs/common": "^4.4.0",

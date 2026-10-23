@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const dir = join(process.cwd(), 'api');
-const functions = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.startsWith('_') && !f.endsWith('.test.ts'));
+// Vercel makes a function of every .ts file in api/ whose name does not start with an underscore, test files included.
+const functions = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.startsWith('_'));
 
 describe('serverless functions', () => {
   it('stay within the twelve the Hobby plan allows (more makes the whole deployment fail)', () => {

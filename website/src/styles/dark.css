@@ -1,0 +1,87 @@
+/* Dark theme for the wallet app. It only applies when the wallet page has set
+   data-theme="dark" on <html> (src/scripts/walletTheme.ts); other pages never
+   set it. Tokens first, then the few surfaces that hard-code a light colour. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #0e0c24;
+  --color-bg-alt: #16143a;
+  --color-offwhite: #12102e;
+  --color-surface: #16143a;
+  --color-surface-2: #1c1a46;
+  --color-surface-3: #27245a;
+  --color-strong: #f4f3ff;
+  --color-text: #e6e4fb;
+  --color-muted: #aeacce;
+  --color-faint: #9c9abf;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.2);
+  --color-gold: #d9ad4f;
+  --color-gold-bright: #ecc36a;
+  --color-gold-soft: rgba(217, 173, 79, 0.14);
+  /* A lighter indigo than the logo's #150681, which is unreadable as text on a dark canvas;
+     white on it still clears 4.5:1 for buttons. */
+  --color-brand: #6a58f2;
+  --color-brand-bright: #7d6cff;
+  --color-brand-soft: rgba(138, 122, 255, 0.16);
+  --color-mint: #b8b0ff;
+  --color-mint-soft: #25215a;
+  --color-mint-wash: linear-gradient(180deg, #25215a 0%, #1a1842 70%, #0e0c24 100%);
+  --color-ok: #3fcf82;
+  --color-warn: #b9b0ff;
+  --shadow-float: 0 30px 80px -24px rgba(0, 0, 0, 0.6), 0 8px 24px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 12px 40px -16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] body { background: var(--color-bg); color: var(--color-text); }
+
+/* Header */
+html[data-theme='dark'] .nav.is-scrolled, html[data-theme='dark'] .nav.is-open { background: rgba(14, 12, 36, 0.78); }
+html[data-theme='dark'] .nav.is-open { background: rgba(14, 12, 36, 0.98); }
+html[data-theme='dark'] .nav__panel { background: rgba(22, 20, 58, 0.97); }
+html[data-theme='dark'] .nav__trigger:hover, html[data-theme='dark'] .nav__item:hover { background: rgba(255, 255, 255, 0.07); }
+
+/* Wallet app: light-only surfaces */
+html[data-theme='dark'] .wapp { --wapp-indigo: #1f1c4d; --wapp-indigo-line: #36317a; --wapp-line: #36317a; }
+html[data-theme='dark'] .wapp-mp { --wapp-indigo: #1b1946; --wapp-indigo-line: #322e70; --color-border-strong: #3f3a85; --color-muted: #b4b2d2; }
+html[data-theme='dark'] :is(.wapp-mt__chart-frame, .wapp-tp__frame, .wapp__chart-frame) { background: #0e0c24; color-scheme: dark; }
+html[data-theme='dark'] .wapp-mp__tab:hover, html[data-theme='dark'] .wapp-mp__watch:hover { background: #2b2766; }
+html[data-theme='dark'] .wapp-mp__lock, html[data-theme='dark'] .wapp-mt__lock { color: #4ade80; }
+html[data-theme='dark'] .wapp-mp__lock.is-timed, html[data-theme='dark'] .wapp-mt__lock.is-timed { color: #b9b0ff; }
+html[data-theme='dark'] :is(.wapp-mp__cell.is-up, .wapp-mp__tab.is-up, .wapp-tp__stat.is-up) :is(.wapp-mp__v, .wapp-tp__v) { color: #4ade80; }
+html[data-theme='dark'] :is(.wapp-mp__cell.is-down, .wapp-mp__tab.is-down, .wapp-tp__stat.is-down) :is(.wapp-mp__v, .wapp-tp__v) { color: #ff8a80; }
+html[data-theme='dark'] .wapp-mt__num.is-up { color: #4ade80; }
+html[data-theme='dark'] .wapp-mt__num.is-down, html[data-theme='dark'] .nav__price-chg.is-down { color: #ff8a80; }
+html[data-theme='dark'] .wapp-mp__headline--bad { color: #ff9b93; }
+html[data-theme='dark'] .wapp-mp__headline--warn { color: #c9c2ff; }
+html[data-theme='dark'] .wapp-mt__star[aria-pressed='true'], html[data-theme='dark'] .wapp-mt__star:hover { color: #ffc233; }
+html[data-theme='dark'] .wapp-lb__note { color: #f3d78e; background: rgba(240, 190, 0, 0.1); border-color: rgba(240, 213, 138, 0.35); }
+html[data-theme='dark'] .wapp-lb__imitates { background: rgba(138, 122, 255, 0.18); }
+html[data-theme='dark'] .wapp-svc__tile:hover { background: var(--color-surface-2); }
+html[data-theme='dark'] .wapp-sh__go:hover { background: var(--wapp-indigo); }
+html[data-theme='dark'] .wapp-swapdlg { background: rgba(2, 1, 14, 0.7); }
+
+/* Inputs and selects */
+html[data-theme='dark'] :is(input, select, textarea) { color-scheme: dark; }
+html[data-theme='dark'] :is(input, select, textarea)::placeholder { color: var(--color-faint); }
+
+/* The theme button in the header */
+.theme-toggle { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
+.theme-toggle:hover { background: var(--color-brand-soft); border-color: var(--color-brand); }
+.theme-toggle:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.theme-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle__moon { display: none; }
+html[data-theme='dark'] .theme-toggle__sun { display: none; }
+html[data-theme='dark'] .theme-toggle__moon { display: block; }
+
+/* Notices */
+html[data-theme='dark'] .wapp__banner--warn { color: #d8d3ff; background: rgba(138, 122, 255, 0.16); }
+html[data-theme='dark'] .wapp__banner--info { color: #b4c9ff; background: rgba(110, 150, 255, 0.14); }
+html[data-theme='dark'] .wapp__banner--ok { color: #7fe3ab; background: rgba(63, 207, 130, 0.12); }
+
+/* Status pills: the light theme's dark text on a pale wash becomes light text on a deeper wash */
+html[data-theme='dark'] .wapp__state--on { color: #b4c9ff; background: rgba(110, 150, 255, 0.18); }
+html[data-theme='dark'] .wapp__state--warn { color: #d8d3ff; background: rgba(138, 122, 255, 0.2); }
+html[data-theme='dark'] .wapp__state--bad, html[data-theme='dark'] .wapp__state--red { color: #ffb4ae; background: rgba(255, 90, 78, 0.2); }
+html[data-theme='dark'] .wapp__state--green { color: #7fe3ab; background: rgba(63, 207, 130, 0.18); }
+html[data-theme='dark'] .wapp__state--yellow { color: #ffe27a; background: rgba(240, 190, 0, 0.2); }
+html[data-theme='dark'] .wapp__state--orange { color: #ffb978; background: rgba(238, 112, 14, 0.24); }

@@ -45,4 +45,6 @@ It rebuilds the expected runtime code from the artifact and these constructor ar
 
 The source's comments are kept exactly as verified; `README.md` lists the ones that are out of date.
 
+Deploying and checking them on chain: `node scripts/evm-helpers-mainnet.mjs prepare|send|verify --chain <ethereum|bnb|polygon> --helper rescue|seeder` (see `docs/MAINNET_GO_LIVE.md` step 5). The pool is the same with `scripts/pool-evm.mjs`, and its source is verified with `AretiaPool.standard-input.json`, contract name `AretiaPool`, the same compiler settings, and constructor arguments `(token factory, fee address, creation fee in wei)`.
+
 The helpers `AretiaCurveRescue` (constructor: the curve address) and `AretiaPairSeeder` (constructor: the chain's router) are verified the same way with their own standard-input files, once deployed (`docs/BONDING_CURVE_EVM.md`, section 16).

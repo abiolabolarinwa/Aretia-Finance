@@ -82,18 +82,31 @@ async function commonChecks() {
 
 if (mode === 'prepare') {
   await commonChecks();
-  // The program account and the program data account, plus the loader's 45-byte header on the data.
-  const dataRent = await conn.getMinimumBalanceForRentExemption(45 + so.length);
+  // The upgradeable loader keeps the program in a data account of (45-byte header + max length) bytes, and a small program account (36 bytes).
+  // `solana program deploy` sizes the data account to the build itself unless --max-len says otherwise (checked with solana-cli 4.2.1), and the
+  // commands below pass --max-len explicitly. Rent is asked from the node here: 2026-10-23 it was 5,080 lamports per byte of (128 + length); the older figure of 6,960 gave the 2.75 SOL once quoted.
+  const maxLen = Number(arg('max-len') ?? so.length);
+  if (!Number.isInteger(maxLen) || maxLen < so.length) fail(`--max-len must be at least the build's ${so.length} bytes.`);
+  const dataRent = await conn.getMinimumBalanceForRentExemption(45 + maxLen);
   const programRent = await conn.getMinimumBalanceForRentExemption(36);
-  // Measured on devnet with this exact build: the whole deploy spent 1.6133 SOL. The upload buffer's lamports are handed back to the payer
-  // inside the deploy instruction before the program's data account is paid for, so the wallet never needs the rent twice.
-  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, which stays locked in the program's accounts, plus about 0.002 SOL of network fees (a devnet deploy of this build spent 1.6133 SOL in all). Keep the deploying wallet at ${sol(dataRent + programRent + 50_000_000)} or more.`);
-  console.log('Doing this deploys code that holds buyers\' money and is NOT independently audited. It is the owner\'s call, from the owner\'s own wallet.\n');
+  const rent = dataRent + programRent;
+  // The upload buffer (the same size again) is refunded to the payer inside the deploy instruction before the data account is paid for, so the
+  // wallet never needs the rent twice. A deploy that runs short stops with the buffer kept: top up and resume it with --buffer.
+  console.log(`\nCost: ${sol(rent)} of rent (${dataRent} lamports for the program data account of ${45 + maxLen} bytes + ${programRent} for the program account), which stays locked in those accounts, plus about 0.003 SOL of network fees for the roughly 400 upload transactions. Fund the deployer with ${sol(rent + 50_000_000)} (rent, fees and a margin); what is left over stays in the deployer.`);
+  console.log("The 2.75 SOL once quoted, and the 1.6133 SOL measured on devnet for a smaller, older build (about 231 KB), both used the old rent rate of 6,960 lamports per byte; the node's rate is lower now.");
+  console.log("Doing this deploys code that holds buyers' money and is NOT independently audited. It is the owner's call, from the owner's own wallet.\n");
+  console.log(`0. BEFORE deploying, re-run the program tests with Meteora's CURRENT mainnet binary (six migration and fee tests skip without it). From the repo root, PowerShell:
+     solana program dump cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG meteora_cp_amm.so --url ${cluster.name}
+     $env:METEORA_CP_AMM_SO = (Resolve-Path meteora_cp_amm.so).Path
+     $env:ARETIA_CURVE_SO = (Resolve-Path program\\aretia-curve\\artifacts\\aretia_curve.so).Path
+     cargo test --manifest-path program\\aretia-curve\\tests\\Cargo.toml
+     All tests must pass with none skipped; if any fails, do not deploy.\n`);
   console.log(`1. Make the program's own key once, and keep it (it signs only this first deployment). Print its address:
      solana-keygen new --no-bip39-passphrase --outfile <folder>\\aretia-curve-program.json
-     The program id written into this build must be that address. If it is not, the build must be remade (docs/BONDING_CURVE.md).\n`);
+     solana address --keypair <folder>\\aretia-curve-program.json
+     The address must be CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu, the id written into this build. If it is not, the build must be remade (docs/BONDING_CURVE.md).\n`);
   console.log(`2. Deploy the committed build, signing with your own wallet (the deployer):
-     solana program deploy "${artifactPath}" --program-id <folder>\\aretia-curve-program.json --keypair <your-deployer-keypair.json> --url ${cluster.name}\n`);
+     solana program deploy "${artifactPath}" --program-id <folder>\\aretia-curve-program.json --max-len ${maxLen} --keypair <your-deployer-keypair.json> --url ${cluster.name}\n`);
   console.log(`3. Hand the upgrade authority to the treasury multisig straight away. After this, nobody alone can replace the program:
      solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority ${MULTISIG_VAULT} --skip-new-upgrade-authority-signer-check --keypair <your-deployer-keypair.json> --url ${cluster.name}\n`);
   console.log(`4. Check it, and send me only the program id:
@@ -140,4 +153,4 @@ if (authority === null) fail('the program is FINAL (no upgrade authority). That 
 if (authority !== MULTISIG_VAULT) fail(`the upgrade authority is ${authority}, not the treasury multisig vault ${MULTISIG_VAULT}. One key that can replace the program can take every vault: run step 3.`);
 ok(`the upgrade authority is the treasury multisig vault ${MULTISIG_VAULT}`);
 
-console.log(`\nVerified. Next, by hand: put ${programId} in CURVE_PROGRAM_ID_MAINNET (walletCurveCore.ts), update the gate test, and rehearse with a small curve.`);
+console.log(`\nVerified. Next, by hand: put ${programId} in CURVE_PROGRAM_ID_MAINNET (walletCurveCore.ts), update the gate test, and rehearse with a small curve (docs/MAINNET_GO_LIVE.md, step 4 has the exact edit).`);

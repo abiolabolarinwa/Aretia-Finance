@@ -48,6 +48,18 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
         }, 2500);
       })();
     </script>
+    {
+      walletConnect && (
+        <script is:inline>
+          {`(function () {
+            var t = null;
+            try { t = localStorage.getItem('aretia-theme'); } catch (e) {}
+            if (t !== 'light' && t !== 'dark') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.dataset.theme = t;
+          })();`}
+        </script>
+      )
+    }
     {import.meta.env.PROD && <script defer is:inline src="/_vercel/insights/script.js" />}
     <slot name="head" />
   </head>

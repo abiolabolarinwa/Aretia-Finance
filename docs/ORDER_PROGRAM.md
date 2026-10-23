@@ -113,3 +113,30 @@ immutable per deployment.
 
 Meteora pool (graduated tokens): no adapter program is needed; the order program calls Meteora itself, proved against the real Meteora binary.
 Not built: the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.
+
+## 11. Where the source is, and what remains before launch (checked 2026-10-22)
+
+**Source location.** The Solana program (`programs/aretia-orders`), the curve venue adapter (`programs/aretia-orders-web-curve-venue`),
+the keeper (`apps/order-keeper`), the order API and the EVM contract (`AretiaOrders.sol`) are described above as built in the Aretia
+Wallet repository. When this was checked, **none of that source was findable on this computer**: not on `main`, any local or
+`origin/*` branch, or any worktree of the Wallet repository (`...\2026\Aretia Wallet`), and the ADR `0007-order-program.md` is not
+there either (it holds ADRs 0001 to 0006). So this repository holds only the website side (`website/src/scripts/walletOrders*`).
+The tests and the "24 + 5 / 8 / 21 tests" figures above are the other session's reports and were **not re-verified here**. Nothing
+was copied in, because there was nothing to copy. If that work sits in a session sandbox or an unpushed folder, it must be pushed or
+copied into `program/aretia-order/` and `contracts-evm/AretiaOrders.sol` (with a committed build and its sha-256) before the items below.
+
+**What the site shows now.** The Launch page's "Give it a market" step, under the curve tab, always shows a "Limit orders" card with the
+status "Not live yet", the fees, the minimum and the limits. It has no form, button or script. The working card still needs
+`PUBLIC_ORDERS_ENABLED=1` (Solana) or `PUBLIC_ORDERS_EVM_ENABLED=1` (EVM) at build time; both stay off. Even then, with no program address
+in `walletOrdersCore.ts` and no EVM deployment, the card shows a notice and no form. To preview it, build the site locally with the flag set.
+
+**What remains before it can go live.** None of this is done.
+
+1. **Source in reach.** Recover or push the program, adapter, EVM contract and keeper source (above), rebuild, and publish the build hash.
+2. **Devnet / testnet runs (O6).** Deploy to Solana devnet and one EVM testnet and run the whole path (create, fill by a keeper, cancel). Needs only test funds, no real-money key. Not done.
+3. **Audit status.** No independent audit has been requested (owner decision), so the program must keep being described as **unaudited**. It holds user funds and is open to everyone on day one; that risk is the owner's to accept in writing.
+4. **Multisig and 72-hour timelock.** Not built, and the multisig members are not chosen. Until both exist the upgrade authority is a single key, which is not what the owner decided.
+5. **Aretia Keeper.** Built and tested on a fake chain, never run on a network. Someone must fund and hold its hot wallet and run it. Without a keeper nothing fills.
+6. **Deploy cost.** Not measured. The Solana program rent depends on the final binary size (deploy rent is roughly 2x the program length in SOL at current rent; confirm on devnet with `solana program deploy`), plus the config and fee accounts, the multisig and the keeper's operating balance. EVM costs are the gas for one deployment per chain on BNB Chain, Ethereum and Polygon, plus router whitelisting. Get real figures from a devnet/testnet dry run.
+7. **Mainnet go-ahead (O7).** Needs the owner's explicit, separate authorisation per network. Then set the program address in `walletOrdersCore.ts`, record the EVM addresses, and only then turn the flags on.
+8. **Known limits to keep on the page:** orders are public on-chain; frozen USDC/USDT can strand an escrow; the USD minimum is imprecise without an oracle; fills depend on a keeper.

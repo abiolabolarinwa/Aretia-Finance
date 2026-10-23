@@ -15,6 +15,17 @@ describe('the page keeps limit orders off mainnet', () => {
     expect(page).toContain("import.meta.env.PUBLIC_ORDERS_ENABLED === '1'");
   });
 
+  it('always shows an honest status card that has no form, button or script', () => {
+    const page = read('../pages/wallet/index.astro');
+    const start = page.indexOf('data-orders-status');
+    expect(start).toBeGreaterThan(-1);
+    const block = page.slice(start, page.indexOf('{ordersOn && (', start));
+    expect(block).toContain('Not live yet.');
+    expect(block).toContain('has not been audited');
+    expect(block).not.toMatch(/<(button|input|form|script|a )/);
+    expect(block).not.toMatch(/\baudited by\b/i);
+  });
+
   it('shows a notice and sends nothing while there is no program', () => {
     const card = read('./walletOrders.ts');
     expect(ORDERS_PROGRAM_ID_MAINNET).toBeNull();

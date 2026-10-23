@@ -12,10 +12,11 @@ import { bearerMatches } from './_secrets.js';
 import { overBudget } from './_limits.js';
 import { handleRead } from '../src/swings/mi/api.js';
 import { buildCandleRows } from '../src/swings/mi/stats.js';
-import { allSpecs, specById } from '../src/swings/mi/dexes.js';
+import { adapterById, allSpecs, SOLANA_SPECS, specById } from '../src/swings/mi/dexes.js';
+import { isSolanaAddress } from '../src/swings/mi/solana/accounts.js';
 import { adminTransition } from '../src/swings/mi/lifecycle.js';
 import { launchLookup } from '../src/swings/mi/launchLink.js';
-import { chainConfig, isMiChain } from '../src/swings/mi/chains.js';
+import { chainConfig, isMiChain, type MiChain } from '../src/swings/mi/chains.js';
 import { makeRead } from '../src/swings/mi/rpc.js';
 import { runAll, type RunnerEnv } from '../src/swings/mi/runner.js';
 import type { MiStore } from '../src/swings/mi/store.js';
@@ -129,11 +130,11 @@ export async function handleMiAdmin(input: AdminInput, storeOverride?: MiStore):
   try {
     if (action === 'overview') {
       const [health, disabled, jobs, log, pools] = await Promise.all([store.listHealth(), store.disabledAdapters(), store.listJobs(20), store.listAudit(50), store.countPools({})]);
-      return json(200, { health, disabled: [...disabled].map(([id, v]) => ({ id, ...v })), jobs, audit: log, pools, adapters: allSpecs().map((s) => ({ id: s.id, chain: s.chain, evidence: s.evidence })) }, headers);
+      return json(200, { health, disabled: [...disabled].map(([id, v]) => ({ id, ...v })), jobs, audit: log, pools, adapters: [...allSpecs(), ...SOLANA_SPECS].map((s) => ({ id: s.id, chain: s.chain, evidence: s.evidence })) }, headers);
     }
     if (action === 'disable-adapter' || action === 'enable-adapter') {
       const id = typeof b.adapterId === 'string' ? b.adapterId : '';
-      if (!specById(id)) return json(400, { error: 'unknown-adapter' }, headers);
+      if (!adapterById(id)) return json(400, { error: 'unknown-adapter' }, headers);
       const reason = reasonOf(b.reason);
       await store.setAdapterDisabled(id, action === 'disable-adapter', reason, input.now);
       await audit(action, id, { reason });
@@ -141,8 +142,9 @@ export async function handleMiAdmin(input: AdminInput, storeOverride?: MiStore):
     }
     if (action === 'pause-pool' || action === 'resume-pool') {
       const chain = typeof b.chain === 'string' ? b.chain : '';
-      const pool = typeof b.pool === 'string' ? b.pool.toLowerCase() : '';
-      if (!isMiChain(chain) || chain === 'solana' || !EVM_ADDRESS.test(pool)) return json(400, { error: 'bad-pool' }, headers);
+      const rawPool = typeof b.pool === 'string' ? b.pool : '';
+      const pool = chain === 'solana' ? rawPool : rawPool.toLowerCase();
+      if (!isMiChain(chain) || !(chain === 'solana' ? isSolanaAddress(pool) : EVM_ADDRESS.test(pool))) return json(400, { error: 'bad-pool' }, headers);
       const key = `${chain}:${pool}`;
       const found = (await store.getPools([key])).get(key);
       if (!found) return json(404, { error: 'unknown-pool' }, headers);
@@ -160,7 +162,7 @@ export async function handleMiAdmin(input: AdminInput, storeOverride?: MiStore):
       const id = typeof b.adapterId === 'string' ? b.adapterId : '';
       const from = Number(b.fromBlock);
       const to = Number(b.toBlock);
-      if (!specById(id)) return json(400, { error: 'unknown-adapter' }, headers);
+      if (!specById(id)) return json(400, { error: 'unknown-adapter', message: 'A backfill is by block range and is available for EVM adapters only.' }, headers);
       if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < 0 || to < from || to - from + 1 > MAX_BACKFILL_BLOCKS) return json(400, { error: 'bad-range', message: `fromBlock <= toBlock, at most ${MAX_BACKFILL_BLOCKS} blocks.` }, headers);
       const job: BackfillJob = { id: `${input.now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`, adapterId: id, fromBlock: from, toBlock: to, doneBlock: from - 1, status: 'pending', requestedBy: auth.owner, requestedAt: input.now, error: null };
       await store.createJob(job);
@@ -198,13 +200,13 @@ export async function miOhlcv(input: { query: Record<string, string | undefined>
   const aggregate = Math.floor(Number(q.agg ?? '1'));
   const limit = Math.floor(Number(q.limit ?? '300'));
   const before = Math.floor(Number(q.before ?? '0'));
-  const pool = (q.pool ?? '').toLowerCase();
-  if (!isMiChain(q.chain ?? '') || q.chain === 'solana' || !EVM_ADDRESS.test(pool) || !size || !size.aggregates.includes(aggregate) || (q.token ?? 'base') !== 'base' || !['usd', 'token', undefined].includes(q.currency) || !Number.isFinite(limit) || limit < 1 || limit > 1000 || !Number.isFinite(before) || before < 1) return json(400, { error: 'bad-request' });
+  const pool = q.chain === 'solana' ? (q.pool ?? '') : (q.pool ?? '').toLowerCase();
+  if (!isMiChain(q.chain ?? '') || !(q.chain === 'solana' ? isSolanaAddress(pool) : EVM_ADDRESS.test(pool)) || !size || !size.aggregates.includes(aggregate) || (q.token ?? 'base') !== 'base' || !['usd', 'token', undefined].includes(q.currency) || !Number.isFinite(limit) || limit < 1 || limit > 1000 || !Number.isFinite(before) || before < 1) return json(400, { error: 'bad-request' });
   if (overBudget(`mi-ohlcv:${input.ip}`, input.now, 240)) return json(429, { error: 'rate-limit' }, { 'retry-after': '30' });
   const store = storeOverride ?? storeFor(input.env, input.fetchImpl, () => input.now);
   if (!store) return NOT_CONFIGURED();
   try {
-    const chain = q.chain as 'bnb';
+    const chain = q.chain as MiChain;
     const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
     if (!p || p.paused) return json(404, { error: 'unknown-pool' });
     const step = size.seconds * aggregate;

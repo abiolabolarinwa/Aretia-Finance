@@ -12,7 +12,8 @@ export const isPoolState = (v: unknown): v is PoolState => typeof v === 'string'
 /** How strongly a DEX/chain pair is evidenced. Printed by the API, so a claim can be checked. */
 export type Evidence = 'planned' | 'address-verified' | 'fixture-tested' | 'live-verified';
 
-export type PoolKind = 'v2' | 'v3';
+/** v2/v3: EVM constant-product / concentrated liquidity. cpmm/clmm: the same two shapes on Solana (Raydium CPMM; Orca Whirlpool). */
+export type PoolKind = 'v2' | 'v3' | 'cpmm' | 'clmm';
 
 export interface MiToken {
   /** `chain:address` (EVM addresses lower-case). */
@@ -47,6 +48,9 @@ export interface MiPool {
   quoteDecimals: number;
   /** Which of the pool's two tokens is the base. */
   baseIsToken0: boolean;
+  /** Solana: the pool's two token accounts, whose balance changes are its swaps and whose balances are its liquidity. Null on EVM. */
+  baseVault: string | null;
+  quoteVault: string | null;
   createdBlock: number;
   createdTx: string;
   /** ms, block timestamp of the creation event. */

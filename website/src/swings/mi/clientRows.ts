@@ -8,7 +8,10 @@ import type { ChainId } from '../core/types.js';
 import type { PoolDto } from './dto.js';
 import { formatUnits, parseRaw } from './math.js';
 
-const ADDRESS = /^0x[0-9a-f]{40}$/;
+/** An EVM address (lower-case) or a Solana public key (base58, case-sensitive). */
+const ADDRESS = /^(0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
+/** An EVM transaction hash or a Solana signature. */
+const TX_ID = /^(0x[0-9a-f]{64}|[1-9A-HJ-NP-Za-km-z]{64,100})$/;
 const ago = (iso: string, now: number): number | null => {
   const t = Date.parse(iso);
   return Number.isFinite(t) ? Math.max(0, now - t) : null;
@@ -67,7 +70,7 @@ export function tradesFromIndexed(body: unknown, quoteIsDollar: boolean): Trade[
     const quote = parseRaw(t.quoteAmount);
     if (base === null || quote === null || (t.side !== 'buy' && t.side !== 'sell') || !Number.isFinite(t.unix) || !ADDRESS.test(t.account ?? '')) continue;
     const txHash = t.id.split(':')[0] ?? '';
-    if (!/^0x[0-9a-f]{64}$/.test(txHash)) continue;
+    if (!TX_ID.test(txHash)) continue;
     const quoteAmount = Number(formatUnits(quote, a.meta.quoteDecimals));
     out.push({
       t: t.unix * 1000,

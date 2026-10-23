@@ -22,8 +22,8 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | storage (already set for the site) | required |
 | `CRON_SECRET` | authorises `GET /api/mi-run` | required to run |
 | `ADMIN_WALLETS`, `SWINGS_SESSION_SECRET` | owner controls (already set for the admin page) | required for controls |
-| `MI_ADAPTERS` | comma list of adapter ids, or `*` | `pancakeswap-v2-bnb` |
-| `MI_RPC_<CHAIN>` or `EVM_RPC_<CHAIN>` | a dedicated node URL (https) for a chain; tried before the public nodes | public nodes |
+| `MI_ADAPTERS` | comma list of adapter ids (EVM such as `uniswap-v3-base`, Solana `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`), or `*` | `pancakeswap-v2-bnb` |
+| `MI_RPC_<CHAIN>` or `EVM_RPC_<CHAIN>` | a dedicated node URL (https) for a chain; tried before the public nodes. Solana: `MI_RPC_SOLANA` or the existing `SOLANA_RPC_URL` | public nodes |
 | `MI_CONFIRMATIONS_<CHAIN>` | blocks to wait before trusting a log | ethereum 12, bnb 15, polygon 64, base 10, arbitrum 20, optimism 10, avalanche 6 |
 | `MI_ADDRESS_BATCH_<CHAIN>` | pool addresses per `getLogs` (public nodes allow 10) | 10 |
 | `MI_FOLLOW_NEWEST`, `MI_FOLLOW_RECENT` | pools whose swaps are followed per adapter (newest created, most recently traded) | 100 each |
@@ -35,7 +35,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 
 ## Deployment steps
 
-1. Apply the migration: `npm run db:migrate` (needs `DATABASE_URL`) or paste `supabase/migrations/0017_market_indexer.sql` into the Supabase SQL editor.
+1. Apply the migrations: `npm run db:migrate` (needs `DATABASE_URL`) or paste `supabase/migrations/0017_market_indexer.sql` and then `0018_market_indexer_solana.sql` into the Supabase SQL editor.
 2. Make sure `CRON_SECRET` is set on the site. Optionally set `MI_RPC_BNB` to a dedicated node.
 3. Schedule the run every minute: paste `supabase/cron/market-indexer-every-minute.sql` (after replacing the secret) into the Supabase SQL editor. The Vercel Hobby cron is daily only, so it is not used.
 4. Check `GET /api/v1/status`: the adapter should read `ok` within a few minutes, and `GET /api/v1/pools/new?chain=bnb` should list markets.
@@ -68,5 +68,6 @@ estimates from the live run and the engine's call pattern, not measurements over
 - Swaps are followed for the 100 newest and 100 most recently traded pools of each adapter. A pool outside both sets is not updated until it trades again within them. Raise `MI_FOLLOW_NEWEST`/`MI_FOLLOW_RECENT` and `MI_ADDRESS_BATCH_*` with a dedicated node.
 - Liquidity for V3 pools is the balance of the quote token held, not the in-range depth.
 - Dollar figures exist only for dollar-stablecoin quotes and for native-coin quotes when the chain's reference pool could be read; otherwise `null`.
-- Solana is not indexed yet.
+- Solana: Raydium CPMM, Orca Whirlpools and PumpSwap are indexed. PumpSwap pools are found through the pump.fun migration authority, so only pools created by a pump.fun graduation appear, not a pool someone creates directly (that account is not named in Pump's documentation; it was found from its real mainnet transactions). Meteora (DAMM v2, DLMM, Dynamic Bonding Curve) is not indexed: no account only its pool creation touches is known, so finding its pools needs a streaming provider or a scan of the whole program's transaction stream. Raydium AMM v4/CLMM/LaunchLab and Orca beyond the pools created by Whirlpools' own fee tiers are not covered either. Solana adapters read finalized transactions from the pools they follow (a few dozen per adapter on public nodes, 3 requests at a time), have no block-range backfill, and a creation burst larger than 3 pages of 40 signatures between two runs is counted as `truncated` in health rather than hidden.
+- A Solana token's name and symbol come from its Metaplex metadata account when it has one; a Token-2022 metadata extension is not read, so such tokens are listed without a name.
 - Market cap and fully diluted value are not provided: no reliable on-chain supply/circulation rule is applied.

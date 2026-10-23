@@ -8,5 +8,5 @@ useDefault = true
 description = "public addresses in the bonding curve test vectors and the Market Indexer's real-log fixtures"
 paths = [
   '''website/src/scripts/__fixtures__/curveVectors\.json''',
-  '''website/src/swings/mi/fixtures/(real-logs|specs)\.json''',
+  '''website/src/swings/mi/fixtures/(real-logs|specs|solana-recordings)\.json''',
 ]

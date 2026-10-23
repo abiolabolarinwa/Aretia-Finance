@@ -16,6 +16,8 @@ const pool = (i: number, over: Partial<MiPool> = {}): MiPool => ({
   baseDecimals: 18,
   quoteDecimals: 18,
   baseIsToken0: true,
+  baseVault: null,
+  quoteVault: null,
   createdBlock: i,
   createdTx: '0xtx',
   createdAt: 1_000_000 + i * 1000,

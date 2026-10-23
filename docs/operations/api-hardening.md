@@ -4,7 +4,7 @@ Two settings that code alone cannot apply. Both ship switched off or inert until
 
 ## 1. Make Vercel serve only requests that came through Cloudflare
 
-The site's `/api/*` goes through the Cloudflare Pages function (`website/functions/api/[[path]].ts`), which adds the header `x-aretia-proxy-secret`. Until now Vercel did not require it, so anyone could call the `*.vercel.app` address and skip every rule set at Cloudflare.
+The site's `/api/*` goes through the Cloudflare Pages function (`website/functions/api/[[path]].ts`), which adds the header `x-aretia-proxy-secret`. With `REQUIRE_CF_PROXY=1`, Vercel also requires it, so every request passes through the rules set at Cloudflare.
 
 Steps:
 
@@ -17,7 +17,7 @@ Exempt on purpose, because the platform or Telegram calls them directly and each
 
 ## 2. Rate limits that hold across instances
 
-The limits in `website/api/_limits.ts`, `_rpcProxy.ts` and `_radarProxy.ts` live in one serverless instance's memory (see ARETIA-SEC-005). Add edge rules at Cloudflare, which run before any instance and are shared:
+The limits in `website/api/_limits.ts`, `_rpcProxy.ts` and `_radarProxy.ts` live in one serverless instance's memory. Add edge rules at Cloudflare, which run before any instance and are shared:
 
 | Rule (Security, Rate limiting) | Match | Limit | Action |
 |---|---|---|---|
@@ -29,7 +29,7 @@ The limits in `website/api/_limits.ts`, `_rpcProxy.ts` and `_radarProxy.ts` live
 
 Also set a monthly spend cap and a requests-per-second cap on the Solana RPC key at the provider, and keep a public fallback node in the client for when it is exhausted.
 
-## 3. The launch-assets bucket must be restricted (ARETIA-SEC-004)
+## 3. The launch-assets bucket must be restricted
 
 A signed upload link does not fix the file's type, size or name, so the bucket's own limits are the control. The server now refuses to issue links (`/api/swings-upload` answers "Image upload is not set up yet") unless the bucket is public, has a file size limit of at most 15 MB, and lists only `image/png`, `image/jpeg`, `image/gif` and `application/json`.
 

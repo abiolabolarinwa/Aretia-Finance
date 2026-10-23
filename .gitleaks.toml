@@ -1,8 +1,12 @@
-# Extends the default rules. The one allowance: a test fixture of PUBLIC Solana addresses and numbers printed by the curve program tests
-# (program/aretia-curve/tests/examples/vectors.rs). Addresses are not secrets; the generic-api-key rule mistakes them for keys.
+# Extends the default rules. The allowances are test fixtures of PUBLIC addresses and numbers: the bonding-curve vectors printed by the curve
+# program tests (program/aretia-curve/tests/examples/vectors.rs), and real public chain logs captured for the Market Indexer's decoders
+# (website/scripts/capture-mi-fixtures.mjs). Addresses are not secrets; the generic-api-key rule mistakes them for keys.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "public addresses in the bonding curve test vectors"
-paths = ['''website/src/scripts/__fixtures__/curveVectors\.json''']
+description = "public addresses in the bonding curve test vectors and the Market Indexer's real-log fixtures"
+paths = [
+  '''website/src/scripts/__fixtures__/curveVectors\.json''',
+  '''website/src/swings/mi/fixtures/(real-logs|specs)\.json''',
+]

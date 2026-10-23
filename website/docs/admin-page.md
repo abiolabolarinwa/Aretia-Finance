@@ -10,6 +10,7 @@ as a path that does not exist, and no data. The page itself is a static shell th
 
 | Where | What |
 |---|---|
+| Optional: `ETH_RPC_URL`, `BNB_RPC_URL`, `POLYGON_RPC_URL` | Your own provider URLs (Alchemy, Infura, QuickNode…). Free nodes often refuse wide log queries, so the EVM income may cover fewer days than asked; the page says so. Used only for read-only queries on the server. |
 | Vercel env var `ADMIN_WALLETS` | Your wallet address(es), comma-separated: `0x…` (any case), `evm:0x…`, `solana:<address>` or a bare Solana address. Without it every request is a 404. |
 | Vercel env vars already needed | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SWINGS_SESSION_SECRET` (the wallet sign-in the site already uses). |
 | Supabase | Apply `supabase/migrations/0016_admin_counters.sql` (the table and the `admin_bump` function). The sign-in also needs 0014 (nonces, sessions). Sections whose table is missing show "Not set up" instead of failing. |
@@ -24,7 +25,7 @@ Then open `/owner-admin`, sign in with the owner wallet (a free signed message, 
 | Wallet types | Name of the wallet app, counted when a swap ends | Only wallets that finished or failed a swap, not wallets merely connected. |
 | Traders | Distinct signed-in wallets in `user_trades` (people who chose to save swap history) | A floor. Swaps without that sign-in are not tied to a wallet, and the beacon stores no wallet. |
 | Coins traded | Coin symbols of confirmed swaps (counter) and of saved histories | Symbols are labels; two tokens can share one. |
-| Revenue | "Held now": balances at the fee addresses (SOL, USDC; ETH/BNB/POL, USDC, USDT) read from public nodes at CoinGecko prices. "Creation fees": Launch Box tokens in the window times the flat fee | Held is **not income for the period** (it ignores anything you moved out, before gas). The creation line is an estimate. Swap fees paid in a chain's own coin cannot be itemised from free data. For income by chain and stream use `scripts/revenue-report.mjs` ([revenue-report.md](revenue-report.md)) on your computer. |
+| Revenue | "Income received": per fee wallet, Solana SOL (flat 0.05 SOL fees split from other deposits) and USDC from the newest 120 transactions in the window, and EVM USDC/USDT transfers to the fee address from chain logs. "Held now": balances at the fee addresses (SOL, USDC; ETH/BNB/POL, USDC, USDT) read from public nodes at CoinGecko prices. "Creation fees": Launch Box tokens in the window times the flat fee | Held is **not income for the period** (it ignores anything you moved out, before gas). The creation line is an estimate. Swap fees paid in a chain's own coin cannot be itemised from free data. For income by chain and stream use `scripts/revenue-report.mjs` ([revenue-report.md](revenue-report.md)) on your computer. |
 | Issues | Failed swaps and script errors by category (counter), failed quotes/swaps from `swings_events` | Category and error kind only, never a message. `swings_events` fills only when swap analytics are on. |
 
 ## Privacy

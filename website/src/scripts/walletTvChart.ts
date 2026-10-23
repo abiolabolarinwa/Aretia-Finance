@@ -43,6 +43,10 @@ export interface TvChartOptions {
   fallbackUrl?: string;
   /** The frame's accessible name. */
   title?: string;
+  /** 'aretia': a market read by Aretia's own Market Indexer; candles come from its stored trades and no outside service is asked. */
+  source?: 'aretia';
+  /** With source 'aretia': false when the quote is not a dollar stablecoin, so prices can only be shown in the quote token. */
+  usdAvailable?: boolean;
 }
 
 export interface TvChart {
@@ -105,7 +109,7 @@ export function mountTvChart(
   o: TvChartOptions,
   makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean) => TvDatafeed = (currency, label, onLoadFailed, cancelled) =>
     createPoolDatafeed(
-      { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}) },
+      { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}), ...(o.source ? { source: o.source } : {}) },
       { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled },
     ),
 ): TvChart {
@@ -116,8 +120,10 @@ export function mountTvChart(
   let library: TvGlobal | null = null;
   let restarts = 0;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
-  const canSwitch = !!o.quoteSymbol;
-  let currency: 'usd' | 'token' = canSwitch ? lastCurrency : 'usd';
+  // A market the index follows whose quote is not a dollar stablecoin is charted in its quote token only: dollars would mean converting history at today's rate.
+  const tokenOnly = o.source === 'aretia' && o.usdAvailable === false && !!o.quoteSymbol;
+  const canSwitch = !!o.quoteSymbol && !tokenOnly;
+  let currency: 'usd' | 'token' = tokenOnly ? 'token' : canSwitch ? lastCurrency : 'usd';
   host.replaceChildren();
   host.classList.add('wapp-tv');
   // The chart asks for its candles in a moment, once the library has loaded; reads for the trades table wait for it.

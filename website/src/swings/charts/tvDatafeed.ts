@@ -63,6 +63,12 @@ export interface PoolChartOptions {
   /** A recent price, used only to choose how many decimals the price scale shows. */
   priceHint?: number | null;
   exchange?: string | null;
+  /**
+   * 'aretia': the pool is one Aretia's own Market Indexer follows, so candles come from its stored on-chain trades
+   * (/api/swings-ohlcv?source=aretia). GeckoTerminal and DexScreener are NOT asked for such a pool: an outside source must never
+   * stand in for, or override, what the indexer read from the chain.
+   */
+  source?: 'aretia';
 }
 
 export interface TvSymbolInfo {
@@ -245,6 +251,7 @@ export function createPoolDatafeed(
 
   /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
   async function fetchLivePrice(): Promise<number | null> {
+    if (o.source === 'aretia') return null;
     try {
       const response = await fetchImpl(`${dexBase}/latest/dex/pairs/${DEXSCREENER_CHAIN[o.chain]}/${encodeURIComponent(o.pool)}`, { headers: { accept: 'application/json' } });
       return response.ok ? livePriceFrom(await response.json(), side, currency) : null;
@@ -260,18 +267,20 @@ export function createPoolDatafeed(
   async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
     if (!deps.viaServer) return null;
     // A route that failed in the last minute is skipped, so each load does not wait on a refusal before going direct.
-    if (routeIsDown(CANDLES_ROUTE, now())) return null;
+    const route = o.source === 'aretia' ? `${CANDLES_ROUTE}-aretia` : CANDLES_ROUTE;
+    if (routeIsDown(route, now())) return null;
     const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency });
+    if (o.source) q.set('source', o.source);
     try {
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
       if (response.ok) {
-        markRouteUp(CANDLES_ROUTE);
+        markRouteUp(route);
         return parseBars(await response.json());
       }
     } catch {
       // Treated like any other failure below.
     }
-    markRouteDown(CANDLES_ROUTE, now());
+    markRouteDown(route, now());
     return null;
   }
 
@@ -287,7 +296,7 @@ export function createPoolDatafeed(
     // An answer holding at least as many candles as asked for serves the newest of them, whatever limit it was fetched with.
     // The store is shared by every datafeed, so a read started when a token is opened (see `warm`) serves the chart that
     // opens a moment later, and a read still under way is joined rather than made twice.
-    const key = `${o.chain}|${o.pool}|${side}|${currency}|${res.tf}|${res.aggregate}|${beforeSec}`;
+    const key = `${o.chain}|${o.pool}|${side}|${currency}|${o.source ?? ''}|${res.tf}|${res.aggregate}|${beforeSec}`;
     if (!fresh) {
       const hit = store.get(key);
       if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return hit.bars.slice(-limit);
@@ -315,6 +324,12 @@ export function createPoolDatafeed(
       store.set(key, { at: now(), bars, limit });
       return bars;
     };
+    if (o.source === 'aretia') {
+      // An indexed pool has one source: Aretia's stored trades. No outside service is asked, hedged against or fallen back to.
+      const own = await fromServer(res, beforeSec, limit);
+      if (own === null) throw new Error("Aretia's market index could not be reached.");
+      return keep(own);
+    }
     const direct = (): Promise<TvBar[]> => readDirect(res, beforeSec, limit, attempts);
     const server = fromServer(res, beforeSec, limit);
     let timer: ReturnType<typeof setTimeout> | undefined;

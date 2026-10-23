@@ -305,23 +305,33 @@ export interface AdminInput {
   now: number;
 }
 
-export async function handleAdmin(input: AdminInput): Promise<AdminOutput> {
+/**
+ * The owner check shared by every admin route: POST only, an allowed origin, a per-IP budget, and a valid wallet session whose
+ * address is in ADMIN_WALLETS. Returns the owner and the database handle, or null for ANY refusal (callers answer the same 404).
+ */
+export async function authenticateAdmin(input: AdminInput): Promise<{ owner: string; db: Rest } | null> {
   const owners = adminOwners(input.env);
   const url = supabaseBase(input.env.SUPABASE_URL);
   const key = input.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  // Every refusal below is the same 404 as an unknown path: nothing says that an admin page exists, or why this request was refused.
-  if (input.method !== 'POST' || owners.size === 0 || !url || !key || !isOriginAllowed(input.origin, input.env)) return NOT_FOUND;
-  if (overBudget(`admin-ip:${input.ip}`, input.now, 20)) return NOT_FOUND;
+  if (input.method !== 'POST' || owners.size === 0 || !url || !key || !isOriginAllowed(input.origin, input.env)) return null;
+  if (overBudget(`admin-ip:${input.ip}`, input.now, 20)) return null;
   const secret = sessionSecret(input.env);
-  if (!secret) return NOT_FOUND;
+  if (!secret) return null;
   const db = rest(url, key, input.fetchImpl);
   let owner: string | null;
   try {
     owner = await sessionOwner(secret, input.authorization, input.now, db);
   } catch {
-    return NOT_FOUND;
+    return null;
   }
-  if (!owner || !owners.has(owner)) return NOT_FOUND;
+  return owner && owners.has(owner) ? { owner, db } : null;
+}
+
+export async function handleAdmin(input: AdminInput): Promise<AdminOutput> {
+  // Every refusal is the same 404 as an unknown path: nothing says that an admin page exists, or why this request was refused.
+  const auth = await authenticateAdmin(input);
+  if (!auth) return NOT_FOUND;
+  const db = auth.db;
 
   const days = Math.min(90, Math.max(1, Number(obj(input.body).days) || 30));
   const since = input.now - days * DAY_MS;

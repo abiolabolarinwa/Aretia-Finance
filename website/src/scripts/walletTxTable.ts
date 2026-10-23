@@ -11,6 +11,7 @@
 import type { ChainId } from '../swings/core/types.js';
 import { fetchTrades, formatAmount, formatTradeUsd, timeAgo, traderLink, txLink, type Trade, type TradeSide } from '../swings/charts/trades.js';
 import { formatPrice } from '../swings/market/types.js';
+import { fetchIndexedTrades } from '../swings/mi/clientRows.js';
 
 const REFRESH_MS = 1_000;
 
@@ -22,6 +23,10 @@ export interface TradesOptions {
   /** Names for the two amount columns: the token being looked at, and the other side of the pool. */
   symbol: string;
   quoteSymbol?: string;
+  /** 'aretia': trades come from Aretia's Market Indexer (its stored on-chain trades), not from an outside feed. */
+  source?: 'aretia';
+  /** With source 'aretia': whether the quote is a dollar stablecoin, so a dollar value can be shown. */
+  quoteIsDollar?: boolean;
 }
 
 export interface TradesTable {
@@ -143,7 +148,7 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
     if (loading) return;
     loading = true;
     try {
-      const next = await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, active.signal, now);
+      const next = o.source === 'aretia' ? await fetchIndexedTrades(o.chain, o.pool, o.quoteIsDollar === true, deps.fetchImpl, active.signal) : await fetchTrades(o.chain, o.pool, side, deps.fetchImpl, active.signal, now);
       if (disposed) return;
       failures = 0;
       retryAt = 0;

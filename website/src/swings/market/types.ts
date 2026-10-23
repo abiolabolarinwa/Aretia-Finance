@@ -42,6 +42,8 @@ export interface MarketRow {
   risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market'; /** The check found an admin power still held (minting, freezing, pausing, upgrading...). */ adminPowers?: boolean } | null;
   /** In Aretia's registry of newly detected tokens. */
   fresh: boolean;
+  /** A market read by Aretia's own Market Indexer from the chain (its chart and trades come from the index, not from an outside service). */
+  indexed?: { quoteIsDollar: boolean; evidence: string };
 }
 
 export type SortKey = 'cap' | 'price' | 'age' | 'txns' | 'volume' | 'traders' | 'm5' | 'h1' | 'h6' | 'h24' | 'liquidity';

@@ -18,6 +18,6 @@
  *     to: '2026-11-14',
  *   },
  */
-import type { FeaturedItem } from '../lib/featured';
+import type { FeaturedItem } from '../lib/featured.js';
 
 export const FEATURED: readonly FeaturedItem[] = [];

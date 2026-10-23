@@ -15,6 +15,9 @@
  *   /api/launchbox-run   the Launch Box indexer (GET, with the cron secret)
  *   /api/swings-upload   a one-use upload link for a token's picture or details file, for a signed-in wallet (POST)
  *   /api/swings-meta     the picture, description and links of tokens made through Aretia Launch (GET)
+ *   /api/v1/...          the Market Indexer's public read API: new pairs, trending, pools, tokens, trades, candles (GET)
+ *   /api/mi-run          the Market Indexer's scheduled run (GET, with the cron secret)
+ *   /api/swings-mi-admin Market Indexer owner controls with an audit log (POST; 404 for anyone but ADMIN_WALLETS)
  *   /api/swings-beacon   anonymous visit and outcome counters (POST)
  *   /api/swings-admin    the owner's private numbers (POST; 404 for anyone but the wallets in ADMIN_WALLETS)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
@@ -27,6 +30,7 @@ import { handleMeta, handleUpload } from './_swingsUpload.js';
 import { handleReferrals } from './_swingsReferrals.js';
 import { handleLaunchbox, handleLaunchboxRun } from './_launchbox.js';
 import { handleMarket } from './_swingsMarket.js';
+import { handleMi, handleMiAdmin, handleMiRun } from './_marketIndexer.js';
 import { handleOhlcv } from './_swingsOhlcv.js';
 import { handleTrades } from './_swingsTrades.js';
 import { handlePools } from './_swingsPools.js';
@@ -86,6 +90,9 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'admin') out = await handleAdmin({ ...common, body });
   else if (route === 'upload') out = await handleUpload({ ...common, query, body });
   else if (route === 'meta') out = await handleMeta({ ...common, query, body });
+  else if (route === 'mi') out = await handleMi({ ...common, query });
+  else if (route === 'mi-run') out = await handleMiRun({ ...common, query });
+  else if (route === 'mi-admin') out = await handleMiAdmin({ ...common, body });
   else if (route === 'launchbox') out = await handleLaunchbox(common);
   else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };

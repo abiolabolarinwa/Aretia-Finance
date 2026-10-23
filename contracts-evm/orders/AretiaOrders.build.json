@@ -1,0 +1,13 @@
+{
+  "compiler": "0.8.28+commit.7893614a.Emscripten.clang",
+  "settings": {
+    "optimizer": 200,
+    "evmVersion": "paris"
+  },
+  "sourceSha256": "6595761ef406447095d4c2f52a2c9225e852c95940a75e0d5b745c02094dad35",
+  "creationSha256": "c748d7f4fcb1e095c22f6021a3249f35b88a3a0a3e03dfffc5ccea0e66475979",
+  "runtimeSha256": "bdb69d24e16e6950b84623a9d7bead61b2b7f06d76e7e986e21cf807c6e55bcd",
+  "sepoliaDeployed": "0xEb2ed09e327c47f408047027D3D1173b32aAB6D9",
+  "sepoliaRuntimeSha256": "7ca9d216f4f5b4e7edf51bb16c557443ca92183e2ccb4bcfd666b048b77e33d2",
+  "sepoliaRuntimeMatches": false
+}

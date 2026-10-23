@@ -243,3 +243,16 @@ So the keeper reads orders, works out fillable slices from the curve, builds the
 **EVM runbook.** `docs/order-program/mainnet-runbook-orders-evm.md` gives the constructor arguments per chain (live factory and wrapped-native addresses read from the site's chain table, to be checked against the explorers), the admin-multisig-and-timelock requirement, venue and payment-asset set-up, the per-token `proveLaunchToken` step, the keeper, and day-one checks. It has not been run on a mainnet; its numbers (deploy cost, hashes) are not measured.
 
 Still not proved anywhere: the Meteora (graduated) path on Solana, a real EVM swap venue, partial fills on EVM, and every multisig/timelock item.
+
+### 11j. Real Uniswap venue and the EVM keeper on Sepolia (2026-10-23)
+
+On the Sepolia deployment from 11h, `contracts-evm/orders/testnet/uni.mjs` added liquidity for the mock pair on the **real Uniswap V2 router on Sepolia** (`0xeE567Fe1…CfE3`), whitelisted the router as a venue and placed two buys (200 and 100 units). The Wallet repo's **EVM keeper** (`apps/order-keeper`, built with esbuild) then ran against the public Sepolia RPC:
+
+- **Dry-run** found both orders fillable and gas-estimated both fills without sending.
+- **Live**: it filled the 200-unit order **completely** through the real router (the order closed), and the 100-unit order **in part**: the first fill moved the pool price, so the keeper sized a smaller slice (about 39.3 of 100 units); the contract kept the rest open with a proportional minimum output (60.7 units left, 48,580 tokens still required). Partial fills with a real router work.
+- **A keeper bug:** when two fills were sent in one tick the second used the same transaction nonce as the first and was rejected ("Missing or invalid parameters" from the RPC). It was retried and filled on the next tick, so nothing was lost, but fills in a tick are not parallel. Fix: track a pending nonce per tick, or send one fill per tick.
+- Sepolia is a test network and the pool is one I created with mock tokens: this proves the mechanism and the keeper wiring, not the price quality, depth or MEV behaviour of a real market.
+
+**Wallet repo.** The factory-proof fix is now merged into the Wallet repo's `main` (aretia-wallet PR 58; 36 launch-evm order tests pass on it), so the broken `creatorOf` version no longer sits on `main`.
+
+**Hashes.** `contracts-evm/orders/AretiaOrders.build.json` and `AretiaOrders.standard-input.json` (from `testnet/hash.mjs`; solc 0.8.28, optimizer 200 runs, EVM paris) record the sha-256 of the source, creation code and runtime code. The runtime code deployed on Sepolia equals the compiled code except for the trailing compiler-metadata hash (the Sepolia build and the hash build used slightly different compiler inputs), so **byte-exact verification against a block explorer has not been done**; for a mainnet deployment, compile once with `hash.mjs`, deploy that exact creation code, and verify the standard-input JSON on the explorer (needs an explorer API key, not available here).

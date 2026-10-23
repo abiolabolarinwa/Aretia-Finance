@@ -1794,7 +1794,13 @@ const sendTips = [
   }
   /* Launch Box */
   .wapp-lb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
-  .wapp-lb__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  /* Launch Box sits straight on the page background: no card around it, no second title (the page has one). */
+  .wapp__card.wapp-lb { background: none; border: 0; box-shadow: none; padding: 0; }
+  .wapp-lb__table.wapp-mt { background: none; border: 0; box-shadow: none; }
+  .wapp-lb__chainchip { display: inline-grid; place-items: center; width: 40px; padding: 0; }
+  .wapp-lb__chainlogo { width: 20px; height: 20px; object-fit: contain; border-radius: 50%; }
+  .wapp-lb__head { display: flex; align-items: flex-start; justify-content: flex-end; gap: 12px; }
+  .wapp-lb__head:has(.wapp-lb__count[hidden]) { display: none; }
   .wapp-lb__head .wapp__fine { margin: 4px 0 0; max-width: 620px; }
   .wapp-lb__count { flex: none; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-brand-soft); border-radius: var(--radius-pill); }
   .wapp-lb__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

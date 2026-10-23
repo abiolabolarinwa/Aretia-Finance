@@ -168,6 +168,16 @@ describe('EVM indexer', () => {
     await indexEvmChain('bnb', { store, fetchImpl: node(baseHandlers(() => [], 20_000, 1), calls), env: { EVM_RPC_BNB: 'https://own.example/rpc' }, now: () => 5_000 }, 1e12);
     expect(new Set(calls.map((c) => c.url))).toEqual(new Set(['https://own.example/rpc']));
   });
+  it('falls back to the public node when the owner node is down, so the index keeps moving', async () => {
+    const calls: Call[] = [];
+    const store = new FakeLaunchStore();
+    const good = node(baseHandlers(() => [], 20_000, 1), calls);
+    const fetchImpl = (async (url: string, init: { body: string }) => (url.startsWith('https://own.example') ? new Response('nope', { status: 401 }) : good(url, init as never))) as unknown as typeof fetch;
+    const report = await indexEvmChain('bnb', { store, fetchImpl, env: { EVM_RPC_BNB: 'https://own.example/rpc' }, now: () => 5_000 }, 1e12);
+    expect(report.error).toBeUndefined();
+    expect((await store.getCursor('bnb'))?.updatedAt).toBe(5_000);
+    expect(calls.every((c) => c.url.includes('publicnode'))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------- Solana

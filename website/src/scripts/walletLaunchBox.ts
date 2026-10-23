@@ -332,7 +332,19 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     chains.setAttribute('role', 'group');
     chains.setAttribute('aria-label', 'Network');
     for (const c of ['' as const, ...LAUNCH_CHAINS]) {
-      const b = el('button', 'wapp__chip wapp__chip--btn', c === '' ? 'All networks' : CHAINS[c].name);
+      const b = el('button', 'wapp__chip wapp__chip--btn', c === '' ? 'All networks' : '');
+      if (c !== '') {
+        // A network is shown by its logo; its name stays for screen readers and as a tooltip.
+        const img = el('img', 'wapp-lb__chainlogo');
+        img.alt = '';
+        img.width = 20;
+        img.height = 20;
+        img.src = `/assets/chains/${c}.png`;
+        b.classList.add('wapp-lb__chainchip');
+        b.title = CHAINS[c].name;
+        b.setAttribute('aria-label', CHAINS[c].name);
+        b.append(img);
+      }
       b.type = 'button';
       b.setAttribute('aria-pressed', String(filter.chain === c));
       b.addEventListener('click', () => {
@@ -423,9 +435,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   function render(): void {
     root!.textContent = '';
     const head = el('div', 'wapp-lb__head');
-    const h = el('div');
-    h.append(el('h2', 'wapp__h2', 'Launch Box'), el('p', 'wapp__fine', 'Every token created with Aretia Launch, on every network. Open one to see its page. Prices come from the market, not from Aretia, and a new token may have none yet.'));
-    head.append(h, countHost);
+    head.append(countHost);
     root!.append(head, controls(), statusHost, listHost, footHost);
     refreshData();
   }

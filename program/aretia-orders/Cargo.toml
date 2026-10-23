@@ -1,0 +1,49 @@
+[package]
+name = "aretia-orders"
+version = "0.1.0"
+description = "Aretia Orders: self-custody limit buy and limit sell orders for Aretia Launch tokens, filled by open keepers"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "aretia_orders"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { version = "1.2.0", features = ["init-if-needed"] }
+anchor-spl = { version = "1.2.0", default-features = false, features = ["token", "token_2022", "associated_token"] }
+
+[dev-dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
+litesvm = "0.17.0"
+solana-account = "4.3"
+solana-address = { version = "2.7", features = ["curve25519", "sha2"] }
+solana-clock = "3.2"
+solana-instruction = "3.5"
+solana-keypair = "3.1"
+solana-signer = "3.0"
+solana-transaction = "4.1"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[lints.rust]
+unexpected_cfgs = { level = "allow" }

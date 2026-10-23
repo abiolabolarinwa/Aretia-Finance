@@ -13,8 +13,10 @@ import { fromSmallestUnit } from './walletTools';
 import {
   DEFAULT_EVM_FORM,
   chainByKey,
-  chainEnabled,
   evmDisclosuresOf,
+  launchModeOf,
+  launchValueOf,
+  poolTokensOf,
   validateEvmLaunch,
   type EvmFieldIssue,
   type EvmLaunchForm,
@@ -175,9 +177,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   function drawForm(card: HTMLElement, chain: LaunchEvmChain | undefined): void {
     const account = host.getAccount();
     card.append(h('h2', 'wapp__h2', `Create a token on ${chain?.name ?? 'an Ethereum-style network'}`));
-    const enabled = chain !== undefined && chainEnabled(chain);
-    if (chain && enabled) {
-      card.append(h('p', 'wapp__fine', `Make a token with a fixed supply. Your own wallet signs; Aretia never holds your keys. Creating a token costs a flat Aretia fee of ${coinText(chain.feeWei, chain.symbol)}, sent in the same transaction and shown before you sign, plus the network’s gas.`));
+    const mode = chain ? launchModeOf(chain) : null;
+    const enabled = mode !== null;
+    if (chain && mode === 'locked') {
+      card.append(h('p', 'wapp__fine', `Create a token and open its trading pool in one transaction. The pool's liquidity is locked for good, so nobody, including you and Aretia, can ever pull it out. Your own wallet signs; Aretia never holds your keys. The flat Aretia fee is ${coinText(chain.launch!.feeWei, chain.symbol)}, sent in the same transaction and shown before you sign, plus the coin you put in the pool and the network's gas.`));
+    } else if (chain && mode === 'plain') {
+      card.append(h('p', 'wapp__fine', `Make a token with a fixed supply. Your own wallet signs; Aretia never holds your keys. Creating a token costs a flat Aretia fee of ${coinText(chain.feeWei, chain.symbol)}, sent in the same transaction and shown before you sign, plus the network's gas. This does not open a trading pool: use "Open a liquidity pool" below, which locks the liquidity for good.`));
     } else {
       card.append(h('p', 'wapp__banner wapp__banner--warn', `Creating tokens on ${chain?.name ?? 'this network'} is not available yet. It switches on once Aretia’s token factory is deployed there.`));
     }
@@ -189,6 +194,15 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     row1.append(field('Name', 'name', { placeholder: 'Example Token', hint: 'Up to 32 characters.' }), field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }));
     f.append(row1);
     f.append(field('Total supply', 'supply', { inputmode: 'decimal', hint: 'In whole tokens. It can never be increased.' }));
+    if (mode === 'locked') {
+    const poolRow = h('div', 'wapp-ln__row wapp-ln__row--wide');
+    const minCoin = chain?.launch ? fromSmallestUnit(chain.launch.minLiquidityWei, 18) : null;
+    poolRow.append(
+      field('Share of the supply for the pool (%)', 'poolPct', { inputmode: 'decimal', hint: 'At least 70%. This part goes into the locked pool; you keep the rest.' }),
+      field(`${chain?.symbol ?? 'Coin'} for the pool`, 'poolCoin', { inputmode: 'decimal', hint: minCoin ? `At least ${minCoin} ${chain?.symbol}. With the tokens above it sets the starting price.` : 'It sets the starting price.' }),
+    );
+    f.append(poolRow);
+    }
     const adv = h('details', 'lh-adv');
     adv.open = issues.some((i) => i.field === 'decimals');
     adv.append(h('summary', '', 'Advanced options'));
@@ -197,7 +211,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     adv.append(advBody);
     f.append(adv);
     const promiseList = h('ul', 'lh-promises');
-    for (const t of ['The whole supply is created in your wallet in the same transaction. Nothing locks it, and nothing here sells it.', 'No owner and no mint, pause, freeze or transfer-fee function: nobody, including you and Aretia, can create more or freeze a holder.']) promiseList.append(h('li', '', t));
+    for (const t of [mode === 'locked' ? 'The pool is opened with your tokens and coin in the same transaction, and its liquidity is locked for good. The tokens you keep are yours; nothing locks them.' : 'The whole supply is created in your wallet in the same transaction. Nothing locks it, and nothing here sells it.', 'No owner and no mint, pause, freeze or transfer-fee function: nobody, including you and Aretia, can create more or freeze a holder.']) promiseList.append(h('li', '', t));
     f.append(promiseList);
 
     const actions = h('div', 'wapp__row-actions');
@@ -231,20 +245,33 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     card.append(
       chain.testnet
         ? h('p', 'wapp__banner', `This creates a token on ${chain.name}, a test network. Nothing here has real value.`)
-        : h('p', 'wapp__banner wapp__banner--warn', `This creates a real token on ${chain.name} mainnet and spends real ${chain.symbol}. Read it all before you approve. Nothing is sent until you press the button at the bottom.`),
+        : h('p', 'wapp__banner wapp__banner--warn', config.mode === 'plain' ? `This creates a real token on ${chain.name} mainnet and spends real ${chain.symbol}. Read it all before you approve. Nothing is sent until you press the button at the bottom.` : `This creates a real token and a real, locked trading pool on ${chain.name} mainnet and spends real ${chain.symbol}: the fee and the pool coin, which you cannot get back. Read it all before you approve. Nothing is sent until you press the button at the bottom.`),
     );
 
     const dl = h('dl', 'wapp__rows');
     row(dl, 'Network', `${chain.name} (chain ${chain.chainId})`);
     row(dl, 'Total supply', `${amountText(config.totalSupplyRaw, config.decimals)} ${config.symbol}`);
     row(dl, 'Decimals', String(config.decimals));
-    row(dl, 'All of it goes to', `You (${short(config.creator)})`);
-    row(dl, 'Created by Aretia’s factory', link(short(chain.factory ?? ''), `${chain.explorer}/address/${chain.factory ?? ''}`));
+    if (config.mode === 'locked') {
+      const poolTokens = poolTokensOf(config);
+      row(dl, 'Into the locked pool', `${amountText(poolTokens, config.decimals)} ${config.symbol} (${config.poolBps / 100}%) and ${coinText(config.poolCoinWei, chain.symbol)}`);
+      row(dl, 'You keep', `${amountText(config.totalSupplyRaw - poolTokens, config.decimals)} ${config.symbol} in your wallet (${short(config.creator)})`);
+      row(dl, 'Starting price', `${fromSmallestUnit((config.poolCoinWei * 10n ** BigInt(config.decimals)) / poolTokens, 18)} ${chain.symbol} per ${config.symbol}`);
+      row(dl, 'Pool liquidity', 'Locked for good (sent to the dead address)');
+      row(dl, 'Created by Aretia’s launch factory', link(short(chain.launch?.factory ?? ''), `${chain.explorer}/address/${chain.launch?.factory ?? ''}`));
+    } else {
+      row(dl, 'All of it goes to', `You (${short(config.creator)})`);
+      row(dl, 'Created by Aretia’s factory', link(short(chain.factory ?? ''), `${chain.explorer}/address/${chain.factory ?? ''}`));
+    }
     card.append(dl);
 
     card.append(h('span', 'wapp__eyebrow', `What it costs, in ${chain.symbol}`));
     const costs = h('dl', 'wapp__rows');
-    row(costs, 'Aretia fee (sent with the transaction)', coinText(chain.feeWei, chain.symbol));
+    row(costs, 'Aretia fee (sent with the transaction)', coinText(config.mode === 'plain' ? chain.feeWei : (chain.launch?.feeWei ?? 0n), chain.symbol));
+    if (config.mode === 'locked') {
+      row(costs, 'Coin for the pool', coinText(config.poolCoinWei, chain.symbol));
+      row(costs, 'Total sent with the transaction', coinText(launchValueOf(config), chain.symbol));
+    }
     row(costs, 'Network gas, at most about', gasCostWei === null ? 'could not be estimated' : coinText(gasCostWei, chain.symbol));
     row(costs, 'Your balance', coinText(balance, chain.symbol));
     card.append(costs);
@@ -264,14 +291,14 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     const box = h('input');
     box.type = 'checkbox';
     box.checked = acknowledged;
-    const go = h('button', 'wapp__btn wapp__btn--primary', chain.testnet ? `Create token on ${chain.name}` : `Create token on ${chain.name} mainnet`);
+    const go = h('button', 'wapp__btn wapp__btn--primary', config.mode === 'plain' ? (chain.testnet ? `Create token on ${chain.name}` : `Create token on ${chain.name} mainnet`) : chain.testnet ? `Create token and locked pool on ${chain.name}` : `Create token and locked pool on ${chain.name} mainnet`);
     go.type = 'button';
     go.disabled = !acknowledged || blockers.length > 0 || busy;
     box.addEventListener('change', () => {
       acknowledged = box.checked;
       go.disabled = !acknowledged || blockers.length > 0 || busy;
     });
-    ack.append(box, h('span', '', 'I understand this creates a token, costs about the amount above, and cannot be undone.'));
+    ack.append(box, h('span', '', config.mode === 'plain' ? 'I understand this creates a token, costs about the amount above, and cannot be undone.' : 'I understand this creates a token and a pool whose liquidity is locked for good, costs about the amount above, and cannot be undone.'));
     card.append(ack);
 
     const actions = h('div', 'wapp__row-actions');
@@ -296,7 +323,9 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     const list = h('ol', 'wapp-ln__steps');
     const at = PROGRESS_STEPS.findIndex((s) => s.id === progress);
     PROGRESS_STEPS.forEach((s, i) => {
-      const li = h('li', i < at ? 'is-done' : i === at ? 'is-now' : '', s.label);
+      const locked = review?.config.mode === 'locked';
+      const label = locked && s.id === 'confirming' ? 'Creating the token and its locked pool on the network' : locked && s.id === 'verifying' ? 'Reading the new token and pool back from the network' : s.label;
+      const li = h('li', i < at ? 'is-done' : i === at ? 'is-now' : '', label);
       if (i === at) li.setAttribute('aria-current', 'step');
       list.append(li);
     });
@@ -310,11 +339,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     card.append(h('span', 'wapp__eyebrow', ok ? 'Created' : 'Created, with differences'), h('h2', 'wapp__h2', ok ? 'Your token exists' : 'Your token exists, but check this'));
     card.append(
       ok
-        ? h('p', 'wapp__banner', 'Read back from the network: the name, symbol, decimals and total supply match what you approved, and your wallet holds all of it. No one can create more.')
+        ? h('p', 'wapp__banner', outcome.pair ? 'Read back from the network: the name, symbol, decimals and total supply match what you approved, the pool holds exactly what you put in, all of its liquidity is locked, and your wallet holds the rest. No one can create more.' : 'Read back from the network: the name, symbol, decimals and total supply match what you approved, and your wallet holds all of it. No one can create more.')
         : errorBox(`The network does not show exactly what you approved: ${outcome.differences.join(' ')}`),
     );
     const dl = h('dl', 'wapp__rows');
     row(dl, 'Token address', outcome.token);
+    if (outcome.pair) row(dl, 'Pool address', link(short(outcome.pair), `${chain.explorer}/address/${outcome.pair}`));
     row(dl, 'Transaction', link(short(outcome.txHash), `${chain.explorer}/tx/${outcome.txHash}`));
     row(dl, 'View the token', link('Open on the explorer', `${chain.explorer}/token/${outcome.token}`));
     card.append(dl);
@@ -329,7 +359,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       void navigator.clipboard?.writeText(outcome!.token).then(() => (copy.textContent = 'Copied'));
     });
     card.append(copy);
-    card.append(h('p', 'wapp__fine', 'Nobody can buy this token yet. A token has no market until a liquidity pool exists, and this page does not create one on this network. To see it in your wallet, add the token address above.'));
+    card.append(h('p', 'wapp__fine', outcome.pair ? 'The pool is open: anyone can now buy and sell this token against it. Its liquidity is locked, so nobody can take it out. To see the token in your wallet, add the token address above.' : 'Nobody can buy this token yet: a token has no market until a liquidity pool exists, and this creation did not open one. Use "Open a liquidity pool" below, which locks the liquidity for good. To see the token in your wallet, add the token address above.'));
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Create another');
     again.type = 'button';
     again.addEventListener('click', () => {

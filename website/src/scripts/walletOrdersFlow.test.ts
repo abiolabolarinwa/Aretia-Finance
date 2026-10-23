@@ -132,7 +132,7 @@ function harness(
     ordersOf: async () => open,
     simulate: async (tx) => {
       // A frozen fee account makes the ordinary cancel fail; the fee-free cancel goes through.
-      if (over.frozenFee && Buffer.from(tx.instructions[0]!.data).subarray(0, 8).toString('hex') === '5f81edf00831df84') return { ok: false, error: 'custom program error: 0x1 (account is frozen)' };
+      if (over.frozenFee && Buffer.from(tx.instructions[tx.instructions.length - 1]!.data).subarray(0, 8).toString('hex') === '5f81edf00831df84') return { ok: false, error: 'custom program error: 0x1 (account is frozen)' };
       return over.simError ? { ok: false, error: over.simError } : { ok: true, error: null };
     },
     signAndSubmit: async (tx) => {
@@ -345,7 +345,9 @@ describe('listing and cancelling', () => {
     const [r] = await h.flow.listOrders(OWNER);
     const review = await h.flow.prepareCancel(OWNER, r!);
     expect(review).toMatchObject({ blockers: [], fee: 0n, feeWaived: true });
-    expect(Buffer.from(review.instructions[0]!.data).toString('hex')).toBe('e2e3a23cf1a257b1');
+    expect(Buffer.from(review.instructions[review.instructions.length - 1]!.data).toString('hex')).toBe('e2e3a23cf1a257b1');
+    // Two idempotent account creations for Aretia's fee wallet come first (see prepareCancel).
+    expect(review.instructions).toHaveLength(3);
     expect((await h.flow.cancel(review)).differences).toEqual([]);
   });
 
@@ -445,8 +447,9 @@ describe('paying in USDC or USDT', () => {
     const terms = orderTerms(form, 6, QUOTE_USDC)!;
     const r = await h.flow.preparePlace(OWNER, m, terms);
     expect(r.instructions).toHaveLength(1);
-    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
-    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
+    const cancelIx = r.instructions[r.instructions.length - 1]!;
+    expect(cancelIx.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
+    expect(cancelIx.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
     expect(r.blockers).toEqual([]);
     expect(r.preview.escrowed).toBe('100 USDC');
     expect(r.preview.fillFee).toBe('1.5 USDC');
@@ -476,7 +479,8 @@ describe('paying in USDC or USDT', () => {
     const [row] = await h.flow.listOrders(OWNER);
     const r = await h.flow.prepareCancel(OWNER, row!);
     expect(r.blockers).toEqual([]);
-    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
-    expect(r.instructions[0]!.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
+    const cancelIx = r.instructions[r.instructions.length - 1]!;
+    expect(cancelIx.keys.some((k) => k.pubkey.toBase58() === QUOTE_USDC.mint)).toBe(true);
+    expect(cancelIx.keys.some((k) => k.pubkey.toBase58() === WRAPPED_SOL_MINT)).toBe(false);
   });
 });

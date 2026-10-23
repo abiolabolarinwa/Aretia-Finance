@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:curve-devnet": "vitest run --config vitest.devnet.config.ts src/scripts/walletCurve.devnet.ts",
+    "test:orders-devnet": "vitest run --config vitest.devnet.config.ts src/scripts/walletOrders.devnet.ts",
     "test:curve-fork": "vitest run --config vitest.devnet.config.ts src/scripts/walletCurveEvm.fork.ts",
     "db:migrate": "node scripts/apply-migrations.ts",
     "readiness": "node scripts/readiness.ts",

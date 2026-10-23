@@ -235,3 +235,11 @@ So the keeper reads orders, works out fillable slices from the curve, builds the
 - About 0.005 test ETH was spent in total.
 
 **Not proved:** a real swap venue (Uniswap or another router), a sell fill, USDT-style tokens, native-currency buys (`createBuyWithNative` with a real wrapped token), the EVM keeper (`evmMain`), BNB Chain or Polygon, and any multisig or timelock for the admin role (here the admin is the throwaway deployer). The contract has been compiled with solc 0.8.28 here, but its sha-256 and a verified-source record are not published. Escrow is pooled in one contract (see the contract's known-limit note), and it is unaudited.
+
+### 11i. A sell fill on devnet, and the EVM runbook (2026-10-23)
+
+**Sell fill, devnet.** `walletOrders.devnet.ts` (with `ORDERS_DEVNET_VENUE`) now also places a **limit sell** of the launch tokens the buy fill gave the owner and fills it with the separate keeper account through the devnet curve adapter. It passed: the owner received 277,733,366 lamports of wrapped SOL against a limit of 250,000,000, and the order account closed. The test curve is also easy on the buy: the buy order now asks for 80 million tokens so the keeper's share of the improvement is small; with a very low buy limit the keeper took most of the tokens, which left too little to sell for the USD 50 floor (the first sell attempt failed with `LimitNotMet` for that reason, which is the program working as intended).
+
+**EVM runbook.** `docs/order-program/mainnet-runbook-orders-evm.md` gives the constructor arguments per chain (live factory and wrapped-native addresses read from the site's chain table, to be checked against the explorers), the admin-multisig-and-timelock requirement, venue and payment-asset set-up, the per-token `proveLaunchToken` step, the keeper, and day-one checks. It has not been run on a mainnet; its numbers (deploy cost, hashes) are not measured.
+
+Still not proved anywhere: the Meteora (graduated) path on Solana, a real EVM swap venue, partial fills on EVM, and every multisig/timelock item.

@@ -219,7 +219,7 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
 
       const market2 = await orders.loadMarket(me, mint, QUOTE_SOL);
       if ('problem' in market2) throw new Error(market2.problem);
-      const t2 = { side: 'buy' as const, amountIn: 300_000_000n, minOut: 1_000_000n, priceQuote: 1n };
+      const t2 = { side: 'buy' as const, amountIn: 300_000_000n, minOut: 80_000_000_000_000n, priceQuote: 1n };
       const place2 = await orders.preparePlace(me, market2, t2);
       expect(place2.blockers).toEqual([]);
       const placed2 = await orders.place(place2);
@@ -283,6 +283,51 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
       log.tokensReceived = String(amount(after) - amount(before));
       expect(amount(after) - amount(before)).toBeGreaterThanOrEqual(t2.minOut);
       expect(await cdeps.fetchAccount(placed2.order)).toBeNull();
+
+      // ---- a sell: the owner sells back what the buy gave them, and the same keeper fills it through the adapter ----
+      const market3 = await orders.loadMarket(me, mint, QUOTE_SOL);
+      if ('problem' in market3) throw new Error(market3.problem);
+      const sellAmount = amount(after) - amount(before);
+      const t3 = { side: 'sell' as const, amountIn: sellAmount, minOut: 250_000_000n, priceQuote: 1n };
+      const place3 = await orders.preparePlace(me, market3, t3);
+      expect(place3.blockers).toEqual([]);
+      const placed3 = await orders.place(place3);
+      expect(placed3.differences).toEqual([]);
+      log.sellOrder = placed3.order;
+      const sellData = Buffer.concat([disc('sell'), u64(sellAmount), u64(1n)]);
+      const sellVenueAccounts = [
+        m(placed3.order, false), m(ata(placed3.order, WSOL, TP), true), m(ata(placed3.order, mint, T22), true),
+        m(walletPda, true), m(walletLaunch, true), m(keeper, true), m(WSOL, false), m(mint, false),
+        m(curveAcc, true), m(solVaultAddress(web3, CURVE_PROGRAM_ID_DEVNET, curveAcc), true), m(tokenVaultAddress(web3, curveAcc, mint), true),
+        m(FEE_WALLET, true), m(CURVE_PROGRAM_ID_DEVNET, false), m(TP, false), m(T22, false), m(SYS, false),
+      ];
+      const sellIx = new web3.TransactionInstruction({
+        programId: pk(ordersProgram!),
+        keys: [
+          m(keeper, true, true), { pubkey: cfg, isSigner: false, isWritable: false }, m(placed3.order, true), m(me, true), m(mint, false), m(WSOL, false),
+          m(ata(placed3.order, mint, T22), true), m(ata(placed3.order, WSOL, TP), true), m(ata(me, mint, T22), true), m(ata(me, WSOL, TP), true),
+          m(ata(keeper, mint, T22), true), m(ata(keeper, WSOL, TP), true), m(ata(FEE_WALLET, WSOL, TP), true),
+          m(venueProgram!, false), m(T22, false), m(TP, false), ...sellVenueAccounts,
+        ],
+        data: Buffer.concat([disc('fill_order'), u64(sellAmount), (() => { const l = Buffer.alloc(4); l.writeUInt32LE(sellData.length); return Buffer.concat([l, sellData]); })()]),
+      });
+      const tx3 = new web3.Transaction().add(computeLimitInstruction(web3, 400_000), sellIx);
+      tx3.feePayer = keeperKp.publicKey;
+      tx3.recentBlockhash = (await connection.getLatestBlockhash('confirmed')).blockhash;
+      const wsolBefore = await orders.wrappedBalance(me);
+      const sim3 = await cdeps.simulate(tx3, me);
+      if (!sim3.ok) {
+        const r = await rpc<{ value: { logs: string[] | null } }>('simulateTransaction', [Buffer.from(tx3.serialize({ requireAllSignatures: false, verifySignatures: false })).toString('base64'), { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }]);
+        console.log((r.value.logs ?? []).join(' | '));
+      }
+      expect(sim3.ok).toBe(true);
+      tx3.sign(keeperKp);
+      const sellSig = await connection.sendRawTransaction(tx3.serialize());
+      expect(await cdeps.confirm(sellSig)).toBe('confirmed');
+      log.sellFillSignature = sellSig;
+      log.sellProceedsToOwner = String((await orders.wrappedBalance(me)) - wsolBefore);
+      expect((await orders.wrappedBalance(me)) - wsolBefore).toBeGreaterThanOrEqual(250_000_000n);
+      expect(await cdeps.fetchAccount(placed3.order)).toBeNull();
     }
 
     writeFileSync(process.env.CURVE_DEVNET_LOG ?? 'orders-devnet-run.json', JSON.stringify(log, null, 2));

@@ -1,0 +1,17 @@
+{
+  "deployer": "0x4E97ECa98CAa0517FB86bA2190B8971f5482FDbf",
+  "network": "sepolia",
+  "AretiaTokenFactory": "0x00940D4E3CEEcE31E7906b742E5d96d57A41C822",
+  "token": "0xDD06eEd2d7703e9128084397a28218ce04401024",
+  "MockQuote": "0xf2C9c7419FCEF0bb980F62Fd4e7A3117152BfBEf",
+  "MockOrderVenue": "0xA1cC8C4c37771ED568b3f6DE4DCe3208A207eaE5",
+  "AretiaOrders": "0xEb2ed09e327c47f408047027D3D1173b32aAB6D9",
+  "cancelFee": "580000",
+  "refunded": "99420000",
+  "netChange": "-580000",
+  "fillTx": "0x7df6f68e1a5b8407e6aea3a458515b6e54653393cde268ecc7902ac0f93ac2ad",
+  "ownerTokensReceived": "1800000000000000000",
+  "keeperTokens": "200000000000000000",
+  "buyFee": "1500000",
+  "ethSpent": "5000002253368745"
+}

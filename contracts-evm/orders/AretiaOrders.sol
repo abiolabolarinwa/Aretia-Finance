@@ -82,6 +82,9 @@ contract AretiaOrders {
     mapping(address => bool) public venues;
     /// Smallest order per payment asset, in its base units (the USD 50 floor). Zero means the asset is not enabled.
     mapping(address => uint256) public minAmount;
+    /// Tokens proven to come from the factory by their CREATE address (see `proveLaunchToken`). Needed for factories that, like the
+    /// ones already deployed, have no `creatorOf`.
+    mapping(address => bool) public proven;
     uint256 private _lock = 1;
 
     event OrderCreated(
@@ -108,6 +111,7 @@ contract AretiaOrders {
     event AdminChanged(address indexed admin);
     event VenueSet(address indexed venue, bool allowed);
     event QuoteSet(address indexed token, uint256 minAmount);
+    event LaunchTokenProven(address indexed token, uint256 factoryNonce);
     event ConfigSet(address feeRecipient, uint16 cancelBps, uint16 buyBps, uint16 sellBps, uint16 keeperBps, bool paused);
 
     error Reentrant();
@@ -118,6 +122,7 @@ contract AretiaOrders {
     error Paused();
     error NoSuchOrder();
     error NotALaunchToken();
+    error NotFromFactory();
     error QuoteNotEnabled();
     error ZeroAmount();
     error BelowMinimum();
@@ -226,11 +231,42 @@ contract AretiaOrders {
         if (IERC20Orders(w).balanceOf(address(this)) - before != msg.value) revert TokenTakesAFee();
     }
 
+    /// @notice Proves a token was deployed by the factory, so orders can be made for it. Works for any factory: the token's
+    /// address must be the one the factory's CREATE produces at `factoryNonce` (the factory's contract nonce when it made the token;
+    /// its first token used 1). Anyone can call it, once per token. A factory that only deploys Aretia tokens makes this a proof
+    /// that the token is one; the factory this contract is deployed with must be exactly that.
+    function proveLaunchToken(address token, uint256 factoryNonce) external {
+        if (token != _createAddress(address(factory), factoryNonce) || token.code.length == 0) revert NotFromFactory();
+        proven[token] = true;
+        emit LaunchTokenProven(token, factoryNonce);
+    }
+
+    /// A launch token is one proven by its address, or one a factory that keeps a register (`creatorOf`) vouches for. A factory
+    /// without that function simply answers "no" here, instead of making the order revert for the wrong reason.
+    function _isLaunchToken(address token) private view returns (bool) {
+        if (proven[token]) return true;
+        (bool ok, bytes memory ret) = address(factory).staticcall(abi.encodeCall(IFactoryOrders.creatorOf, (token)));
+        return ok && ret.length == 32 && abi.decode(ret, (address)) != address(0);
+    }
+
+    /// The address a CREATE from `deployer` at contract nonce `n` makes: keccak256(rlp([deployer, n])), last 20 bytes.
+    function _createAddress(address deployer, uint256 n) private pure returns (address) {
+        bytes memory data;
+        if (n == 0) data = abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer, bytes1(0x80));
+        else if (n <= 0x7f) data = abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer, uint8(n));
+        else if (n <= 0xff) data = abi.encodePacked(bytes1(0xd7), bytes1(0x94), deployer, bytes1(0x81), uint8(n));
+        else if (n <= 0xffff) data = abi.encodePacked(bytes1(0xd8), bytes1(0x94), deployer, bytes1(0x82), uint16(n));
+        else if (n <= 0xffffff) data = abi.encodePacked(bytes1(0xd9), bytes1(0x94), deployer, bytes1(0x83), uint24(n));
+        else if (n <= 0xffffffff) data = abi.encodePacked(bytes1(0xda), bytes1(0x94), deployer, bytes1(0x84), uint32(n));
+        else revert Overflow();
+        return address(uint160(uint256(keccak256(data))));
+    }
+
     function _open(address owner, address launchToken, address quoteToken, bool isBuy, uint256 amountIn, uint256 minOut) private returns (uint256 id) {
         if (paused) revert Paused();
         if (amountIn == 0 || minOut == 0) revert ZeroAmount();
         if (launchToken == quoteToken) revert SameToken();
-        if (factory.creatorOf(launchToken) == address(0)) revert NotALaunchToken();
+        if (!_isLaunchToken(launchToken)) revert NotALaunchToken();
         uint256 floor = minAmount[quoteToken];
         if (floor == 0) revert QuoteNotEnabled();
         if ((isBuy ? amountIn : minOut) < floor) revert BelowMinimum();

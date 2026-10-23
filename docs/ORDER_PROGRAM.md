@@ -222,3 +222,16 @@ The Wallet repo's `apps/order-keeper` (branch `claude/orders-mainnet-runbook`), 
 - The keeper spent about 0.03 SOL of its 0.1 SOL in fees and rent across the run.
 
 So the keeper reads orders, works out fillable slices from the curve, builds the adapter fills (including the per-fill account setup) and sends them, on devnet. Not proved: a sell fill, the Meteora path, running as a long-lived service with restarts, a mainnet RPC, EVM mode (`evmMain`).
+
+### 11h. EVM contract on Sepolia (2026-10-23)
+
+**Stale copy found and replaced.** The `AretiaOrders.sol` first copied here (from the Wallet repo's `main` and runbook branch) called `factory.creatorOf(token)`, which **the factory in this repository, `AretiaTokenFactory`, does not have**, so every order on it reverted. The Wallet repo's branch `claude/orders-evm-create-proof` (commit 802d407, **not merged into the Wallet repo's `main`**) fixes it with `proveLaunchToken(token, factoryNonce)`, which proves a token by its factory CREATE address. `contracts-evm/orders/` now holds that version (and `MockPlainFactory.sol`, and the matching `MockOrderVenue.sol`). Anything built from the Wallet repo's `main` alone has the broken version.
+
+**The run.** `contracts-evm/orders/testnet/` (`compile.mjs`, `sepolia.mjs`, `sepolia-run.json`) deployed to **Ethereum Sepolia** from a throwaway key funded with test ETH: this repository's `AretiaTokenFactory`, a token made by it, a mock USDC-style token, a **mock swap venue** and `AretiaOrders` (fees 58 / 150 / 200 / 2000 bps, fee wallet `0xd366…Ec2A`). Result:
+
+- `proveLaunchToken(token, 1)` accepted the factory's first token.
+- A 100-unit buy created and **cancelled**: the fee wallet received 0.58 (580,000 of 6-decimals) and the owner got the rest back.
+- A second 100-unit buy **filled by a different account**: the buy fee was 1.5 (1,500,000), the owner received 1.8 tokens against a limit of 1, and the keeper got 0.2 tokens, 20% of the improvement above the limit.
+- About 0.005 test ETH was spent in total.
+
+**Not proved:** a real swap venue (Uniswap or another router), a sell fill, USDT-style tokens, native-currency buys (`createBuyWithNative` with a real wrapped token), the EVM keeper (`evmMain`), BNB Chain or Polygon, and any multisig or timelock for the admin role (here the admin is the throwaway deployer). The contract has been compiled with solc 0.8.28 here, but its sha-256 and a verified-source record are not published. Escrow is pooled in one contract (see the contract's known-limit note), and it is unaudited.

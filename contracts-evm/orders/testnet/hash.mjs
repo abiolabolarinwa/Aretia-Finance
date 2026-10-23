@@ -1,0 +1,21 @@
+// Compiles AretiaOrders.sol with the pinned settings, writes AretiaOrders.standard-input.json and AretiaOrders.build.json (sha-256 of source, creation and runtime code) and compares a deployed address's runtime code. Usage: node hash.mjs <contracts-evm/orders> <address on Sepolia>
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import solc from 'solc';
+import { JsonRpcProvider } from 'ethers';
+const dir = process.argv[2];
+const file = 'AretiaOrders.sol';
+const source = readFileSync(`${dir}/${file}`, 'utf8').replace(/\r\n/g, '\n');
+const input = { language: 'Solidity', sources: { [file]: { content: source } }, settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: 'paris', outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object'] } } } };
+const out = JSON.parse(solc.compile(JSON.stringify(input)));
+const c = out.contracts[file].AretiaOrders;
+const sha = (hex) => createHash('sha256').update(Buffer.from(hex, 'hex')).digest('hex');
+const res = { compiler: solc.version(), settings: { optimizer: 200, evmVersion: 'paris' }, sourceSha256: createHash('sha256').update(source).digest('hex'), creationSha256: sha(c.evm.bytecode.object), runtimeSha256: sha(c.evm.deployedBytecode.object) };
+writeFileSync(`${dir}/AretiaOrders.standard-input.json`, JSON.stringify(input));
+const p = new JsonRpcProvider('https://ethereum-sepolia-rpc.publicnode.com');
+const onchain = (await p.getCode(process.argv[3])).slice(2);
+res.sepoliaDeployed = process.argv[3];
+res.sepoliaRuntimeSha256 = sha(onchain);
+res.sepoliaRuntimeMatches = onchain === c.evm.deployedBytecode.object;
+console.log(JSON.stringify(res, null, 2));
+writeFileSync(`${dir}/AretiaOrders.build.json`, JSON.stringify(res, null, 2));

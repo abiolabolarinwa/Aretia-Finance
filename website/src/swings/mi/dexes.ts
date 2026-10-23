@@ -9,6 +9,7 @@ import { keccak256 } from '../core/keccak.js';
 import { EVM_PANCAKE_V3, EVM_V2_DEXES, EVM_V3_DEXES } from '../dex/entries.js';
 import type { DexEntry } from '../engine/registry.js';
 import type { EvmMiChain, MiChain } from './chains.js';
+import earned from './fixtures/evidence.json';
 import type { Evidence, PoolKind } from './types.js';
 
 const hex = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -91,10 +92,11 @@ const apeSpecs = (): DexAdapterSpec[] =>
 
 /**
  * Evidence earned beyond the address check. Each entry is backed by a test that fails if it stops being true:
- *  - 'fixture-tested': the creation and swap decoders pass on real logs captured from that factory (fixtures/real-logs.json)
+ *  - 'fixture-tested': the creation and swap decoders pass on real logs captured from that factory (fixtures/real-logs.json);
+ *    fixtures/evidence.json is written by decode.test.ts (MI_WRITE_SPECS=1) from what the decoders actually achieved
  *  - 'live-verified': the adapter ran end to end against a live node (mi/live.e2e.ts, `npm run test:live`)
  */
-export const EARNED_EVIDENCE: Readonly<Record<string, Evidence>> = {};
+export const EARNED_EVIDENCE: Readonly<Record<string, Evidence>> = earned as Record<string, Evidence>;
 
 export function allSpecs(): DexAdapterSpec[] {
   const out: DexAdapterSpec[] = [];

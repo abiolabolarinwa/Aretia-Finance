@@ -83,6 +83,13 @@ for (const s of specs) {
     const head = Number.parseInt(await rpc(s.chain, 'eth_blockNumber', []), 16);
     entry.head = head;
     entry.factoryLogs = await logsBack(s.chain, head - 5, { address: s.factory, topics: [s.creationTopic] }, 3, process.env.MI_WIDE ? 50000 : 3000);
+    if (entry.factoryLogs.length < 1) {
+      // A quiet factory: ask the node for its whole history (rare events, so the answer is small), keep the newest few.
+      try {
+        const all = await rpc(s.chain, 'eth_getLogs', [{ address: s.factory, topics: [s.creationTopic], fromBlock: '0x0', toBlock: hexn(head - 5) }]);
+        entry.factoryLogs = all.slice(-3);
+      } catch (e) { /* recorded below as zero creations */ }
+    }
     // A busy pool of this factory: wrapped native against the stablecoin.
     let pool = null;
     if (s.kind === 'v2') {
@@ -101,6 +108,21 @@ for (const s of specs) {
     const dec = async (t) => Number.parseInt(await call(s.chain, t, '0x313ce567'), 16);
     entry.pool = { address: pool, token0: t0, token1: t1, decimals0: await dec(t0), decimals1: await dec(t1) };
     if (!entry.swapLogs) entry.swapLogs = await logsBack(s.chain, head - 5, { address: pool, topics: [s.swapTopic] }, 2, 500);
+    if (!entry.swapLogs.length && s.kind === 'v2') {
+      // The wrapped-native/stable pair of this factory is quiet: take swaps from any pair that belongs to this factory.
+      const any = await logsBack(s.chain, head - 5, { topics: [s.swapTopic] }, 400, 300);
+      for (const l of any) {
+        const f = addr(await call(s.chain, l.address, '0xc45a0155'));
+        if (f.toLowerCase() === s.factory) {
+          pool = l.address;
+          entry.swapLogs = [l];
+          const t0b = addr(await call(s.chain, pool, '0x0dfe1681'));
+          const t1b = addr(await call(s.chain, pool, '0xd21220a7'));
+          entry.pool = { address: pool, token0: t0b, token1: t1b, decimals0: await dec(t0b), decimals1: await dec(t1b) };
+          break;
+        }
+      }
+    }
     const blocks = [...new Set([...entry.factoryLogs, ...entry.swapLogs].map((l) => l.blockNumber))];
     entry.blockTimes = {};
     for (const b of blocks) entry.blockTimes[b] = Number.parseInt((await rpc(s.chain, 'eth_getBlockByNumber', [b, false])).timestamp, 16);

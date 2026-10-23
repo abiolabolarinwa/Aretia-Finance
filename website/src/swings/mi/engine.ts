@@ -42,6 +42,8 @@ export interface EngineDeps {
   budgetMs?: number;
   /** How many pools' swaps are followed per run (newest created plus most recently traded). */
   followNewest?: number;
+  maintainWaiting?: number;
+  maintainLive?: number;
   followRecent?: number;
 }
 
@@ -60,6 +62,7 @@ export interface RunReport {
   swapsSeen: number;
   tradesNew: number;
   skippedLogs: number;
+  maintained?: number;
   reorg: { forkBlock: number; poolsDeleted: number; tradesDeleted: number } | null;
   error: string | null;
   durationMs: number;
@@ -121,6 +124,8 @@ export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; 
       if (opts.onProgress) await opts.onProgress(to);
       from = to + 1;
     }
+    // A pool can be funded, drained or go quiet without a swap to tell us: re-read the newest waiting pools and the busiest live ones.
+    if (!opts.range) await maintain(d, report);
     if (report.toBlock === null) report.skipped = 'up-to-date';
     const reached = report.toBlock ?? (from - 1);
     report.lagBlocks = Math.max(0, head - reached);
@@ -138,8 +143,8 @@ interface Follow {
 }
 
 async function followedPools(d: EngineDeps): Promise<Follow> {
-  const newest = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followNewest ?? 300, 'newest');
-  const recent = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followRecent ?? 300, 'recent-trade');
+  const newest = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followNewest ?? 100, 'newest');
+  const recent = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followRecent ?? 100, 'recent-trade');
   const pools = new Map<string, MiPool>();
   for (const p of [...newest, ...recent]) pools.set(p.address, p);
   return { pools };
@@ -184,10 +189,16 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
 
   // ---- swaps of followed pools
   const poolList = [...follow.pools.values()].filter((p) => p.createdBlock <= to);
+  const batch = Math.max(1, d.chain.addressBatch);
+  const groups: MiPool[][] = [];
+  for (let i = 0; i < poolList.length; i += batch) groups.push(poolList.slice(i, i + batch));
+  const fetched: { group: MiPool[]; logs: unknown[] }[] = [];
+  // A few getLogs calls at once: the reader limits concurrency per node, this only keeps it busy.
+  for (let i = 0; i < groups.length; i += 4) {
+    fetched.push(...(await Promise.all(groups.slice(i, i + 4).map(async (group) => ({ group, logs: await getLogsHalving(d.read, { address: group.map((p) => p.address), topics: [d.spec.swapTopic] }, from, to) })))));
+  }
   const trades: MiTrade[] = [];
-  for (let i = 0; i < poolList.length; i += 40) {
-    const group = poolList.slice(i, i + 40);
-    const logs = await getLogsHalving(d.read, { address: group.map((p) => p.address), topics: [d.spec.swapTopic] }, from, to);
+  for (const { group, logs } of fetched) {
     const byAddr = new Map(group.map((p) => [p.address, p]));
     const decoded = [];
     for (const raw of logs) {
@@ -236,7 +247,7 @@ async function registerPool(d: EngineDeps, c: Creation, createdAtMs: number, tok
   const quoteAddr = quoteIsToken1 ? t1 : t0;
   const quoteRecognised = Boolean(q0 || q1);
 
-  const [bf, qf] = [await tokenFacts(baseAddr), await tokenFacts(quoteAddr)];
+  const [bf, qf] = await Promise.all([tokenFacts(baseAddr), tokenFacts(quoteAddr)]);
   const readable = bf !== null && qf !== null;
   const now = d.now();
   const pool: MiPool = {
@@ -367,6 +378,21 @@ async function refreshPool(d: EngineDeps, pool: MiPool, newTrades: MiTrade[], to
   }
   await d.store.updatePool(live.key, patch);
   if (first !== null) await d.store.setTokenFirstTrade(tokenKeyOf(live.chain, live.base), first);
+}
+
+/** Re-evaluates pools whose state can change without a swap. Bounded: a handful of reads per run. */
+async function maintain(d: EngineDeps, report: RunReport): Promise<void> {
+  const waiting = await d.store.poolsOfAdapter(d.spec.id, ['validating', 'awaiting_liquidity'], d.maintainWaiting ?? 30, 'newest');
+  const live = await d.store.poolsOfAdapter(d.spec.id, ['active', 'inactive'], d.maintainLive ?? 30, 'recent-trade');
+  const tokenCache = new Map<string, TokenFacts | null>();
+  const tokenFacts = async (a: string): Promise<TokenFacts | null> => {
+    if (!tokenCache.has(a)) tokenCache.set(a, await readToken(d.read, a));
+    return tokenCache.get(a) ?? null;
+  };
+  for (const p of [...waiting, ...live]) {
+    await refreshPool(d, p, [], tokenFacts);
+    report.maintained = (report.maintained ?? 0) + 1;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------- reorg

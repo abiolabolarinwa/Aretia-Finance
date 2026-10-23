@@ -4,7 +4,7 @@ import { specById } from './dexes.js';
 import { runAdapter, type EngineDeps, type LaunchLookup } from './engine.js';
 import { DEFAULT_RULES } from './lifecycle.js';
 import { InMemoryMiStore } from './store.js';
-import { FakeChain, pairCreatedLog, v2SwapLog } from './testkit.js';
+import { FakeChain, pairCreatedLog, poolCreatedLog, v2SwapLog, v3SwapLog } from './testkit.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -117,6 +117,36 @@ describe('engine: discovery', () => {
     expect(tokens).toHaveLength(1);
     expect(tokens[0]!.launchboxKey).toBe(`bnb:${TOKEN}`);
     expect(first.store.pools.size).toBe(2);
+  });
+});
+
+describe('engine: liquidity arriving later, and V3', () => {
+  it('a pool funded after creation becomes active without needing a swap first', async () => {
+    const { chain, store, deps } = setup();
+    createPool(chain, POOL_W, WBNB, [0n, 0n]);
+    chain.mineEmpty(5);
+    await runAdapter(deps);
+    expect([...store.pools.values()][0]!.state).toBe('awaiting_liquidity');
+    chain.reserves.set(POOL_W, [1_000_000n * E18, 100n * E18]);
+    chain.mineEmpty(3);
+    await runAdapter(deps);
+    expect([...store.pools.values()][0]!.state).toBe('active');
+  });
+
+  it('indexes a V3 pool: creation with fee tier, balances as liquidity, signed-amount swaps', async () => {
+    const v3 = specById('uniswap-v3-bnb')!;
+    const { chain, store, deps } = setup({ spec: v3 });
+    chain.balances.set(`${TOKEN}|${POOL_W}`, 5_000_000n * E18);
+    chain.balances.set(`${WBNB}|${POOL_W}`, 50n * E18);
+    chain.mine([poolCreatedLog(v3.factory, TOKEN, WBNB, 2500, POOL_W)]);
+    // pool received 1 WBNB (+), paid out 10,000 TOKEN (-): a buy
+    chain.mine([v3SwapLog(POOL_W, -10_000n * E18, E18, WHO)]);
+    chain.mineEmpty(5);
+    const r = await runAdapter(deps);
+    expect(r.ok).toBe(true);
+    const pool = [...store.pools.values()][0]!;
+    expect([pool.kind, pool.feeTier, pool.state]).toEqual(['v3', 2500, 'active']);
+    expect([...store.trades.values()][0]).toMatchObject({ side: 'buy', price: '0.0001' });
   });
 });
 

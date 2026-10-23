@@ -23,6 +23,9 @@ const LOADER = 'BPFLoaderUpgradeab1e11111111111111111111111';
 const MULTISIG_VAULT = 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA';
 const FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
 const RENT_MIN_EMPTY_ACCOUNT = 890_880n;
+/** The id the committed build is made for: the devnet test program. A mainnet build has its own id. */
+const DEVNET_ID = '4EBVWVYhHSo2MZUKfEV32JqcJ2jEorZbRagY63H4pGmc';
+const DEVNET_ID_BYTES = new PublicKey(DEVNET_ID).toBytes();
 
 const CLUSTERS = {
   mainnet: { name: 'mainnet-beta', rpc: 'https://solana-rpc.publicnode.com', genesis: '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d' },
@@ -72,12 +75,19 @@ async function commonChecks() {
 
 if (mode === 'prepare') {
   await commonChecks();
-  const dataRent = await conn.getMinimumBalanceForRentExemption(45 + so.length);
+  // The data account is (45-byte header + max length) bytes plus a 36-byte program account; rent is asked from the node (2026-10-23: 5,080 lamports per byte of (128 + length); it was 6,960 before).
+  // `solana program deploy` sizes the data account to the build unless --max-len says otherwise (solana-cli 4.2.1); the command passes it explicitly.
+  const maxLen = Number(arg('max-len') ?? so.length);
+  if (!Number.isInteger(maxLen) || maxLen < so.length) fail(`--max-len must be at least the build's ${so.length} bytes.`);
+  const dataRent = await conn.getMinimumBalanceForRentExemption(45 + maxLen);
   const programRent = await conn.getMinimumBalanceForRentExemption(36);
-  console.log(`\nCost: about ${sol(dataRent + programRent)} of rent, locked in the program's accounts, plus network fees.`);
-  console.log('This code holds people\'s money and is NOT independently audited. Deploying to mainnet is the owner\'s call, from the owner\'s own wallet, and needs a build made for a mainnet program id.\n');
-  console.log(`1. Deploy the committed build, signing with the deployer:
-     solana program deploy "${artifactPath}" --program-id <program-keypair.json> --keypair <deployer-keypair.json> --url ${cluster.name}\n`);
+  const rent = dataRent + programRent;
+  console.log(`\nCost: ${sol(rent)} of rent (${dataRent} lamports for the data account of ${45 + maxLen} bytes + ${programRent} for the program account), locked in the program's accounts, plus about 0.003 SOL of network fees. Fund the deployer with ${sol(rent + 50_000_000)}. The upload buffer is refunded inside the deploy instruction, so the rent is not needed twice.`);
+  console.log("This code holds people's money and is NOT independently audited. Deploying to mainnet is the owner's call, from the owner's own wallet.");
+  if (!so.includes(DEVNET_ID_BYTES)) console.log('  note this build does not contain the devnet id; it may already be a mainnet build.');
+  else console.log(`\nSTOP: the committed build was made for the DEVNET program id ${DEVNET_ID}. A mainnet program needs its own id written into a rebuilt program (docs/MAINNET_GO_LIVE.md, step 5). Do not deploy this file to mainnet: verify would refuse it, and the program would be unusable.`);
+  console.log(`\n1. Deploy the MAINNET build, signing with the deployer (the program key is the one whose address is written into the build):
+     solana program deploy "${artifactPath}" --program-id <folder>\\aretia-pool-program.json --max-len ${maxLen} --keypair <deployer-keypair.json> --url ${cluster.name}\n`);
   console.log(`2. Hand the upgrade authority to the treasury multisig straight away (mainnet):
      solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority ${MULTISIG_VAULT} --skip-new-upgrade-authority-signer-check --keypair <deployer-keypair.json> --url ${cluster.name}\n`);
   console.log(`3. Check it:

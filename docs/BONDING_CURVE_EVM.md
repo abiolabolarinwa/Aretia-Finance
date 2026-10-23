@@ -142,6 +142,7 @@ The Polygon curve is deployed at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` (s
 
 Neither is deployed. Both are permissionless and hold nothing, so deploying them gives nobody any power; they only make the page able to offer the repair.
 
+0. `website/scripts/evm-helpers-mainnet.mjs` does the read-only checks, prints the gas estimate and writes the creation data (`prepare`), can deploy from the owner's own machine (`send --yes-mainnet`) and checks the result (`verify`); gas measured 2026-10-23: rescue 1.49 M, seeder 0.92 M. See `docs/MAINNET_GO_LIVE.md` step 5.
 1. Rebuild and compare: `cd contracts-evm/test && npm i && npm run compile:helpers` must leave `AretiaCurveRescue.artifact.json`, `AretiaPairSeeder.artifact.json` and their standard-input files unchanged (`git diff --exit-code`). Expected runtime bytecode sha-256 **as compiled** (immutables are zero there; they are filled at deployment, so the deployed code differs per chain): `AretiaCurveRescue` `2035a510b035a908ed1ec558676b1b262465c3456498997e3c34d9172b568d1e`, `AretiaPairSeeder` `e65f98ae048c927a6e585cd406ad9c2d2f468fa12acd1655e0ed515c892a9b43`.
 2. Run the tests: `npm test` there.
 3. Per chain (Ethereum, BNB Chain, Polygon), from any gas-only wallet:

@@ -4,10 +4,11 @@
 //   npm i --no-save viem
 //   node scripts/pool-evm.mjs prepare --chain ethereum                     MAINNET: read-only checks, then writes the unsigned creation data. Never signs.
 //   node scripts/pool-evm.mjs verify  --chain ethereum --address 0x...     MAINNET or test: checks a deployed pool is exactly the committed build
+//   DEPLOYER_KEY_FILE=<file> node scripts/pool-evm.mjs send --chain ethereum --yes-mainnet   MAINNET: deploys the pool from the owner's own machine (reads a key)
 //   DEPLOYER_KEY_FILE=<file holding a throwaway 0x key> node scripts/pool-evm.mjs deploy --chain sepolia   TEST NETWORKS ONLY: deploys the token factory and the pool
 //
 // Chains: ethereum, bnb, polygon (prepare, verify) and sepolia, bscTestnet, polygonAmoy (all three modes).
-// There is no mainnet `deploy`. On a mainnet you deploy the data `prepare` prints yourself, from the owner's own wallet, then run `verify`.
+// There is no mainnet `deploy` (that mode refuses mainnets); the owner may use `send`, or deploy the printed data by other means. On a mainnet you deploy the data `prepare` prints yourself, from the owner's own wallet, then run `verify`.
 // Only after `verify` passes is the address written into EVM_POOL_ADDRESSES (and the flag turned on), by hand.
 //
 // Safety, by construction: `deploy` refuses every mainnet chain id by name, reads its key from a file you name, never prints or stores it,
@@ -48,7 +49,7 @@ const ok = (msg) => console.log(`  ok   ${msg}`);
 const mode = process.argv[2];
 const chainKey = arg('chain');
 const net = CHAINS[chainKey];
-if (!['prepare', 'verify', 'deploy'].includes(mode) || !net) fail(`usage: pool-evm.mjs prepare|verify|deploy --chain ${Object.keys(CHAINS).join('|')} [--address 0x...] [--factory 0x...] [--rpc url] [--send]`);
+if (!['prepare', 'verify', 'deploy', 'send'].includes(mode) || !net) fail(`usage: pool-evm.mjs prepare|verify|deploy|send --chain ${Object.keys(CHAINS).join('|')} [--address 0x...] [--factory 0x...] [--rpc url] [--send]`);
 if (mode === 'deploy' && (!net.test || MAINNET_IDS.has(net.chainId))) fail('deploy only works on a test network. For a mainnet use prepare, deploy the printed data yourself, then verify.');
 const rpc = arg('rpc') ?? net.rpc;
 const factory = (arg('factory') ?? net.factory)?.toLowerCase() ?? null;
@@ -154,9 +155,43 @@ if (mode === 'prepare') {
   const out = join(process.cwd(), `pool-${chainKey}-creation.json`);
   writeFileSync(out, JSON.stringify({ chain: chainKey, chainId: net.chainId, to: null, value: '0', data: creation, constructor: { factory: poolFactory, feeRecipient: FEE_ADDRESS, creationFee: net.fee.toString() }, expectedRuntimeKeccak: codeHash }, null, 2));
   ok(`constructor runs; the runtime is ${(expectedRuntime.length - 2) / 2} bytes, keccak ${codeHash}`);
+  try {
+    const gas = await pub.estimateGas({ account: '0x00000000000000000000000000000000000c0de1', data: creation });
+    const price = await pub.getGasPrice();
+    console.log(`  gas about ${gas}, at ${price} wei per gas right now about ${Number(gas * price) / 1e18} of the chain's coin (budget double that: gas prices move)`);
+  } catch (e) {
+    console.log(`  gas could not be estimated here: ${String(e.shortMessage ?? e.message).split('\n')[0]}`);
+  }
   console.log(`\nWrote ${out}`);
   console.log('Deploy it as a contract-creation transaction (no "to", value 0, this data) from the owner wallet. Nothing was signed or sent.');
   console.log(`Then: node scripts/pool-evm.mjs verify --chain ${chainKey} --address <the new contract>`);
+  process.exit(0);
+}
+
+if (mode === 'send') {
+  // For the OWNER to run on their own machine only; this session never runs it. The contract has no owner, so the deploying wallet gets no power
+  // over it: use a wallet holding only enough coin for gas. DEPLOYER_KEY_FILE=<file with one 0x key> node scripts/pool-evm.mjs send --chain ethereum --yes-mainnet
+  if (!process.argv.includes('--yes-mainnet')) fail('send puts a real contract on a real network. Add --yes-mainnet to confirm.');
+  const file = process.env.DEPLOYER_KEY_FILE;
+  if (!file) fail('send needs DEPLOYER_KEY_FILE, a file holding one 0x private key (a wallet funded only for gas).');
+  const key = readFileSync(file, 'utf8').trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) fail('the key file must hold one 0x-prefixed 64-digit private key and nothing else.');
+  const { createWalletClient } = require('viem');
+  const { privateKeyToAccount } = require('viem/accounts');
+  const account = privateKeyToAccount(key);
+  const gas = await pub.estimateGas({ account: account.address, data: creation });
+  const price = await pub.getGasPrice();
+  const balance = await pub.getBalance({ address: account.address });
+  const limit = (gas * 12n) / 10n;
+  console.log(`  deployer ${account.address}  balance ${balance} wei`);
+  console.log(`  gas about ${gas} at ${price} wei, so about ${gas * price} wei; worst case with a 20% margin ${limit * price} wei`);
+  if (balance < limit * price) fail('the deployer wallet does not hold enough coin for gas.');
+  const wallet = createWalletClient({ account, transport: http(rpc) });
+  const hash = await wallet.sendTransaction({ data: creation, chain: null, gas: limit });
+  console.log(`  sent ${hash}`);
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success' || !receipt.contractAddress) fail(`the deployment failed (${hash}).`);
+  console.log(`  deployed at ${receipt.contractAddress.toLowerCase()}; run verify on it next, with the same --chain`);
   process.exit(0);
 }
 

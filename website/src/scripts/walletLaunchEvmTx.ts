@@ -1,7 +1,7 @@
 /**
  * Aretia Launch, Ethereum-style chains: the one transaction that creates a token and opens its locked pool, and the independent check
- * that reads it back. (`encodeCreate` / `decodeCreate` write and read the older token-only factory's call, which other modules still use to
- * make test tokens; the page no longer sends it.)
+ * that reads it back. (`encodeCreate` / `decodeCreate` write and read the older token-only factory's call, which a network with no launch factory yet still uses, and other modules use to
+ * make test tokens.)
  *
  * `buildLaunchTx` writes the calldata. `inspectLaunchTx` does NOT call the builder: it decodes whatever transaction it is given from its
  * bytes and compares every part with what the person approved, so a wrong target, a wrong amount, a changed name or a stray extra field
@@ -213,3 +213,67 @@ export function findLaunchedToken(logs: unknown, factory: string, creator: strin
   return found.length === 1 ? found[0]! : null;
 }
 
+// ---------------------------------------------------------------- token-only creation (a network with no locked-launch factory yet)
+
+/** The token-only transaction, for a network that has no locked-launch factory yet. `gas` is added by the flow after estimating. */
+export function buildCreateTx(config: EvmLaunchConfig): EvmTxRequest {
+  const factory = config.chain.factory;
+  if (!factory) throw new Error('This network has no factory yet.');
+  return {
+    from: config.creator,
+    to: factory,
+    data: encodeCreate({ name: config.name, symbol: config.symbol, decimals: config.decimals, supply: config.totalSupplyRaw }),
+    value: toHexQuantity(config.chain.feeWei),
+    // Bound to the network: a wallet on another one refuses it rather than sending the fee there.
+    chainId: toHexQuantity(BigInt(config.chain.chainId)),
+  };
+}
+
+/**
+ * Everything wrong with `tx` as the creation of `config`, in plain words. Empty means it is exactly the approved creation.
+ * `walletChainId` is the network the wallet reports it is on right now.
+ */
+export function inspectCreateTx(tx: EvmTxRequest, config: EvmLaunchConfig, walletChainId: number): string[] {
+  const problems: string[] = [];
+  const { chain } = config;
+  if (walletChainId !== chain.chainId) problems.push(`The wallet is on network ${walletChainId}, not ${chain.name} (${chain.chainId}).`);
+  for (const k of Object.keys(tx)) if (!ALLOWED_FIELDS.has(k)) problems.push(`The transaction has an unexpected field (${k}).`);
+  if (tx.chainId !== toHexQuantity(BigInt(chain.chainId))) problems.push(`The transaction is not bound to ${chain.name} (chain id ${chain.chainId}).`);
+  if (!chain.factory || !chain.feeAddress) problems.push('This network has no factory set up yet.');
+  if (typeof tx.from !== 'string' || tx.from.toLowerCase() !== config.creator) problems.push('The transaction is not from the account you approved.');
+  if (!chain.factory || typeof tx.to !== 'string' || tx.to.toLowerCase() !== chain.factory) problems.push('The transaction is not sent to Aretia’s token factory for this network.');
+  if (typeof tx.value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(tx.value) || BigInt(tx.value) !== chain.feeWei)
+    problems.push(`The amount sent with the transaction is not exactly the ${chain.symbol} creation fee.`);
+  if (tx.gas !== undefined && !(typeof tx.gas === 'string' && /^0x[0-9a-fA-F]+$/.test(tx.gas) && BigInt(tx.gas) > 0n)) problems.push('The gas limit is not a number.');
+  const decoded = typeof tx.data === 'string' ? decodeCreate(tx.data) : null;
+  if (!decoded) problems.push('The transaction data is not a plain token creation.');
+  else {
+    if (decoded.name !== config.name) problems.push('The token name in the transaction differs from the one you approved.');
+    if (decoded.symbol !== config.symbol) problems.push('The token symbol in the transaction differs from the one you approved.');
+    if (decoded.decimals !== config.decimals) problems.push('The decimals in the transaction differ from the ones you approved.');
+    if (decoded.supply !== config.totalSupplyRaw) problems.push('The supply in the transaction differs from the one you approved.');
+  }
+  return problems;
+}
+
+export interface CreatedEvent {
+  token: string;
+  creator: string;
+}
+
+/** The token address from the receipt, taking only a TokenCreated log emitted by the approved factory for the approved creator. Null if none. */
+export function findCreatedToken(logs: unknown, factory: string, creator: string): CreatedEvent | null {
+  if (!Array.isArray(logs)) return null;
+  const found: CreatedEvent[] = [];
+  for (const raw of logs) {
+    const log = raw as { address?: unknown; topics?: unknown };
+    if (typeof log.address !== 'string' || log.address.toLowerCase() !== factory.toLowerCase()) continue;
+    const topics = log.topics;
+    if (!Array.isArray(topics) || topics.length !== 3 || String(topics[0]).toLowerCase() !== TOKEN_CREATED_TOPIC) continue;
+    const token = '0x' + String(topics[1]).slice(-40).toLowerCase();
+    const by = '0x' + String(topics[2]).slice(-40).toLowerCase();
+    if (/^0x[0-9a-f]{40}$/.test(token) && by === creator.toLowerCase()) found.push({ token, creator: by });
+  }
+  // Exactly one: a receipt with several would be a transaction that did something other than what was approved.
+  return found.length === 1 ? found[0]! : null;
+}

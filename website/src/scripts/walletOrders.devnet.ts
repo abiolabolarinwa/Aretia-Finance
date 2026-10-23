@@ -21,6 +21,8 @@ const keyPath = process.env.CURVE_DEVNET_KEYPAIR;
 const ordersProgram = process.env.ORDERS_DEVNET_PROGRAM;
 // The devnet copy of the curve adapter (built with the devnet curve id). Set it to also run a keeper fill.
 const venueProgram = process.env.ORDERS_DEVNET_VENUE;
+// Set to leave one fillable order resting (for a keeper to find) instead of cancelling and filling.
+const leaveResting = process.env.ORDERS_DEVNET_LEAVE_RESTING === '1';
 
 const connection = new web3.Connection(RPC, 'confirmed');
 
@@ -161,6 +163,17 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
     const market = await orders.loadMarket(me, mint, QUOTE_SOL);
     if ('problem' in market) throw new Error(market.problem);
     log.market = { venue: market.venue, minQuote: String(market.minQuote) };
+
+    if (leaveResting) {
+      const easy = { side: 'buy' as const, amountIn: 300_000_000n, minOut: 1_000_000n, priceQuote: 1n };
+      const rest = await orders.preparePlace(me, market, easy);
+      expect(rest.blockers).toEqual([]);
+      const restPlaced = await orders.place(rest);
+      expect(restPlaced.differences).toEqual([]);
+      log.restingOrder = restPlaced.order;
+      writeFileSync(process.env.CURVE_DEVNET_LOG ?? 'orders-devnet-run.json', JSON.stringify(log, null, 2));
+      return;
+    }
 
     // A limit buy: spend 0.3 SOL, ask for at least 1 token per 0.0001 SOL spent... far better than the curve gives, so it rests.
     const terms = { side: 'buy' as const, amountIn: 300_000_000n, minOut: 3_000_000_000_000_000n, priceQuote: 1n };

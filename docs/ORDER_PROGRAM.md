@@ -212,3 +212,13 @@ Findings from getting there:
 - The curve's target was set to 10 SOL so the 0.3 SOL buy would not sell the curve out; the adapter requires the curve to take exactly the amount spent.
 
 Still **not** proved on any network: a sell fill, a Meteora (graduated token) fill, the keeper program itself (this used a hand-built fill, not `apps/order-keeper`), partial fills, the EVM contract, the multisig and the 72-hour timelock, and the curve on mainnet.
+
+### 11g. The real keeper on devnet (2026-10-23)
+
+The Wallet repo's `apps/order-keeper` (branch `claude/orders-mainnet-runbook`), built with esbuild and pointed at the devnet deployment (orders program, devnet curve, devnet curve adapter) with its own throwaway keeper wallet (0.1 devnet SOL):
+
+- **Dry-run** (the default mode): it listed the 9 open orders the earlier devnet runs had left, found 3 fillable and simulated 3 fills per tick successfully, sending nothing.
+- **Live**: in three ticks it sent 9 fills, three per tick (its per-tick limit). A resting order left on purpose for it (`walletOrders.devnet.ts` with `ORDERS_DEVNET_LEAVE_RESTING=1`) was filled and its account closed. Some larger orders were filled in slices, so a few partly filled orders were still open afterwards, as the program's slice rules allow.
+- The keeper spent about 0.03 SOL of its 0.1 SOL in fees and rent across the run.
+
+So the keeper reads orders, works out fillable slices from the curve, builds the adapter fills (including the per-fill account setup) and sends them, on devnet. Not proved: a sell fill, the Meteora path, running as a long-lived service with restarts, a mainnet RPC, EVM mode (`evmMain`).

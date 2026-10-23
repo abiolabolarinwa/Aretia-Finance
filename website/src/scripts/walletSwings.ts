@@ -783,6 +783,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     };
     history.save(item);
     pushTrades();
+    void import('./siteBeacon').then((m) => m.trackSwap({ id: execution.id, chain: item.chain, from: item.fromSymbol, to: item.toSymbol, wallet: host.getWalletName(), status: execution.status })).catch(() => undefined);
   }
 
   // Time from pressing Swap to the end, with the seconds spent in the wallet counted apart: those belong to the person.

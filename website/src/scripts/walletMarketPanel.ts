@@ -112,6 +112,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
   let win: Win = 'h24';
   let detail: PairDetail | null = null;
   let problem: string | null = null;
+  /** For a token with no pool on the row: still being looked up, or looked up and none exists. */
+  let poolState: 'looking' | 'none' | 'failed' | null = null;
   let check: { state: 'loading' | 'done'; risk: TokenRisk | null } = { state: 'loading', risk: null };
   let seq = 0;
   let ctl: AbortController | null = null;
@@ -240,6 +242,10 @@ export function createMarketPanel(o: MarketPanelOptions) {
       liq.querySelector('.wapp-mp__v')?.prepend(lock);
     }
     g.append(liq, cell('FDV', compactUsd(d?.fdvUsd ?? null), 4), cell('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), 4));
+    if (!r.pool) {
+      g.append(el('div', 'wapp-mp__cell wapp-mp__span-12 wapp-mp__wait', poolState === 'none' ? 'This token has no trading pool yet, so there is no price, liquidity or chart to show. A token still on its launch curve looks like this. Check back once it has a pool.' : poolState === 'failed' ? 'The pool for this token could not be looked up just now. Try again in a minute.' : 'Looking for this token’s trading pool…'));
+      return g;
+    }
     if (problem || !d) {
       g.append(el('div', 'wapp-mp__cell wapp-mp__span-12 wapp-mp__wait', problem ?? 'Loading the numbers…'));
       return g;
@@ -316,15 +322,18 @@ export function createMarketPanel(o: MarketPanelOptions) {
     root.append(act);
 
     const info = el('div', 'wapp-mp__group');
-    info.append(heading('Pool details'));
+    info.append(heading(r.pool ? 'Pool details' : 'Token details'));
     const line = (k: string, v: string): HTMLElement => {
       const l = el('div', 'wapp-mp__line');
       l.append(el('span', 'wapp-mp__lk', k), el('strong', 'wapp-mp__lv', v));
       return l;
     };
-    info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
-    if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
-    info.append(addressRow((d?.pair ?? r.pool).length > 42 && r.chain !== 'solana' ? 'Pool ID' : 'Pool address', d?.pair ?? r.pool, r.chain), addressRow('Token address', r.address, r.chain));
+    if (r.pool) {
+      info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
+      if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
+      info.append(addressRow((d?.pair ?? r.pool).length > 42 && r.chain !== 'solana' ? 'Pool ID' : 'Pool address', d?.pair ?? r.pool, r.chain));
+    }
+    info.append(addressRow('Token address', r.address, r.chain));
     root.append(info);
     if (d && d.links.length > 0) {
       const g = el('div', 'wapp-mp__group');
@@ -350,9 +359,10 @@ export function createMarketPanel(o: MarketPanelOptions) {
   }
 
   /** Shows a row. The same row again only refreshes what is drawn; a new one starts its numbers and its check. */
-  function show(r: MarketRow): void {
-    const same = row !== null && rowKey(row) === rowKey(r);
+  function show(r: MarketRow, lookup: 'looking' | 'none' | 'failed' | null = null): void {
+    const same = row !== null && rowKey(row) === rowKey(r) && row.pool === r.pool;
     row = r;
+    poolState = r.pool ? null : lookup ?? 'looking';
     if (same) return render();
     ctl?.abort();
     ctl = new AbortController();
@@ -362,7 +372,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     problem = null;
     check = { state: 'loading', risk: null };
     render();
-    if (!detail) {
+    if (!detail && r.pool) {
       void fetchPairDetail(r.chain, r.pool, undefined, undefined, ctl.signal).then(
         (d) => {
           if (mine !== seq) return;

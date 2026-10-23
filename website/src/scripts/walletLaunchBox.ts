@@ -6,7 +6,9 @@
  * the server's; a token with no pool shows "No market yet", and data that could not be refreshed is marked old.
  */
 import { CHAINS } from '../swings/core/types.js';
-import { cachedLogo } from '../swings/tokens/logos.js';
+import { cachedLogo, registerLogo } from '../swings/tokens/logos.js';
+import type { TokenMeta } from '../swings/launchmeta/core.js';
+import { fetchTokenMetas } from './walletLaunchMeta';
 import { compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { LAUNCH_CHAINS, defaultSort, tokenKey, viewLaunches, type Filter, type LaunchChain, type LaunchView, type Sort, type SortKey, type Tab } from '../swings/launchbox/core.js';
 import { verifiedChecker } from './launchBoxVerified';
@@ -120,6 +122,8 @@ export interface TableHandlers {
   onSort(key: SortKey): void;
   open(r: LaunchView): void;
   isVerified: ((chain: LaunchChain, address: string) => boolean) | null;
+  /** The description and links the token's creator saved with Aretia, when known. */
+  meta?: (r: LaunchView) => TokenMeta | undefined;
   now: number;
 }
 
@@ -183,6 +187,21 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     const imitates = imitationChip(r.chain, r.address, symbol, name);
     if (imitates) line.append(imitates);
     names.append(line, el('small', 'wapp-mt__fullname', name || 'No name given'));
+    const meta = h.meta?.(r);
+    if (meta?.description) names.append(el('small', 'wapp-mt__fullname wapp-lb__desc', meta.description.replace(/\s+/g, ' ')));
+    const links = meta ? ([['Website', meta.website], ['X', meta.x], ['Telegram', meta.telegram]] as const).filter(([, u]) => u) : [];
+    if (links.length > 0) {
+      const row = el('small', 'wapp-mt__fullname wapp-lb__links');
+      for (const [label, url] of links) {
+        const a = el('a', '', label);
+        a.href = url!;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer nofollow ugc';
+        a.addEventListener('click', (e) => e.stopPropagation());
+        row.append(a);
+      }
+      names.append(row);
+    }
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);
     tok.append(cell);
@@ -222,6 +241,25 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   let loading = false;
   let timer: number | null = null;
   let verified: ReturnType<typeof verifiedChecker> | undefined;
+  /** Pictures, descriptions and links saved with Aretia, by token. Asked once per token; a token with none is simply shown without. */
+  const metas = new Map<string, TokenMeta>();
+  const asked = new Set<string>();
+
+  async function loadMetas(): Promise<void> {
+    if (!data || data.setup !== 'ok') return;
+    let any = false;
+    for (const chain of LAUNCH_CHAINS) {
+      const addrs = data.launches.filter((l) => l.chain === chain && !asked.has(`${chain}:${l.address}`)).map((l) => l.address);
+      if (addrs.length === 0) continue;
+      for (const a of addrs) asked.add(`${chain}:${a}`);
+      for (const [a, m] of await fetchTokenMetas(chain, addrs, doFetch)) {
+        metas.set(`${chain}:${a}`, m);
+        if (m.image) registerLogo(chain, a, m.image);
+        any = true;
+      }
+    }
+    if (any && root!.contains(listHost)) renderList();
+  }
 
   async function load(): Promise<void> {
     if (loading) return;
@@ -238,6 +276,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       // Only the numbers are redrawn: rebuilding the controls would take the cursor out of the search box every minute.
       if (root!.contains(listHost)) refreshData();
       else render();
+      void loadMetas();
     }
   }
 
@@ -375,6 +414,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
         },
         open: (r) => navigate(tokenHref(r)),
         isVerified: verified,
+        meta: (r) => metas.get(`${r.chain}:${r.address}`),
         now: Date.now(),
       }),
     );

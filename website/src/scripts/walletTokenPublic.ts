@@ -13,6 +13,8 @@ import { cleanText, isUnsafeName } from '../swings/tokens/safeText.js';
 import { impersonationWarning } from '../swings/tokens/impersonation.js';
 import { publicRead, readErc20 } from '../swings/chains/evmSession.js';
 import { isChainEnabled, loadRuntime } from '../swings/runtime.js';
+import { fetchTokenMeta } from './walletLaunchMeta';
+import { metaBlock } from './tokenMetaView';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { fetchAccount, loadWeb3 } from './walletSend';
 import { parseMintAccount } from './walletLaunchChain';
@@ -136,9 +138,12 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
   const shareNote = el('p', 'tkp-fine');
   shareNote.setAttribute('role', 'status');
   actions.append(buy, share);
-  head.append(logoHost, title, addr, actions, shareNote);
+  const metaHost = el('div', 'tkp-metahost');
+  head.append(logoHost, title, metaHost, addr, actions, shareNote);
 
   let symbol = '';
+  // The picture, description and links the creator saved with Aretia (docs/LAUNCH_ASSETS.md), when there are any.
+  let ownImage: string | null = null;
   share.addEventListener('click', async () => {
     const data = { title: `${symbol || 'Token'} on Aretia`, text: shareText(symbol || 'This token', chain), url: link };
     try {
@@ -191,7 +196,7 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
     symbol = sym;
     nameEl.textContent = sym;
     subEl.textContent = `${name ? `${name} · ` : ''}${info.name}`;
-    logoHost.replaceChildren(avatar(sym, icon));
+    logoHost.replaceChildren(avatar(sym, ownImage ?? icon));
     document.title = `${sym} on ${info.name} | Aretia`;
     buy.textContent = `Buy ${sym} in the Aretia wallet`;
   };
@@ -312,6 +317,16 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
     }
   }
 
+  void fetchTokenMeta(chain, address)
+    .then((meta) => {
+      if (!alive || !meta) return;
+      ownImage = meta.image;
+      if (meta.image) logoHost.replaceChildren(avatar(symbol, meta.image));
+      const block = metaBlock(meta, 'tkp', true);
+      if (block) metaHost.replaceChildren(block);
+    })
+    .catch(() => undefined);
+
   // ---- identity from search (name, picture) when the chain itself does not carry them
   void searchTokens(address, undefined, ctl.signal, { accept: (h) => h.chain === chain && (chain === 'solana' ? h.address === address : h.address.toLowerCase() === address), limit: 1 })
     .then((hits) => {
@@ -335,7 +350,7 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
       }
       if (!alive) return;
       if (detail && (!symbol || symbol === '')) setIdentity(detail.baseSymbol, detail.name, detail.icon);
-      else if (detail && detail.icon && !logoHost.querySelector('img')) logoHost.replaceChildren(avatar(symbol, detail.icon));
+      else if (detail && detail.icon && !logoHost.querySelector('img')) logoHost.replaceChildren(avatar(symbol, ownImage ?? detail.icon));
       const plot = el('div', 'tkp-chart');
       plot.setAttribute('role', 'img');
       plot.setAttribute('aria-label', `${symbol || 'Token'} price chart`);

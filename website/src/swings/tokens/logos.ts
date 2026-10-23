@@ -68,6 +68,14 @@ export function cachedLogo(chain: ChainId, address: string): string | null {
   return nativeLogo(chain, address) ?? found.get(logoKey(chain, address)) ?? null;
 }
 
+/** Records a picture found some other way (a token's own details saved with Aretia). Only an https address is kept; a picture already known is left alone. */
+export function registerLogo(chain: ChainId, address: string, url: string): void {
+  restore();
+  if (!/^https:\/\//.test(url) || url.length >= 500) return;
+  const k = logoKey(chain, address);
+  if (!found.has(k)) found.set(k, url);
+}
+
 /** Pictures in a DexScreener answer: the image belongs to each pair's first (base) token. Pure. */
 export function parseDexLogos(body: unknown): { address: string; url: string }[] {
   if (!Array.isArray(body)) return [];

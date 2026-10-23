@@ -403,6 +403,12 @@ export function initWalletApp(): void {
   const launch = initLaunch({
     getAddress: () => address,
     refreshWallet: () => void refresh(),
+    // One plain sign-in message, to prove who is uploading a token picture. Never a transaction.
+    signMessage: async (message) => {
+      const ctx = window.AretiaWallet?.getWalletContextState() as { signMessage?: (m: Uint8Array) => Promise<Uint8Array> } | undefined;
+      if (!ctx?.signMessage) throw new Error('Your wallet cannot sign a message, so a picture cannot be uploaded with it.');
+      return btoa(String.fromCharCode(...(await ctx.signMessage(new TextEncoder().encode(message)))));
+    },
     onNetwork: (n) => {
       curve.setActive(n === 'solana');
       orders.setActive(n === 'solana');

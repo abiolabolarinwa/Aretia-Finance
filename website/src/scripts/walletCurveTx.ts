@@ -46,9 +46,9 @@ export const migratorAddress = (web3: typeof Web3, program: string, curve: strin
 export const tokenVaultAddress = (web3: typeof Web3, curve: string, mint: string) => ataAddress(web3, curve, mint, TOKEN_2022_PROGRAM_ID);
 
 /** Meteora's customizable-pool address for a token against wrapped SOL: seeds "cpool", the larger key, the smaller key. */
-export function meteoraPoolAddress(web3: typeof Web3, mint: string): string {
+export function meteoraPoolAddress(web3: typeof Web3, mint: string, quoteMint: string = WSOL_MINT): string {
   const a = key(web3, mint).toBytes();
-  const b = key(web3, WSOL_MINT).toBytes();
+  const b = key(web3, quoteMint).toBytes();
   const aBigger = Buffer.compare(Buffer.from(a), Buffer.from(b)) === 1;
   return pda(web3, [text('cpool'), aBigger ? a : b, aBigger ? b : a], METEORA_PROGRAM_ID);
 }

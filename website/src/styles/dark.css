@@ -85,3 +85,4 @@ html[data-theme='dark'] .wapp__state--bad, html[data-theme='dark'] .wapp__state-
 html[data-theme='dark'] .wapp__state--green { color: #7fe3ab; background: rgba(63, 207, 130, 0.18); }
 html[data-theme='dark'] .wapp__state--yellow { color: #ffe27a; background: rgba(240, 190, 0, 0.2); }
 html[data-theme='dark'] .wapp__state--orange { color: #ffb978; background: rgba(238, 112, 14, 0.24); }
+html[data-theme='dark'] .lh-det__status.is-bad { color: #ffb4b4; }

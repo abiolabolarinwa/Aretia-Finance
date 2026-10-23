@@ -13,6 +13,9 @@ import { CURVE_FEE_BPS } from './walletCurveCore';
 import { LAUNCH_EVM_CHAINS } from './walletLaunchEvmCore';
 import type { LaunchApi, LaunchNetwork } from './walletLaunch';
 import { appendTokenShare } from './walletTokenLinks';
+import { detailsState, onDetailsChange } from './walletLaunchMeta';
+import { validateDetails } from '../swings/launchmeta/core.js';
+import { metaBlock } from './tokenMetaView';
 
 type Stage = 'form' | 'review' | 'working' | 'done' | 'off' | '';
 type Tab = 'pool' | 'curve';
@@ -391,6 +394,15 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     return '';
   }
 
+  /** What the creator keeps, read from the form on show: the Solana share, or what is left after the locked pool on an Ethereum-style network. */
+  function creatorShare(): { label: string; value: string } | null {
+    const sol = readInput('launch-creatorPct');
+    if (sol !== '') return /^\d{1,3}(\.\d{1,2})?$/.test(sol) ? { label: 'Your share', value: `${Number(sol)}%` } : null;
+    const pool = readInput('launch-evm-poolPct');
+    if (pool !== '') return /^\d{1,3}(\.\d{1,2})?$/.test(pool) && Number(pool) <= 100 ? { label: 'You keep', value: `${Number((100 - Number(pool)).toFixed(2))}%` } : null;
+    return document.getElementById('launch-evm-name') ? { label: 'You keep', value: '100%' } : null;
+  }
+
   function drawPreview(): void {
     if (!previewEl) return;
     const name = readInput('launch-name', 'launch-evm-name');
@@ -400,12 +412,26 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     const done = stageOf(roots().token) === 'done';
     previewEl.textContent = '';
     previewEl.dataset.empty = name === '' && symbol === '' ? '1' : '0';
-    const avatar = h('div', 'lh-token__avatar', initials(symbol, name));
+    // The picture, description and links come from the same fields the token page will show them from.
+    const shown = detailsState();
+    const avatar = h('div', 'lh-token__avatar', shown.image ? '' : initials(symbol, name));
     avatar.setAttribute('aria-hidden', 'true');
+    if (shown.image) {
+      const img = h('img', 'lh-token__img');
+      img.alt = '';
+      img.src = shown.image.previewUrl;
+      avatar.append(img);
+    }
     const head = h('div', 'lh-token__head');
     head.append(h('strong', 'lh-token__name', name || 'Your token'), h('span', 'lh-token__sym', symbol ? `$${symbol}` : '$SYMBOL'));
     const top = h('div', 'lh-token__top');
     top.append(avatar, head);
+    const about = ((): HTMLElement | null => {
+      const v = validateDetails(shown.details);
+      // Only what would pass the checks is shown, so the preview never promises a field that will be refused.
+      const d = v.ok ? v.value : { description: '', website: '', x: '', telegram: '' };
+      return metaBlock({ description: d.description, website: d.website || null, x: d.x || null, telegram: d.telegram || null }, 'lh-token', false);
+    })();
     const facts = h('dl', 'lh-token__facts');
     const fact = (k: string, v: string): void => {
       const d = h('div');
@@ -419,7 +445,11 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     facts.append(netRow);
     fact('Total supply', supply ? grouped(supply.replace(/,/g, '')) : '–');
     fact('Supply can grow', 'Never');
-    previewEl.append(h('h3', 'lh-side__h', done ? 'Your token' : 'Preview'), top, facts);
+    const share = creatorShare();
+    if (share) fact(share.label, share.value);
+    previewEl.append(h('h3', 'lh-side__h', done ? 'Your token' : 'Preview'), top);
+    if (about) previewEl.append(about);
+    previewEl.append(facts);
     if (done) previewEl.append(h('p', 'lh-token__live', 'Created and verified on the network.'));
   }
 
@@ -467,6 +497,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     view = 'market';
     refresh();
   });
+  onDetailsChange(() => drawPreview());
   hub.addEventListener('input', (e) => {
     if ((e.target as HTMLElement | null)?.closest('[data-launch-root]')) drawPreview();
   });

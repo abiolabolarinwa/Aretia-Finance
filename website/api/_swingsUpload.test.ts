@@ -19,19 +19,30 @@ const TX = '0x' + 'cd'.repeat(32);
 const pad = (a: string) => '0x' + a.replace('0x', '').padStart(64, '0');
 const session = (owner: string) => `Bearer ${issueSession(KEY, owner, NOW).token}`;
 
+const GOOD_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'application/json'];
+/** The bucket record the storage API returns: public, capped at 15 MB, only the allowed types (what ARETIA-SEC-004 requires). */
+function bucketRecord(kind: string | undefined): Record<string, unknown> {
+  const good = { id: BUCKET, public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: GOOD_TYPES };
+  if (kind === 'private') return { ...good, public: false };
+  if (kind === 'unrestricted') return { id: BUCKET, public: true, file_size_limit: null, allowed_mime_types: null };
+  if (kind === 'wide-types') return { ...good, allowed_mime_types: [...GOOD_TYPES, 'text/html'] };
+  if (kind === 'huge-limit') return { ...good, file_size_limit: 5 * 1024 * 1024 * 1024 };
+  return good;
+}
+
 interface World {
   fetchImpl: typeof fetch;
   calls: string[];
 }
 
-function world(opts: { bucket?: 'public' | 'private' | 'missing'; existing?: Set<string>; receipt?: unknown; files?: Record<string, string>; accounts?: unknown[] } = {}): World {
+function world(opts: { bucket?: 'public' | 'private' | 'missing' | 'unrestricted' | 'wide-types' | 'huge-limit'; existing?: Set<string>; receipt?: unknown; files?: Record<string, string>; accounts?: unknown[] } = {}): World {
   const calls: string[] = [];
   const ok = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
   const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(`${init?.method ?? 'GET'} ${url}`);
     if (url.includes('/rest/v1/account_sessions')) return ok([]);
-    if (url === `${BASE}/storage/v1/bucket/${BUCKET}`) return opts.bucket === 'missing' ? ok({ error: 'nope' }, 404) : ok({ id: BUCKET, public: opts.bucket !== 'private' });
+    if (url === `${BASE}/storage/v1/bucket/${BUCKET}`) return opts.bucket === 'missing' ? ok({ error: 'nope' }, 404) : ok(bucketRecord(opts.bucket));
     if (url.startsWith(`${BASE}/storage/v1/object/upload/sign/`)) return ok({ url: `/object/upload/sign/${BUCKET}/x?token=T` });
     if (url.startsWith(`${BASE}/storage/v1/object/public/`)) {
       const path = url.slice(`${BASE}/storage/v1/object/public/${BUCKET}/`.length);
@@ -63,6 +74,15 @@ beforeEach(() => {
 describe('status', () => {
   it('is enabled when the bucket exists and is public', async () => {
     expect((await call(world(), { op: 'status' }, { authorization: null })).data).toEqual({ enabled: true });
+  });
+  it('ARETIA-SEC-004: is not enabled for a public bucket with no size limit, no type list, a type list that allows other files, or a limit above 15 MB', async () => {
+    for (const bucket of ['unrestricted', 'wide-types', 'huge-limit'] as const) {
+      resetUploadState();
+      const status = await call(world({ bucket }), { op: 'status' }, { authorization: null });
+      expect(status.data).toEqual({ enabled: false, message: 'Image upload is not set up yet' });
+      const sign = await call(world({ bucket }), image);
+      expect(sign.status).toBe(503);
+    }
   });
   it('says image upload is not set up when the keys, the bucket or its public setting are missing', async () => {
     for (const w of [world({ bucket: 'missing' }), world({ bucket: 'private' })]) {

@@ -8,7 +8,8 @@
  *   img/<sha256>.<png|jpg|gif>   the picture, named by the SHA-256 of its bytes
  *   meta/<sha256>.json           the metadata JSON of a Solana token, named by the SHA-256 of its bytes (its URL is the token's on-chain uri)
  *   evm/<chain>/<address>.json   the metadata JSON of an Ethereum-style token, keyed by the token's address (the token has no uri)
- * A file is never overwritten: the first upload to a path wins.
+ * A picture or a Solana details file is never overwritten: the first upload to its path wins. An Ethereum-style token's details file
+ * (evm/...) is replaced on purpose, but only by the wallet that created the token.
  */
 
 export const IMAGE_RULES = {
@@ -228,6 +229,25 @@ export function planUpload(raw: unknown): UploadPlan {
     return { ok: true, path: `evm/${r.chain}/${r.address.toLowerCase()}.json`, contentType: 'application/json', immutableName: false };
   }
   return { ok: false, message: 'Unknown kind of file.' };
+}
+
+/** The file types a launch-assets bucket may hold: the three picture types and the details file. */
+export const BUCKET_MIME_TYPES: readonly string[] = [...Object.keys(IMAGE_RULES.types), 'application/json'];
+
+/**
+ * Why a storage bucket is not safe to hand upload links for, or null when it is. A signed upload link does not bind the file's type, size
+ * or name, so the bucket itself must be public, cap the size at the picture limit, and list only the allowed types (audit ARETIA-SEC-004).
+ * `info` is the bucket record the storage API returns.
+ */
+export function bucketProblem(info: unknown): string | null {
+  const b = typeof info === 'object' && info !== null ? (info as Record<string, unknown>) : {};
+  if (b.public !== true) return 'the bucket is not public';
+  const limit = b.file_size_limit;
+  if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0 || limit > IMAGE_RULES.maxBytes) return `the bucket has no file size limit of at most ${IMAGE_RULES.maxBytes} bytes`;
+  const types = b.allowed_mime_types;
+  if (!Array.isArray(types) || types.length === 0) return 'the bucket does not list the file types it accepts';
+  const extra = types.filter((t) => typeof t !== 'string' || !BUCKET_MIME_TYPES.includes(t));
+  return extra.length > 0 ? 'the bucket accepts file types other than pictures and the details file' : null;
 }
 
 /** Uploads one wallet may ask for per hour, in total. */

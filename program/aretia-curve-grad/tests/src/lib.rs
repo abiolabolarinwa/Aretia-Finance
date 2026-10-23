@@ -25,13 +25,37 @@ pub const FEE_BPS: u16 = 58;
 
 pub type Sent = Result<TransactionMetadata, FailedTransactionMetadata>;
 
+/// The program binary the tests load: the committed artifact by default, and that artifact must match its `.sha256` record. Another build
+/// (a fresh `cargo build-sbf` output) is used only when `ARETIA_ALLOW_OTHER_BUILD=1` is set, so a test run can never silently describe a
+/// different binary from the one that is deployed (audit ARETIA-INF-009).
+pub fn artifact_so(env_name: &str, committed: &str) -> String {
+    let path = match std::env::var(env_name) {
+        Ok(p) if !p.is_empty() => p,
+        _ => committed.to_string(),
+    };
+    let same = std::fs::canonicalize(&path).ok().is_some() && std::fs::canonicalize(&path).ok() == std::fs::canonicalize(committed).ok();
+    if !same {
+        assert!(
+            std::env::var("ARETIA_ALLOW_OTHER_BUILD").as_deref() == Ok("1"),
+            "{env_name} points at {path}, not the committed artifact {committed}; set ARETIA_ALLOW_OTHER_BUILD=1 to test another build on purpose"
+        );
+        return path;
+    }
+    let bytes = std::fs::read(committed).unwrap_or_else(|e| panic!("cannot read {committed}: {e}"));
+    let record = std::fs::read_to_string(format!("{committed}.sha256")).unwrap_or_else(|e| panic!("cannot read {committed}.sha256: {e}"));
+    let want = record.split_whitespace().next().unwrap_or("").to_lowercase();
+    let got = format!("{:x}", Sha256::digest(&bytes));
+    assert_eq!(got, want, "{committed} does not match its .sha256 record: the artifact and its record are out of step");
+    path
+}
+
 pub fn program_so() -> String {
-    std::env::var("ARETIA_CURVE_GRAD_SO").unwrap_or_else(|_| "C:/cargo-target/aretia-curve-grad/deploy/aretia_curve_grad.so".to_string())
+    artifact_so("ARETIA_CURVE_GRAD_SO", concat!(env!("CARGO_MANIFEST_DIR"), "/../artifacts/aretia_curve_grad.so"))
 }
 
 /// The Aretia Pool program binary the curve graduates into (built from program/aretia-pool).
 pub fn pool_so() -> String {
-    std::env::var("ARETIA_POOL_SO").unwrap_or_else(|_| "C:/cargo-target/aretia-pool/deploy/aretia_pool.so".to_string())
+    artifact_so("ARETIA_POOL_SO", concat!(env!("CARGO_MANIFEST_DIR"), "/../../aretia-pool/artifacts/aretia_pool.so"))
 }
 
 pub fn disc(name: &str) -> [u8; 8] {

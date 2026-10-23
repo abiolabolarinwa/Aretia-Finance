@@ -2,6 +2,7 @@
 import { handleRecords } from './_swingsRecords.js';
 import { clientIp } from './_clientIp.js';
 import { requestOrigin } from './_rpcProxy.js';
+import { refuse, viaCloudflare } from './_proxyGuard.js';
 
 interface Req {
   method?: string;
@@ -18,6 +19,7 @@ interface Res {
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 export default async function handler(req: Req, res: Res): Promise<void> {
+  if (!viaCloudflare(req.headers)) return void refuse(res);
   const body = typeof req.body === 'string' ? req.body : req.body === undefined ? '' : JSON.stringify(req.body);
   const query: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(req.query ?? {})) query[k] = one(v) ?? undefined;

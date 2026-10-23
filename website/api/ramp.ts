@@ -6,6 +6,7 @@
 import { handleRamp } from './_ramp.js';
 import { requestOrigin } from './_rpcProxy.js';
 import { clientIp } from './_clientIp.js';
+import { refuse, viaCloudflare } from './_proxyGuard.js';
 
 // Just what this handler uses of Vercel's Node request and response objects.
 interface Req {
@@ -22,6 +23,7 @@ interface Res {
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 export default async function handler(req: Req, res: Res): Promise<void> {
+  if (!viaCloudflare(req.headers)) return void refuse(res);
   const body = typeof req.body === 'string' ? req.body : req.body === undefined ? '' : JSON.stringify(req.body);
   const out = await handleRamp({
     method: req.method ?? 'GET',

@@ -114,29 +114,45 @@ immutable per deployment.
 Meteora pool (graduated tokens): no adapter program is needed; the order program calls Meteora itself, proved against the real Meteora binary.
 Not built: the multisig and 72-hour timelock around the upgrade authority; the fee-paying keeper wallet.
 
-## 11. Where the source is, and what remains before launch (checked 2026-10-22)
+## 11. Where the source is, and what remains before launch (updated 2026-10-23)
 
-**Source location.** The Solana program (`programs/aretia-orders`), the curve venue adapter (`programs/aretia-orders-web-curve-venue`),
-the keeper (`apps/order-keeper`), the order API and the EVM contract (`AretiaOrders.sol`) are described above as built in the Aretia
-Wallet repository. When this was checked, **none of that source was findable on this computer**: not on `main`, any local or
-`origin/*` branch, or any worktree of the Wallet repository (`...\2026\Aretia Wallet`), and the ADR `0007-order-program.md` is not
-there either (it holds ADRs 0001 to 0006). So this repository holds only the website side (`website/src/scripts/walletOrders*`).
-The tests and the "24 + 5 / 8 / 21 tests" figures above are the other session's reports and were **not re-verified here**. Nothing
-was copied in, because there was nothing to copy. If that work sits in a session sandbox or an unpushed folder, it must be pushed or
-copied into `program/aretia-order/` and `contracts-evm/AretiaOrders.sol` (with a committed build and its sha-256) before the items below.
+**Source location.** It was built by cloud sessions and lives on GitHub in `abiolabolarinwa/aretia-wallet` (`main`, plus the branch
+`claude/orders-mainnet-runbook`, which adds the mainnet runbook and the admin instruction builders). An earlier version of this section
+said the source could not be found; that was wrong, because the local Wallet checkout was stale. The source is now **copied into this
+repository** so it can be read and built here:
+
+| Path here | What | Origin |
+| --- | --- | --- |
+| `program/aretia-orders/` | Solana program (Anchor 1.2.0) with its LiteSVM tests, golden instruction files and the Meteora and curve fixture binaries (with sha-256 files) | `programs/aretia-orders` |
+| `program/aretia-orders-web-curve-venue/` | Adapter that fills SOL orders against the web wallet's curve | `programs/aretia-orders-web-curve-venue` |
+| `program/aretia-orders-mock-venue/` | Test-only venue | `programs/aretia-orders-mock-venue` |
+| `contracts-evm/orders/AretiaOrders.sol`, `MockOrderVenue.sol` | EVM contract and its test venue | `packages/launch-evm/contracts` |
+| `docs/order-program/` | Wallet repo's spec, keeper notes and the Solana mainnet runbook | `docs/aretia-launch` |
+
+The keeper (`apps/order-keeper`), the order API and the TypeScript clients stay in the Wallet repository only. No program binary is committed
+and no sha-256 of a build exists yet: building needs Anchor, which this change did not run. Test results quoted in section 10 are the other
+sessions' reports unless section 11a says otherwise.
 
 **What the site shows now.** The Launch page's "Give it a market" step, under the curve tab, always shows a "Limit orders" card with the
 status "Not live yet", the fees, the minimum and the limits. It has no form, button or script. The working card still needs
 `PUBLIC_ORDERS_ENABLED=1` (Solana) or `PUBLIC_ORDERS_EVM_ENABLED=1` (EVM) at build time; both stay off. Even then, with no program address
-in `walletOrdersCore.ts` and no EVM deployment, the card shows a notice and no form. To preview it, build the site locally with the flag set.
+in `walletOrdersCore.ts` and no EVM deployment, the card shows a notice and no form.
 
-**What remains before it can go live.** None of this is done.
+**What remains before it can go live.** None of this is done. The owner gave a general go-ahead for mainnet on 2026-10-23; it is
+recorded here, and each step below still needs the people and keys named.
 
-1. **Source in reach.** Recover or push the program, adapter, EVM contract and keeper source (above), rebuild, and publish the build hash.
-2. **Devnet / testnet runs (O6).** Deploy to Solana devnet and one EVM testnet and run the whole path (create, fill by a keeper, cancel). Needs only test funds, no real-money key. Not done.
-3. **Audit status.** No independent audit has been requested (owner decision), so the program must keep being described as **unaudited**. It holds user funds and is open to everyone on day one; that risk is the owner's to accept in writing.
-4. **Multisig and 72-hour timelock.** Not built, and the multisig members are not chosen. Until both exist the upgrade authority is a single key, which is not what the owner decided.
-5. **Aretia Keeper.** Built and tested on a fake chain, never run on a network. Someone must fund and hold its hot wallet and run it. Without a keeper nothing fills.
-6. **Deploy cost.** Not measured. The Solana program rent depends on the final binary size (deploy rent is roughly 2x the program length in SOL at current rent; confirm on devnet with `solana program deploy`), plus the config and fee accounts, the multisig and the keeper's operating balance. EVM costs are the gas for one deployment per chain on BNB Chain, Ethereum and Polygon, plus router whitelisting. Get real figures from a devnet/testnet dry run.
-7. **Mainnet go-ahead (O7).** Needs the owner's explicit, separate authorisation per network. Then set the program address in `walletOrdersCore.ts`, record the EVM addresses, and only then turn the flags on.
-8. **Known limits to keep on the page:** orders are public on-chain; frozen USDC/USDT can strand an escrow; the USD minimum is imprecise without an oracle; fills depend on a keeper.
+1. **The curve comes first.** Orders fill against `aretia-curve`, which is unaudited and not deployed on Solana mainnet. Until it is, orders have nothing to fill against (see `docs/order-program/mainnet-runbook-orders.md`, step 0).
+2. **Build and hash.** Run `anchor build` (Anchor 1.2.0) from a clean checkout, record the `.so` sha-256, and commit it.
+3. **Devnet / testnet runs (O6).** Deploy to Solana devnet and one EVM testnet and run create, fill by a keeper, cancel. Test funds only. Not done.
+4. **Multisig and 72-hour timelock.** Two multisig addresses were supplied (`4DoV9F…hdjG`, `CAyPkS…cB5r`) but the roles (upgrade authority vs admin) are not assigned. Set the Squads time lock (259200 s) **before** handing over the upgrade authority.
+5. **Deployer and keeper keys.** A person with a funded deployer key runs the deploy on their own machine (rent is about 3 x the `.so` size in SOL; confirm on devnet). The keeper needs a new Solana hot wallet, run dry-run first. Nobody in these sessions holds or should hold these keys.
+6. **EVM deployment steps are not written.** The constructor takes the admin multisig, fee wallet, token factory, wrapped native token and four fee numbers; the admin then whitelists the router and enables assets. One deployment per chain: BNB Chain, Ethereum, Polygon.
+7. **Audit.** None requested. Describe it as unaudited everywhere. It holds user funds and is open to everyone on day one.
+8. **Go live.** Only after steps 1 to 6 pass the read-back check: set the program address in `walletOrdersCore.ts` (or the EVM address), then turn that network's flag on.
+9. **Known limits to keep on the page:** orders are public on-chain; frozen USDC/USDT can strand an escrow; the USD minimum is imprecise without an oracle; fills depend on a keeper.
+
+### 11a. What was re-run here (2026-10-23)
+
+- `program/aretia-orders` compiles with `cargo test --no-run`, and its **5 unit tests pass** (the math).
+- The integration tests (`orders.rs`, `curve_venue.rs`, `meteora_venue.rs`) need the compiled programs from `cargo build-sbf` first and **were not run here**: they failed with "run `cargo build-sbf` before `cargo test`". So the 24 + 5 and 8 test figures are still the other sessions' reports, not re-verified.
+- The EVM contract (`contracts-evm/orders/AretiaOrders.sol`) was copied, not compiled or tested here. Its 21 tests live in the Wallet repo.

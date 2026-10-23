@@ -180,3 +180,15 @@ The order program was deployed to **Solana devnet only**, from a throwaway key f
 - **Cost: about 2.13 SOL** left the deployer for this 197 KB program (rent plus transaction fees). That figure is on devnet, with the same rent rules as mainnet; mainnet also needs the config and asset accounts and the keeper's balance.
 - **Not done on devnet:** `initialize_config`, `set_venues`, `set_asset`, creating, filling and cancelling an order. The admin instruction builders and the keeper live in the Wallet repo (`ordersAdmin.ts`, `apps/order-keeper`) and are not in this repo yet; creating an order also needs an Aretia-launched token with a curve account. So only deployment and read-back are proved here.
 - **Mainnet implication:** the real program id must be decided and its keypair created before the final build, and the website, tests and docs then updated to it.
+
+### 11d. Devnet configuration (2026-10-23)
+
+On the devnet deployment from 11c, the deployer (throwaway, also acting as admin) sent three admin instructions, hand-encoded from the program's discriminators and checked against `golden-admin-instructions.json` for layout:
+
+- `initialize_config`: admin = the deployer, fee recipient = `2tcBrd1J…VoZX2`, curve program = the devnet curve `9HVuUHU4…t5f4`, mint offset 43, fees 58 / 150 / 200 bps, keeper share 2000 bps.
+- `set_venues`: Meteora DAMM v2 (`cpamdpZC…sGG`) only.
+- `set_asset`: wrapped SOL enabled, minimum 0.25 SOL.
+
+Read back from the chain: the config account (owned by the devnet program) holds the admin, fee recipient and curve program above, and fees 58 / 150 / 200 / 2000. Each instruction was accepted by the deployed program on devnet.
+
+Still **not** exercised on devnet: creating, filling and cancelling an order (needs an Aretia-launched devnet token on the devnet curve, and the keeper), and any multisig or timelock. The EVM contract has not been deployed to any testnet.

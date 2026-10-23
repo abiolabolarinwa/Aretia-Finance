@@ -7,8 +7,8 @@ import type { StorageLike } from '../swings/history.js';
 import type { MarketRow } from '../swings/market/types.js';
 
 const STORE_KEY = 'aretia-market-lists-v1';
-export const KEEP_VIEWS = 12;
-export const KEEP_ROWS = 40;
+export const KEEP_VIEWS = 8;
+export const KEEP_ROWS = 100;
 /** A list older than this is no longer worth showing as "the last list". */
 export const KEEP_MS = 24 * 3_600_000;
 

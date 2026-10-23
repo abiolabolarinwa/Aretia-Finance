@@ -30,6 +30,20 @@ describe('shared Marketplace lists', () => {
     expect(a.headers['cache-control']).toContain('s-maxage=60');
   });
 
+  it('answers the whole recent list in one reply with recent=1, kept apart from the paged list', async () => {
+    const urls: string[] = [];
+    const f = (async (u: string) => (urls.push(String(u)), new Response(JSON.stringify(body)))) as unknown as typeof fetch;
+    const out = await handleMarket(input({ kind: 'new', chain: 'solana', recent: '1' }, f));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body).rows).toHaveLength(1);
+    expect(urls.some((u) => u.includes('/networks/solana/new_pools'))).toBe(true);
+    const calls = urls.length;
+    await handleMarket(input({ kind: 'new', chain: 'solana', recent: '1' }, f, NOW + 1000));
+    expect(urls).toHaveLength(calls);
+    await handleMarket(input({ kind: 'new', chain: 'solana', page: '1' }, f, NOW + 2000));
+    expect(urls.length).toBeGreaterThan(calls);
+  });
+
   it('returns the last good list, marked stale, when the source refuses', async () => {
     const good = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
     await handleMarket(input({ kind: 'top', chain: 'solana' }, good));

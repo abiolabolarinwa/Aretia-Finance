@@ -35,14 +35,19 @@ export function applyRatings(rows: readonly MarketRow[], ratings: readonly Ratin
 
 /** One request for the rows on screen. Any failure gives no ratings, and the table still shows. */
 export async function fetchRatings(rows: readonly MarketRow[], fetchImpl: typeof fetch = (...a) => fetch(...a), signal?: AbortSignal): Promise<Rating[]> {
-  const addresses = [...new Set(rows.map((r) => r.address))].slice(0, 80);
+  // The server answers 80 addresses at a time; a list of up to 200 rows is asked for in batches.
+  const addresses = [...new Set(rows.map((r) => r.address))].slice(0, 240);
   if (addresses.length === 0) return [];
-  try {
-    const res = await fetchImpl(`/api/swings-tokens?addresses=${encodeURIComponent(addresses.join(','))}`, { signal });
-    if (!res.ok) return [];
-    const body = (await res.json()) as { ratings?: Rating[] };
-    return Array.isArray(body.ratings) ? body.ratings.filter((r) => r && typeof r.address === 'string' && typeof r.chain === 'string') : [];
-  } catch {
-    return [];
-  }
+  const ask = async (batch: string[]): Promise<Rating[]> => {
+    try {
+      const res = await fetchImpl(`/api/swings-tokens?addresses=${encodeURIComponent(batch.join(','))}`, { signal });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { ratings?: Rating[] };
+      return Array.isArray(body.ratings) ? body.ratings.filter((r) => r && typeof r.address === 'string' && typeof r.chain === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const batches = Array.from({ length: Math.ceil(addresses.length / 80) }, (_, i) => addresses.slice(i * 80, i * 80 + 80));
+  return (await Promise.all(batches.map(ask))).flat();
 }

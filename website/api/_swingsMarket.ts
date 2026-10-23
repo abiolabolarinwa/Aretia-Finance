@@ -30,14 +30,17 @@ export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   const { kind = 'trending', chain = '', window = 'h24' } = input.query;
   const page = Math.floor(Number(input.query.page ?? '1'));
   if (!KINDS.includes(kind) || !WINDOWS.includes(window) || (chain !== '' && !isChainId(chain)) || !Number.isFinite(page) || page < 1 || page > 10) return json(400, { error: 'bad-request' }, headers);
-  const key = `${kind}|${chain}|${window}|${page}`;
+  // `recent=1` is the whole list of recent tokens in one answer (the page is ignored); the browser pages through it itself.
+  const recent = input.query.recent === '1';
+  const key = `${kind}|${chain}|${window}|${recent ? 'recent' : page}`;
   const hit = lists.get(key);
   const ok = (rows: MarketRow[], stale: boolean): TokensOutput => json(200, { rows, stale }, { ...headers, 'cache-control': stale ? 'no-store' : 'public, s-maxage=60, stale-while-revalidate=86400' });
   if (hit && input.now - hit.at < FRESH_MS) return ok(hit.rows, false);
   if (overLimit(`market:${input.ip}`, input.now)) return hit ? ok(hit.rows, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
   const source = new GeckoMarket(input.fetchImpl, () => input.now, 0, undefined, input.sleep);
   try {
-    const rows = await source.load({ kind: kind as MarketKind, chain: chain as ChainId | '', window: window as MarketWindow, page });
+    const query = { kind: kind as MarketKind, chain: chain as ChainId | '', window: window as MarketWindow };
+    const rows = recent ? await source.loadRecent(query) : await source.load({ ...query, page });
     if (lists.size > 400) lists.clear();
     lists.set(key, { at: input.now, rows });
     return ok(rows, false);

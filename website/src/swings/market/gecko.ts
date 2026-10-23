@@ -106,6 +106,23 @@ export interface MarketQuery {
   page?: number;
 }
 
+/** Every list holds at least this many tokens where the source has them, and keeps at most RECENT_MAX. */
+export const RECENT_MIN = 100;
+const RECENT_MAX = 200;
+/** Pools younger than this count as recent and are listed first. */
+const RECENT_DAYS = 7;
+
+/** A token can appear in several pools; the first (best-ranked) pool stands for it. */
+function dedupe(rows: readonly MarketRow[]): MarketRow[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const k = `${r.chain}:${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 export class GeckoMarket {
   private readonly cache = new Map<string, { at: number; rows: MarketRow[] }>();
 
@@ -137,6 +154,41 @@ export class GeckoMarket {
     const rows = parseGeckoPools(body, this.now());
     this.cache.set(path, { at: this.now(), rows });
     return rows;
+  }
+
+  /**
+   * One list of recent tokens, at least RECENT_MIN long where the source has that many. The newest pools come first (GeckoTerminal serves
+   * about 100 to 120 per network, and Solana's all-networks feed 160); when a quiet network has fewer, the list is topped up with its
+   * busiest pools so it is never short. Rows younger than RECENT_DAYS are ranked ahead of older ones, each group in the order of the list.
+   */
+  async loadRecent(q: Omit<MarketQuery, 'page'>, signal?: AbortSignal): Promise<MarketRow[]> {
+    const inc = 'include=base_token';
+    const net = q.chain ? GECKO_NETWORK[q.chain] : null;
+    const fresh = (p: number): string => (net ? `/networks/${net}/new_pools?${inc}&page=${p}` : `/networks/new_pools?${inc}&page=${p}`);
+    const fetchPages = async (path: (p: number) => string, from: number, to: number): Promise<MarketRow[]> => {
+      const pages = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+      const got = await Promise.allSettled(pages.map((p) => this.list(path(p), signal)));
+      return got.flatMap((g) => (g.status === 'fulfilled' ? g.value : []));
+    };
+    let rows = await fetchPages(fresh, 1, 6);
+    if (rows.length === 0) await this.list(fresh(1), signal); // all six failed: say why instead of an empty list
+    if (net && rows.length < RECENT_MIN) {
+      rows = rows.concat(await fetchPages((p) => `/networks/${net}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}`, 1, 2));
+    }
+    if (net && dedupe(rows).length < RECENT_MIN) {
+      rows = rows.concat(await fetchPages((p) => `/networks/${net}/pools?${inc}&sort=h24_volume_usd_desc&page=${p}`, 1, Math.ceil((RECENT_MIN - dedupe(rows).length) / 20) + 1));
+    }
+    const rank = (a: MarketRow, b: MarketRow): number => {
+      switch (q.kind) {
+        case 'new': return (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity);
+        case 'top': return (b.volume24hUsd ?? -1) - (a.volume24hUsd ?? -1);
+        case 'gainers': return (b.change[q.window] ?? -Infinity) - (a.change[q.window] ?? -Infinity);
+        default: return (b.txns24h ?? -1) - (a.txns24h ?? -1);
+      }
+    };
+    const all = dedupe(rows).filter((r) => q.kind !== 'gainers' || (r.liquidityUsd ?? 0) >= 1_000);
+    const young = (r: MarketRow): boolean => r.ageMs !== null && r.ageMs <= RECENT_DAYS * 86_400_000;
+    return [...all.filter(young).sort(rank), ...all.filter((r) => !young(r)).sort(rank)].slice(0, RECENT_MAX);
   }
 
   async load(q: MarketQuery, signal?: AbortSignal): Promise<MarketRow[]> {

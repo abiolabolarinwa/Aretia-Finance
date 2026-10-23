@@ -10,6 +10,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, '..', 'src', 'swings', 'mi', 'fixtures', 'real-logs.json');
@@ -65,7 +66,7 @@ async function logsBack(chain, head, filter, want, stepBlocks) {
     try {
       const l = await rpc(chain, 'eth_getLogs', [{ ...filter, fromBlock: hexn(from), toBlock: hexn(to) }]);
       found.push(...l);
-    } catch (e) {
+    } catch {
       stepBlocks = Math.max(50, Math.floor(stepBlocks / 2));
       continue;
     }
@@ -88,7 +89,7 @@ for (const s of specs) {
       try {
         const all = await rpc(s.chain, 'eth_getLogs', [{ address: s.factory, topics: [s.creationTopic], fromBlock: '0x0', toBlock: hexn(head - 5) }]);
         entry.factoryLogs = all.slice(-3);
-      } catch (e) { /* recorded below as zero creations */ }
+      } catch { /* recorded below as zero creations */ }
     }
     // A busy pool of this factory: wrapped native against the stablecoin.
     let pool = null;

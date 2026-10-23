@@ -11,6 +11,7 @@ import { authenticateAdmin, NOT_FOUND, type AdminEnv, type AdminInput } from './
 import { bearerMatches } from './_secrets.js';
 import { overBudget } from './_limits.js';
 import { handleRead } from '../src/swings/mi/api.js';
+import { buildCandleRows } from '../src/swings/mi/stats.js';
 import { allSpecs, specById } from '../src/swings/mi/dexes.js';
 import { adminTransition } from '../src/swings/mi/lifecycle.js';
 import { launchLookup } from '../src/swings/mi/launchLink.js';
@@ -180,3 +181,43 @@ export async function handleMiAdmin(input: AdminInput, storeOverride?: MiStore):
   }
 }
 
+
+// ---------------------------------------------------------------------------------------------- candles for the TradingView chart
+
+const OHLCV_SIZES: Readonly<Record<string, { aggregates: readonly number[]; seconds: number }>> = { minute: { aggregates: [1, 5, 15], seconds: 60 }, hour: { aggregates: [1, 4], seconds: 3600 }, day: { aggregates: [1], seconds: 86_400 } };
+
+/**
+ * GET /api/swings-ohlcv?source=aretia: candles of a pool the Market Indexer follows, in the shape the chart already reads
+ * (`data.attributes.ohlcv_list`, newest first). They are built from stored on-chain trades only; a period with no trade has no
+ * candle. Dollars are offered only for a pool quoted in a dollar stablecoin; a pool quoted in the native coin answers an empty
+ * list for `currency=usd` rather than converting history at today's rate.
+ */
+export async function miOhlcv(input: { query: Record<string, string | undefined>; env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }; fetchImpl: typeof fetch; now: number; ip: string }, storeOverride?: MiStore): Promise<MiOutput> {
+  const q = input.query;
+  const size = OHLCV_SIZES[q.tf ?? ''];
+  const aggregate = Math.floor(Number(q.agg ?? '1'));
+  const limit = Math.floor(Number(q.limit ?? '300'));
+  const before = Math.floor(Number(q.before ?? '0'));
+  const pool = (q.pool ?? '').toLowerCase();
+  if (!isMiChain(q.chain ?? '') || q.chain === 'solana' || !EVM_ADDRESS.test(pool) || !size || !size.aggregates.includes(aggregate) || (q.token ?? 'base') !== 'base' || !['usd', 'token', undefined].includes(q.currency) || !Number.isFinite(limit) || limit < 1 || limit > 1000 || !Number.isFinite(before) || before < 1) return json(400, { error: 'bad-request' });
+  if (overBudget(`mi-ohlcv:${input.ip}`, input.now, 240)) return json(429, { error: 'rate-limit' }, { 'retry-after': '30' });
+  const store = storeOverride ?? storeFor(input.env, input.fetchImpl, () => input.now);
+  if (!store) return NOT_CONFIGURED();
+  try {
+    const chain = q.chain as 'bnb';
+    const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
+    if (!p || p.paused) return json(404, { error: 'unknown-pool' });
+    const step = size.seconds * aggregate;
+    const nowSec = Math.floor(input.now / 1000);
+    const end = Math.min(Math.ceil(before / step) * step, Math.ceil(nowSec / step) * step + step);
+    const trades = (await store.tradesSince(chain, pool, end - limit * step, 10_000)).filter((t) => t.time < end);
+    const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
+    const wantsUsd = (q.currency ?? 'usd') === 'usd';
+    const rows = wantsUsd && quote?.role !== 'usd' ? [] : buildCandleRows(trades, step, p.quoteDecimals);
+    const fresh = end > nowSec ? 5 : 60;
+    return json(200, { data: { attributes: { ohlcv_list: [...rows].reverse() } }, source: 'aretia-index', unit: quote?.role === 'usd' ? 'usd' : 'quote', stale: false }, { 'cache-control': `public, s-maxage=${fresh}, stale-while-revalidate=${fresh * 4}` });
+  } catch (e) {
+    if (e instanceof MiMissingTableError) return MISSING();
+    return json(500, { error: 'failed' });
+  }
+}

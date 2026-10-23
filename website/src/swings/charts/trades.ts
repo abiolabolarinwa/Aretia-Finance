@@ -186,5 +186,6 @@ export function formatAmount(n: number): string {
 
 /** A trade value in dollars. */
 export function formatTradeUsd(n: number): string {
+  if (!Number.isFinite(n)) return '–';
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

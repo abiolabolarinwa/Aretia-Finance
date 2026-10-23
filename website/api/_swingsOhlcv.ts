@@ -13,6 +13,7 @@ import { overLimit } from './_rpcProxy.js';
 import { isChainId } from '../src/swings/core/types.js';
 import { GECKO_NETWORK } from '../src/swings/charts/pool.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
+import { miOhlcv } from './_marketIndexer.js';
 
 const POOL = /^[A-Za-z0-9]{20,100}$/;
 /** The candle sizes the chart offers: GeckoTerminal's timeframe and the aggregates of it. */
@@ -58,6 +59,8 @@ function cleanRows(list: unknown): Row[] {
 export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   if (input.method !== 'GET') return json(405, { error: 'method' }, { ...headers, allow: 'GET' });
+  // A pool Aretia's own Market Indexer follows is answered from its stored on-chain trades, never from GeckoTerminal.
+  if (input.query.source === 'aretia') return miOhlcv({ query: input.query, env: input.env, fetchImpl: input.fetchImpl, now: input.now, ip: input.ip });
   const { chain = '', pool = '', tf = '', token = 'base', currency = 'usd' } = input.query;
   const size = SIZES[tf];
   const aggregate = Math.floor(Number(input.query.agg ?? '1'));

@@ -43,6 +43,8 @@ export interface PoolDto {
   lastTradeAt: string | null;
   statsAsOf: string | null;
   evidence: string;
+  /** True when the quote token is a dollar stablecoin, so dollar prices and candles are exact rather than derived. */
+  quoteIsDollar: boolean;
   links: { swap: string };
 }
 
@@ -62,7 +64,8 @@ const pct = (bps: number | null | undefined): number | null => (bps === null || 
 
 export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): PoolDto {
   const s = p.stats;
-  const quotes = isMiChain(p.chain) ? chainConfig(p.chain).quoteTokens.map((q) => q.address) : [];
+  const quoteTokens = isMiChain(p.chain) ? chainConfig(p.chain).quoteTokens : [];
+  const quotes = quoteTokens.map((q) => q.address);
   return {
     id: p.key,
     chain: p.chain,
@@ -86,6 +89,7 @@ export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): P
     lastTradeAt: iso(p.lastTradeAt),
     statsAsOf: s ? new Date(s.asOf).toISOString() : null,
     evidence: specById(p.adapterId)?.evidence ?? 'planned',
+    quoteIsDollar: quoteTokens.some((q) => q.address === p.quote && q.role === 'usd'),
     // A route into the wallet's swap screen with the token chosen. Nothing is executed: the person reviews and signs there.
     links: { swap: `/wallet#/swap/${p.chain}/${p.base}` },
   };

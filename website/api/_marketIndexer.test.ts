@@ -8,7 +8,7 @@ import { FakeChain, pairCreatedLog, v2SwapLog } from '../src/swings/mi/testkit.j
 import { resetBudgets } from './_limits.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { handleMi, handleMiAdmin, handleMiRun, resetMiCache, type MiEnv } from './_marketIndexer.js';
+import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, resetMiCache, type MiEnv } from './_marketIndexer.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -228,5 +228,37 @@ describe('scheduled run', () => {
     expect((await call(null)).status).toBe(401);
     expect((await call('Bearer wrong')).status).toBe(401);
     expect((await handleMiRun({ method: 'GET', query: {}, authorization: 'Bearer ', ip: '1', env: { ...env, CRON_SECRET: '' }, fetchImpl: nofetch, now: 1 }, store)).status).toBe(401);
+  });
+});
+
+describe('candles for the existing TradingView chart (source=aretia)', () => {
+  const ask = (store: InMemoryMiStore, now: number, q: Record<string, string>) => miOhlcv({ query: { chain: 'bnb', pool: POOL, tf: 'minute', agg: '5', before: String(Math.floor(now / 1000)), limit: '300', ...q }, env, fetchImpl: nofetch, now, ip: '3.3.3.3' }, store);
+
+  it('answers in the shape the chart reads, newest first, from stored trades', async () => {
+    const { store, now } = await seeded();
+    const out = await ask(store, now, {});
+    expect(out.status).toBe(200);
+    const b = JSON.parse(out.body);
+    const list: number[][] = b.data.attributes.ohlcv_list;
+    expect(list.length).toBeGreaterThan(1);
+    expect(list[0]![0]).toBeGreaterThan(list[list.length - 1]![0]!);
+    for (const [t, o, h, l, c, v] of list) {
+      expect(t! % 300).toBe(0);
+      expect(h).toBeGreaterThanOrEqual(Math.max(o!, c!));
+      expect(l).toBeLessThanOrEqual(Math.min(o!, c!));
+      expect(v).toBeGreaterThan(0);
+    }
+    expect(b.unit).toBe('usd');
+    expect(b.source).toBe('aretia-index');
+  });
+
+  it('never converts a native-quoted pool to dollars, and refuses malformed asks', async () => {
+    const { store, now } = await seeded();
+    // The same market, pretending its quote is the wrapped native coin: dollars are not available, token units are.
+    await store.updatePool(`bnb:${POOL}`, { quote: WBNB });
+    expect(JSON.parse((await ask(store, now, { currency: 'usd' })).body).data.attributes.ohlcv_list).toEqual([]);
+    expect(JSON.parse((await ask(store, now, { currency: 'token' })).body).data.attributes.ohlcv_list.length).toBeGreaterThan(0);
+    for (const q of <Record<string, string>[]>[{ tf: 'week' }, { agg: '7' }, { limit: '0' }, { token: 'quote' }, { pool: '0x123' }, { chain: 'solana' }]) expect((await ask(store, now, q)).status, JSON.stringify(q)).toBe(400);
+    expect((await ask(store, now, { pool: '0x' + '9'.repeat(40) })).status).toBe(404);
   });
 });

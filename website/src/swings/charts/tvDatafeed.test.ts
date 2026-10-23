@@ -533,3 +533,34 @@ describe('the datafeed', () => {
     }
   });
 });
+
+describe('a pool followed by Aretia\'s own Market Indexer', () => {
+  it('reads only Aretia\'s endpoint (marked source=aretia) and never GeckoTerminal or DexScreener', async () => {
+    const urls: string[] = [];
+    const f = vi.fn(async (url: string) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify(body(LIST)), { status: 200 });
+    }) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'bnb', pool: '0x' + 'c3'.repeat(20), label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0 });
+    const r = await getBars(feed, '15', { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
+    expect('bars' in r && r.bars.length).toBe(3);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const u of urls) {
+      expect(u.startsWith('/api/swings-ohlcv?')).toBe(true);
+      expect(u).toContain('source=aretia');
+      expect(u).not.toMatch(/geckoterminal|dexscreener/);
+    }
+  });
+
+  it('reports an error, rather than asking an outside service, when Aretia\'s endpoint fails', async () => {
+    const urls: string[] = [];
+    const f = vi.fn(async (url: string) => {
+      urls.push(String(url));
+      return new Response('{}', { status: 502 });
+    }) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'bnb', pool: '0x' + 'c3'.repeat(20), label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
+    const r = await getBars(feed, '15', { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
+    expect('error' in r).toBe(true);
+    expect(urls.every((u) => u.startsWith('/api/swings-ohlcv'))).toBe(true);
+  });
+});

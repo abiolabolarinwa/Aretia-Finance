@@ -218,6 +218,16 @@ export class SupabaseMiStore implements MiStore {
     const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}&time=lt.${Math.floor(beforeSec)}&select=*&order=time.desc,block.desc,id.desc&limit=1`);
     return r[0] ? this.tradeFromRow(r[0]) : null;
   }
+  async pruneTrades(beforeSec: number, limit: number): Promise<number> {
+    // PostgREST cannot delete with a limit, so the oldest rows' keys are read first and removed by key.
+    const old = await this.rows(`mi_trades?time=lt.${Math.floor(beforeSec)}&select=chain,pool,id&order=time.asc&limit=${clampLimit(limit, 2_000)}`);
+    let n = 0;
+    for (const r of old) {
+      await this.call(`mi_trades?chain=eq.${q(String(r.chain))}&pool=eq.${q(String(r.pool))}&id=eq.${q(String(r.id))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
+      n++;
+    }
+    return n;
+  }
   async deleteTradesFrom(adapterId: string, block: number): Promise<number> {
     const out = (await this.call(`mi_trades?adapter_id=eq.${encodeURIComponent(adapterId)}&block=gte.${Math.floor(block)}`, { method: 'DELETE', headers: { prefer: 'return=representation' } })) as unknown[] | null;
     return Array.isArray(out) ? out.length : 0;

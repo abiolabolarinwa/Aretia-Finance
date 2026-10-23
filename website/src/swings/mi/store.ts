@@ -57,6 +57,8 @@ export interface MiStore {
   tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]>;
   /** The last trade strictly before `beforeSec`, for the price a window opened at. */
   lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null>;
+  /** Retention: removes trades older than `beforeSec` (unix seconds), at most `limit` per call; returns how many. */
+  pruneTrades(beforeSec: number, limit: number): Promise<number>;
   /** Reorg: removes the trades this adapter wrote at or above `block`; returns how many. */
   deleteTradesFrom(adapterId: string, block: number): Promise<number>;
   /** Reorg: removes pools of this adapter created at or above `block`, with their trades; returns how many pools. */
@@ -243,6 +245,18 @@ export class InMemoryMiStore implements MiStore {
   async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
     const all = this.sortedTrades(chain, pool).filter((t) => t.time < beforeSec);
     return all.length ? { ...all[all.length - 1]! } : null;
+  }
+  async pruneTrades(beforeSec: number, limit: number): Promise<number> {
+    let n = 0;
+    for (const [k, t] of [...this.trades]) {
+      if (n >= limit) break;
+      if (t.time < beforeSec) {
+        this.trades.delete(k);
+        this.tradeAdapter.delete(k);
+        n++;
+      }
+    }
+    return n;
   }
   async deleteTradesFrom(adapterId: string, block: number): Promise<number> {
     let n = 0;

@@ -16,6 +16,11 @@ export interface RunnerEnv {
   MI_ADAPTERS?: string;
   MI_MIN_LIQUIDITY_USD?: string;
   MI_INACTIVE_AFTER_HOURS?: string;
+  /** Trades older than this many days are deleted (default 30). Candles and stats for older periods are then not available. */
+  MI_TRADE_RETENTION_DAYS?: string;
+  /** How many pools' swaps are followed per adapter: the newest created and the most recently traded (default 100 each). */
+  MI_FOLLOW_NEWEST?: string;
+  MI_FOLLOW_RECENT?: string;
   [k: string]: string | undefined;
 }
 
@@ -54,6 +59,7 @@ export interface RunAllDeps {
 export interface RunAllReport {
   adapters: RunReport[];
   job: { id: string; adapterId: string; status: BackfillJob['status']; doneBlock: number } | null;
+  pruned: number;
   durationMs: number;
 }
 
@@ -65,7 +71,8 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const engineFor = (spec: DexAdapterSpec, budgetMs: number): EngineDeps => {
     const chain = chainConfig(spec.chain, d.env);
     const read = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl });
-    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs };
+    const count = (v: string | undefined): number | undefined => (v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2_000 ? Number(v) : undefined);
+    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) };
   };
 
   // A backfill requested by an administrator runs first, in its own slice of the budget.
@@ -97,7 +104,11 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
     if (left < 2_000) break;
     out.push(await runAdapter(engineFor(order[i]!, Math.floor(left / (order.length - i)))));
   }
-  return { adapters: out, job, durationMs: d.now() - t0 };
+  // Retention: a bounded slice per run, so the table cannot grow without limit and no run is slowed by a big delete.
+  const days = Number(d.env.MI_TRADE_RETENTION_DAYS);
+  const keepDays = Number.isFinite(days) && days >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? days : 30;
+  const pruned = d.now() - t0 < d.budgetMs ? await d.store.pruneTrades(Math.floor(d.now() / 1000) - keepDays * 86_400, 200).catch(() => 0) : 0;
+  return { adapters: out, job, pruned, durationMs: d.now() - t0 };
 }
 
 export type { EvmMiChain };

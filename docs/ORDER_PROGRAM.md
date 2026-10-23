@@ -169,3 +169,14 @@ are **not** proof of a reproducible build and must be redone with `anchor build`
 | `aretia_orders_mock_venue.so` (test only) | `46e5a482282ed2be1f15fb5cb0be3fd0887da75f177a59be215c7559b542b36b` |
 
 With those built, `cargo test` in `program/aretia-orders` passes: **46 tests** (5 unit, 8 + 7 + 26 integration, in LiteSVM, including against the real Meteora and curve binaries), 0 failed. This replaces the "not run here" note in 11a for the Solana program. The binaries are not committed. Not run: the EVM contract tests, the keeper, any devnet or testnet run.
+
+### 11c. Solana devnet deploy (2026-10-23)
+
+The order program was deployed to **Solana devnet only**, from a throwaway key funded with devnet SOL (no real-money key). Because the committed `declare_id!`
+(`Fnb5FELt…`) is a placeholder nobody holds a key for, the devnet build used a scratch copy with a fresh program id substituted. Everything else is the same source.
+
+- Devnet program id: `AZ91hKcZWUHLGwGgoJvUp2do41DjQvMftJesrR6YmmhF` (throwaway deployer `9d66u3enEVBXbhjuiHDtgLVWVmLLNfEy2NkDiNvzFV3b`; keys kept outside the repo).
+- The bytes read back from devnet (`solana program dump`) hash to the same sha-256 as the built file, `70560ba4…705b392` (differs from 11b only because the program id is compiled in).
+- **Cost: about 2.13 SOL** left the deployer for this 197 KB program (rent plus transaction fees). That figure is on devnet, with the same rent rules as mainnet; mainnet also needs the config and asset accounts and the keeper's balance.
+- **Not done on devnet:** `initialize_config`, `set_venues`, `set_asset`, creating, filling and cancelling an order. The admin instruction builders and the keeper live in the Wallet repo (`ordersAdmin.ts`, `apps/order-keeper`) and are not in this repo yet; creating an order also needs an Aretia-launched token with a curve account. So only deployment and read-back are proved here.
+- **Mainnet implication:** the real program id must be decided and its keypair created before the final build, and the website, tests and docs then updated to it.

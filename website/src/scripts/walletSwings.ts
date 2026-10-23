@@ -34,7 +34,8 @@ import { revokeTx } from '../swings/shield/approvals.js';
 import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
-import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
+import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.js';
+import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { createRatingQueue } from './walletRatings.js';
@@ -1548,9 +1549,23 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let chartRow: MarketRow | null = null;
     let tvChart: TvChart | null = null;
     let tradesTable: TradesTable | null = null;
-    function showChart(r: MarketRow): void {
+    function showChart(r: MarketRow, noPool: 'looking' | 'none' | 'failed' | null = null): void {
       chartRow = r;
       chartHost.hidden = false;
+      if (!r.pool) {
+        // No pool: no chart and no trades are asked for. The token's address and Shield check stay in the panel.
+        tvChart?.dispose();
+        tradesTable?.dispose();
+        tvChart = null;
+        tradesTable = null;
+        chartKey = `${r.chain}:none:${r.address}:${noPool ?? 'looking'}`;
+        const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
+        close.addEventListener('click', hideChart);
+        const text = noPool === 'none' ? 'This token has no trading pool yet, so there is no chart. A token still on its launch curve looks like this. Its address and Aretia’s check are on the right.' : noPool === 'failed' ? 'The pool for this token could not be looked up just now. Try again in a minute.' : 'Looking for this token’s trading pool…';
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol} · ${CHAINS[r.chain].name}` }), close]), el('p', { class: 'wapp__fine', text }));
+        if (chartHost.parentElement !== target) target.prepend(chartHost);
+        return;
+      }
       const key = `${r.chain}:${r.pool}`;
       if (chartKey !== key) {
         chartKey = key;
@@ -1613,8 +1628,25 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.
     (document.querySelector<HTMLElement>('[data-wapp]') ?? target).append(panel.element);
     const panelShown = (): boolean => panel.element.isConnected && panel.element.offsetParent !== null;
+    const poolFinder = new GeckoPoolFinder();
+    let pickSeq = 0;
     function pick(r: MarketRow): void {
       if (!panelShown()) return openRow(r);
+      const mine = ++pickSeq;
+      // A token known only by its address (ticker, search, notification, link) gets its best real pool before anything asks for a chart or trades.
+      if (!r.pool) {
+        panel.show(r, 'looking');
+        if (tableEl) markSelected(tableEl, tableRowKey(r));
+        showChart(r, 'looking');
+        void resolveRowPool(r, (c, a) => poolFinder.find(c, a)).then((res) => {
+          if (mine !== pickSeq) return;
+          if (res.status === 'ready') return pick(res.row);
+          const why = res.status === 'none' ? 'none' : 'failed';
+          panel.show(r, why);
+          showChart(r, why);
+        });
+        return;
+      }
       panel.show(r);
       if (tableEl) markSelected(tableEl, tableRowKey(r));
       // Picking a token opens its chart at once, in the centre above the list; a token picked after that swaps the chart to it.

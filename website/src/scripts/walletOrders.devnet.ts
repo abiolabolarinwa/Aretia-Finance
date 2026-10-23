@@ -12,11 +12,15 @@ import { CURVE_PROGRAM_ID_DEVNET, DEFAULT_CURVE_FORM, validateCurve } from './wa
 import { CurveFlow, type CurveFlowDeps } from './walletCurveFlow';
 import { OrdersFlow, type OrdersFlowDeps } from './walletOrdersFlow';
 import { QUOTE_SOL } from './walletOrdersCore';
+import { computeLimitInstruction, curveAddress, solVaultAddress, tokenVaultAddress } from './walletCurveTx';
+import { createHash } from 'node:crypto';
 import { TOKEN_2022_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction } from './walletTools';
 
 const RPC = 'https://api.devnet.solana.com';
 const keyPath = process.env.CURVE_DEVNET_KEYPAIR;
 const ordersProgram = process.env.ORDERS_DEVNET_PROGRAM;
+// The devnet copy of the curve adapter (built with the devnet curve id). Set it to also run a keeper fill.
+const venueProgram = process.env.ORDERS_DEVNET_VENUE;
 
 const connection = new web3.Connection(RPC, 'confirmed');
 
@@ -117,7 +121,7 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
     const mint = await makeMint(payer, 1_000_000_000_000_000n, 6);
     log.mint = mint;
     const token = (await flow.loadToken(me, mint))!;
-    const v = validateCurve({ ...DEFAULT_CURVE_FORM, mint, tokenAmount: '1,000,000,000', target: '0.1' }, me, token);
+    const v = validateCurve({ ...DEFAULT_CURVE_FORM, mint, tokenAmount: '1,000,000,000', target: '10' }, me, token);
     if (!v.ok) throw new Error(JSON.stringify(v.issues));
     const createReview = await flow.prepareCreate(v.config, token);
     expect(createReview.blockers).toEqual([]);
@@ -184,6 +188,89 @@ describe.skipIf(!keyPath || !ordersProgram)('limit orders against the devnet ord
     // 0.58% of 0.3 SOL = 1,740,000 lamports kept; the rest comes back.
     expect(cancel.fee).toBe(1_740_000n);
     expect(wsolAfter - wsolBefore).toBe(300_000_000n - 1_740_000n);
+
+
+    if (venueProgram) {
+      // ---- a keeper fill through the curve adapter ----
+      const FEE_WALLET = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
+      const disc = (n: string) => createHash('sha256').update('global:' + n).digest().subarray(0, 8);
+      const u64 = (n: bigint) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(n); return b; };
+      const pk = (a: string) => new web3.PublicKey(a);
+      const m = (a: string, w: boolean, sg = false) => ({ pubkey: pk(a), isSigner: sg, isWritable: w });
+      const WSOL = 'So11111111111111111111111111111111111111112';
+      const TP = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+      const T22 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+      const ATAP = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+      const SYS = '11111111111111111111111111111111';
+      const ata = (owner: string, mintA: string, prog: string) => ataAddress(web3, owner, mintA, prog);
+
+      const market2 = await orders.loadMarket(me, mint, QUOTE_SOL);
+      if ('problem' in market2) throw new Error(market2.problem);
+      const t2 = { side: 'buy' as const, amountIn: 300_000_000n, minOut: 1_000_000n, priceQuote: 1n };
+      const place2 = await orders.preparePlace(me, market2, t2);
+      expect(place2.blockers).toEqual([]);
+      const placed2 = await orders.place(place2);
+      expect(placed2.differences).toEqual([]);
+      log.fillOrder = placed2.order;
+
+      // The keeper is a different account from the owner (the program refuses a keeper that is also the owner's own token account).
+      const keeperKp = web3.Keypair.generate();
+      const keeper = keeperKp.publicKey.toBase58();
+      await web3.sendAndConfirmTransaction(connection, new web3.Transaction().add(web3.SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: keeperKp.publicKey, lamports: 50_000_000 })), [payer], { commitment: 'confirmed' });
+      log.keeper = keeper;
+      const slice = t2.amountIn;
+      const buyFee = (slice * 150n + 9_999n) / 10_000n;
+      const swapIn = slice - buyFee;
+      const walletPda = web3.PublicKey.findProgramAddressSync([Buffer.from('adapter')], pk(venueProgram!))[0].toBase58();
+      const curveAcc = curveAddress(web3, CURVE_PROGRAM_ID_DEVNET, mint);
+      const walletWsol = ata(walletPda, WSOL, TP);
+      const walletLaunch = ata(walletPda, mint, T22);
+      const venueAccounts = [
+        m(placed2.order, false), m(ata(placed2.order, WSOL, TP), true), m(ata(placed2.order, mint, T22), true),
+        m(walletPda, true), m(walletWsol, true), m(walletLaunch, true), m(keeper, true), m(WSOL, false), m(mint, false),
+        m(curveAcc, true), m(solVaultAddress(web3, CURVE_PROGRAM_ID_DEVNET, curveAcc), true), m(tokenVaultAddress(web3, curveAcc, mint), true),
+        m(FEE_WALLET, true), m(CURVE_PROGRAM_ID_DEVNET, false), m(TP, false), m(T22, false), m(ATAP, false), m(SYS, false),
+      ];
+      const venueData = Buffer.concat([disc('buy'), u64(swapIn), u64(t2.minOut)]);
+      const [cfg] = web3.PublicKey.findProgramAddressSync([Buffer.from('config')], pk(ordersProgram!));
+      const fillIx = new web3.TransactionInstruction({
+        programId: pk(ordersProgram!),
+        keys: [
+          m(keeper, true, true), { pubkey: cfg, isSigner: false, isWritable: false }, m(placed2.order, true), m(me, true), m(mint, false), m(WSOL, false),
+          m(ata(placed2.order, mint, T22), true), m(ata(placed2.order, WSOL, TP), true), m(ata(me, mint, T22), true), m(ata(me, WSOL, TP), true),
+          m(ata(keeper, mint, T22), true), m(ata(keeper, WSOL, TP), true), m(ata(FEE_WALLET, WSOL, TP), true),
+          m(venueProgram!, false), m(T22, false), m(TP, false), ...venueAccounts,
+        ],
+        data: Buffer.concat([disc('fill_order'), u64(slice), (() => { const l = Buffer.alloc(4); l.writeUInt32LE(venueData.length); return Buffer.concat([l, venueData]); })()]),
+      });
+      const tx = new web3.Transaction().add(
+        computeLimitInstruction(web3, 400_000),
+        createAtaIdempotentInstruction(web3, keeper, ata(keeper, mint, T22), keeper, mint, T22),
+        createAtaIdempotentInstruction(web3, keeper, ata(keeper, WSOL, TP), keeper, WSOL, TP),
+        createAtaIdempotentInstruction(web3, keeper, walletWsol, walletPda, WSOL, TP),
+        createAtaIdempotentInstruction(web3, keeper, walletLaunch, walletPda, mint, T22),
+        fillIx,
+      );
+      tx.feePayer = keeperKp.publicKey;
+      const bh = await connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = bh.blockhash;
+      const before = (await cdeps.fetchAccount(ata(me, mint, T22)))!.data;
+      const sim = await cdeps.simulate(tx, me);
+      if (!sim.ok) {
+        const r = await rpc<{ value: { logs: string[] | null } }>('simulateTransaction', [Buffer.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })).toString('base64'), { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }]);
+        console.log((r.value.logs ?? []).join(' | '));
+      }
+      expect(sim.ok).toBe(true);
+      tx.sign(keeperKp);
+      const fillSig = await connection.sendRawTransaction(tx.serialize());
+      expect(await cdeps.confirm(fillSig)).toBe('confirmed');
+      log.fillSignature = fillSig;
+      const after = (await cdeps.fetchAccount(ata(me, mint, T22)))!.data;
+      const amount = (d: Uint8Array) => Buffer.from(d).readBigUInt64LE(64);
+      log.tokensReceived = String(amount(after) - amount(before));
+      expect(amount(after) - amount(before)).toBeGreaterThanOrEqual(t2.minOut);
+      expect(await cdeps.fetchAccount(placed2.order)).toBeNull();
+    }
 
     writeFileSync(process.env.CURVE_DEVNET_LOG ?? 'orders-devnet-run.json', JSON.stringify(log, null, 2));
   });

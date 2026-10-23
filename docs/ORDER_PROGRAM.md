@@ -200,3 +200,15 @@ Still **not** exercised on devnet: creating, filling and cancelling an order (ne
 **Bug found by that run, now fixed in the card:** the program pays the cancel fee into Aretia's fee wallet's own token account for the launch token and for the payment asset, and **refuses the cancel (`AccountNotInitialized`) if either account does not exist**. A brand-new token has no such account for the fee wallet, so every first cancel would have failed. That broke the "cancel always works" promise. The card's cancel now includes two idempotent account creations for the fee wallet in the same transaction (the canceller pays about 0.002 SOL each the first time only). Anyone building their own client, and the keeper, must do the same. The fill path must be checked for the same requirement.
 
 **Still not proved on any network:** a keeper fill (the curve adapter hard-codes the planned mainnet curve id, so a devnet fill needs a devnet build of it), the Meteora pool path, the keeper itself, the EVM contract, multisig and timelock.
+
+### 11f. A keeper fill on devnet (2026-10-23)
+
+With `ORDERS_DEVNET_VENUE` set, `walletOrders.devnet.ts` also places a second limit buy (0.3 SOL, a deliberately easy limit) and fills it as a **separate keeper account** through a **devnet copy of the curve adapter** (`2Eb8h8M1…LkSsn`, built from the committed source with the devnet curve id and a fresh program id, whitelisted with `set_venues`). It passed: the fill bought from the devnet curve, the owner received the launch tokens (about 65.96 million at the test curve's price), the order account closed, and the fee, keeper and owner payments all went through the program's own checks.
+
+Findings from getting there:
+- **Owner and keeper must be different accounts.** If the keeper is also the owner, `fill_order` fails with `ConstraintDuplicateMutableAccount` (the keeper's token accounts are the owner's). Not a bug for real use, but a keeper must never run from an order owner's wallet.
+- **The adapter and the curve must be built for each other.** The committed adapter hard-codes the *planned mainnet* curve id (`CCBr6D…tVBu`); a devnet fill needs a devnet build, and a mainnet fill needs the curve to be deployed at exactly that id.
+- **A fill needs per-fill setup in the same transaction:** the keeper's two token accounts and the adapter wallet's two token accounts (idempotent creations), and about 400,000 compute units.
+- The curve's target was set to 10 SOL so the 0.3 SOL buy would not sell the curve out; the adapter requires the curve to take exactly the amount spent.
+
+Still **not** proved on any network: a sell fill, a Meteora (graduated token) fill, the keeper program itself (this used a hand-built fill, not `apps/order-keeper`), partial fills, the EVM contract, the multisig and the 72-hour timelock, and the curve on mainnet.

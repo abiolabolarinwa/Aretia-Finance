@@ -39,13 +39,13 @@
      supporting copy. See global.css for the @font-face. */
   --font-topical: 'Rostex', var(--font-display);
 
-  --text-mega: clamp(2.75rem, 8vw, 4.75rem);
-  --text-display: clamp(2.25rem, 5vw, 4rem);
-  --text-heading: clamp(1.625rem, 3.2vw, 2.5rem);
-  --text-subheading: clamp(1.25rem, 2vw, 1.75rem);
-  --text-lead: clamp(1rem, 1.1vw, 1.125rem);
-  --text-body: 0.9375rem;
-  --text-small: 0.8125rem;
+  --text-mega: clamp(2.5rem, 7vw, 4.25rem);
+  --text-display: clamp(2rem, 4.4vw, 3.5rem);
+  --text-heading: clamp(1.5rem, 2.8vw, 2.125rem);
+  --text-subheading: clamp(1.125rem, 1.8vw, 1.5rem);
+  --text-lead: clamp(0.9375rem, 1vw, 1.0625rem);
+  --text-body: 0.875rem;
+  --text-small: 0.78125rem;
   --text-micro: 0.75rem;
 
   --leading-tight: 1.04;

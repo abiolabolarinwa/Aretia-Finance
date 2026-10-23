@@ -192,3 +192,11 @@ On the devnet deployment from 11c, the deployer (throwaway, also acting as admin
 Read back from the chain: the config account (owned by the devnet program) holds the admin, fee recipient and curve program above, and fees 58 / 150 / 200 / 2000. Each instruction was accepted by the deployed program on devnet.
 
 Still **not** exercised on devnet: creating, filling and cancelling an order (needs an Aretia-launched devnet token on the devnet curve, and the keeper), and any multisig or timelock. The EVM contract has not been deployed to any testnet.
+
+### 11e. Orders on devnet: place and cancel proved, a bug found (2026-10-23)
+
+`website/src/scripts/walletOrders.devnet.ts` (`npm run test:orders-devnet`, needs a funded devnet key and the devnet order program id; never part of `npm test`) runs the Launch card's own flow against the devnet deployment from 11c: it makes a fixed-supply Token-2022 token, opens its curve on the **devnet curve**, places a limit buy of 0.3 SOL, lists it back, cancels it and checks the money. It **passed**: the order was created and read back with the exact terms, the cancel kept the 0.58% fee (1,740,000 lamports) and refunded the other 298,260,000 lamports as wrapped SOL.
+
+**Bug found by that run, now fixed in the card:** the program pays the cancel fee into Aretia's fee wallet's own token account for the launch token and for the payment asset, and **refuses the cancel (`AccountNotInitialized`) if either account does not exist**. A brand-new token has no such account for the fee wallet, so every first cancel would have failed. That broke the "cancel always works" promise. The card's cancel now includes two idempotent account creations for the fee wallet in the same transaction (the canceller pays about 0.002 SOL each the first time only). Anyone building their own client, and the keeper, must do the same. The fill path must be checked for the same requirement.
+
+**Still not proved on any network:** a keeper fill (the curve adapter hard-codes the planned mainnet curve id, so a devnet fill needs a devnet build of it), the Meteora pool path, the keeper itself, the EVM contract, multisig and timelock.

@@ -8,7 +8,7 @@
  * Each action is one transaction: either it happened or nothing moved. Nothing here can move money the owner did not approve.
  */
 import type * as Web3 from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress, isSolanaAddress } from './walletTools';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress, createAtaIdempotentInstruction, isSolanaAddress } from './walletTools';
 import { accountAmount, parseMintAccount, type AccountReader } from './walletLaunchChain';
 import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlow';
 import { curveProblems, parseCurveAccount, type CurveState } from './walletCurveCore';
@@ -360,6 +360,13 @@ export class OrdersFlow {
     const feeRecipient = new web3.PublicKey(cfg.data.subarray(8 + 32, 8 + 64)).toBase58();
     if (row.account.status !== 1) blockers.push('This order is being filled right now. Try again in a moment.');
     if (row.account.quoteTokenProgram !== TOKEN_PROGRAM_ID) blockers.push('This order’s payment asset is not one this page can cancel safely.');
+    // The program pays Aretia's fee into the fee wallet's own token account for this token and for the payment asset, and refuses the
+    // cancel if either does not exist yet (found on devnet). Creating them is idempotent, so any cancel can make sure they are there;
+    // the canceller pays about 0.002 SOL each the first time, and nothing after that.
+    const feeAccounts = [
+      createAtaIdempotentInstruction(web3, owner, ataAddress(web3, feeRecipient, row.account.launchMint, row.account.launchTokenProgram), feeRecipient, row.account.launchMint, row.account.launchTokenProgram),
+      createAtaIdempotentInstruction(web3, owner, ataAddress(web3, feeRecipient, row.account.quoteMint, row.account.quoteTokenProgram), feeRecipient, row.account.quoteMint, row.account.quoteTokenProgram),
+    ];
     const ix = cancelOrderInstruction(web3, {
       programId: program,
       owner,
@@ -372,7 +379,7 @@ export class OrdersFlow {
     });
     const fee = (row.account.inRemaining * BigInt(row.account.cancelFeeBps) + 9_999n) / 10_000n;
     const hash = await this.blockhash();
-    const trial = await this.d.simulate(this.assemble([ix], owner, hash));
+    const trial = await this.d.simulate(this.assemble([...feeAccounts, ix], owner, hash));
     if (!trial.ok) {
       // The usual reason a cancel fails is that the token's issuer froze the account Aretia's fee goes to. The program has a
       // fee-free cancel for exactly that case and refuses it otherwise, so try it: if the network accepts it, it is the right one.
@@ -386,9 +393,9 @@ export class OrdersFlow {
         order: row.address,
         feeRecipient,
       });
-      const retry = await this.d.simulate(this.assemble([waived], owner, hash));
+      const retry = await this.d.simulate(this.assemble([...feeAccounts, waived], owner, hash));
       if (retry.ok) {
-        return { kind: 'cancel', owner, order: row.address, account: row.account, fee: 0n, feeWaived: true, instructions: [waived], blockers };
+        return { kind: 'cancel', owner, order: row.address, account: row.account, fee: 0n, feeWaived: true, instructions: [...feeAccounts, waived], blockers };
       }
       blockers.push(`The network would refuse this in a trial run: ${explain(trial.error)}.`);
     }
@@ -398,7 +405,7 @@ export class OrdersFlow {
       order: row.address,
       account: row.account,
       fee,
-      instructions: [ix],
+      instructions: [...feeAccounts, ix],
       blockers,
     };
   }

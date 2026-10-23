@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>Deploy the Aretia launch factory</title>
+<style>body{font:15px system-ui;max-width:680px;margin:2rem auto;padding:0 1rem}select,button{font:inherit;padding:.5rem;margin:.3rem 0}code{word-break:break-all}dt{font-weight:600;margin-top:.6rem}</style>
+<h1>Deploy the Aretia launch factory</h1>
+<p>This factory creates a token and opens its trading pool with the liquidity locked, in one transaction. Your own wallet signs and pays the gas for the deployment; the fee below is charged to people who launch tokens, not to you now. The fee, the fee address, the exchange and the minimum pool are fixed for ever once deployed, so check them before you approve.</p>
+<select id="net"></select><br>
+<dl>
+  <dt>Fee recipient</dt><dd><code id="to"></code></dd>
+  <dt>Fee per launch (wei)</dt><dd><code id="fee"></code></dd>
+  <dt>Exchange factory</dt><dd><code id="dex"></code></dd>
+  <dt>Wrapped coin</dt><dd><code id="wrapped"></code></dd>
+  <dt>Minimum coin in the pool (wei)</dt><dd><code id="min"></code></dd>
+</dl>
+<button id="go">Deploy</button>
+<p id="out"></p>
+<script>
+const FACTORY_BYTECODE = "__BYTECODE__";
+const FEE_TO = "__FEE_TO__";
+const NETS = __NETS__;
+const net = document.getElementById('net');
+NETS.forEach((n, i) => net.add(new Option(`${n.name} (${n.chainId}) on ${n.dexName} — MAINNET, real money`, i)));
+const cur = () => NETS[net.value];
+const show = () => {
+  const n = cur();
+  document.getElementById('to').textContent = FEE_TO;
+  document.getElementById('fee').textContent = n.feeWei;
+  document.getElementById('dex').textContent = n.dex;
+  document.getElementById('wrapped').textContent = n.wrapped;
+  document.getElementById('min').textContent = n.minWei;
+};
+net.onchange = show; show();
+const out = document.getElementById('out');
+document.getElementById('go').onclick = async () => {
+  const n = cur(), eth = window.ethereum;
+  if (!eth) { out.textContent = 'No browser wallet found.'; return; }
+  try {
+    const [from] = await eth.request({ method: 'eth_requestAccounts' });
+    const id = '0x' + n.chainId.toString(16);
+    await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: id }] });
+    if (await eth.request({ method: 'eth_chainId' }) !== id) throw new Error('Wallet is on the wrong network.');
+    const hash = await eth.request({ method: 'eth_sendTransaction', params: [{ from, data: FACTORY_BYTECODE + n.args }] });
+    out.textContent = 'Sent: ' + hash + ' — waiting…';
+    for (let i = 0; i < 90; i++) {
+      const r = await eth.request({ method: 'eth_getTransactionReceipt', params: [hash] });
+      if (r) { out.textContent = r.status === '0x1' ? `Deployed. Launch factory address: ${r.contractAddress}  (send this to Claude)` : 'Failed on chain: ' + hash; return; }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    out.textContent = 'Still pending: ' + hash;
+  } catch (e) { out.textContent = 'Stopped: ' + (e.message || e); }
+};
+</script>

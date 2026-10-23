@@ -96,6 +96,17 @@ export function launchEnabled(c: LaunchEvmChain, feeAddress: string | null = c.f
   );
 }
 
+/**
+ * How a token is created on this network right now:
+ *  - 'locked': through the locked-launch factory, which also opens the pool with the liquidity locked, in the same transaction;
+ *  - 'plain': through the older token-only factory, which creates the token and nothing else (no pool exists, so there is no liquidity to pull);
+ *  - null: not available. The locked path wins wherever its factory is set.
+ */
+export type LaunchMode = 'locked' | 'plain';
+export function launchModeOf(c: LaunchEvmChain): LaunchMode | null {
+  return launchEnabled(c) ? 'locked' : chainEnabled(c) ? 'plain' : null;
+}
+
 export const chainByKey = (key: string, table: readonly LaunchEvmChain[] = LAUNCH_EVM_CHAINS): LaunchEvmChain | undefined => table.find((c) => c.key === key);
 
 export const EVM_LIMITS = { nameMaxBytes: 32, symbolMaxBytes: 11, decimalsMax: 18, supplyMax: 2n ** 256n - 1n } as const;
@@ -123,17 +134,19 @@ export interface EvmLaunchConfig {
   symbol: string;
   decimals: number;
   totalSupplyRaw: bigint;
-  /** The share of the supply that goes into the locked pool, in basis points (7000 to 10000). */
+  /** The share of the supply that goes into the locked pool, in basis points (7000 to 10000); zero in plain mode. */
   poolBps: number;
-  /** The coin that goes into the locked pool, in wei. */
+  /** The coin that goes into the locked pool, in wei. Zero in plain mode. */
   poolCoinWei: bigint;
+  /** Which factory creates it: see LaunchMode. In plain mode `poolBps` and `poolCoinWei` are zero. */
+  mode: LaunchMode;
 }
 
 /** The tokens that go into the pool: the same division the factory makes. */
 export const poolTokensOf = (c: Pick<EvmLaunchConfig, 'totalSupplyRaw' | 'poolBps'>): bigint => (c.totalSupplyRaw * BigInt(c.poolBps)) / 10_000n;
 
-/** The exact coin the transaction sends: the fee plus the coin for the pool. */
-export const launchValueOf = (c: Pick<EvmLaunchConfig, 'chain' | 'poolCoinWei'>): bigint => (c.chain.launch?.feeWei ?? 0n) + c.poolCoinWei;
+/** The exact coin the transaction sends: the fee, plus the coin for the pool when the pool is opened. */
+export const launchValueOf = (c: Pick<EvmLaunchConfig, 'chain' | 'poolCoinWei' | 'mode'>): bigint => (c.mode === 'plain' ? c.chain.feeWei : (c.chain.launch?.feeWei ?? 0n) + c.poolCoinWei);
 
 export interface EvmFieldIssue {
   field: keyof EvmLaunchForm | 'form';
@@ -152,7 +165,8 @@ export function validateEvmLaunch(form: EvmLaunchForm, creator: string, table: r
 
   const chain = chainByKey(form.chain, table);
   if (!chain) add('chain', 'Choose a network.');
-  else if (!launchEnabled(chain)) add('chain', `Creating a token with locked liquidity on ${chain.name} is not available yet.`);
+  else if (launchModeOf(chain) === null) add('chain', `Creating tokens on ${chain.name} is not available yet.`);
+  const mode = chain ? launchModeOf(chain) : null;
   if (!isEvmAddress(creator)) add('form', 'Connect an Ethereum-style wallet first.');
 
   const name = form.name.trim();
@@ -174,24 +188,28 @@ export function validateEvmLaunch(form: EvmLaunchForm, creator: string, table: r
     }
   }
 
-  // The share of the supply that goes into the locked pool, and the coin that goes in with it.
+  // The share of the supply that goes into the locked pool, and the coin that goes in with it. Only the locked path has a pool.
   let poolBps = 0;
-  const pct = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(form.poolPct.trim());
-  if (pct) poolBps = Number(pct[1]) * 100 + Number((pct[2] ?? '').padEnd(2, '0'));
-  if (!pct || poolBps > 10_000 || poolBps < MIN_POOL_BPS) add('poolPct', `A percentage from ${MIN_POOL_BPS / 100} to 100. At least ${MIN_POOL_BPS / 100}% of the supply must go into the locked pool.`);
-  else if (totalSupplyRaw > 0n && (totalSupplyRaw * BigInt(poolBps)) / 10_000n === 0n) add('poolPct', 'The supply is too small for that share to hold a whole unit.');
   let poolCoinWei = 0n;
-  const coinText = form.poolCoin.trim().startsWith('.') ? `0${form.poolCoin.trim()}` : form.poolCoin.trim();
-  const coinRaw = toSmallestUnit(coinText, 18);
-  if (coinRaw === null || BigInt(coinRaw) <= 0n) add('poolCoin', 'A number above zero, such as 0.5.');
-  else {
-    poolCoinWei = BigInt(coinRaw);
-    const min = chain?.launch?.minLiquidityWei;
-    if (chain && min !== undefined && poolCoinWei < min) add('poolCoin', `At least ${fromSmallestUnit(min, 18)} ${chain.symbol}: a pool with less is too thin to protect anyone.`);
+  if (mode === 'locked') {
+    const pct = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(form.poolPct.trim());
+    if (pct) poolBps = Number(pct[1]) * 100 + Number((pct[2] ?? '').padEnd(2, '0'));
+    if (!pct || poolBps > 10_000 || poolBps < MIN_POOL_BPS) add('poolPct', `A percentage from ${MIN_POOL_BPS / 100} to 100. At least ${MIN_POOL_BPS / 100}% of the supply must go into the locked pool.`);
+    else if (totalSupplyRaw > 0n && (totalSupplyRaw * BigInt(poolBps)) / 10_000n === 0n) add('poolPct', 'The supply is too small for that share to hold a whole unit.');
+    const coinText = form.poolCoin.trim().startsWith('.') ? `0${form.poolCoin.trim()}` : form.poolCoin.trim();
+    const coinRaw = toSmallestUnit(coinText, 18);
+    if (coinRaw === null || BigInt(coinRaw) <= 0n) add('poolCoin', 'A number above zero, such as 0.5.');
+    else {
+      poolCoinWei = BigInt(coinRaw);
+      const min = chain?.launch?.minLiquidityWei;
+      if (chain && min !== undefined && poolCoinWei < min) add('poolCoin', `At least ${fromSmallestUnit(min, 18)} ${chain.symbol}: a pool with less is too thin to protect anyone.`);
+    }
+
+
   }
 
   if (issues.length > 0 || !chain) return { ok: false, issues };
-  return { ok: true, config: { chain, creator: creator.toLowerCase(), name, symbol, decimals, totalSupplyRaw, poolBps, poolCoinWei } };
+  return { ok: true, config: { chain, creator: creator.toLowerCase(), name, symbol, decimals, totalSupplyRaw, poolBps, poolCoinWei, mode: mode! } };
 }
 
 export interface EvmDisclosure {
@@ -201,6 +219,16 @@ export interface EvmDisclosure {
 
 /** Plain-language consequences, shown before signing. Never says a token is safe. */
 export function evmDisclosuresOf(config: EvmLaunchConfig): EvmDisclosure[] {
+  if (config.mode === 'plain') {
+    return [
+      { severity: 'info', text: 'Nobody can ever create more of this token, pause it, freeze a holder or take a fee on transfers. The token contract has no owner and no such functions.' },
+      { severity: 'info', text: 'The whole supply is created in your wallet in this one transaction. Nothing locks it, and you could send or sell it at any time.' },
+      { severity: 'caution', text: 'Creating a token does not create a market. Nobody can buy it until a liquidity pool exists, and this transaction does not open one. Use "Open a liquidity pool" below, which locks the liquidity for good.' },
+      config.chain.testnet
+        ? { severity: 'info', text: `This is a test network (${config.chain.name}). The coins used have no value, and the token is not real money.` }
+        : { severity: 'caution', text: `This is on ${config.chain.name} mainnet. The transaction is real, the fee and network gas are paid in your ${config.chain.symbol}, and a created token cannot be deleted.` },
+    ];
+  }
   const share = `${config.poolBps / 100}%`;
   return [
     { severity: 'info', text: 'Nobody can ever create more of this token, pause it, freeze a holder or take a fee on transfers. The token contract has no owner and no such functions.' },

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import artifact from '../../../contracts-evm/AretiaLaunchFactory.artifact.json';
 import { keccak256 } from '../swings/core/keccak.js';
 import { SwingsError } from '../swings/core/types.js';
-import { DEFAULT_EVM_FORM, LAUNCH_EVM_CHAINS, MIN_POOL_BPS, chainEnabled, launchEnabled, launchValueOf, poolTokensOf, validateEvmLaunch, type EvmLaunchConfig, type EvmLaunchForm, type LaunchEvmChain } from './walletLaunchEvmCore.js';
+import { DEFAULT_EVM_FORM, LAUNCH_EVM_CHAINS, MIN_POOL_BPS, chainEnabled, launchEnabled, launchModeOf, launchValueOf, poolTokensOf, validateEvmLaunch, type EvmLaunchConfig, type EvmLaunchForm, type LaunchEvmChain } from './walletLaunchEvmCore.js';
 import {
   DEX_FACTORY_SELECTOR,
   FEE_RECIPIENT_SELECTOR,
@@ -12,13 +12,20 @@ import {
   MIN_POOL_BPS_SELECTOR,
   TOKEN_LAUNCHED_TOPIC,
   WRAPPED_SELECTOR,
+  CREATE_SELECTOR,
+  TOKEN_CREATED_TOPIC,
+  buildCreateTx,
   buildLaunchTx,
+  decodeCreate,
   decodeLaunch,
+  encodeCreate,
   encodeLaunch,
+  findCreatedToken,
   findLaunchedToken,
+  inspectCreateTx,
   inspectLaunchTx,
 } from './walletLaunchEvmTx.js';
-import { EvmLaunchError, EvmLaunchFlow, shortfallMessage, type EvmFlowDeps } from './walletLaunchEvmFlow.js';
+import { EvmLaunchError, EvmLaunchFlow, shortfallMessage, shortfallMessagePlain, type EvmFlowDeps } from './walletLaunchEvmFlow.js';
 
 const CREATOR = '0x1111111111111111111111111111111111111111';
 const FACTORY = '0x2222222222222222222222222222222222222222';
@@ -34,7 +41,7 @@ const SUPPLY = 1_000_000n * 10n ** 18n;
 
 const bnb = LAUNCH_EVM_CHAINS.find((c) => c.key === 'bnb')!;
 const chain: LaunchEvmChain = { ...bnb, feeAddress: FEE_TO, launch: { ...bnb.launch!, factory: FACTORY, feeWei: FEE, minLiquidityWei: MIN } };
-const config = (over: Partial<EvmLaunchConfig> = {}): EvmLaunchConfig => ({ chain, creator: CREATOR, name: 'Aretia Test', symbol: 'ATEST', decimals: 18, totalSupplyRaw: SUPPLY, poolBps: 7000, poolCoinWei: COIN, ...over });
+const config = (over: Partial<EvmLaunchConfig> = {}): EvmLaunchConfig => ({ chain, creator: CREATOR, name: 'Aretia Test', symbol: 'ATEST', decimals: 18, totalSupplyRaw: SUPPLY, poolBps: 7000, poolCoinWei: COIN, mode: 'locked', ...over });
 const form = (over: Partial<EvmLaunchForm> = {}): EvmLaunchForm => ({ ...DEFAULT_EVM_FORM, name: 'Aretia Test', symbol: 'ATEST', poolPct: '70', poolCoin: '0.5', ...over });
 const table = [chain];
 
@@ -46,6 +53,11 @@ describe('the chain table', () => {
       for (const a of [c.launch!.dexFactory, c.launch!.wrapped]) expect(a).toMatch(/^0x[0-9a-f]{40}$/);
     }
     expect(LAUNCH_EVM_CHAINS.filter((c) => launchEnabled(c)).map((c) => c.key)).toEqual([]);
+    // So today every network creates token-only through the older factory; the locked path takes over per network once its factory is written in.
+    expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => launchModeOf(c))).toEqual(['plain', 'plain', 'plain']);
+    expect(launchModeOf(chain)).toBe('locked');
+    expect(launchModeOf({ ...chain, launch: { ...chain.launch!, factory: null } })).toBe('plain');
+    expect(launchModeOf({ ...chain, factory: null, launch: { ...chain.launch!, factory: null } })).toBeNull();
     // The token-only factories stay in the table because Aretia Pool and the curve recognise tokens by them, but the page no longer creates through them.
     expect(LAUNCH_EVM_CHAINS.filter((c) => chainEnabled(c)).map((c) => c.key)).toEqual(['bnb', 'ethereum', 'polygon']);
   });
@@ -91,10 +103,26 @@ describe('validateEvmLaunch', () => {
       expect(v.ok && v.config.poolBps).toBe(bps);
     }
   });
-  it('refuses a network with no launch factory yet', () => {
-    const v = validateEvmLaunch(form({ chain: 'bnb' }), CREATOR);
+  it('refuses a network with neither factory', () => {
+    const v = validateEvmLaunch(form({ chain: 'bnb' }), CREATOR, [{ ...chain, factory: null, launch: { ...chain.launch!, factory: null } }]);
     expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.issues.find((i) => i.field === 'chain')?.message).toMatch(/locked liquidity.*not available yet/);
+    if (!v.ok) expect(v.issues.find((i) => i.field === 'chain')?.message).toMatch(/not available yet/);
+  });
+  it('a network with only the older token-only factory creates token-only: no pool fields are asked for, and the value is the fee alone', () => {
+    const only: LaunchEvmChain = { ...chain, launch: { ...chain.launch!, factory: null } };
+    const v = validateEvmLaunch(form({ poolPct: '', poolCoin: '' }), CREATOR, [only]);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.config.mode).toBe('plain');
+      expect(v.config.poolBps).toBe(0);
+      expect(v.config.poolCoinWei).toBe(0n);
+      expect(launchValueOf(v.config)).toBe(only.feeWei);
+    }
+  });
+  it('the locked path takes over on a network once its launch factory is set, and then asks for the pool fields', () => {
+    const v = validateEvmLaunch(form({ poolPct: '', poolCoin: '' }), CREATOR, table);
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.issues.map((i) => i.field)).toEqual(expect.arrayContaining(['poolPct', 'poolCoin']));
   });
   it('checks name, symbol, decimals, supply, the pool share, the pool coin and the connected account', () => {
     const bad = (over: Partial<EvmLaunchForm>, field: string, creator = CREATOR) => {
@@ -452,5 +480,142 @@ describe('EvmLaunchFlow', () => {
       'No liquidity reached the dead address, so the pool is not locked.',
       'You hold some of the pool’s liquidity tokens, so it is not fully locked.',
     ]);
+  });
+});
+
+// ---------------------------------------------------------------- token-only creation (a network with no launch factory yet)
+
+const plainChain: LaunchEvmChain = { ...bnb, feeWei: 3_000_000_000_000_000n, factory: FACTORY, feeAddress: FEE_TO };
+const plainConfig = (over: Partial<EvmLaunchConfig> = {}): EvmLaunchConfig => ({ chain: plainChain, creator: CREATOR, name: 'Aretia Test', symbol: 'ATEST', decimals: 18, totalSupplyRaw: SUPPLY, poolBps: 0, poolCoinWei: 0n, mode: 'plain', ...over });
+const PLAIN_FEE = plainChain.feeWei;
+
+describe('token-only creation: encode, inspect, find', () => {
+  const args = { name: 'Aretia Test', symbol: 'ATEST', decimals: 18, supply: 12345n };
+  it('round-trips and rejects other calldata', () => {
+    expect(decodeCreate(encodeCreate(args))).toEqual(args);
+    expect(decodeCreate(encodeCreate(args) + '00')).toBeNull();
+    expect(encodeCreate(args).slice(0, 10)).toBe(CREATE_SELECTOR);
+  });
+  const good = () => buildCreateTx(plainConfig());
+  it('the inspector passes what the builder writes and refuses a wrong target, sender, fee, network, field or data', () => {
+    const check = (tx: ReturnType<typeof good>, over: Partial<EvmLaunchConfig> = {}, chainId = plainChain.chainId) => inspectCreateTx(tx, plainConfig(over), chainId);
+    expect(check(good())).toEqual([]);
+    expect(good().value).toBe('0x' + PLAIN_FEE.toString(16));
+    expect(check(good(), {}, 1).join(' ')).toMatch(/network 1, not BNB Chain/);
+    expect(check({ ...good(), to: TOKEN }).join(' ')).toMatch(/not sent to Aretia/);
+    expect(check({ ...good(), from: TOKEN }).join(' ')).toMatch(/not from the account/);
+    expect(check({ ...good(), value: '0x0' }).join(' ')).toMatch(/exactly the BNB creation fee/);
+    expect(check({ ...good(), value: '0x' + (PLAIN_FEE + 1n).toString(16) }).join(' ')).toMatch(/exactly/);
+    expect(check({ ...good(), chainId: '0x1' }).join(' ')).toMatch(/not bound to BNB Chain/);
+    expect(check({ ...good(), nonce: '0x1' } as never).join(' ')).toMatch(/unexpected field \(nonce\)/);
+    expect(check(good(), { name: 'Other' }).join(' ')).toMatch(/name/);
+    expect(check(good(), { totalSupplyRaw: 5n }).join(' ')).toMatch(/supply/);
+    expect(check({ ...good(), data: '0xa9059cbb' + '0'.repeat(128) }).join(' ')).toMatch(/not a plain token creation/);
+  });
+  it('finds the token only in a TokenCreated log from the approved factory for the approved creator', () => {
+    const pad = (a: string) => '0x' + a.slice(2).padStart(64, '0');
+    const log = (over: Record<string, unknown> = {}) => ({ address: FACTORY, topics: [TOKEN_CREATED_TOPIC, pad(TOKEN), pad(CREATOR)], data: '0x', ...over });
+    expect(findCreatedToken([log()], FACTORY, CREATOR)).toEqual({ token: TOKEN, creator: CREATOR });
+    expect(findCreatedToken([log({ address: TOKEN })], FACTORY, CREATOR)).toBeNull();
+    expect(findCreatedToken([log({ topics: [TOKEN_CREATED_TOPIC, pad(TOKEN), pad(FEE_TO)] })], FACTORY, CREATOR)).toBeNull();
+    expect(findCreatedToken([log(), log()], FACTORY, CREATOR)).toBeNull();
+  });
+});
+
+function worldPlain(s: { feeOnChain?: bigint; recipient?: string; code?: string; balance?: bigint; callFails?: boolean; receipt?: 'ok' | 'fail' | 'none'; tokenName?: string; held?: bigint; twoLogs?: boolean; estimateError?: string } = {}) {
+  const sent: unknown[] = [];
+  const cfg = plainConfig();
+  const read: EvmFlowDeps['read'] = async (method, params) => {
+    const p = params as { to?: string; data?: string }[] & string[];
+    if (method === 'eth_chainId') return '0x' + plainChain.chainId.toString(16);
+    if (method === 'eth_getCode') return p[0] === TOKEN ? '0x6080' : (s.code ?? '0x6080');
+    if (method === 'eth_getBalance') return '0x' + (s.balance ?? 10n ** 19n).toString(16);
+    if (method === 'eth_gasPrice') return '0x3b9aca00';
+    if (method === 'eth_estimateGas') {
+      if (s.estimateError) throw new SwingsError('invalid', s.estimateError);
+      return '0x7a120';
+    }
+    if (method === 'eth_call') {
+      const c = p[0] as { to?: string; data?: string };
+      const d = c.data ?? '';
+      if (c.to === FACTORY) {
+        if (d === FEE_SELECTOR) return uintWord(s.feeOnChain ?? PLAIN_FEE);
+        if (d === FEE_RECIPIENT_SELECTOR) return addrWord(s.recipient ?? FEE_TO);
+        if (s.callFails) throw new Error('execution reverted: fee');
+        return '0x';
+      }
+      if (d === '0x06fdde03') return strWord(s.tokenName ?? cfg.name);
+      if (d === '0x95d89b41') return strWord(cfg.symbol);
+      if (d === '0x313ce567') return uintWord(BigInt(cfg.decimals));
+      if (d === '0x18160ddd') return uintWord(cfg.totalSupplyRaw);
+      if (d.startsWith('0x70a08231')) return uintWord(s.held ?? cfg.totalSupplyRaw);
+    }
+    if (method === 'eth_getTransactionReceipt') {
+      if (s.receipt === 'none') return null;
+      const one = { address: FACTORY, topics: [TOKEN_CREATED_TOPIC, addrWord(TOKEN), addrWord(CREATOR)], data: '0x' };
+      return { status: s.receipt === 'fail' ? '0x0' : '0x1', logs: s.twoLogs ? [one, one] : [one] };
+    }
+    throw new Error(`unexpected ${method}`);
+  };
+  let t = 0;
+  const deps: EvmFlowDeps = {
+    adapter: {
+      getAccounts: async () => [CREATOR],
+      getChainId: async () => plainChain.chainId,
+      switchChain: async () => undefined,
+      sendTransaction: async (tx) => {
+        sent.push(tx);
+        return '0x' + 'ab'.repeat(32);
+      },
+    },
+    read,
+    now: () => (t += 60_000),
+    sleep: async () => undefined,
+  };
+  return { flow: new EvmLaunchFlow(deps), sent };
+}
+
+describe('EvmLaunchFlow, token-only creation', () => {
+  it('prepares, sends exactly the inspected transaction (the fee alone), and reads the token back; there is no pool', async () => {
+    const w = worldPlain();
+    const review = await w.flow.prepare(plainConfig());
+    expect(review.blockers).toEqual([]);
+    expect(review.tx.value).toBe('0x' + PLAIN_FEE.toString(16));
+    const steps: string[] = [];
+    const out = await w.flow.create(review, (p) => steps.push(p));
+    expect(out).toEqual({ token: TOKEN, pair: null, txHash: '0x' + 'ab'.repeat(32), differences: [] });
+    expect(steps).toEqual(['checking', 'signing', 'confirming', 'verifying', 'done']);
+    expect(w.sent).toEqual([review.tx]);
+  });
+  it('blocks on a factory with a different fee or fee address, or no code, and on too little balance', async () => {
+    const reasons = async (s: Parameters<typeof worldPlain>[0]) => (await worldPlain(s).flow.prepare(plainConfig())).blockers.join(' ');
+    expect(await reasons({ feeOnChain: PLAIN_FEE * 2n })).toMatch(/different fee/);
+    expect(await reasons({ recipient: TOKEN })).toMatch(/different address/);
+    expect(await reasons({ code: '0x' })).toMatch(/not on BNB Chain/);
+    expect(await reasons({ balance: PLAIN_FEE })).toMatch(/need more BNB/);
+    expect(await reasons({ balance: PLAIN_FEE / 4n })).toMatch(/Aretia's fee alone is about/);
+  });
+  it('lists every difference when the token read back is not what was approved', async () => {
+    const review = await worldPlain().flow.prepare(plainConfig());
+    const out = await worldPlain({ tokenName: 'Other', held: 5n }).flow.create(review);
+    expect(out.differences).toEqual(['The token’s name is not the one you approved.', 'Your wallet does not hold the whole supply.']);
+  });
+  it('reports a failed or unconfirmed transaction, and a receipt without exactly one creation', async () => {
+    const review = await worldPlain().flow.prepare(plainConfig());
+    await expect(worldPlain({ receipt: 'fail' }).flow.create(review)).rejects.toThrow(/failed on the network/);
+    await expect(worldPlain({ receipt: 'none' }).flow.create(review)).rejects.toThrow(/not confirmed yet/);
+    await expect(worldPlain({ twoLogs: true }).flow.create(review)).rejects.toThrow(/exactly one new token/);
+  });
+  it('refuses a tampered transaction', async () => {
+    const w = worldPlain();
+    const review = await w.flow.prepare(plainConfig());
+    await expect(w.flow.create({ ...review, tx: { ...review.tx, to: TOKEN } })).rejects.toThrow(/Not signing/);
+    expect(w.sent).toHaveLength(0);
+  });
+  it('rounds the amounts for people in the token-only message', () => {
+    const m = shortfallMessagePlain('BNB', 12_531_773_721_576_266n, 14n * 10n ** 15n, null);
+    expect(m).toContain('You hold about 0.0125 BNB');
+    expect(m).toContain("Aretia's fee alone is about 0.014 BNB");
+    expect(m).toContain('Add at least 0.0015 BNB');
   });
 });

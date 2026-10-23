@@ -1,5 +1,5 @@
 /**
- * One function behind thirteen public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind fifteen public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-trades   recent trades of a pool for the Transactions table, shared and cached (GET)
@@ -13,6 +13,8 @@
  *   /api/swings-alerts-run the scheduled alert check   (GET, with the cron secret)
  *   /api/launchbox       Launch Box: tokens made through Aretia Launch, with market data (GET)
  *   /api/launchbox-run   the Launch Box indexer (GET, with the cron secret)
+ *   /api/swings-upload   a one-use upload link for a token's picture or details file, for a signed-in wallet (POST)
+ *   /api/swings-meta     the picture, description and links of tokens made through Aretia Launch (GET)
  *   /api/swings-beacon   anonymous visit and outcome counters (POST)
  *   /api/swings-admin    the owner's private numbers (POST; 404 for anyone but the wallets in ADMIN_WALLETS)
  * vercel.json rewrites each path here with `?route=`. The handlers themselves live in the _swings*.ts files.
@@ -21,6 +23,7 @@ import { handleAdmin, handleBeacon } from './_adminStats.js';
 import { handleAccount } from './_swingsAccount.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
+import { handleMeta, handleUpload } from './_swingsUpload.js';
 import { handleReferrals } from './_swingsReferrals.js';
 import { handleLaunchbox, handleLaunchboxRun } from './_launchbox.js';
 import { handleMarket } from './_swingsMarket.js';
@@ -81,6 +84,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'trades') out = await handleTrades({ ...common, query });
   else if (route === 'beacon') out = await handleBeacon({ ...common, body, country: one(req.headers['x-vercel-ip-country']) });
   else if (route === 'admin') out = await handleAdmin({ ...common, body });
+  else if (route === 'upload') out = await handleUpload({ ...common, query, body });
+  else if (route === 'meta') out = await handleMeta({ ...common, query, body });
   else if (route === 'launchbox') out = await handleLaunchbox(common);
   else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };

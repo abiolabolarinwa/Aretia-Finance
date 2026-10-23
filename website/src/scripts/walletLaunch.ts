@@ -8,14 +8,18 @@
  * Everything typed, and everything read back from the chain, is shown with textContent, never as markup.
  */
 import { verifiedBadge } from '../lib/verifiedBadge';
+import type { Signer } from '../swings/account/client';
+import type { DetailIssue } from '../swings/launchmeta/core.js';
 import { browserStorage } from '../swings/history.js';
 import { fromSmallestUnit } from './walletTools';
 import {
   DEFAULT_FORM,
   LAUNCH_LIMITS,
   disclosuresOf,
+  pctToBps,
   validateLaunch,
   type FieldIssue,
+  type LaunchConfig,
   type LaunchForm,
 } from './walletLaunchCore';
 import { LaunchError, LaunchFlow, friendlyError, type Outcome, type Progress, type Review } from './walletLaunchFlow';
@@ -23,12 +27,18 @@ import { createEvmLaunch, type LaunchEvmHost } from './walletLaunchEvm';
 import { LAUNCH_EVM_CHAINS, chainEnabled, type LaunchEvmChainKey } from './walletLaunchEvmCore';
 import { fetchAccount, loadWeb3, rpcCall, signAndSubmitTransaction, simulateTransaction, waitForConfirmation } from './walletSend';
 import { appendTokenShare } from './walletTokenLinks';
+import { TOKEN_ACCOUNT_SIZE, mintSizes } from './walletLaunchTx';
+import { checkDetails, createUploader, detailsState, onDetailsChange, resetDetails, wantsDetails, NOT_SET_UP } from './walletLaunchMeta';
+import { checklistBox, detailsFields } from './walletLaunchDetailsUi';
+import { estimateSolanaForm, solanaChecklist } from './walletLaunchChecklist';
 
 export interface LaunchHost {
   /** The connected Solana wallet, or null. */
   getAddress(): string | null;
   /** Re-reads balances after something was created. */
   refreshWallet(): void;
+  /** Has the connected Solana wallet sign a plain message and answers the signature as base64. Absent where the wallet cannot. Used once, to prove who is uploading a picture. */
+  signMessage?(message: string): Promise<string>;
   /** Told which network the page is on whenever it changes, so cards that belong to one network can hide on the others. */
   onNetwork?(network: string): void;
   /** The Ethereum-style side: the connected account and a way to connect. Absent where the page has no such wallet. */
@@ -94,6 +104,8 @@ export function initLaunch(host: LaunchHost): LaunchApi {
   let stage: Stage = 'form';
   let form: LaunchForm = { ...DEFAULT_FORM };
   let issues: FieldIssue[] = [];
+  let detailIssues: DetailIssue[] = [];
+  let busyLabel = 'Checking…';
   let review: Review | null = null;
   let outcome: Outcome | null = null;
   let error: string | null = null;
@@ -104,6 +116,15 @@ export function initLaunch(host: LaunchHost): LaunchApi {
   let flow: LaunchFlow | null = null;
   let network: Network = 'solana';
   const evm = host.evm ? createEvmLaunch(host.evm) : null;
+  const uploader = createUploader((): Signer | null => {
+    const address = host.getAddress();
+    const sign = host.signMessage;
+    return address && sign ? { family: 'solana', address, sign: (m) => sign(m) } : null;
+  });
+  // A new picture redraws the form (typing in the other fields does not).
+  onDetailsChange((kind) => {
+    if (kind === 'image' && stage === 'form' && network === 'solana') draw();
+  });
 
   async function flowFor(): Promise<LaunchFlow> {
     if (flow) return flow;
@@ -162,6 +183,14 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     if (treasuryField) treasuryField.hidden = !(Number(form.treasuryPct) > 0 || form.treasuryAddress.trim() !== '' || issues.some((i) => i.field === 'treasuryAddress'));
   }
 
+  /** The checklist beside the Review button, from what is typed now. The cost is an estimate until the network is asked at Review. */
+  function formChecklist(): ReturnType<typeof solanaChecklist> {
+    const uriChars = wantsDetails() ? 160 : form.metadataUri.trim().length;
+    const sizes = mintSizes({ name: form.name.trim(), symbol: form.symbol.trim(), metadataUri: 'x'.repeat(uriChars) });
+    const cost = estimateSolanaForm({ creatorPct: form.creatorPct, treasuryPct: form.treasuryPct, treasuryAddress: form.treasuryAddress, mintBytes: sizes.withMetadata, tokenAccountBytes: TOKEN_ACCOUNT_SIZE });
+    return solanaChecklist({ symbol: form.symbol.trim().toUpperCase(), supplyText: form.supply.trim(), nameChangeable: form.metadataMutable, creatorBps: pctToBps(form.creatorPct), treasuryBps: pctToBps(form.treasuryPct) ?? 0, cost, exact: false });
+  }
+
   function drawForm(card: HTMLElement): void {
     const address = host.getAddress();
     card.append(h('h2', 'wapp__h2', 'Create a token'));
@@ -176,6 +205,7 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     const row1 = h('div', 'wapp-ln__row wapp-ln__row--wide');
     row1.append(field('Name', 'name', { placeholder: 'Example Token', hint: `Up to ${LAUNCH_LIMITS.nameMax} characters.` }), field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }));
     f.append(row1);
+    f.append(detailsFields({ idPrefix: 'launch-details', issues: detailIssues, uploader, imageNote: 'Saved when you press Review, before anything is signed.' }));
     f.append(field('Total supply', 'supply', { inputmode: 'decimal', hint: 'In whole tokens. It can never be increased.' }));
     const row2 = h('div', 'wapp-ln__row');
     row2.append(
@@ -191,7 +221,7 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     adv.append(h('summary', '', 'Advanced options'));
     const advBody = h('div', 'lh-adv__body');
     advBody.append(field('Decimals', 'decimals', { inputmode: 'numeric', hint: '6 is usual. 0 to 9.' }));
-    advBody.append(field('Link to token details (optional)', 'metadataUri', { mono: true, placeholder: 'https://… or ipfs://…', hint: 'A page or file you host that describes the token. Aretia does not upload or check it.' }));
+    advBody.append(field('Link to token details (optional)', 'metadataUri', { mono: true, placeholder: 'https://… or ipfs://…', hint: 'Only if you host your own details file. Leave it empty to use the picture, description and links above, which Aretia stores for you. Aretia does not check a link you give here.' }));
 
     const mutable = h('label', 'wapp__check');
     const box = h('input');
@@ -205,7 +235,14 @@ export function initLaunch(host: LaunchHost): LaunchApi {
 
     f.append(promises(['Supply is fixed for good. Nobody, you included, can mint more or freeze a holder.', 'The rest of the supply, after your share and the treasury’s, stays in your wallet. Nothing locks it, and nothing here sells it.']));
 
-    const go = h('button', 'wapp__btn wapp__btn--primary', busy ? 'Checking…' : 'Review');
+    const check = h('div', 'lh-check-host');
+    const paintCheck = (): void => check.replaceChildren(checklistBox(formChecklist()));
+    paintCheck();
+    f.addEventListener('input', paintCheck);
+    f.addEventListener('change', paintCheck);
+    f.append(check);
+
+    const go = h('button', 'wapp__btn wapp__btn--primary', busy ? busyLabel : 'Review');
     go.type = 'submit';
     go.disabled = busy || !address;
     f.append(go);
@@ -252,6 +289,15 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     row(dl, 'New token address', mint);
     row(dl, 'Name, symbol and link', config.metadataMutable ? 'You can change them later' : 'Cannot be changed');
     row(dl, 'Link', config.metadataUri === '' ? 'None' : config.metadataUri);
+    const shown = detailsState();
+    if (shown.image) {
+      const img = h('img', 'lh-det__review');
+      img.alt = '';
+      img.src = shown.image.previewUrl;
+      row(dl, 'Picture', img);
+    }
+    if (shown.details.description) row(dl, 'Description', shown.details.description);
+    for (const [k, v] of [['Website', shown.details.website], ['X', shown.details.x], ['Telegram', shown.details.telegram]] as const) if (v) row(dl, k, v);
     card.append(dl);
 
     card.append(h('span', 'wapp__eyebrow', 'Who receives the supply'));
@@ -283,6 +329,12 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     card.append(list);
 
     for (const b of blockers) card.append(errorBox(b));
+
+    card.append(
+      checklistBox(
+        solanaChecklist({ symbol: config.symbol, supplyText: amountText(config.totalSupplyRaw, config.decimals), nameChangeable: config.metadataMutable, creatorBps: config.creatorBps, treasuryBps: config.treasury?.bps ?? 0, cost, exact: true }),
+      ),
+    );
 
     const ack = h('label', 'wapp__check');
     const box = h('input');
@@ -380,6 +432,8 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     again.addEventListener('click', () => {
       stage = 'form';
       form = { ...DEFAULT_FORM };
+      resetDetails();
+      detailIssues = [];
       review = null;
       outcome = null;
       acknowledged = false;
@@ -451,22 +505,40 @@ export function initLaunch(host: LaunchHost): LaunchApi {
 
   async function startReview(): Promise<void> {
     const creator = host.getAddress() ?? '';
-    const v = validateLaunch(form, creator);
-    issues = v.ok ? [] : v.issues;
+    const details = checkDetails();
+    detailIssues = details.ok ? [] : details.issues;
+    const useDetails = wantsDetails();
+    // A link of your own and the stored details both set the token's uri: one or the other.
+    const own = form.metadataUri.trim() !== '';
+    const v = validateLaunch(useDetails ? { ...form, metadataUri: '' } : form, creator);
+    issues = v.ok ? [] : [...v.issues];
+    if (useDetails && own) issues.push({ field: 'metadataUri', message: 'Clear this link to use the picture, description and links above, or clear those to use your own link.' });
     error = null;
-    if (!v.ok) {
+    if (!v.ok || detailIssues.length > 0 || issues.length > 0) {
       draw();
       root?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
     }
     busy = true;
+    busyLabel = 'Checking…';
     draw();
     try {
-      review = await (await flowFor()).prepare(v.config);
+      let config: LaunchConfig = v.config;
+      if (useDetails && details.ok) {
+        if (!(await uploader.status())) throw new LaunchError(`${NOT_SET_UP}, so the picture, description and links cannot be saved. Clear them to create the token without, or try again later.`, true);
+        busyLabel = 'Saving the details…';
+        draw();
+        const uri = await uploader.publishSolana({ name: config.name, symbol: config.symbol, details: details.details, image: detailsState().image });
+        // The new uri goes through the same rules as one typed in (https, at most 200 characters) before it is used.
+        const again = validateLaunch({ ...form, metadataUri: uri }, creator);
+        if (!again.ok) throw new LaunchError(again.issues.map((i) => i.message).join(' '), true);
+        config = again.config;
+      }
+      review = await (await flowFor()).prepare(config);
       stage = 'review';
       acknowledged = false;
     } catch (e) {
-      error = `Could not price this on the network: ${friendlyError(e)}`;
+      error = e instanceof LaunchError ? e.message : `Could not ${useDetails ? 'save the details or ' : ''}price this: ${friendlyError(e)}`;
     } finally {
       busy = false;
       draw();
@@ -568,6 +640,8 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     onWalletChange(): void {
       // A different wallet is a different person: nothing typed or approved for the last one carries over.
       evm?.reset();
+      resetDetails();
+      detailIssues = [];
       review = null;
       outcome = null;
       stage = 'form';

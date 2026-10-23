@@ -14,8 +14,12 @@ import {
   LAUNCH_PROTECTION_START_BPS,
   POOL_FEE_LAMPORTS,
   POOL_TRADING_FEES_BPS,
+  USDC_MINT,
   poolDisclosures,
+  quoteOf,
   validatePool,
+  type QuoteChoice,
+  type QuoteRead,
   type PoolForm,
   type PoolIssue,
   type PoolToken,
@@ -89,7 +93,7 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
 
   // ---------------------------------------------------------------- drawing
 
-  function field(label: string, name: 'mint' | 'tokenAmount' | 'price', opts: { placeholder?: string; mono?: boolean; inputmode?: string; hint?: string } = {}): HTMLElement {
+  function field(label: string, name: 'mint' | 'tokenAmount' | 'price' | 'quoteMint', opts: { placeholder?: string; mono?: boolean; inputmode?: string; hint?: string } = {}): HTMLElement {
     const wrap = h('div', 'wapp-ln__field');
     const id = `pool-${name}`;
     const lab = h('label', 'wapp__eyebrow', label);
@@ -140,14 +144,49 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     const address = host.getAddress();
     card.append(h('h2', 'wapp__h2', 'Open a liquidity pool'));
     card.append(
-      h('p', 'wapp__fine', `Your tokens go into a pool at a starting price you choose, and buyers pay SOL. Your own wallet signs everything. Opening a pool costs a flat ${sol(POOL_FEE_LAMPORTS)} Aretia fee, shown before you sign.`),
+      h('p', 'wapp__fine', `Your tokens go into a pool at a starting price you choose, and buyers pay with SOL, USDC or another token you pick. Your own wallet signs everything. Opening a pool costs a flat ${sol(POOL_FEE_LAMPORTS)} Aretia fee in SOL, whichever pair you choose, shown before you sign.`),
     );
     if (!address) card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect a Solana wallet to open a pool.'));
     const f = h('form', 'wapp__form wapp-ln__form');
     f.noValidate = true;
     f.append(field('Token address', 'mint', { mono: true, placeholder: 'Token address', hint: 'A fixed-supply token you hold, such as one made on this page.' }));
     f.append(field('Tokens to put in the pool', 'tokenAmount', { inputmode: 'decimal', hint: 'In whole tokens. Only your tokens go in; nothing is bought.' }));
-    f.append(field('Starting price (SOL per token)', 'price', { inputmode: 'decimal', placeholder: '0.000001', hint: 'Nobody can buy below this. It is not checked against any market.' }));
+    // The pair: what buyers pay with. SOL and USDC are fixed addresses the page checks against the network; another token is read from the network too.
+    const pairWrap = h('div', 'wapp-ln__field');
+    const pairLabel = h('label', 'wapp__eyebrow', 'Pair with');
+    pairLabel.htmlFor = 'pool-quote';
+    const pair = h('select', 'wapp__input');
+    pair.id = 'pool-quote';
+    for (const [value, text] of [['SOL', 'SOL'], ['USDC', 'USDC'], ['custom', 'Another token…']] as const) {
+      const o = h('option', '', text);
+      o.value = value;
+      o.selected = form.quote === value;
+      pair.append(o);
+    }
+    pairWrap.append(pairLabel, pair);
+    const pairIssue = issues.find((i) => i.field === 'quote');
+    if (pairIssue) {
+      pair.setAttribute('aria-invalid', 'true');
+      const p = h('p', 'wapp-ln__problem', pairIssue.message);
+      p.setAttribute('role', 'alert');
+      pairWrap.append(p);
+    } else pairWrap.append(h('p', 'wapp__fine', 'Buyers pay with this, and it fills the other side of the pool. The pool is locked for good whichever you pick.'));
+    f.append(pairWrap);
+    const customField = field('Pair token address', 'quoteMint', { mono: true, placeholder: 'Token address', hint: 'Read from the network before anything is built. Standard tokens only; one with a transfer fee or hook is refused.' });
+    customField.hidden = form.quote !== 'custom';
+    f.append(customField);
+    const priceHost = h('div');
+    const drawPrice = (): void => {
+      const name = form.quote === 'SOL' ? 'SOL' : form.quote === 'USDC' ? 'USDC' : 'the pair token';
+      priceHost.replaceChildren(field(`Starting price (${name} per token)`, 'price', { inputmode: 'decimal', placeholder: form.quote === 'USDC' ? '0.001' : '0.000001', hint: 'Nobody can buy below this. It is not checked against any market.' }));
+    };
+    drawPrice();
+    pair.addEventListener('change', () => {
+      set({ quote: pair.value as QuoteChoice });
+      customField.hidden = form.quote !== 'custom';
+      drawPrice();
+    });
+    f.append(priceHost);
 
     const feeWrap = h('div', 'wapp-ln__field');
     const feeLabel = h('label', 'wapp__eyebrow', 'Trading fee');
@@ -216,15 +255,17 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     if (!review || !token) return;
     const { config, cost, balance, blockers, built } = review;
     card.append(h('span', 'wapp__eyebrow', 'Review'), h('h2', 'wapp__h2', 'Open a liquidity pool'));
-    card.append(h('p', 'wapp__banner wapp__banner--warn', 'This opens a real pool on Solana mainnet and spends real SOL. Read it all before you approve. Nothing is sent until you press the button at the bottom.'));
+    card.append(h('p', 'wapp__banner wapp__banner--warn', 'This opens a real pool on Solana mainnet and spends real SOL for the fee and deposits. Read it all before you approve. Nothing is sent until you press the button at the bottom.'));
 
     const dl = h('dl', 'wapp__rows');
     row(dl, 'Token', short(config.mint));
     row(dl, 'Tokens going in', amountText(config.tokenAmountRaw, config.decimals));
-    row(dl, 'Starting price', `${config.price} SOL per token`);
+    const quote = quoteOf(config);
+    row(dl, 'Pair', quote.symbol === 'SOL' ? 'SOL' : `${quote.symbol} (token ${quote.mint}, ${quote.decimals} decimals, read from the network)`);
+    row(dl, 'Starting price', `${config.price} ${quote.symbol} per token`);
     const priceE12 = BigInt(toSmallestUnit(config.price, 12) ?? '0');
-    const marketCap = (priceE12 * token.supply) / (1000n * 10n ** BigInt(config.decimals));
-    row(dl, 'Worth at the starting price', `about ${fromSmallestUnit(marketCap, 9)} SOL for the whole supply`);
+    const marketCap = (priceE12 * token.supply * 10n ** BigInt(quote.decimals)) / (10n ** 12n * 10n ** BigInt(config.decimals));
+    row(dl, 'Worth at the starting price', `about ${fromSmallestUnit(marketCap, quote.decimals)} ${quote.symbol} for the whole supply`);
     row(dl, 'Trading fee', `${config.tradingFeeBps / 100}%, paid to you`);
     row(
       dl,
@@ -303,7 +344,7 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     if (!outcome) return;
     const ok = outcome.differences.length === 0;
     card.append(h('span', 'wapp__eyebrow', ok ? 'Opened' : 'Opened, with differences'), h('h2', 'wapp__h2', ok ? 'Your pool is open' : 'Your pool is open, but check this'));
-    card.append(ok ? h('p', 'wapp__banner', 'Read back from the network: the pool exists and belongs to the pool program. People can now buy the token with SOL at or above your starting price.') : errorBox(`The network does not show exactly what you approved: ${outcome.differences.join(' ')}`));
+    card.append(ok ? h('p', 'wapp__banner', 'Read back from the network: the pool exists and belongs to the pool program. People can now buy the token at or above your starting price.') : errorBox(`The network does not show exactly what you approved: ${outcome.differences.join(' ')}`));
     const dl = h('dl', 'wapp__rows');
     row(dl, 'Pool address', outcome.pool);
     row(dl, 'Transaction', link(short(outcome.signature), `https://solscan.io/tx/${encodeURIComponent(outcome.signature)}`));
@@ -346,7 +387,11 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     try {
       const f = await flowFor();
       token = form.mint.trim() === '' ? null : await f.loadToken(creator, form.mint.trim()).catch(() => null);
-      const v = validatePool(form, creator, token);
+      // The pair token is always read from the network, whatever is selected: USDC must read back as USDC, another token as a standard token.
+      let quoteRead: QuoteRead | null = null;
+      const pairMint = form.quote === 'USDC' ? USDC_MINT : form.quote === 'custom' ? form.quoteMint.trim() : '';
+      if (pairMint !== '' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(pairMint)) quoteRead = await f.loadQuote(pairMint).catch(() => null);
+      const v = validatePool(form, creator, token, quoteRead);
       issues = v.ok ? [] : v.issues;
       if (!v.ok || !token) {
         busy = false;

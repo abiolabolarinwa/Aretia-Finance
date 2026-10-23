@@ -15,11 +15,49 @@
  *    (The transaction builder and its inspector still handle an unlocked pool, so their tests keep covering both; the form never asks for one.)
  *  - Aretia charges one flat fee, paid in SOL in the same transaction. The pool's own trading fee goes to the creator's position.
  */
-import { isSolanaAddress, toSmallestUnit } from './walletTools.js';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, isSolanaAddress, toSmallestUnit } from './walletTools.js';
 import { LAUNCH_FEE_ADDRESS } from './walletLaunchCore.js';
 
 export const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 export const SOL_DECIMALS = 9;
+
+/**
+ * What buyers pay with: the other side of the pool. SOL by default; USDC, or any other token whose mint the page has read from the
+ * network (never one typed in without a read). The pool is single-sided either way: only the creator's tokens go in.
+ */
+export interface PoolQuote {
+  mint: string;
+  decimals: number;
+  /** Shown to people: "SOL", "USDC", or a short form of the address for another token. */
+  symbol: string;
+  /** The token program that owns the mint: the classic one, or Token-2022. */
+  program: string;
+  /** Whether someone holds the power to create more of it, or to freeze balances of it. Read from the mint, shown before signing. */
+  mintable: boolean;
+  freezable: boolean;
+}
+
+export const SOL_QUOTE: PoolQuote = { mint: WSOL_MINT, decimals: SOL_DECIMALS, symbol: 'SOL', program: TOKEN_PROGRAM_ID, mintable: false, freezable: false };
+
+export type QuoteChoice = 'SOL' | 'USDC' | 'custom';
+export const QUOTE_CHOICES: readonly QuoteChoice[] = ['SOL', 'USDC', 'custom'];
+/** The published USDC mint on Solana and the decimals it must read back with. A choice of USDC is accepted only if the network agrees. */
+export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+export const USDC_DECIMALS = 6;
+/** The wrapped-SOL mint of Token-2022 (a different address from the classic one). The pool program does not accept it. */
+export const NATIVE_MINT_2022 = '9pan9bMn5HatX4EJdBwg9VgCa7Uz5HL8N1m5D3NdXejP';
+
+/** What the network says about a quote mint: the account's owner and the mint's facts, as read. */
+export interface QuoteRead {
+  mint: string;
+  program: string;
+  decimals: number;
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  extensions: readonly number[];
+}
+
+export const quoteOf = (config: Pick<PoolConfig, 'quote'>): PoolQuote => config.quote ?? SOL_QUOTE;
 
 /** Aretia's flat fee for opening a pool: 0.05 SOL, to the same management-fee wallet as the token creation fee. */
 export const POOL_FEE_LAMPORTS = 50_000_000n;
@@ -56,13 +94,17 @@ export interface PoolForm {
   tokenAmount: string;
   /** SOL per one whole token, as a plain decimal. */
   price: string;
+  /** What buyers pay with. */
+  quote: QuoteChoice;
+  /** The pair token's address, when `quote` is 'custom'. */
+  quoteMint: string;
   tradingFeeBps: string;
   /** Launch protection on (the default) or off. */
   protection: boolean;
   protectionMinutes: string;
 }
 
-export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', tradingFeeBps: '25', protection: true, protectionMinutes: '30' };
+export const DEFAULT_POOL_FORM: PoolForm = { mint: '', tokenAmount: '', price: '', quote: 'SOL', quoteMint: '', tradingFeeBps: '25', protection: true, protectionMinutes: '30' };
 
 /** What is known about the token before a pool is opened. */
 export interface PoolToken {
@@ -81,8 +123,10 @@ export interface PoolConfig {
   mint: string;
   decimals: number;
   tokenAmountRaw: bigint;
-  /** Normalised decimal text, SOL per token. */
+  /** Normalised decimal text, in the pair token per token (SOL unless `quote` says otherwise). */
   price: string;
+  /** What buyers pay with. Absent: SOL. */
+  quote?: PoolQuote;
   /** The fee the pool settles on (and, without launch protection, the fee from the first trade). */
   tradingFeeBps: number;
   lockLiquidity: boolean;
@@ -105,6 +149,36 @@ export function tokenBlockers(t: PoolToken): string[] {
   return out;
 }
 
+/**
+ * Why a pair token cannot be the other side of a pool here. Empty means it can. A pair is accepted only from a real read of its mint:
+ * the right program, initialised, with decimals the page knows. Token-2022 pair tokens may carry only the metadata extensions.
+ */
+export function quoteBlockers(read: QuoteRead | null, choice: QuoteChoice, tokenMint: string): string[] {
+  if (choice === 'SOL') return [];
+  if (read === null) return ['The pair token could not be read from the network, so it cannot be used.'];
+  const out: string[] = [];
+  if (read.mint === tokenMint) out.push('The pair token cannot be the token itself.');
+  if (read.mint === WSOL_MINT || read.mint === NATIVE_MINT_2022) out.push('To pair with SOL, choose SOL.');
+  if (read.program !== TOKEN_PROGRAM_ID && read.program !== TOKEN_2022_PROGRAM_ID) out.push('The pair token is not a standard token.');
+  if (!Number.isInteger(read.decimals) || read.decimals < 0 || read.decimals > 12) out.push('The pair token has a number of decimals this page does not support.');
+  if (choice === 'USDC' && (read.mint !== USDC_MINT || read.decimals !== USDC_DECIMALS)) out.push('That is not USDC as the network reports it.');
+  if (read.program === TOKEN_2022_PROGRAM_ID && read.extensions.some((e) => !ALLOWED_EXTENSIONS.includes(e)))
+    out.push('The pair token has features (such as a transfer fee or a transfer hook) that this page does not support in a pool.');
+  return out;
+}
+
+/** The quote a read describes, with the symbol people will see. */
+export function quoteFromRead(read: QuoteRead, choice: QuoteChoice): PoolQuote {
+  return {
+    mint: read.mint,
+    decimals: read.decimals,
+    symbol: choice === 'USDC' ? 'USDC' : `${read.mint.slice(0, 4)}…${read.mint.slice(-4)}`,
+    program: read.program,
+    mintable: read.mintAuthority !== null,
+    freezable: read.freezeAuthority !== null,
+  };
+}
+
 /** "0.000001" -> normalised. Null unless a plain positive decimal with at most 12 places, no exponent, and above zero. */
 export function normalisePrice(text: string): string | null {
   const m = /^(\d{1,9})(?:\.(\d{1,12}))?$/.exec(text.trim());
@@ -117,7 +191,7 @@ export function normalisePrice(text: string): string | null {
 
 export type PoolValidation = { ok: true; config: PoolConfig } | { ok: false; issues: PoolIssue[] };
 
-export function validatePool(form: PoolForm, creator: string, token: PoolToken | null): PoolValidation {
+export function validatePool(form: PoolForm, creator: string, token: PoolToken | null, quoteRead: QuoteRead | null = null): PoolValidation {
   const issues: PoolIssue[] = [];
   const add = (field: PoolIssue['field'], message: string) => issues.push({ field, message });
 
@@ -136,8 +210,19 @@ export function validatePool(form: PoolForm, creator: string, token: PoolToken |
     }
   }
 
+  // What buyers pay with. SOL needs no read; USDC and any other token are accepted only from a read of their mint.
+  const choice: QuoteChoice = QUOTE_CHOICES.includes(form.quote) ? form.quote : 'SOL';
+  let quote: PoolQuote | undefined;
+  if (choice === 'custom' && !isSolanaAddress(form.quoteMint.trim())) add('quoteMint', 'A valid token address for the pair token.');
+  else if (choice !== 'SOL') {
+    const blockers = quoteBlockers(quoteRead, choice, form.mint.trim());
+    for (const b of blockers) add(choice === 'custom' ? 'quoteMint' : 'quote', b);
+    if (blockers.length === 0 && quoteRead) quote = quoteFromRead(quoteRead, choice);
+  }
+  const pairName = quote?.symbol ?? (choice === 'SOL' ? 'SOL' : 'the pair token');
+
   const price = normalisePrice(form.price);
-  if (price === null) add('price', 'A starting price in SOL per token, like 0.000001 (up to 12 decimal places).');
+  if (price === null) add('price', `A starting price in ${pairName} per token, like 0.000001 (up to 12 decimal places).`);
 
   const fee = Number(form.tradingFeeBps);
   if (!(POOL_TRADING_FEES_BPS as readonly number[]).includes(fee)) add('tradingFeeBps', 'Choose one of the listed trading fees.');
@@ -148,7 +233,7 @@ export function validatePool(form: PoolForm, creator: string, token: PoolToken |
   if (issues.length > 0 || token === null || price === null) return { ok: false, issues };
   return {
     ok: true,
-    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, tradingFeeBps: fee, lockLiquidity: true, launchProtection: form.protection ? { startBps: LAUNCH_PROTECTION_START_BPS, minutes } : null },
+    config: { creator, mint: token.mint, decimals: token.decimals, tokenAmountRaw, price, ...(quote ? { quote } : {}), tradingFeeBps: fee, lockLiquidity: true, launchProtection: form.protection ? { startBps: LAUNCH_PROTECTION_START_BPS, minutes } : null },
   };
 }
 
@@ -172,11 +257,20 @@ export function poolCost(network: bigint): PoolCost {
 
 /** Plain-language consequences, shown before signing. Never says a pool is safe. */
 export function poolDisclosures(config: PoolConfig): { severity: 'info' | 'caution'; text: string }[] {
+  const q = quoteOf(config);
   return [
     config.lockLiquidity
-      ? { severity: 'info', text: 'The liquidity is locked for good. Nobody, you included, can take the tokens or the SOL back out of the pool. You can still claim its trading fees.' }
+      ? { severity: 'info', text: `The liquidity is locked for good. Nobody, you included, can take the tokens or the ${q.symbol} back out of the pool. You can still claim its trading fees.` }
       : { severity: 'caution', text: 'The liquidity is not locked. You can remove it at any time, which would leave holders with no market.' },
-    { severity: 'info', text: 'Only your tokens go in. Nobody can buy below the starting price, and buyers pay SOL that builds the other side of the pool.' },
+    { severity: 'info', text: `Only your tokens go in. Nobody can buy below the starting price, and buyers pay ${q.symbol} that builds the other side of the pool.` },
+    ...(q.mint === WSOL_MINT
+      ? []
+      : [
+          {
+            severity: 'caution' as const,
+            text: `The other side of the pool is ${q.symbol === 'USDC' ? 'USDC' : `the token ${q.mint}`}, not SOL. ${q.mintable ? 'Someone holds the power to create more of it. ' : ''}${q.freezable ? 'Someone holds the power to freeze balances of it, which would affect buyers and sellers in this pool. ' : ''}Its price is set by its own market, and nothing here checks it.`,
+          },
+        ]),
     ...(config.launchProtection
       ? [
           {

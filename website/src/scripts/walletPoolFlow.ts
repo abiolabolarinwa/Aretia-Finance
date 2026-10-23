@@ -8,10 +8,10 @@
  * One transaction, so there is nothing half-done to resume: either the pool exists afterwards or nothing moved.
  */
 import type * as Web3 from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID, ataAddress } from './walletTools';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress } from './walletTools';
 import { accountAmount, parseMintAccount, type AccountReader } from './walletLaunchChain';
 import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlow';
-import { POOL_NETWORK_ESTIMATE_LAMPORTS, poolCost, tokenBlockers, type PoolConfig, type PoolCost, type PoolToken } from './walletPoolCore';
+import { POOL_NETWORK_ESTIMATE_LAMPORTS, poolCost, quoteOf, tokenBlockers, type PoolConfig, type PoolCost, type PoolToken, type QuoteRead } from './walletPoolCore';
 import { METEORA_PROGRAM_ID, assemblePool, buildPool, inspectPool, type BuiltPool, type PoolLibs } from './walletPoolTx';
 
 export interface PoolSimulation {
@@ -72,6 +72,27 @@ export class PoolFlow {
     return { mint, decimals: facts.decimals, supply: facts.supply, mintAuthority: facts.mintAuthority, freezeAuthority: facts.freezeAuthority, extensions: facts.extensions, held };
   }
 
+  /**
+   * The facts of the token buyers would pay with, read from its mint account. Null when the account is missing, is not a mint of the
+   * classic token program or Token-2022, or does not read cleanly: such a pair is refused, never guessed.
+   */
+  async loadQuote(mint: string): Promise<QuoteRead | null> {
+    const { web3, fetchAccount } = this.d;
+    const acc = await fetchAccount(mint);
+    if (!acc) return null;
+    if (acc.owner === TOKEN_2022_PROGRAM_ID) {
+      const f = parseMintAccount(web3, acc.owner, acc.data);
+      return f ? { mint, program: acc.owner, decimals: f.decimals, mintAuthority: f.mintAuthority, freezeAuthority: f.freezeAuthority, extensions: f.extensions } : null;
+    }
+    if (acc.owner !== TOKEN_PROGRAM_ID || acc.data.length !== 82 || acc.data[45] !== 1) return null;
+    const v = new DataView(acc.data.buffer, acc.data.byteOffset, acc.data.byteLength);
+    // An optional key is a 4-byte tag (0 none, 1 some) then 32 bytes; any other tag is not a mint this page will describe.
+    const mintTag = v.getUint32(0, true);
+    const freezeTag = v.getUint32(46, true);
+    if (mintTag > 1 || freezeTag > 1) return null;
+    return { mint, program: acc.owner, decimals: acc.data[44]!, mintAuthority: mintTag === 1 ? 'set' : null, freezeAuthority: freezeTag === 1 ? 'set' : null, extensions: [] };
+  }
+
   async prepare(config: PoolConfig, token: PoolToken): Promise<PoolReview> {
     const { web3, libs } = this.d;
     const blockers = tokenBlockers(token);
@@ -79,7 +100,7 @@ export class PoolFlow {
     const built = await buildPool(web3, libs, config, signer.publicKey.toBase58());
     const balance = await this.d.balanceOf(config.creator);
 
-    if (await this.d.fetchAccount(built.pool)) blockers.push('A pool for this token against SOL already exists, and only one can be opened here.');
+    if (await this.d.fetchAccount(built.pool)) blockers.push(`A pool for this token against ${quoteOf(config).symbol} already exists, and only one can be opened here.`);
 
     // Trial run: tells us the exact SOL it takes, and refuses early for anything the network would refuse.
     let network = POOL_NETWORK_ESTIMATE_LAMPORTS;

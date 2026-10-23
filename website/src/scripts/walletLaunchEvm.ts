@@ -9,7 +9,12 @@ import type { ChainId } from '../swings/core/types.js';
 import { publicRead, type EvmRead } from '../swings/chains/evmSession.js';
 import { SwingsError } from '../swings/core/types.js';
 import type { EvmWalletAdapter } from '../swings/chains/evmWallet.js';
-import { fromSmallestUnit } from './walletTools';
+import type { Signer } from '../swings/account/client';
+import { EVM_META_CHAINS, type DetailIssue, type LaunchDetails } from '../swings/launchmeta/core.js';
+import { fromSmallestUnit, toSmallestUnit } from './walletTools';
+import { checkDetails, createUploader, detailsState, onDetailsChange, resetDetails, wantsDetails, NOT_SET_UP, type ChosenImage } from './walletLaunchMeta';
+import { checklistBox, detailsFields } from './walletLaunchDetailsUi';
+import { evmChecklist } from './walletLaunchChecklist';
 import {
   DEFAULT_EVM_FORM,
   chainByKey,
@@ -114,6 +119,20 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
   let acknowledged = false;
   let adapter: EvmWalletAdapter | null = null;
   let redrawNow: () => void = () => undefined;
+  let detailIssues: DetailIssue[] = [];
+  /** The picture and details frozen when the person pressed create, published once the token exists. */
+  let pendingDetails: { details: LaunchDetails; image: ChosenImage | null } | null = null;
+  let publish: { state: 'idle' | 'working' | 'done' | 'failed'; message: string } = { state: 'idle', message: '' };
+  const uploader = createUploader((): Signer | null => {
+    const account = host.getAccount();
+    const a = adapter;
+    return account && a ? { family: 'evm', address: account, sign: (m) => a.signMessage(m, account) } : null;
+  });
+  // Pictures and details can be stored where the creator can be proved from the chain: Aretia's own token factory on a main network.
+  const detailsSupported = (chain: LaunchEvmChain | undefined): boolean => !!chain && !chain.testnet && launchModeOf(chain) === 'plain' && (EVM_META_CHAINS as readonly string[]).includes(chain.key);
+  onDetailsChange((kind) => {
+    if (kind === 'image' && stage === 'form') redrawNow();
+  });
   const pool = createEvmPool({ getAccount: host.getAccount, connect: async () => ({ adapter: (await host.connect()).adapter }), readerFor: (key) => readerFor(chainByKey(key)!) });
   // Aretia's own bonding curve: off unless the site is built with PUBLIC_CURVE_ENABLED=1, and even then it does nothing on a network without a deployed contract.
   // Aretia's own pool (docs/ARETIA_POOL_EVM.md): off unless the site is built with PUBLIC_ARETIA_POOL_EVM_ENABLED=1, and even then it does nothing on a network without a deployed contract.
@@ -174,6 +193,16 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     return a;
   }
 
+  /** The checklist beside the Review button, from what is typed now. Gas is priced at Review. */
+  function formChecklist(chain: LaunchEvmChain): ReturnType<typeof evmChecklist> {
+    const mode = launchModeOf(chain) ?? 'plain';
+    const pct = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(form.poolPct.trim());
+    const poolBps = pct ? Number(pct[1]) * 100 + Number((pct[2] ?? '').padEnd(2, '0')) : 7000;
+    const coinText = form.poolCoin.trim().startsWith('.') ? `0${form.poolCoin.trim()}` : form.poolCoin.trim();
+    const poolCoinWei = mode === 'locked' ? BigInt(toSmallestUnit(coinText, 18) ?? '0') : 0n;
+    return evmChecklist({ symbol: form.symbol.trim().toUpperCase(), supplyText: form.supply.trim(), coin: chain.symbol, mode, testnet: chain.testnet, feeWei: mode === 'locked' ? (chain.launch?.feeWei ?? 0n) : chain.feeWei, poolCoinWei, poolBps: mode === 'locked' ? poolBps : 0, gasWei: null });
+  }
+
   function drawForm(card: HTMLElement, chain: LaunchEvmChain | undefined): void {
     const account = host.getAccount();
     card.append(h('h2', 'wapp__h2', `Create a token on ${chain?.name ?? 'an Ethereum-style network'}`));
@@ -193,6 +222,11 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     const row1 = h('div', 'wapp-ln__row wapp-ln__row--wide');
     row1.append(field('Name', 'name', { placeholder: 'Example Token', hint: 'Up to 32 characters.' }), field('Symbol', 'symbol', { placeholder: 'EXMP', hint: 'Letters and digits.' }));
     f.append(row1);
+    if (detailsSupported(chain)) {
+      f.append(detailsFields({ idPrefix: 'launch-evm-details', issues: detailIssues, uploader, imageNote: 'Published right after the token is created.' }));
+    } else if (chain && enabled) {
+      f.append(h('p', 'wapp__fine', `A picture, description and links can be stored for tokens made on BNB Chain, Ethereum and Polygon through Aretia’s standard factory. They are not offered on ${chain.name}.`));
+    }
     f.append(field('Total supply', 'supply', { inputmode: 'decimal', hint: 'In whole tokens. It can never be increased.' }));
     if (mode === 'locked') {
     const poolRow = h('div', 'wapp-ln__row wapp-ln__row--wide');
@@ -213,6 +247,14 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     const promiseList = h('ul', 'lh-promises');
     for (const t of [mode === 'locked' ? 'The pool is opened with your tokens and coin in the same transaction, and its liquidity is locked for good. The tokens you keep are yours; nothing locks them.' : 'The whole supply is created in your wallet in the same transaction. Nothing locks it, and nothing here sells it.', 'No owner and no mint, pause, freeze or transfer-fee function: nobody, including you and Aretia, can create more or freeze a holder.']) promiseList.append(h('li', '', t));
     f.append(promiseList);
+
+    if (chain && enabled) {
+      const check = h('div', 'lh-check-host');
+      const paint = (): void => check.replaceChildren(checklistBox(formChecklist(chain)));
+      paint();
+      f.addEventListener('input', paint);
+      f.append(check);
+    }
 
     const actions = h('div', 'wapp__row-actions');
     if (!account) {
@@ -263,6 +305,18 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       row(dl, 'All of it goes to', `You (${short(config.creator)})`);
       row(dl, 'Created by Aretia’s factory', link(short(chain.factory ?? ''), `${chain.explorer}/address/${chain.factory ?? ''}`));
     }
+    if (detailsSupported(chain) && wantsDetails()) {
+      const shown = detailsState();
+      if (shown.image) {
+        const img = h('img', 'lh-det__review');
+        img.alt = '';
+        img.src = shown.image.previewUrl;
+        row(dl, 'Picture', img);
+      }
+      if (shown.details.description) row(dl, 'Description', shown.details.description);
+      for (const [k, v] of [['Website', shown.details.website], ['X', shown.details.x], ['Telegram', shown.details.telegram]] as const) if (v) row(dl, k, v);
+      row(dl, 'Picture and details', 'Published right after the token is created. They are not part of the transaction.');
+    }
     card.append(dl);
 
     card.append(h('span', 'wapp__eyebrow', `What it costs, in ${chain.symbol}`));
@@ -286,6 +340,11 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     }
     card.append(list);
     for (const b of blockers) card.append(errorBox(b));
+    card.append(
+      checklistBox(
+        evmChecklist({ symbol: config.symbol, supplyText: amountText(config.totalSupplyRaw, config.decimals), coin: chain.symbol, mode: config.mode, testnet: chain.testnet, feeWei: config.mode === 'plain' ? chain.feeWei : (chain.launch?.feeWei ?? 0n), poolCoinWei: config.poolCoinWei, poolBps: config.poolBps, gasWei: gasCostWei }),
+      ),
+    );
 
     const ack = h('label', 'wapp__check');
     const box = h('input');
@@ -359,12 +418,27 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       void navigator.clipboard?.writeText(outcome!.token).then(() => (copy.textContent = 'Copied'));
     });
     card.append(copy);
+    if (publish.state !== 'idle') {
+      const box = h('p', publish.state === 'failed' ? 'wapp__banner wapp__banner--warn' : 'wapp__fine', publish.message);
+      box.setAttribute('role', publish.state === 'failed' ? 'alert' : 'status');
+      card.append(box);
+      if (publish.state === 'failed') {
+        const retry = h('button', 'wapp__btn wapp__btn--ghost', 'Try the picture and details again');
+        retry.type = 'button';
+        retry.addEventListener('click', () => void publishDetails());
+        card.append(retry);
+      }
+    }
     card.append(h('p', 'wapp__fine', outcome.pair ? 'The pool is open: anyone can now buy and sell this token against it. Its liquidity is locked, so nobody can take it out. To see the token in your wallet, add the token address above.' : 'Nobody can buy this token yet: a token has no market until a liquidity pool exists, and this creation did not open one. Use "Open a liquidity pool" below, which locks the liquidity for good. To see the token in your wallet, add the token address above.'));
     const again = h('button', 'wapp__btn wapp__btn--primary', 'Create another');
     again.type = 'button';
     again.addEventListener('click', () => {
       stage = 'form';
       form = { ...DEFAULT_EVM_FORM, chain: form.chain };
+      resetDetails();
+      detailIssues = [];
+      pendingDetails = null;
+      publish = { state: 'idle', message: '' };
       review = null;
       outcome = null;
       acknowledged = false;
@@ -397,9 +471,12 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     const creator = host.getAccount() ?? '';
     const v = validateEvmLaunch(form, creator);
     issues = v.ok ? [] : v.issues;
+    const useDetails = detailsSupported(chainByKey(form.chain)) && wantsDetails();
+    const details = useDetails ? checkDetails() : null;
+    detailIssues = details && !details.ok ? details.issues : [];
     error = null;
-    if (!v.ok) {
-      const formIssue = v.issues.find((i) => i.field === 'form' || i.field === 'chain');
+    if (!v.ok || detailIssues.length > 0) {
+      const formIssue = v.ok ? undefined : v.issues.find((i) => i.field === 'form' || i.field === 'chain');
       if (formIssue) error = formIssue.message;
       redrawNow();
       document.querySelector<HTMLElement>('[data-launch-root] [aria-invalid="true"]')?.focus();
@@ -408,13 +485,33 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     busy = true;
     redrawNow();
     try {
+      // Found out before anything is priced or signed, so nobody pays for a token whose picture cannot be stored.
+      if (useDetails && !(await uploader.status())) throw new Error(`${NOT_SET_UP}, so the picture, description and links cannot be saved. Clear them to create the token without, or try again later.`);
       review = await (await flowFor(v.config.chain)).prepare(v.config);
       stage = 'review';
       acknowledged = false;
     } catch (e) {
-      error = `Could not price this on the network: ${friendlyEvmError(e)}`;
+      error = e instanceof Error && e.message.startsWith(NOT_SET_UP) ? e.message : `Could not price this on the network: ${friendlyEvmError(e)}`;
     } finally {
       busy = false;
+      redrawNow();
+    }
+  }
+
+  /** After the token exists: stores its picture and details under its address. Only the wallet that created it is accepted. Can be retried. */
+  async function publishDetails(): Promise<void> {
+    const o = outcome;
+    const r = review;
+    const p = pendingDetails;
+    if (!o || !r || !p) return;
+    publish = { state: 'working', message: 'Saving the picture and details…' };
+    redrawNow();
+    try {
+      await uploader.publishEvm({ chain: r.config.chain.key, token: o.token, txHash: o.txHash, name: r.config.name, symbol: r.config.symbol, details: p.details, image: p.image });
+      publish = { state: 'done', message: 'The picture and details are saved. They appear on Aretia’s token page and Launch Box within a few minutes.' };
+    } catch (e) {
+      publish = { state: 'failed', message: `The token was created, but its picture and details were not saved: ${e instanceof Error ? e.message : 'something went wrong'}` };
+    } finally {
       redrawNow();
     }
   }
@@ -426,6 +523,9 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     stage = 'working';
     progress = 'checking';
     error = null;
+    const checked = checkDetails();
+    pendingDetails = detailsSupported(r.config.chain) && wantsDetails() && checked.ok ? { details: checked.details, image: detailsState().image } : null;
+    publish = { state: 'idle', message: '' };
     redrawNow();
     try {
       outcome = await (await flowFor(r.config.chain)).create(r, (p) => {
@@ -433,6 +533,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
         redrawNow();
       });
       stage = 'done';
+      if (pendingDetails) void publishDetails();
     } catch (e) {
       error = friendlyEvmError(e);
       stage = 'review';
@@ -480,6 +581,10 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
       acknowledged = false;
       error = null;
       adapter = null;
+      resetDetails();
+      detailIssues = [];
+      pendingDetails = null;
+      publish = { state: 'idle', message: '' };
     },
   };
 }

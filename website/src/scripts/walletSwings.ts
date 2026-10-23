@@ -40,7 +40,7 @@ import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvCh
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
-import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
+import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRows.js';
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
@@ -1470,12 +1470,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   const market = new GeckoMarket();
   const PAGE_SIZE = 50;
-  const GECKO_PAGES = 10;
 
   /** The lists come from Aretia's server, which fetches them once for everyone; if that is unreachable the page asks the source itself. */
-  async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow; page: number }): Promise<MarketRow[]> {
+  async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow }): Promise<MarketRow[]> {
     try {
-      const res = await fetch(`/api/swings-market?kind=${q.kind}&chain=${q.chain}&window=${q.window}&page=${q.page}`);
+      const res = await fetch(`/api/swings-market?kind=${q.kind}&chain=${q.chain}&window=${q.window}&recent=1`);
       if (res.ok) {
         const body = (await res.json()) as { rows?: MarketRow[] };
         if (Array.isArray(body.rows)) return body.rows;
@@ -1483,7 +1482,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     } catch {
       // fall through to the direct request
     }
-    return market.load(q);
+    return market.loadRecent(q);
   }
 
   function tokenBrowser(target: HTMLElement) {
@@ -1496,8 +1495,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let autoAge = false;
     let rows: MarketRow[] | null = null;
     const records = new Map<string, TokenRecord>();
-    // Aretia's own new-token list opens with the busiest first; the other lists keep their ranking until a column is chosen.
-    const startSort = (): TableState => (m.kind === 'new' ? { key: 'volume', dir: 'desc' } : { key: null, dir: 'desc' });
+    // Aretia's own new-token list opens with the newest first; the other lists keep their ranking until a column is chosen.
+    const startSort = (): TableState => (m.kind === 'new' ? { key: 'age', dir: 'asc' } : { key: null, dir: 'desc' });
     let tsort: TableState = startSort();
     let pageNo = 1;
     let error: string | null = null;
@@ -1681,8 +1680,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           // An answer that is not our JSON shape (an error page, a missing endpoint) must not read as "no tokens".
           if (!body || !Array.isArray(body.tokens)) throw new Error('Token discovery is unavailable right now.');
           const recs = body.tokens;
-          const filled = await rowsFromRecords(recs);
+          let filled = await rowsFromRecords(recs);
           if (mine !== seq) return;
+          // Aretia's own registry can hold fewer than 100 matching tokens on a quiet network; the newest pools of the market feed fill the list up.
+          if (filled.length < RECENT_MIN) {
+            const extra = await loadList({ kind: 'new', chain: m.chain, window: m.window }).catch(() => [] as MarketRow[]);
+            if (mine !== seq) return;
+            const have = new Set(filled.map((r) => rowKey(r.chain, r.address)));
+            filled = [...filled, ...extra.filter((r) => !have.has(rowKey(r.chain, r.address)))];
+          }
           records.clear();
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = rateRows(filled);
@@ -1695,8 +1701,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           if (mine !== seq) return;
           rows = rateRows(rated);
         } else {
-          const q = { kind: m.kind, chain: m.chain, window: m.window, page: pageNo };
-          const key = listKey(q);
+          const q = { kind: m.kind, chain: m.chain, window: m.window };
+          const key = listKey({ ...q, page: 0 });
           let got: MarketRow[];
           try {
             got = await loadList(q);
@@ -1733,14 +1739,19 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */
     function visible(): MarketRow[] {
-      return (rows ?? []).filter((r) => {
+      const pass = (r: MarketRow, withAge: boolean): boolean => {
         if (f.liquidity !== '0' && (r.liquidityUsd ?? 0) < Number(f.liquidity)) return false;
-        if (f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
+        if (withAge && f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
         const st = r.risk?.status ?? 'unknown';
         if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted' && (st === 'high' || st === 'restricted')) return false;
         if (f.risk && st !== f.risk) return false;
         return true;
-      });
+      };
+      const all = rows ?? [];
+      const strict = all.filter((r) => pass(r, true));
+      // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
+      if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
+      return strict;
     }
 
     function select(label: string, value: string, options: [string, string][], onChange: (v: string) => void): HTMLElement {
@@ -1901,13 +1912,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
-        const shown = m.kind === 'new' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: m.kind === 'new' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind === 'new') pageNo = 1; draw(); }, onOpen: pick });
+        const shown = m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
+        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: true, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: pick });
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;
         card.append(main);
-        const pages = m.kind === 'new' ? Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE)) : m.kind === 'favourites' ? 1 : GECKO_PAGES;
+        const pages = m.kind === 'favourites' ? 1 : Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE));
         main.append(pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
@@ -1955,8 +1966,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     function pager(pages: number): HTMLElement {
       const go = (n: number): void => {
         pageNo = Math.min(Math.max(n, 1), pages);
-        if (m.kind === 'new') draw();
-        else void load();
+        draw();
         target.scrollIntoView({ block: 'start' });
       };
       const arrow = (label: string, aria: string, to: number, disabled: boolean): HTMLButtonElement => {

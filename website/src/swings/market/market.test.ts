@@ -122,6 +122,46 @@ describe('the Marketplace loader', () => {
     expect(urls[2]).toContain('/networks/solana/new_pools');
   });
 
+  it('builds a recent list of at least 100 tokens: newest pools first, topped up with the busiest pools on a quiet network', async () => {
+    // A network that has only one page of new pools (20 tokens, a few days old) still gets 100 rows, the young ones ranked first.
+    const mk = (n: number, ageH: number, tag: string) => {
+      const base = pool();
+      const data = Array.from({ length: n }, (_, i) => ({ ...base.data[0]!, attributes: { ...base.data[0]!.attributes, address: `${tag}${i}`.padEnd(32, 'x'), pool_created_at: new Date(NOW - ageH * 3_600_000).toISOString() }, relationships: { network: { data: { id: 'solana' } }, base_token: { data: { id: `solana_${tag}${i}` } } } }));
+      const included = Array.from({ length: n }, (_, i) => ({ ...base.included[0]!, id: `solana_${tag}${i}`, attributes: { ...base.included[0]!.attributes, address: `${tag}${i}`.padEnd(32, 'T'), symbol: `${tag}${i}` } }));
+      return { data, included };
+    };
+    const urls: string[] = [];
+    const fetchImpl = (async (u: string) => {
+      urls.push(String(u));
+      const url = String(u);
+      const page = Number(/page=(\d+)/.exec(url)![1]);
+      if (url.includes('/new_pools')) return new Response(JSON.stringify(page === 1 ? mk(20, 24 * 3, 'N') : { data: [], included: [] }));
+      return new Response(JSON.stringify(mk(20, 24 * 40, `P${page}${url.includes('trending') ? 'x' : 'y'}`)));
+    }) as unknown as typeof fetch;
+    const rows = await new GeckoMarket(fetchImpl, () => NOW).loadRecent({ kind: 'new', chain: 'solana', window: 'h24' });
+    expect(rows.length).toBeGreaterThanOrEqual(100);
+    expect(new Set(rows.map((r) => r.address)).size).toBe(rows.length);
+    // The 3-day-old tokens come before every 40-day-old one.
+    const firstOld = rows.findIndex((r) => (r.ageMs ?? 0) > 7 * 86_400_000);
+    expect(rows.slice(0, firstOld).every((r) => (r.ageMs ?? Infinity) <= 7 * 86_400_000)).toBe(true);
+    expect(firstOld).toBe(20);
+  });
+
+  it('keeps a busy network’s recent list to its new pools, ranked for the chosen view', async () => {
+    const base = pool();
+    const mk = (page: number) => ({
+      data: Array.from({ length: 20 }, (_, i) => ({ ...base.data[0]!, attributes: { ...base.data[0]!.attributes, volume_usd: { h24: String(page * 100 + i) }, pool_created_at: new Date(NOW - 3_600_000).toISOString() }, relationships: { network: { data: { id: 'solana' } }, base_token: { data: { id: `solana_${page}_${i}` } } } })),
+      included: Array.from({ length: 20 }, (_, i) => ({ ...base.included[0]!, id: `solana_${page}_${i}`, attributes: { ...base.included[0]!.attributes, address: `${page}_${i}`.padEnd(32, 'T'), symbol: `T${page}${i}` } })),
+    });
+    const urls: string[] = [];
+    const fetchImpl = (async (u: string) => (urls.push(String(u)), new Response(JSON.stringify(mk(Number(/page=(\d+)/.exec(String(u))![1])))))) as unknown as typeof fetch;
+    const top = await new GeckoMarket(fetchImpl, () => NOW).loadRecent({ kind: 'top', chain: 'bnb', window: 'h24' });
+    expect(top).toHaveLength(120);
+    expect(urls.every((u) => u.includes('/networks/bsc/new_pools'))).toBe(true);
+    expect(top[0]!.volume24hUsd).toBe(619);
+    expect(top.map((r) => r.volume24hUsd!)).toEqual([...top.map((r) => r.volume24hUsd!)].sort((a, b) => b - a));
+  });
+
   it('builds Top and Gainers from the busiest pools of every network, and Gainers needs real liquidity and volume', async () => {
     const urls: string[] = [];
     const m = new GeckoMarket(reply(urls), () => NOW);

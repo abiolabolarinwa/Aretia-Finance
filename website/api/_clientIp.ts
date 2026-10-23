@@ -8,9 +8,23 @@
  */
 type Header = string | string[] | undefined;
 
+import { timingSafeEqual } from 'node:crypto';
+
 const one = (v: Header): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
+/** True when the request came through our own Cloudflare forwarder, which proves it with a shared secret. */
+function fromOurProxy(headers: Record<string, Header>): boolean {
+  const secret = process.env.CF_PROXY_SECRET;
+  const sent = one(headers['x-aretia-proxy-secret']);
+  if (!secret || !sent || sent.length !== secret.length) return false;
+  return timingSafeEqual(Buffer.from(sent), Buffer.from(secret));
+}
+
 export function clientIp(headers: Record<string, Header>): string {
+  if (fromOurProxy(headers)) {
+    const forwarded = one(headers['x-aretia-client-ip'])?.trim();
+    if (forwarded) return forwarded;
+  }
   const platform = one(headers['x-vercel-forwarded-for'])?.split(',')[0]?.trim();
   if (platform) return platform;
   const real = one(headers['x-real-ip'])?.trim();

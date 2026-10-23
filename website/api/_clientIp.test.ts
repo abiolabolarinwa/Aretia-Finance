@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { clientIp } from './_clientIp';
 
 describe('clientIp', () => {
@@ -37,5 +37,24 @@ describe('L-14: every public endpoint keys its rate limit on clientIp', () => {
     const handlers = readdirSync(dir).filter((f) => /^[a-z].*\.ts$/.test(f) && !f.endsWith('.test.ts'));
     for (const f of handlers) expect(readFileSync(new URL(f, dir), 'utf8'), f).not.toMatch(/x-forwarded-for[^\n]*\n?[^\n]*split\(','\)\[0\]|forwarded\?\.split\(','\)\[0\]/);
     for (const f of ['swings-quote.ts', 'swings-records.ts', 'swings-tokens.ts']) expect(readFileSync(new URL(f, dir), 'utf8'), f).toMatch(/ip: clientIp\(req\.headers\)/);
+  });
+});
+
+describe('clientIp behind the Cloudflare forwarder', () => {
+  const real = process.env.CF_PROXY_SECRET;
+  afterEach(() => {
+    if (real === undefined) delete process.env.CF_PROXY_SECRET;
+    else process.env.CF_PROXY_SECRET = real;
+  });
+  it('trusts the forwarded address only with the right secret', () => {
+    process.env.CF_PROXY_SECRET = 'shared-secret-1';
+    const base = { 'x-vercel-forwarded-for': '10.0.0.1', 'x-aretia-client-ip': '203.0.113.9' };
+    expect(clientIp({ ...base, 'x-aretia-proxy-secret': 'shared-secret-1' })).toBe('203.0.113.9');
+    expect(clientIp({ ...base, 'x-aretia-proxy-secret': 'wrong-secret-xxx' })).toBe('10.0.0.1');
+    expect(clientIp(base)).toBe('10.0.0.1');
+  });
+  it('ignores the header when no secret is configured', () => {
+    delete process.env.CF_PROXY_SECRET;
+    expect(clientIp({ 'x-vercel-forwarded-for': '10.0.0.1', 'x-aretia-client-ip': '203.0.113.9', 'x-aretia-proxy-secret': '' })).toBe('10.0.0.1');
   });
 });

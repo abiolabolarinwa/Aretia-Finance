@@ -156,3 +156,16 @@ recorded here, and each step below still needs the people and keys named.
 - `program/aretia-orders` compiles with `cargo test --no-run`, and its **5 unit tests pass** (the math).
 - The integration tests (`orders.rs`, `curve_venue.rs`, `meteora_venue.rs`) need the compiled programs from `cargo build-sbf` first and **were not run here**: they failed with "run `cargo build-sbf` before `cargo test`". So the 24 + 5 and 8 test figures are still the other sessions' reports, not re-verified.
 - The EVM contract (`contracts-evm/orders/AretiaOrders.sol`) was copied, not compiled or tested here. Its 21 tests live in the Wallet repo.
+
+### 11b. Build and tests re-run here (2026-10-23)
+
+Built on Windows with `cargo build-sbf` (Agave 4.2.1 tools), **not** `anchor build` as the runbook says (Anchor is not installed here), so these hashes
+are **not** proof of a reproducible build and must be redone with `anchor build` from a clean checkout before any deploy. They only identify what was tested.
+
+| Program | sha-256 of the `.so` |
+| --- | --- |
+| `aretia_orders.so` (197,121 bytes) | `0deea5cce7e305689427c8363a215036b8d2dbc5bdea9983df280a2917549a63` |
+| `aretia_orders_web_curve_venue.so` | `8cb41b64aca1eb66bdbef0bbc10a97196e6816b295fe4c91486141106fd17f1f` |
+| `aretia_orders_mock_venue.so` (test only) | `46e5a482282ed2be1f15fb5cb0be3fd0887da75f177a59be215c7559b542b36b` |
+
+With those built, `cargo test` in `program/aretia-orders` passes: **46 tests** (5 unit, 8 + 7 + 26 integration, in LiteSVM, including against the real Meteora and curve binaries), 0 failed. This replaces the "not run here" note in 11a for the Solana program. The binaries are not committed. Not run: the EVM contract tests, the keeper, any devnet or testnet run.

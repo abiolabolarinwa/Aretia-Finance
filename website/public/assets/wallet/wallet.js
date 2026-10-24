@@ -47,6 +47,10 @@
   var RPC_ENDPOINTS = ["https://solana-rpc.publicnode.com", "https://solana.publicnode.com"];
   var LAST_WALLET_KEY = "aretia:lastWalletName";
   var CONNECT_TIMEOUT_MS = 30000;
+  var SILENT_TIMEOUT_MS = 4000; // a silent reconnect never shows a prompt, so it should answer at once or not at all
+  var DISCONNECT_TIMEOUT_MS = 3000;
+  var RPC_TIMEOUT_MS = 6000;
+  var RECONNECT_WAIT_MS = 4000; // how long a returning visitor's wallet extension has to announce itself
   var SIGN_TIMEOUT_MS = 120000;
 
   var STORAGE_AVAILABLE = (function () {
@@ -98,7 +102,7 @@
       return "That wallet isn't installed in this browser.";
     }
     if (lower.indexOf("timeout") !== -1 || lower.indexOf("timed out") !== -1) {
-      return "The connection attempt timed out. Please try again.";
+      return "Your wallet didn't answer. Open its icon in the browser toolbar to approve or reject the request, then try again.";
     }
     if (lower.indexOf("network") !== -1 || lower.indexOf("fetch") !== -1 || lower.indexOf("rpc") !== -1) {
       return "We couldn't reach the Solana network. Please try again.";
@@ -186,7 +190,7 @@
 
   var listeners = [];
   function emit() {
-    listeners.forEach(function (fn) {
+    listeners.slice().forEach(function (fn) {
       try { fn(state); } catch (e) { /* one bad subscriber shouldn't break the rest */ }
     });
   }
@@ -207,14 +211,26 @@
     return Promise.race([promise, timeout]).finally(function () { clearTimeout(timer); });
   }
 
+  var connectInFlight = null;
+
   function connectToWallet(wallet) {
+    // A second click (or a second caller) while a request is already open joins it instead of asking the wallet again,
+    // which would otherwise show the "already pending" error.
+    if (connectInFlight && connectInFlight.wallet === wallet) return connectInFlight.promise;
+    if (connectInFlight) return Promise.reject(new Error("pending request"));
     var connectFeature = wallet.features && wallet.features["standard:connect"];
     if (!connectFeature) {
       return Promise.reject(new Error("unsupported wallet"));
     }
     state.connecting = true;
     emit();
-    return withTimeout(connectFeature.connect(), CONNECT_TIMEOUT_MS, "connection timed out")
+    var attempt;
+    try {
+      attempt = Promise.resolve(connectFeature.connect());
+    } catch (e) {
+      attempt = Promise.reject(e);
+    }
+    var promise = withTimeout(attempt, CONNECT_TIMEOUT_MS, "connection timed out")
       .then(function (result) {
         var accounts = result && result.accounts;
         if (!accounts || accounts.length === 0) throw new Error("no accounts returned");
@@ -222,17 +238,27 @@
         return accounts[0];
       })
       .finally(function () {
+        connectInFlight = null;
         state.connecting = false;
         emit();
       });
+    connectInFlight = { wallet: wallet, promise: promise };
+    return promise;
   }
 
   function tryEagerConnect(wallet) {
     var connectFeature = wallet.features && wallet.features["standard:connect"];
     if (!connectFeature) return Promise.resolve(null);
-    return connectFeature
-      .connect({ silent: true })
+    if (state.account || connectInFlight) return Promise.resolve(state.account);
+    var attempt;
+    try {
+      attempt = Promise.resolve(connectFeature.connect({ silent: true }));
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+    return withTimeout(attempt, SILENT_TIMEOUT_MS, "silent connect timed out")
       .then(function (result) {
+        if (state.account) return state.account; // the visitor connected by hand while this was running
         var accounts = result && result.accounts;
         if (accounts && accounts.length > 0) {
           onConnected(wallet, accounts[0]);
@@ -280,7 +306,7 @@
     if (wallet) {
       var disconnectFeature = wallet.features && wallet.features["standard:disconnect"];
       if (disconnectFeature) {
-        cleanup = disconnectFeature.disconnect().catch(function () {
+        cleanup = withTimeout(Promise.resolve().then(function () { return disconnectFeature.disconnect(); }), DISCONNECT_TIMEOUT_MS, "disconnect timed out").catch(function () {
           /* if the wallet's own disconnect call fails, still clear our local state below */
         });
       }
@@ -307,10 +333,28 @@
     var lastName;
     try { lastName = window.localStorage.getItem(LAST_WALLET_KEY); } catch (e) { return; }
     if (!lastName) return;
-    setTimeout(function () {
+    var done = false;
+    var timer = null;
+    var check;
+    var stop = function () {
+      done = true;
+      if (timer) clearTimeout(timer);
+      var i = listeners.indexOf(check);
+      if (i !== -1) listeners.splice(i, 1);
+    };
+    // No fixed delay: connect the moment the wallet has announced itself, whether that is already or a moment from now.
+    check = function () {
+      if (done) return;
+      if (state.account) return stop();
       var match = state.wallets.filter(function (w) { return w.name === lastName; })[0];
-      if (match) tryEagerConnect(match);
-    }, 350);
+      if (!match) return;
+      stop();
+      tryEagerConnect(match);
+    };
+    listeners.push(check);
+    // Gives up quietly: the visitor just sees "Connect Wallet", as if nothing had been remembered.
+    timer = setTimeout(stop, RECONNECT_WAIT_MS);
+    check();
   }
 
   // ------------------------------------------------------------------
@@ -420,17 +464,28 @@
   // use, since ACT's mint is Token-2022, which getParsedTokenAccountsByOwner
   // does not reliably surface without the right program-id filter.
   // ------------------------------------------------------------------
-  var mintIsValid = isValidBase58Pubkey(ACT_MINT_ADDRESS);
+  var mintIsValid = true; // re-checked in init, once @solana/web3.js is loaded; the mint is a fixed constant
   var cachedConnection = null;
 
   function getConnection() {
     if (cachedConnection) return Promise.resolve(cachedConnection);
+    if (!window.solanaWeb3) return Promise.reject(new Error("rpc unavailable"));
+    cachedConnection = new window.solanaWeb3.Connection(RPC_ENDPOINTS[0], "confirmed");
+    return Promise.resolve(cachedConnection);
+  }
+
+  // Runs one read against the first endpoint and, if it fails or is slow, once against the next. There is no
+  // separate "is it alive" call first: that cost a full round trip before every first balance.
+  function withRpc(read) {
     var i = 0;
     function tryNext() {
-      if (i >= RPC_ENDPOINTS.length) return Promise.reject(new Error("rpc unavailable"));
+      if (!window.solanaWeb3 || i >= RPC_ENDPOINTS.length) return Promise.reject(new Error("rpc unavailable"));
+      var first = i === 0;
       var endpoint = RPC_ENDPOINTS[i++];
-      var conn = new window.solanaWeb3.Connection(endpoint, "confirmed");
-      return conn.getSlot().then(function () { cachedConnection = conn; return conn; }).catch(tryNext);
+      var p = first
+        ? getConnection().then(read)
+        : Promise.resolve().then(function () { return read(new window.solanaWeb3.Connection(endpoint, "confirmed")); });
+      return withTimeout(p, RPC_TIMEOUT_MS, "rpc timed out").catch(tryNext);
     }
     return tryNext();
   }
@@ -448,7 +503,7 @@
   }
 
   function getSolBalance(address) {
-    return getConnection().then(function (connection) {
+    return withRpc(function (connection) {
       return connection.getBalance(new window.solanaWeb3.PublicKey(address), "confirmed");
     }).then(function (lamports) {
       return lamports / window.solanaWeb3.LAMPORTS_PER_SOL;
@@ -457,7 +512,7 @@
 
   function getActBalance(address) {
     if (!mintIsValid) return Promise.resolve(null); // "ACT balance unavailable", not a fabricated number
-    return getConnection().then(function (connection) {
+    return withRpc(function (connection) {
       var ata = findAta(
         new window.solanaWeb3.PublicKey(address),
         new window.solanaWeb3.PublicKey(ACT_MINT_ADDRESS),
@@ -478,6 +533,8 @@
   var listRenderPending = false;
 
   function maybeRenderList() {
+    // A wallet announcing itself must not redraw the list under a connection that is waiting on the visitor.
+    if (state.connecting) return;
     if (els.overlay && els.overlay.dataset.open === "true" && els.overlay.dataset.mode === "select") {
       renderWalletList();
     }
@@ -797,7 +854,10 @@
       var note = document.createElement("p");
       note.className = "aw-sheet-sub";
       note.style.marginTop = "-10px";
-      note.textContent = "No Solana wallet was detected in this browser yet.";
+      var touch = (navigator.maxTouchPoints || 0) > 0 && !(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
+      note.textContent = touch
+        ? "No Solana wallet was detected. On a phone, open this page inside your wallet app's built-in browser, or install a wallet below."
+        : "No Solana wallet was detected in this browser yet. If you just installed one, reload this page.";
       body.appendChild(note);
     }
 
@@ -1056,6 +1116,8 @@
   // more than once; only the first mount element found is used.
   // ------------------------------------------------------------------
   function init() {
+    mintIsValid = isValidBase58Pubkey(ACT_MINT_ADDRESS);
+    if (window.AretiaWallet) window.AretiaWallet.config.mintIsValid = mintIsValid;
     var mount = document.querySelector("[data-aretia-wallet-mount]");
     if (!mount || els.mount) return;
     buildDom(mount);

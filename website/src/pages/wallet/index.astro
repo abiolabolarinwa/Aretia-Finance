@@ -535,9 +535,9 @@ const sendTips = [
     </div>
   </div>
 
-  <script is:inline src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js" integrity="sha384-xo1g+ODR6i1cxIVZeALc/apXFHeaJHO1j1whMO3dhtdBChWeaihnDs7UnXs9ch78" crossorigin="anonymous"></script>
+  <script is:inline defer src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js" integrity="sha384-xo1g+ODR6i1cxIVZeALc/apXFHeaJHO1j1whMO3dhtdBChWeaihnDs7UnXs9ch78" crossorigin="anonymous"></script>
   <!-- ?v= busts the long browser cache on /assets (served as immutable); bump it whenever wallet.js changes. -->
-  <script is:inline src="/assets/wallet/wallet.js?v=20261005a"></script>
+  <script is:inline defer src="/assets/wallet/wallet.js?v=20261024a"></script>
   <script>
     import { initWalletApp } from '../../scripts/walletApp';
     initWalletApp();

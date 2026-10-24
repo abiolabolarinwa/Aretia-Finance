@@ -54,6 +54,8 @@ import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, t
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const MAX_MINTS = 100;
+/** How long Jupiter's balance list may lag behind the chain read before the page shows what the chain gave. */
+const JUPITER_GRACE_MS = 2500;
 
 interface WalletState {
   account: { address: string } | null;
@@ -192,12 +194,16 @@ async function discoverTokensOnChain(address: string): Promise<RawBalance[]> {
 }
 
 /** Everything the connected address holds, with names, icons and a price where one exists. */
-export async function loadHoldings(address: string): Promise<Holding[]> {
-  const [jupiter, onChain, lamports] = await Promise.allSettled([
-    fetchJupiterBalances(address),
-    discoverTokensOnChain(address),
-    rpcCall<{ value: number }>('getBalance', [address]),
-  ]);
+export async function loadHoldings(address: string, onBalances?: (rows: Holding[]) => void): Promise<Holding[]> {
+  const jupiterRead = fetchJupiterBalances(address);
+  const onChainRead = discoverTokensOnChain(address);
+  const lamportsRead = rpcCall<{ value: number }>('getBalance', [address]);
+  // Jupiter's free API is the slow one. The chain read already finds every token, so once it and the SOL balance are in,
+  // Jupiter gets only a short grace period (it adds exact amounts and decimals) instead of holding the whole list back.
+  const [onChain, lamports] = await Promise.allSettled([onChainRead, lamportsRead]);
+  const jupiterOrGrace = onChain.status === 'fulfilled' ? Promise.race([jupiterRead, new Promise<never>((_, no) => setTimeout(() => no(new Error('grace')), JUPITER_GRACE_MS))]) : jupiterRead;
+  const [jupiter] = await Promise.allSettled([jupiterOrGrace]);
+  void jupiterRead.catch(() => undefined);
   if (jupiter.status === 'rejected' && onChain.status === 'rejected') throw jupiter.reason;
   const native = lamports.status === 'fulfilled' ? lamportsToBalance(SOL_MINT, lamports.value.value) : null;
   const merged = mergeBalances(jupiter.status === 'fulfilled' ? jupiter.value : [], [
@@ -211,6 +217,13 @@ export async function loadHoldings(address: string): Promise<Holding[]> {
   const mints = entries.map(([mint]) => mint);
   const rawByMint = new Map(entries.map(([mint, , raw]) => [mint, raw] as const));
   const decimalsByMint = new Map(ordered.map((b) => [b.mint, b.decimals] as const));
+  // Balances are on screen now; names, icons and prices fill in as they arrive.
+  onBalances?.(
+    entries.map(([mint, amount]): Holding => {
+      const native = mint === SOL_MINT;
+      return { mint, symbol: native ? 'SOL' : shorten(mint), name: native ? 'Solana' : '', icon: null, amount, raw: rawByMint.get(mint) ?? null, decimals: native ? 9 : (decimalsByMint.get(mint) ?? null), price: null, priceSource: null, value: null, thin: false };
+    }),
+  );
 
   const meta = new Map<string, JupToken>();
   try {
@@ -567,6 +580,8 @@ export function initWalletApp(): void {
     }
   }
 
+  /** True between the balances arriving and their prices arriving. */
+  let pricing = false;
   function renderDashboard(error?: string): void {
     renderTopAssets();
     const total = $('[data-total]');
@@ -591,12 +606,15 @@ export function initWalletApp(): void {
     const priced = all.filter((h) => h.value !== null);
     // Thin prices are shown on their rows but not added (audit L-29): see countsTowardTotal.
     const { sum, counted, thinLeftOut } = portfolioTotal(all);
-    const { shown, hiddenUnpriced } = splitByPrice(all, isNativeMint, showUnpriced);
+    const split = splitByPrice(all, isNativeMint, showUnpriced);
+    // While prices are still coming in, every balance is listed: hiding the unpriced ones would hide them all.
+    const shown = pricing ? all : split.shown;
+    const hiddenUnpriced = pricing ? [] : split.hiddenUnpriced;
     // How many tokens the toggle governs: those with no price, other than the native coin.
     const unpricedCount = priced.length > 0 ? all.filter((h) => h.value === null && !isNativeMint(h.mint)).length : 0;
-    total.textContent = counted > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
-    renderAllocation(all, sum);
-    sub.textContent = all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced${thinLeftOut > 0 ? `; ${thinLeftOut} with a thin price not counted in the total` : ''}`;
+    total.textContent = pricing ? '…' : counted > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
+    renderAllocation(pricing ? null : all, sum);
+    sub.textContent = pricing ? `${all.length} token${all.length === 1 ? '' : 's'}; loading prices` : all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced${thinLeftOut > 0 ? `; ${thinLeftOut} with a thin price not counted in the total` : ''}`;
     if (all.length === 0) return;
 
     const mask = (t: string) => (amountsHidden ? '••••' : t);
@@ -725,6 +743,7 @@ export function initWalletApp(): void {
   async function refresh(): Promise<void> {
     const mine = ++loadToken;
     holdings = null;
+    pricing = false;
     holdingsFailed = false;
     activity = null;
     trades = null;
@@ -734,8 +753,19 @@ export function initWalletApp(): void {
     if (!address) return;
     const a = address;
     void (evmAccount ? loadEvm(evmAccount) : evmSession.resume(walletName).then(loadEvm).catch(() => undefined));
-    const [h, act] = await Promise.allSettled([loadHoldings(a), loadActivity(a)]);
+    const [h, act] = await Promise.allSettled([
+      loadHoldings(a, (rows) => {
+        // Balances first, so the list is usable while prices are still being fetched.
+        if (mine !== loadToken || holdings) return;
+        holdings = rows;
+        pricing = true;
+        renderDashboard();
+        renderSendAssets();
+      }),
+      loadActivity(a),
+    ]);
     if (mine !== loadToken) return; // the wallet changed while this was loading
+    pricing = false;
     if (h.status === 'fulfilled') {
       holdings = h.value;
       renderDashboard();

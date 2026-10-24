@@ -7,7 +7,7 @@
  * endpoint (publicnode, or the chain's own public node if publicnode will not answer), the same kind of disclosure the Solana path makes.
  */
 import { CHAINS, SwingsError, type ChainId } from '../core/types.js';
-import { discoverWallets, Eip1193WalletAdapter, type DiscoveredWallet, type Eip1193Provider, type EvmWalletAdapter } from './evmWallet.js';
+import { discoverWallets, Eip1193WalletAdapter, withDeadline, type DiscoveredWallet, type Eip1193Provider, type EvmWalletAdapter } from './evmWallet.js';
 
 export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>> = {
   ethereum: 'https://ethereum-rpc.publicnode.com',
@@ -160,6 +160,9 @@ interface EventHost {
   ethereum?: { request(args: { method: string; params?: unknown[] }): Promise<unknown> };
 }
 
+/** A quiet look at a wallet's shared accounts answers at once or not at all; a hung wallet must not hold the page. */
+const RESUME_DEADLINE_MS = 4_000;
+
 /** One connected EVM wallet at a time. */
 export class EvmSession {
   wallets: DiscoveredWallet[] = [];
@@ -185,7 +188,15 @@ export class EvmSession {
     return this.wallets;
   }
 
-  async connect(uuid: string): Promise<string> {
+  private connecting: Promise<string> | null = null;
+
+  /** A second click while a connection request is open joins it instead of sending the wallet another one. */
+  connect(uuid: string): Promise<string> {
+    this.connecting ??= this.connectOnce(uuid).finally(() => (this.connecting = null));
+    return this.connecting;
+  }
+
+  private async connectOnce(uuid: string): Promise<string> {
     const w = this.wallets.find((x) => x.info.uuid === uuid);
     if (!w) throw new SwingsError('invalid', 'That wallet is no longer available.');
     const adapter = new Eip1193WalletAdapter(w.provider);
@@ -247,7 +258,7 @@ export class EvmSession {
       if (want && w.info.name.toLowerCase() !== want) continue;
       try {
         const adapter = new Eip1193WalletAdapter(w.provider);
-        const first = (await adapter.getAccounts())[0];
+        const first = (await withDeadline(adapter.getAccounts(), RESUME_DEADLINE_MS))[0];
         if (!first) continue;
         this.adapter = adapter;
         this.provider = w.provider;

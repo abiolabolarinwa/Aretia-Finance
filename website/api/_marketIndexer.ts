@@ -1,7 +1,7 @@
 /**
  * Market Indexer over HTTP, three routes of swings-data (the Hobby plan caps the project at twelve functions, so none is added):
  *   GET  /api/v1/...        the public, versioned read API (src/swings/mi/api.ts). Rate limited per IP, cached, CORS open for GET.
- *   GET  /api/mi-run        the scheduled indexer run (Authorization: Bearer CRON_SECRET only).
+ *   GET  /api/mi-run        the scheduled indexer run (Authorization: Bearer MI_CRON_SECRET; CRON_SECRET only when MI_CRON_SECRET is not set).
  *   POST /api/swings-mi-admin   owner controls with an audit log: disable or enable an adapter, pause or resume a market, queue a
  *                           backfill, requeue a stuck job, read the overview. Same sign-in and allow-list as the admin page.
  * Secrets (SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, node URLs) stay in the server environment; none is ever put in a response.
@@ -25,6 +25,8 @@ import type { BackfillJob } from '../src/swings/mi/types.js';
 
 export interface MiEnv extends AdminEnv, RunnerEnv {
   CRON_SECRET?: string;
+  /** A secret just for the indexer's schedule. When set, it is the only one accepted here, so the site's other schedules keep their own. */
+  MI_CRON_SECRET?: string;
   [k: string]: string | undefined;
 }
 export interface MiInput {
@@ -93,7 +95,7 @@ export async function handleMi(input: MiInput, storeOverride?: MiStore): Promise
 // ---------------------------------------------------------------------------------------------- scheduled run
 
 export async function handleMiRun(input: MiInput, storeOverride?: MiStore): Promise<MiOutput> {
-  if (!bearerMatches(input.authorization, input.env.CRON_SECRET?.trim())) return json(401, { error: 'unauthorized' });
+  if (!bearerMatches(input.authorization, (input.env.MI_CRON_SECRET?.trim() || input.env.CRON_SECRET?.trim()) || undefined)) return json(401, { error: 'unauthorized' });
   if (input.method !== 'GET' && input.method !== 'POST') return json(405, { error: 'method' }, { allow: 'GET, POST' });
   const store = storeOverride ?? storeFor(input.env, input.fetchImpl, Date.now);
   if (!store) return NOT_CONFIGURED();

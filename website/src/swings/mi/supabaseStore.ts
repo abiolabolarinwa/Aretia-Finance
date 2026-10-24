@@ -16,7 +16,10 @@ export class MiMissingTableError extends Error {
 type Row = Record<string, unknown>;
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 const nz = (v: unknown): number => n(v) ?? 0;
+/** A value for a PostgREST list or `or(...)` group, where quoting is read as quoting. */
 const q = (v: string): string => `"${v.replace(/[^A-Za-z0-9:._-]/g, '')}"`;
+/** A value after a plain `eq.`: PostgREST takes quote marks there literally (the value would then match nothing), so none are added. */
+const plain = (v: string): string => v.replace(/[^A-Za-z0-9:._-]/g, '');
 const clampLimit = (v: number, max = 1000): number => Math.max(1, Math.min(max, Math.floor(v)));
 export const MAX_OFFSET = 5_000;
 
@@ -211,13 +214,13 @@ export class SupabaseMiStore implements MiStore {
   private tradeFromRow = (r: Row): MiTrade => ({ chain: r.chain as MiChain, pool: String(r.pool), id: String(r.id), block: nz(r.block), blockHash: String(r.block_hash), time: nz(r.time), side: r.side as 'buy' | 'sell', baseAmount: String(r.base_amount), quoteAmount: String(r.quote_amount), price: String(r.price), maker: String(r.maker) });
   async recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
     const b = before !== undefined ? `&time=lt.${Math.floor(before)}` : '';
-    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}${b}&select=*&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
+    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}${b}&select=*&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
   }
   async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
-    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}&time=gte.${Math.floor(fromSec)}&select=*&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
+    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}&select=*&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
   }
   async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
-    const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${q(pool)}&time=lt.${Math.floor(beforeSec)}&select=*&order=time.desc,block.desc,id.desc&limit=1`);
+    const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=lt.${Math.floor(beforeSec)}&select=*&order=time.desc,block.desc,id.desc&limit=1`);
     return r[0] ? this.tradeFromRow(r[0]) : null;
   }
   async pruneTrades(beforeSec: number, limit: number): Promise<number> {
@@ -225,7 +228,7 @@ export class SupabaseMiStore implements MiStore {
     const old = await this.rows(`mi_trades?time=lt.${Math.floor(beforeSec)}&select=chain,pool,id&order=time.asc&limit=${clampLimit(limit, 2_000)}`);
     let n = 0;
     for (const r of old) {
-      await this.call(`mi_trades?chain=eq.${q(String(r.chain))}&pool=eq.${q(String(r.pool))}&id=eq.${q(String(r.id))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
+      await this.call(`mi_trades?chain=eq.${plain(String(r.chain))}&pool=eq.${plain(String(r.pool))}&id=eq.${plain(String(r.id))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       n++;
     }
     return n;

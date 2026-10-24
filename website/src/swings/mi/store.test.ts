@@ -154,6 +154,18 @@ describe('Supabase store request shapes', () => {
     expect(poolFromRow(rows[0]!).createdBlock).toBe(5);
   });
 
+  it('filters the trades of a pool with unquoted values (PostgREST reads quote marks after eq. literally and would match nothing)', async () => {
+    const { calls, store } = stub();
+    const pool = '0x' + 'c3'.repeat(20);
+    await store.tradesSince('bnb', pool, 100, 10);
+    await store.recentTrades('bnb', pool, 5);
+    await store.lastTradeBefore('bnb', pool, 100);
+    for (const c of calls) {
+      expect(c.url).toContain(`pool=eq.${pool}&`);
+      expect(c.url).not.toContain(`eq."`);
+    }
+  });
+
   it('rejects a table that does not exist with a clear error', async () => {
     const fetchImpl = (async () => new Response('{"code":"PGRST205","message":"schema cache"}', { status: 404 })) as unknown as typeof fetch;
     await expect(new SupabaseMiStore('https://x.supabase.co', 'k', fetchImpl).getCheckpoint('a')).rejects.toThrow(/0017/);

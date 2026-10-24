@@ -131,3 +131,30 @@ describe('loadHoldings', () => {
     expect(holdings[0]!.mint).toBe(SOL);
   });
 });
+
+describe('loadHoldings speed', () => {
+  it('hands over the balances before any price has been fetched', async () => {
+    const calls = stubNetwork({ jupiterBalances: {}, spl: [tokenAccount(OLD_TOKEN, '2500000', 6, '2.5')], lamports: 1_000_000_000, prices: { [OLD_TOKEN]: 2 } });
+    let seenBeforePrices: string[] | null = null;
+    await loadHoldings(OWNER, (rows) => {
+      if (calls.some((u) => hostOf(u) === 'lite-api.jup.ag' && u.includes('/tokens/v2/search'))) return;
+      seenBeforePrices = rows.map((r) => r.mint).sort();
+      expect(rows.every((r) => r.price === null)).toBe(true);
+    });
+    expect(seenBeforePrices).toEqual([OLD_TOKEN, SOL].sort());
+  });
+
+  it('does not wait out a Jupiter balance list that never answers once the chain has answered', async () => {
+    vi.useFakeTimers();
+    try {
+      stubNetwork({ spl: [tokenAccount(OLD_TOKEN, '7', 0, '7')], lamports: 2_000_000_000 });
+      const chainStub = globalThis.fetch;
+      vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => (String(input).includes('/ultra/v1/balances') ? new Promise<Response>(() => undefined) : chainStub(input, init)));
+      const done = loadHoldings(OWNER);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect((await done).map((h) => h.mint).sort()).toEqual([SOL, OLD_TOKEN].sort());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

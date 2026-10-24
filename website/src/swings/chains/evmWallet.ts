@@ -129,6 +129,17 @@ export const CHAIN_ADD_PARAMS: Readonly<Record<number, { chainName: string; nati
   4663: { chainName: 'Robinhood Chain', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'], blockExplorerUrls: ['https://robinhoodchain.blockscout.com'] },
 };
 
+/** How long a connection request may stay unanswered before the page says so instead of waiting on it for ever. */
+export const CONNECT_DEADLINE_MS = 90_000;
+/** Rejects after `ms` if the promise has not settled; the wallet's own prompt stays open and can still be answered. */
+export function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, no) => {
+    timer = setTimeout(() => no(new SwingsError('invalid', "Your wallet didn't answer. Open its icon in the browser toolbar to approve or reject the request, then try again.")), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 const isUserRejection = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { code?: number }).code === 4001;
 
 /** EvmWalletAdapter over any EIP-1193 provider. */
@@ -141,10 +152,13 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
 
   async connect(): Promise<string[]> {
     try {
-      return this.addresses(await this.request('eth_requestAccounts'));
+      return this.addresses(await withDeadline(this.request('eth_requestAccounts'), CONNECT_DEADLINE_MS));
     } catch (e) {
       if (isUserRejection(e)) throw new SwingsError('rejected', 'The wallet connection was declined.');
-      throw e;
+      // -32002: the wallet already has a connection request open (a second click, or a window left behind).
+      if ((e as { code?: number } | null)?.code === -32002) throw new SwingsError('invalid', 'Your wallet already has a request waiting. Open its icon in the browser toolbar, approve or reject it, then try again.');
+      if (e instanceof SwingsError) throw e;
+      throw new SwingsError('invalid', "Your wallet didn't connect. If it is locked, unlock it and try again.");
     }
   }
 

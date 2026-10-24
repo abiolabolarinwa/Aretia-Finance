@@ -28,7 +28,7 @@
     "@fontsource-variable/newsreader": "^5.3.0",
     "@meteora-ag/cp-amm-sdk": "1.4.9",
     "@noble/curves": "1.9.7",
-    "@solana/web3.js": "^1.99.0",
+    "@solana/web3.js": "^3.1.1",
     "@walletconnect/ethereum-provider": "^2.25.0",
     "astro": "^7.3.5",
     "bn.js": "5.2.3",

@@ -38,7 +38,7 @@ import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.
 import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
-import { fetchIndexedPages, fetchIndexedRows, mergeIndexRows } from '../swings/mi/clientRows.js';
+import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1490,7 +1490,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function tokenBrowser(target: HTMLElement) {
     // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
     // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
-    type Kind = MarketKind | 'new' | 'favourites' | 'ix-new' | 'ix-trending';
+    type Kind = MarketKind | 'new' | 'favourites';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
     /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
@@ -1498,7 +1498,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let rows: MarketRow[] | null = null;
     const records = new Map<string, TokenRecord>();
     // Aretia's own new-token list opens with the newest first; the other lists keep their ranking until a column is chosen.
-    const startSort = (): TableState => (m.kind === 'new' || m.kind === 'ix-new' ? { key: 'age', dir: 'asc' } : { key: null, dir: 'desc' });
+    const startSort = (): TableState => (m.kind === 'new' ? { key: 'age', dir: 'asc' } : { key: null, dir: 'desc' });
     let tsort: TableState = startSort();
     let pageNo = 1;
     let error: string | null = null;
@@ -1666,12 +1666,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         draw();
       }
       try {
-        if (m.kind === 'ix-new' || m.kind === 'ix-trending') {
-          const got = await fetchIndexedRows(m.kind === 'ix-new' ? 'new' : 'trending', m.chain, Date.now());
-          if (mine !== seq) return;
-          staleAt = null;
-          rows = rateRows(got);
-        } else if (m.kind === 'new') {
+        if (m.kind === 'new') {
           const q = new URLSearchParams();
           if (m.chain) q.set('chain', m.chain);
           if (f.age !== '0') q.set('maxAgeHours', f.age);
@@ -1700,6 +1695,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           records.clear();
           for (const r of recs) records.set(rowKey(r.ref.chain, r.ref.address), r);
           rows = rateRows(filled);
+          // The index's markets for this chain are added to New as well, de-duplicated.
+          void addIndexRows(mine);
         } else if (m.kind === 'favourites') {
           // Favourites are one list, whichever network each token is on.
           const favs = favourites.list();
@@ -1751,7 +1748,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
      * what it holds beyond the feed is added below it (up to 3000), so the list can be paged through further as the index grows.
      */
     async function addIndexRows(mine: number): Promise<void> {
-      if (m.kind === 'new' || m.kind === 'favourites' || m.kind === 'ix-new' || m.kind === 'ix-trending') return;
+      if (m.kind === 'favourites') return;
       try {
         const extra = await fetchIndexedPages(m.chain, Date.now());
         if (mine !== seq || extra.length === 0 || rows === null) return;
@@ -1868,7 +1865,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool'], ['ix-new', 'Index: new pairs', 'Markets Aretia reads itself from the chain, newest first. Prices, volume and charts come from Aretia’s own stored trades.'], ['ix-trending', 'Index: trending', 'Ranked on real trading with safeguards against faked activity. Paid placements are never mixed in.']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {

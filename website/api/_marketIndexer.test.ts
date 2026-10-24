@@ -224,6 +224,17 @@ describe('owner controls', () => {
   });
 });
 
+describe('scheduled run secret', () => {
+  it('uses MI_CRON_SECRET alone when it is set, and CRON_SECRET otherwise', async () => {
+    const { store } = await seeded();
+    const call = (e: MiEnv, auth: string) => handleMiRun({ method: 'GET', query: {}, authorization: auth, ip: '1.1.1.1', env: e, fetchImpl: nofetch, now: 1 }, store);
+    const both = { ...env, MI_CRON_SECRET: 'indexer-only' };
+    expect((await call(both, 'Bearer cron-secret')).status).toBe(401);
+    expect((await call(both, 'Bearer indexer-only')).status).not.toBe(401);
+    expect((await call(env, 'Bearer cron-secret')).status).not.toBe(401);
+  });
+});
+
 describe('scheduled run', () => {
   it('needs the cron secret', async () => {
     const { store } = await seeded();

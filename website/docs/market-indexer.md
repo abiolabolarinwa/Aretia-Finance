@@ -20,7 +20,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | Name | Purpose | Default |
 |---|---|---|
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | storage (already set for the site) | required |
-| `CRON_SECRET` | authorises `GET /api/mi-run` | required to run |
+| `MI_CRON_SECRET` | authorises `GET /api/mi-run`; when set it is the only secret accepted there, so the other schedules keep `CRON_SECRET` | falls back to `CRON_SECRET` |
 | `ADMIN_WALLETS`, `SWINGS_SESSION_SECRET` | owner controls (already set for the admin page) | required for controls |
 | `MI_ADAPTERS` | comma list of adapter ids (EVM such as `uniswap-v3-base`, Solana `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`), or `*` | `pancakeswap-v2-bnb` |
 | `MI_RPC_<CHAIN>` or `EVM_RPC_<CHAIN>` | a dedicated node URL (https) for a chain; tried before the public nodes. Solana: `MI_RPC_SOLANA` or the existing `SOLANA_RPC_URL` | public nodes |
@@ -36,7 +36,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 ## Deployment steps
 
 1. Apply the migrations: `npm run db:migrate` (needs `DATABASE_URL`) or paste `supabase/migrations/0017_market_indexer.sql` and then `0018_market_indexer_solana.sql` into the Supabase SQL editor.
-2. Make sure `CRON_SECRET` is set on the site. Optionally set `MI_RPC_BNB` to a dedicated node.
+2. Set `MI_CRON_SECRET` on the site to a long random string (or rely on `CRON_SECRET`). Optionally set `MI_RPC_BNB` to a dedicated node.
 3. Schedule the run every minute: paste `supabase/cron/market-indexer-every-minute.sql` (after replacing the secret) into the Supabase SQL editor. The Vercel Hobby cron is daily only, so it is not used.
 4. Check `GET /api/v1/status`: the adapter should read `ok` within a few minutes, and `GET /api/v1/pools/new?chain=bnb` should list markets.
 5. Switch on further adapters one at a time (`MI_ADAPTERS=pancakeswap-v2-bnb,uniswap-v3-bnb`), watching `lagBlocks`.

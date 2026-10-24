@@ -1778,6 +1778,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     }
 
     /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */
+    /** How many of the tokens listed clear the open tab's bar (the first that many rows). */
+    let modeCount = 0;
     function visible(): MarketRow[] {
       const pass = (r: MarketRow, withAge: boolean): boolean => {
         if (f.liquidity !== '0' && (r.liquidityUsd ?? 0) < Number(f.liquidity)) return false;
@@ -1791,8 +1793,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const strict = all.filter((r) => pass(r, true));
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
       if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
-      // Trending, Top and Gainers each keep only what clears their bar in the chosen window, best first.
-      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') return modeRows(m.kind, m.window, strict);
+      // Trending, Top and Gainers put what clears their bar in the chosen window first, best first; the rest follow.
+      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') {
+        const ranked = modeRows(m.kind, m.window, strict);
+        modeCount = ranked.count;
+        return ranked.rows;
+      }
       return strict;
     }
 
@@ -1943,8 +1949,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
-      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window) }));
       const shownRows = visible();
+      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));

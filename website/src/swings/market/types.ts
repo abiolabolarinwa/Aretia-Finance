@@ -32,6 +32,10 @@ export interface MarketRow {
   volume24hUsd: number | null;
   /** People who traded in 24h (buyers plus sellers), when the source counts them. */
   traders24h: number | null;
+  /** Traded value in each window, in US dollars, when the source gives it. */
+  volumeUsd?: Changes;
+  /** Trades (buys plus sells) in each window, when the source gives it. */
+  txns?: Changes;
   change: Changes;
   liquidityUsd: number | null;
   /** Share of the pool's liquidity proven burned, when Aretia checked and found some; otherwise null. */

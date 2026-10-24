@@ -39,17 +39,32 @@ export function highDemand(r: MarketRow, w: ModeWindow): boolean {
   return v !== null && t !== null && v >= DEMAND[w].volume && t >= DEMAND[w].trades;
 }
 
-export function modeRows(kind: ModeKind, w: ModeWindow, rows: readonly MarketRow[]): MarketRow[] {
-  const demanded = rows.filter((r) => highDemand(r, w));
-  if (kind === 'trending') return [...demanded].sort((a, b) => (volumeIn(b, w) ?? 0) - (volumeIn(a, w) ?? 0));
-  if (kind === 'top') return demanded.filter((r) => (r.change[w] ?? -Infinity) >= TOP_GAIN[w]).sort((a, b) => (b.change[w] ?? 0) - (a.change[w] ?? 0));
-  return demanded.filter((r) => WINDOWS.every((x) => (r.change[x] ?? -Infinity) >= GAINER_FLOOR[x])).sort((a, b) => (b.change[w] ?? 0) - (a.change[w] ?? 0));
+/**
+ * The whole list, ordered by the tab's rule: the tokens that clear the bar come first, best first, and every other token follows
+ * in the same order of merit. Nothing is removed, so a list never shrinks; `count` says how many clear the bar.
+ */
+export function modeRows(kind: ModeKind, w: ModeWindow, rows: readonly MarketRow[]): { rows: MarketRow[]; count: number } {
+  const merit = (r: MarketRow): number => (kind === 'trending' ? (volumeIn(r, w) ?? -1) : (r.change[w] ?? -Infinity));
+  const clears = (r: MarketRow): boolean => {
+    if (!highDemand(r, w)) return false;
+    if (kind === 'trending') return true;
+    if (kind === 'top') return (r.change[w] ?? -Infinity) >= TOP_GAIN[w];
+    return WINDOWS.every((x) => (r.change[x] ?? -Infinity) >= GAINER_FLOOR[x]);
+  };
+  const byMerit = (a: MarketRow, b: MarketRow): number => merit(b) - merit(a);
+  const passing = rows.filter(clears).sort(byMerit);
+  const rest = rows.filter((r) => !clears(r)).sort(byMerit);
+  return { rows: [...passing, ...rest], count: passing.length };
 }
 
 /** The rule in words, shown above the table. */
-export function modeNote(kind: ModeKind, w: ModeWindow): string {
+export function modeNote(kind: ModeKind, w: ModeWindow, count: number, total: number): string {
   const demand = `at least $${DEMAND[w].volume.toLocaleString('en-US')} traded and ${DEMAND[w].trades} trades in ${WORD[w]}`;
-  if (kind === 'trending') return `Trending: tokens with high demand (${demand}), busiest first.`;
-  if (kind === 'top') return `Top: tokens up ${TOP_GAIN[w]}% or more in ${WORD[w]}, with high demand (${demand}), biggest gain first.`;
-  return `Gainers: tokens up in every window (5M ${GAINER_FLOOR.m5}%+, 1H ${GAINER_FLOOR.h1}%+, 6H ${GAINER_FLOOR.h6}%+, 24H ${GAINER_FLOOR.h24}%+), with high demand in ${WORD[w]}, biggest ${WORD[w]} gain first.`;
+  const rule =
+    kind === 'trending'
+      ? `high demand (${demand})`
+      : kind === 'top'
+        ? `up ${TOP_GAIN[w]}% or more in ${WORD[w]} with high demand (${demand})`
+        : `up in every window (5M ${GAINER_FLOOR.m5}%+, 1H ${GAINER_FLOOR.h1}%+, 6H ${GAINER_FLOOR.h6}%+, 24H ${GAINER_FLOOR.h24}%+) with high demand in ${WORD[w]}`;
+  return `${count} of ${total} tokens are ${rule}. They are listed first; the rest follow in the same order.`;
 }

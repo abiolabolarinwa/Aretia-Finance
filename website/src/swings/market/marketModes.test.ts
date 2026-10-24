@@ -21,17 +21,29 @@ describe('Markets tabs', () => {
     row('SPIKE', { vol: 60_000, tx: 600, ch: [30, -5, 2, 10] }),
   ];
 
-  it('Trending keeps only high demand, busiest first', () => {
-    expect(modeRows('trending', 'h24', rows).map((r) => r.symbol)).toEqual(['BUSIER', 'BUSY', 'SPIKE', 'RUNNER']);
+  const order = (kind: 'trending' | 'top' | 'gainers', w: 'm5' | 'h1' | 'h6' | 'h24') => modeRows(kind, w, rows);
+
+  it('Trending lists the high-demand tokens first, busiest first, and keeps every other token after them', () => {
+    const out = order('trending', 'h24');
+    expect(out.count).toBe(4);
+    expect(out.rows.map((r) => r.symbol)).toEqual(['BUSIER', 'BUSY', 'SPIKE', 'RUNNER', 'QUIET']);
   });
 
-  it('Top keeps only significant gains in the chosen window, biggest first', () => {
-    expect(modeRows('top', 'h24', rows).map((r) => r.symbol)).toEqual(['RUNNER']);
-    expect(modeRows('top', 'm5', rows).map((r) => r.symbol)).toEqual(['SPIKE', 'RUNNER']);
+  it('Top lists significant gains in the chosen window first, then the rest by gain', () => {
+    expect(order('top', 'h24').rows.map((r) => r.symbol)).toEqual(['RUNNER', 'QUIET', 'BUSIER', 'SPIKE', 'BUSY']);
+    expect(order('top', 'h24').count).toBe(1);
+    expect(order('top', 'm5').rows.slice(0, 2).map((r) => r.symbol)).toEqual(['SPIKE', 'RUNNER']);
   });
 
-  it('Gainers needs a gain in every window at once', () => {
-    expect(modeRows('gainers', 'h24', rows).map((r) => r.symbol)).toEqual(['RUNNER', 'BUSIER']);
+  it('Gainers lists tokens up in every window first, then the rest', () => {
+    const out = order('gainers', 'h24');
+    expect(out.rows.slice(0, out.count).map((r) => r.symbol)).toEqual(['RUNNER', 'BUSIER']);
+    expect(out.rows).toHaveLength(rows.length);
+  });
+
+  it('never drops a token: a long list stays long on every tab and window', () => {
+    const many = Array.from({ length: 1500 }, (_, i) => row(`T${i}`, { vol: i % 7 === 0 ? 90_000 : 10, tx: i % 7 === 0 ? 900 : 1, ch: [i % 5, i % 9, i % 13, i % 17] }));
+    for (const kind of ['trending', 'top', 'gainers'] as const) for (const w of ['m5', 'h1', 'h6', 'h24'] as const) expect(modeRows(kind, w, many).rows).toHaveLength(1500);
   });
 
   it('a token with no figure for a window is left out of it, not guessed at', () => {
@@ -41,7 +53,7 @@ describe('Markets tabs', () => {
   });
 
   it('says the rule in words', () => {
-    expect(modeNote('trending', 'm5')).toMatch(/high demand.*5M/);
-    expect(modeNote('gainers', 'h1')).toMatch(/every window/);
+    expect(modeNote('trending', 'm5', 120, 900)).toMatch(/120 of 900 tokens are high demand.*5M/);
+    expect(modeNote('gainers', 'h1', 3, 900)).toMatch(/every window/);
   });
 });

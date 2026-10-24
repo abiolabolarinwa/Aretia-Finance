@@ -38,7 +38,7 @@ import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.
 import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
-import { fetchIndexedRows } from '../swings/mi/clientRows.js';
+import { fetchIndexedPages, fetchIndexedRows, mergeIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1732,6 +1732,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
           rows = rateRows(rated);
+          void addIndexRows(mine);
         }
         error = null;
       } catch (e) {
@@ -1743,6 +1744,24 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // A refresh never redraws over an open token page: moving its chart frame would reload the chart.
       if (silent && page) return;
       draw();
+    }
+
+    /**
+     * The market feed serves about 200 tokens a list at most. Once it is on screen, Aretia's own index is read in the background and
+     * what it holds beyond the feed is added below it (up to 3000), so the list can be paged through further as the index grows.
+     */
+    async function addIndexRows(mine: number): Promise<void> {
+      if (m.kind === 'new' || m.kind === 'favourites' || m.kind === 'ix-new' || m.kind === 'ix-trending') return;
+      try {
+        const extra = await fetchIndexedPages(m.chain, Date.now());
+        if (mine !== seq || extra.length === 0 || rows === null) return;
+        const merged = mergeIndexRows(rows, extra);
+        if (merged.length === rows.length) return;
+        rows = rateRows(merged);
+        if (!page) draw();
+      } catch {
+        // The index is an addition: the feed's list stays as it was.
+      }
     }
 
     /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */

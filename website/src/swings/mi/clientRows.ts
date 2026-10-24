@@ -101,3 +101,60 @@ export async function fetchIndexedRows(kind: 'new' | 'trending', chain: string, 
   const list = kind === 'trending' ? (body.data as { ranked?: unknown } | undefined)?.ranked : body.data;
   return marketRowsFromPools(list, now);
 }
+
+/** Most index rows a Markets list takes in; at 100 a page that is thirty requests, made one after another. */
+export const INDEX_MAX_ROWS = 3000;
+const INDEX_PAGE = 100;
+const INDEX_TTL_MS = 60_000;
+const indexCache = new Map<string, { at: number; rows: MarketRow[] }>();
+
+/**
+ * Pages through the index's newest markets by cursor, for a Markets list to add to what the market feed gave. A failed page
+ * ends the walk and what was read so far is kept, so a busy index never empties a list. Answers are kept for a minute, so the
+ * list's own refresh does not read thirty pages again.
+ */
+export async function fetchIndexedPages(
+  chain: string,
+  now: number,
+  opts: { max?: number; fetchImpl?: typeof fetch; onPage?: (rows: MarketRow[]) => void } = {},
+): Promise<MarketRow[]> {
+  const max = Math.min(opts.max ?? INDEX_MAX_ROWS, INDEX_MAX_ROWS);
+  const fetchImpl = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+  const hit = indexCache.get(chain);
+  if (hit && now - hit.at < INDEX_TTL_MS) return hit.rows;
+  const rows: MarketRow[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < Math.ceil(max / INDEX_PAGE); page++) {
+    const q = new URLSearchParams({ limit: String(INDEX_PAGE) });
+    if (chain) q.set('chain', chain);
+    if (cursor) q.set('cursor', cursor);
+    try {
+      const res = await fetchImpl(`/api/v1/pools/new?${q}`, { headers: { accept: 'application/json' } });
+      if (!res.ok) break;
+      const body = (await res.json()) as { data?: unknown; meta?: { nextCursor?: unknown } };
+      rows.push(...marketRowsFromPools(body.data, now));
+      opts.onPage?.(rows);
+      cursor = typeof body.meta?.nextCursor === 'string' && body.meta.nextCursor ? body.meta.nextCursor : null;
+    } catch {
+      break;
+    }
+    if (!cursor) break;
+  }
+  const kept = rows.slice(0, max);
+  if (kept.length > 0) indexCache.set(chain, { at: now, rows: kept });
+  return kept;
+}
+
+/** `base` first, then the index rows it does not already hold (one row per token, matched on network and address). */
+export function mergeIndexRows(base: readonly MarketRow[], extra: readonly MarketRow[]): MarketRow[] {
+  const key = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`;
+  const seen = new Set(base.map(key));
+  const added: MarketRow[] = [];
+  for (const r of extra) {
+    const k = key(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    added.push(r);
+  }
+  return [...base, ...added];
+}

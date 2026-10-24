@@ -185,6 +185,11 @@ export class EvmSession {
 
   async discover(): Promise<DiscoveredWallet[]> {
     this.wallets = await discoverWallets(this.host);
+    // An extension can announce itself a moment after the page loads; two more looks, only when nothing was found, catch it.
+    for (const wait of [600, 1400]) {
+      if (this.wallets.length > 0) break;
+      this.wallets = await discoverWallets(this.host, wait);
+    }
     return this.wallets;
   }
 

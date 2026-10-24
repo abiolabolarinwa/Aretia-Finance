@@ -1951,7 +1951,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: pick });
+        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: pick });
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;

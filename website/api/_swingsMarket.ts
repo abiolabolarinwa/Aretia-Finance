@@ -14,6 +14,8 @@ import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 const KINDS: readonly string[] = ['trending', 'top', 'gainers', 'new'];
 const WINDOWS: readonly string[] = ['m5', 'h1', 'h6', 'h24'];
 const FRESH_MS = 60_000;
+/** A page of the deep lists (a network's busiest pools, page 2 to 10) changes slowly, and each is one request to the source, so it is kept longer. */
+const DEEP_FRESH_MS = 600_000;
 const STALE_MS = 6 * 3_600_000;
 
 const lists = new Map<string, { at: number; rows: MarketRow[] }>();
@@ -34,8 +36,10 @@ export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   const recent = input.query.recent === '1';
   const key = `${kind}|${chain}|${window}|${recent ? 'recent' : page}`;
   const hit = lists.get(key);
-  const ok = (rows: MarketRow[], stale: boolean): TokensOutput => json(200, { rows, stale }, { ...headers, 'cache-control': stale ? 'no-store' : 'public, s-maxage=60, stale-while-revalidate=86400' });
-  if (hit && input.now - hit.at < FRESH_MS) return ok(hit.rows, false);
+  const ok = (rows: MarketRow[], stale: boolean): TokensOutput => json(200, { rows, stale }, { ...headers, 'cache-control': stale ? 'no-store' : `public, s-maxage=${deep ? 600 : 60}, stale-while-revalidate=86400` });
+  const deep = !recent && kind === 'top' && chain !== '';
+  const fresh = deep ? DEEP_FRESH_MS : FRESH_MS;
+  if (hit && input.now - hit.at < fresh) return ok(hit.rows, false);
   if (overLimit(`market:${input.ip}`, input.now)) return hit ? ok(hit.rows, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
   const source = new GeckoMarket(input.fetchImpl, () => input.now, 0, undefined, input.sleep);
   try {

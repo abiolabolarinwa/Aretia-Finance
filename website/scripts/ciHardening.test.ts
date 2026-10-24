@@ -4,7 +4,7 @@ import { gateProblems, highAdvisories } from './auditGateCore.mjs';
 
 const workflowsDir = new URL('../../.github/workflows/', import.meta.url);
 
-describe('ARETIA-SEC-007: every third-party action is pinned to a commit', () => {
+describe('every third-party action is pinned to a commit', () => {
   it('has no `uses:` line with a tag or branch instead of a 40-character commit', () => {
     const offenders: string[] = [];
     for (const f of readdirSync(workflowsDir).filter((n) => n.endsWith('.yml'))) {
@@ -22,7 +22,7 @@ describe('ARETIA-SEC-007: every third-party action is pinned to a commit', () =>
   });
 });
 
-describe('ARETIA-SEC-008: the dependency-advisory gate', () => {
+describe('the dependency-advisory gate', () => {
   const report = {
     vulnerabilities: {
       toml: { via: [{ source: 1, url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc', severity: 'high', title: 'bad parse' }] },

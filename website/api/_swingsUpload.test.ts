@@ -20,7 +20,7 @@ const pad = (a: string) => '0x' + a.replace('0x', '').padStart(64, '0');
 const session = (owner: string) => `Bearer ${issueSession(KEY, owner, NOW).token}`;
 
 const GOOD_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'application/json'];
-/** The bucket record the storage API returns: public, capped at 15 MB, only the allowed types (what ARETIA-SEC-004 requires). */
+/** The bucket record the storage API returns: public, capped at 15 MB, only the allowed types (what the upload check requires). */
 function bucketRecord(kind: string | undefined): Record<string, unknown> {
   const good = { id: BUCKET, public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: GOOD_TYPES };
   if (kind === 'private') return { ...good, public: false };
@@ -75,7 +75,7 @@ describe('status', () => {
   it('is enabled when the bucket exists and is public', async () => {
     expect((await call(world(), { op: 'status' }, { authorization: null })).data).toEqual({ enabled: true });
   });
-  it('ARETIA-SEC-004: is not enabled for a public bucket with no size limit, no type list, a type list that allows other files, or a limit above 15 MB', async () => {
+  it('is not enabled for a public bucket with no size limit, no type list, a type list that allows other files, or a limit above 15 MB', async () => {
     for (const bucket of ['unrestricted', 'wide-types', 'huge-limit'] as const) {
       resetUploadState();
       const status = await call(world({ bucket }), { op: 'status' }, { authorization: null });

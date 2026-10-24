@@ -1,5 +1,5 @@
 /**
- * The dependency-advisory gate (audit ARETIA-SEC-008). Reads the JSON that `npm audit --omit=dev --json` prints and says which
+ * The dependency-advisory gate. Reads the JSON that `npm audit --omit=dev --json` prints and says which
  * high or critical advisories are not on the accepted list. An accepted advisory is named by its GHSA id with the reason in
  * `audit-allowlist.json`; anything new, or anything whose entry has no reason, fails the build.
  */

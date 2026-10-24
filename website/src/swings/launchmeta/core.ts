@@ -236,7 +236,7 @@ export const BUCKET_MIME_TYPES: readonly string[] = [...Object.keys(IMAGE_RULES.
 
 /**
  * Why a storage bucket is not safe to hand upload links for, or null when it is. A signed upload link does not bind the file's type, size
- * or name, so the bucket itself must be public, cap the size at the picture limit, and list only the allowed types (audit ARETIA-SEC-004).
+ * or name, so the bucket itself must be public, cap the size at the picture limit, and list only the allowed types.
  * `info` is the bucket record the storage API returns.
  */
 export function bucketProblem(info: unknown): string | null {

@@ -1,5 +1,5 @@
 # Weekly update pull requests for the GitHub Actions the workflows pin by commit, and for the website's npm packages
-# (audit ARETIA-SEC-007 and ARETIA-SEC-008). Nothing merges by itself.
+# Nothing merges by itself.
 version: 2
 updates:
   - package-ecosystem: "github-actions"

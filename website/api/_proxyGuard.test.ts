@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { refuse, viaCloudflare } from './_proxyGuard';
 
-describe('ARETIA-SEC-005: the API is reachable only through the Cloudflare forwarder when REQUIRE_CF_PROXY=1', () => {
+describe('the API is reachable only through the Cloudflare forwarder when REQUIRE_CF_PROXY=1', () => {
   const on = { CF_PROXY_SECRET: 's3cret-value', REQUIRE_CF_PROXY: '1' };
 
   it('is off unless both settings are present, so an existing deployment keeps working', () => {

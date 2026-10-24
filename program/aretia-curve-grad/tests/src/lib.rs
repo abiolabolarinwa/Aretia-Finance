@@ -27,7 +27,7 @@ pub type Sent = Result<TransactionMetadata, FailedTransactionMetadata>;
 
 /// The program binary the tests load: the committed artifact by default, and that artifact must match its `.sha256` record. Another build
 /// (a fresh `cargo build-sbf` output) is used only when `ARETIA_ALLOW_OTHER_BUILD=1` is set, so a test run can never silently describe a
-/// different binary from the one that is deployed (audit ARETIA-INF-009).
+/// different binary from the one that is deployed.
 pub fn artifact_so(env_name: &str, committed: &str) -> String {
     let path = match std::env::var(env_name) {
         Ok(p) if !p.is_empty() => p,

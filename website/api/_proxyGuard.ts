@@ -1,6 +1,6 @@
 /**
  * Keeps the API reachable only through Aretia's own Cloudflare forwarder (functions/api/[[path]].ts), so whatever protection is set at
- * Cloudflare (rate limits, bot rules) cannot be skipped by calling the *.vercel.app address directly (audit ARETIA-SEC-005).
+ * Cloudflare (rate limits, bot rules) cannot be skipped by calling the *.vercel.app address directly.
  *
  * Off by default, so an existing deployment keeps working until the operator turns it on: it is active only when BOTH `CF_PROXY_SECRET`
  * and `REQUIRE_CF_PROXY=1` are set. The forwarder adds `x-aretia-proxy-secret`; any request without the right value is refused with 403.

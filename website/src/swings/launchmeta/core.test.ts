@@ -141,7 +141,7 @@ describe('planUpload', () => {
   });
 });
 
-describe('ARETIA-SEC-004: bucketProblem', () => {
+describe('bucketProblem', () => {
   const good = { public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] };
   it('accepts a public, capped bucket that lists only the allowed types, or a subset of them', () => {
     expect(bucketProblem(good)).toBeNull();

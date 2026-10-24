@@ -68,6 +68,12 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
     if (!symbol || isUnsafeName(symbol, name)) continue;
     const tx = (w: Window): { buys?: number; sells?: number; buyers?: number; sellers?: number } | undefined => a.transactions?.[w];
     const t24 = tx('h24');
+    const trades = (w: Window): number | null => {
+      const x = tx(w);
+      return typeof x?.buys === 'number' && typeof x?.sells === 'number' ? x.buys + x.sells : null;
+    };
+    const volumeUsd: Changes = { m5: num(a.volume_usd?.m5), h1: num(a.volume_usd?.h1), h6: num(a.volume_usd?.h6), h24: num(a.volume_usd?.h24) };
+    const txns: Changes = { m5: trades('m5'), h1: trades('h1'), h6: trades('h6'), h24: trades('h24') };
     const created = typeof a.pool_created_at === 'string' ? Date.parse(a.pool_created_at) : NaN;
     const change: Changes = { m5: num(a.price_change_percentage?.m5), h1: num(a.price_change_percentage?.h1), h6: num(a.price_change_percentage?.h6), h24: num(a.price_change_percentage?.h24) };
     const image = token.attributes?.image_url;
@@ -88,6 +94,8 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
       txns24h: typeof t24?.buys === 'number' && typeof t24?.sells === 'number' ? t24.buys + t24.sells : null,
       volume24hUsd: num(a.volume_usd?.h24),
       traders24h: typeof t24?.buyers === 'number' && typeof t24?.sellers === 'number' ? t24.buyers + t24.sellers : null,
+      volumeUsd,
+      txns,
       change,
       liquidityUsd: num(a.reserve_in_usd),
       risk: null,

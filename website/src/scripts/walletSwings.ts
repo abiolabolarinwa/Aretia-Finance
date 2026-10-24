@@ -37,6 +37,7 @@ import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.
 import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
+import { modeNote, modeRows } from '../swings/market/marketModes.js';
 import { fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
@@ -1790,6 +1791,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const strict = all.filter((r) => pass(r, true));
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
       if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
+      // Trending, Top and Gainers each keep only what clears their bar in the chosen window, best first.
+      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') return modeRows(m.kind, m.window, strict);
       return strict;
     }
 
@@ -1940,6 +1943,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
+      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window) }));
       const shownRows = visible();
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
@@ -2025,10 +2029,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       ]);
     }
 
-    // The list refreshes by itself once a minute while it is on screen and no token page is open.
+    // The list refreshes by itself every half minute while it is on screen and no token page is open.
     setInterval(() => {
       if (!target.hidden && !document.hidden && rows !== null && !loading && !page) void load(true);
-    }, 60_000);
+    }, 30_000);
 
     return {
       draw,

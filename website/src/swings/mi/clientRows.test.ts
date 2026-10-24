@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchIndexedRows, fetchIndexedTrades, marketRowsFromPools, tradesFromIndexed } from './clientRows.js';
+import { fetchIndexedRows, fetchIndexedTrades, indexedForList, marketRowsFromPools, mergeIndexed, tradesFromIndexed } from './clientRows.js';
 import { formatTradeUsd } from '../charts/trades.js';
 
 const pool = (over: Record<string, unknown> = {}) => ({
@@ -57,5 +57,20 @@ describe('Aretia Index rows for the existing tables', () => {
     expect(urls.every((u) => u.startsWith('/api/v1/'))).toBe(true);
     const down = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
     await expect(fetchIndexedRows('new', '', 1, down)).rejects.toThrow(/not set up/);
+  });
+
+  it('merges the index into another list: its market wins over the same pool or token, others are kept, and a dead index changes nothing', async () => {
+    const ix = marketRowsFromPools([pool()], 1_060_000);
+    const same = { ...ix[0]!, indexed: undefined, priceUsd: 999 };
+    const sameToken = { ...ix[0]!, indexed: undefined, pool: '0x' + 'dd'.repeat(20), priceUsd: 5 };
+    const other = { ...ix[0]!, indexed: undefined, address: '0x' + 'ee'.repeat(20), pool: '0x' + 'ff'.repeat(20) };
+    const out = mergeIndexed([same, sameToken, other], ix);
+    expect(out).toHaveLength(2);
+    expect(out.filter((r) => r.indexed)).toHaveLength(1);
+    expect(out.find((r) => r.indexed)!.priceUsd).toBe(0.1);
+    expect(out).toContain(other);
+    expect(mergeIndexed([other], [])).toEqual([other]);
+    const down = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
+    expect(await indexedForList('new', 'bnb', 1, down)).toEqual([]);
   });
 });

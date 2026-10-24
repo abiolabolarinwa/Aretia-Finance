@@ -101,3 +101,27 @@ export async function fetchIndexedRows(kind: 'new' | 'trending', chain: string, 
   const list = kind === 'trending' ? (body.data as { ranked?: unknown } | undefined)?.ranked : body.data;
   return marketRowsFromPools(list, now);
 }
+
+/**
+ * Puts the index's markets into a list that came from elsewhere. A market the index read from the chain replaces the same pool in
+ * the other list (the index's chain facts win over an outside feed); markets only the index has are added. Pure.
+ */
+export function mergeIndexed(rows: readonly MarketRow[], indexed: readonly MarketRow[]): MarketRow[] {
+  const poolKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`;
+  const tokenKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`;
+  const mine = indexed.filter((r) => r.pool);
+  const pools = new Set(mine.map(poolKey));
+  const tokens = new Set(mine.map(tokenKey));
+  // The other list loses the pool the index also has, and the token too (the index's market for it is shown instead of a second row).
+  const kept = rows.filter((r) => !(r.pool && pools.has(poolKey(r))) && !tokens.has(tokenKey(r)));
+  return [...kept, ...mine];
+}
+
+/** The index's markets for a list, or none when the index is unreachable or not set up: the list then shows what it always did. */
+export async function indexedForList(kind: 'new' | 'trending', chain: string, now: number, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<MarketRow[]> {
+  try {
+    return await fetchIndexedRows(kind, chain, now, fetchImpl);
+  } catch {
+    return [];
+  }
+}

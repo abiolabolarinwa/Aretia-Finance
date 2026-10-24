@@ -3,7 +3,8 @@
  * Which adapters run is configuration (MI_ADAPTERS), not code; an adapter that an administrator disabled is skipped by the engine.
  */
 import { chainConfig, type EvmMiChain } from './chains.js';
-import { allSpecs, type DexAdapterSpec } from './dexes.js';
+import { allSpecs, SOLANA_SPECS, type DexAdapterSpec, type SolanaAdapterSpec } from './dexes.js';
+import { runSolanaAdapter, solUsdReader } from './solana/engine.js';
 import { runAdapter, type EngineDeps, type LaunchLookup, type RunReport } from './engine.js';
 import { DEFAULT_RULES, type ListingRules } from './lifecycle.js';
 import { nativeUsdReader } from './reference.js';
@@ -35,6 +36,13 @@ export function enabledSpecs(env: RunnerEnv): DexAdapterSpec[] {
   return ids.map((id) => all.find((s) => s.id === id)).filter((s): s is DexAdapterSpec => Boolean(s));
 }
 
+export function enabledSolana(env: RunnerEnv): SolanaAdapterSpec[] {
+  const raw = (env.MI_ADAPTERS ?? '').trim();
+  if (raw === '*') return [...SOLANA_SPECS];
+  const ids = new Set(raw.split(/[\s,;]+/).filter(Boolean));
+  return SOLANA_SPECS.filter((s) => ids.has(s.id));
+}
+
 export function rulesFrom(env: RunnerEnv): ListingRules {
   const minLiquidityUsd = Number(env.MI_MIN_LIQUIDITY_USD);
   const hours = Number(env.MI_INACTIVE_AFTER_HOURS);
@@ -53,7 +61,7 @@ export interface RunAllDeps {
   budgetMs: number;
   launch?: LaunchLookup | null;
   /** Test hook: replaces the JSON-RPC reader for a chain. */
-  readFor?: (spec: DexAdapterSpec) => EngineDeps['read'];
+  readFor?: (spec: DexAdapterSpec | SolanaAdapterSpec) => EngineDeps['read'];
 }
 
 export interface RunAllReport {
@@ -65,13 +73,21 @@ export interface RunAllReport {
 
 export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const t0 = d.now();
-  const specs = enabledSpecs(d.env);
+  const evm = enabledSpecs(d.env);
+  const sol = enabledSolana(d.env);
+  const specs: (DexAdapterSpec | SolanaAdapterSpec)[] = [...evm, ...sol];
   const rules = rulesFrom(d.env);
   const out: RunReport[] = [];
+  const count = (v: string | undefined): number | undefined => (v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2_000 ? Number(v) : undefined);
+  const runOne = async (spec: DexAdapterSpec | SolanaAdapterSpec, budgetMs: number): Promise<RunReport> => {
+    if (spec.chain !== 'solana') return runAdapter(engineFor(spec as DexAdapterSpec, budgetMs));
+    const chain = chainConfig('solana', d.env);
+    const rpc = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+    return runSolanaAdapter({ spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) });
+  };
   const engineFor = (spec: DexAdapterSpec, budgetMs: number): EngineDeps => {
     const chain = chainConfig(spec.chain, d.env);
     const read = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl });
-    const count = (v: string | undefined): number | undefined => (v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2_000 ? Number(v) : undefined);
     return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) };
   };
 
@@ -80,7 +96,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const claimed = await d.store.claimJob();
   if (claimed) {
     const spec = allSpecs().find((s) => s.id === claimed.adapterId);
-    if (!spec) await d.store.updateJob(claimed.id, { status: 'failed', error: 'unknown adapter' });
+    if (!spec) await d.store.updateJob(claimed.id, { status: 'failed', error: 'a backfill is by block range and is available for EVM adapters only' });
     else {
       let done = claimed.doneBlock;
       const r = await runAdapter(engineFor(spec, Math.floor(d.budgetMs / 2)), {
@@ -102,7 +118,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   for (let i = 0; i < order.length; i++) {
     const left = d.budgetMs - (d.now() - t0);
     if (left < 2_000) break;
-    out.push(await runAdapter(engineFor(order[i]!, Math.floor(left / (order.length - i)))));
+    out.push(await runOne(order[i]!, Math.floor(left / (order.length - i))));
   }
   // Retention: a bounded slice per run, so the table cannot grow without limit and no run is slowed by a big delete.
   const days = Number(d.env.MI_TRADE_RETENTION_DAYS);

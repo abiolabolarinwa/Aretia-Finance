@@ -4,8 +4,8 @@
  */
 import { isOffensive, reservedNameClaim, hasLookalikeLetters } from '../tokens/safeText.js';
 import { chainConfig, isMiChain } from './chains.js';
-import { specById } from './dexes.js';
-import type { MiPool, MiToken, PoolStats } from './types.js';
+import { adapterById } from './dexes.js';
+import type { MiPool, MiToken, PoolKind, PoolStats } from './types.js';
 
 export interface TokenDto {
   address: string;
@@ -24,7 +24,7 @@ export interface PoolDto {
   address: string;
   dex: string;
   dexName: string;
-  kind: 'v2' | 'v3';
+  kind: PoolKind;
   feeTier: number | null;
   state: string;
   stateReason: string;
@@ -71,7 +71,7 @@ export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): P
     chain: p.chain,
     address: p.address,
     dex: p.dex,
-    dexName: specById(p.adapterId)?.name ?? p.dex,
+    dexName: adapterById(p.adapterId)?.name ?? p.dex,
     kind: p.kind,
     feeTier: p.feeTier,
     state: p.state,
@@ -88,7 +88,7 @@ export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): P
     firstTradeAt: iso(p.firstTradeAt),
     lastTradeAt: iso(p.lastTradeAt),
     statsAsOf: s ? new Date(s.asOf).toISOString() : null,
-    evidence: specById(p.adapterId)?.evidence ?? 'planned',
+    evidence: adapterById(p.adapterId)?.evidence ?? 'planned',
     quoteIsDollar: quoteTokens.some((q) => q.address === p.quote && q.role === 'usd'),
     // A route into the wallet's swap screen with the token chosen. Nothing is executed: the person reviews and signs there.
     links: { swap: `/wallet#/swap/${p.chain}/${p.base}` },

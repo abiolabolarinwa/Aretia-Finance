@@ -36,6 +36,8 @@ export const poolFromRow = (r: Row): MiPool => ({
   baseDecimals: nz(r.base_decimals),
   quoteDecimals: nz(r.quote_decimals),
   baseIsToken0: r.base_is_token0 === true,
+  baseVault: (r.base_vault as string | null) ?? null,
+  quoteVault: (r.quote_vault as string | null) ?? null,
   createdBlock: nz(r.created_block),
   createdTx: String(r.created_tx),
   createdAt: nz(r.created_at),
@@ -51,7 +53,7 @@ export const poolFromRow = (r: Row): MiPool => ({
   stats: (r.stats as MiPool['stats']) ?? null,
 });
 
-const POOL_COLUMNS: Record<string, string> = { adapterId: 'adapter_id', feeTier: 'fee_tier', baseDecimals: 'base_decimals', quoteDecimals: 'quote_decimals', baseIsToken0: 'base_is_token0', createdBlock: 'created_block', createdTx: 'created_tx', createdAt: 'created_at', stateReason: 'state_reason', stateAt: 'state_at', reserveBase: 'reserve_base', reserveQuote: 'reserve_quote', reserveBlock: 'reserve_block', firstTradeAt: 'first_trade_at', lastTradeAt: 'last_trade_at' };
+const POOL_COLUMNS: Record<string, string> = { adapterId: 'adapter_id', feeTier: 'fee_tier', baseDecimals: 'base_decimals', quoteDecimals: 'quote_decimals', baseIsToken0: 'base_is_token0', baseVault: 'base_vault', quoteVault: 'quote_vault', createdBlock: 'created_block', createdTx: 'created_tx', createdAt: 'created_at', stateReason: 'state_reason', stateAt: 'state_at', reserveBase: 'reserve_base', reserveQuote: 'reserve_quote', reserveBlock: 'reserve_block', firstTradeAt: 'first_trade_at', lastTradeAt: 'last_trade_at' };
 const poolColumn = (k: string): string => POOL_COLUMNS[k] ?? k;
 
 function poolToRow(p: MiPool, now: number): Row {

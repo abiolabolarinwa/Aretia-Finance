@@ -6,11 +6,15 @@
  * listed here is not indexed. Event signatures are hashed here from their text, and tests pin the hashes.
  */
 import { keccak256 } from '../core/keccak.js';
+import { CPMM_CREATE_FEE_RECEIVER, ORCA_FEE_TIER_ACCOUNTS } from '../indexer/solanaIndexer.js';
+import { RAYDIUM_CPMM_PROGRAM } from '../solana/raydiumCpmm.js';
+import { ORCA_WHIRLPOOL_PROGRAM } from '../solana/orcaWhirlpool.js';
+import { PUMPSWAP_PROGRAM, PUMP_MIGRATION_AUTHORITY } from './solana/pumpswap.js';
 import { EVM_PANCAKE_V3, EVM_V2_DEXES, EVM_V3_DEXES } from '../dex/entries.js';
 import type { DexEntry } from '../engine/registry.js';
 import type { EvmMiChain, MiChain } from './chains.js';
 import earned from './fixtures/evidence.json';
-import type { Evidence, PoolKind } from './types.js';
+import type { Evidence } from './types.js';
 
 const hex = (b: Uint8Array): string => '0x' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
 export const topicOf = (signature: string): string => hex(keccak256(new TextEncoder().encode(signature)));
@@ -34,7 +38,7 @@ export interface DexAdapterSpec {
   family: DexFamily;
   name: string;
   chain: EvmMiChain;
-  kind: PoolKind;
+  kind: 'v2' | 'v3';
   /** Lower-case factory address. */
   factory: string;
   creationTopic: string;
@@ -103,6 +107,9 @@ export const EARNED_EVIDENCE: Readonly<Record<string, Evidence>> = earned as Rec
  * backed by such a run belongs here, with the date and what was observed.
  */
 export const LIVE_VERIFIED: Readonly<Record<string, { date: string; observed: string }>> = {
+  'raydium-cpmm-solana': { date: '2026-10-23', observed: '5 pools and 6 tokens found from one hour of creations, 4 named from Metaplex metadata, 107 real swaps decoded from vault balance changes, SOL price read from Orca; a second run duplicated nothing' },
+  'pumpswap-solana': { date: '2026-10-23', observed: '15 pump.fun graduation pools and 16 tokens found from one hour (all 16 named, Metaplex or Token-2022 metadata), 413 real swaps decoded from vault balance changes, SOL price read from Orca; a second run duplicated nothing. Pools created directly, not by graduation, are not found.' },
+  'orca-whirlpool-solana': { date: '2026-10-23', observed: '3 pools and 3 tokens found from one hour of creations, 58 real swaps decoded from vault balance changes; a second run duplicated nothing' },
   'pancakeswap-v2-bnb': { date: '2026-10-23', observed: '31 pools and 34 tokens discovered from 2,400 blocks, 371 real swaps decoded and priced, resume from the checkpoint and a repeated backfill changed nothing' },
 };
 
@@ -118,14 +125,46 @@ export function allSpecs(): DexAdapterSpec[] {
 
 export const specById = (id: string): DexAdapterSpec | null => allSpecs().find((s) => s.id === id) ?? null;
 
-/** The Solana programs in scope, with the program ids already used by Aretia's routing. Discovery for them is not built yet. */
-export const SOLANA_PROGRAMS: readonly { id: string; name: string; program: string; status: Evidence; note: string }[] = [
-  { id: 'pumpswap', name: 'PumpSwap', program: 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA', status: 'planned', note: 'Program id from the routing catalogue; no indexer adapter yet.' },
-  { id: 'raydium-cpmm', name: 'Raydium CPMM', program: 'CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C', status: 'planned', note: 'Pool creation is decoded by the older discovery source (indexer/solanaIndexer.ts); not part of the new pipeline yet.' },
-  { id: 'orca-whirlpool', name: 'Orca Whirlpools', program: 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc', status: 'planned', note: 'As above.' },
-  { id: 'meteora-damm-v2', name: 'Meteora DAMM v2', program: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG', status: 'planned', note: 'No indexer adapter yet.' },
-  { id: 'meteora-dlmm', name: 'Meteora DLMM', program: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', status: 'planned', note: 'No indexer adapter yet.' },
-  { id: 'meteora-dbc', name: 'Meteora Dynamic Bonding Curve', program: 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN', status: 'planned', note: 'No indexer adapter yet.' },
+export interface SolanaAdapterSpec {
+  id: string;
+  family: 'raydium' | 'orca' | 'pump';
+  name: string;
+  chain: 'solana';
+  kind: 'cpmm' | 'clmm';
+  /** The program that owns the pools. */
+  program: string;
+  /** Accounts only pool creation touches: their signatures are the creations (see indexer/solanaIndexer.ts). */
+  anchors: readonly string[];
+  /** What the pool-creation decoder reports as the venue. */
+  venue: 'Raydium CPMM' | 'Orca Whirlpool' | 'PumpSwap';
+  evidence: Evidence;
+  source: string;
+}
+
+/**
+ * The Solana venues whose pool creation can be found without a streaming provider, and whose swaps are read from the balance
+ * changes of the pool's token accounts. Program ids are the routing catalogue's (checked on chain by its live tests).
+ */
+export const SOLANA_SPECS: readonly SolanaAdapterSpec[] = [
+  { id: 'raydium-cpmm-solana', family: 'raydium', name: 'Raydium CPMM', chain: 'solana', kind: 'cpmm', program: RAYDIUM_CPMM_PROGRAM, anchors: [CPMM_CREATE_FEE_RECEIVER], venue: 'Raydium CPMM', evidence: 'address-verified', source: 'Aretia routing catalogue; the pool-creation fee receiver is touched only by pool creation' },
+  { id: 'orca-whirlpool-solana', family: 'orca', name: 'Orca Whirlpools', chain: 'solana', kind: 'clmm', program: ORCA_WHIRLPOOL_PROGRAM, anchors: Object.values(ORCA_FEE_TIER_ACCOUNTS), venue: 'Orca Whirlpool', evidence: 'address-verified', source: 'Aretia routing catalogue; each fee-tier account is named by every pool created in that tier' },
+  { id: 'pumpswap-solana', family: 'pump', name: 'PumpSwap', chain: 'solana', kind: 'cpmm', program: PUMPSWAP_PROGRAM, anchors: [PUMP_MIGRATION_AUTHORITY], venue: 'PumpSwap', evidence: 'address-verified', source: 'create_pool decoded from the official IDL (pump-fun/pump-public-docs); pools found through the pump.fun migration authority (observed on mainnet, not named in the docs): graduations only, not pools created directly' },
+].map((s) => ({ ...s, evidence: LIVE_VERIFIED[s.id] ? ('live-verified' as Evidence) : (EARNED_EVIDENCE[s.id] ?? s.evidence) })) as readonly SolanaAdapterSpec[];
+
+export const solanaSpecById = (id: string): SolanaAdapterSpec | null => SOLANA_SPECS.find((s) => s.id === id) ?? null;
+
+/** Any adapter, EVM or Solana, by id. */
+export const adapterById = (id: string): { id: string; name: string; chain: MiChain; evidence: Evidence } | null => specById(id) ?? solanaSpecById(id);
+
+/**
+ * Solana programs in scope that are NOT indexed. PumpSwap and Meteora (DAMM v2, DLMM, Dynamic Bonding Curve) have program ids in
+ * the routing catalogue, but no account that only their pool creation touches is known, so finding their pools needs a streaming
+ * provider (a webhook or Geyser feed) or scanning the program's whole transaction stream.
+ */
+export const SOLANA_PLANNED: readonly { id: string; name: string; program: string; status: Evidence; note: string }[] = [
+  { id: 'meteora-damm-v2', name: 'Meteora DAMM v2', program: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG', status: 'planned', note: 'Needs a streaming provider to find pools (no creation-only account).' },
+  { id: 'meteora-dlmm', name: 'Meteora DLMM', program: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', status: 'planned', note: 'Not built.' },
+  { id: 'meteora-dbc', name: 'Meteora Dynamic Bonding Curve', program: 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN', status: 'planned', note: 'Not built.' },
 ];
 
 export type { MiChain };

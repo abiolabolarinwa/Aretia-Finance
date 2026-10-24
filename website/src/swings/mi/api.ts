@@ -15,8 +15,9 @@
 import { FEATURED } from '../../data/featured.js';
 import { FEATURED_LABEL, FEATURED_NOTE, featuredNow, tokenHref } from '../../lib/featured.js';
 import { chainConfig, isMiChain, MI_CHAINS, type MiChain } from './chains.js';
-import { allSpecs, SOLANA_PROGRAMS } from './dexes.js';
+import { allSpecs, SOLANA_PLANNED, SOLANA_SPECS } from './dexes.js';
 import { poolDto, tokenDto } from './dto.js';
+import { isSolanaAddress } from './solana/accounts.js';
 import { isPoolState, POOL_STATES, type MiPool, type MiToken, type PoolState } from './types.js';
 import { buildCandleRows, computeStats, trendingScore } from './stats.js';
 import { parseRaw } from './math.js';
@@ -79,7 +80,7 @@ interface Ref {
 }
 function parseRef(chain: string, address: string): Ref | { error: ApiResponse } {
   if (!isMiChain(chain)) return { error: err(400, 'bad-chain', `chain must be one of: ${MI_CHAINS.join(', ')}.`) };
-  if (chain === 'solana') return { error: err(501, 'not-implemented', 'Solana markets are not indexed yet (see /api/v1/status).') };
+  if (chain === 'solana') return isSolanaAddress(address) ? { chain, address } : { error: err(400, 'bad-address', 'address must be a base58 Solana address.') };
   if (!EVM_ADDRESS.test(address)) return { error: err(400, 'bad-address', 'address must be a 0x-prefixed 40-hex-digit address.') };
   return { chain, address: address.toLowerCase() };
 }
@@ -108,7 +109,10 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
   const health = await store.listHealth();
   const byAdapter = new Map(health.map((h) => [h.adapterId, h]));
   const disabled = await store.disabledAdapters();
-  const specs = allSpecs();
+  const specs: { id: string; name: string; chain: MiChain; kind: string; where: string; evidence: string }[] = [
+    ...allSpecs().map((x) => ({ id: x.id, name: x.name, chain: x.chain as MiChain, kind: x.kind, where: x.factory, evidence: x.evidence })),
+    ...SOLANA_SPECS.map((x) => ({ id: x.id, name: x.name, chain: 'solana' as MiChain, kind: x.kind, where: x.program, evidence: x.evidence })),
+  ];
   const dexes = specs.map((s) => {
     const h = byAdapter.get(s.id);
     const running = h !== undefined;
@@ -118,7 +122,8 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
       name: s.name,
       chain: s.chain,
       kind: s.kind,
-      factory: s.factory,
+      // The factory contract (EVM) or the program id (Solana).
+      address: s.where,
       evidence: s.evidence,
       state: disabled.has(s.id) ? 'disabled' : !running ? 'not-running' : fresh && (h.consecutiveFailures ?? 0) === 0 ? 'ok' : (h.consecutiveFailures ?? 0) > 0 ? 'failing' : 'stale',
       lagBlocks: h?.lagBlocks ?? null,
@@ -135,12 +140,12 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
       name: cfg.name,
       confirmations: cfg.confirmations,
       adapters: mine.length,
-      // "supported" means an adapter exists whose decoders were proven on real logs; it does not mean the adapter is switched on.
-      supported: id === 'solana' ? false : proven.length > 0,
+      // "supported" means an adapter exists whose decoders were proven on real data; it does not mean the adapter is switched on.
+      supported: proven.length > 0,
       running: mine.filter((x) => x.state === 'ok').length,
     };
   });
-  return ok({ chains, dexes, solanaPrograms: SOLANA_PROGRAMS.map((p) => ({ id: p.id, name: p.name, program: p.program, evidence: p.status, note: p.note })), states: POOL_STATES }, req.now, 15);
+  return ok({ chains, dexes, notIndexed: SOLANA_PLANNED.map((p) => ({ id: p.id, name: p.name, program: p.program, evidence: p.status, note: p.note })), states: POOL_STATES }, req.now, 15);
 }
 
 async function tokensFor(store: MiStore, pools: readonly MiPool[]): Promise<Map<string, MiToken>> {

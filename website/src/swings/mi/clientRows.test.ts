@@ -20,6 +20,17 @@ describe('Aretia Index rows for the existing tables', () => {
     expect(marketRowsFromPools('nope', 1)).toEqual([]);
   });
 
+  it('accepts Solana pools and signatures as they are written (case kept)', () => {
+    const mint = 'So11111111111111111111111111111111111111112';
+    const pool58 = 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE';
+    const [r] = marketRowsFromPools([pool({ chain: 'solana', address: pool58, base: { address: mint, symbol: 'X', name: '', decimals: 9, launchbox: null, nameFlags: [] } })], 1_060_000);
+    expect([r!.chain, r!.pool, r!.address]).toEqual(['solana', pool58, mint]);
+    const sig = '5'.repeat(88);
+    const t = tradesFromIndexed({ data: [{ id: sig, unix: 1_700_000_000, side: 'sell', price: '1', baseAmount: '1000000000', quoteAmount: '5000000', account: pool58 }], meta: { baseDecimals: 9, quoteDecimals: 6 } }, true);
+    expect(t).toHaveLength(1);
+    expect(t[0]).toMatchObject({ tx: sig, tokenAmount: 1, quoteAmount: 5, kind: 'sell' });
+  });
+
   it('keeps unknown numbers null when a pool has no stats yet', () => {
     const [r] = marketRowsFromPools([pool({ price: { quote: null, usd: null }, volume: { quote: null, usd: null }, txns: { buys: null, sells: null }, liquidity: { quote: null, usd: null } })], 1_060_000);
     expect([r!.priceUsd, r!.volume24hUsd, r!.txns24h, r!.liquidityUsd]).toEqual([null, null, null, null]);

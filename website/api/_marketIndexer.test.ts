@@ -134,22 +134,25 @@ describe('GET /api/v1 (public read API)', () => {
     const { store, now } = await seeded();
     expect((await get(store, now, 'pools/bnb/0x123')).status).toBe(400);
     expect((await get(store, now, 'pools/mars/' + POOL)).status).toBe(400);
-    expect((await get(store, now, 'pools/solana/So11111111111111111111111111111111111111112')).status).toBe(501);
+    expect((await get(store, now, 'pools/solana/0x123')).status).toBe(400);
+    expect((await get(store, now, 'pools/solana/So11111111111111111111111111111111111111112')).status).toBe(404);
     expect((await get(store, now, 'nothing/here')).status).toBe(404);
     expect((await get(store, now, '../../etc/passwd')).status).toBe(404);
     expect((await handleMi({ method: 'POST', query: {}, authorization: null, ip: '1.1.1.1', env, fetchImpl: nofetch, now }, store)).status).toBe(405);
     expect((await handleMi({ method: 'OPTIONS', query: {}, authorization: null, ip: '1.1.1.1', env, fetchImpl: nofetch, now }, store)).status).toBe(204);
   });
 
-  it('reports every chain and DEX with its evidence, never calling Solana supported', async () => {
+  it('reports every chain and DEX with its evidence, and lists what is not indexed', async () => {
     const { store, now } = await seeded();
     const s = body(await get(store, now, 'status')).data;
     expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['arbitrum', 'avalanche', 'base', 'bnb', 'ethereum', 'optimism', 'polygon', 'solana']);
-    expect(s.chains.find((c: { id: string }) => c.id === 'solana').supported).toBe(false);
+    expect(s.chains.find((c: { id: string }) => c.id === 'solana')).toMatchObject({ supported: true, adapters: 3 });
+    expect(s.dexes.find((d: { id: string }) => d.id === 'orca-whirlpool-solana')).toMatchObject({ evidence: 'live-verified', state: 'not-running' });
     expect(s.chains.find((c: { id: string }) => c.id === 'bnb').running).toBe(1);
     expect(s.dexes.find((d: { id: string }) => d.id === 'pancakeswap-v2-bnb').state).toBe('ok');
     expect(s.dexes.find((d: { id: string }) => d.id === 'apeswap-v2-polygon').state).toBe('not-running');
-    expect(s.solanaPrograms.every((p: { evidence: string }) => p.evidence === 'planned')).toBe(true);
+    expect(s.notIndexed.map((p: { id: string }) => p.id)).toEqual(['meteora-damm-v2', 'meteora-dlmm', 'meteora-dbc']);
+    expect(s.notIndexed.every((p: { evidence: string }) => p.evidence === 'planned')).toBe(true);
   });
 
   it('rate limits per address and does not count other addresses', async () => {

@@ -53,8 +53,19 @@ const quotesOf = (chain: EvmMiChain): QuoteToken[] =>
 const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10, arbitrum: 20, optimism: 10, avalanche: 6 };
 const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000, arbitrum: 2000, optimism: 1000, avalanche: 1000 };
 
+const SOLANA_QUOTES: readonly QuoteToken[] = [
+  { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL', decimals: 9, role: 'native' },
+  { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', decimals: 6, role: 'usd' },
+  { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', decimals: 6, role: 'usd' },
+];
+const SOLANA_PUBLIC_RPC = ['https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'];
+
 export function chainConfig(chain: MiChain, env: Record<string, string | undefined> = {}): MiChainConfig {
-  if (chain === 'solana') return { id: 'solana', name: CHAINS.solana.name, kind: 'solana', confirmations: 0, maxRange: 0, addressBatch: 0, lookback: 0, quoteTokens: [], rpcUrls: [] };
+  if (chain === 'solana') {
+    const own = (env.MI_RPC_SOLANA ?? env.SOLANA_RPC_URL)?.trim();
+    // Only finalized transactions are read, so there is no confirmation depth; `lookback` is seconds of history to read on the first run.
+    return { id: 'solana', name: CHAINS.solana.name, kind: 'solana', confirmations: 0, maxRange: 0, addressBatch: 0, lookback: 3_600, quoteTokens: SOLANA_QUOTES, rpcUrls: [...(own && /^https:\/\/[^\s]+$/.test(own) ? [own] : []), ...SOLANA_PUBLIC_RPC] };
+  }
   const upper = chain.toUpperCase();
   // MI_RPC_<CHAIN> wins; otherwise the node the token registry already uses (EVM_RPC_<CHAIN>) is reused.
   const override = (env[`MI_RPC_${upper}`] ?? env[`EVM_RPC_${upper}`])?.trim();

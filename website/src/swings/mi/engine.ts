@@ -263,6 +263,8 @@ async function registerPool(d: EngineDeps, c: Creation, createdAtMs: number, tok
     baseDecimals: bf?.decimals ?? 0,
     quoteDecimals: qf?.decimals ?? 0,
     baseIsToken0: baseAddr === t0,
+    baseVault: null,
+    quoteVault: null,
     createdBlock: c.block,
     createdTx: c.tx,
     createdAt: createdAtMs,
@@ -318,7 +320,7 @@ async function poolFacts(d: EngineDeps, pool: MiPool, tokensReadable: boolean | 
     }
   }
   const quoteUsd = await quoteUsdOf(d, pool);
-  const liquidityUsd = reserves && quoteUsd !== null && quoteIsDollar(d, pool) ? Number(reserves.quote) / 10 ** pool.quoteDecimals * 2 * quoteUsd : null;
+  const liquidityUsd = reserves && quoteUsd !== null ? (Number(reserves.quote) / 10 ** pool.quoteDecimals) * 2 * quoteUsd : null;
   return {
     reserves,
     facts: {
@@ -334,8 +336,6 @@ async function poolFacts(d: EngineDeps, pool: MiPool, tokensReadable: boolean | 
     },
   };
 }
-
-const quoteIsDollar = (d: EngineDeps, pool: MiPool): boolean => d.chain.quoteTokens.some((q) => q.address === pool.quote && q.role === 'usd');
 
 /** Dollar value of one whole quote token: 1 for a dollar stablecoin, the chain's reference price for the native coin, otherwise unknown. */
 async function quoteUsdOf(d: EngineDeps, pool: MiPool): Promise<number | null> {

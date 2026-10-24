@@ -1,34 +1,36 @@
 :root {
-  /* Color: bright white canvas and soft grey surfaces, deep indigo (#150681,
-     the logo colour) as the brand and action colour, soft periwinkle for
-     highlights and washes (the --color-mint-* names are historical). Gold is
-     reserved for the ACT / fee layer; green is kept only for ok/live status. */
+  /* Color: monochrome. White canvas, neutral greys and near-blacks, with indigo
+     (#3730a3) kept for small accents only: links, focus rings, the active nav
+     state and key highlights. Big surfaces are black, white or grey. Gold is
+     reserved for the ACT / fee layer; green is kept only for ok/live status.
+     The --color-mint-* names are historical: they are now neutral greys. */
   --color-bg: #ffffff;
-  --color-bg-alt: #f5f5f7;
-  --color-offwhite: #fbfbfd;
+  --color-bg-alt: #f6f6f7;
+  --color-offwhite: #fbfbfb;
   --color-surface: #ffffff;
-  --color-surface-2: #f5f5f7;
-  --color-surface-3: #e8e8ed;
-  --color-strong: #0e0b2b;
-  --color-text: #1a1840;
-  --color-muted: #6e6e73;
-  /* #86868b read ~3.6:1 on white, failing WCAG AA for normal text --
-     exactly where disclosure/status copy lives. #747477 clears 4.6:1+
-     while staying visibly lighter than --color-muted. */
-  --color-faint: #747477;
+  --color-surface-2: #f4f4f5;
+  --color-surface-3: #e9e9eb;
+  --color-strong: #0b0b0d;
+  --color-text: #18181b;
+  --color-muted: #5a5a60;
+  /* Clears 4.5:1 on white and on --color-bg-alt, where disclosure/status copy lives. */
+  --color-faint: #6b6b70;
   --color-border: rgba(0, 0, 0, 0.08);
   --color-border-strong: rgba(0, 0, 0, 0.14);
   --color-gold: #a07a2c;
   --color-gold-bright: #8a6620;
   --color-gold-soft: rgba(160, 122, 44, 0.09);
-  --color-brand: #150681;
-  --color-brand-bright: #2a14b0;
-  --color-brand-soft: rgba(42, 20, 176, 0.07);
-  --color-mint: #b8b0ff;
-  --color-mint-soft: #ecebff;
-  --color-mint-wash: linear-gradient(180deg, #e6e3ff 0%, #f6f5ff 70%, #ffffff 100%);
+  --color-accent: #3730a3;
+  /* Inverse surface for big bands and cards: near-black in both themes. */
+  --color-ink: #111114;
+  --color-brand: #3730a3;
+  --color-brand-bright: #4f46e5;
+  --color-brand-soft: rgba(79, 70, 229, 0.07);
+  --color-mint: #d4d4d8;
+  --color-mint-soft: #f1f1f3;
+  --color-mint-wash: linear-gradient(180deg, #ececee 0%, #f7f7f8 70%, #ffffff 100%);
   --color-ok: #1b8a4b;
-  --color-warn: #2a14b0;
+  --color-warn: #8a5a00;
 
   /* Type: Geist for display and body, with size-specific tracking (tight
      at display sizes, neutral at reading sizes), Geist Mono for addresses. */

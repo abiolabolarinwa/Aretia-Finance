@@ -36,7 +36,7 @@ export interface ChartSvg {
 }
 
 /** Candlesticks or a filled line, in the light colour given, for a dark panel. */
-export function chartArt(seed: number, style: 'candles' | 'line', up: boolean, color = '#ffffff', accent = '#b8b0ff'): ChartSvg {
+export function chartArt(seed: number, style: 'candles' | 'line', up: boolean, color = '#ffffff', accent = '#d8d8da'): ChartSvg {
   const W = 400;
   const H = 240;
   const pad = 24;

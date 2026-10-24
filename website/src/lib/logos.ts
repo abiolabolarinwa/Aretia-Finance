@@ -19,9 +19,9 @@ export const PRODUCT_NAMES: Record<ProductKey, string> = {
  * viewBox is 64x64; stroke 5. Colours are literals so the exported .svg files
  * work anywhere.
  */
-export const TILE = '#150681';
+export const TILE = '#19191c';
 export const WHITE = '#ffffff';
-export const ACCENT = '#b8b0ff';
+export const ACCENT = '#d8d8da';
 
 const s = (d: string, c = WHITE) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
@@ -62,13 +62,13 @@ export const markSvg = (k: ProductKey, size = 64): string =>
 
 /** Colours for the bare mark (no tile): a main colour for the white sticks and an accent for the lavender one, each clear on white. */
 export const BARE: Record<ProductKey, { main: string; accent: string }> = {
-  wallet: { main: '#3a22c8', accent: '#f5a524' },
-  swap: { main: '#0f7ae5', accent: '#14b8a6' },
-  pay: { main: '#5b3df0', accent: '#ec4899' },
-  safesend: { main: '#0f9d58', accent: '#3a22c8' },
-  market: { main: '#e11d48', accent: '#3a22c8' },
+  wallet: { main: '#111114', accent: '#4f46e5' },
+  swap: { main: '#111114', accent: '#4f46e5' },
+  pay: { main: '#111114', accent: '#4f46e5' },
+  safesend: { main: '#0f9d58', accent: '#4f46e5' },
+  market: { main: '#111114', accent: '#4f46e5' },
   carbon: { main: '#16a34a', accent: '#65a30d' },
-  marketplace: { main: '#7c3aed', accent: '#f59e0b' },
-  shield: { main: '#2563eb', accent: '#10b981' },
-  radar: { main: '#0891b2', accent: '#7c3aed' },
+  marketplace: { main: '#111114', accent: '#4f46e5' },
+  shield: { main: '#111114', accent: '#4f46e5' },
+  radar: { main: '#111114', accent: '#4f46e5' },
 };

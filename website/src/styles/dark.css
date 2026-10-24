@@ -3,31 +3,33 @@
    set it. Tokens first, then the few surfaces that hard-code a light colour. */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0e0c24;
-  --color-bg-alt: #16143a;
-  --color-offwhite: #12102e;
-  --color-surface: #16143a;
-  --color-surface-2: #1c1a46;
-  --color-surface-3: #27245a;
-  --color-strong: #f4f3ff;
-  --color-text: #e6e4fb;
-  --color-muted: #aeacce;
-  --color-faint: #9c9abf;
+  --color-bg: #0b0b0d;
+  --color-bg-alt: #131316;
+  --color-offwhite: #101012;
+  --color-surface: #131316;
+  --color-surface-2: #1a1a1e;
+  --color-surface-3: #26262b;
+  --color-strong: #fafafa;
+  --color-text: #e8e8ea;
+  --color-muted: #a6a6ad;
+  --color-faint: #94949b;
   --color-border: rgba(255, 255, 255, 0.1);
   --color-border-strong: rgba(255, 255, 255, 0.2);
   --color-gold: #d9ad4f;
   --color-gold-bright: #ecc36a;
   --color-gold-soft: rgba(217, 173, 79, 0.14);
-  /* A lighter indigo than the logo's #150681, which is unreadable as text on a dark canvas;
-     white on it still clears 4.5:1 for buttons. */
-  --color-brand: #6a58f2;
-  --color-brand-bright: #7d6cff;
-  --color-brand-soft: rgba(138, 122, 255, 0.16);
-  --color-mint: #b8b0ff;
-  --color-mint-soft: #25215a;
-  --color-mint-wash: linear-gradient(180deg, #25215a 0%, #1a1842 70%, #0e0c24 100%);
+  /* Indigo is lightened on the dark canvas so links stay readable; white on
+     --color-brand still clears 4.5:1 for buttons. */
+  --color-accent: #8b86ff;
+  --color-ink: #17171b;
+  --color-brand: #5b54ec;
+  --color-brand-bright: #8b86ff;
+  --color-brand-soft: rgba(139, 134, 255, 0.14);
+  --color-mint: #d4d4d8;
+  --color-mint-soft: #1d1d22;
+  --color-mint-wash: linear-gradient(180deg, #1d1d22 0%, #131316 70%, #0b0b0d 100%);
   --color-ok: #3fcf82;
-  --color-warn: #b9b0ff;
+  --color-warn: #f0b84a;
   --shadow-float: 0 30px 80px -24px rgba(0, 0, 0, 0.6), 0 8px 24px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
   --shadow-soft: 0 12px 40px -16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
@@ -35,30 +37,30 @@
 html[data-theme='dark'] body { background: var(--color-bg); color: var(--color-text); }
 
 /* Header */
-html[data-theme='dark'] .nav.is-scrolled, html[data-theme='dark'] .nav.is-open { background: rgba(14, 12, 36, 0.78); }
-html[data-theme='dark'] .nav.is-open { background: rgba(14, 12, 36, 0.98); }
-html[data-theme='dark'] .nav__panel { background: rgba(22, 20, 58, 0.97); }
+html[data-theme='dark'] .nav.is-scrolled, html[data-theme='dark'] .nav.is-open { background: rgba(11, 11, 13, 0.78); }
+html[data-theme='dark'] .nav.is-open { background: rgba(11, 11, 13, 0.98); }
+html[data-theme='dark'] .nav__panel { background: rgba(19, 19, 22, 0.97); }
 html[data-theme='dark'] .nav__trigger:hover, html[data-theme='dark'] .nav__item:hover { background: rgba(255, 255, 255, 0.07); }
 
 /* Wallet app: light-only surfaces */
-html[data-theme='dark'] .wapp { --wapp-indigo: #1f1c4d; --wapp-indigo-line: #36317a; --wapp-line: #36317a; }
-html[data-theme='dark'] .wapp-mp { --wapp-indigo: #1b1946; --wapp-indigo-line: #322e70; --color-border-strong: #3f3a85; --color-muted: #b4b2d2; }
-html[data-theme='dark'] :is(.wapp-mt__chart-frame, .wapp-tp__frame, .wapp__chart-frame) { background: #0e0c24; color-scheme: dark; }
-html[data-theme='dark'] .wapp-mp__tab:hover, html[data-theme='dark'] .wapp-mp__watch:hover { background: #2b2766; }
+html[data-theme='dark'] .wapp { --wapp-indigo: #1a1a1e; --wapp-indigo-line: #303036; --wapp-line: #303036; }
+html[data-theme='dark'] .wapp-mp { --wapp-indigo: #18181b; --wapp-indigo-line: #2c2c32; --color-border-strong: #3a3a41; --color-muted: #b0b0b8; }
+html[data-theme='dark'] :is(.wapp-mt__chart-frame, .wapp-tp__frame, .wapp__chart-frame) { background: #0b0b0d; color-scheme: dark; }
+html[data-theme='dark'] .wapp-mp__tab:hover, html[data-theme='dark'] .wapp-mp__watch:hover { background: #26262b; }
 html[data-theme='dark'] .wapp-mp__lock, html[data-theme='dark'] .wapp-mt__lock { color: #4ade80; }
-html[data-theme='dark'] .wapp-mp__lock.is-timed, html[data-theme='dark'] .wapp-mt__lock.is-timed { color: #b9b0ff; }
+html[data-theme='dark'] .wapp-mp__lock.is-timed, html[data-theme='dark'] .wapp-mt__lock.is-timed { color: #fbbf5a; }
 html[data-theme='dark'] :is(.wapp-mp__cell.is-up, .wapp-mp__tab.is-up, .wapp-tp__stat.is-up) :is(.wapp-mp__v, .wapp-tp__v) { color: #4ade80; }
 html[data-theme='dark'] :is(.wapp-mp__cell.is-down, .wapp-mp__tab.is-down, .wapp-tp__stat.is-down) :is(.wapp-mp__v, .wapp-tp__v) { color: #ff8a80; }
 html[data-theme='dark'] .wapp-mt__num.is-up { color: #4ade80; }
 html[data-theme='dark'] .wapp-mt__num.is-down, html[data-theme='dark'] .nav__price-chg.is-down { color: #ff8a80; }
 html[data-theme='dark'] .wapp-mp__headline--bad { color: #ff9b93; }
-html[data-theme='dark'] .wapp-mp__headline--warn { color: #c9c2ff; }
+html[data-theme='dark'] .wapp-mp__headline--warn { color: #fbbf5a; }
 html[data-theme='dark'] .wapp-mt__star[aria-pressed='true'], html[data-theme='dark'] .wapp-mt__star:hover { color: #ffc233; }
 html[data-theme='dark'] .wapp-lb__note { color: #f3d78e; background: rgba(240, 190, 0, 0.1); border-color: rgba(240, 213, 138, 0.35); }
-html[data-theme='dark'] .wapp-lb__imitates { background: rgba(138, 122, 255, 0.18); }
+html[data-theme='dark'] .wapp-lb__imitates { background: rgba(139, 134, 255, 0.16); }
 html[data-theme='dark'] .wapp-svc__tile:hover { background: var(--color-surface-2); }
 html[data-theme='dark'] .wapp-sh__go:hover { background: var(--wapp-indigo); }
-html[data-theme='dark'] .wapp-swapdlg { background: rgba(2, 1, 14, 0.7); }
+html[data-theme='dark'] .wapp-swapdlg { background: rgba(0, 0, 0, 0.7); }
 
 /* Inputs and selects */
 html[data-theme='dark'] :is(input, select, textarea) { color-scheme: dark; }
@@ -74,13 +76,13 @@ html[data-theme='dark'] .theme-toggle__sun { display: none; }
 html[data-theme='dark'] .theme-toggle__moon { display: block; }
 
 /* Notices */
-html[data-theme='dark'] .wapp__banner--warn { color: #d8d3ff; background: rgba(138, 122, 255, 0.16); }
-html[data-theme='dark'] .wapp__banner--info { color: #b4c9ff; background: rgba(110, 150, 255, 0.14); }
+html[data-theme='dark'] .wapp__banner--warn { color: #fbd38d; background: rgba(240, 184, 74, 0.14); }
+html[data-theme='dark'] .wapp__banner--info { color: #c9cbff; background: rgba(139, 134, 255, 0.14); }
 html[data-theme='dark'] .wapp__banner--ok { color: #7fe3ab; background: rgba(63, 207, 130, 0.12); }
 
 /* Status pills: the light theme's dark text on a pale wash becomes light text on a deeper wash */
-html[data-theme='dark'] .wapp__state--on { color: #b4c9ff; background: rgba(110, 150, 255, 0.18); }
-html[data-theme='dark'] .wapp__state--warn { color: #d8d3ff; background: rgba(138, 122, 255, 0.2); }
+html[data-theme='dark'] .wapp__state--on { color: #c9cbff; background: rgba(139, 134, 255, 0.18); }
+html[data-theme='dark'] .wapp__state--warn { color: #fbd38d; background: rgba(240, 184, 74, 0.18); }
 html[data-theme='dark'] .wapp__state--bad, html[data-theme='dark'] .wapp__state--red { color: #ffb4ae; background: rgba(255, 90, 78, 0.2); }
 html[data-theme='dark'] .wapp__state--green { color: #7fe3ab; background: rgba(63, 207, 130, 0.18); }
 html[data-theme='dark'] .wapp__state--yellow { color: #ffe27a; background: rgba(240, 190, 0, 0.2); }

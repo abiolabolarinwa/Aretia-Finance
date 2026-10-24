@@ -60,12 +60,12 @@ const products: { key: ProductKey; name: string; line: string; href: string }[] 
   .more__tile :global(.pl) { margin-bottom: 10px; }
   .more__name { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.015em; color: var(--color-strong); }
   .more__line { font-size: 0.8125rem; line-height: 1.4; color: var(--color-muted); }
-  @media (hover: hover) and (pointer: fine) { .more__tile:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -26px rgba(14, 11, 43, 0.45); } }
+  @media (hover: hover) and (pointer: fine) { .more__tile:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -26px rgba(17, 17, 20, 0.45); } }
 
   /* The last word on every page: a full-width band in the brand indigo,
      the same close as the landing page. */
   .bands { margin-top: var(--space-xl); }
-  .band { background: var(--color-brand); color: #fff; padding-block: clamp(4rem, 9vw, 7.5rem); text-align: center; }
+  .band { background: var(--color-ink); color: #fff; padding-block: clamp(4rem, 9vw, 7.5rem); text-align: center; }
   .band__inner { display: grid; justify-items: center; gap: var(--space-md); }
   .band__title { font-family: var(--font-topical); font-size: clamp(1.9rem, 4.6vw, 3.5rem); font-weight: 700; line-height: 1.08; color: #fff; text-wrap: balance; }
   .band__lead { max-width: 36rem; font-size: var(--text-lead); line-height: 1.55; color: rgba(255, 255, 255, 0.8); }

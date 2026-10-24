@@ -43,7 +43,7 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1;
-  color: var(--border-soft, #EFEFF3);
+  color: var(--border-soft, #f1f1f3);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;

@@ -11,7 +11,7 @@ const COLOURS: Record<Band, { fill: string; ink: string }> = {
   yellow: { fill: '#f0be00', ink: '#2b2200' },
   orange: { fill: '#ee700e', ink: '#ffffff' },
   red: { fill: '#c62a1f', ink: '#ffffff' },
-  grey: { fill: '#8d8aa8', ink: '#ffffff' },
+  grey: { fill: '#99999b', ink: '#ffffff' },
 };
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, maxLines: number): string[] {
@@ -47,7 +47,7 @@ export function renderShareCard(v: Verdict, origin: string): Promise<Blob> {
   const font = '"Geist", system-ui, -apple-system, "Segoe UI", sans-serif';
   const { fill, ink } = COLOURS[v.band];
 
-  ctx.fillStyle = '#1d1170';
+  ctx.fillStyle = '#19191c';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
@@ -70,7 +70,7 @@ export function renderShareCard(v: Verdict, origin: string): Promise<Blob> {
   ctx.textAlign = 'left';
 
   // The answer, then the top findings.
-  ctx.fillStyle = '#1a1840';
+  ctx.fillStyle = '#151518';
   ctx.font = `700 34px ${font}`;
   let y = 250;
   for (const line of wrap(ctx, v.headline, W - 160, 3)) {
@@ -79,14 +79,14 @@ export function renderShareCard(v: Verdict, origin: string): Promise<Blob> {
   }
   y += 10;
   ctx.font = `500 25px ${font}`;
-  ctx.fillStyle = '#4a4580';
+  ctx.fillStyle = '#626264';
   for (const f of v.findings.filter((x) => x.severity !== 'ok' && x.severity !== 'info').slice(0, 3)) {
     const lines = wrap(ctx, f.title, W - 200, 2);
     ctx.fillStyle = f.severity === 'bad' ? '#c62a1f' : f.severity === 'warn' ? '#ee700e' : '#b58900';
     ctx.beginPath();
     ctx.arc(92, y - 8, 7, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#4a4580';
+    ctx.fillStyle = '#626264';
     for (const line of lines) {
       ctx.fillText(line, 116, y);
       y += 34;
@@ -94,7 +94,7 @@ export function renderShareCard(v: Verdict, origin: string): Promise<Blob> {
     y += 6;
   }
 
-  ctx.fillStyle = '#6a66a0';
+  ctx.fillStyle = '#838385';
   ctx.font = `500 21px ${font}`;
   ctx.fillText(`Check it yourself: ${origin.replace(/^https?:\/\//, '')}/wallet`, 80, H - 96);
   ctx.fillText('A reading of public data. Not advice, and Shield never says something is safe.', 80, H - 64);

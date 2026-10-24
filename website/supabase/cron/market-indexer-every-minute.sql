@@ -15,7 +15,7 @@ select cron.schedule(
   $$
   select net.http_get(
     url := 'https://aretiafinance.org/api/mi-run',
-    headers := jsonb_build_object('Authorization', 'Bearer REPLACE_WITH_CRON_SECRET'),
+    headers := jsonb_build_object('Authorization', 'Bearer 7752e12bad4d0b2ccb2f7ac7784dee5030ee4553f0c66b03308988352f39b56c'),
     timeout_milliseconds := 55000
   );
   $$

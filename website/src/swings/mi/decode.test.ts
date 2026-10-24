@@ -1,8 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodeCreation, decodeSwap, logMeta, tradeOf } from './decode.js';
 import { allSpecs, TOPICS } from './dexes.js';
+import { EVIDENCE } from './evidence.js';
 import { addrTopic, pairCreatedLog, poolCreatedLog, v2SwapLog, v3SwapLog, word } from './testkit.js';
 
 interface Fixture {
@@ -59,9 +60,10 @@ describe('decoders on real captured logs', () => {
       const e = evidenceFor(s.id);
       if (e.creations > 0 && e.swaps > 0 && e.trades > 0) earned[s.id] = 'fixture-tested';
     }
-    const file = join(dir, 'evidence.json');
-    if (process.env.MI_WRITE_SPECS === '1') writeFileSync(file, JSON.stringify(earned, null, 1));
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(earned);
+    if (process.env.MI_WRITE_SPECS === '1') process.stdout.write(`
+EVIDENCE ${JSON.stringify(earned, null, 1)}
+`);
+    expect(EVIDENCE).toEqual(earned);
     // Never claims what was not captured.
     expect(Object.keys(earned).length).toBeGreaterThan(15);
   });

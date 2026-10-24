@@ -19,7 +19,8 @@ const API = dirname(fileURLToPath(import.meta.url));
 
 /** Static imports and exports ("from './x'"), side-effect imports ("import './x'") and dynamic imports ("import('./x')"). */
 const SPECIFIER = /(?:import|export)\s[^'"]*?from\s+['"](\.[^'"]+)['"]|import\s+['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/g;
-const HAS_EXTENSION = /\.(?:js|json|mjs|cjs)$/;
+// No .json: Node's ES-module loader refuses a JSON import without an import attribute, which crashes the whole function on load.
+const HAS_EXTENSION = /\.(?:js|mjs|cjs)$/;
 
 interface Files {
   read(path: string): string;

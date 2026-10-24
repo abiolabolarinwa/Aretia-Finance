@@ -1024,16 +1024,36 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       return box;
     }
     box.append(banner('info', 'Connect your wallet to swap on this network. Use a wallet for Ethereum-style networks, such as MetaMask, Coinbase Wallet or Rabby. Aretia never holds your keys.'));
-    if (s.walletChoices === null) {
-      const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Find wallets', attrs: { type: 'button' } });
-      b.addEventListener('click', () => {
-        void evm.discover().then((ws) => {
+    const look = (): void => {
+      void evm
+        .discover()
+        .then((ws) => {
           s.walletChoices = ws.map((w) => ({ uuid: w.info.uuid, name: w.info.name }));
-          render();
-        });
+        })
+        .catch(() => {
+          s.walletChoices = [];
+        })
+        .finally(render);
+    };
+    const lookButton = (text: string): HTMLElement => {
+      const b = el('button', { class: 'wapp__btn wapp__btn--primary', text, attrs: { type: 'button' } });
+      b.addEventListener('click', () => {
+        b.disabled = true;
+        b.textContent = 'Looking…';
+        look();
       });
-      box.append(b);
-    } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) box.append(banner('warn', 'No EVM wallet was found in this browser.'));
+      return b;
+    };
+    if (s.walletChoices === null) {
+      // The wallets are looked for as soon as this is shown, so there is no extra click before Connect MetaMask appears.
+      if (!evmAutoFound) {
+        evmAutoFound = true;
+        look();
+      }
+      box.append(el('p', { class: 'wapp__fine', text: 'Looking for your wallet…' }), lookButton('Find wallets'));
+    } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) {
+      box.append(banner('warn', 'No Ethereum-style wallet was found in this browser. If MetaMask is installed, make sure it is enabled for this site and unlocked, then look again.'), lookButton('Look again'));
+    }
     else {
       if (isProjectId(WC_PROJECT_ID)) {
         const wc = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Connect with WalletConnect (phone or hardware wallet)', attrs: { type: 'button' } });
@@ -1471,6 +1491,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   // ------------------------------------------------------------------ token lists (New Tokens, Markets)
 
+  /** Wallets are looked for by themselves the first time the connect box is shown. */
+  let evmAutoFound = false;
   const market = new GeckoMarket();
   const PAGE_SIZE = 50;
 

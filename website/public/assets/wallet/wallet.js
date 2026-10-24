@@ -844,6 +844,13 @@
     sub.textContent = "Choose a wallet to continue.";
     body.appendChild(sub);
 
+    // This list is for Solana wallets. MetaMask and the other Ethereum-style wallets connect on the Swap page.
+    var evmNote = document.createElement("p");
+    evmNote.className = "aw-sheet-sub";
+    evmNote.style.marginTop = "-10px";
+    evmNote.textContent = "Using MetaMask or another Ethereum wallet? Open Markets, choose an Ethereum-style network such as Ethereum, BNB Chain or Base, and press Connect on the swap.";
+    body.appendChild(evmNote);
+
     var errorBox = document.createElement("div");
     errorBox.className = "aw-error";
     errorBox.hidden = true;

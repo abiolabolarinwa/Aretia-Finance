@@ -14,7 +14,7 @@ describe('fetchDeepRows', () => {
       const q = new URL(u, 'https://x').searchParams;
       return reply(rows(q.get('chain')!, Number(q.get('page'))));
     }) as unknown as typeof fetch;
-    const got = await fetchDeepRows('', 'h24', 0, { fetchImpl });
+    const got = await fetchDeepRows('', 'h24', 0, { fetchImpl, sleep: async () => undefined });
     expect(got.length).toBeGreaterThanOrEqual(1000);
     expect(new Set(got.map((r) => r.address)).size).toBe(got.length);
     expect(got[0]!.volume24hUsd!).toBeGreaterThanOrEqual(got[got.length - 1]!.volume24hUsd!);
@@ -27,13 +27,13 @@ describe('fetchDeepRows', () => {
       asked.push(`${q.get('chain')}:${q.get('page')}`);
       return reply(rows('bnb', Number(q.get('page')), Number(q.get('page')) > 2 ? 1 : 20));
     }) as unknown as typeof fetch;
-    const got = await fetchDeepRows('bnb', 'h24', 0, { fetchImpl });
+    const got = await fetchDeepRows('bnb', 'h24', 0, { fetchImpl, sleep: async () => undefined });
     expect(new Set(asked.map((a) => a.split(':')[0]))).toEqual(new Set(['bnb']));
     expect(got.length).toBeGreaterThanOrEqual(40);
     expect(asked.length).toBeLessThan(10);
   });
 
-  it('skips pages that fail and keeps the rest, and reuses a recent answer', async () => {
+  it('asks a refused page again in a later round, and reuses a recent answer', async () => {
     let calls = 0;
     const fetchImpl = (async (u: string) => {
       calls++;
@@ -41,10 +41,11 @@ describe('fetchDeepRows', () => {
       const q = new URL(u, 'https://x').searchParams;
       return reply(rows(q.get('chain')!, Number(q.get('page'))));
     }) as unknown as typeof fetch;
-    const first = await fetchDeepRows('base', 'h24', 0, { fetchImpl, pages: 4 });
-    expect(first.length).toBeGreaterThan(0);
+    const sleep = async () => undefined;
+    const first = await fetchDeepRows('base', 'h24', 0, { fetchImpl, pages: 4, sleep });
+    expect(first.length).toBe(80); // every page got through in the end
     const before = calls;
-    await fetchDeepRows('base', 'h24', 60_000, { fetchImpl, pages: 4 });
+    await fetchDeepRows('base', 'h24', 60_000, { fetchImpl, pages: 4, sleep });
     expect(calls).toBe(before);
   });
 });

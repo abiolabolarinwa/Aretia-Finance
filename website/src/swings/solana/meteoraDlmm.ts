@@ -33,6 +33,7 @@ const BITMAP_MAX = 511;
 const MAX_BIN_ARRAYS = 4;
 const MAX_POOLS = 6;
 const PRESET_TTL_MS = 6 * 3_600_000;
+const FALLBACK_RETRY_MS = 60_000;
 
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 function encodeBase58(bytes: Uint8Array): string {
@@ -81,6 +82,27 @@ export function parseDlmmPair(web3: typeof Web3, data: Uint8Array): DlmmPair | n
   return { baseFactor: v.getUint16(8, true), pairType: data[75]!, activeId: v.getInt32(76, true), binStep: v.getUint16(80, true), status: data[82]!, mintX: pk(88), mintY: pk(120), reserveX: pk(152), reserveY: pk(184), oracle: pk(552) };
 }
 
+/**
+ * The program's published presets as read from mainnet on 2026-10-24 (95 of them). The browser's RPC proxy refuses
+ * getProgramAccounts, so the live read cannot work there; without this list every Meteora DLMM lookup failed and a swap
+ * for any token without a pool elsewhere said the places Aretia reads pools from "could not be reached". New presets the
+ * program adds later are found by the live read wherever it is allowed (the server).
+ */
+const FALLBACK_PRESETS: readonly (readonly [number, number])[] = [
+  [1, 10000], [2, 10000], [2, 15000], [4, 10000], [5, 2000], [5, 4000], [5, 6000], [5, 8000],
+  [5, 20000], [8, 1250], [8, 6250], [10, 1000], [10, 2000], [10, 3000], [10, 4000], [10, 10000],
+  [15, 10000], [16, 625], [16, 1875], [20, 10000], [20, 15000], [20, 25000], [20, 50000], [25, 10000],
+  [30, 10000], [50, 1000], [50, 2000], [50, 5000], [50, 6000], [50, 8000], [50, 10000], [50, 15000],
+  [50, 40000], [75, 2000], [75, 10000], [80, 125], [80, 250], [80, 375], [80, 500], [80, 625],
+  [80, 1250], [80, 1875], [80, 2500], [80, 3125], [80, 7500], [80, 10000], [80, 12500], [80, 25000],
+  [80, 62500], [100, 100], [100, 400], [100, 500], [100, 1000], [100, 1500], [100, 2000], [100, 2500],
+  [100, 3000], [100, 4000], [100, 6000], [100, 8000], [100, 10000], [100, 20000], [100, 30000], [100, 50000],
+  [125, 1600], [125, 2000], [125, 8000], [125, 12000], [125, 20000], [125, 40000], [150, 2000], [160, 2500],
+  [160, 5000], [200, 500], [200, 1250], [200, 1500], [200, 2000], [200, 4000], [200, 5000], [200, 10000],
+  [200, 25000], [200, 50000], [250, 400], [250, 800], [250, 1000], [250, 4000], [250, 8000], [250, 20000],
+  [250, 40000], [300, 20000], [400, 250], [400, 1000], [400, 2500], [400, 5000], [400, 12500],
+];
+
 export interface Preset {
   binStep: number;
   baseFactor: number;
@@ -107,6 +129,7 @@ let presetCache: { at: number; presets: Promise<Preset[]> } | null = null;
 
 export class MeteoraDlmmAdapter {
   private readonly program: Web3.PublicKey;
+  private usedFallback = false;
 
   constructor(
     private readonly web3: typeof Web3,
@@ -158,10 +181,24 @@ export class MeteoraDlmmAdapter {
     loading.catch(() => {
       if (presetCache === entry) presetCache = null;
     });
+    // The stand-in list is only kept for a minute, so a place where the live read works (the server) soon gets the real one.
+    void loading.then(() => {
+      if (this.usedFallback && presetCache === entry) entry.at = this.now() - PRESET_TTL_MS + FALLBACK_RETRY_MS;
+    });
     return loading;
   }
 
   private async loadPresets(): Promise<Preset[]> {
+    try {
+      return await this.loadPresetsLive();
+    } catch {
+      // The browser's RPC proxy does not allow this read; the known presets stand in for it.
+      this.usedFallback = true;
+      return FALLBACK_PRESETS.map(([binStep, baseFactor]) => ({ binStep, baseFactor }));
+    }
+  }
+
+  private async loadPresetsLive(): Promise<Preset[]> {
     const raw = await this.rpc<{ account: { data: [string, string] } }[]>('getProgramAccounts', [METEORA_DLMM_PROGRAM, { encoding: 'base64', dataSlice: { offset: 0, length: 20 }, filters: [{ memcmp: { offset: 0, bytes: encodeBase58(PRESET2_DISCRIMINATOR) } }] }]);
     const seen = new Set<string>();
     const presets: Preset[] = [];

@@ -127,7 +127,7 @@ describe('MeteoraDlmmAdapter', () => {
     expect(found).toHaveLength(6);
   });
 
-  it('reads the presets once for parallel lookups, and does not remember a failed read', async () => {
+  it('reads the presets once for parallel lookups, and uses the known presets when the read is refused, and asks again after a minute', async () => {
     let reads = 0;
     const counting = (async (method: string, params: unknown[]) => {
       if (method === 'getProgramAccounts') {
@@ -150,8 +150,13 @@ describe('MeteoraDlmmAdapter', () => {
       }
       return { value: [] };
     }) as SolRpc;
-    const b = new MeteoraDlmmAdapter(web3, flaky);
-    await expect(b.presets()).rejects.toThrow();
+    let clock = 0;
+    const b = new MeteoraDlmmAdapter(web3, flaky, () => clock);
+    // A refused read (the browser's proxy refuses it for good) falls back to the known presets, so lookups still work.
+    expect((await b.presets()).length).toBeGreaterThan(50);
+    await Promise.resolve();
+    // The stand-in is only kept for a minute; after that the live read is tried again.
+    clock += 61_000;
     expect(await b.presets()).toEqual([{ binStep: 20, baseFactor: 10_000 }]);
   });
 

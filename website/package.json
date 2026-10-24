@@ -30,7 +30,7 @@
     "@noble/curves": "1.9.7",
     "@solana/web3.js": "^1.99.0",
     "@walletconnect/ethereum-provider": "^2.25.0",
-    "astro": "^7.3.5",
+    "astro": "^7.4.1",
     "bn.js": "5.2.3",
     "buffer": "^6.0.3",
     "gsap": "^3.15.0",

@@ -75,7 +75,8 @@ import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from '.
 import { imitationChip } from '../lib/imitationChip';
 
 /** Fired on the window when the Ethereum-style account connected in the swap changes; `detail` is the address or null. */
-export const EVM_ACCOUNT_EVENT = 'aretia:evm-account';
+export { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
+import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
 
 export interface SwingsHolding {
   mint: string;

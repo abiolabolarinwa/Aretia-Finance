@@ -1,5 +1,7 @@
 import { ACT as ACT_INFO } from '../data/site';
-import { EVM_ACCOUNT_EVENT, initSwings } from './walletSwings';
+import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
+import type { initSwings } from './walletSwings';
+import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding } from './walletEvmHoldings';
 import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
@@ -9,15 +11,6 @@ import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initReferrals } from './walletReferrals';
 import { initShield } from './walletShield';
-import { initLaunch } from './walletLaunch';
-import { initPool } from './walletPool';
-import { initCurve } from './walletCurve';
-import { initOrders } from './walletOrders';
-import { initAretiaPool } from './walletAretiaPool';
-import { initLaunchHub, type LaunchHub } from './walletLaunchHub';
-import { initLaunchBox } from './walletLaunchBox';
-import { initYourPools } from './walletYourPools';
-import { mountLaunchFeatured } from './walletFeatured';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
 import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
@@ -361,6 +354,16 @@ function initSidebar(): void {
   requestAnimationFrame(() => requestAnimationFrame(() => wapp.classList.add('wapp--ready')));
 }
 
+/** A module loaded on first need or when idle; `run` waits for it, `get` is null until it has arrived. */
+function lazyApi<A>(load: () => Promise<A>): { get(): A | null; run<R>(fn: (api: A) => R | Promise<R>): Promise<R> } {
+  let api: A | null = null;
+  let loading: Promise<A> | null = null;
+  const ready = (): Promise<A> => (loading ??= load().then((a) => (api = a)));
+  lazyStarters.push(() => void ready().catch(() => undefined));
+  return { get: () => api, run: async (fn) => fn(await ready()) };
+}
+const lazyStarters: (() => void)[] = [];
+
 export function initWalletApp(): void {
   const root = $<HTMLElement>('[data-wapp]');
   if (!root) return;
@@ -391,7 +394,38 @@ export function initWalletApp(): void {
   let loadToken = 0;
   initRadar();
   let referrals: ReturnType<typeof initReferrals> | null = null;
-  const swings = initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
+  // The swap engine and the launch tools are large. They are downloaded right after the first screen is drawn (or sooner,
+  // if a page needs them), so connecting and the balances never wait for them. Calls made before they arrive are queued.
+  const swingsLoad = lazyApi<ReturnType<typeof initSwings>>(async () => {
+    const api = (await import('./walletSwings')).initSwings({ getAddress: () => address, getWalletName: () => walletName, getHoldings: () => holdings, refresh: () => refresh() });
+    if (address) api.onWalletChange();
+    return api;
+  });
+  const swings = {
+    onShow: (v: 'swings' | 'swap' | 'favourites') => void swingsLoad.run((a) => a.onShow(v)),
+    onPayShow: () => void swingsLoad.run((a) => a.onPayShow()),
+    onActivityShow: () => void swingsLoad.run((a) => a.onActivityShow()),
+    onWalletChange: () => swingsLoad.get()?.onWalletChange(),
+    evmAccount: (): string | null => swingsLoad.get()?.evmAccount() ?? null,
+    revokeEvm: (chain: ChainId, token: string, spender: string) => swingsLoad.run((a) => a.revokeEvm(chain, token, spender)),
+  };
+  const launchLoad = lazyApi<LaunchCluster>(async () => {
+    const { initLaunchCluster } = await import('./walletLaunchCluster');
+    const cluster = initLaunchCluster({
+      getAddress: () => address,
+      refreshWallet: () => void refresh(),
+      getEvmAccount: () => evmSession.account ?? evmAccount,
+      ensureEvmWallet: () => ensureEvmWallet(),
+      evmSessionAccount: () => evmSession.account,
+    });
+    if (address) cluster.onWalletChange();
+    return cluster;
+  });
+  const launchTools = {
+    onShowLaunch: () => void launchLoad.run((c) => c.onShowLaunch()),
+    onShowLaunchBox: () => void launchLoad.run((c) => c.onShowLaunchBox()),
+    onWalletChange: () => launchLoad.get()?.onWalletChange(),
+  };
   const shield = initShield({
     getAddress: () => address,
     getHoldings: () => (holdings ?? []).map((x) => ({ mint: x.mint, symbol: x.symbol, value: x.value, amount: x.amount })),
@@ -399,46 +433,6 @@ export function initWalletApp(): void {
     revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
     refreshWallet: () => void refresh(),
   });
-
-  const pool = initPool({ getAddress: () => address, refreshWallet: () => void refresh() });
-  const curve = initCurve({ getAddress: () => address, refreshWallet: () => void refresh() });
-  const orders = initOrders({ getAddress: () => address, refreshWallet: () => void refresh() });
-  const aretiaPool = initAretiaPool({ getAddress: () => address, refreshWallet: () => void refresh() });
-  let launchHub: LaunchHub | null = null;
-  // Featured launches on the Launch page (drawn only while something is featured today).
-  mountLaunchFeatured();
-  const yourPools = initYourPools({
-    getAddress: () => address,
-    refreshWallet: () => void refresh(),
-    onSolana: () => launch.getNetwork() === 'solana',
-    evm: { network: () => launch.getNetwork(), getAccount: () => evmSession.account ?? evmAccount, connect: async () => ({ adapter: await ensureEvmWallet() }) },
-  });
-  const launch = initLaunch({
-    getAddress: () => address,
-    refreshWallet: () => void refresh(),
-    // One plain sign-in message, to prove who is uploading a token picture. Never a transaction.
-    signMessage: async (message) => {
-      const ctx = window.AretiaWallet?.getWalletContextState() as { signMessage?: (m: Uint8Array) => Promise<Uint8Array> } | undefined;
-      if (!ctx?.signMessage) throw new Error('Your wallet cannot sign a message, so a picture cannot be uploaded with it.');
-      return btoa(String.fromCharCode(...(await ctx.signMessage(new TextEncoder().encode(message)))));
-    },
-    onNetwork: (n) => {
-      curve.setActive(n === 'solana');
-      orders.setActive(n === 'solana');
-      aretiaPool.setActive(n === 'solana');
-    },
-    offerPool: (mint) => pool.offer(mint),
-    offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined,
-    evm: {
-      getAccount: () => evmSession.account ?? evmAccount,
-      connect: async () => {
-        const adapter = await ensureEvmWallet();
-        return { adapter, account: evmSession.account };
-      },
-    },
-  });
-
-  const launchBox = initLaunchBox({ goLaunch: () => (location.hash = '#/launch') });
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.
@@ -1125,25 +1119,9 @@ export function initWalletApp(): void {
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
     if (view === 'referrals') referrals?.onShow();
     if (view === 'activity') swings.onActivityShow();
-    if (view === 'launchbox') launchBox.onShow();
+    if (view === 'launchbox') launchTools.onShowLaunchBox();
     if (view === 'shield') shield.onShow(location.hash);
-    if (view === 'launch') {
-      launch.onShow();
-      pool.onShow();
-      curve.onShow();
-      orders.onShow();
-      launchHub ??= initLaunchHub(launch, {
-        curveOn: curve.present,
-        onPools: () => yourPools.onShow(),
-        resetAll: () => {
-          launch.onWalletChange();
-          pool.onWalletChange();
-          curve.onWalletChange();
-          orders.onWalletChange();
-        },
-      });
-      launchHub?.onShow();
-    }
+    if (view === 'launch') launchTools.onShowLaunch();
     if (view === 'send') {
       void loadWeb3();
       swings.onPayShow();
@@ -1228,11 +1206,7 @@ export function initWalletApp(): void {
     clearSessionOutputs();
     swings.onWalletChange();
     shield.onWalletChange();
-    launch.onWalletChange();
-    yourPools.onWalletChange();
-    pool.onWalletChange();
-    curve.onWalletChange();
-    orders.onWalletChange();
+    launchTools.onWalletChange();
     renderChrome();
     // The Referrals page shows the connected wallet's own link and numbers, so it is drawn again for the new one.
     if (currentView() === 'referrals') referrals?.onShow();
@@ -1247,6 +1221,10 @@ export function initWalletApp(): void {
   };
   initSidebar();
   onRoute();
+  // Once the page is drawn and idle, fetch the rest so it is ready by the time a tab is opened.
+  const startLazy = () => lazyStarters.forEach((f) => f());
+  if ('requestIdleCallback' in window) window.requestIdleCallback(startLazy, { timeout: 2000 });
+  else setTimeout(startLazy, 800);
   if (!wire()) {
     // wallet.js loads just before this script; wait briefly if it is a tick behind.
     let tries = 0;

@@ -35,7 +35,7 @@ describe('the page keeps Aretia Pool off', () => {
     expect(card).toMatch(/if \(!program\) throw new Error/);
   });
   it('is wired into the page once, and only through the card file', () => {
-    const app = read('./walletApp.ts');
+    const app = read('./walletLaunchCluster.ts');
     expect(app.match(/initAretiaPool\(/g)).toHaveLength(1);
     expect(app).toContain("from './walletAretiaPool'");
   });

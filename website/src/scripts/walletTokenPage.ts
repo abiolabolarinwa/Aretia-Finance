@@ -57,6 +57,8 @@ function nativePrice(d: PairDetail): string {
   return d.priceNative === null ? '–' : `${formatPrice(d.priceNative).replace('$', '')} ${d.quoteSymbol}`;
 }
 
+const PANEL_KEY = 'aretia-token-panel';
+
 export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   const root = el('section', 'wapp-tp');
   let seq = 0;
@@ -75,11 +77,37 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     back.type = 'button';
     back.addEventListener('click', () => o.onBack());
     const title = el('div', 'wapp-tp__title');
-    bar.append(back, title);
+    const headline = el('div', 'wapp-tp__headline');
+    headline.dataset.tpHeadline = '';
+    const toggle = el('button', 'wapp__btn wapp-tp__toggle');
+    toggle.type = 'button';
+    bar.append(back, title, headline, toggle);
     const grid = el('div', 'wapp-tp__grid');
     const chart = el('div', 'wapp-tp__chart');
     const side = el('aside', 'wapp-tp__side');
-    grid.append(chart, side);
+    side.id = 'wapp-tp-side';
+    const edge = el('button', 'wapp-tp__edge');
+    edge.type = 'button';
+    grid.append(chart, side, edge);
+    // The trade panel can be tucked away to give the chart the whole width.
+    const setPanel = (open: boolean, remember = true): void => {
+      grid.classList.toggle('is-collapsed', !open);
+      side.inert = !open;
+      for (const b of [toggle, edge]) b.setAttribute('aria-expanded', String(open));
+      toggle.replaceChildren(el('span', 'wapp-tp__toggle-ico', open ? '›' : '‹'), document.createTextNode(open ? 'Hide panel' : 'Show panel'));
+      edge.textContent = open ? '›' : '‹';
+      edge.setAttribute('aria-label', open ? 'Hide the trade panel' : 'Show the trade panel');
+      if (remember) try { localStorage.setItem(PANEL_KEY, open ? 'open' : 'closed'); } catch { /* storage unavailable */ }
+      // The chart is sized by its container: let it re-measure once the panel has moved.
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+    };
+    for (const b of [toggle, edge]) {
+      b.setAttribute('aria-controls', 'wapp-tp-side');
+      b.addEventListener('click', () => setPanel(grid.classList.contains('is-collapsed')));
+    }
+    let startOpen = true;
+    try { startOpen = localStorage.getItem(PANEL_KEY) !== 'closed'; } catch { /* storage unavailable */ }
+    setPanel(startOpen, false);
     root.append(bar, grid);
     title.append(picture(o.symbol, o.icon ?? cachedLogo(o.chain, o.address)), el('strong', 'wapp-tp__name', o.symbol), el('span', 'wapp-tp__net', `${o.name ? `${o.name} · ` : ''}${CHAINS[o.chain].name}`));
     chart.append(el('p', 'wapp__fine', 'Finding the main pool for this token…'));
@@ -103,6 +131,23 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     const side = parts.side;
     side.replaceChildren();
     const net = CHAINS[o.chain].name;
+    const headline = root.querySelector<HTMLElement>('[data-tp-headline]');
+    if (headline) {
+      headline.replaceChildren();
+      if (d) {
+        const day = d.change.h24;
+        const chg = el('span', `wapp-tp__chg ${day === null ? '' : day >= 0 ? 'is-up' : 'is-down'}`, formatChange(day));
+        headline.append(el('strong', 'wapp-tp__price', formatPrice(d.priceUsd)), chg);
+      }
+    }
+    const act = el('div', 'wapp-tp__actions');
+    if (o.onSwap) {
+      const swap = el('button', 'wapp__btn wapp__btn--primary', `Swap into ${o.symbol}`);
+      swap.type = 'button';
+      swap.addEventListener('click', () => o.onSwap?.());
+      act.append(swap);
+    } else act.append(el('p', 'wapp__fine', `Swaps on ${net} are switched off at the moment, so this token can be inspected but not traded here.`));
+    side.insertBefore(act, side.firstChild);
     side.append(el('h3', 'wapp-tp__pair', d ? `${d.baseSymbol} / ${d.quoteSymbol}` : o.symbol), el('p', 'wapp__fine', `${net}${d?.dex ? ` · ${d.dex}` : ''}`));
     if (problem || !d) {
       side.append(el('p', 'wapp__fine', problem ?? 'No numbers were found for this pool.'));
@@ -148,14 +193,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       }
     }
     if (o.riskNote) side.append(el('p', 'wapp-tp__risk', o.riskNote));
-    const act = el('div', 'wapp-tp__actions');
-    if (o.onSwap) {
-      const swap = el('button', 'wapp__btn wapp__btn--primary', `Swap into ${o.symbol}`);
-      swap.type = 'button';
-      swap.addEventListener('click', () => o.onSwap?.());
-      act.append(swap);
-    } else act.append(el('p', 'wapp__fine', `Swaps on ${net} are switched off at the moment, so this token can be inspected but not traded here.`));
-    side.append(act, el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
+    side.append(el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
   }
 
   async function open(o: TokenPageOptions): Promise<void> {

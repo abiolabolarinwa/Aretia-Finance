@@ -179,6 +179,11 @@ export class GeckoMarket {
       return got.flatMap((g) => (g.status === 'fulfilled' ? g.value : []));
     };
     let rows = await fetchPages(fresh, 1, 6);
+    // Every list but New also takes the established, busy pools, so older tokens are listed alongside the newly created ones.
+    if (q.kind !== 'new') {
+      const busy = (p: number): string => (net ? `/networks/${net}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}` : `/networks/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}`);
+      rows = rows.concat(await fetchPages(busy, 1, 5));
+    }
     if (rows.length === 0) await this.list(fresh(1), signal); // all six failed: say why instead of an empty list
     if (net && rows.length < RECENT_MIN) {
       rows = rows.concat(await fetchPages((p) => `/networks/${net}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}`, 1, 2));
@@ -196,6 +201,8 @@ export class GeckoMarket {
     };
     const all = dedupe(rows).filter((r) => q.kind !== 'gainers' || (r.liquidityUsd ?? 0) >= 1_000);
     const young = (r: MarketRow): boolean => r.ageMs !== null && r.ageMs <= RECENT_DAYS * 86_400_000;
+    // New lists the newly created first. Every other list ranks old and new together, so an established token is never pushed down by a new one.
+    if (q.kind !== 'new') return all.sort(rank).slice(0, RECENT_MAX * 2);
     return [...all.filter(young).sort(rank), ...all.filter((r) => !young(r)).sort(rank)].slice(0, RECENT_MAX);
   }
 

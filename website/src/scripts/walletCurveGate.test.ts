@@ -46,7 +46,7 @@ describe('the page keeps the curve off mainnet', () => {
   });
 
   it('is wired into the page once, and only through the card file', () => {
-    const app = read('./walletApp.ts');
+    const app = read('./walletLaunchCluster.ts');
     expect(app.match(/initCurve\(/g)).toHaveLength(1);
     expect(app).toContain("from './walletCurve'");
   });
@@ -58,7 +58,7 @@ describe('the Launch page offers the curve only where the card exists', () => {
     const at = launch.indexOf('Sell it on a bonding curve');
     expect(at).toBeGreaterThan(-1);
     expect(launch.slice(launch.lastIndexOf('if (host.offerCurve)', at), at)).toContain('if (host.offerCurve) {');
-    expect(read('./walletApp.ts')).toContain('offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined');
+    expect(read('./walletLaunchCluster.ts')).toContain('offerCurve: curve.present ? (mint) => curve.offer(mint) : undefined');
     const card = read('./walletCurve.ts');
     expect(card).toContain('const noop: CurveCard = { present: false');
     expect(card).toContain('present: true,');
@@ -102,7 +102,7 @@ describe('the Solana curve card hides when another network is chosen', () => {
   it('is told the network by the Launch page and hides its whole card', () => {
     expect(read('./walletLaunch.ts')).toContain('host.onNetwork?.(network);');
     // (The Aretia Pool card is told the same thing in the same handler, so the handler is a block now.)
-    expect(read('./walletApp.ts')).toMatch(/onNetwork: \(n\) => \{\s*curve\.setActive\(n === 'solana'\);/);
+    expect(read('./walletLaunchCluster.ts')).toMatch(/onNetwork: \(n\) => \{\s*curve\.setActive\(n === 'solana'\);/);
     const card = read('./walletCurve.ts');
     expect(card).toContain("root.closest<HTMLElement>('.wapp__card')");
     expect(card).toContain('card.hidden = !active;');

@@ -40,7 +40,7 @@ describe('the page keeps limit orders off mainnet', () => {
   });
 
   it('is wired into the page once, and only through the card file', () => {
-    const app = read('./walletApp.ts');
+    const app = read('./walletLaunchCluster.ts');
     expect(app.match(/initOrders\(/g)).toHaveLength(1);
     expect(app).toContain("from './walletOrders'");
   });

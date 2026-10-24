@@ -4,6 +4,7 @@
  */
 import { handleDiscover } from './_swingsTokens.js';
 import { requestOrigin } from './_rpcProxy.js';
+import { refuse, viaCloudflare } from './_proxyGuard.js';
 
 interface Req {
   method?: string;
@@ -19,6 +20,7 @@ interface Res {
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 export default async function handler(req: Req, res: Res): Promise<void> {
+  if (!viaCloudflare(req.headers)) return void refuse(res);
   const out = await handleDiscover({
     method: req.method ?? 'GET',
     origin: requestOrigin(req.headers),

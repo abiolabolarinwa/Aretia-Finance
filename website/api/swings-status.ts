@@ -1,6 +1,7 @@
 /** GET /api/swings-status: which optional Swings services are on. See _swingsStatus.ts. */
 import { handleStatus } from './_swingsStatus.js';
 import { requestOrigin } from './_rpcProxy.js';
+import { refuse, viaCloudflare } from './_proxyGuard.js';
 
 interface Req {
   method?: string;
@@ -14,6 +15,7 @@ interface Res {
 
 
 export default function handler(req: Req, res: Res): void {
+  if (!viaCloudflare(req.headers)) return void refuse(res);
   const out = handleStatus({ method: req.method ?? 'GET', origin: requestOrigin(req.headers), env: process.env });
   for (const [name, value] of Object.entries(out.headers)) res.setHeader(name, value);
   res.status(out.status).send(out.body);

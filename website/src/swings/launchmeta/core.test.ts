@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_DETAILS,
   IMAGE_RULES,
+  bucketProblem,
   buildMetadataJson,
   checkImage,
   cleanHttpsUrl,
@@ -137,5 +138,24 @@ describe('planUpload', () => {
     expect(planUpload({ kind: 'evm-meta', chain: 'sepolia', address, size: 300 }).ok).toBe(false);
     expect(planUpload({ kind: 'evm-meta', chain: 'bnb', address: '0x12', size: 300 }).ok).toBe(false);
     expect(planUpload({ kind: 'evm-meta', chain: 'bnb', address: '../../' + address, size: 300 }).ok).toBe(false);
+  });
+});
+
+describe('bucketProblem', () => {
+  const good = { public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] };
+  it('accepts a public, capped bucket that lists only the allowed types, or a subset of them', () => {
+    expect(bucketProblem(good)).toBeNull();
+    expect(bucketProblem({ ...good, allowed_mime_types: ['image/png'], file_size_limit: 1000 })).toBeNull();
+  });
+  it('refuses anything else', () => {
+    expect(bucketProblem(null)).not.toBeNull();
+    expect(bucketProblem({ ...good, public: false })).not.toBeNull();
+    expect(bucketProblem({ ...good, file_size_limit: null })).not.toBeNull();
+    expect(bucketProblem({ ...good, file_size_limit: 0 })).not.toBeNull();
+    expect(bucketProblem({ ...good, file_size_limit: 15 * 1024 * 1024 + 1 })).not.toBeNull();
+    expect(bucketProblem({ ...good, allowed_mime_types: null })).not.toBeNull();
+    expect(bucketProblem({ ...good, allowed_mime_types: [] })).not.toBeNull();
+    expect(bucketProblem({ ...good, allowed_mime_types: ['image/png', 'text/html'] })).not.toBeNull();
+    expect(bucketProblem({ ...good, allowed_mime_types: ['image/svg+xml'] })).not.toBeNull();
   });
 });

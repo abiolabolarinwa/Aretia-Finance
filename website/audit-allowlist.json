@@ -1,0 +1,35 @@
+{
+  "_about": "High or critical advisories in production dependencies that the project accepts for now. Each needs a reason; scripts/audit-gate.mjs fails the build for anything not listed here. Review the list whenever a dependency is updated.",
+  "accepted": [
+    {
+      "id": "GHSA-82x6-q7mm-w9cf",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "toml is used by Anchor to read Anchor.toml workspace files, which the browser wallet never does; no fix exists without a new Meteora SDK. Accepted 2026-10-23, revisit when @meteora-ag/cp-amm-sdk updates Anchor."
+    },
+    {
+      "id": "GHSA-v5mp-jgw5-2x6j",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "Same dependency path as GHSA-82x6-q7mm-w9cf: prototype pollution needs attacker-controlled TOML text, and the site parses none. Accepted 2026-10-23."
+    },
+    {
+      "id": "GHSA-4qx8-w7c3-pj3p",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "Same dependency path as GHSA-82x6-q7mm-w9cf: quadratic parse time on crafted TOML; no TOML is parsed from outside input. Accepted 2026-10-23."
+    },
+    {
+      "id": "GHSA-9j65-hcg3-gc64",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "Same dependency path as GHSA-82x6-q7mm-w9cf: quadratic parse time on crafted TOML; no TOML is parsed from outside input. Accepted 2026-10-23."
+    },
+    {
+      "id": "GHSA-9qmh-m7c6-f92p",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "Same dependency path as GHSA-82x6-q7mm-w9cf: resource use on crafted TOML; no TOML is parsed from outside input. Accepted 2026-10-23."
+    },
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod (via @walletconnect/ethereum-provider, @reown/appkit, @coinbase/cdp-sdk)",
+      "reason": "Published after the first audit run (it appeared on the day of the remediation review). Memory exhaustion when zod validates a very large constrained collection; zod here validates messages inside the WalletConnect and Coinbase wallet SDKs, whose input comes from the user's own paired wallet, so the effect is a stalled tab, not loss of funds. The only fix npm offers is a major downgrade of the WalletConnect provider. Accepted 2026-10-23 pending a WalletConnect release that updates zod."
+    }
+  ]
+}

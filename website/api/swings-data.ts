@@ -37,6 +37,7 @@ import { handlePools } from './_swingsPools.js';
 import { handleRadar } from './_radarProxy.js';
 import { requestOrigin } from './_rpcProxy.js';
 import { clientIp } from './_clientIp.js';
+import { refuse, viaCloudflare } from './_proxyGuard.js';
 
 interface Req {
   method?: string;
@@ -51,11 +52,15 @@ interface Res {
 }
 
 const one = (v: string | string[] | undefined): string | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+/** Routes that platform schedulers or Telegram call without going through Cloudflare. */
+const DIRECT_ROUTES: ReadonlySet<string> = new Set(['alerts-run', 'launchbox-run', 'telegram']);
 
 export default async function handler(req: Req, res: Res): Promise<void> {
   const query: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(req.query ?? {})) query[k] = one(v) ?? undefined;
   const route = query.route;
+  // Vercel's own cron calls alerts-run and launchbox-run directly and Telegram calls its webhook; each has its own secret.
+  if (!viaCloudflare(req.headers, process.env, route !== undefined && DIRECT_ROUTES.has(route))) return void refuse(res);
   delete query.route;
   const common = {
     method: req.method ?? 'GET',

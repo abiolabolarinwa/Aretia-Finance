@@ -22,7 +22,7 @@ import { rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
 import { EVM_FACTORIES, TOKEN_CREATED_TOPIC, type EvmLaunchChain } from '../src/swings/launchbox/core.js';
 import { PUBLIC_EVM_RPC } from '../src/swings/launchbox/indexer.js';
-import { EVM_META_CHAINS, JSON_MAX_BYTES, UPLOAD_LIMITS, hasMeta, parseMetadataJson, planUpload, publicUrl, type TokenMeta } from '../src/swings/launchmeta/core.js';
+import { EVM_META_CHAINS, JSON_MAX_BYTES, UPLOAD_LIMITS, bucketProblem, hasMeta, parseMetadataJson, planUpload, publicUrl, type TokenMeta } from '../src/swings/launchmeta/core.js';
 import type { TokensEnv } from './_swingsTokens.js';
 
 export interface UploadEnv extends TokensEnv {
@@ -74,12 +74,15 @@ function config(env: UploadEnv): { base: string; key: string; bucket: string } |
   return base && key ? { base, key, bucket: bucketOf(env) } : null;
 }
 
-/** True when the bucket exists and is public, asked of Supabase at most every five minutes. */
+/**
+ * True when the bucket exists, is public, caps file size and lists only the allowed file types (`bucketProblem`), asked of Supabase at
+ * most every five minutes. A signed upload link does not bind the file's type or size, so the bucket's own limits are what hold.
+ */
 async function bucketReady(c: { base: string; key: string; bucket: string }, fetchImpl: typeof fetch, now: number): Promise<boolean> {
   const id = `${c.base}|${c.bucket}`;
   if (statusCache && statusCache.key === id && now - statusCache.at < STATUS_TTL_MS) return statusCache.ok;
   const ok = await fetchImpl(`${c.base}/storage/v1/bucket/${encodeURIComponent(c.bucket)}`, { headers: supabaseHeaders(c.key) })
-    .then(async (res) => res.ok && obj(await res.json().catch(() => null)).public === true)
+    .then(async (res) => res.ok && bucketProblem(await res.json().catch(() => null)) === null)
     .catch(() => false);
   statusCache = { key: id, at: now, ok };
   return ok;

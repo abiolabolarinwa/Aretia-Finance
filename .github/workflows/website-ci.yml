@@ -17,8 +17,8 @@ jobs:
       run:
         working-directory: website
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -29,19 +29,20 @@ jobs:
       - run: npm run typecheck:api
       - run: npm run lint
       - run: npm run build
-      # Reports known advisories in production dependencies. Advisories whose only fix is a breaking
-      # upgrade of existing wallet dependencies are tracked in docs/aretia-swings/production-readiness.md,
-      # so this step reports rather than fails the build. Review its output on every run.
+      # Fails on any high or critical advisory in production dependencies that website/audit-allowlist.json does not accept
+      # (each accepted one carries a written reason). Moderate and lower advisories are printed for review, not blocking.
+      - name: Dependency advisories (gate)
+        run: node scripts/audit-gate.mjs
       - name: Dependency advisories (report)
         run: npm audit --omit=dev || true
 
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       # Scans the full history for committed secrets (keys, tokens, keypairs).
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

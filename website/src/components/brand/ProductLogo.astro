@@ -17,7 +17,7 @@ const rest = label.replace('Aretia ', '');
 
 <span class="pl" style={`--pl-size:${size}px`}>
   <svg class="pl__mark" viewBox="0 0 64 64" width={size} height={size} role={wordmark ? undefined : 'img'} aria-label={wordmark ? undefined : label} aria-hidden={wordmark ? 'true' : undefined}>
-    {!bare && <rect width="64" height="64" rx="16" fill="#150681"></rect>}
+    {!bare && <rect width="64" height="64" rx="16" fill="#19191c"></rect>}
     <g set:html={glyph} />
   </svg>
   {wordmark && <span class="pl__word"><b>Aretia</b> {rest}</span>}

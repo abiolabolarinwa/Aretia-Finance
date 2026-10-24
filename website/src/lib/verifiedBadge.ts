@@ -18,14 +18,14 @@ const CSS = `
 button.avb{cursor:pointer}
 .avb:focus-visible{outline:2px solid var(--color-brand-bright,#2a9d6b);outline-offset:2px}
 .avb svg{width:.95em;height:.95em;flex:none}
-.avb-dlg{width:min(34rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);padding:1.25rem 1.25rem 1rem;border:1px solid rgba(14,11,43,.15);border-radius:16px;color:#0e0b2b;background:#fff;box-shadow:0 24px 60px rgba(14,11,43,.3);overflow:auto}
-.avb-dlg::backdrop{background:rgba(14,11,43,.45)}
+.avb-dlg{width:min(34rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);padding:1.25rem 1.25rem 1rem;border:1px solid rgba(17, 17, 20, .15);border-radius:16px;color:#111114;background:#fff;box-shadow:0 24px 60px rgba(17, 17, 20, .3);overflow:auto}
+.avb-dlg::backdrop{background:rgba(17, 17, 20, .45)}
 .avb-dlg h2{margin:0 0 .4rem;font-size:1.15rem}
-.avb-dlg h3{margin:1rem 0 .3rem;font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;color:#4a4670}
+.avb-dlg h3{margin:1rem 0 .3rem;font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;color:#5b5b5d}
 .avb-dlg p,.avb-dlg li{font-size:.9rem;line-height:1.45}
 .avb-dlg ul{margin:.2rem 0;padding-left:1.1rem}
-.avb-dlg li span{display:block;color:#4a4670;font-size:.82rem}
-.avb-dlg .avb-close{margin-top:1rem;padding:.55rem 1.1rem;border:0;border-radius:999px;font:600 .9rem inherit;font-family:inherit;color:#fff;background:#0e0b2b;cursor:pointer}
+.avb-dlg li span{display:block;color:#5b5b5d;font-size:.82rem}
+.avb-dlg .avb-close{margin-top:1rem;padding:.55rem 1.1rem;border:0;border-radius:999px;font:600 .9rem inherit;font-family:inherit;color:#fff;background:#111114;cursor:pointer}
 .avb-dlg a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 `;
 

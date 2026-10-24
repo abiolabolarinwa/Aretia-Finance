@@ -37,7 +37,7 @@ const services: Service[] = [
    is running; otherwise Aretia's own adverts promote its services. The script below drops a sponsor whose dates have passed. */
 const sponsored = SPONSORS.filter((s) => s.slots.includes('home-canvas') && problemWith(s) === null).map((s, i) => ({
   id: `sponsor-${s.id}`, kind: 'sponsor' as const, label: 'Ad', by: s.advertiser, product: null as ProductKey | null, headline: s.headline, body: s.body, cta: s.cta, href: s.href,
-  bg: s.background ?? '#e9e9ef', art: '#26168a', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo' | 'poster', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
+  bg: s.background ?? '#ececee', art: '#3730a3', layout: (i % 2 === 0 ? 'wide' : 'tall') as 'wide' | 'tall' | 'duo' | 'poster', image: s.image ? { src: s.image, alt: '', credit: undefined as string | undefined } : null, chart: null as string | null, mark: null as { text?: string; logo?: string; label: string; bg: string; fg?: string } | null, from: s.from, to: s.to,
 }));
 const house = HOUSE_ADS.map((a) => ({ id: `house-${a.id}`, kind: 'house' as const, label: 'Aretia', by: 'Aretia Finance', product: a.product, headline: a.headline, body: a.body, cta: a.cta, href: a.href, bg: a.bg, art: a.art, layout: a.layout, image: a.image ?? null, chart: a.chart ? chartArt(a.chart.seed, a.chart.style, a.chart.up).inner : null, mark: a.mark ?? null, from: '', to: '' }));
 const slides = [...sponsored, ...house];
@@ -110,7 +110,7 @@ const slides = [...sponsored, ...house];
                 {a.image ? <img src={a.image.src} alt={a.image.alt} loading={i === sponsored.length ? undefined : 'lazy'} width={a.layout === 'poster' ? 1920 : undefined} height={a.layout === 'poster' ? 1080 : undefined} /> : (
                   <span class="ad__art">
                     {a.chart && <svg class="ad__chart" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid meet" set:html={a.chart} />}
-                    {a.layout !== 'duo' && a.mark && <span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span>}
+                    {a.layout !== 'duo' && a.mark && <span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#111114'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span>}
                     {!a.chart && !a.mark && a.product && <ProductLogo product={a.product} size={150} />}
                     {a.chart && <span class="ad__caption">Illustration, not live data</span>}
                   </span>
@@ -118,7 +118,7 @@ const slides = [...sponsored, ...house];
               </figure>
               {a.layout === 'duo' && a.mark && (
                 <figure class="ad__frame ad__frame--b" aria-hidden="true">
-                  <span class="ad__art"><span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#0e0b2b'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span></span>
+                  <span class="ad__art"><span class="ad__mark" style={`background:${a.mark.bg};color:${a.mark.fg ?? '#111114'};${a.mark.text && a.mark.text.length > 1 ? 'font-size:1.05rem;letter-spacing:0.04em;' : ''}`}>{a.mark.logo ? <img src={a.mark.logo} alt="" width="64" height="64" /> : a.mark.text}</span></span>
                 </figure>
               )}
               {a.image?.credit && <span class="ad__credit">Photo: {a.image.credit}</span>}
@@ -211,7 +211,7 @@ const slides = [...sponsored, ...house];
     --font-body: 'Inter Variable', Inter, -apple-system, system-ui, 'Segoe UI', sans-serif;
     --font-serif: 'Newsreader Variable', 'Iowan Old Style', Georgia, serif;
     --c-card: #f5f5f7;
-    --c-line: rgba(14, 11, 43, 0.09);
+    --c-line: rgba(17, 17, 20, 0.09);
     background: #fff;
     min-height: 100dvh;
     display: flex;
@@ -237,9 +237,9 @@ const slides = [...sponsored, ...house];
   /* The top bar floats over the advert as white pills, so it reads on any background. */
   .bar { position: absolute; inset: 0 0 auto var(--rail); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 14px clamp(1rem, 3vw, 2.25rem); pointer-events: none; }
   .bar > * { pointer-events: auto; }
-  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; padding: 7px 16px 7px 9px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
+  .bar__brand { display: inline-flex; align-items: center; gap: 0.6rem; padding: 7px 16px 7px 9px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(17, 17, 20, 0.12); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em; color: var(--color-strong); }
   .bar__brand img { width: 28px; height: 28px; border-radius: 8px; }
-  .bar__nav { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; padding: 6px 8px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(14, 11, 43, 0.12); }
+  .bar__nav { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; padding: 6px 8px; background: #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(17, 17, 20, 0.12); }
   .bar__nav ul { list-style: none; margin: 0; padding: 0; }
   .bar__nav > ul { display: flex; gap: 0.1rem; }
   .menu { position: relative; }
@@ -256,8 +256,8 @@ const slides = [...sponsored, ...house];
   .stage { position: relative; flex: 1; min-height: 0; width: 100%; display: grid; align-items: center; padding: 84px clamp(1rem, 3vw, 2.25rem) 64px calc(var(--rail) + clamp(1rem, 3vw, 2.25rem)); }
 
   /* The advert: the whole page background. */
-  .canvas { position: absolute; inset: 0 0 0 var(--rail); overflow: hidden; background: #e9e9ef; }
-  .ad { position: absolute; inset: 0; background: var(--bg); color: #0e0b2b; opacity: 0; visibility: hidden; transition: opacity 600ms ease, visibility 600ms; }
+  .canvas { position: absolute; inset: 0 0 0 var(--rail); overflow: hidden; background: #ececee; }
+  .ad { position: absolute; inset: 0; background: var(--bg); color: #111114; opacity: 0; visibility: hidden; transition: opacity 600ms ease, visibility 600ms; }
   .ad.is-active { opacity: 1; visibility: visible; }
   /* The framed picture: an Aretia service on a flat colour, or the sponsor's own image. */
   .ad__frame { position: absolute; margin: 0; overflow: hidden; background: var(--art); }
@@ -272,13 +272,13 @@ const slides = [...sponsored, ...house];
   .ad__mark img { width: 52px; height: 52px; object-fit: contain; }
   .ad__caption { position: absolute; z-index: 1; right: 12px; bottom: 10px; font-size: 0.6rem; letter-spacing: 0.03em; color: rgba(255, 255, 255, 0.6); }
   .ad--duo .ad__caption { right: auto; left: 12px; }
-  .ad__credit { position: absolute; z-index: 2; right: clamp(1rem, 3vw, 2.25rem); bottom: 56px; font-size: 0.6rem; color: rgba(14, 11, 43, 0.6); }
-  .ad__title { margin: 0; font-family: var(--font-serif); font-size: clamp(1.6rem, min(2.7vw, 4.5vh), 2.6rem); font-weight: 450; line-height: 1.05; letter-spacing: -0.02em; color: #0e0b2b; text-wrap: balance; }
-  .ad__body { margin: 0; font-size: clamp(0.82rem, 1.5vh, 0.95rem); line-height: 1.45; color: #1d1a3d; }
-  .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 84px; height: 84px; padding: 8px; font-size: 0.74rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #0e0b2b; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
+  .ad__credit { position: absolute; z-index: 2; right: clamp(1rem, 3vw, 2.25rem); bottom: 56px; font-size: 0.6rem; color: rgba(17, 17, 20, 0.6); }
+  .ad__title { margin: 0; font-family: var(--font-serif); font-size: clamp(1.6rem, min(2.7vw, 4.5vh), 2.6rem); font-weight: 450; line-height: 1.05; letter-spacing: -0.02em; color: #111114; text-wrap: balance; }
+  .ad__body { margin: 0; font-size: clamp(0.82rem, 1.5vh, 0.95rem); line-height: 1.45; color: #151518; }
+  .ad__badge { position: absolute; z-index: 2; display: grid; place-items: center; width: 84px; height: 84px; padding: 8px; font-size: 0.74rem; font-weight: 600; line-height: 1.15; text-align: center; color: #fff; background: #111114; border-radius: 50%; transition: transform var(--duration-base) var(--ease-out); }
   .ad__badge:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
   @media (hover: hover) { .ad__badge:hover { transform: scale(1.06) rotate(-4deg); } }
-  .ad__tag { position: absolute; z-index: 2; padding: 2px 8px; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(14, 11, 43, 0.55); border-radius: 6px; }
+  .ad__tag { position: absolute; z-index: 2; padding: 2px 8px; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(17, 17, 20, 0.55); border-radius: 6px; }
 
   /* Wide: a landscape frame, the words under it, the badge on its corner. */
   /* Poster: one picture fills the canvas; its left side is empty, so the words sit there. */
@@ -306,18 +306,18 @@ const slides = [...sponsored, ...house];
   .canvas__foot { position: absolute; z-index: 2; inset: auto clamp(1rem, 3vw, 2.25rem) 22px; display: flex; align-items: center; justify-content: flex-end; gap: 1.25rem; pointer-events: none; }
   .canvas__foot > * { pointer-events: auto; }
   .canvas__dots { display: flex; gap: 8px; }
-  .canvas__dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: rgba(14, 11, 43, 0.25); cursor: pointer; transition: background-color 160ms, transform 160ms; }
-  .canvas__dots button[aria-selected='true'] { background: #0e0b2b; transform: scale(1.3); }
+  .canvas__dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: rgba(17, 17, 20, 0.25); cursor: pointer; transition: background-color 160ms, transform 160ms; }
+  .canvas__dots button[aria-selected='true'] { background: #111114; transform: scale(1.3); }
   .canvas__dots button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
-  .canvas__sell { font-size: 0.72rem; font-weight: 600; color: #0e0b2b; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
+  .canvas__sell { font-size: 0.72rem; font-weight: 600; color: #111114; text-decoration: underline; text-underline-offset: 3px; opacity: 0.9; }
 
   /* The card over the advert: Aretia's front door. */
   .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  .card { position: relative; z-index: 3; width: min(280px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(14, 11, 43, 0.28); }
+  .card { position: relative; z-index: 3; width: min(280px, 100%); display: grid; gap: 10px; padding: 14px; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(17, 17, 20, 0.28); }
   .card__btn { display: block; padding: 0.8rem 1rem; font-size: 0.88rem; font-weight: 600; text-align: center; color: var(--color-brand); background: var(--c-card); border-radius: 12px; transition: background-color var(--duration-fast), transform var(--duration-base) var(--ease-out); }
   .card__btn--primary { color: #fff; background: var(--color-brand); }
   .card__btn:focus-visible { outline: 2px solid var(--color-brand-bright); outline-offset: 3px; }
-  @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #ebebf0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
+  @media (hover: hover) { .card__btn:hover { transform: translateY(-2px); background: #eeeef0; } .card__btn--primary:hover { background: var(--color-brand-bright); } }
 
   @media (max-width: 899px) {
     body.console { --rail: 0px; }
@@ -336,15 +336,15 @@ const slides = [...sponsored, ...house];
     .ad--poster .ad__title { font-size: 1.8rem; }
     .ad--poster .ad__body { display: none; }
     .ad--poster .ad__badge { top: auto; left: auto; right: 12px; bottom: 12px; width: 72px; height: 72px; font-size: 0.7rem; }
-    .ad--poster .ad__tag { left: auto; right: 12px; top: 12px; color: #fff; background: rgba(14, 11, 43, 0.55); }
+    .ad--poster .ad__tag { left: auto; right: 12px; top: 12px; color: #fff; background: rgba(17, 17, 20, 0.55); }
     .ad--wide .ad__copy, .ad--tall .ad__copy, .ad--duo .ad__copy { position: absolute; inset: 2.6rem 1.25rem auto 1.25rem; transform: none; display: grid; grid-template-columns: 1fr; gap: 0.7rem; max-width: none; }
     .ad__title { font-size: 1.8rem; }
     .ad__body { font-size: 0.95rem; }
     .ad__credit { display: none; }
     .ad--wide .ad__badge, .ad--tall .ad__badge, .ad--duo .ad__badge { top: auto; left: 1.25rem; bottom: 52px; width: 84px; height: 84px; font-size: 0.78rem; }
-    .ad--wide .ad__tag, .ad--tall .ad__tag, .ad--duo .ad__tag { left: auto; right: 12px; top: 12px; color: #0e0b2b; background: rgba(14, 11, 43, 0.08); }
+    .ad--wide .ad__tag, .ad--tall .ad__tag, .ad--duo .ad__tag { left: auto; right: 12px; top: 12px; color: #111114; background: rgba(17, 17, 20, 0.08); }
     .canvas__foot { inset: auto 1rem 12px 1rem; }
-    .card { width: 100%; box-shadow: 0 10px 30px rgba(14, 11, 43, 0.12); border: 1px solid var(--c-line); }
+    .card { width: 100%; box-shadow: 0 10px 30px rgba(17, 17, 20, 0.12); border: 1px solid var(--c-line); }
   }
   @media (prefers-reduced-motion: reduce) {
     .ad, .rail__item, .card__btn, .ad__badge, .menu__panel { transition: none; }

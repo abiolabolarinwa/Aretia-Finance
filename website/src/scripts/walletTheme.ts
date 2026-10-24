@@ -25,7 +25,7 @@ export const currentTheme = (): Theme => (document.documentElement.dataset.theme
 
 export function applyTheme(t: Theme): void {
   document.documentElement.dataset.theme = t;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#0e0c24' : '#ffffff');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#0b0b0d' : '#ffffff');
 }
 
 /** Wires the header button. The page's <head> has already applied the theme, so there is no flash. */

@@ -539,7 +539,7 @@ export function initWalletApp(): void {
     const priced = (all ?? []).filter((h) => countsTowardTotal(h) && (h.value ?? 0) > 0);
     box.hidden = priced.length === 0 || sum <= 0;
     if (box.hidden) return;
-    const shades = ['#ffffff', '#cfc7ff', '#a595ff', '#7a66f5'];
+    const shades = ['#ffffff', '#e3e3e5', '#cacacc', '#4f46e5'];
     const top = priced.slice(0, shades.length);
     const rest = priced.slice(shades.length).reduce((t, h) => t + (h.value ?? 0), 0);
     const parts = top.map((h, i) => ({ label: h.symbol, value: h.value ?? 0, color: shades[i]! }));

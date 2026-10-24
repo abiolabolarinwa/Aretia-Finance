@@ -9,27 +9,27 @@ import { REQUEST_LIMITS, hasErrors, validateRequest, type RequestFields, type Re
 
 const STYLE_ID = 'aretia-promote-style';
 const CSS = `
-.apr{width:min(30rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);padding:1.25rem;border:1px solid rgba(14,11,43,.15);border-radius:16px;color:#0e0b2b;background:#fff;box-shadow:0 24px 60px rgba(14,11,43,.3);overflow:auto;font-family:inherit}
-.apr::backdrop{background:rgba(14,11,43,.45)}
+.apr{width:min(30rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);padding:1.25rem;border:1px solid rgba(17, 17, 20, .15);border-radius:16px;color:#111114;background:#fff;box-shadow:0 24px 60px rgba(17, 17, 20, .3);overflow:auto;font-family:inherit}
+.apr::backdrop{background:rgba(17, 17, 20, .45)}
 .apr h2{margin:0 0 .3rem;font-size:1.15rem}
-.apr p{margin:.3rem 0;font-size:.85rem;line-height:1.4;color:#4a4670}
+.apr p{margin:.3rem 0;font-size:.85rem;line-height:1.4;color:#5b5b5d}
 .apr__tabs{display:flex;gap:.4rem;margin:.8rem 0}
-.apr__tabs button{flex:1;min-height:44px;padding:.4rem .6rem;border:1px solid rgba(14,11,43,.2);border-radius:999px;background:#fff;color:inherit;font:600 .85rem inherit;font-family:inherit;cursor:pointer}
-.apr__tabs button[aria-pressed='true']{color:#fff;background:#0e0b2b;border-color:#0e0b2b}
+.apr__tabs button{flex:1;min-height:44px;padding:.4rem .6rem;border:1px solid rgba(17, 17, 20, .2);border-radius:999px;background:#fff;color:inherit;font:600 .85rem inherit;font-family:inherit;cursor:pointer}
+.apr__tabs button[aria-pressed='true']{color:#fff;background:#111114;border-color:#111114}
 .apr label{display:grid;gap:.25rem;margin:.6rem 0 0;font-size:.82rem;font-weight:600}
-.apr label small{font-weight:400;color:#4a4670}
-.apr input,.apr select{width:100%;min-height:44px;padding:.55rem .7rem;border:1px solid rgba(14,11,43,.25);border-radius:10px;font:1rem inherit;font-family:inherit;color:inherit;background:#fff}
+.apr label small{font-weight:400;color:#5b5b5d}
+.apr input,.apr select{width:100%;min-height:44px;padding:.55rem .7rem;border:1px solid rgba(17, 17, 20, .25);border-radius:10px;font:1rem inherit;font-family:inherit;color:inherit;background:#fff}
 .apr input[aria-invalid='true'],.apr select[aria-invalid='true']{border-color:#b42318}
 .apr .apr__err{min-height:1em;margin:0;font-size:.75rem;font-weight:400;color:#b42318}
 .apr__row{display:grid;gap:0 .6rem;grid-template-columns:1fr}
 .apr__actions{display:flex;gap:.6rem;margin-top:1rem}
-.apr__actions button{min-height:46px;padding:0 1.2rem;border-radius:999px;font:600 .9rem inherit;font-family:inherit;cursor:pointer;border:1px solid #0e0b2b}
-.apr__send{color:#fff;background:#0e0b2b}
+.apr__actions button{min-height:46px;padding:0 1.2rem;border-radius:999px;font:600 .9rem inherit;font-family:inherit;cursor:pointer;border:1px solid #111114}
+.apr__send{color:#fff;background:#111114}
 .apr__send[disabled]{opacity:.6;cursor:default}
-.apr__cancel{color:#0e0b2b;background:#fff}
+.apr__cancel{color:#111114;background:#fff}
 .apr__status{min-height:1.2em;font-weight:600}
 .apr__status.is-ok{color:#0f5c3a}.apr__status.is-err{color:#b42318}
-  .apr__price{font-weight:600;color:#0e0b2b}
+  .apr__price{font-weight:600;color:#111114}
 @media(min-width:520px){.apr__row{grid-template-columns:1fr 1fr}}
 `;
 

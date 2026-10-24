@@ -157,7 +157,7 @@ export function mountTvChart(
       const part = (text: string, active: boolean): HTMLElement => {
         const s = doc.createElement('span');
         s.textContent = text;
-        s.style.cssText = active ? 'color:#2962ff;font-weight:700' : 'color:#787b86';
+        s.style.cssText = active ? 'color:#4f46e5;font-weight:700' : 'color:#787b86';
         return s;
       };
       const slash = part(' / ', false);

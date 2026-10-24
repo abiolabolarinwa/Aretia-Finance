@@ -38,6 +38,7 @@ import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.
 import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
+import { fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
@@ -1744,20 +1745,35 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     }
 
     /**
-     * The market feed serves about 200 tokens a list at most. Once it is on screen, Aretia's own index is read in the background and
-     * what it holds beyond the feed is added below it (up to 3000), so the list can be paged through further as the index grows.
+     * The market feed serves about 200 tokens a list at most. Once it is on screen, the list is deepened in the background:
+     * each network's busiest pools, page by page (a thousand tokens or more across networks), then Aretia's own index (up to
+     * 3000). Tokens already listed are not repeated, and the table redraws as the list grows.
      */
     async function addIndexRows(mine: number): Promise<void> {
-      if (m.kind === 'favourites') return;
+      if (m.kind !== 'trending' && m.kind !== 'top' && m.kind !== 'gainers') return;
+      const base = rows;
+      if (base === null) return;
+      const current = (): boolean => mine === seq && rows !== null;
+      let shownCount = base.length;
+      const grow = (extra: MarketRow[]): void => {
+        if (!current()) return;
+        const merged = mergeIndexRows(base, extra);
+        if (merged.length - shownCount < 200) return;
+        shownCount = merged.length;
+        rows = rateRows(merged);
+        if (!page) draw();
+      };
       try {
-        const extra = await fetchIndexedPages(m.chain, Date.now());
-        if (mine !== seq || extra.length === 0 || rows === null) return;
-        const merged = mergeIndexRows(rows, extra);
-        if (merged.length === rows.length) return;
+        const deep = await fetchDeepRows(m.chain, m.window, Date.now(), { isCurrent: current, onProgress: (got) => grow(got) });
+        if (!current()) return;
+        const index = await fetchIndexedPages(m.chain, Date.now()).catch(() => [] as MarketRow[]);
+        if (!current()) return;
+        const merged = mergeIndexRows(mergeIndexRows(base, deep), index);
+        if (merged.length === (rows?.length ?? 0)) return;
         rows = rateRows(merged);
         if (!page) draw();
       } catch {
-        // The index is an addition: the feed's list stays as it was.
+        // The deeper list is an addition: the feed's list stays as it was.
       }
     }
 

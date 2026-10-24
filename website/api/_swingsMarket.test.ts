@@ -48,7 +48,7 @@ describe('shared Marketplace lists', () => {
     const good = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
     await handleMarket(input({ kind: 'top', chain: 'solana' }, good));
     const refused = (async () => new Response('', { status: 429 })) as unknown as typeof fetch;
-    const out = await handleMarket(input({ kind: 'top', chain: 'solana' }, refused, NOW + 5 * 60_000));
+    const out = await handleMarket(input({ kind: 'top', chain: 'solana' }, refused, NOW + 15 * 60_000));
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body)).toMatchObject({ stale: true });
     expect(out.headers['cache-control']).toBe('no-store');
@@ -75,5 +75,17 @@ describe('shared Marketplace lists', () => {
     expect((await handleMarket(input({ kind: 'top', chain: 'mars' }, never))).status).toBe(400);
     expect((await handleMarket(input({ kind: 'top', page: '99' }, never))).status).toBe(400);
     expect((await handleMarket({ ...input({}, never), method: 'POST' })).status).toBe(405);
+  });
+});
+
+describe('deep list pages', () => {
+  it('keeps a network\'s busiest-pool pages for ten minutes, because each is one request to the source', async () => {
+    let calls = 0;
+    const good = (async () => (calls++, new Response(JSON.stringify(body)))) as unknown as typeof fetch;
+    const first = await handleMarket(input({ kind: 'top', chain: 'solana', page: '3' }, good));
+    expect(first.headers['cache-control']).toContain('s-maxage=600');
+    const before = calls;
+    await handleMarket(input({ kind: 'top', chain: 'solana', page: '3' }, good, NOW + 5 * 60_000));
+    expect(calls).toBe(before);
   });
 });

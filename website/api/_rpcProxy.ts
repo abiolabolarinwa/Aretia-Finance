@@ -36,6 +36,8 @@ export const ALLOWED_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 export const PUBLIC_FALLBACK_RPC = 'https://solana-rpc.publicnode.com';
+/** publicnode answers 403 to the indexed token-account reads; the Solana Foundation's endpoint allows them, slowly. Tried only when no keyed provider is set. */
+export const PUBLIC_INDEXED_RPC = 'https://api.mainnet-beta.solana.com';
 export const MAX_BODY_BYTES = 16 * 1024;
 export const RATE_LIMIT = { perMinute: 120 };
 const UPSTREAM_TIMEOUT_MS = 15_000;
@@ -172,13 +174,16 @@ export async function proxyRpc(input: ProxyInput): Promise<ProxyOutput> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   try {
-    const res = await input.fetchImpl(upstream, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // Only what was validated above; the caller's extra fields are dropped.
-      body: JSON.stringify({ jsonrpc: '2.0', id, method: call.method, params: call.params ?? [] }),
-      signal: controller.signal,
-    });
+    const send = (url: string) =>
+      input.fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        // Only what was validated above; the caller's extra fields are dropped.
+        body: JSON.stringify({ jsonrpc: '2.0', id, method: call.method, params: call.params ?? [] }),
+        signal: controller.signal,
+      });
+    let res = await send(upstream);
+    if (res.status === 403 && upstream === PUBLIC_FALLBACK_RPC) res = await send(PUBLIC_INDEXED_RPC);
     const text = await res.text();
     if (!res.ok) {
       // Never relay an upstream error page: it can name the endpoint or the key's plan.

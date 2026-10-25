@@ -139,7 +139,36 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
   shareNote.setAttribute('role', 'status');
   actions.append(buy, share);
   const metaHost = el('div', 'tkp-metahost');
-  head.append(logoHost, title, metaHost, addr, actions, shareNote);
+  const headline = el('div', 'tkp-headline');
+  const toggle = el('button', 'tkp-toggle');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-controls', 'tkp-side');
+  head.append(logoHost, title, headline, toggle);
+  // The buy button, the numbers and the address live in a panel beside the chart that can be tucked away.
+  const side = el('aside', 'tkp-side');
+  side.id = 'tkp-side';
+  const sideStats = el('div', 'tkp-grid2 tkp-sidestats');
+  side.append(actions, shareNote, sideStats, addr, metaHost);
+  const edge = el('button', 'tkp-edge');
+  edge.type = 'button';
+  edge.setAttribute('aria-controls', 'tkp-side');
+  const main = el('div', 'tkp-main');
+  const grid = el('div', 'tkp-grid');
+  const PANEL_KEY = 'aretia-token-panel';
+  const setPanel = (open: boolean, remember = true): void => {
+    grid.classList.toggle('is-collapsed', !open);
+    side.inert = !open;
+    for (const b of [toggle, edge]) b.setAttribute('aria-expanded', String(open));
+    toggle.replaceChildren(el('span', 'tkp-toggle-ico', open ? '\u203a' : '\u2039'), document.createTextNode(open ? 'Hide panel' : 'Show panel'));
+    edge.textContent = open ? '\u203a' : '\u2039';
+    edge.setAttribute('aria-label', open ? 'Hide the trade panel' : 'Show the trade panel');
+    if (remember) try { localStorage.setItem(PANEL_KEY, open ? 'open' : 'closed'); } catch { /* storage unavailable */ }
+    window.setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+  };
+  for (const b of [toggle, edge]) b.addEventListener('click', () => setPanel(grid.classList.contains('is-collapsed')));
+  let startOpen = true;
+  try { startOpen = localStorage.getItem(PANEL_KEY) !== 'closed'; } catch { /* storage unavailable */ }
+  setPanel(startOpen, false);
 
   let symbol = '';
   // The picture, description and links the creator saved with Aretia (docs/LAUNCH_ASSETS.md), when there are any.
@@ -167,7 +196,9 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
   const curve = section('Aretia Curve');
   curve.box.hidden = true;
   const warn = el('p', 'tkp-fine tkp-warn', 'Anyone can create a token, and Aretia does not endorse the tokens it shows. A token page shows what can be read from the chain, not whether the token is a good idea. Liquidity can be withdrawn by whoever put it there.');
-  root.append(head, curve.box, market.box, about.box, warn);
+  main.append(market.box, curve.box, about.box, warn);
+  grid.append(main, side, edge);
+  root.append(head, grid);
 
   about.body.append(el('p', 'tkp-fine', 'Reading the chain…'));
   market.body.append(el('p', 'tkp-fine', 'Looking for the pool this token trades on…'));
@@ -354,12 +385,13 @@ export function mountPublicTokenPage(root: HTMLElement, ref: TokenPageRef): Toke
       const plot = el('div', 'tkp-chart');
       plot.setAttribute('role', 'img');
       plot.setAttribute('aria-label', `${symbol || 'Token'} price chart`);
-      const stats = el('div', 'tkp-grid2');
       if (detail) {
-        stats.append(stat('Price', formatPrice(detail.priceUsd)), stat('24h change', formatChange(detail.change.h24)), stat('Liquidity', compactUsd(detail.liquidityUsd)), stat('Volume 24h', compactUsd(detail.volumeUsd.h24)), stat('Market cap', compactUsd(detail.marketCapUsd)), stat('Pool age', formatAge(detail.ageMs)));
+        sideStats.replaceChildren(stat('Price', formatPrice(detail.priceUsd)), stat('24h change', formatChange(detail.change.h24)), stat('Liquidity', compactUsd(detail.liquidityUsd)), stat('Volume 24h', compactUsd(detail.volumeUsd.h24)), stat('Market cap', compactUsd(detail.marketCapUsd)), stat('Pool age', formatAge(detail.ageMs)));
+        const day = detail.change.h24;
+        headline.replaceChildren(el('strong', 'tkp-price', formatPrice(detail.priceUsd)), el('span', `tkp-chg${day === null ? '' : day >= 0 ? ' is-up' : ' is-down'}`, formatChange(day)));
       }
       const poolLine = el('p', 'tkp-fine', `Trades on ${detail?.dex ?? 'a pool'} (${detail ? `${detail.baseSymbol} / ${detail.quoteSymbol}` : 'pair not named'}) on ${info.name}. Pool: ${shortAddress(found.pool)}. Whether this pool’s liquidity is locked cannot be read here; check the pool itself.`);
-      market.body.replaceChildren(stats, plot, poolLine);
+      market.body.replaceChildren(plot, poolLine);
       chart = mountTvChart(plot, { chain, pool: found.pool, symbol: symbol || detail?.baseSymbol || 'Token', ...(detail?.quoteSymbol ? { quoteSymbol: detail.quoteSymbol } : {}), priceHint: detail?.priceUsd ?? null, interval: '15', toolbar: window.matchMedia('(min-width: 720px)').matches, fallbackUrl: embedUrl({ network: GECKO_NETWORK[chain], pool: found.pool }), title: `${symbol || 'Token'} price chart` });
     } catch {
       if (!alive) return;

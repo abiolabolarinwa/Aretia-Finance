@@ -536,6 +536,8 @@ const sendTips = [
   <script>
     import { initWalletApp } from '../../scripts/walletApp';
     initWalletApp();
+    // Guided tours: first-visit onboarding, a Take a tour button on the feature pages, and a Tours list in the sidebar.
+    import('../../scripts/tour/walletTours').then((m) => m.initWalletTours());
   </script>
 </Base>
 

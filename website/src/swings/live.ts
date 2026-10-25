@@ -8,7 +8,7 @@
  */
 import { liveFeeConfig } from './core/fee.js';
 import { fetchAccount, loadWeb3, rpcCall } from '../scripts/walletSend';
-import { fetchQuote, planSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
+import { fetchQuote, forgetSwap, planSwap, resendSwap, signAndSubmitSwap, SOL_MINT, type Quote as JupQuote, type SwapPlan, type TokenInfo } from '../scripts/walletSwap';
 import { parseMint } from '../scripts/walletTools';
 import { SolanaChainAdapter } from './chains/solana.js';
 import { Evm0xProvider } from './providers/evm0x.js';
@@ -120,7 +120,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
     providers: [direct, chained, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
-    adapters: [new SolanaChainAdapter({ rpc: rpcCall, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
+    adapters: [new SolanaChainAdapter({ rpc: rpcCall, resend: (txId) => resendSwap(txId), settled: forgetSwap, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
   });
 }
 

@@ -8,6 +8,10 @@ export interface SolanaDeps {
   rpc<T>(method: string, params: unknown[]): Promise<T>;
   /** Asks the connected wallet to sign the plan and submits it; resolves to the signature. */
   signAndSubmit(payload: unknown): Promise<string>;
+  /** Sends a submitted transaction again if the network has not picked it up. Optional; never throws. */
+  resend?(txId: string): Promise<unknown>;
+  /** Called once a transaction is confirmed or failed, so the signed bytes kept for resending can be dropped. */
+  settled?(txId: string): void;
 }
 
 interface TokenAccounts {
@@ -48,8 +52,19 @@ export class SolanaChainAdapter implements ChainAdapter {
   async getStatus(txId: string): Promise<TransactionStatus> {
     const r = await this.deps.rpc<{ value: ({ err: unknown; confirmationStatus?: string } | null)[] }>('getSignatureStatuses', [[txId], { searchTransactionHistory: true }]);
     const s = r.value[0];
-    if (!s) return 'submitted';
-    if (s.err !== null) return 'failed';
-    return s.confirmationStatus === 'confirmed' || s.confirmationStatus === 'finalized' ? 'confirmed' : 'submitted';
+    // Not seen yet: it may have been dropped on the way to a leader, so it is sent again (every few seconds, same signature) until it lands.
+    if (!s) {
+      void this.deps.resend?.(txId);
+      return 'submitted';
+    }
+    if (s.err !== null) {
+      this.deps.settled?.(txId);
+      return 'failed';
+    }
+    if (s.confirmationStatus === 'confirmed' || s.confirmationStatus === 'finalized') {
+      this.deps.settled?.(txId);
+      return 'confirmed';
+    }
+    return 'submitted';
   }
 }

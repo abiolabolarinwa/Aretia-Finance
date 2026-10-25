@@ -28,6 +28,8 @@ import { createSolanaVenues, type SolanaVenue } from './venues.js';
 export const SOLANA_QUOTE_TTL_MS = 12_000;
 /** SOL a swap may use beyond the amount: fees, priority fee and rent for several new accounts. */
 const OVERHEAD_LAMPORTS = 8_000_000n;
+/** The least priority price used when the network shows paid fees: 10,000 micro-lamports per unit (2,000 lamports on 200k units). */
+const MIN_PRIORITY_MICRO_LAMPORTS = 10_000;
 /** Intermediate tokens a route may pass through. */
 export const SOLANA_HUBS = [WSOL_MINT, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'] as const;
 /** The second hop sells slightly less than the first is expected to deliver, so normal movement cannot starve it. */
@@ -153,8 +155,8 @@ export class DirectSolanaProvider implements DexProvider {
     };
   }
 
-  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number }; prelude?: RouteBuildOptions['prelude'] }, blockhash: string): Promise<BuiltRoute> {
-    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.tip ? { tip: o.tip } : {}), ...(o.prelude ? { prelude: o.prelude } : {}) });
+  private build(web3: typeof Web3, user: string, legs: Leg[], o: { nativeIn: boolean; nativeOut: boolean; closeWsol: boolean; tip?: { account: string; lamports: number }; prelude?: RouteBuildOptions['prelude']; priority?: number }, blockhash: string): Promise<BuiltRoute> {
+    return buildRouteTransaction(web3, { user, steps: legs.map((l) => this.stepOf(l, user)), nativeIn: o.nativeIn, nativeOut: o.nativeOut, closeWsol: o.closeWsol, recentBlockhash: blockhash, ...(o.priority !== undefined ? { priorityMicroLamports: o.priority } : {}), ...(o.tip ? { tip: o.tip } : {}), ...(o.prelude ? { prelude: o.prelude } : {}) });
   }
 
   /** A mint's decimals, read from the mint account itself (byte 44 for both token programs). */
@@ -167,6 +169,21 @@ export class DirectSolanaProvider implements DexProvider {
 
   private async blockhash(): Promise<string> {
     return (await this.deps.rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }])).value.blockhash;
+  }
+
+  /**
+   * What the network is charging right now, in micro-lamports per compute unit: the 75th percentile of the paid fees in the last
+   * slots, never below a floor. Undefined if the node cannot say, and the builder then uses its modest default. Never throws.
+   */
+  private async priorityFee(): Promise<number | undefined> {
+    try {
+      const r = await this.deps.rpc<{ prioritizationFee: number }[]>('getRecentPrioritizationFees', []);
+      const paid = r.map((x) => x.prioritizationFee).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+      if (paid.length === 0) return undefined;
+      return Math.max(MIN_PRIORITY_MICRO_LAMPORTS, paid[Math.floor((paid.length - 1) * 0.75)]!);
+    } catch {
+      return undefined;
+    }
   }
 
   private simulate(built: BuiltRoute, user: string, route: { nativeIn: boolean; outputIsNative: boolean; amountIn: bigint; minOut: bigint }, watch: string[] = []): Promise<SolanaSimResult> {
@@ -530,7 +547,9 @@ export class DirectSolanaProvider implements DexProvider {
         };
       }
     }
-    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}), ...(prelude ? { prelude } : {}) }, await this.blockhash());
+    // The blockhash and the going fee are read together, so the wait is one round trip, and as late as possible: a blockhash lasts about a minute.
+    const [blockhash, priority] = await Promise.all([this.blockhash(), this.priorityFee()]);
+    const built = await this.build(web3, user, legs, { nativeIn: raw.nativeIn, nativeOut: raw.nativeOut, closeWsol, ...(protect ? { tip: { account: pickTipAccount(), lamports: tipLamports } } : {}), ...(prelude ? { prelude } : {}), ...(priority !== undefined ? { priority } : {}) }, blockhash);
 
     // 3. Run the exact transaction through the real programs and judge it by what it does to the wallet.
     if (blockers.length === 0) {

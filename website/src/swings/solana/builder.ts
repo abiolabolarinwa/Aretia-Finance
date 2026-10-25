@@ -37,8 +37,15 @@ export interface BuildOptions {
   priorityMicroLamports?: number;
 }
 
-/** Hard ceiling so a bug cannot overpay: 200k units * 5,000 micro-lamports = 1,000 lamports. */
-export const MAX_PRIORITY_MICRO_LAMPORTS = 5_000;
+/**
+ * Priority fees. A swap that pays almost nothing sits behind every paying transaction when the network is busy and can be dropped before
+ * it lands, which is what made Solana swaps slow. The caller passes a price read from the network (recent fees); with none, the default
+ * is a modest fee that still gets in within a few slots. Two ceilings stop a bug or a fee spike from overcharging: a price per compute
+ * unit, and a total in lamports (0.0004 SOL).
+ */
+export const MAX_PRIORITY_MICRO_LAMPORTS = 1_000_000;
+export const DEFAULT_PRIORITY_MICRO_LAMPORTS = 50_000;
+export const MAX_PRIORITY_TOTAL_LAMPORTS = 400_000;
 
 let cachedDiscriminator: Uint8Array | null = null;
 /** Anchor instruction tag: the first 8 bytes of sha256("global:swap_base_input"). */
@@ -163,7 +170,8 @@ export interface BuiltRoute extends BuiltSwap {
  */
 export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOptions): Promise<BuiltRoute> {
   if (o.steps.length === 0 || o.steps.length > 4) throw new SwingsError('invalid', 'A route needs one to four swap steps.');
-  const priority = Math.min(o.priorityMicroLamports ?? 1_000, MAX_PRIORITY_MICRO_LAMPORTS);
+  const units = Math.min(o.computeUnits ?? 200_000 * o.steps.length, 1_400_000);
+  const priority = Math.max(0, Math.min(Math.floor(o.priorityMicroLamports ?? DEFAULT_PRIORITY_MICRO_LAMPORTS), MAX_PRIORITY_MICRO_LAMPORTS, Math.floor((MAX_PRIORITY_TOTAL_LAMPORTS * 1_000_000) / units)));
   // The program of every mint, from the steps that mention it.
   const programOf = new Map<string, string>();
   for (const st of o.steps) {
@@ -176,10 +184,10 @@ export async function buildRouteTransaction(web3: typeof Web3, o: RouteBuildOpti
   const routeOut = o.steps[o.steps.length - 1]!.tokenOut.address;
 
   const ixs: Web3.TransactionInstruction[] = [
-    web3.ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(o.computeUnits ?? 200_000 * o.steps.length, 1_400_000) }),
+    web3.ComputeBudgetProgram.setComputeUnitLimit({ units }),
     web3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
   ];
-  const steps: string[] = [`Set compute limit and a capped priority fee (${priority} micro-lamports per unit).`];
+  const steps: string[] = [`Set compute limit and a capped priority fee (${priority} micro-lamports per unit, at most ${Math.ceil((priority * units) / 1_000_000)} lamports in all).`];
 
   if (o.nativeIn) {
     const total = o.steps.filter((s) => s.tokenIn.address === routeIn).reduce((n, s) => n + s.amountIn, 0n);

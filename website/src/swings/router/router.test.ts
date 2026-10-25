@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AretiaRouter, explainNoRoute } from './router.js';
 import { SolanaJupiterProvider, type JupiterBackend, type JupiterQuote } from '../providers/solanaJupiter.js';
 import { SolanaChainAdapter } from '../chains/solana.js';
+import { liveFeeConfig } from '../core/fee.js';
 import { SwingsError, type ChainAdapter, type DexProvider, type PreparedSwap, type Quote, type SwapRequest } from '../core/types.js';
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -262,6 +263,23 @@ describe('Jupiter provider and Solana adapter', () => {
     expect(q).toMatchObject({ providerId: 'jupiter', expectedOut: 5_000n, minOut: 4_950n, priceImpactBps: null });
     expect(q.route.legs.map((l) => l.venue)).toEqual(['Raydium', 'Orca']);
     expect(q.expiresAt - q.fetchedAt).toBe(20_000);
+  });
+
+  it('given a fee configuration it carries the Aretia fee: Jupiter swaps the rest, and the fee rate goes to the builder', async () => {
+    const b = backend();
+    const p = new SolanaJupiterProvider(b, now, liveFeeConfig(undefined));
+    expect(p.carriesAretiaFee).toBe(true);
+    const q = await p.getQuote(request);
+    // 0.58% of 1,000,000 is 5,800; Jupiter is asked about the 994,200 that is left.
+    expect((b.fetchQuote as ReturnType<typeof vi.fn>).mock.calls[0]![2]).toBe(994_200n);
+    expect(q.costs.aretiaFee.amount).toBe(5_800n);
+    expect(q.request.amountIn).toBe(1_000_000n);
+    await p.buildTransaction(q);
+    expect((b.planSwap as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({ amountRaw: 1_000_000n, feeBps: 58n });
+  });
+
+  it('without a fee configuration it does not claim to carry the fee', () => {
+    expect(new SolanaJupiterProvider(backend(), now).carriesAretiaFee).toBe(false);
   });
 
   it('refuses same-token, zero-amount and non-Solana requests', async () => {

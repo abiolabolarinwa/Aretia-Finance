@@ -105,6 +105,9 @@ export function explainNoRoute(failures: readonly ProviderFailure[], labelOf: (p
  * "no route for this token" counted, three attempts at tokens it cannot trade would switch the provider off for every token.
  */
 export function isProviderFault(reason: unknown): boolean {
+  // A node or service telling us to slow down is about how much we asked, not a provider that is broken: it must not trip the breaker, which
+  // would leave the screen with fewer routes just when it needs them.
+  if (reason instanceof Error && /(^|[^0-9])429([^0-9]|$)|too many requests|rate.?limit/i.test(reason.message)) return false;
   return !(reason instanceof SwingsError) || reason.code === 'provider-failed';
 }
 

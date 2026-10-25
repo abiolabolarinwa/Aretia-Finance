@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AretiaRouter, explainNoRoute } from './router.js';
+import { AretiaRouter, explainNoRoute, isProviderFault } from './router.js';
 import { SolanaJupiterProvider, type JupiterBackend, type JupiterQuote } from '../providers/solanaJupiter.js';
 import { SolanaChainAdapter } from '../chains/solana.js';
 import { liveFeeConfig } from '../core/fee.js';
@@ -201,6 +201,17 @@ describe('execution', () => {
     const { q, p } = await prepare(r);
     const ex = await r.executeRoute(p, q, { quoteId: q.id, confirmed: true });
     expect((await r.trackExecution(ex, { intervalMs: 1 })).status).toBe('confirmed');
+  });
+});
+
+describe('what counts against a provider', () => {
+  it('a node or service saying slow down is not a broken provider, but a crash or a bad answer still is', () => {
+    expect(isProviderFault(new Error('Jupiter answered 429'))).toBe(false);
+    expect(isProviderFault(new Error('The Solana RPC answered 429'))).toBe(false);
+    expect(isProviderFault(new Error('Too many requests. Try again in a minute.'))).toBe(false);
+    expect(isProviderFault(new Error('Jupiter answered 502'))).toBe(true);
+    expect(isProviderFault(new Error('Jupiter answered 14290'))).toBe(true);
+    expect(isProviderFault(new SwingsError('no-route', 'No pool.'))).toBe(false);
   });
 });
 

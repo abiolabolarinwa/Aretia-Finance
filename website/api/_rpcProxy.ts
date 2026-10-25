@@ -40,6 +40,8 @@ export const PUBLIC_FALLBACK_RPC = 'https://solana-rpc.publicnode.com';
 export const PUBLIC_INDEXED_RPC = 'https://api.mainnet-beta.solana.com';
 export const MAX_BODY_BYTES = 16 * 1024;
 export const RATE_LIMIT = { perMinute: 120 };
+/** The RPC proxy alone gets more: a quote reads pools and simulates swaps, a few dozen calls even with the pool cache, and the screen asks again every few seconds. */
+export const RPC_RATE_LIMIT = { perMinute: 600 };
 const UPSTREAM_TIMEOUT_MS = 15_000;
 /** Public production origins; extra ones (previews, staging) come from RPC_ALLOWED_ORIGINS. */
 const BASE_ORIGINS = ['https://aretiafinance.org', 'https://www.aretiafinance.org'];
@@ -118,7 +120,7 @@ function corsHeaders(origin: string | null, env: ProxyEnv): Record<string, strin
 const buckets = new Map<string, { count: number; windowStart: number }>();
 
 /** True if this caller is over the limit. Old entries are dropped so the map cannot grow without bound. */
-export function overLimit(ip: string, now: number): boolean {
+export function overLimit(ip: string, now: number, perMinute: number = RATE_LIMIT.perMinute): boolean {
   if (buckets.size > 5000) {
     for (const [key, b] of buckets) if (now - b.windowStart > 60_000) buckets.delete(key);
   }
@@ -128,7 +130,7 @@ export function overLimit(ip: string, now: number): boolean {
     return false;
   }
   b.count += 1;
-  return b.count > RATE_LIMIT.perMinute;
+  return b.count > perMinute;
 }
 
 export function resetRateLimit(): void {
@@ -168,7 +170,7 @@ export async function proxyRpc(input: ProxyInput): Promise<ProxyOutput> {
   if (!ALLOWED_METHODS.has(call.method)) return rpcError(403, id, -32601, `${call.method} is not available through this proxy.`, headers);
   if (call.params !== undefined && !Array.isArray(call.params)) return rpcError(400, id, -32602, 'params must be an array.', headers);
 
-  if (overLimit(input.ip, input.now)) return rpcError(429, id, -32005, 'Too many requests. Try again in a minute.', { ...headers, 'retry-after': '60' });
+  if (overLimit(`rpc:${input.ip}`, input.now, RPC_RATE_LIMIT.perMinute)) return rpcError(429, id, -32005, 'Too many requests. Try again in a minute.', { ...headers, 'retry-after': '60' });
 
   const upstream = env.SOLANA_RPC_URL?.trim() || PUBLIC_FALLBACK_RPC;
   const controller = new AbortController();

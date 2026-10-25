@@ -79,6 +79,8 @@ async function jupJson<T>(path: string, init?: RequestInit): Promise<T> {
         throw new JupiterError(code === 'COULD_NOT_FIND_ANY_ROUTE' || /route/i.test(body?.error ?? '') ? 'Jupiter found no route for this pair and amount.' : (body?.error ?? 'Jupiter could not quote this swap.'));
       }
       lastError = new Error(`Jupiter answered ${res.status}`);
+      // Jupiter's free service allows about one request a second per visitor: wait a moment before the one retry instead of asking again at once.
+      if (res.status === 429) await new Promise((resolve) => setTimeout(resolve, 1_200));
     } catch (e) {
       if (e instanceof JupiterError) throw e;
       lastError = e;

@@ -46,6 +46,8 @@ export interface PumpPool {
   quoteVault: string;
   coinCreator: string;
   isCashback: boolean;
+  /** A pool in "mayhem mode": its protocol fee goes to one of the reserved recipients, not the ordinary ones. */
+  isMayhem: boolean;
 }
 
 /** Reads a pool account. Null when it is too short or not a pool. */
@@ -53,7 +55,7 @@ export function parsePumpPool(web3: typeof Web3, data: Uint8Array): PumpPool | n
   if (data.length < 245) return null;
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const pk = (o: number): string => new web3.PublicKey(data.subarray(o, o + 32)).toBase58();
-  return { index: view.getUint16(9, true), creator: pk(11), baseMint: pk(43), quoteMint: pk(75), baseVault: pk(139), quoteVault: pk(171), coinCreator: pk(211), isCashback: data[244] === 1 };
+  return { index: view.getUint16(9, true), creator: pk(11), baseMint: pk(43), quoteMint: pk(75), baseVault: pk(139), quoteVault: pk(171), coinCreator: pk(211), isMayhem: data[243] === 1, isCashback: data[244] === 1 };
 }
 
 export interface PumpGlobal {
@@ -62,6 +64,8 @@ export interface PumpGlobal {
   coinCreatorFeeBps: bigint;
   disableFlags: number;
   protocolFeeRecipients: string[];
+  /** The recipients a mayhem-mode pool must pay its protocol fee to. */
+  reservedFeeRecipients: string[];
   buybackFeeRecipients: string[];
 }
 
@@ -69,12 +73,13 @@ export interface PumpGlobal {
 export function parsePumpGlobal(web3: typeof Web3, data: Uint8Array): PumpGlobal | null {
   if (data.length < 899) return null;
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  const list = (o: number): string[] => Array.from({ length: 8 }, (_, i) => new web3.PublicKey(data.subarray(o + i * 32, o + i * 32 + 32)).toBase58()).filter((a) => a !== '11111111111111111111111111111111');
+  const list = (o: number, n = 8): string[] => Array.from({ length: n }, (_, i) => new web3.PublicKey(data.subarray(o + i * 32, o + i * 32 + 32)).toBase58()).filter((a) => a !== '11111111111111111111111111111111');
   return {
     lpFeeBps: view.getBigUint64(40, true),
     protocolFeeBps: view.getBigUint64(48, true),
     disableFlags: data[56]!,
     protocolFeeRecipients: list(57),
+    reservedFeeRecipients: [...new Set([new web3.PublicKey(data.subarray(385, 417)).toBase58(), ...list(418, 7)])].filter((a) => a !== '11111111111111111111111111111111'),
     coinCreatorFeeBps: view.getBigUint64(313, true),
     buybackFeeRecipients: list(643),
   };
@@ -172,6 +177,7 @@ export class PumpSwapAdapter {
           baseProgram: vb.owner,
           quoteProgram: vq.owner,
           cashback: s.isCashback ? '1' : '0',
+          mayhem: s.isMayhem ? '1' : '0',
         },
       });
     });
@@ -211,7 +217,7 @@ export async function pumpSwapInstructions(web3: typeof Web3, adapter: PumpSwapA
   const selling = tokenIn.address === baseMint;
   if (!selling && tokenIn.address !== quoteMint) throw new SwingsError('invalid', 'The input token is not in this pool.');
   const g = await adapter.globalConfig();
-  const feeRecipient = g.protocolFeeRecipients[0];
+  const feeRecipient = x.mayhem === '1' ? g.reservedFeeRecipients[0] : g.protocolFeeRecipients[0];
   const buybackRecipient = g.buybackFeeRecipients[0];
   if (!feeRecipient || !buybackRecipient) throw new SwingsError('provider-failed', 'PumpSwap lists no fee recipient.');
 
@@ -235,7 +241,14 @@ export async function pumpSwapInstructions(web3: typeof Web3, adapter: PumpSwapA
     meta('11111111111111111111111111111111'), meta(ATA_PROGRAM), meta(adapter.eventAuthority()), meta(PUMPSWAP_PROGRAM), meta(creatorAta, true), meta(creatorAuthority),
   ];
   // Trailing accounts the live program requires: the pool's v2 record, then the buyback fee recipient and its token account.
-  const tail = [meta(adapter.poolV2(baseMint)), meta(buybackRecipient), meta(buybackAta, true)];
+  // A cashback pool reads one more trailing account first: the user's volume accumulator's wrapped-SOL token account, where the cashback
+  // is kept (the program says: "for cashback coins, pass user_volume_accumulator_wsol_ata as remaining_accounts[0]"). Without it every
+  // position after it is read one place off, and the program turns the swap down for a wrong cashback or buyback account.
+  const uvaAta = meta(ataAddress(web3, adapter.userVolumeAccumulator(user), quoteMint, x.quoteProgram!), true);
+  const uvaM = meta(adapter.userVolumeAccumulator(user), true);
+  // Selling a cashback coin lists the accumulator's token account, then the accumulator itself (found by trying the program).
+  const cashbackAta = x.cashback !== '1' ? [] : selling ? [uvaAta, uvaM] : [uvaAta];
+  const tail = [...cashbackAta, meta(adapter.poolV2(baseMint)), meta(buybackRecipient), meta(buybackAta, true)];
   const swap = selling
     ? new web3.TransactionInstruction({ programId: pk(PUMPSWAP_PROGRAM), keys: [...common, meta(feeConfig), meta(PUMP_FEE_PROGRAM), ...tail], data: Buffer.from(concat(DISC_SELL, u64le(amountIn), u64le(minOut))) })
     : new web3.TransactionInstruction({

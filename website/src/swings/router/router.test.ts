@@ -203,6 +203,41 @@ describe('execution', () => {
   });
 });
 
+describe('keeping a Solana swap moving', () => {
+  const prepare = async (r: AretiaRouter) => {
+    const q = await r.getQuote(request);
+    return { q, p: await r.buildTransaction(q) };
+  };
+
+  it('keeps tracking when a status look fails, instead of reporting the swap as lost', async () => {
+    let i = 0;
+    const adapter = fakeAdapter({
+      getStatus: async () => {
+        if (i++ < 2) throw new Error('The Solana RPC answered 429');
+        return 'confirmed';
+      },
+    });
+    const r = router([fakeProvider('a', async () => quoteFrom('a', 100n))], adapter);
+    const { q, p } = await prepare(r);
+    const ex = await r.executeRoute(p, q, { quoteId: q.id, confirmed: true });
+    expect((await r.trackExecution(ex, { intervalMs: 1 })).status).toBe('confirmed');
+  });
+
+  it('sends a swap the network has not seen again, and stops once it is confirmed', async () => {
+    const resend = vi.fn(async () => true);
+    const settled = vi.fn();
+    const answers: ({ err: unknown; confirmationStatus?: string } | null)[] = [null, null, { err: null, confirmationStatus: 'confirmed' }];
+    let n = 0;
+    const adapter = new SolanaChainAdapter({ rpc: (async () => ({ value: [answers[Math.min(n++, 2)]] })) as never, signAndSubmit: async () => 'sig', resend, settled });
+    expect(await adapter.getStatus('sig')).toBe('submitted');
+    expect(await adapter.getStatus('sig')).toBe('submitted');
+    expect(resend).toHaveBeenCalledTimes(2);
+    expect(await adapter.getStatus('sig')).toBe('confirmed');
+    expect(resend).toHaveBeenCalledTimes(2);
+    expect(settled).toHaveBeenCalledWith('sig');
+  });
+});
+
 describe('Jupiter provider and Solana adapter', () => {
   const jq: JupiterQuote = { inAmount: 1_000_000n, outAmount: 5_000n, minOut: 4_950n, slippageBps: 100, routes: ['Raydium', 'Orca'] };
   const token = (mint: string, symbol: string) => ({ mint, symbol, name: symbol, decimals: 6, icon: null, verified: true });

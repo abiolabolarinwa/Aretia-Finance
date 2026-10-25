@@ -409,7 +409,7 @@ export class AretiaRouter {
     return execution;
   }
 
-  /** Polls the chain until the transaction settles or the timeout passes. Read-only: it never resends. */
+  /** Polls the chain until the transaction settles or the timeout passes. Read-only; the chain adapter may announce a swap again that the network has not picked up yet. */
   async trackExecution(execution: SwapExecution, options: { timeoutMs?: number; intervalMs?: number } = {}): Promise<SwapExecution> {
     if (!execution.txId || isTerminal(execution.status)) return execution;
     const adapter = this.adapters.get(execution.chain);
@@ -418,7 +418,12 @@ export class AretiaRouter {
     const interval = options.intervalMs ?? TRACK_INTERVAL_MS;
     let status: TransactionStatus = execution.status;
     while (this.now() < deadline) {
-      status = await adapter.getStatus(execution.txId);
+      // A failed look (a busy node, a dropped connection) says nothing about the swap, which may already be on its way: look again.
+      try {
+        status = await adapter.getStatus(execution.txId);
+      } catch {
+        status = execution.status;
+      }
       if (isTerminal(status)) break;
       await new Promise((r) => setTimeout(r, interval));
     }

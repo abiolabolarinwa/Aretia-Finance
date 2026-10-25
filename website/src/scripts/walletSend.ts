@@ -336,8 +336,9 @@ export type Confirmation = 'confirmed' | 'failed' | 'pending';
 export async function waitForConfirmation(signature: string, timeoutMs = 60_000): Promise<Confirmation> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const r = await rpcCall<{ value: ({ err: unknown; confirmationStatus?: string } | null)[] }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]);
-    const s = r.value[0];
+    // A failed look (a busy node, a dropped connection) says nothing about the transaction: look again.
+    const r = await rpcCall<{ value: ({ err: unknown; confirmationStatus?: string } | null)[] }>('getSignatureStatuses', [[signature], { searchTransactionHistory: true }]).catch(() => null);
+    const s = r?.value[0];
     if (s) {
       if (s.err !== null) return 'failed';
       if (s.confirmationStatus === 'confirmed' || s.confirmationStatus === 'finalized') return 'confirmed';

@@ -237,7 +237,7 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
       quoteResponse: quote.raw,
       userPublicKey: args.user,
       dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: MAX_PRIORITY_LAMPORTS, priorityLevel: 'medium' } },
+      prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: MAX_PRIORITY_LAMPORTS, priorityLevel: 'high' } },
     }),
   });
   if (!built.swapInstruction) throw new Error('Jupiter did not return a swap for this pair.');
@@ -408,6 +408,35 @@ interface SigningContext {
   signTransaction?: (tx: Web3.VersionedTransaction) => Promise<SignedTx>;
 }
 
+/**
+ * Signed swaps that went out through the public path, kept so a swap the network has not picked up can be sent again.
+ * Sending the same signed bytes twice is harmless: the signature is the same, so it can land only once.
+ */
+const SENT = new Map<string, { wire: string; at: number; lastResend: number }>();
+const RESEND_EVERY_MS = 3_000;
+
+/**
+ * Sends a swap again if it was submitted here, is still unconfirmed and was last sent over 3 seconds ago. The caller polls the status
+ * and calls this only while it is not yet seen. Returns whether it was sent. Never throws: a failed resend changes nothing.
+ */
+export async function resendSwap(signature: string, now: number = Date.now()): Promise<boolean> {
+  const sent = SENT.get(signature);
+  if (!sent || now - sent.lastResend < RESEND_EVERY_MS) return false;
+  sent.lastResend = now;
+  try {
+    // Preflight is skipped: the first send already passed it, and a second one would only add delay.
+    await rpcCall<string>('sendTransaction', [sent.wire, { encoding: 'base64', skipPreflight: true, maxRetries: 0 }]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Forgets a swap once it is confirmed, failed or expired. */
+export function forgetSwap(signature: string): void {
+  SENT.delete(signature);
+}
+
 /** Asks the connected wallet to sign, checks it returned the same transaction, and submits it. Returns the signature. */
 export async function signAndSubmitSwap(plan: SwapPlan, opts: { protectedSubmit?: boolean } = {}): Promise<string> {
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
@@ -432,5 +461,10 @@ export async function signAndSubmitSwap(plan: SwapPlan, opts: { protectedSubmit?
     if (!res.ok || typeof out?.signature !== 'string') throw new Error(stop);
     return out.signature;
   }
-  return rpcCall<string>('sendTransaction', [toBase64(signed.serialize()), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3 }]);
+  const wire = toBase64(signed.serialize());
+  const signature = await rpcCall<string>('sendTransaction', [wire, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3 }]);
+  const now = Date.now();
+  for (const [key, v] of SENT) if (now - v.at > 5 * 60_000) SENT.delete(key);
+  SENT.set(signature, { wire, at: now, lastResend: now });
+  return signature;
 }

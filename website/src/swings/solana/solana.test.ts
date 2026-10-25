@@ -218,6 +218,16 @@ describe('transaction builder', () => {
     const t = await buildCpmmSwapTransaction(web3, { user: USER, step: step(), nativeIn: true, nativeOut: false, closeWsol: true, recentBlockhash: blockhash, priorityMicroLamports: 10_000_000 });
     expect(t.steps[0]).toContain(`${MAX_PRIORITY_MICRO_LAMPORTS} micro-lamports`);
   });
+
+  it('pays a priority fee that gets a swap in, but never more than 0.0004 SOL', async () => {
+    const base = { user: USER, step: step(), nativeIn: true, nativeOut: false, closeWsol: true, recentBlockhash: blockhash } as const;
+    const dflt = await buildCpmmSwapTransaction(web3, base);
+    expect(dflt.steps[0]).toContain('50000 micro-lamports');
+    const dear = await buildCpmmSwapTransaction(web3, { ...base, priorityMicroLamports: 900_000, computeUnits: 1_000_000 });
+    // 1,000,000 units: the total cap of 400,000 lamports allows 400,000 micro-lamports per unit.
+    expect(dear.steps[0]).toContain('400000 micro-lamports');
+    expect(dear.steps[0]).toContain('at most 400000 lamports');
+  });
 });
 
 describe('DirectSolanaProvider', () => {

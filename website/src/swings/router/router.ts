@@ -85,13 +85,17 @@ export interface RouteSearch {
  * answered; "too slow" if it timed out (that is not a missing route, and "try a different token" would be wrong advice); or
  * that it could not be reached.
  */
-export function explainNoRoute(failures: readonly ProviderFailure[], labelOf: (providerId: string) => string = (id) => id): string {
+export function explainNoRoute(failures: readonly ProviderFailure[], labelOf: (providerId: string) => string = (id) => id, rejected: readonly RejectedQuote[] = []): string {
   const answered = failures.find((f) => f.answered);
   const silent = failures.filter((f) => !f.answered && !f.message.startsWith('Temporarily skipped'));
   if (answered) return `No route was found for this swap. ${answered.message}${silent.length > 0 ? ` ${silent.map((f) => labelOf(f.providerId)).join(' and ')} did not answer.` : ''}`;
   const slow = silent.filter((f) => /in time/i.test(f.message));
   if (slow.length > 0) return `${slow.map((f) => labelOf(f.providerId)).join(' and ')} took too long to answer, so this is not a missing route: the network is slow right now. Try again in a moment.`;
   if (silent.length > 0) return `${silent.map((f) => labelOf(f.providerId)).join(' and ')} could not be reached. Try again in a moment.`;
+  // A route WAS found but refused by Aretia's own checks (for example a price impact above the limit on a pool with almost no money in it):
+  // say that, and why, instead of "try a different amount", which would send the person guessing.
+  const refused = [...new Set(rejected.flatMap((r) => r.reasons))].slice(0, 2);
+  if (refused.length > 0) return `A route was found but Aretia did not offer it: ${refused.join(' ')} ${refused.some((r) => /price impact/i.test(r)) ? 'That usually means the pool for this token holds very little, so any trade would lose most of its value. Check how much liquidity this token has before trying again.' : ''}`.trim();
   return 'No route was found for this swap. Try a different amount or token.';
 }
 

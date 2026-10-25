@@ -38,7 +38,7 @@ import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { modeNote, modeRows } from '../swings/market/marketModes.js';
-import { fetchDeepRows } from '../swings/market/deepList.js';
+import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
@@ -1752,6 +1752,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const rated = applyRatings(got, await fetchRatings(got));
           if (mine !== seq) return;
           rows = rateRows(rated);
+          feedRows = rows;
+          layDeeper();
           void addIndexRows(mine);
         }
         error = null;
@@ -1766,34 +1768,42 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       draw();
     }
 
+    /** The feed's own list, kept apart so the deeper rows can be laid under it again after every refresh. */
+    let feedRows: MarketRow[] | null = null;
+    let indexRows: MarketRow[] = [];
     /**
-     * The market feed serves about 200 tokens a list at most. Once it is on screen, the list is deepened in the background:
-     * each network's busiest pools, page by page (a thousand tokens or more across networks), then Aretia's own index (up to
-     * 3000). Tokens already listed are not repeated, and the table redraws as the list grows.
+     * The market feed serves about 200 tokens a list at most. Below it go each network's busiest pools, page by page (about a
+     * thousand tokens across networks, older and newer together), then Aretia's own index (up to 3000). The deep walk takes a
+     * minute or two and carries on across list refreshes; each refresh lays what it has read so far under the fresh feed list.
      */
+    function layDeeper(): void {
+      if (feedRows === null || (m.kind !== 'trending' && m.kind !== 'top' && m.kind !== 'gainers')) return;
+      rows = rateRows(mergeIndexRows(mergeIndexRows(feedRows, deepSnapshot(m.chain)), indexRows));
+    }
     async function addIndexRows(mine: number): Promise<void> {
       if (m.kind !== 'trending' && m.kind !== 'top' && m.kind !== 'gainers') return;
-      const base = rows;
-      if (base === null) return;
-      const current = (): boolean => mine === seq && rows !== null;
-      let shownCount = base.length;
-      const grow = (extra: MarketRow[]): void => {
-        if (!current()) return;
-        const merged = mergeIndexRows(base, extra);
-        if (merged.length - shownCount < 200) return;
-        shownCount = merged.length;
-        rows = rateRows(merged);
+      const chain = m.chain;
+      let shown = rows?.length ?? 0;
+      const redraw = (): void => {
+        if (mine !== seq || m.chain !== chain) return;
+        layDeeper();
+        shown = rows?.length ?? shown;
         if (!page) draw();
       };
       try {
-        const deep = await fetchDeepRows(m.chain, m.window, Date.now(), { isCurrent: current, onProgress: (got) => grow(got) });
-        if (!current()) return;
-        const index = await fetchIndexedPages(m.chain, Date.now()).catch(() => [] as MarketRow[]);
-        if (!current()) return;
-        const merged = mergeIndexRows(mergeIndexRows(base, deep), index);
-        if (merged.length === (rows?.length ?? 0)) return;
-        rows = rateRows(merged);
-        if (!page) draw();
+        void fetchIndexedPages(chain, Date.now())
+          .then((got) => {
+            indexRows = got;
+            if (got.length > 0) redraw();
+          })
+          .catch(() => undefined);
+        await fetchDeepRows(chain, Date.now(), {
+          onProgress: (got) => {
+            // Redrawing the table for every page would make it jump; wait until about 150 more tokens have come in.
+            if (m.chain === chain && got.length + (feedRows?.length ?? 0) - shown >= 150) redraw();
+          },
+        });
+        redraw();
       } catch {
         // The deeper list is an addition: the feed's list stays as it was.
       }
@@ -1972,7 +1982,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
       const shownRows = visible();
-      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
+      if (rows !== null && (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers')) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));

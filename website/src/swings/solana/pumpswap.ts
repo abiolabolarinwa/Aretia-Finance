@@ -28,6 +28,7 @@ export const PUMPSWAP_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 export const PUMP_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 export const PUMP_FEE_PROGRAM = 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 /** The second seed of the fee-config account, a constant of the fee program. */
 const FEE_CONFIG_SEED = Uint8Array.from([12, 20, 222, 252, 130, 94, 198, 118, 148, 37, 8, 24, 187, 101, 64, 101, 244, 41, 141, 49, 86, 213, 113, 180, 212, 248, 9, 12, 24, 233, 168, 99]);
 
@@ -248,7 +249,11 @@ export async function pumpSwapInstructions(web3: typeof Web3, adapter: PumpSwapA
   const uvaM = meta(adapter.userVolumeAccumulator(user), true);
   // Selling a cashback coin lists the accumulator's token account, then the accumulator itself (found by trying the program).
   const cashbackAta = x.cashback !== '1' ? [] : selling ? [uvaAta, uvaM] : [uvaAta];
-  const tail = [...cashbackAta, meta(adapter.poolV2(baseMint)), meta(buybackRecipient), meta(buybackAta, true)];
+  // A pool made by hand with SOL as its base token and the token as its quote (GME/SOL is one) has no v2 record: its address would be derived
+  // from wrapped SOL, which is not a record of this program. Listing it anyway makes the program read the next account as the buyback
+  // recipient and turn the swap down (error 6053), so such a pool is sent without it. Every other pool is sent with it, as before.
+  const poolV2 = baseMint === WSOL_MINT ? [] : [meta(adapter.poolV2(baseMint))];
+  const tail = [...cashbackAta, ...poolV2, meta(buybackRecipient), meta(buybackAta, true)];
   const swap = selling
     ? new web3.TransactionInstruction({ programId: pk(PUMPSWAP_PROGRAM), keys: [...common, meta(feeConfig), meta(PUMP_FEE_PROGRAM), ...tail], data: Buffer.from(concat(DISC_SELL, u64le(amountIn), u64le(minOut))) })
     : new web3.TransactionInstruction({

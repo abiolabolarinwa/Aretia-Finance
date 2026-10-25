@@ -121,15 +121,15 @@ describe('PumpSwapAdapter', () => {
 });
 
 describe('PumpSwap instructions', () => {
-  async function build(selling: boolean, amount = 1_000_000n, minOut = 7n, flags: { cashback?: boolean; mayhem?: boolean } = {}) {
+  async function build(selling: boolean, amount = 1_000_000n, minOut = 7n, flags: { cashback?: boolean; mayhem?: boolean; inverted?: boolean } = {}) {
     const g = globalBytes();
     const p = poolBytes();
     const rpc = (async (_m: string, params: unknown[]) => ({ value: (params[0] as string[]).map((a) => (a === idle.globalConfigAddress() ? { data: [b64(g.bytes), 'base64'], owner: PUMPSWAP_PROGRAM } : null)) })) as SolRpc;
     const adapter = new PumpSwapAdapter(web3, rpc, undefined, none);
-    const pool: LiquidityPool = { ref: { chain: 'solana', dex: 'pumpswap', address: idle.canonicalPool(MINT, WSOL) }, model: 'constant-product', token0: { chain: 'solana', address: MINT }, token1: { chain: 'solana', address: WSOL }, reserve0: 1n, reserve1: 1n, feePpm: 0, updatedAt: 1, block: null, status: 'active', extra: { baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, baseProgram: TOKEN_PROGRAM, quoteProgram: TOKEN_PROGRAM, cashback: flags.cashback ? '1' : '0', mayhem: flags.mayhem ? '1' : '0' } };
+    const pool: LiquidityPool = { ref: { chain: 'solana', dex: 'pumpswap', address: idle.canonicalPool(MINT, WSOL) }, model: 'constant-product', token0: { chain: 'solana', address: flags.inverted ? WSOL : MINT }, token1: { chain: 'solana', address: flags.inverted ? MINT : WSOL }, reserve0: 1n, reserve1: 1n, feePpm: 0, updatedAt: 1, block: null, status: 'active', extra: { baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, baseProgram: TOKEN_PROGRAM, quoteProgram: TOKEN_PROGRAM, cashback: flags.cashback ? '1' : '0', mayhem: flags.mayhem ? '1' : '0' } };
     const inAcct = key();
     const outAcct = key();
-    const ixs = await pumpSwapInstructions(web3, adapter, USER, pool, { chain: 'solana', address: selling ? MINT : WSOL }, inAcct, outAcct, amount, minOut);
+    const ixs = await pumpSwapInstructions(web3, adapter, USER, pool, { chain: 'solana', address: (selling ? MINT : WSOL) === MINT && flags.inverted ? WSOL : selling ? MINT : WSOL }, inAcct, outAcct, amount, minOut);
     return { ixs, g, pool, inAcct, outAcct, adapter };
   }
 
@@ -176,6 +176,17 @@ describe('PumpSwap instructions', () => {
     const { ixs, g } = await build(false, 1_000_000n, 7n, { mayhem: true });
     expect(ixs[3]!.keys[9]!.pubkey.toBase58()).toBe(g.reserved);
     expect(ixs[3]!.keys[9]!.pubkey.toBase58()).not.toBe(g.protocol);
+  });
+
+  it('a pool made with SOL as its base token is sent without the v2 record, which it does not have', async () => {
+    const normal = await build(true);
+    expect(normal.ixs[3]!.keys).toHaveLength(24);
+    expect(normal.ixs[3]!.keys.map((k) => k.pubkey.toBase58())).toContain(normal.adapter.poolV2(MINT));
+    const inv = await build(true, 1_000_000n, 7n, { inverted: true });
+    const k = inv.ixs[3]!.keys.map((x) => x.pubkey.toBase58());
+    expect(k).toHaveLength(23);
+    expect(k).not.toContain(inv.adapter.poolV2(WSOL));
+    expect(k[k.length - 2]).toBe(inv.g.buyback);
   });
 
   it('a cashback pool gets the accumulator accounts the program reads first: its token account on a buy, then the accumulator too on a sell', async () => {

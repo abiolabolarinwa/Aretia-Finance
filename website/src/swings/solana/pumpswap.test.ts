@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as web3 from '@solana/web3.js';
 import { parsePumpGlobal, parsePumpPool, PUMP_FEE_PROGRAM, PUMPSWAP_PROGRAM, PumpSwapAdapter, pumpSwapInstructions } from './pumpswap.js';
+import { ataAddress } from '../../scripts/walletTools.js';
 import type { SolRpc } from './raydiumCpmm.js';
 import type { LiquidityPool } from '../engine/types.js';
 
@@ -14,7 +15,7 @@ const CREATOR = key();
 const none = async (): Promise<string[]> => [];
 const idle = new PumpSwapAdapter(web3, (async () => ({})) as never, undefined, none);
 
-function poolBytes(over: { index?: number; base?: string; quote?: string; cashback?: boolean } = {}): { bytes: Uint8Array; baseVault: string; quoteVault: string } {
+function poolBytes(over: { index?: number; base?: string; quote?: string; cashback?: boolean; mayhem?: boolean } = {}): { bytes: Uint8Array; baseVault: string; quoteVault: string } {
   const d = new Uint8Array(301);
   const baseVault = key();
   const quoteVault = key();
@@ -27,11 +28,12 @@ function poolBytes(over: { index?: number; base?: string; quote?: string; cashba
   put(139, baseVault);
   put(171, quoteVault);
   put(211, CREATOR);
+  d[243] = over.mayhem ? 1 : 0;
   d[244] = over.cashback ? 1 : 0;
   return { bytes: d, baseVault, quoteVault };
 }
 
-function globalBytes(opts: { disable?: number } = {}): { bytes: Uint8Array; protocol: string; buyback: string } {
+function globalBytes(opts: { disable?: number } = {}): { bytes: Uint8Array; protocol: string; buyback: string; reserved: string } {
   const d = new Uint8Array(949);
   const v = new DataView(d.buffer);
   v.setBigUint64(40, 20n, true);
@@ -42,7 +44,9 @@ function globalBytes(opts: { disable?: number } = {}): { bytes: Uint8Array; prot
   d.set(new web3.PublicKey(protocol).toBytes(), 57);
   v.setBigUint64(313, 5n, true);
   d.set(new web3.PublicKey(buyback).toBytes(), 643);
-  return { bytes: d, protocol, buyback };
+  const reserved = key();
+  d.set(new web3.PublicKey(reserved).toBytes(), 385);
+  return { bytes: d, protocol, buyback, reserved };
 }
 
 const b64 = (d: Uint8Array) => btoa(String.fromCharCode(...d));
@@ -54,11 +58,11 @@ const tokenAcct = (amount: bigint) => {
 
 describe('PumpSwap parsing', () => {
   it('reads a pool and the global config at the offsets the program lays out', () => {
-    const p = poolBytes({ cashback: true });
-    expect(parsePumpPool(web3, p.bytes)).toMatchObject({ index: 0, baseMint: MINT, quoteMint: WSOL, baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, isCashback: true });
+    const p = poolBytes({ cashback: true, mayhem: true });
+    expect(parsePumpPool(web3, p.bytes)).toMatchObject({ isMayhem: true, index: 0, baseMint: MINT, quoteMint: WSOL, baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, isCashback: true });
     expect(parsePumpPool(web3, new Uint8Array(100))).toBeNull();
     const g = globalBytes();
-    expect(parsePumpGlobal(web3, g.bytes)).toMatchObject({ lpFeeBps: 20n, protocolFeeBps: 5n, coinCreatorFeeBps: 5n, disableFlags: 0, protocolFeeRecipients: [g.protocol], buybackFeeRecipients: [g.buyback] });
+    expect(parsePumpGlobal(web3, g.bytes)).toMatchObject({ lpFeeBps: 20n, protocolFeeBps: 5n, coinCreatorFeeBps: 5n, disableFlags: 0, protocolFeeRecipients: [g.protocol], reservedFeeRecipients: [g.reserved], buybackFeeRecipients: [g.buyback] });
     expect(parsePumpGlobal(web3, new Uint8Array(10))).toBeNull();
   });
 });
@@ -117,12 +121,12 @@ describe('PumpSwapAdapter', () => {
 });
 
 describe('PumpSwap instructions', () => {
-  async function build(selling: boolean, amount = 1_000_000n, minOut = 7n) {
+  async function build(selling: boolean, amount = 1_000_000n, minOut = 7n, flags: { cashback?: boolean; mayhem?: boolean } = {}) {
     const g = globalBytes();
     const p = poolBytes();
     const rpc = (async (_m: string, params: unknown[]) => ({ value: (params[0] as string[]).map((a) => (a === idle.globalConfigAddress() ? { data: [b64(g.bytes), 'base64'], owner: PUMPSWAP_PROGRAM } : null)) })) as SolRpc;
     const adapter = new PumpSwapAdapter(web3, rpc, undefined, none);
-    const pool: LiquidityPool = { ref: { chain: 'solana', dex: 'pumpswap', address: idle.canonicalPool(MINT, WSOL) }, model: 'constant-product', token0: { chain: 'solana', address: MINT }, token1: { chain: 'solana', address: WSOL }, reserve0: 1n, reserve1: 1n, feePpm: 0, updatedAt: 1, block: null, status: 'active', extra: { baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, baseProgram: TOKEN_PROGRAM, quoteProgram: TOKEN_PROGRAM, cashback: '0' } };
+    const pool: LiquidityPool = { ref: { chain: 'solana', dex: 'pumpswap', address: idle.canonicalPool(MINT, WSOL) }, model: 'constant-product', token0: { chain: 'solana', address: MINT }, token1: { chain: 'solana', address: WSOL }, reserve0: 1n, reserve1: 1n, feePpm: 0, updatedAt: 1, block: null, status: 'active', extra: { baseVault: p.baseVault, quoteVault: p.quoteVault, coinCreator: CREATOR, baseProgram: TOKEN_PROGRAM, quoteProgram: TOKEN_PROGRAM, cashback: flags.cashback ? '1' : '0', mayhem: flags.mayhem ? '1' : '0' } };
     const inAcct = key();
     const outAcct = key();
     const ixs = await pumpSwapInstructions(web3, adapter, USER, pool, { chain: 'solana', address: selling ? MINT : WSOL }, inAcct, outAcct, amount, minOut);
@@ -166,6 +170,26 @@ describe('PumpSwap instructions', () => {
     expect(k[19]).toBe(adapter.globalVolumeAccumulator());
     expect(k[20]).toBe(adapter.userVolumeAccumulator(USER));
     expect(swap.keys[20]!.isWritable).toBe(true);
+  });
+
+  it('a mayhem-mode pool pays its protocol fee to the reserved recipient, not the ordinary one', async () => {
+    const { ixs, g } = await build(false, 1_000_000n, 7n, { mayhem: true });
+    expect(ixs[3]!.keys[9]!.pubkey.toBase58()).toBe(g.reserved);
+    expect(ixs[3]!.keys[9]!.pubkey.toBase58()).not.toBe(g.protocol);
+  });
+
+  it('a cashback pool gets the accumulator accounts the program reads first: its token account on a buy, then the accumulator too on a sell', async () => {
+    const buy = await build(false, 1_000_000n, 7n, { cashback: true });
+    const bk = buy.ixs[3]!.keys.map((x) => x.pubkey.toBase58());
+    expect(bk).toHaveLength(27);
+    const uva = buy.adapter.userVolumeAccumulator(USER);
+    const uvaAta = ataAddress(web3, uva, WSOL, TOKEN_PROGRAM);
+    expect(bk.slice(-4)).toEqual([uvaAta, buy.adapter.poolV2(MINT), buy.g.buyback, bk[26]]);
+    const sell = await build(true, 1_000_000n, 7n, { cashback: true });
+    const sk = sell.ixs[3]!.keys.map((x) => x.pubkey.toBase58());
+    expect(sk).toHaveLength(26);
+    expect(sk.slice(-5, -2)).toEqual([uvaAta, uva, sell.adapter.poolV2(MINT)]);
+    expect(sell.ixs[3]!.keys[sk.length - 5]!.isWritable).toBe(true);
   });
 
   it('refuses a zero amount, a zero minimum, a token outside the pool, and a pool of another venue', async () => {

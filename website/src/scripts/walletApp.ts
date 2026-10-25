@@ -58,6 +58,8 @@ interface WalletState {
   walletIcon?: string | null;
 }
 interface AretiaWalletApi {
+  /** Hands the wallet panel everything this page knows the wallet holds, so the panel lists it all. */
+  setHoldings?(list: { symbol: string; name: string; network: string; amount: number }[] | null): void;
   getState(): WalletState;
   disconnect(): Promise<void>;
   subscribe(fn: (s: WalletState) => void): () => void;
@@ -516,6 +518,15 @@ export function initWalletApp(): void {
 
   /** The side card and the count on the dashboard: wallet name, token count and the Ethereum-style account when one is connected. */
   function renderTopAssets(): void {
+    // The wallet panel in the top bar lists every token too: the Solana ones and those on the Ethereum-style networks.
+    window.AretiaWallet?.setHoldings?.(
+      address && holdings
+        ? [
+            ...holdings.map((h) => ({ symbol: h.symbol, name: h.name, network: 'Solana', amount: h.amount })),
+            ...evmHoldings.map((e) => ({ symbol: e.symbol, name: e.name, network: CHAINS[e.chain].name, amount: e.amount })),
+          ]
+        : null,
+    );
     const name = $('[data-wallet-name]');
     const count = $('[data-token-count]');
     const evmLine = $('[data-evm-line]');

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fetchDeepRows, resetDeepList } from './deepList';
+import { deepSnapshot, fetchDeepRows, resetDeepList } from './deepList';
 import type { MarketRow } from './types';
 
 const rows = (chain: string, page: number, n = 20) =>
@@ -14,7 +14,7 @@ describe('fetchDeepRows', () => {
       const q = new URL(u, 'https://x').searchParams;
       return reply(rows(q.get('chain')!, Number(q.get('page'))));
     }) as unknown as typeof fetch;
-    const got = await fetchDeepRows('', 'h24', 0, { fetchImpl, sleep: async () => undefined });
+    const got = await fetchDeepRows('', 0, { fetchImpl, sleep: async () => undefined });
     expect(got.length).toBeGreaterThanOrEqual(1000);
     expect(new Set(got.map((r) => r.address)).size).toBe(got.length);
     expect(got[0]!.volume24hUsd!).toBeGreaterThanOrEqual(got[got.length - 1]!.volume24hUsd!);
@@ -27,7 +27,7 @@ describe('fetchDeepRows', () => {
       asked.push(`${q.get('chain')}:${q.get('page')}`);
       return reply(rows('bnb', Number(q.get('page')), Number(q.get('page')) > 2 ? 1 : 20));
     }) as unknown as typeof fetch;
-    const got = await fetchDeepRows('bnb', 'h24', 0, { fetchImpl, sleep: async () => undefined });
+    const got = await fetchDeepRows('bnb', 0, { fetchImpl, sleep: async () => undefined });
     expect(new Set(asked.map((a) => a.split(':')[0]))).toEqual(new Set(['bnb']));
     expect(got.length).toBeGreaterThanOrEqual(40);
     expect(asked.length).toBeLessThan(10);
@@ -42,10 +42,28 @@ describe('fetchDeepRows', () => {
       return reply(rows(q.get('chain')!, Number(q.get('page'))));
     }) as unknown as typeof fetch;
     const sleep = async () => undefined;
-    const first = await fetchDeepRows('base', 'h24', 0, { fetchImpl, pages: 4, sleep });
+    const first = await fetchDeepRows('base', 0, { fetchImpl, pages: 4, sleep });
     expect(first.length).toBe(80); // every page got through in the end
     const before = calls;
-    await fetchDeepRows('base', 'h24', 60_000, { fetchImpl, pages: 4, sleep });
+    await fetchDeepRows('base', 60_000, { fetchImpl, pages: 4, sleep });
     expect(calls).toBe(before);
+  });
+
+  it('keeps what it has read while it runs, and one walk serves every caller', async () => {
+    let calls = 0;
+    const fetchImpl = (async (u: string) => {
+      calls++;
+      const q = new URL(u, 'https://x').searchParams;
+      return reply(rows(q.get('chain')!, Number(q.get('page'))));
+    }) as unknown as typeof fetch;
+    const sleep = async () => undefined;
+    const seen: number[] = [];
+    const a = fetchDeepRows('polygon', 0, { fetchImpl, sleep, pages: 3, onProgress: (r) => seen.push(r.length) });
+    const b = fetchDeepRows('polygon', 0, { fetchImpl, sleep, pages: 3 });
+    expect(deepSnapshot('polygon').length).toBe(0);
+    await Promise.all([a, b]);
+    expect(calls).toBe(3);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(deepSnapshot('polygon')).toHaveLength(60);
   });
 });

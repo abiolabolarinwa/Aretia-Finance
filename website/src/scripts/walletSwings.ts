@@ -666,7 +666,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         s.failures = search.failures.map((f) => ({ text: `${providerLabel(f.providerId)}: ${f.message}`, answered: f.answered === true }));
         s.phase = 'idle';
         // The provider's own reason comes first: "try a different token" is wrong advice when the real problem is, say, too little SOL.
-        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : explainNoRoute(search.failures, providerLabel);
+        s.error = protectedOnly && search.routes.length > 0 ? 'Protected sending is only available on Aretia Router routes, and none was found for this swap. Turn protected sending off to use the other routes.' : explainNoRoute(search.failures, providerLabel, search.rejected);
         return render();
       }
       s.failures = search.failures.map((f) => ({ text: `${providerLabel(f.providerId)}: ${f.message}`, answered: f.answered === true }));

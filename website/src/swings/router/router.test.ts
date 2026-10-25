@@ -203,6 +203,15 @@ describe('execution', () => {
   });
 });
 
+describe('saying why no route was offered', () => {
+  it('names a refused route and its reason, instead of the generic line', () => {
+    const text = explainNoRoute([], undefined, [{ providerId: 'aretia-sol', reasons: ['Price impact 99.00% is above the limit.'] }]);
+    expect(text).toMatch(/route was found but Aretia did not offer it: Price impact 99.00% is above the limit/);
+    expect(text).toMatch(/holds very little/);
+    expect(explainNoRoute([], undefined, [])).toBe('No route was found for this swap. Try a different amount or token.');
+  });
+});
+
 describe('keeping a Solana swap moving', () => {
   const prepare = async (r: AretiaRouter) => {
     const q = await r.getQuote(request);

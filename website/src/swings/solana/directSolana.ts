@@ -104,6 +104,10 @@ export interface SolanaSwapPayload {
  * answers in time is still compared; one that does not is left out rather than making everyone wait for it.
  */
 const TWO_HOP_WAIT_MS = 2_500;
+const POOL_CACHE_MS = 10_000;
+const EMPTY_POOL_CACHE_MS = 60_000;
+/** A direct pool at least this many times deeper (in what is sold) than the trade makes the trade's own price move about 2% or less. */
+const DEEP_ENOUGH = 50n;
 
 const isWsol = (t: TokenRef): boolean => t.address === WSOL_MINT;
 /** How much of `mint` a pool holds: the yardstick for "deepest pool" among pools that share that token. */
@@ -127,6 +131,13 @@ export class DirectSolanaProvider implements DexProvider {
   private skipped: string[] = [];
   /** How many pool readers failed (rather than finding nothing) while the quote being worked out was being read. */
   private venueMisses = 0;
+  /**
+   * What each venue said about each pair, kept for a few seconds. One quote reads five pairs from some twenty venues, over a hundred reads, and the
+   * screen asks again every few seconds: through the RPC proxy (120 reads a minute per visitor) that alone made the node refuse, which tripped the
+   * failure breaker and left only the outside aggregator. A pair with pools is trusted for 10 seconds, a pair with none for a minute (that rarely
+   * changes), and a failed read never. Prices are still taken from the program by simulation on every quote, and the swap is re-checked when built.
+   */
+  private readonly poolCache = new Map<string, { at: number; pools: Promise<LiquidityPool[]> }>();
 
   constructor(private readonly deps: DirectSolanaDeps) {
     this.now = deps.now ?? Date.now;
@@ -231,11 +242,27 @@ export class DirectSolanaProvider implements DexProvider {
 
   // ------------------------------------------------------------------ route discovery
 
+  private async cachedPools(venue: SolanaVenue, a: TokenRef, b: TokenRef): Promise<LiquidityPool[]> {
+    const key = `${venue.id}|${[a.address, b.address].sort().join('|')}`;
+    const hit = this.poolCache.get(key);
+    if (hit) {
+      const pools = await hit.pools.catch(() => null);
+      if (pools !== null && this.now() - hit.at < (pools.length > 0 ? POOL_CACHE_MS : EMPTY_POOL_CACHE_MS)) return pools;
+      if (this.poolCache.get(key) === hit) this.poolCache.delete(key);
+    }
+    const entry = { at: this.now(), pools: this.track(venue.id, () => venue.getPools(a, b)) };
+    this.poolCache.set(key, entry);
+    entry.pools.catch(() => {
+      if (this.poolCache.get(key) === entry) this.poolCache.delete(key);
+    });
+    return entry.pools;
+  }
+
   private async poolsOf(venues: SolanaVenue[], a: TokenRef, b: TokenRef): Promise<{ venue: SolanaVenue; pool: LiquidityPool }[]> {
     const lists = await Promise.all(
       venues.map(async (venue) => {
         try {
-          return (await this.track(venue.id, () => venue.getPools(a, b))).filter((p) => p.status === 'active').map((pool) => ({ venue, pool }));
+          return (await this.cachedPools(venue, a, b)).filter((p) => p.status === 'active').map((pool) => ({ venue, pool }));
         } catch {
           this.venueMisses++;
           return [];
@@ -268,14 +295,19 @@ export class DirectSolanaProvider implements DexProvider {
 
     // Read every pool the plans might use, in parallel.
     // The blockhash is asked for at the same time, so it costs no extra wait, and if the node cannot answer it the quote fails at once instead of after the pools.
-    const [blockhash, direct, ...viaHubs] = await Promise.all([blockhashPending, this.poolsOf(venues, from, to), ...hubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)])] as const) as [string, Awaited<ReturnType<typeof this.poolsOf>>, ...Awaited<ReturnType<typeof this.poolsOf>>[]];
+    // The direct pools are read first. Two-hop routes (five more pair lookups across every venue) are only looked for when there is no direct pool,
+    // or none deep enough for the trade: with a deep direct pool they would almost never win, and they cost over a hundred reads.
+    const [blockhash, direct] = await Promise.all([blockhashPending, this.poolsOf(venues, from, to)]);
+    const deepDirect = direct.some(({ pool }) => depthOf(pool, from.address) >= request.amountIn * DEEP_ENOUGH);
+    const hopHubs = deepDirect ? [] : hubs;
+    const viaHubs = await Promise.all(hopHubs.flatMap((h) => [this.poolsOf(venues, from, h), this.poolsOf(venues, h, to)]));
     const plans: Plan[] = [];
 
     // 2. Two hops through each hub: the deepest pool for each leg, checked by simulating the whole transaction. Each hub needs two
     // simulations one after the other, so the hubs are worked on together, not one after another: the quote has a time limit, and
     // doing them in turn made a two-hop swap into a new token take twice as long as it needs to.
     const twoHopsPending = Promise.all(
-      hubs.map(async (hub, k): Promise<Plan | null> => {
+      hopHubs.map(async (hub, k): Promise<Plan | null> => {
         const first = viaHubs[k * 2]!;
         const second = viaHubs[k * 2 + 1]!;
         if (first.length === 0 || second.length === 0) return null;

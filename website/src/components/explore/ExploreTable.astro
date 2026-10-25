@@ -22,7 +22,7 @@ const WHERE: Record<string, string> = {
 const HREF: Record<string, string> = { wallet: '/wallet/about', pay: '/features#pay', shield: '/features#shield', safesend: '/features#safesend' };
 
 const rows: Row[] = [
-  ...PRODUCTS.map((p) => ({
+  ...PRODUCTS.filter((p) => p.slug !== 'safesend').map((p) => ({
     name: p.name,
     role: p.role,
     summary: p.summary,

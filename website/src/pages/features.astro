@@ -3,7 +3,6 @@ import Base from '../layouts/Base.astro';
 import PageHero from '../components/typography/PageHero.astro';
 import ProductSection from '../components/product/ProductSection.astro';
 import WalletMock from '../components/wallet/WalletMock.astro';
-import SafeSendVisual from '../components/safesend/SafeSendVisual.astro';
 import ShieldVisual from '../components/shield/ShieldVisual.astro';
 import PayVisual from '../components/pay/PayVisual.astro';
 import ActSection from '../components/token/ActSection.astro';
@@ -13,7 +12,7 @@ import { PRODUCTS, SECURITY, DEVELOPERS } from '../data/site';
 
 const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const index = [
-  ['#wallet', 'Multichain Wallet'], ['#pay', 'Pay'], ['#shield', 'Shield'], ['#safesend', 'SafeSend'],
+  ['#wallet', 'Multichain Wallet'], ['#pay', 'Pay'], ['#shield', 'Shield'],
   ['#act', 'ACT'], ['#climate', 'Climate Treasury'], ['#security', 'Security'], ['#developers', 'Developers'],
 ];
 ---
@@ -50,9 +49,6 @@ const index = [
     <ShieldVisual />
   </ProductSection>
 
-  <ProductSection id="safesend" eyebrow="Aretia SafeSend" title="A pause you can<br />take back." lead={p.safesend!.summary} status={p.safesend!.status} points={p.safesend!.today} roadmap={p.safesend!.roadmap} statusNote={p.safesend!.statusNote}>
-    <SafeSendVisual />
-  </ProductSection>
 
   <ActSection />
   <ClimateSection />

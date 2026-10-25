@@ -8,13 +8,14 @@
  * imports walletSwap is in swings/live.ts, so this module stays testable without a browser.
  */
 import { normalizeTokenRef, sameToken } from '../core/token.js';
-import { SwingsError, type DexProvider, type PreparedSwap, type Quote, type SwapRequest } from '../core/types.js';
+import { planAretiaFee } from '../core/fee.js';
+import { SwingsError, type AretiaFeeConfig, type DexProvider, type PreparedSwap, type Quote, type SwapRequest } from '../core/types.js';
 
 /** The slice of walletSwap.ts this provider uses. */
 export interface JupiterBackend {
   fetchQuote(inMint: string, outMint: string, amountRaw: bigint, slippageBps: number, signal?: AbortSignal): Promise<JupiterQuote>;
   /** Builds and simulates the swap transaction for a quote; resolves with the plan the wallet will sign. */
-  planSwap(args: { user: string; from: JupiterToken; to: JupiterToken; amountRaw: bigint; slippageBps: number; quote: JupiterQuote }): Promise<JupiterPlan>;
+  planSwap(args: { user: string; from: JupiterToken; to: JupiterToken; amountRaw: bigint; slippageBps: number; quote: JupiterQuote; /** The Aretia fee in basis points, taken from `amountRaw` in the same transaction; 0 for none. */ feeBps: bigint }): Promise<JupiterPlan>;
   /** Looks up decimals and symbol for a mint; null if it cannot be read. */
   resolveToken(mint: string): Promise<JupiterToken | null>;
 }
@@ -35,6 +36,8 @@ export interface JupiterQuote {
   slippageBps: number;
   routes: string[];
   raw?: unknown;
+  /** The Aretia fee rate this quote was made net of, in basis points (set by the provider, read back when the swap is built). */
+  aretiaFeeBps?: bigint;
 }
 
 export interface JupiterPlan {
@@ -49,11 +52,16 @@ export const JUPITER_QUOTE_TTL_MS = 20_000;
 export class SolanaJupiterProvider implements DexProvider {
   readonly id = 'jupiter';
   readonly name = 'Jupiter';
+  /** True only when a fee configuration was given: the swap is then built with the Aretia fee in it, like Aretia's own routes. */
+  readonly carriesAretiaFee: boolean;
 
   constructor(
     private readonly backend: JupiterBackend,
     private readonly now: () => number = Date.now,
-  ) {}
+    private readonly fee?: AretiaFeeConfig,
+  ) {
+    this.carriesAretiaFee = fee !== undefined;
+  }
 
   supports(chain: SwapRequest['chain']): boolean {
     return chain === 'solana';
@@ -66,7 +74,13 @@ export class SolanaJupiterProvider implements DexProvider {
     if (sameToken(request.from, request.to)) throw new SwingsError('invalid', 'Choose two different tokens.');
     if (request.amountIn <= 0n) throw new SwingsError('invalid', 'Enter an amount above zero.');
 
-    const q = await this.backend.fetchQuote(request.from.address, request.to.address, request.amountIn, request.slippageBps, signal);
+    // The Aretia fee comes out of the amount entered, in the asset being sold (SOL, USDC or USDT); the rest is what Jupiter swaps.
+    const feePlan = this.fee ? planAretiaFee(request.amountIn, 'solana', this.fee, request.from.address) : null;
+    if (feePlan?.state === 'blocked') throw new SwingsError('config-missing', feePlan.reasons.join(' '));
+    if (feePlan && feePlan.net <= 0n) throw new SwingsError('invalid', 'The amount is too small once the Aretia fee is taken out.');
+    const taken = feePlan?.state === 'ready' ? feePlan.fee : 0n;
+    const feeBps = feePlan?.state === 'ready' && this.fee ? BigInt(this.fee.policy.rateBps) : 0n;
+    const q: JupiterQuote = { ...(await this.backend.fetchQuote(request.from.address, request.to.address, request.amountIn - taken, request.slippageBps, signal)), aretiaFeeBps: feeBps };
     const fetchedAt = this.now();
     const venues = q.routes.length > 0 ? q.routes : ['Jupiter'];
     return {
@@ -79,7 +93,7 @@ export class SolanaJupiterProvider implements DexProvider {
       // Jupiter's own impact figure is meaningless for tokens it has no reference price for, so it is not used.
       priceImpactBps: null,
       route: { legs: venues.map((venue) => ({ venue, from: request.from, to: request.to, shareBps: Math.floor(10_000 / venues.length) })) },
-      costs: { network: null, provider: null, aretiaFee: { amount: 0n, asset: null } },
+      costs: { network: null, provider: null, aretiaFee: taken > 0n ? { amount: taken, asset: request.from } : { amount: 0n, asset: null } },
       fetchedAt,
       expiresAt: fetchedAt + JUPITER_QUOTE_TTL_MS,
       raw: q,
@@ -104,6 +118,7 @@ export class SolanaJupiterProvider implements DexProvider {
       amountRaw: request.amountIn,
       slippageBps: request.slippageBps,
       quote: quote.raw as JupiterQuote,
+      feeBps: (quote.raw as JupiterQuote).aretiaFeeBps ?? 0n,
     });
     const warnings: string[] = [];
     if (plan.opensOutputAccount) warnings.push(`This swap opens a ${toInfo.symbol} account in your wallet, which costs a small amount of SOL.`);

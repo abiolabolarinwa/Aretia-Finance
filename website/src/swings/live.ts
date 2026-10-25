@@ -64,8 +64,8 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
         slippageBps: args.slippageBps,
         heldOthers: deps.heldOthers(),
         quote: args.quote as unknown as JupQuote,
-        // The old Trade-tab fee is not used here: Swings charges the Aretia fee (core/fee.ts) in the provider that builds the swap.
-        feeBps: 0n,
+        // The Aretia fee (core/fee.ts) is worked out by the provider and taken from the amount in this same transaction.
+        feeBps: args.feeBps,
       });
       // The plan is also the opaque payload the Solana adapter signs; the provider only reads its summary fields.
       return plan;
@@ -119,7 +119,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
     feeConfig,
     isChainEnabled,
     onEvent: routerEventSink(telemetry, (quoteId) => quoteId.split(':')[0] || 'unknown'),
-    providers: [direct, chained, directSolana, aggregator(new SolanaJupiterProvider(jupiter)), aggregator(evmProvider, () => runtime.evmConfigured)],
+    providers: [direct, chained, directSolana, aggregator(new SolanaJupiterProvider(jupiter, Date.now, feeConfig)), aggregator(evmProvider, () => runtime.evmConfigured)],
     adapters: [new SolanaChainAdapter({ rpc: rpcCall, resend: (txId) => resendSwap(txId), settled: forgetSwap, signAndSubmit: (payload) => signAndSubmitSwap(payload as SwapPlan, { protectedSubmit: (payload as { protectedSubmission?: unknown }).protectedSubmission !== undefined }) })],
   });
 }

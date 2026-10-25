@@ -315,6 +315,7 @@
       if (accountChangeUnsub) { try { accountChangeUnsub(); } catch (e) {} accountChangeUnsub = null; }
       state.connectedWallet = null;
       state.account = null;
+      providedHoldings = null;
       if (STORAGE_AVAILABLE) {
         try { window.localStorage.removeItem(LAST_WALLET_KEY); } catch (e) {}
       }
@@ -523,6 +524,61 @@
       if (!info) return 0; // no ATA yet == a real, honest zero balance
       return Number(readU64LE(new Uint8Array(info.data), 64)) / 1e9;
     });
+  }
+
+  // Every token the wallet holds, under both token programs, as { mint, amount } with the largest amounts first.
+  var SPL_TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+  // The public nodes refuse token-account reads, so these go through the site's own node proxy (same origin, as the wallet page does).
+  function proxyRpc(method, params) {
+    return withTimeout(
+      fetch("/api/rpc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params }) }),
+      RPC_TIMEOUT_MS * 2,
+      "rpc timed out"
+    ).then(function (res) {
+      if (!res.ok) throw new Error("rpc unavailable");
+      return res.json();
+    }).then(function (body) {
+      if (!body || body.error) throw new Error("rpc unavailable");
+      return body.result;
+    });
+  }
+
+  function getTokenBalances(address) {
+    function read(programId) {
+      return proxyRpc("getTokenAccountsByOwner", [address, { programId: programId }, { encoding: "jsonParsed" }])
+        .then(function (res) { return (res && res.value) || []; }, function () { return null; });
+    }
+    return Promise.all([read(SPL_TOKEN_PROGRAM_ID), read(TOKEN_2022_PROGRAM_ID)]).then(function (lists) {
+      if (lists[0] === null && lists[1] === null) throw new Error("rpc unavailable");
+      var byMint = {};
+      (lists[0] || []).concat(lists[1] || []).forEach(function (acc) {
+        var info = acc && acc.account && acc.account.data && acc.account.data.parsed && acc.account.data.parsed.info;
+        var amt = info && info.tokenAmount;
+        if (!info || !amt || typeof info.mint !== "string") return;
+        var ui = Number(amt.uiAmountString !== undefined ? amt.uiAmountString : amt.uiAmount);
+        if (!isFinite(ui) || ui <= 0) return;
+        byMint[info.mint] = (byMint[info.mint] || 0) + ui;
+      });
+      return Object.keys(byMint).map(function (m) { return { mint: m, amount: byMint[m] }; })
+        .sort(function (x, y) { return y.amount - x.amount; });
+    });
+  }
+
+  // Names and pictures for those mints, from Jupiter's token list. Decoration only: a failure leaves the short address.
+  function getTokenNames(mints) {
+    var out = {};
+    var batches = [];
+    for (var i = 0; i < mints.length; i += 50) batches.push(mints.slice(i, i + 50));
+    return Promise.all(batches.map(function (batch) {
+      return withTimeout(fetch("https://lite-api.jup.ag/tokens/v2/search?query=" + batch.join(",")), RPC_TIMEOUT_MS, "names timed out")
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (list) {
+          (Array.isArray(list) ? list : []).forEach(function (t) {
+            if (t && typeof t.id === "string") out[t.id] = { symbol: String(t.symbol || "").slice(0, 20), name: String(t.name || "").slice(0, 40) };
+          });
+        })
+        .catch(function () {});
+    })).then(function () { return out; });
   }
 
   // ==================================================================
@@ -1006,6 +1062,11 @@
       '  <span class="aw-account-label">SOL Balance</span>' +
       '  <span class="aw-account-value" data-loading="true" id="aw-sol-balance">Loading…</span>' +
       "</div>" +
+      '<div class="aw-account-row aw-tokens-head">' +
+      '  <span class="aw-account-label">Tokens</span>' +
+      '  <span class="aw-account-value" data-loading="true" id="aw-token-count">Loading…</span>' +
+      "</div>" +
+      '<div class="aw-tokens" id="aw-token-list" hidden></div>' +
       '<div class="aw-account-actions">' +
       '  <button type="button" class="aw-trade-btn">Buy / Sell ACT</button>' +
       '  <a class="aw-account-link" href="https://solscan.io/account/' + encodeURIComponent(address) + '" target="_blank" rel="noopener">View on Solscan ↗</a>' +
@@ -1060,6 +1121,8 @@
         solEl.removeAttribute("data-loading");
       });
 
+    renderTokenList(address, wrap.querySelector("#aw-token-count"), wrap.querySelector("#aw-token-list"));
+
     getActBalance(address)
       .then(function (bal) {
         if (bal === null) {
@@ -1072,6 +1135,85 @@
       .catch(function () {
         actEl.textContent = "ACT balance unavailable";
         actEl.removeAttribute("data-loading");
+      });
+  }
+
+  function formatTokenAmount(n) {
+    if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    if (n >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    return n.toLocaleString(undefined, { maximumSignificantDigits: 4 });
+  }
+
+  // The Tokens list in the wallet panel. A page that already knows everything the wallet holds (the wallet page, which also reads
+  // the Ethereum-style networks) hands it over with setHoldings; otherwise the panel reads the Solana tokens itself.
+  var providedHoldings = null; // [{ symbol, name, network, amount }] or null
+  var ownTokens = null; // [{ mint, amount, symbol }] or null while loading
+  var ownTokensState = "loading"; // loading | ready | failed
+  var tokenEls = null; // { countEl, listEl }
+
+  function paintTokens() {
+    if (!tokenEls || !tokenEls.countEl.isConnected) return;
+    var countEl = tokenEls.countEl;
+    var listEl = tokenEls.listEl;
+    var rows;
+    if (providedHoldings) {
+      rows = providedHoldings.map(function (h) { return { label: h.symbol || "?", title: (h.name ? h.name + " · " : "") + (h.network || ""), network: h.network || "", amount: h.amount }; });
+    } else if (ownTokensState === "ready") {
+      rows = ownTokens.map(function (t) { return { label: t.symbol || t.mint.slice(0, 4) + "…" + t.mint.slice(-4), title: t.mint, network: "", amount: t.amount }; });
+    } else {
+      countEl.textContent = ownTokensState === "failed" ? "Unavailable" : "Loading…";
+      if (ownTokensState === "failed") countEl.removeAttribute("data-loading");
+      return;
+    }
+    countEl.removeAttribute("data-loading");
+    countEl.textContent = rows.length === 0 ? "None" : String(rows.length);
+    listEl.textContent = "";
+    listEl.hidden = rows.length === 0;
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "aw-token-row";
+      var label = document.createElement("span");
+      label.className = "aw-token-name";
+      label.textContent = r.label;
+      label.title = r.title;
+      if (r.network) {
+        var tag = document.createElement("span");
+        tag.className = "aw-token-net";
+        tag.textContent = r.network;
+        label.appendChild(tag);
+      }
+      var amount = document.createElement("span");
+      amount.className = "aw-token-amount";
+      amount.textContent = formatTokenAmount(r.amount);
+      row.appendChild(label);
+      row.appendChild(amount);
+      listEl.appendChild(row);
+    });
+  }
+
+  function setHoldings(list) {
+    providedHoldings = Array.isArray(list) ? list.filter(function (h) { return h && isFinite(h.amount) && h.amount > 0; }) : null;
+    paintTokens();
+  }
+
+  function renderTokenList(address, countEl, listEl) {
+    tokenEls = { countEl: countEl, listEl: listEl };
+    ownTokens = null;
+    ownTokensState = "loading";
+    paintTokens();
+    if (providedHoldings) return; // already known; no need to read the chain again
+    getTokenBalances(address)
+      .then(function (tokens) {
+        ownTokens = tokens;
+        ownTokensState = "ready";
+        paintTokens();
+        return getTokenNames(tokens.map(function (t) { return t.mint; })).then(function (names) {
+          tokens.forEach(function (t) { if (names[t.mint] && names[t.mint].symbol) t.symbol = names[t.mint].symbol; });
+          paintTokens();
+        });
+      })
+      .catch(function () {
+        if (ownTokensState !== "ready") { ownTokensState = "failed"; paintTokens(); }
       });
   }
 
@@ -1190,6 +1332,8 @@
     connect: connectByName,
     subscribe: subscribe,
     disconnect: disconnectWallet,
+    // The wallet page tells the panel everything the wallet holds, on every network it reads (see paintTokens).
+    setHoldings: setHoldings,
     // For Jupiter Terminal's enableWalletPassthrough / passthroughWalletContextState
     // (see index.html) -- kept up to date automatically on every connect/
     // disconnect/account-change via the listeners array, but exposed here
@@ -1201,6 +1345,7 @@
       isValidBase58Pubkey: isValidBase58Pubkey,
       getSolBalance: getSolBalance,
       getActBalance: getActBalance,
+      getTokenBalances: getTokenBalances,
       getConnection: getConnection,
     },
     config: { ACT_MINT_ADDRESS: ACT_MINT_ADDRESS, mintIsValid: mintIsValid, network: "mainnet-beta" },

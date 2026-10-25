@@ -245,3 +245,10 @@
 .aw-disconnect-btn:hover { background: rgba(255,255,255,.18); }
 .aw-disconnect-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .aw-disconnect-btn:disabled { opacity: .6; cursor: default; }
+
+/* The wallet panel's list of every token held: scrolls inside the panel so a wallet with many tokens does not push the buttons away. */
+.aw-tokens { max-height: 168px; overflow-y: auto; padding: 2px 0 8px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.aw-token-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12.5px; }
+.aw-token-name { color: rgba(255,255,255,.85); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aw-token-amount { font-family: var(--mono, ui-monospace, monospace); font-weight: 700; color: #fff; white-space: nowrap; }
+.aw-token-net { margin-left: 6px; font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,.5); }

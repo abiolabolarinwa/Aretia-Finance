@@ -10,6 +10,7 @@
  * SNS SDK. If the proxy is down or refuses, the page falls back to a public endpoint.
  */
 import type * as Web3 from '@solana/web3.js';
+import { checkSignedTransaction } from './walletSignedCheck';
 import {
   BASE_FEE_LAMPORTS,
   MIN_NEW_ACCOUNT_LAMPORTS,
@@ -302,10 +303,6 @@ interface SigningContext {
   signTransaction?: (tx: Web3.Transaction) => Promise<Web3.Transaction>;
 }
 
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
-}
-
 /**
  * Asks the connected wallet to sign, checks the wallet returned the same transaction we built, then
  * submits it. Returns the signature.
@@ -320,9 +317,9 @@ export async function signAndSubmitTransaction(transaction: Web3.Transaction, ex
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
   if (!ctx?.signTransaction) throw new Error('The connected wallet cannot sign from this page.');
   const signed = await ctx.signTransaction(transaction);
-  if (!bytesEqual(signed.serializeMessage(), transaction.serializeMessage())) {
-    throw new Error('The wallet returned a different transaction from the one shown. Nothing was sent.');
-  }
+  // Guard instructions some wallets add (Phantom's Lighthouse) are allowed; any other change is refused.
+  const checked = checkSignedTransaction(await loadWeb3(), transaction, signed);
+  if (!checked.ok) throw new Error(`The wallet returned a different transaction from the one shown (${checked.reason}). Nothing was sent.`);
   // Keys that only this page holds (Launch's new token) sign last, after the wallet has had its say, so a wallet that rewrites
   // the transaction cannot leave them signing something other than what was shown.
   for (const signer of extraSigners) signed.partialSign(signer);

@@ -16,6 +16,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { fetchAccount, loadWeb3, rpcCall } from './walletSend';
+import { checkSignedTransaction } from './walletSignedCheck';
 import {
   ataAddress,
   createAtaIdempotentInstruction,
@@ -174,6 +175,8 @@ export interface SwapPlan {
   /** The simulation shows the swap opening a token account for the token you are buying. */
   opensOutputAccount: boolean;
   plannedAt: number;
+  /** The address lookup tables the transaction uses, kept so a wallet's returned copy can be read back and compared. */
+  lookupTables?: Web3.AddressLookupTableAccount[];
 }
 
 interface JupInstruction {
@@ -397,6 +400,7 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     opensFeeAccount,
     opensOutputAccount: outIdx >= 0 && tokenAmount(pre.value[outIdx]) === null,
     plannedAt: Date.now(),
+    lookupTables: tables,
   };
 }
 
@@ -444,11 +448,9 @@ export async function signAndSubmitSwap(plan: SwapPlan, opts: { protectedSubmit?
   const ctx = window.AretiaWallet?.getWalletContextState() as SigningContext | undefined;
   if (!ctx?.signTransaction) throw new Error('The connected wallet cannot sign from this page.');
   const signed = await ctx.signTransaction(plan.transaction);
-  const sent = signed.message.serialize();
-  const built = plan.transaction.message.serialize();
-  if (sent.length !== built.length || sent.some((b, i) => b !== built[i])) {
-    throw new Error('The wallet returned a different transaction from the one shown. Nothing was sent.');
-  }
+  // The wallet must hand back what was shown. Guard instructions some wallets add (Phantom's Lighthouse) are allowed; nothing else is.
+  const checked = checkSignedTransaction(await loadWeb3(), plan.transaction, signed as Web3.VersionedTransaction, plan.lookupTables ?? []);
+  if (!checked.ok) throw new Error(`The wallet returned a different transaction from the one shown (${checked.reason}). Nothing was sent.`);
   if (opts.protectedSubmit) {
     // Protected sending goes through Aretia's relay to Jito. If it cannot, nothing is sent the public way instead:
     // that would quietly defeat what the user asked for.

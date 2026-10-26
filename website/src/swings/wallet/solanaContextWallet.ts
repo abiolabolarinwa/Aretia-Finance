@@ -8,6 +8,8 @@
  * transaction is checked against the one that was asked for before it is trusted.
  */
 import type * as Web3 from '@solana/web3.js';
+import { checkSignedTransaction } from '../../scripts/walletSignedCheck.js';
+import { loadWeb3 } from '../../scripts/walletSend.js';
 import { SwingsError, SOLANA_NATIVE_ADDRESS } from '../core/types.js';
 import type { SolRpc } from '../solana/raydiumCpmm.js';
 import { NO_CAPABILITIES, type AssetId, type Balance, type SessionChange, type Signature, type SignedTransaction, type TransactionHash, type UnsignedTransaction, type WalletAdapter, type WalletCapabilities, type WalletSession } from './types.js';
@@ -61,9 +63,7 @@ export interface SolanaWalletOptions {
   connectTimeoutMs?: number;
 }
 
-const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 
-const messageBytes = (tx: Web3.Transaction | Web3.VersionedTransaction): Uint8Array => ('version' in tx ? tx.message.serialize() : tx.serializeMessage());
 
 const toBase64 = (bytes: Uint8Array): string => {
   let s = '';
@@ -182,7 +182,8 @@ export class SolanaContextWallet implements WalletAdapter {
       throw new SwingsError('rejected', e instanceof Error && e.message ? `The wallet did not sign: ${e.message.slice(0, 120)}` : 'The wallet did not sign.');
     }
     // The wallet must hand back the transaction that was asked for, not a different one.
-    if (!bytesEqual(messageBytes(signed), messageBytes(tx.transaction))) throw new SwingsError('invalid', 'The wallet returned a different transaction from the one shown. Nothing was sent.');
+    const checked = checkSignedTransaction(await loadWeb3(), tx.transaction, signed);
+    if (!checked.ok) throw new SwingsError('invalid', `The wallet returned a different transaction from the one shown (${checked.reason}). Nothing was sent.`);
     return { kind: 'solana', transaction: signed, serialized: signed.serialize() };
   }
 

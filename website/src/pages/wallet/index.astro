@@ -1063,6 +1063,11 @@ const sendTips = [
   .wapp-mp__headline--warn { color: #19191c; }
   .wapp-mp__concerns { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.5; color: var(--color-strong); }
   .wapp-mp__actions { display: grid; gap: 6px; }
+  /* The live swap card above the numbers: the chart is the page's, so only the card shows. */
+  .wapp-mp__swap:empty { display: none; }
+  .wapp-mp__swap .wapp__grid.wapp__grid--trade { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+  .wapp-mp__swap .wapp__trade-side { display: none; }
+  .wapp-mp__swap .wapp__swap { width: 100%; box-shadow: none; }
   .wapp-mp__actions .wapp__btn { padding-block: 10px; }
   .wapp-mp__shieldrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
   .wapp-mp__watch { padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-brand); background: var(--color-bg); border: 1px solid var(--wapp-indigo-line, #dddddf); border-radius: 999px; cursor: pointer; }

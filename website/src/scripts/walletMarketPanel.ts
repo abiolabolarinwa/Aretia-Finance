@@ -28,6 +28,8 @@ export interface MarketPanelOptions {
   openChart(row: MarketRow): void;
   /** Null when swaps on the token's network are switched off. */
   swapFor(row: MarketRow): (() => void) | null;
+  /** Puts the live swap card, with this token chosen, into the box (shown above the numbers, like a trading screen). */
+  mountSwap?(host: HTMLElement, row: MarketRow): void;
 }
 
 const LABEL: Record<Win, string> = { m5: '5M', h1: '1H', h6: '6H', h24: '24H' };
@@ -117,6 +119,9 @@ export function createMarketPanel(o: MarketPanelOptions) {
   let check: { state: 'loading' | 'done'; risk: TokenRisk | null } = { state: 'loading', risk: null };
   let seq = 0;
   let ctl: AbortController | null = null;
+  /** Kept across redraws: the swap card lives inside it. */
+  const swapHost = el('div', 'wapp-mp__swap');
+  let swapKey = '';
 
   function copyButton(text: string, what: string): HTMLButtonElement {
     const b = el('button', 'wapp-mp__icon');
@@ -296,7 +301,15 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const names = el('div', 'wapp-mp__names');
     names.append(el('strong', 'wapp-mp__pair', d ? `${d.baseSymbol} / ${d.quoteSymbol}` : `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''}`), el('span', 'wapp-mp__sub', `${net}${d?.dex ? ` · ${d.dex}` : ''}`));
     head.append(picture(r), names, el('strong', 'wapp-mp__price', formatPrice(d?.priceUsd ?? r.priceUsd)));
-    root.append(head, checkBlock(r));
+    const embedded = !!o.mountSwap && !!o.swapFor(r);
+    if (embedded) {
+      // Mounted again when the token changes, or when the card was taken away (the swap pop-up or a full token page borrows it).
+      if (swapKey !== rowKey(r) || swapHost.childElementCount === 0) {
+        swapKey = rowKey(r);
+        o.mountSwap!(swapHost, r);
+      }
+      root.append(head, swapHost, checkBlock(r));
+    } else root.append(head, checkBlock(r));
 
     const row2 = el('div', 'wapp-mp__duo');
     const favLabel = (): string => (o.isFavourite(r) ? '★ Favourited' : '☆ Favourite');
@@ -319,7 +332,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     buy.disabled = !swap;
     if (swap) buy.addEventListener('click', swap);
     act.append(buy);
-    root.append(act);
+    if (!embedded) root.append(act);
 
     const info = el('div', 'wapp-mp__group');
     info.append(heading(r.pool ? 'Pool details' : 'Token details'));
@@ -428,6 +441,10 @@ export function createMarketPanel(o: MarketPanelOptions) {
   return {
     element: root,
     show,
+    /** Draws the open token again (for example after the swap card was handed back). */
+    refresh: (): void => {
+      if (row) render();
+    },
     selectedKey: (): string | null => (row ? rowKey(row) : null),
   };
 }

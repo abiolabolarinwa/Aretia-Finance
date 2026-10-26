@@ -157,6 +157,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   if (!root) return { onShow() {}, onPayShow() {}, onWalletChange() {}, onActivityShow() {}, evmAccount: () => null, revokeEvm: () => Promise.reject(new Error('Not available here.')) };
   const panel = (name: string): HTMLElement => root.querySelector<HTMLElement>(`[data-sw-panel="${name}"]`)!;
   const swapPanel = panel('swap');
+  /** Set once the docked token panel exists: draws it again after the swap card is handed back. */
+  let refreshDockedSwap: (() => void) | null = null;
   // Swaps and moves are listed in the sidebar's Activity page, not in a tab here.
   const activityPanel = document.querySelector<HTMLElement>('[data-swings-activity]') ?? el('div');
   // Pay holds the cash-out and USDC-transfer screens; they are built here because they share this page's wallet and router.
@@ -1649,7 +1651,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // Beside the docked panel the chart opens in place; on a narrow screen it still opens the full token page.
       openChart: (r) => (panelShown() ? showChart(r) : openRow(r)),
       swapFor: (r) => swapHandler(r),
+      mountSwap: (host, r) => embedSwap(host, r, records.get(rowKey(r.chain, r.address))),
     });
+    refreshDockedSwap = () => panel.refresh();
     // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.
     (document.querySelector<HTMLElement>('[data-wapp]') ?? target).append(panel.element);
     const panelShown = (): boolean => panel.element.isConnected && panel.element.offsetParent !== null;
@@ -1895,6 +1899,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           tokenPage.close();
           page = false;
           draw();
+          panel.refresh();
         },
       });
     }
@@ -2312,6 +2317,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     swapPanel.hidden = true;
     dialogReturnFocus?.focus?.();
     dialogReturnFocus = null;
+    refreshDockedSwap?.();
   }
   swapDialog?.querySelector('[data-swap-dialog-close]')?.addEventListener('click', closeSwapDialog);
   swapDialog?.addEventListener('mousedown', (e) => {

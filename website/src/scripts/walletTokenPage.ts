@@ -22,6 +22,10 @@ export interface TokenPageOptions {
   riskNote?: string | null;
   /** Null when swaps on this network are switched off. */
   onSwap: (() => void) | null;
+  /** Puts the live swap card, with this token chosen, into the given box (the top of the side panel). */
+  mountSwap?: (host: HTMLElement) => void;
+  /** Takes the swap card back out, when the page closes or another token opens. */
+  unmountSwap?: () => void;
   onBack(): void;
 }
 
@@ -65,6 +69,19 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   let active: AbortController | null = null;
   let tv: TvChart | null = null;
   let trades: TradesTable | null = null;
+  let swapHost: HTMLElement | null = null;
+  let unmountSwap: (() => void) | undefined;
+
+  /** The swap card sits above the numbers, like a trading screen: chart on the left, trade on the right. */
+  function mountSwapInto(o: TokenPageOptions, side: HTMLElement): void {
+    unmountSwap?.();
+    unmountSwap = o.unmountSwap;
+    swapHost = null;
+    if (!o.mountSwap || !o.onSwap) return;
+    swapHost = el('div', 'wapp-tp__swap');
+    side.prepend(swapHost);
+    o.mountSwap(swapHost);
+  }
 
   function skeleton(o: TokenPageOptions): { chart: HTMLElement; side: HTMLElement; title: HTMLElement } {
     tv?.dispose();
@@ -111,6 +128,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     root.append(bar, grid);
     title.append(picture(o.symbol, o.icon ?? cachedLogo(o.chain, o.address)), el('strong', 'wapp-tp__name', o.symbol), el('span', 'wapp-tp__net', `${o.name ? `${o.name} · ` : ''}${CHAINS[o.chain].name}`));
     chart.append(el('p', 'wapp__fine', 'Finding the main pool for this token…'));
+    mountSwapInto(o, side);
     side.append(el('p', 'wapp__fine', 'Loading the numbers…'));
     return { chart, side, title };
   }
@@ -129,7 +147,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });
 
     const side = parts.side;
-    side.replaceChildren();
+    side.replaceChildren(...(swapHost ? [swapHost] : []));
     const net = CHAINS[o.chain].name;
     const headline = root.querySelector<HTMLElement>('[data-tp-headline]');
     if (headline) {
@@ -141,13 +159,15 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       }
     }
     const act = el('div', 'wapp-tp__actions');
-    if (o.onSwap) {
+    if (swapHost) {
+      /* the swap card is already on the page */
+    } else if (o.onSwap) {
       const swap = el('button', 'wapp__btn wapp__btn--primary', `Swap into ${o.symbol}`);
       swap.type = 'button';
       swap.addEventListener('click', () => o.onSwap?.());
       act.append(swap);
     } else act.append(el('p', 'wapp__fine', `Swaps on ${net} are switched off at the moment, so this token can be inspected but not traded here.`));
-    side.insertBefore(act, side.firstChild);
+    if (act.childElementCount > 0) side.insertBefore(act, side.firstChild);
     side.append(el('h3', 'wapp-tp__pair', d ? `${d.baseSymbol} / ${d.quoteSymbol}` : o.symbol), el('p', 'wapp__fine', `${net}${d?.dex ? ` · ${d.dex}` : ''}`));
     if (problem || !d) {
       side.append(el('p', 'wapp__fine', problem ?? 'No numbers were found for this pool.'));
@@ -218,8 +238,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     } catch (e) {
       if (mine !== seq) return;
       parts.chart.replaceChildren(el('p', 'wapp__fine', e instanceof Error ? e.message : 'No trading pool was found for this token yet. Brand-new tokens can take a few minutes to appear.'));
-      parts.side.replaceChildren(el('p', 'wapp__fine', 'No market numbers yet.'));
-      if (o.onSwap) {
+      parts.side.replaceChildren(...(swapHost ? [swapHost] : []), el('p', 'wapp__fine', 'No market numbers yet.'));
+      if (o.onSwap && !swapHost) {
         const swap = el('button', 'wapp__btn wapp__btn--primary', `Swap into ${o.symbol}`);
         swap.type = 'button';
         swap.addEventListener('click', () => o.onSwap?.());
@@ -235,6 +255,9 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     tv = null;
     trades?.dispose();
     trades = null;
+    unmountSwap?.();
+    unmountSwap = undefined;
+    swapHost = null;
     root.replaceChildren();
     root.hidden = true;
   }

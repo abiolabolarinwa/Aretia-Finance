@@ -1719,7 +1719,7 @@ const sendTips = [
   .wapp-tp__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12px; color: var(--color-strong); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); }
   .wapp-tp__toggle:hover { border-color: var(--color-brand); }
   .wapp-tp__toggle-ico { font-size: 15px; line-height: 1; color: var(--color-accent); }
-  .wapp-tp__grid { --tp-panel: 340px; --tp-gap: 14px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-panel); gap: var(--tp-gap); align-items: start; transition: grid-template-columns 240ms var(--ease-out), column-gap 240ms var(--ease-out); }
+  .wapp-tp__grid { --tp-panel: 390px; --tp-gap: 14px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-panel); gap: var(--tp-gap); align-items: start; transition: grid-template-columns 240ms var(--ease-out), column-gap 240ms var(--ease-out); }
   .wapp-tp__grid.is-collapsed { --tp-panel: 0px; --tp-gap: 0px; }
   .wapp-tp__edge { position: absolute; z-index: 3; top: 84px; right: max(0px, calc(var(--tp-panel) + var(--tp-gap) - 13px)); width: 26px; height: 52px; padding: 0; font-size: 16px; line-height: 1; color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 10px; cursor: pointer; box-shadow: var(--shadow-soft); transition: right 240ms var(--ease-out), color var(--duration-fast); }
   .wapp-tp__edge:hover { color: var(--color-accent); border-color: var(--color-brand); }
@@ -1745,6 +1745,10 @@ const sendTips = [
   .wapp-tp__links { display: flex; flex-wrap: wrap; gap: 6px; }
   .wapp-tp__risk { margin: 0; padding: 10px 12px; font-size: 12px; color: var(--color-strong); background: var(--color-brand-soft); border-radius: 10px; }
   .wapp-tp__actions { display: grid; gap: 8px; }
+  /* The live swap card, above the numbers: the chart is the page's, so only the card shows. */
+  .wapp-tp__swap .wapp__grid.wapp__grid--trade { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+  .wapp-tp__swap .wapp__trade-side { display: none; }
+  .wapp-tp__swap .wapp__swap { width: 100%; box-shadow: none; }
   @media (max-width: 1000px) {
     .wapp-tp__grid, .wapp-tp__grid.is-collapsed { grid-template-columns: 1fr; --tp-gap: 14px; }
     .wapp-tp__side { position: static; max-height: none; }

@@ -1889,6 +1889,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         icon: r.icon ?? rec?.logo ?? null,
         riskNote,
         onSwap: swapHandler(r),
+        mountSwap: (host) => embedSwap(host, r, rec),
+        unmountSwap: releaseSwap,
         onBack: () => {
           tokenPage.close();
           page = false;
@@ -2253,6 +2255,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   // The two lists (Find Tokens, Marketplace) are tabs; Swap is its own page and shows the same swap panel.
   function showTab(name: string): void {
+    releaseSwap();
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
     if (intro) intro.textContent = TAB_INTRO[name] ?? '';
     document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
@@ -2272,8 +2275,27 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const onDialogKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') closeSwapDialog();
   };
+  // ---- the swap, drawn beside a token's chart on its page (the right-hand side of a trading screen)
+  let swapEmbedded = false;
+  function releaseSwap(): void {
+    if (!swapEmbedded) return;
+    swapEmbedded = false;
+    if (swapHome) swapHome.insertBefore(swapPanel, swapNext);
+    swapPanel.hidden = true;
+  }
+  function embedSwap(host: HTMLElement, r: MarketRow, rec: { logo?: string | null; decimals?: number | null } | undefined): void {
+    closeSwapDialog();
+    swapEmbedded = true;
+    host.append(swapPanel);
+    swapPanel.hidden = false;
+    selectChain(r.chain);
+    // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
+    void pick('to', { mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? rec?.decimals ?? 0, icon: r.icon ?? rec?.logo ?? null, verified: null }, r.chain);
+    render();
+  }
   function openSwapDialog(): void {
     if (!swapDialog || !swapSlot) return;
+    releaseSwap();
     if (swapDialog.hidden) dialogReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     swapSlot.append(swapPanel);
     swapPanel.hidden = false;

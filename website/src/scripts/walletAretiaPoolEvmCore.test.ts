@@ -41,10 +41,10 @@ const form = (over: Partial<EvmPoolForm> = {}): EvmPoolForm => ({ ...DEFAULT_EVM
 const w32 = (n: bigint) => n.toString(16).padStart(64, '0');
 
 describe('the chain table', () => {
-  it('has a pool address only on BNB Chain (the verified mainnet deployment); none elsewhere (the old Sepolia deployment speaks the old ABI)', () => {
+  it('has a pool address only on BNB Chain and Polygon (the verified mainnet deployments); none elsewhere (the old Sepolia deployment speaks the old ABI)', () => {
     const { ethereum, bnb, polygon, sepolia, ...others } = EVM_POOL_ADDRESSES;
-    expect([ethereum, polygon]).toEqual([null, null]);
-    expect(bnb).toBe('0x195fa7d999f567c8e198e961da8270911905753c');
+    expect(ethereum).toBeNull();
+    expect([bnb, polygon]).toEqual(['0x195fa7d999f567c8e198e961da8270911905753c', '0x195fa7d999f567c8e198e961da8270911905753c']);
     expect(Object.values(others).every((a) => a === null)).toBe(true);
     expect(sepolia).toBeNull();
     expect(evmPoolChain('ethereum')).toBeNull();

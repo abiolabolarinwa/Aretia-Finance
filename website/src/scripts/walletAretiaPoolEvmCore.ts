@@ -18,7 +18,10 @@ import { coinToWei } from './walletCurveEvmCore';
 
 /** The deployed AretiaPool on each chain, lower-case. Null until deployed. Nothing works for a chain whose entry is null. */
 export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
-  bnb: null,
+  // BNB Chain mainnet: deployed 2026-10-27 in tx 0xaa02c544c6ea6f9f46a384462f56bf4eb30a8c036743cd6a8015fbb901f73f2d, and checked byte for byte
+  // against the committed build by `scripts/pool-evm.mjs verify --chain bnb`. UNAUDITED. The Launch card stays off unless the build sets
+  // PUBLIC_ARETIA_POOL_EVM_ENABLED=1.
+  bnb: '0x195fa7d999f567c8e198e961da8270911905753c',
   ethereum: null,
   polygon: null,
   bscTestnet: null,
@@ -34,7 +37,7 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
  * here, so it never has to scan a whole chain. A chain with an address and no block is not listed.
  */
 export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, number | null>>> = {
-  bnb: null,
+  bnb: 130024337,
   ethereum: null,
   polygon: null,
   bscTestnet: null,

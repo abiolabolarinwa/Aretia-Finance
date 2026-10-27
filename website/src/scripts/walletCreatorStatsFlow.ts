@@ -58,6 +58,15 @@ export interface CreatorDeps {
   nowSeconds: () => number;
 }
 
+/** The free public nodes only answer log queries for the last few hours (and some cap the range). Raised when that is why a read failed. */
+export class HistoryUnavailable extends Error {
+  constructor() {
+    super('History is not available from the free public nodes.');
+    this.name = 'HistoryUnavailable';
+  }
+}
+const isHistoryLimit = (e: unknown): boolean => /archive|limit exceeded|ranges over|range|not supported|too many|exceed/i.test(e instanceof Error ? e.message : String(e));
+
 /** eth_getLogs over a range, halving the range when a node refuses it. Returns null when it cannot be read at all. */
 export async function getLogs(read: EvmRead, base: Record<string, unknown>, from: number, to: number): Promise<RawLog[] | null> {
   const out: RawLog[] = [];
@@ -70,8 +79,11 @@ export async function getLogs(read: EvmRead, base: Record<string, unknown>, from
       if (!Array.isArray(logs)) return null;
       out.push(...(logs as RawLog[]));
       at = end + 1;
-    } catch {
-      if (size <= MIN_RANGE) return null;
+    } catch (e) {
+      if (size <= MIN_RANGE) {
+        if (isHistoryLimit(e)) throw new HistoryUnavailable();
+        return null;
+      }
       size = Math.max(MIN_RANGE, Math.floor(size / 2));
     }
   }
@@ -90,6 +102,9 @@ const decodeString = (hexValue: unknown): string | null => {
   }
 };
 
+/** Per-token reads: a missing history leaves that figure out (with a note) instead of failing the whole page. */
+const softLogs = (...a: Parameters<typeof getLogs>): Promise<RawLog[] | null> => getLogs(...a).catch((e: unknown) => (e instanceof HistoryUnavailable ? null : Promise.reject(e)));
+
 export async function readCreatorStats(d: CreatorDeps, curve: string, creator: string): Promise<CreatorListing> {
   const { read } = d;
   const headRaw = num(await read('eth_blockNumber', []));
@@ -107,7 +122,7 @@ export async function readCreatorStats(d: CreatorDeps, curve: string, creator: s
   const now = d.nowSeconds();
 
   const created = await getLogs(read, { address: curve, topics: [CURVE_TOPICS.created, null, addrTopic(creator)] }, start, head);
-  if (created === null) throw new Error('The node would not return the Curve’s logs.');
+  if (created === null) throw new HistoryUnavailable();
   const found = createdTokens(created);
   const chosen = found.slice(0, MAX_TOKENS);
 
@@ -130,7 +145,7 @@ export async function readCreatorStats(d: CreatorDeps, curve: string, creator: s
     let totals: Totals | null = null;
     let change7: Change | null = null;
     let change30: Change | null = null;
-    const tradeLogs = await getLogs(read, { address: curve, topics: [CURVE_TOPICS.traded, '0x' + token.slice(2).padStart(64, '0')] }, start, head);
+    const tradeLogs = await softLogs(read, { address: curve, topics: [CURVE_TOPICS.traded, '0x' + token.slice(2).padStart(64, '0')] }, start, head);
     if (tradeLogs === null) notes.push('Could not read this token’s trades from the network.');
     else {
       const { trades, skipped } = decodeTrades(tradeLogs);
@@ -141,7 +156,7 @@ export async function readCreatorStats(d: CreatorDeps, curve: string, creator: s
     }
 
     let holders: Holders | null = null;
-    const transfers = await getLogs(read, { address: token, topics: [CURVE_TOPICS.transfer] }, start, head);
+    const transfers = await softLogs(read, { address: token, topics: [CURVE_TOPICS.transfer] }, start, head);
     if (transfers === null) notes.push('Could not read this token’s transfers, so the holder count is not shown.');
     else if (transfers.length > MAX_TRANSFER_LOGS) notes.push('This token has too many transfers to count its holders here.');
     else {

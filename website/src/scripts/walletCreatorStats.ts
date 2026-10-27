@@ -8,7 +8,7 @@ import { EVM_CURVE_ADDRESSES } from './walletCurveEvmCore';
 import { chainByKey, type LaunchEvmChainKey } from './walletLaunchEvmCore';
 import { readerFor } from './walletLaunchEvm';
 import { friendlyEvmError } from './walletLaunchEvmFlow';
-import { readCreatorStats, type CreatorListing, type TokenStats } from './walletCreatorStatsFlow';
+import { HistoryUnavailable, readCreatorStats, type CreatorListing, type TokenStats } from './walletCreatorStatsFlow';
 import { CANNOT_SHOW, changeText, coinText, shareText } from './walletCreatorStatsCore';
 
 export interface CreatorStatsHost {
@@ -133,7 +133,10 @@ export function createCreatorStats(host: CreatorStatsHost, redraw: () => void): 
         listingKey = key;
       }
     } catch (e) {
-      error = `Could not read your tokens from the network: ${friendlyEvmError(e)}`;
+      error =
+        e instanceof HistoryUnavailable
+          ? 'The free public nodes for this network only keep the last few hours of event history, so Aretia cannot list the tokens you created earlier without a paid node. Nothing is wrong with your tokens or your wallet. Their trades are on the explorer.'
+          : `Could not read your tokens from the network: ${friendlyEvmError(e)}`;
     } finally {
       loading = false;
       redraw();

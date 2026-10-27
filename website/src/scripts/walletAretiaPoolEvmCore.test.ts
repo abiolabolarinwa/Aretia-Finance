@@ -41,13 +41,13 @@ const form = (over: Partial<EvmPoolForm> = {}): EvmPoolForm => ({ ...DEFAULT_EVM
 const w32 = (n: bigint) => n.toString(16).padStart(64, '0');
 
 describe('the chain table', () => {
-  it('has a pool address only on BNB Chain and Polygon (the verified mainnet deployments); none elsewhere (the old Sepolia deployment speaks the old ABI)', () => {
+  it('has a pool address on BNB Chain, Polygon and Ethereum (the verified mainnet deployments); none elsewhere (the old Sepolia deployment speaks the old ABI)', () => {
     const { ethereum, bnb, polygon, sepolia, ...others } = EVM_POOL_ADDRESSES;
-    expect(ethereum).toBeNull();
-    expect([bnb, polygon]).toEqual(['0x195fa7d999f567c8e198e961da8270911905753c', '0x195fa7d999f567c8e198e961da8270911905753c']);
+    expect([bnb, polygon, ethereum]).toEqual(['0x195fa7d999f567c8e198e961da8270911905753c', '0x195fa7d999f567c8e198e961da8270911905753c', '0x195fa7d999f567c8e198e961da8270911905753c']);
     expect(Object.values(others).every((a) => a === null)).toBe(true);
     expect(sepolia).toBeNull();
-    expect(evmPoolChain('ethereum')).toBeNull();
+    for (const k of ['ethereum', 'bnb', 'polygon']) expect(evmPoolChain(k)?.pool).toBe('0x195fa7d999f567c8e198e961da8270911905753c');
+    expect(evmPoolChain('sepolia')).toBeNull();
   });
   it('takes each chain’s creation fee from the token-creation fee and the fee address from the same table', () => {
     for (const [key, fee] of [['ethereum', 42n * 10n ** 14n], ['bnb', 14n * 10n ** 15n], ['polygon', 105n * ETH]] as const) {

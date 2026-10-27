@@ -22,7 +22,9 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
   // against the committed build by `scripts/pool-evm.mjs verify --chain bnb`. UNAUDITED. The Launch card stays off unless the build sets
   // PUBLIC_ARETIA_POOL_EVM_ENABLED=1.
   bnb: '0x195fa7d999f567c8e198e961da8270911905753c',
-  ethereum: null,
+  // Ethereum mainnet: deployed 2026-10-27, first block with code 26286279, checked byte for byte against the committed build by
+  // `scripts/pool-evm.mjs verify --chain ethereum`. UNAUDITED. Same address as BNB Chain and Polygon (same deployer, first deploy on each).
+  ethereum: '0x195fa7d999f567c8e198e961da8270911905753c',
   // Polygon mainnet: deployed 2026-10-27 in tx 0x3caa3acfaa9930685deea61511386a7f0e6228e480494fdff06e0aec0bd1eb2d, checked byte for byte against the
   // committed build by `scripts/pool-evm.mjs verify --chain polygon`. UNAUDITED. Same address as BNB Chain (same deployer, first deploy on each).
   polygon: '0x195fa7d999f567c8e198e961da8270911905753c',
@@ -40,7 +42,7 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
  */
 export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, number | null>>> = {
   bnb: 130024337,
-  ethereum: null,
+  ethereum: 26286279,
   polygon: 96283053,
   bscTestnet: null,
   // Set with the new build's address (the old build's block was 11939451).

@@ -23,7 +23,9 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
   // PUBLIC_ARETIA_POOL_EVM_ENABLED=1.
   bnb: '0x195fa7d999f567c8e198e961da8270911905753c',
   ethereum: null,
-  polygon: null,
+  // Polygon mainnet: deployed 2026-10-27 in tx 0x3caa3acfaa9930685deea61511386a7f0e6228e480494fdff06e0aec0bd1eb2d, checked byte for byte against the
+  // committed build by `scripts/pool-evm.mjs verify --chain polygon`. UNAUDITED. Same address as BNB Chain (same deployer, first deploy on each).
+  polygon: '0x195fa7d999f567c8e198e961da8270911905753c',
   bscTestnet: null,
   // The Sepolia deployment 0x5e93e9023e8891ffbe7bfac6e989d64fe49a3421 is the OLD build (pre October 2026 review: no deadlines, fee pushed
   // inside trades, optional lock). This page now speaks the NEW build's ABI, so it is off until the new build is deployed with
@@ -39,7 +41,7 @@ export const EVM_POOL_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, stri
 export const EVM_POOL_DEPLOY_BLOCKS: Readonly<Partial<Record<LaunchEvmChainKey, number | null>>> = {
   bnb: 130024337,
   ethereum: null,
-  polygon: null,
+  polygon: 96283053,
   bscTestnet: null,
   // Set with the new build's address (the old build's block was 11939451).
   sepolia: null,

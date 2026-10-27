@@ -14,7 +14,7 @@ import {
   shareText,
   totalsOf,
 } from './walletCreatorStatsCore';
-import { MAX_TOKENS, readCreatorStats } from './walletCreatorStatsFlow';
+import { HistoryUnavailable, MAX_TOKENS, readCreatorStats } from './walletCreatorStatsFlow';
 
 const CREATOR = '0x1111111111111111111111111111111111111111';
 const BUYER = '0x2222222222222222222222222222222222222222';
@@ -153,6 +153,14 @@ describe('reading a creator from a node', () => {
     const r = await readCreatorStats({ read: fakeNode({ tokens: many }).read, nowSeconds: () => NOW }, CURVE, CREATOR);
     expect(r.tokens).toHaveLength(MAX_TOKENS);
     expect(r.truncated).toBe(true);
+  });
+  it('says the history is unavailable (not an empty list) when a free node refuses old logs for the Curve', async () => {
+    const read = async (method: string): Promise<unknown> => {
+      if (method === 'eth_blockNumber') return hexN(HEAD);
+      if (method === 'eth_getBlockByNumber') return { timestamp: hexN(NOW) };
+      throw new Error('Archive requests require a personal token.');
+    };
+    await expect(readCreatorStats({ read, nowSeconds: () => NOW }, CURVE, CREATOR)).rejects.toBeInstanceOf(HistoryUnavailable);
   });
   it('fails loudly, not with an empty list, when the node is unreadable', async () => {
     await expect(readCreatorStats({ read: async () => { throw new Error('down'); }, nowSeconds: () => NOW }, CURVE, CREATOR)).rejects.toThrow();

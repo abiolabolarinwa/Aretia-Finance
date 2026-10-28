@@ -94,6 +94,31 @@ function skip(reason: string): never {
   process.exit(0);
 }
 
+/** One try may take this long (headers and the whole body). A stalled download once held a build for 14 minutes before it was killed. */
+const ATTEMPT_MS = 120_000;
+const ATTEMPTS = 3;
+
+/** Downloads the release archive, giving up on a stalled try and starting again. A refusal from GitHub (401, 403, 404) is final and not retried. */
+async function download(t: string): Promise<Buffer> {
+  let last = 'no attempt was made';
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/tarball/${VERSION}`, {
+        headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json', 'user-agent': 'aretia-finance-build' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(ATTEMPT_MS),
+      });
+      if (res.status === 401 || res.status === 403 || res.status === 404) skip(`GitHub answered ${res.status} for ${REPO}@${VERSION} (is the token's account approved by TradingView?).`);
+      if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+      return Buffer.from(await res.arrayBuffer());
+    } catch (e) {
+      last = e instanceof Error ? e.message : String(e);
+      console.warn(`[charting-library] attempt ${attempt} of ${ATTEMPTS} failed: ${last}`);
+    }
+  }
+  throw new Error(`${ATTEMPTS} attempts failed, the last with: ${last}`);
+}
+
 async function main(): Promise<void> {
   // Skip only when the installed copy is the pinned release. Checking just that the folder exists would leave an older
   // release in place on any machine that already has one, so a version bump would quietly not take effect there.
@@ -106,13 +131,8 @@ async function main(): Promise<void> {
 
   const tmp = mkdtempSync(join(tmpdir(), 'aretia-tv-'));
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/tarball/${VERSION}`, {
-      headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json', 'user-agent': 'aretia-finance-build' },
-      redirect: 'follow',
-    });
-    if (!res.ok) skip(`GitHub answered ${res.status} for ${REPO}@${VERSION} (is the token's account approved by TradingView?).`);
     const archive = join(tmp, 'library.tgz');
-    writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+    writeFileSync(archive, await download(t));
     const out = join(tmp, 'src');
     mkdirSync(out);
     execFileSync('tar', ['-xzf', archive, '-C', out, '--strip-components=1'], { stdio: 'ignore' });

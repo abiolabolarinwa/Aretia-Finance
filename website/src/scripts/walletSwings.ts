@@ -30,7 +30,6 @@ import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { alertsCard } from './walletAlerts.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeTx } from '../swings/shield/approvals.js';
-import { checkHash } from '../swings/shield/classify.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
 import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.js';
@@ -1112,36 +1111,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     return label;
   }
 
-  /** The plain-language safety check of the token being bought: what was found, what passed, what could not be checked. */
+  /**
+   * The safety findings card ("Know before you sign") was removed. Only the confirmation that gates the Swap button stays: a token whose
+   * check says it needs one still has to be acknowledged before the swap can go ahead.
+   */
   function safetyBlock(): HTMLElement | null {
     if (!s.to || s.to.mint === EVM_NATIVE_ADDRESS || s.to.mint === SOL_MINT || s.safety.key !== `${s.chain}:${s.to.mint}`) return null;
-    const box = el('div', { class: 'wapp__stack' });
-    // In the pop-out the market panel beside it already shows these findings, so they are not repeated. Only the
-    // confirmation that gates the swap stays, since the Swap button waits on it.
-    if (swapDialog && !swapDialog.hidden) {
-      if (s.safety.loading) return null;
-      const v = describeSafety(s.safety.risk);
-      if (!v.needsAcknowledgement) return null;
-      box.append(acknowledgement(' I have read the risks for this token and want to continue.'));
-      return box;
-    }
-    const report = el('a', { class: 'wapp__linkbtn', text: 'Full Shield report', attrs: { href: checkHash(s.to.mint) } });
-    report.addEventListener('click', () => closeSwapDialog());
-    box.append(el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: `Know before you sign: ${s.to.symbol}` }), report]));
-    if (s.safety.loading) {
-      box.append(el('p', { class: 'wapp__fine', text: 'Checking this token on-chain…' }));
-      return box;
-    }
+    if (s.safety.loading) return null;
     const v = describeSafety(s.safety.risk);
-    box.append(banner(v.tone === 'ok' ? 'ok' : v.tone === 'info' ? 'info' : 'warn', v.headline));
-    if (v.concerns.length > 0) {
-      const list = el('ul', { class: 'wapp__fine' });
-      for (const c of v.concerns) list.append(el('li', { text: `${c.severe ? 'Serious: ' : ''}${c.text}` }));
-      box.append(list);
-    }
-    const checked = `${v.passed} check${v.passed === 1 ? '' : 's'} passed.${v.unchecked.length > 0 ? ` Could not be checked: ${v.unchecked.join(', ')}.` : ''} A token that passes these is not guaranteed safe.`;
-    box.append(el('p', { class: 'wapp__fine', text: checked }));
-    if (v.needsAcknowledgement) box.append(acknowledgement(' I understand these risks and want to continue.'));
+    if (!v.needsAcknowledgement) return null;
+    const box = el('div', { class: 'wapp__stack' });
+    box.append(acknowledgement(' I have read the risks for this token and want to continue.'));
     return box;
   }
 

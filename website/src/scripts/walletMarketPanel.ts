@@ -8,13 +8,7 @@ import { LINK_ICONS, linkKind } from './walletLinkIcons.js';
 import { CHAINS, type ChainId, type TokenRisk } from '../swings/core/types.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
-import { describeSafety } from '../swings/tokens/safety.js';
-import { ratingView } from '../swings/market/rowRisk.js';
 import { padlockShown } from '../swings/market/lock.js';
-import { ratingGuide } from './walletRatingGuide.js';
-import { checkHash } from '../swings/shield/classify.js';
-import { WatchStore } from '../swings/shield/watch.js';
-import { browserStorage } from '../swings/history.js';
 import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
@@ -116,7 +110,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
   let problem: string | null = null;
   /** For a token with no pool on the row: still being looked up, or looked up and none exists. */
   let poolState: 'looking' | 'none' | 'failed' | null = null;
-  let check: { state: 'loading' | 'done'; risk: TokenRisk | null } = { state: 'loading', risk: null };
   let seq = 0;
   let ctl: AbortController | null = null;
   /** Kept across redraws: the swap card lives inside it. */
@@ -164,73 +157,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     return r;
   }
 
-  /** Aretia's check, first in the panel: its rating, then what an on-chain look at the token found. */
-  function checkBlock(r: MarketRow): HTMLElement {
-    const box = el('div', 'wapp-mp__check');
-    const v0 = ratingView(r, check.state === 'loading' ? 'pending' : check.risk ? 'done' : 'failed');
-    const head = el('div', 'wapp-mp__checkhead');
-    head.append(el('span', 'wapp-mp__k', 'Aretia check'));
-    const chip = el('span', `wapp__state wapp__state--${v0.band}${v0.soft ? ' wapp__state--soft' : ''}${v0.checking ? ' is-checking' : ''}`, v0.label);
-    chip.title = v0.title;
-    head.append(chip);
-    box.append(head);
-    if (check.state === 'loading') {
-      box.append(el('p', 'wapp__fine', 'Checking this token on-chain…'), shieldRow(r, shieldLink(r)));
-      return box;
-    }
-    if (!check.risk) {
-      box.append(el('p', 'wapp__fine', r.risk && r.risk.basis !== 'market' ? 'The live on-chain check could not be made just now. The rating above is Aretia’s earlier one.' : 'Aretia could not read this token on-chain (it may not be a standard token, or the network did not answer). Until it can, treat it as unchecked and look into it yourself before buying.'));
-      box.append(shieldRow(r, shieldLink(r)));
-      return box;
-    }
-    const v = describeSafety(check.risk);
-    box.append(el('p', `wapp-mp__headline wapp-mp__headline--${v.tone}`, v.headline));
-    if (v.concerns.length > 0) {
-      const list = el('ul', 'wapp-mp__concerns');
-      for (const c of v.concerns) list.append(el('li', '', `${c.severe ? 'Serious: ' : ''}${c.text}`));
-      box.append(list);
-    }
-    const more = el('details', 'wapp-mp__more');
-    more.append(el('summary', '', `What was checked: ${v.passed} passed${v.concerns.length > 0 ? `, ${v.concerns.length} concern${v.concerns.length === 1 ? '' : 's'}` : ''}`));
-    more.append(el('p', 'wapp-mp__note', `${v.unchecked.length > 0 ? `Not checked: ${v.unchecked.join(', ')}. ` : ''}A pass is not a guarantee of safety.`));
-    box.append(more, ratingGuide(), shieldRow(r, shieldLink(r)));
-    return box;
-  }
-
-  function shieldLink(r: MarketRow): HTMLElement {
-    const full = el('a', 'wapp-mp__shieldlink', 'Full Shield report');
-    full.href = checkHash(r.address);
-    full.title = 'Open this token in Shield: the colour, every finding, what could not be checked, and a link to share';
-    return full;
-  }
-
-  /**
-   * "Watch" under the check: Shield re-checks the token while the wallet page is open and rings the bell only if its rating gets worse.
-   * It is the same watchlist as Shield's own, so the token shows in Shield's Watching tab.
-   */
-  function shieldRow(r: MarketRow, report: HTMLElement): HTMLElement {
-    const row = el('div', 'wapp-mp__shieldrow');
-    const store = new WatchStore(browserStorage());
-    const watch = el('button', 'wapp-mp__watch');
-    watch.type = 'button';
-    const paint = (): void => {
-      const on = store.has(r.address);
-      watch.textContent = on ? 'Watching ✓' : 'Watch for changes';
-      watch.setAttribute('aria-pressed', String(on));
-      watch.title = on ? 'Shield will tell you in the bell if this token gets worse. Press to stop.' : 'Shield re-checks this token while the wallet page is open and rings the bell if its rating gets worse.';
-    };
-    paint();
-    watch.addEventListener('click', () => {
-      if (store.has(r.address)) store.remove(r.address);
-      else if (!store.add(r.address, r.symbol || null, null)) {
-        watch.textContent = 'Watchlist is full (30)';
-        return;
-      }
-      paint();
-    });
-    row.append(watch, report);
-    return row;
-  }
+  // The "Aretia check" card (rating, findings, "Watch for changes", "Full Shield report") was removed from this panel.
 
   /** The numbers as one grid table: size, price change by time window, and what traded in the window that is picked. */
   function dataGrid(r: MarketRow, d: PairDetail | null): HTMLElement {
@@ -308,8 +235,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
         swapKey = rowKey(r);
         o.mountSwap!(swapHost, r);
       }
-      root.append(head, swapHost, checkBlock(r));
-    } else root.append(head, checkBlock(r));
+      root.append(head, swapHost);
+    } else root.append(head);
 
     const row2 = el('div', 'wapp-mp__duo');
     const favLabel = (): string => (o.isFavourite(r) ? '★ Favourited' : '☆ Favourite');
@@ -383,7 +310,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
     const cached = cache.get(r.pool);
     detail = cached && Date.now() - cached.at < DETAIL_TTL_MS ? cached.detail : null;
     problem = null;
-    check = { state: 'loading', risk: null };
     render();
     if (!detail && r.pool) {
       void fetchPairDetail(r.chain, r.pool, undefined, undefined, ctl.signal).then(
@@ -400,18 +326,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
         },
       );
     }
-    void o.assess(r).then(
-      (risk) => {
-        if (mine !== seq) return;
-        check = { state: 'done', risk };
-        render();
-      },
-      () => {
-        if (mine !== seq) return;
-        check = { state: 'done', risk: null };
-        render();
-      },
-    );
+    // The check is still run (the swap uses what it finds), but the panel no longer shows a card for it.
+    void o.assess(r).catch(() => undefined);
   }
 
   // The browser tab names the token that is open and its price, so it can be read from another tab. It goes back to the page's

@@ -118,10 +118,7 @@ const sendTips = [
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 12l5-5" /></svg>
           <span class="wapp__label">Radar</span>
         </button>
-        <button type="button" data-nav="carbon">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14zM5 19c3-4 6-7 10-10" /></svg>
-          <span class="wapp__label">Carbon Credit</span>
-        </button>
+        <!-- Carbon Credit is hidden for now (kept for later): its pane below and /carboncredit stay in the code. Restore this button and the dashboard tile to bring it back. -->
         <button type="button" data-nav="shield">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /></svg>
           <span class="wapp__label">Shield</span>
@@ -226,7 +223,6 @@ const sendTips = [
             <ul class="wapp-svc__grid">
             <li><button type="button" class="wapp-svc__tile" data-nav="swings"><ProductLogo product="marketplace" size={36} /><strong>Marketplace</strong></button></li>
             <li><button type="button" class="wapp-svc__tile" data-nav="send"><ProductLogo product="pay" size={36} /><strong>Pay</strong></button></li>
-            <li><button type="button" class="wapp-svc__tile" data-nav="carbon"><ProductLogo product="carbon" size={36} /><strong>Carbon Credit</strong></button></li>
             <li><button type="button" class="wapp-svc__tile" data-nav="shield"><ProductLogo product="shield" size={36} /><strong>Shield</strong></button></li>
             <li><button type="button" class="wapp-svc__tile" data-nav="radar"><ProductLogo product="radar" size={36} /><strong>Radar</strong></button></li>
             </ul>

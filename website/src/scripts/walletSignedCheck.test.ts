@@ -44,6 +44,24 @@ describe('the priority fee a wallet adds', () => {
   });
 });
 
+describe('signer flags in a signed message', () => {
+  const mint = key(60);
+  const createIx = () => new web3.TransactionInstruction({ programId: key(11), keys: [{ pubkey: PAYER, isSigner: true, isWritable: true }, { pubkey: mint, isSigner: true, isWritable: true }], data: Buffer.from([0]) });
+  const initIx = (mintSigner: boolean) => new web3.TransactionInstruction({ programId: key(12), keys: [{ pubkey: mint, isSigner: mintSigner, isWritable: true }], data: Buffer.from([1]) });
+
+  it('accepts an account that signs one instruction showing as a signer on the others (a new token creation)', () => {
+    // As the page builds it: the mint signs the create instruction only. As the wallet returns it: a signer everywhere.
+    const planned = legacy([createIx(), initIx(false)]);
+    expect(checkSignedTransaction(web3, planned, roundTrip(legacy([createIx(), initIx(false)]))).ok).toBe(true);
+  });
+
+  it('refuses an account that was never a signer becoming one', () => {
+    const other = new web3.TransactionInstruction({ programId: key(12), keys: [{ pubkey: key(61), isSigner: false, isWritable: true }], data: Buffer.from([1]) });
+    const otherSigner = new web3.TransactionInstruction({ programId: key(12), keys: [{ pubkey: key(61), isSigner: true, isWritable: true }], data: Buffer.from([1]) });
+    expect(checkSignedTransaction(web3, legacy([createIx(), other]), roundTrip(legacy([createIx(), otherSigner]))).ok).toBe(false);
+  });
+});
+
 describe('the transaction a wallet hands back', () => {
   it('passes when nothing was changed', () => {
     expect(checkSignedTransaction(web3, v0([swapIx()]), v0([swapIx()]))).toEqual({ ok: true, guards: 0 });

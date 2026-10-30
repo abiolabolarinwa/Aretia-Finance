@@ -104,6 +104,11 @@ export function checkSignedTransaction(web3: typeof Web3, planned: Tx, signed: T
     for (const ix of kept) if (!a.instructions.some((p) => p.programId === ix.programId)) unknown.add(ix.programId);
     return { ok: false, reason: unknown.size > 0 ? `the wallet added an instruction from ${[...unknown].map((p) => `${p.slice(0, 6)}…`).join(', ')}` : 'the wallet added or removed an instruction' };
   }
+  // A signed message marks an account as a signer on every instruction once it signs any of them (a new token's address signs the
+  // instruction that creates it), while the page's own list has the flag per instruction. So a signer anywhere in the plan may
+  // show as a signer everywhere; an account that was a signer and no longer is, or a new signer, is still refused.
+  const plannedSigners = new Set<string>([a.payer]);
+  for (const ix of a.instructions) for (const k of ix.keys) if (k.isSigner) plannedSigners.add(k.pubkey);
   for (let i = 0; i < kept.length; i++) {
     const want = a.instructions[i]!;
     const got = kept[i]!;
@@ -114,7 +119,7 @@ export function checkSignedTransaction(web3: typeof Web3, planned: Tx, signed: T
       const w = want.keys[k]!;
       const g = got.keys[k]!;
       // A guard may make an account writable in the message as a whole, so "more writable" is fine; "less" or another account is not.
-      if (w.pubkey !== g.pubkey || w.isSigner !== g.isSigner || (w.isWritable && !g.isWritable)) return { ok: false, reason: `instruction ${i + 1} (${want.programId.slice(0, 6)}…) names different accounts` };
+      if (w.pubkey !== g.pubkey || (w.isSigner && !g.isSigner) || (!w.isSigner && g.isSigner && !plannedSigners.has(g.pubkey)) || (w.isWritable && !g.isWritable)) return { ok: false, reason: `instruction ${i + 1} (${want.programId.slice(0, 6)}…) names different accounts` };
     }
   }
   return { ok: true, guards };

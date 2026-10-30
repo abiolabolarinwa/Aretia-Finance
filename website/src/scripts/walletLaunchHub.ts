@@ -14,6 +14,7 @@ import { LAUNCH_EVM_CHAINS } from './walletLaunchEvmCore';
 import type { LaunchApi, LaunchNetwork } from './walletLaunch';
 import { appendTokenShare } from './walletTokenLinks';
 import { detailsState, onDetailsChange } from './walletLaunchMeta';
+import { NO_PREVIEW_VALUES, previewValues, type PreviewValues } from './walletLaunchPreviewCore';
 import { validateDetails } from '../swings/launchmeta/core.js';
 import { metaBlock } from './tokenMetaView';
 
@@ -403,11 +404,20 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     return document.getElementById('launch-evm-name') ? { label: 'You keep', value: '100%' } : null;
   }
 
+  /** The last values seen while the create form was on the page (it leaves the page on the review and "created" screens). */
+  let remembered: PreviewValues = NO_PREVIEW_VALUES;
+
   function drawPreview(): void {
     if (!previewEl) return;
-    const name = readInput('launch-name', 'launch-evm-name');
-    const symbol = readInput('launch-symbol', 'launch-evm-symbol').toUpperCase();
-    const supply = readInput('launch-supply', 'launch-evm-supply');
+    const formOnPage = document.getElementById('launch-name') !== null || document.getElementById('launch-evm-name') !== null;
+    const picked = previewValues(
+      formOnPage
+        ? { name: readInput('launch-name', 'launch-evm-name'), symbol: readInput('launch-symbol', 'launch-evm-symbol').toUpperCase(), supply: readInput('launch-supply', 'launch-evm-supply'), share: creatorShare() }
+        : null,
+      remembered,
+    );
+    remembered = picked.remembered;
+    const { name, symbol, supply } = picked.shown;
     const net = launch.networks().find((n) => n.key === launch.getNetwork());
     const done = stageOf(roots().token) === 'done';
     previewEl.textContent = '';
@@ -445,7 +455,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     facts.append(netRow);
     fact('Total supply', supply ? grouped(supply.replace(/,/g, '')) : '–');
     fact('Supply can grow', 'Never');
-    const share = creatorShare();
+    const share = picked.shown.share;
     if (share) fact(share.label, share.value);
     previewEl.append(h('h3', 'lh-side__h', done ? 'Your token' : 'Preview'), top);
     if (about) previewEl.append(about);

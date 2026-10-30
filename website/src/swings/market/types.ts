@@ -36,6 +36,8 @@ export interface MarketRow {
   volumeUsd?: Changes;
   /** Trades (buys plus sells) in each window, when the source gives it. */
   txns?: Changes;
+  /** Different wallets that bought in each window, when the source counts them. */
+  buyers?: Changes;
   change: Changes;
   liquidityUsd: number | null;
   /** Share of the pool's liquidity proven burned, when Aretia checked and found some; otherwise null. */

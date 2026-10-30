@@ -123,7 +123,7 @@ describe('address lookup', () => {
 
 describe('Markets links carry the token address', () => {
   it('builds and reads "#/swings/<chain>/<address>", lower-casing only EVM addresses', async () => {
-    const { marketsHash, parseMarketsHash, isMarketsHash } = await import('./tokenPageCore');
+    const { marketsHash, parseMarketsHash } = await import('./tokenPageCore');
     const sol = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
     expect(marketsHash('solana', sol)).toBe(`#/swings/solana/${sol}`);
     expect(parseMarketsHash(`#/swings/solana/${sol}`)).toEqual({ chain: 'solana', address: sol });

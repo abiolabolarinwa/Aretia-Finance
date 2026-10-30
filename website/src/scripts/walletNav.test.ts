@@ -17,6 +17,7 @@ describe('sidebarItemFor', () => {
 describe('tokenOpenMode', () => {
   it('opens the swap as a window over the list on Markets', () => {
     expect(tokenOpenMode('#/swings')).toBe('markets-dialog');
+    expect(tokenOpenMode('#/swings/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')).toBe('markets-dialog');
   });
 
   it('does the same on Favourites, instead of sending a favourite token to the Swap page', () => {

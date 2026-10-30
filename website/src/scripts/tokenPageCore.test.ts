@@ -120,3 +120,25 @@ describe('address lookup', () => {
     expect(solanaHitFromMint(MINT, 9, 1n, { name: 'Leaf', symbol: 'LEAF' })).toMatchObject({ symbol: 'LEAF', name: 'Leaf', decimals: 9, fresh: true });
   });
 });
+
+describe('Markets links carry the token address', () => {
+  it('builds and reads "#/swings/<chain>/<address>", lower-casing only EVM addresses', async () => {
+    const { marketsHash, parseMarketsHash, isMarketsHash } = await import('./tokenPageCore');
+    const sol = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    expect(marketsHash('solana', sol)).toBe(`#/swings/solana/${sol}`);
+    expect(parseMarketsHash(`#/swings/solana/${sol}`)).toEqual({ chain: 'solana', address: sol });
+    const evm = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    expect(marketsHash('ethereum', evm)).toBe(`#/swings/ethereum/${evm.toLowerCase()}`);
+    expect(parseMarketsHash(`#/swings/ethereum/${evm}`)).toEqual({ chain: 'ethereum', address: evm.toLowerCase() });
+  });
+
+  it('ignores plain Markets, other pages and bad addresses, and still counts as Markets', async () => {
+    const { parseMarketsHash, isMarketsHash } = await import('./tokenPageCore');
+    expect(parseMarketsHash('#/swings')).toBeNull();
+    expect(parseMarketsHash('#/swap/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')).toBeNull();
+    expect(parseMarketsHash('#/swings/solana/nope')).toBeNull();
+    expect(isMarketsHash('#/swings')).toBe(true);
+    expect(isMarketsHash('#/swings/solana/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')).toBe(true);
+    expect(isMarketsHash('#/favourites')).toBe(false);
+  });
+});

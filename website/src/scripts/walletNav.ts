@@ -17,6 +17,6 @@ export type TokenOpenMode = 'swap-page' | 'markets-dialog' | 'go-to-swap';
  */
 export function tokenOpenMode(hash: string): TokenOpenMode {
   if (hash === '#/swap' || hash.startsWith('#/swap/')) return 'swap-page';
-  if (hash === '#/swings' || hash === '#/favourites') return 'markets-dialog';
+  if (hash === '#/swings' || hash.startsWith('#/swings/') || hash === '#/favourites') return 'markets-dialog';
   return 'go-to-swap';
 }

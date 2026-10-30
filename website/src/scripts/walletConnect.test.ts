@@ -112,6 +112,15 @@ describe('connect', () => {
     expect(env.api.getState().connecting).toBe(false);
   });
 
+  it('shows the own reason of the wallet for an error it does not recognise, and says so when a wallet declines an unverified site', async () => {
+    env = load();
+    env.register(wallet('Phantom', () => Promise.reject(new Error('Unexpected error (-32603)'))));
+    const odd = await env.api.connect('Phantom').catch((e: unknown) => e);
+    expect(env.api.utils.formatWalletError(odd)).toBe('Something went wrong connecting your wallet (Unexpected error (-32603)). Please try again.');
+    const blocked = new Error('This website has been flagged as malicious');
+    expect(env.api.utils.formatWalletError(blocked)).toMatch(/declined to connect to this site.*unverified/);
+  });
+
   it('says a wallet that is not installed is not installed', async () => {
     env = load();
     const err = await env.api.connect('Phantom').catch((e: unknown) => e);

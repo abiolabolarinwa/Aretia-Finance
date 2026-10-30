@@ -33,7 +33,7 @@ import type { CrossChainRuntime } from './crossChainRuntime.js';
 
 const COUNTRY_KEY = 'aretia-swings-country';
 const NETWORK_KEY = 'aretia-swings-buy-network';
-const EVM_RAMP_CHAINS: ChainId[] = ['ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
+const EVM_RAMP_CHAINS: ChainId[] = ['ethereum', 'base', 'polygon'];
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, children: (Node | null | false)[] = []): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);

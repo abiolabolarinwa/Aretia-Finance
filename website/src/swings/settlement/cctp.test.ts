@@ -77,8 +77,8 @@ describe('CCTP support is decided, with a reason, never assumed', () => {
   });
 
   it('refuses fast transfer from a chain without it, but standard works', async () => {
-    const fromAvax = intent({ sourceChain: 'avalanche', sourceAsset: { chain: 'avalanche', address: CCTP_USDC.avalanche! } });
-    expect((await provider('fast').p.supports(fromAvax)).reason).toMatch(/does not offer fast transfer/);
+    const fromPolygon = intent({ sourceChain: 'polygon', sourceAsset: { chain: 'polygon', address: CCTP_USDC.polygon! } });
+    expect((await provider('fast').p.supports(fromPolygon)).reason).toMatch(/does not offer fast transfer/);
   });
 
   it('says so when Circle rejects the pair, is down, or when the chain reports no burn limit', async () => {

@@ -35,9 +35,6 @@ jobs:
           - { chain: bnb, stage: refresh }
           - { chain: polygon, stage: 'feeds,own,refresh' }
           - { chain: base, stage: 'feeds,own,refresh' }
-          - { chain: arbitrum, stage: 'feeds,own,refresh' }
-          - { chain: optimism, stage: 'feeds,own,refresh' }
-          - { chain: avalanche, stage: 'feeds,own,refresh' }
           - { chain: robinhood, stage: 'feeds,own,refresh' }
     env:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -69,7 +66,7 @@ jobs:
       - name: Ask for each list once
         run: |
           for kind in trending top gainers new; do
-            for chain in solana ethereum bnb polygon base arbitrum optimism avalanche robinhood; do
+            for chain in solana ethereum bnb polygon base robinhood; do
               status=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "https://aretiafinance.org/api/swings-market?kind=${kind}&chain=${chain}&window=h24&page=1" || echo 000)
               echo "${kind} ${chain}: HTTP ${status}"
               sleep 2

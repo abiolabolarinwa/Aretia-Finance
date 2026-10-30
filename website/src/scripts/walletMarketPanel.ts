@@ -32,9 +32,6 @@ const ADDRESS_URL: Readonly<Record<ChainId, string>> = {
   ethereum: 'https://etherscan.io/address/',
   bnb: 'https://bscscan.com/address/',
   polygon: 'https://polygonscan.com/address/',
-  arbitrum: 'https://arbiscan.io/address/',
-  optimism: 'https://optimistic.etherscan.io/address/',
-  avalanche: 'https://snowtrace.io/address/',
   base: 'https://basescan.org/address/',
   robinhood: 'https://robinhoodchain.blockscout.com/address/',
 };

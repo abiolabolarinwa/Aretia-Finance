@@ -15,7 +15,7 @@ import { EVM_SLIPSTREAM } from './entries.js';
 const SENDER = '0x8894e0a0c962cb723c1976a4421c95949be2d4e3';
 const FEE_ADDRESS = '0x' + '9'.repeat(40);
 const word = (r: string): string => '0x' + r.slice(-40);
-const USDC: Record<string, string> = { base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', optimism: '0x0b2c639c533813f4aa9d7837caf62653d097ff85' };
+const USDC: Record<string, string> = { base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'};
 const AERO = '0x940181a94a35a4569e4529a3cdfb74e38fd98631';
 
 const funded = (real: EvmRead): EvmRead => async (method, params) => {

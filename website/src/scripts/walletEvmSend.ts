@@ -17,9 +17,6 @@ export const EVM_EXPLORER_TX: Readonly<Record<string, string>> = {
   ethereum: 'https://etherscan.io/tx/',
   bnb: 'https://bscscan.com/tx/',
   polygon: 'https://polygonscan.com/tx/',
-  arbitrum: 'https://arbiscan.io/tx/',
-  optimism: 'https://optimistic.etherscan.io/tx/',
-  avalanche: 'https://snowtrace.io/tx/',
   base: 'https://basescan.org/tx/',
   robinhood: 'https://robinhoodchain.blockscout.com/tx/',
 };

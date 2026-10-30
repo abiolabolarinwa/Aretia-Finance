@@ -189,7 +189,7 @@ describe('EvmBridgeWallet', () => {
   it('maps wallet chain ids to Swings chains, and says "unsupported" for a network Swings does not know', () => {
     expect(chainForEvmId(1)).toBe('ethereum');
     expect(chainForEvmId(8453)).toBe('base');
-    expect(chainForEvmId(42161)).toBe('arbitrum');
+    expect(chainForEvmId(137)).toBe('polygon');
     expect(chainForEvmId(250)).toBeNull();
     expect(chainForEvmId(null)).toBeNull();
   });

@@ -1,5 +1,8 @@
 # ARETIA SWINGS: ARCHITECTURE REPORT (Milestone 53)
 
+> **2026-10-30: Optimism, Avalanche and Arbitrum were removed from Aretia Finance** (chains, venues, Arena launchpad, fixtures, environment variables). Mentions below are history and no longer describe the code.
+
+
 Written 8 October 2026, after milestones 28 to 52. It describes what exists, what each part is allowed to trust, what has been proven and how, and what is not done. Where a sentence says "built" it means written and tested with stand-ins; where it says "proven" it names the evidence. **No real money has been moved through any Swings flow.** See `production-readiness.md`.
 
 ## 1. What Swings is

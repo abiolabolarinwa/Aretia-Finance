@@ -13,7 +13,7 @@ import { makeRead } from './rpc.js';
 import { InMemoryMiStore } from './store.js';
 
 const ids = (process.env.MI_LIVE_SPECS ?? 'pancakeswap-v2-bnb').split(',');
-const LOOKBACK: Record<string, number> = { bnb: 2_400, ethereum: 600, polygon: 2_000, base: 3_000, arbitrum: 8_000, optimism: 3_000, avalanche: 3_000 };
+const LOOKBACK: Record<string, number> = { bnb: 2_400, ethereum: 600, polygon: 2_000, base: 3_000,};
 
 for (const id of ids) {
   describe(`live market indexer: ${id}`, () => {

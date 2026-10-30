@@ -203,7 +203,7 @@ export function priceAt(candles: readonly Candle[], time: number, hour = 3600): 
 }
 
 const STABLE_SYMBOLS = new Set(['USDC', 'USDC.E', 'USDT', 'USDT0', 'DAI', 'USDS', 'PYUSD', 'USD1', 'FDUSD', 'BUSD', 'USDE']);
-const COIN_SYMBOLS = new Set(['SOL', 'ETH', 'BNB', 'POL', 'AVAX', 'WETH', 'WBNB', 'WSOL', 'WAVAX', 'WPOL']);
+const COIN_SYMBOLS = new Set(['SOL', 'ETH', 'BNB', 'POL', 'WETH', 'WBNB', 'WSOL', 'WPOL']);
 
 export interface SwapSummary {
   kind: 'bought' | 'sold' | 'swapped';

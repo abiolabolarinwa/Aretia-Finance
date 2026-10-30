@@ -19,7 +19,7 @@ export interface DexEntry {
   id: string;
   name: string;
   chain: ChainId;
-  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'aerodrome-slipstream' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'arena' | 'boop' | 'moonshot' | 'raydium-amm' | 'raydium-clmm' | 'uniswap-v4' | 'manifest' | 'aretia-pool';
+  protocol: 'uniswap-v2' | 'uniswap-v3' | 'curve' | 'balancer' | 'aerodrome' | 'aerodrome-slipstream' | 'raydium' | 'orca' | 'meteora' | 'pumpswap' | 'pump-curve' | 'fourmeme' | 'launchlab' | 'meteora-dbc' | 'flap' | 'virtuals' | 'boop' | 'moonshot' | 'raydium-amm' | 'raydium-clmm' | 'uniswap-v4' | 'manifest' | 'aretia-pool';
   model: PoolModel;
   mechanism: SwapMechanism;
   /** Router (EVM) or program id (Solana). */
@@ -38,8 +38,6 @@ export interface DexEntry {
   quoteAsset?: string;
   /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair (for example ACT's own pools). */
   knownPools?: string[];
-  /** V2 forks on Avalanche name their native-coin functions after AVAX (`swapExactAVAXForTokens`) instead of ETH. */
-  nativeNaming?: 'avax';
   /** V3-style venues: the fee tiers (in hundredths of a basis point) their factory may hold pools for. */
   feeTiers?: number[];
   status: DexStatus;

@@ -26,7 +26,7 @@ export interface EvmHolding {
 export const isEvmNativeMint = (mint: string): boolean => mint.endsWith(':native');
 
 /** DexScreener's name for each network; one it does not list is left unpriced rather than guessed. */
-const DEX_SLUG: Partial<Record<ChainId, string>> = { ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avalanche' };
+const DEX_SLUG: Partial<Record<ChainId, string>> = { ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base' };
 
 export interface EvmTarget {
   chain: ChainId;

@@ -14,7 +14,7 @@ import type { RampIntent, RampQuote, RampSide } from '../swings/ramp/types.js';
 import { formatUnits } from '../swings/crosschain/view.js';
 import { currencyFor, defaultAmount, pickCountry } from './walletBuyDefaults';
 
-const CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
+const CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'polygon'];
 const WATCH_KEY = 'aretia-swings-ramp-watch';
 const COUNTRY_KEY = 'aretia-swings-country';
 

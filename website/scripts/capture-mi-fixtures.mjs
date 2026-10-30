@@ -22,17 +22,14 @@ const RPC = {
   bnb: ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.binance.org'],
   polygon: ['https://polygon-bor-rpc.publicnode.com'],
   base: ['https://base-rpc.publicnode.com', 'https://mainnet.base.org'],
-  arbitrum: ['https://arb1.arbitrum.io/rpc'],
-  optimism: ['https://optimism-rpc.publicnode.com', 'https://mainnet.optimism.io'],
-  avalanche: ['https://avalanche-c-chain-rpc.publicnode.com', 'https://api.avax.network/ext/bc/C/rpc'],
 };
 const WNATIVE = {
   ethereum: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', bnb: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', polygon: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
-  base: '0x4200000000000000000000000000000000000006', arbitrum: '0x82af49447d8a07e3bd95bd0d56f35241523fbab1', optimism: '0x4200000000000000000000000000000000000006', avalanche: '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
+  base: '0x4200000000000000000000000000000000000006',
 };
 const STABLE = {
   ethereum: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', bnb: '0x55d398326f99059ff775485246999027b3197955', polygon: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
-  base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', optimism: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', avalanche: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e',
+  base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
 };
 
 // The adapter list is read from the compiled catalogue's data by the caller: pass specs as JSON in MI_SPECS, or use this table.

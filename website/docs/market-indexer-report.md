@@ -1,5 +1,8 @@
 # Aretia Market Indexer: final report (2026-10-23)
 
+> **2026-10-30: Optimism, Avalanche and Arbitrum were removed from Aretia Finance** (chains, venues, Arena launchpad, fixtures, environment variables). Mentions below are history and no longer describe the code.
+
+
 Plain account of what exists, what is proven and how, and what is not. Architecture: [market-indexer-architecture.md](market-indexer-architecture.md).
 Operations and environment: [market-indexer.md](market-indexer.md). API: [market-indexer-api.md](market-indexer-api.md).
 

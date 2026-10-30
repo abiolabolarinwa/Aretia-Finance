@@ -1,6 +1,6 @@
 /**
  * The assets that carry Aretia's fee. The fee is charged when a swap is PAID with one of these: a network's own coin (SOL, ETH,
- * BNB, POL, AVAX), that coin wrapped, or a main stablecoin. Paying with any other token (selling it) carries no fee.
+ * BNB, POL), that coin wrapped, or a main stablecoin. Paying with any other token (selling it) carries no fee.
  *
  * Why this rule: the fee always arrives in an asset that is easy to sell, so the fee wallet never fills with tokens nobody can sell,
  * and a sale (approve, then swap) has no extra transfer that a token's own rules could block. The EVM list is not typed in a second

@@ -37,11 +37,11 @@ describe('currencyFor', () => {
 });
 
 describe('pickNetwork', () => {
-  const nets = ['ethereum', 'base', 'arbitrum'] as const;
+  const nets = ['ethereum', 'base', 'polygon'] as const;
   it('uses the last network if offered, else Base, else the first', () => {
-    expect(pickNetwork('arbitrum', nets)).toBe('arbitrum');
-    expect(pickNetwork('polygon', nets)).toBe('base');
-    expect(pickNetwork(null, ['ethereum', 'arbitrum'])).toBe('ethereum');
+    expect(pickNetwork('polygon', nets)).toBe('polygon');
+    expect(pickNetwork('bnb', nets)).toBe('base');
+    expect(pickNetwork(null, ['ethereum', 'polygon'])).toBe('ethereum');
     expect(pickNetwork(null, [])).toBeNull();
   });
 });

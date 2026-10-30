@@ -16,8 +16,8 @@ import { assessSettlement } from '../swings/settlement/safety.js';
 import type { ExecutionRecord } from '../swings/orchestrator/states.js';
 import { checkParties, explainMoveError, formatUnits, parseUnits, pickUnfinished, viewQuote, viewStatus } from '../swings/crosschain/view.js';
 
-const CHAIN_CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'avalanche'];
-const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', arbitrum: 'https://arbiscan.io/tx/', optimism: 'https://optimistic.etherscan.io/tx/', polygon: 'https://polygonscan.com/tx/', avalanche: 'https://snowtrace.io/tx/', solana: 'https://solscan.io/tx/' };
+const CHAIN_CHOICES: ChainId[] = ['solana', 'ethereum', 'base', 'polygon'];
+const EXPLORER: Partial<Record<ChainId, string>> = { ethereum: 'https://etherscan.io/tx/', base: 'https://basescan.org/tx/', polygon: 'https://polygonscan.com/tx/', solana: 'https://solscan.io/tx/' };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, children: (Node | null | false)[] = []): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);

@@ -150,9 +150,6 @@ const EXPLORER: Readonly<Record<ChainId, { tx: string; address: string }>> = {
   bnb: { tx: 'https://bscscan.com/tx/', address: 'https://bscscan.com/address/' },
   polygon: { tx: 'https://polygonscan.com/tx/', address: 'https://polygonscan.com/address/' },
   base: { tx: 'https://basescan.org/tx/', address: 'https://basescan.org/address/' },
-  arbitrum: { tx: 'https://arbiscan.io/tx/', address: 'https://arbiscan.io/address/' },
-  optimism: { tx: 'https://optimistic.etherscan.io/tx/', address: 'https://optimistic.etherscan.io/address/' },
-  avalanche: { tx: 'https://snowtrace.io/tx/', address: 'https://snowtrace.io/address/' },
   robinhood: { tx: 'https://robinhoodchain.blockscout.com/tx/', address: 'https://robinhoodchain.blockscout.com/address/' },
 };
 

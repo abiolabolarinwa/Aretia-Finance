@@ -13,9 +13,6 @@ export const WRAPPED_NATIVE = {
   bnb: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
   polygon: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
   base: '0x4200000000000000000000000000000000000006',
-  arbitrum: '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
-  optimism: '0x4200000000000000000000000000000000000006',
-  avalanche: '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
   // Robinhood Chain: the WETH that Uniswap's own V3 router and V4 position manager name as their wrapped ether (checked on-chain).
   robinhood: '0x0bd7d308f8e1639fab988df18a8011f41eacad73',
 } as const;
@@ -100,19 +97,6 @@ export const EVM_V2_DEXES: readonly DexEntry[] = [
     status: 'ACTIVE',
   },
   {
-    id: 'pancakeswap-v2-arbitrum',
-    name: 'PancakeSwap V2',
-    chain: 'arbitrum',
-    protocol: 'uniswap-v2',
-    model: 'constant-product',
-    mechanism: 'evm-v2-router',
-    router: '0x8cfe327cec66d1c090dd72bd0ff11d690c33a2eb',
-    factory: '0x02a84c1b3bbd7401a5f7fa98a384ebc70bb5749e',
-    feePpm: 2500,
-    wrappedNative: WRAPPED_NATIVE.arbitrum,
-    status: 'ACTIVE',
-  },
-  {
     id: 'sushiswap-v2-ethereum',
     name: 'SushiSwap V2',
     chain: 'ethereum',
@@ -149,47 +133,6 @@ export const EVM_V2_DEXES: readonly DexEntry[] = [
     factory: '0x71524b4f93c58fcbf659783284e38825f0622859',
     feePpm: 3000,
     wrappedNative: WRAPPED_NATIVE.base,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'sushiswap-v2-arbitrum',
-    name: 'SushiSwap V2',
-    chain: 'arbitrum',
-    protocol: 'uniswap-v2',
-    model: 'constant-product',
-    mechanism: 'evm-v2-router',
-    router: '0x1b02da8cb0d097eb8d57a175b88c7d8b47997506',
-    factory: '0xc35dadb65012ec5796536bd9864ed8773abc74c4',
-    feePpm: 3000,
-    wrappedNative: WRAPPED_NATIVE.arbitrum,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'pangolin-v2-avalanche',
-    name: 'Pangolin',
-    chain: 'avalanche',
-    protocol: 'uniswap-v2',
-    model: 'constant-product',
-    mechanism: 'evm-v2-router',
-    nativeNaming: 'avax',
-    router: '0xe54ca86531e17ef3616d22ca28b0d458b6c89106',
-    factory: '0xefa94de7a4656d787667c749f7e1223d71e9fd88',
-    feePpm: 3000,
-    wrappedNative: WRAPPED_NATIVE.avalanche,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'traderjoe-v1-avalanche',
-    name: 'Trader Joe V1',
-    chain: 'avalanche',
-    protocol: 'uniswap-v2',
-    model: 'constant-product',
-    mechanism: 'evm-v2-router',
-    nativeNaming: 'avax',
-    router: '0x60ae616a2155ee3d9a68541ba4544862310933d4',
-    factory: '0x9ad6c38be94206ca50bb0d90783181662f0cfa10',
-    feePpm: 3000,
-    wrappedNative: WRAPPED_NATIVE.avalanche,
     status: 'ACTIVE',
   },
 ];
@@ -236,45 +179,6 @@ export const EVM_V3_DEXES: readonly DexEntry[] = [
     factory: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
     quoter: '0x3d4e44eb1374240ce5f1b871ab261cd16335b76a',
     wrappedNative: WRAPPED_NATIVE.base,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'uniswap-v3-arbitrum',
-    name: 'Uniswap V3',
-    chain: 'arbitrum',
-    protocol: 'uniswap-v3',
-    model: 'concentrated',
-    mechanism: 'evm-v3-router',
-    router: '0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45',
-    factory: '0x1f98431c8ad98523631ae4a59f267346ea31f984',
-    quoter: '0x61ffe014ba17989e743c5f6cb21bf9697530b21e',
-    wrappedNative: WRAPPED_NATIVE.arbitrum,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'uniswap-v3-optimism',
-    name: 'Uniswap V3',
-    chain: 'optimism',
-    protocol: 'uniswap-v3',
-    model: 'concentrated',
-    mechanism: 'evm-v3-router',
-    router: '0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45',
-    factory: '0x1f98431c8ad98523631ae4a59f267346ea31f984',
-    quoter: '0x61ffe014ba17989e743c5f6cb21bf9697530b21e',
-    wrappedNative: WRAPPED_NATIVE.optimism,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'uniswap-v3-avalanche',
-    name: 'Uniswap V3',
-    chain: 'avalanche',
-    protocol: 'uniswap-v3',
-    model: 'concentrated',
-    mechanism: 'evm-v3-router',
-    router: '0xbb00ff08d01d300023c629e8ffffcb65a5a578ce',
-    factory: '0x740b1c1de25031c31ff4fc9a62f554a55cdc1bad',
-    quoter: '0xbe0f5544ec67e9b3b2d979aaa43f18fd87e6257f',
-    wrappedNative: WRAPPED_NATIVE.avalanche,
     status: 'ACTIVE',
   },
   {
@@ -354,20 +258,6 @@ export const EVM_PANCAKE_V3: readonly DexEntry[] = [
     wrappedNative: WRAPPED_NATIVE.base,
     status: 'ACTIVE',
   },
-  {
-    id: 'pancakeswap-v3-arbitrum',
-    name: 'PancakeSwap V3',
-    chain: 'arbitrum',
-    protocol: 'uniswap-v3',
-    model: 'concentrated',
-    mechanism: 'evm-v3-router',
-    router: '0x32226588378236fd0c7c4053999f88ac0e5cac77',
-    factory: '0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865',
-    quoter: '0xb048bbc1ee6b733fffcfb9e9cef7375518e25997',
-    feeTiers: [100, 500, 2500, 10_000],
-    wrappedNative: WRAPPED_NATIVE.arbitrum,
-    status: 'ACTIVE',
-  },
 ];
 
 /** Aerodrome on Base: the largest venue there. Volatile and stable pools behind one router. */
@@ -385,29 +275,12 @@ export const EVM_AERODROME: readonly DexEntry[] = [
     status: 'ACTIVE',
     notes: 'Priced by the router itself (exact for volatile and stable pools).',
   },
-  {
-    id: 'velodrome-optimism',
-    name: 'Velodrome',
-    chain: 'optimism',
-    protocol: 'aerodrome',
-    model: 'constant-product',
-    mechanism: 'evm-aerodrome-router',
-    router: '0xa062ae8a9c5e11aaa026fc2670b0d65ccc8b2858',
-    factory: '0xf1046053aa5682b4f9a81b5481394da16be5ff5a',
-    wrappedNative: WRAPPED_NATIVE.optimism,
-    status: 'ACTIVE',
-    notes: 'Same router design as Aerodrome (its parent). Priced by the router itself.',
-  },
 ];
 
 /**
  * Slipstream: the concentrated-liquidity pools of Aerodrome on Base, by far the busiest venue there. Pools are told apart
  * by tick spacing, so `feeTiers` lists the spacings. Every address was read back from the chain: the router's and the
  * quoter's `factory()` is this factory, and the router's `WETH9()` is the wrapped native token.
- *
- * Velodrome's Slipstream on Optimism is NOT listed: the router that serves the main factory has no quoter Aretia could
- * verify (the quoter that was found belongs to Velodrome's newer factory, which is a different deployment), and pricing
- * with a mismatched quoter would quote pools the router does not swap in.
  */
 export const EVM_SLIPSTREAM: readonly DexEntry[] = [
   {
@@ -518,35 +391,6 @@ export const EVM_CURVE: readonly DexEntry[] = [
     wrappedNative: WRAPPED_NATIVE.base,
     status: 'ACTIVE',
   },
-  {
-    id: 'curve-arbitrum',
-    name: 'Curve',
-    chain: 'arbitrum',
-    protocol: 'curve',
-    model: 'stable',
-    mechanism: 'evm-curve-pool',
-    knownPools: [
-      '0x7f90122bf0700f9e7e1f688fe926940e8839f353', // 2pool: USDC.e / USDT
-      '0xa7cf5543a27badc3a74d51ea0a02e84799140e4e', // sUSDai / USDC
-      '0xf0f9cda8d694726a25959009c1732372c48def21', // USDC / USDSM
-    ],
-    wrappedNative: WRAPPED_NATIVE.arbitrum,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'curve-optimism',
-    name: 'Curve',
-    chain: 'optimism',
-    protocol: 'curve',
-    model: 'stable',
-    mechanism: 'evm-curve-pool',
-    knownPools: [
-      '0xd1b30ba128573fcd7d141c8a987961b40e047bb6', // crvUSD / USDT
-      '0x03771e24b7c9172d163bf447490b142a15be3485', // crvUSD / USDC
-    ],
-    wrappedNative: WRAPPED_NATIVE.optimism,
-    status: 'ACTIVE',
-  },
 ];
 
 /** Every direct venue Aretia routes through. */
@@ -596,23 +440,9 @@ export const EVM_LAUNCHPADS: readonly DexEntry[] = [
     status: 'ACTIVE',
     notes: 'AI-agent tokens on their bonding curve, priced in VIRTUAL, so this swaps VIRTUAL for the token and back. Tokens under an anti-sniper tax are not offered.',
   },
-  {
-    id: 'arena-avalanche',
-    name: 'Arena',
-    chain: 'avalanche',
-    protocol: 'arena',
-    model: 'constant-product',
-    mechanism: 'evm-launchpad-curve',
-    // The launcher (a proxy) both prices and trades; its curves are priced in the ARENA token.
-    router: '0x2196e106af476f57618373ec028924767c758464',
-    quoteAsset: '0xb8d7710f7d8349a506b75dd184f05777c82dad0c',
-    wrappedNative: WRAPPED_NATIVE.avalanche,
-    status: 'ACTIVE',
-    notes: 'Tokens on their Arena launch curve, priced in ARENA and traded in whole tokens, so this swaps ARENA for the token and back.',
-  },
 ];
 
-const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | 'bnb' | 'avalanche' | 'robinhood', router: string, quoter: string, stateView: string, poolManager: string, positionManager: string): DexEntry => ({
+const v4 = (chain: 'ethereum' | 'base' | 'polygon' | 'bnb' | 'robinhood', router: string, quoter: string, stateView: string, poolManager: string, positionManager: string): DexEntry => ({
   id: `uniswap-v4-${chain}`,
   name: 'Uniswap V4',
   chain,
@@ -636,11 +466,8 @@ const v4 = (chain: 'ethereum' | 'base' | 'arbitrum' | 'optimism' | 'polygon' | '
 export const EVM_V4: readonly DexEntry[] = [
   v4('ethereum', '0x66a9893cc07d91d95644aedd05d03f95e1dba8af', '0x52f0e24d1c21c8a0cb1e5a5dd6198556bd9e1203', '0x7ffe42c4a5deea5b0fec41c94c136cf115597227', '0x000000000004444c5dc75cb358380d2e3de08a90', '0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e'),
   v4('base', '0x6ff5693b99212da76ad316178a184ab56d299b43', '0x0d5e0f971ed27fbff6c2837bf31316121532048d', '0xa3c0c9b65bad0b08107aa264b0f3db444b867a71', '0x498581ff718922c3f8e6a244956af099b2652b2b', '0x7c5f5a4bbd8fd63184577525326123b519429bdc'),
-  v4('arbitrum', '0xa51afafe0263b40edaef0df8781ea9aa03e381a3', '0x3972c00f7ed4885e145823eb7c655375d275a1c5', '0x76fd297e2d437cd7f76d50f01afe6160f86e9990', '0x360e68faccca8ca495c1b759fd9eee466db9fb32', '0xd88f38f930b7952f2db2432cb002e7abbf3dd869'),
-  v4('optimism', '0x851116d9223fabed8e56c0e6b8ad0c31d98b3507', '0x1f3131a13296fb91c90870043742c3cdbff1a8d7', '0xc18a3169788f4f75a170290584eca6395c75ecdb', '0x9a13f98cb987694c9f086b1f5eb990eea8264ec3', '0x3c3ea4b57a46241e54610e5f022e5c45859a1017'),
   v4('polygon', '0x1095692a6237d83c6a72f3f5efedb9a670c49223', '0xb3d5c3dfc3a7aebff71895a7191796bffc2c81b9', '0x5ea1bd7974c8a611cbab0bdcafcb1d9cc9b3ba5a', '0x67366782805870060151383f4bbff9dab53e5cd6', '0x1ec2ebf4f37e7363fdfe3551602425af0b3ceef9'),
   v4('bnb', '0x1906c1d672b88cd1b9ac7593301ca990f94eae07', '0x9f75dd27d6664c475b90e105573e550ff69437b0', '0xd13dd3d6e93f276fafc9db9e6bb47c1180aee0c4', '0x28e2ea090877bf75740558f6bfb36a5ffee9e9df', '0x7a4a5c919ae2541aed11041a1aeee68f1287f95b'),
-  v4('avalanche', '0x94b75331ae8d42c1b61065089b7d48fe14aa73b7', '0xbe40675bb704506a3c2ccfb762dcfd1e979845c2', '0xc3c9e198c735a4b97e3e683f391ccbdd60b69286', '0x06380c0e0912312b5150364b9dc4542ba0dbbc85', '0xb74b1f14d2754acfcbbe1a221023a5cf50ab8acd'),
   // Robinhood Chain (4663), from Uniswap's V4 deployments page. The page also lists a newer Universal Router 2.1.2
   // (0x204faca1764b154221e35c0d20abb3c525710498); this entry uses the one both the V3 and V4 pages name "Universal Router".
   // On-chain, the quoter, StateView, position manager and both routers all name this PoolManager.

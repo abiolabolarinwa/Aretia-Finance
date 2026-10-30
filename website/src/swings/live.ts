@@ -99,7 +99,7 @@ export function createLiveRouter(deps: LiveDeps): AretiaRouter {
   const health = new ProviderHealth();
   const registry = new AretiaDexRegistry([...EVM_DEXES, ...SOLANA_DEXES], health);
   const direct = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health, fee: feeConfig });
-  // A launchpad token trades against the launchpad's own token (VIRTUAL, ARENA), so buying one with ETH or AVAX is two swaps. The
+  // A launchpad token trades against the launchpad's own token (VIRTUAL), so buying one with ETH is two swaps. The
   // second step uses a router with no fee: the first step already took it.
   const directSecondStep = new DirectEvmProvider({ registry, read: (chain) => publicRead(chain), health });
   const chained = new ChainedEvmProvider({ first: direct, second: directSecondStep, registry, read: (chain) => publicRead(chain) });

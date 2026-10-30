@@ -1,6 +1,6 @@
 /**
- * Routes that need a middle token: a launchpad token (a Virtuals agent token, an Arena token) trades against the launchpad's own
- * token (VIRTUAL, ARENA), not against ETH or AVAX. So buying one with ETH is two swaps, ETH for VIRTUAL and then VIRTUAL for the
+ * Routes that need a middle token: a launchpad token (a Virtuals agent token) trades against the launchpad's own
+ * token (VIRTUAL), not against ETH. So buying one with ETH is two swaps, ETH for VIRTUAL and then VIRTUAL for the
  * token, and selling one for ETH is the same two in the other order.
  *
  * The two swaps cannot be one transaction (no contract Aretia can trust sits between a DEX and a launchpad), so this is two,

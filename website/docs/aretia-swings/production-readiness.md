@@ -12,7 +12,7 @@ The Aretia fee changed from 0.29% on every swap to **0.58% when the swap is paid
 - **The fee:** 0.00007204093 BNB went to `0xeB8725E16e504036c2166aa47804D88Ecc4D0945` in that transaction. That is exactly 0.29% of the 0.0248417 BNB entered, and it is the address the live site's bundle carries as the EVM fee address (`PUBLIC_ARETIA_EVM_FEE_ADDRESS`).
 - **Gates recorded:** `real-swap-evm` and `aretia-fee-evm` in `readiness-attestations.json`, with the date, the hash and these limits. The `real-swap-evm` gate no longer says "(Base)": the first proof was BNB Chain.
 - **Still not proven:** any Solana swap and the Solana fee wallet (`2tcBrd1J…`), Base and every other EVM network, selling a token (a token sale needs an approval and takes the fee in that token), a wallet that cannot batch (fee and swap as separate transactions), CCTP, ramps, the database, the external review.
-- **Also found that day:** publicnode answered HTTP 403 for the receipt of a transaction it had not seen yet (BNB Chain, Base, Arbitrum, Optimism), which the page read as a failed swap. Fixed: receipts fall back to the wallet's own node, and public reads try a backup node. Test with a wallet that cannot batch before relying on it.
+- **Also found that day:** publicnode answered HTTP 403 for the receipt of a transaction it had not seen yet (BNB Chain, Base), which the page read as a failed swap. Fixed: receipts fall back to the wallet's own node, and public reads try a backup node. Test with a wallet that cannot batch before relying on it.
 
 ## Update, 8 October 2026 (Milestone 52)
 

@@ -27,8 +27,8 @@ describe('DEX adapter catalogue', () => {
     }
   });
 
-  it('lists ApeSwap on the four chains it was verified on, and nothing invented elsewhere', () => {
-    expect(allSpecs().filter((s) => s.family === 'apeswap').map((s) => s.chain).sort()).toEqual(['arbitrum', 'bnb', 'ethereum', 'polygon']);
+  it('lists ApeSwap on the three chains it was verified on, and nothing invented elsewhere', () => {
+    expect(allSpecs().filter((s) => s.family === 'apeswap').map((s) => s.chain).sort()).toEqual(['bnb', 'ethereum', 'polygon']);
     expect(specById('apeswap-v2-optimism')).toBeNull();
   });
 

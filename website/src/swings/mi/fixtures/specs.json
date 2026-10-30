@@ -40,14 +40,6 @@
   "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
  },
  {
-  "id": "pancakeswap-v2-arbitrum",
-  "chain": "arbitrum",
-  "kind": "v2",
-  "factory": "0x02a84c1b3bbd7401a5f7fa98a384ebc70bb5749e",
-  "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
- },
- {
   "id": "sushiswap-v2-ethereum",
   "chain": "ethereum",
   "kind": "v2",
@@ -72,14 +64,6 @@
   "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
  },
  {
-  "id": "sushiswap-v2-arbitrum",
-  "chain": "arbitrum",
-  "kind": "v2",
-  "factory": "0xc35dadb65012ec5796536bd9864ed8773abc74c4",
-  "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
- },
- {
   "id": "uniswap-v3-ethereum",
   "chain": "ethereum",
   "kind": "v3",
@@ -100,30 +84,6 @@
   "chain": "base",
   "kind": "v3",
   "factory": "0x33128a8fc17869897dce68ed026d694621f6fdfd",
-  "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
- },
- {
-  "id": "uniswap-v3-arbitrum",
-  "chain": "arbitrum",
-  "kind": "v3",
-  "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-  "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
- },
- {
-  "id": "uniswap-v3-optimism",
-  "chain": "optimism",
-  "kind": "v3",
-  "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-  "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
- },
- {
-  "id": "uniswap-v3-avalanche",
-  "chain": "avalanche",
-  "kind": "v3",
-  "factory": "0x740b1c1de25031c31ff4fc9a62f554a55cdc1bad",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
   "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
  },
@@ -160,14 +120,6 @@
   "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83"
  },
  {
-  "id": "pancakeswap-v3-arbitrum",
-  "chain": "arbitrum",
-  "kind": "v3",
-  "factory": "0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865",
-  "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83"
- },
- {
   "id": "apeswap-v2-bnb",
   "chain": "bnb",
   "kind": "v2",
@@ -178,14 +130,6 @@
  {
   "id": "apeswap-v2-polygon",
   "chain": "polygon",
-  "kind": "v2",
-  "factory": "0xcf083be4164828f00cae704ec15a36d711491284",
-  "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
- },
- {
-  "id": "apeswap-v2-arbitrum",
-  "chain": "arbitrum",
   "kind": "v2",
   "factory": "0xcf083be4164828f00cae704ec15a36d711491284",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",

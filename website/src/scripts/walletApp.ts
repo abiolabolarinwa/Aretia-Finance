@@ -1128,6 +1128,10 @@ export function initWalletApp(): void {
     renderChrome();
     const view = currentView();
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
+    if (view === 'dashboard') {
+      const strip = document.querySelector<HTMLElement>('[data-rising]');
+      if (strip) void import('./walletDashRising').then((m) => m.loadRising(strip));
+    }
     if (view === 'referrals') referrals?.onShow();
     if (view === 'activity') swings.onActivityShow();
     if (view === 'launchbox') launchTools.onShowLaunchBox();

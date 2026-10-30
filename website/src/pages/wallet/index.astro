@@ -202,6 +202,15 @@ const sendTips = [
             </div>
             <div data-holdings></div>
           </section>
+
+          <section class="wapp__card wapp-dash__rising" aria-labelledby="dash-rising">
+            <div class="wapp-dash__head">
+              <h2 class="wapp__h2" id="dash-rising">Rising buyers</h2>
+              <button type="button" class="wapp-dash__more" data-nav="swings">All markets</button>
+            </div>
+            <p class="wapp__fine">Tokens where new buyers are arriving faster than before, the best of each network first. An estimate from market data, not advice.</p>
+            <ul class="wapp-rise" data-rising></ul>
+          </section>
         </div>
 
         <aside class="wapp-dash__side" aria-label="Wallet and tools">
@@ -1452,6 +1461,13 @@ const sendTips = [
   .wapp[data-connected='false'] .wapp-dash__main, .wapp[data-connected='false'] .wapp-dash__wallet, .wapp[data-connected='false'] .wapp-dash__recent { display: none; }
   .wapp[data-connected='false'] .wapp-dash__side { position: static; }
   .wapp-dash__more:focus-visible, .wapp-dash__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-dash__rising { display: grid; gap: 8px; padding: 18px 22px; }
+  .wapp-rise { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .wapp-rise__row { display: grid; grid-template-columns: minmax(64px, 0.8fr) minmax(70px, 0.9fr) 1.6fr auto; gap: 10px; align-items: center; padding: 7px 8px; font-size: 12.5px; color: var(--color-strong); text-decoration: none; border-radius: 8px; }
+  .wapp-rise__row:hover { background: var(--color-bg-alt); }
+  .wapp-rise__chain, .wapp-rise__price { color: var(--color-muted); }
+  .wapp-rise__growth { font-weight: 600; color: var(--color-brand); }
+  @media (max-width: 560px) { .wapp-rise__row { grid-template-columns: 1fr auto; } .wapp-rise__chain, .wapp-rise__price { display: none; } }
   .wapp-dash__recent-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
   .wapp-dash__recent-list li { display: flex; align-items: center; gap: 10px; padding: 8px 2px; font-size: 12px; border-top: 1px solid var(--color-border); }
   .wapp-dash__recent-list li:first-child { border-top: 0; }

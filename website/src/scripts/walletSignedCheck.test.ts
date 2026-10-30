@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as web3 from '@solana/web3.js';
-import { checkSignedTransaction, WALLET_GUARD_PROGRAMS } from './walletSignedCheck';
+import { checkSignedTransaction, MAX_PRIORITY_FEE_LAMPORTS, WALLET_GUARD_PROGRAMS } from './walletSignedCheck';
 
 const key = (n: number): web3.PublicKey => new web3.PublicKey(new Uint8Array(32).fill(n));
 const PAYER = key(1);
@@ -12,6 +12,37 @@ const guardIx = () => new web3.TransactionInstruction({ programId: LIGHTHOUSE, k
 const v0 = (ixs: web3.TransactionInstruction[], payer = PAYER, blockhash = BLOCKHASH) => new web3.VersionedTransaction(new web3.TransactionMessage({ payerKey: payer, recentBlockhash: blockhash, instructions: ixs }).compileToV0Message());
 const legacy = (ixs: web3.TransactionInstruction[]) => new web3.Transaction({ feePayer: PAYER, recentBlockhash: BLOCKHASH }).add(...ixs);
 const roundTrip = (t: web3.Transaction) => web3.Transaction.from(t.serialize({ requireAllSignatures: false, verifySignatures: false }));
+
+const BUDGET = new web3.PublicKey('ComputeBudget111111111111111111111111111111');
+const unitLimit = (units: number) => web3.ComputeBudgetProgram.setComputeUnitLimit({ units });
+const unitPrice = (microLamports: number) => web3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports });
+
+describe('the priority fee a wallet adds', () => {
+  it('passes when the wallet adds a unit limit and a unit price (Phantom does), and when they were already there', () => {
+    const planned = v0([swapIx()]);
+    expect(checkSignedTransaction(web3, planned, v0([unitLimit(200_000), unitPrice(5_000), swapIx()])).ok).toBe(true);
+    expect(checkSignedTransaction(web3, v0([unitLimit(300_000), swapIx()]), v0([unitLimit(300_000), unitPrice(1_000), swapIx()])).ok).toBe(true);
+  });
+
+  it('refuses a priority fee above the cap', () => {
+    // 1,000,000 units at 10,000,000 micro-lamports is 10,000,000 lamports: twice the cap.
+    const r = checkSignedTransaction(web3, v0([swapIx()]), v0([unitLimit(1_000_000), unitPrice(10_000_000), swapIx()]));
+    expect(r.ok).toBe(false);
+    expect(r).toMatchObject({ reason: expect.stringContaining('priority fee') });
+    expect(MAX_PRIORITY_FEE_LAMPORTS).toBe(5_000_000);
+  });
+
+  it('treats a price with no unit limit as if the whole 1,400,000 units could be used', () => {
+    expect(checkSignedTransaction(web3, v0([swapIx()]), v0([unitPrice(2_000_000), swapIx()])).ok).toBe(true);
+    expect(checkSignedTransaction(web3, v0([swapIx()]), v0([unitPrice(5_000_000), swapIx()])).ok).toBe(false);
+  });
+
+  it('still refuses other ComputeBudget instructions and any change beside the fee', () => {
+    const heap = new web3.TransactionInstruction({ programId: BUDGET, keys: [], data: Buffer.from([1, 0, 0, 4, 0]) });
+    expect(checkSignedTransaction(web3, v0([swapIx()]), v0([heap, swapIx()])).ok).toBe(false);
+    expect(checkSignedTransaction(web3, v0([swapIx()]), v0([unitPrice(1_000), swapIx([9])])).ok).toBe(false);
+  });
+});
 
 describe('the transaction a wallet hands back', () => {
   it('passes when nothing was changed', () => {

@@ -7,11 +7,22 @@
  * different transaction from the one shown". The comparison below ignores instructions of those guard programs and nothing else:
  * the payer, the blockhash, and every other instruction (program, accounts, data) must be exactly what was shown. A guard can only
  * make a transaction fail; it cannot move money, which is why they are allowed and anything else is not.
+ *
+ * Wallets also set the transaction's priority fee with the ComputeBudget program (a unit limit and a unit price). Those two
+ * instructions move no tokens, so they are ignored on both sides, but the fee they imply on the returned transaction must not
+ * exceed MAX_PRIORITY_FEE_LAMPORTS, so a wallet cannot quietly make the user pay a large fee.
  */
 import type * as Web3 from '@solana/web3.js';
 
 /** Programs a wallet may add assertion-only instructions from. Lighthouse is the one Phantom uses. */
 export const WALLET_GUARD_PROGRAMS: readonly string[] = ['L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95'];
+
+/** The ComputeBudget program: SetComputeUnitLimit (2) and SetComputeUnitPrice (3) only; its other instructions are not ignored. */
+const COMPUTE_BUDGET = 'ComputeBudget111111111111111111111111111111';
+/** The most priority fee a wallet may add, in lamports (0.005 SOL). */
+export const MAX_PRIORITY_FEE_LAMPORTS = 5_000_000;
+/** Without a unit limit instruction a transaction may use up to this many units. */
+const MAX_UNITS = 1_400_000;
 
 type Tx = Web3.Transaction | Web3.VersionedTransaction;
 
@@ -41,6 +52,21 @@ function flatten(web3: typeof Web3, tx: Tx, tables: readonly Web3.AddressLookupT
   return { payer: tx.feePayer.toBase58(), blockhash: tx.recentBlockhash, instructions: tx.instructions.map(plain) };
 }
 
+const isBudgetInstruction = (ix: Plain): boolean => ix.programId === COMPUTE_BUDGET && ix.keys.length === 0 && (ix.data[0] === 2 || ix.data[0] === 3);
+
+/** The priority fee the instructions imply, in lamports: unit price (micro-lamports per unit) times the unit limit. */
+function priorityFeeLamports(instructions: readonly Plain[]): number {
+  let limit = MAX_UNITS;
+  let price = 0n;
+  for (const ix of instructions) {
+    if (!isBudgetInstruction(ix)) continue;
+    const view = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
+    if (ix.data[0] === 2 && ix.data.length >= 5) limit = view.getUint32(1, true);
+    if (ix.data[0] === 3 && ix.data.length >= 9) price = view.getBigUint64(1, true);
+  }
+  return Number((price * BigInt(limit) + 999_999n) / 1_000_000n);
+}
+
 const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 const messageBytes = (tx: Tx): Uint8Array => ('version' in tx ? tx.message.serialize() : tx.serializeMessage());
 
@@ -63,6 +89,10 @@ export function checkSignedTransaction(web3: typeof Web3, planned: Tx, signed: T
   }
   if (a.payer !== b.payer) return { ok: false, reason: 'the wallet changed who pays' };
   if (a.blockhash !== b.blockhash) return { ok: false, reason: 'the wallet changed the transaction\'s blockhash' };
+  const fee = priorityFeeLamports(b.instructions);
+  if (fee > MAX_PRIORITY_FEE_LAMPORTS) return { ok: false, reason: `the wallet set a priority fee of about ${(fee / 1e9).toFixed(4)} SOL, which is too high` };
+  a.instructions = a.instructions.filter((ix) => !isBudgetInstruction(ix));
+  b.instructions = b.instructions.filter((ix) => !isBudgetInstruction(ix));
   const kept: Plain[] = [];
   let guards = 0;
   const unknown = new Set<string>();

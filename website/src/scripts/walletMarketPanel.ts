@@ -9,7 +9,6 @@ import { CHAINS, type ChainId, type TokenRisk } from '../swings/core/types.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
 import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { padlockShown } from '../swings/market/lock.js';
-import { sponsorBlock } from './walletSponsor.js';
 import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenTitle } from './walletTitle.js';
@@ -289,8 +288,6 @@ export function createMarketPanel(o: MarketPanelOptions) {
       g.append(links);
       root.append(g);
     }
-    // Paid or not, the card is labelled, sits after everything that helps a decision, and never changes the rating above.
-    root.append(sponsorBlock('token-panel', { chain: r.chain, seed: rowKey(r), compact: true }));
     root.append(el('p', 'wapp-mp__tiny', 'Anyone can create a token. Aretia does not endorse the tokens listed.'));
     applyTitle();
   }

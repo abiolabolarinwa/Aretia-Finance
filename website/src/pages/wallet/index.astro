@@ -319,17 +319,6 @@ const sendTips = [
           <p class="wapp__intro" data-sw-intro aria-live="polite"></p>
           <div data-sw-panel="swap" class="wapp__stack" hidden></div>
           <div data-sw-panel="markets" class="wapp__stack"></div>
-          <details class="wapp__fineprint">
-            <summary>Good to know before you use Swings</summary>
-            <ul>
-              <li><strong>Your wallet signs everything.</strong> Aretia never holds your keys or your money.</li>
-              <li><strong>You see the cost first.</strong> The quote, the least you will receive and every fee are shown before anything is signed.</li>
-              <li><strong>Quotes are not promises.</strong> Prices move, and a quote runs out after a short time.</li>
-              <li><strong>Big trades in small pools can be sandwiched.</strong> Swaps are not sent through a protected route.</li>
-              <li><strong>A coin being listed is not a recommendation.</strong> Check the safety notes and the address before you buy.</li>
-              <li>The swap window marks any network that is switched off.</li>
-            </ul>
-          </details>
         </div>
       </div>
 
@@ -971,7 +960,7 @@ const sendTips = [
 
   /* ---- Markets: the selected token's panel is a bar docked to the right edge, as the left sidebar is docked to the left ---- */
   .wapp-mp { display: none; }
-  /* One light indigo through the whole panel in place of grey: headers, lines, chips and the sponsor card. */
+  /* One light indigo through the whole panel in place of grey: headers, lines and chips. */
   .wapp { --wapp-indigo: #f1f1f3; --wapp-indigo-line: #dddddf; }
   /* The panel's light surfaces are light grey, not the wallet's light indigo; the deep indigo (picked window, buttons) is unchanged. */
   .wapp-mp { --wapp-indigo: #f3f3f5; --wapp-indigo-line: #e1e1e3; --color-bg-alt: var(--wapp-indigo); --color-border: var(--wapp-indigo-line); --color-border-strong: #cacacc; --color-muted: #5a606c; --color-brand-soft: var(--wapp-indigo); }
@@ -1083,11 +1072,6 @@ const sendTips = [
   .wapp-mp__more summary { cursor: pointer; font-weight: 600; color: var(--color-brand); }
   .wapp-mp__more > * + * { margin-top: 4px; }
   .wapp-mp__tiny { margin: 0; font-size: 12px; line-height: 1.4; color: var(--color-muted); }
-  .wapp-ad--compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top cta' 'text text'; align-items: center; gap: 2px 8px; padding: 8px 12px; }
-  .wapp-ad--compact .wapp-ad__top { grid-area: top; }
-  .wapp-ad--compact .wapp-ad__cta { grid-area: cta; justify-self: end; }
-  .wapp-ad--compact .wapp-ad__text { grid-area: text; }
-  .wapp-ad--compact .wapp-ad__text strong { font-size: 12px; }
   
   .wapp-mp__info { display: grid; }
   .wapp-mp__line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12.5px; font-size: 12px; border-top: 1px solid var(--color-border); }
@@ -1095,23 +1079,6 @@ const sendTips = [
   .wapp-mp__lv { display: inline-flex; align-items: center; gap: 8px; color: var(--color-strong); font-variant-numeric: tabular-nums; }
   .wapp-mp__addr { padding: 3px 8px; font-size: 12px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
   .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 8px; }
-
-  /* ---- Sponsor cards: labelled, quiet, plain text and one link ---- */
-  .wapp-ad { display: grid; gap: 8px; padding: 12px 14px; background: var(--wapp-indigo); border: 1px solid var(--wapp-indigo-line); border-radius: 12px; }
-  .wapp-ad--house { border-style: dashed; border-color: #cacacc; }
-  .wapp-ad .wapp-ad__tag { color: #626264; background: #fff; border-color: var(--wapp-indigo-line); }
-  .wapp-ad .wapp-ad__text p, .wapp-ad .wapp-ad__by { color: #626264; }
-  .wapp-ad__top { display: flex; align-items: center; gap: 8px; }
-  .wapp-ad__tag { padding: 1px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); border-radius: 5px; }
-  .wapp-ad__tag--plain { border-color: transparent; padding-left: 0; background: none; }
-  .wapp-ad__by { font-size: 12px; color: var(--color-muted); }
-  .wapp-ad__body { display: flex; gap: 10px; align-items: flex-start; }
-  .wapp-ad__img { flex: none; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: var(--color-bg-alt); }
-  .wapp-ad__text { display: grid; gap: 2px; min-width: 0; }
-  .wapp-ad__text strong { font-size: 12.5px; color: var(--color-strong); }
-  .wapp-ad__text p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--color-muted); }
-  .wapp-ad__cta { justify-self: start; font-size: 12px; font-weight: 600; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }
-  .wapp-mt__card > .wapp-ad { max-width: 560px; }
 
   /* ---- Shield: know before you sign ---- */
   .wapp[data-view='shield'] .wapp__top h1 { display: none; }
@@ -1539,9 +1506,6 @@ const sendTips = [
 
   .wapp__intro { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-muted); max-width: 70ch; }
   .wapp__intro:empty { display: none; }
-  .wapp__fineprint { padding: 4px 2px; font-size: 12px; color: var(--color-muted); }
-  .wapp__fineprint > summary { cursor: pointer; font-weight: 600; color: var(--color-strong); }
-  .wapp__fineprint ul { display: grid; gap: 6px; margin: 10px 0 0; padding-left: 18px; line-height: 1.5; }
   .wapp__steps { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; counter-reset: wstep; font-size: 12px; color: var(--color-muted); }
   .wapp__steps li { counter-increment: wstep; display: inline-flex; align-items: center; gap: 6px; }
   .wapp__steps li::before { content: counter(wstep); display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 11px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 50%; }

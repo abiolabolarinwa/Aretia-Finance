@@ -67,6 +67,21 @@ export function parseMarketsHash(hash: string): { chain: ChainId; address: strin
 /** Whether the address bar is on Markets, with or without a token in it. */
 export const isMarketsHash = (hash: string): boolean => hash === '#/swings' || hash.startsWith('#/swings/');
 
+/** The clean path for a token open in Markets: "/wallet/<chain>/<address>". */
+export const walletTokenPath = (chain: ChainId, address: string): string => `/wallet/${chain}/${CHAINS[chain].kind === 'evm' ? address.toLowerCase() : address}`;
+
+/**
+ * Where the wallet page is, as the hash its router reads. A hash in the address wins ("#/send"); with none, a clean token
+ * path ("/wallet/<chain>/<address>") means Markets with that token, which is the same as "#/swings/<chain>/<address>".
+ */
+export function routeHash(pathname: string, hash: string): string {
+  if (hash && hash !== '#') return hash;
+  const m = /^\/wallet\/([a-z]+)\/([A-Za-z0-9]+)\/?$/.exec(pathname);
+  if (!m) return hash;
+  const ref = normalizeTokenRef(m[1], m[2]);
+  return ref ? marketsHash(ref.chain, ref.address) : hash;
+}
+
 export const shortAddress = (a: string): string => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
 /** What the Share button sends. */

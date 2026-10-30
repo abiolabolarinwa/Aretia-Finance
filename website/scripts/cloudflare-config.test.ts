@@ -10,9 +10,13 @@ describe('Cloudflare Pages config', () => {
     expect(read('../public/_headers')).toBe(out.headers);
     expect(read('../public/_redirects')).toBe(out.redirects);
   });
-  it('keeps the security headers and the five redirects', () => {
+  it('keeps the security headers, the five redirects and the clean wallet token path', () => {
     expect(out.headers).toContain('/*\n  Content-Security-Policy: ');
     expect(out.headers).toContain('X-Content-Type-Options: nosniff');
-    expect(out.redirects.trim().split('\n')).toHaveLength(5);
+    const lines = out.redirects.trim().split('\n');
+    expect(lines.filter((l) => l.endsWith(' 301') || l.endsWith(' 302'))).toHaveLength(5);
+    // /wallet/app stays a redirect and comes first; any other /wallet/<chain>/<address> serves the wallet page.
+    expect(lines.indexOf('/wallet/app /wallet 302')).toBeLessThan(lines.indexOf('/wallet/:chain/:address /wallet 200'));
+    expect(lines).toContain('/wallet/:chain/:address /wallet 200');
   });
 });

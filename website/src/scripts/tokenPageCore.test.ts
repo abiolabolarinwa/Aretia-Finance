@@ -142,3 +142,26 @@ describe('Markets links carry the token address', () => {
     expect(isMarketsHash('#/favourites')).toBe(false);
   });
 });
+
+describe('clean wallet token paths', () => {
+  const sol = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+  const evm = '0x4fae6afd6074f0f39a9fec54061d267fd3776578';
+
+  it('reads "/wallet/<chain>/<address>" as Markets with that token', async () => {
+    const { routeHash, walletTokenPath } = await import('./tokenPageCore');
+    expect(walletTokenPath('ethereum', evm.toUpperCase().replace('0X', '0x'))).toBe(`/wallet/ethereum/${evm}`);
+    expect(routeHash(`/wallet/ethereum/${evm}`, '')).toBe(`#/swings/ethereum/${evm}`);
+    expect(routeHash(`/wallet/solana/${sol}`, '')).toBe(`#/swings/solana/${sol}`);
+    expect(routeHash(`/wallet/solana/${sol}/`, '#')).toBe(`#/swings/solana/${sol}`);
+  });
+
+  it('lets a hash win, and leaves other paths alone', async () => {
+    const { routeHash } = await import('./tokenPageCore');
+    expect(routeHash(`/wallet/ethereum/${evm}`, '#/send')).toBe('#/send');
+    expect(routeHash('/wallet', '#/dashboard')).toBe('#/dashboard');
+    expect(routeHash('/wallet', '')).toBe('');
+    expect(routeHash('/wallet/app', '')).toBe('');
+    expect(routeHash('/wallet/ethereum/nope', '')).toBe('');
+    expect(routeHash('/token', '#/solana/x')).toBe('#/solana/x');
+  });
+});

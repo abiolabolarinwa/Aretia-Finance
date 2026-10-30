@@ -3,3 +3,4 @@
 /presale /buy 302
 /countdown / 302
 /wallet/app /wallet 302
+/wallet/:chain/:address /wallet 200

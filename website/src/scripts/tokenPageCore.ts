@@ -53,6 +53,20 @@ export function parseSwapHash(hash: string): { chain: ChainId; address: string }
   return ref ? { chain: ref.chain, address: ref.address } : null;
 }
 
+/** Markets with a token open: "#/swings/<chain>/<address>", so the address is in the link and the link opens the same token. */
+export const marketsHash = (chain: ChainId, address: string): string => `#/swings/${chain}/${CHAINS[chain].kind === 'evm' ? address.toLowerCase() : address}`;
+
+/** "#/swings/<chain>/<address>" to the token it names, or null for plain Markets and anything else. */
+export function parseMarketsHash(hash: string): { chain: ChainId; address: string } | null {
+  const m = /^#\/swings\/([a-z]+)\/([A-Za-z0-9]+)\/?$/.exec(hash.trim());
+  if (!m) return null;
+  const ref = normalizeTokenRef(m[1], m[2]);
+  return ref ? { chain: ref.chain, address: ref.address } : null;
+}
+
+/** Whether the address bar is on Markets, with or without a token in it. */
+export const isMarketsHash = (hash: string): boolean => hash === '#/swings' || hash.startsWith('#/swings/');
+
 export const shortAddress = (a: string): string => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
 /** What the Share button sends. */

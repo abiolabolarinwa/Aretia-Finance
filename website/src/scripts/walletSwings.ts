@@ -17,7 +17,7 @@ import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
 import { lookupAddress } from './walletAddressLookup.js';
-import { parseSwapHash } from './tokenPageCore.js';
+import { isMarketsHash, marketsHash, parseMarketsHash, parseSwapHash } from './tokenPageCore.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
@@ -1626,6 +1626,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
     function hideChart(): void {
+      if (location.hash !== '#/swings' && parseMarketsHash(location.hash)) window.history.replaceState(window.history.state, '', '#/swings');
       tvChart?.dispose();
       tvChart = null;
       tradesTable?.dispose();
@@ -1672,6 +1673,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const panelShown = (): boolean => panel.element.isConnected && panel.element.offsetParent !== null;
     const poolFinder = new GeckoPoolFinder();
     let pickSeq = 0;
+    /** The token the person chose goes into the address bar, so the link they copy names it and opens it again. */
+    function userPick(r: MarketRow): void {
+      if (!favPage && isMarketsHash(location.hash)) window.history.replaceState(window.history.state, '', marketsHash(r.chain, r.address));
+      pick(r);
+    }
+
     function pick(r: MarketRow): void {
       if (!panelShown()) return openRow(r);
       const mine = ++pickSeq;
@@ -1946,7 +1953,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
           // The ★ list has its own sidebar page, and the other lists live on Markets, so the title and the marked sidebar entry follow the choice.
-          if (k === 'favourites' && !favPage && location.hash === '#/swings') {
+          if (k === 'favourites' && !favPage && isMarketsHash(location.hash)) {
             location.hash = '#/favourites';
             return;
           }
@@ -2013,7 +2020,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: pick });
+        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: userPick });
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;
@@ -2125,7 +2132,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // A token the market service has no pool for still opens, with what is known and dashes for the rest.
         const row: MarketRow = got[0] ?? { chain: t.chain, address: t.address, symbol: t.symbol, quoteSymbol: '', name: t.name, icon: t.icon, decimals: null, pool: '', priceUsd: null, capUsd: null, ageMs: null, txns24h: null, volume24hUsd: null, traders24h: null, change: { m5: null, h1: null, h6: null, h24: null }, liquidityUsd: null, risk: null, fresh: false };
         const [rated] = applyRatings([row], await fetchRatings([row]).catch(() => []));
-        pick(rateRows([rated ?? row])[0]!);
+        const shown = rateRows([rated ?? row])[0]!;
+        if (!favPage && isMarketsHash(location.hash)) window.history.replaceState(window.history.state, '', marketsHash(shown.chain, shown.address));
+        pick(shown);
       },
       /** The network logo the user clicked becomes this list's network filter (they can still choose All networks). */
       setChain(id: ChainId | ''): void {
@@ -2382,7 +2391,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const t = (e as CustomEvent<{ chain: ChainId; address: string; symbol: string; name: string; icon: string | null; page?: 'swings' }>).detail;
     void (async () => {
       // From any other page it opens on Favourites, where price alerts come from (or Markets when asked); Markets and Favourites stay where they are.
-      if (!['#/swings', '#/favourites'].includes(location.hash)) {
+      if (!isMarketsHash(location.hash) && location.hash !== '#/favourites') {
         location.hash = t.page === 'swings' ? '#/swings' : '#/favourites';
         await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
         await new Promise<void>((r) => setTimeout(r, 0));
@@ -2428,6 +2437,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   });
 
   let linkHandled = '';
+  let marketLinkHandled = '';
   /** Opens the swap for a token named only by chain and address: name and symbol from the search indexes, else from the chain. */
   async function openLinkedToken(chain: ChainId, address: string): Promise<void> {
     if (!runtime.loaded) await loadRuntime();
@@ -2439,9 +2449,26 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail }));
   }
 
+  /** Opens Markets on a token named only in the link ("#/swings/<chain>/<address>"): name and symbol from the search indexes, else from the chain. */
+  async function openLinkedMarket(chain: ChainId, address: string): Promise<void> {
+    if (!runtime.loaded) await loadRuntime();
+    const same = (a: string): boolean => (chain === 'solana' ? a === address : a.toLowerCase() === address);
+    let hit: SearchHit | undefined = (await searchEverywhere(address, undefined, undefined, { accept: (h) => h.chain === chain && same(h.address), limit: 1 }).catch(() => []))[0];
+    hit ??= (await lookupAddress(address)).find((h) => h.chain === chain);
+    const fallback = `${address.slice(0, 4)}…${address.slice(-4)}`;
+    await markets.showToken({ chain, address, symbol: hit?.symbol ?? fallback, name: hit?.name ?? '', icon: hit?.icon ?? null });
+  }
+
   return {
     onShow(view) {
       closeSwapDialog();
+      // "#/swings/<chain>/<address>" opens Markets with that token's chart and details beside the list.
+      const marketLink = view === 'swings' ? parseMarketsHash(location.hash) : null;
+      if (!marketLink) marketLinkHandled = '';
+      else if (marketLinkHandled !== `${marketLink.chain}:${marketLink.address}`) {
+        marketLinkHandled = `${marketLink.chain}:${marketLink.address}`;
+        void openLinkedMarket(marketLink.chain, marketLink.address);
+      }
       // "#/swap/<chain>/<address>" (the Buy button on a public token page) opens the swap with that token to receive.
       const link = view === 'swap' ? parseSwapHash(location.hash) : null;
       if (!link) linkHandled = '';

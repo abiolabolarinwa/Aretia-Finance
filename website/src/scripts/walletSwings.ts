@@ -566,17 +566,50 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function currentBalance(): bigint | null {
     if (!s.from) return null;
     if (!isEvm(s.chain)) {
+      // The wallet page's own list is used when it is already there; otherwise the one balance on screen is read by itself.
       const held = (host.getHoldings() ?? []).find((h) => h.mint === s.from!.mint);
-      return held?.raw ? BigInt(held.raw.split('.')[0]!) : null;
+      if (held?.raw) return BigInt(held.raw.split('.')[0]!);
+      const owner = host.getAddress();
+      return owner && s.balance.key === `solana:${owner}:${s.from.mint}` ? s.balance.raw : null;
     }
     const address = accountFor(s.chain);
     return address && s.balance.key === `${s.chain}:${address}:${s.from.mint}` ? s.balance.raw : null;
   }
 
+  /**
+   * The Solana balance of the token being paid, read on its own: one call, not the whole-wallet scan the dashboard does (which
+   * also looks up names and prices, and can take many seconds). A token the wallet has no account for reads as zero.
+   */
+  function loadSolanaBalance(): void {
+    const owner = host.getAddress();
+    const from = s.from;
+    if (!owner || !from) return;
+    if ((host.getHoldings() ?? []).some((h) => h.mint === from.mint && h.raw)) return;
+    const key = `solana:${owner}:${from.mint}`;
+    if (s.balance.key === key) return;
+    s.balance = { key, raw: null };
+    const read = from.mint === SOL_MINT
+      ? rpcCall<{ value: number }>('getBalance', [owner]).then((r) => BigInt(r.value))
+      : rpcCall<{ value: { account: { data: { parsed: { info: { tokenAmount: { amount: string } } } } } }[] }>('getTokenAccountsByOwner', [owner, { mint: from.mint }, { encoding: 'jsonParsed' }]).then((r) =>
+          r.value.reduce((sum, a) => sum + BigInt(a.account.data.parsed.info.tokenAmount.amount), 0n),
+        );
+    void read
+      .then((raw) => {
+        if (s.balance.key !== key) return;
+        s.balance.raw = raw;
+        render();
+      })
+      // Not read: leave it unknown and ask again the next time the screen is drawn.
+      .catch(() => {
+        if (s.balance.key === key) s.balance = { key: '', raw: null };
+      });
+  }
+
   /** Reads an EVM balance once for the wallet and token on screen, then redraws so the 10% / 50% / Max buttons can use it. */
   function loadBalance(): void {
+    if (!isEvm(s.chain)) return loadSolanaBalance();
     const address = accountFor(s.chain);
-    if (!isEvm(s.chain) || !address || !s.from) return;
+    if (!address || !s.from) return;
     const key = `${s.chain}:${address}:${s.from.mint}`;
     if (s.balance.key === key) return;
     s.balance = { key, raw: null };

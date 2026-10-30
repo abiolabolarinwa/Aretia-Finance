@@ -9,6 +9,7 @@
  */
 import type * as Web3 from '@solana/web3.js';
 import { METEORA_DAMM_V2_PROGRAM, parseDammPool } from '../solana/meteoraDamm.js';
+import { encodeBase58 } from '../mi/solana/accounts.js';
 import type { MarketInfo } from './markets.js';
 
 const WSOL = 'So11111111111111111111111111111111111111112';
@@ -26,6 +27,19 @@ const u64 = (d: Uint8Array, o: number): bigint => new DataView(d.buffer, d.byteO
 
 /** Pool addresses already found, per mint, so a refresh does not search the history again. */
 const poolOf = new Map<string, string>();
+/**
+ * The only thing the pool reader needs from web3.js is `new PublicKey(bytes).toBase58()`. web3.js itself cannot be loaded in the
+ * server's runtime (its dependency `rpc-websockets` pulls in an ES-only package that `require` refuses), so a two-line stand-in is used.
+ */
+export const web3Lite = {
+  PublicKey: class {
+    constructor(private readonly bytes: Uint8Array) {}
+    toBase58(): string {
+      return encodeBase58(this.bytes);
+    }
+  },
+} as unknown as typeof Web3;
+
 export function resetDammMarkets(): void {
   poolOf.clear();
 }

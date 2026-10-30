@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import * as web3 from '@solana/web3.js';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { dammMarkets, resetDammMarkets } from './dammMarkets';
+import { dammMarkets, resetDammMarkets, web3Lite } from './dammMarkets';
 
 /** The real pool of a token launched on aretiafinance.org (2026-10-30), recorded from mainnet: tiny and one-sided, no price on DexScreener. */
 const fx = JSON.parse(readFileSync(new URL('./fixtures/damm-launch.json', import.meta.url), 'utf8')) as {
@@ -26,6 +26,16 @@ function node(calls: string[] = []) {
 }
 
 beforeEach(resetDammMarkets);
+
+describe('the server-side stand-in for web3.js', () => {
+  it('encodes keys exactly as web3.js does, and the server reads the pool with it', async () => {
+    const bytes = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) % 256);
+    expect(new web3Lite.PublicKey(bytes).toBase58()).toBe(new web3.PublicKey(bytes).toBase58());
+    const m = (await dammMarkets({ rpc: node(), web3: web3Lite, solUsd: async () => 100 }, [fx.mint])).get(fx.mint)!;
+    expect(m.pool?.address).toBe(POOL);
+    expect(m.priceUsd).toBeCloseTo(0.03, 6);
+  });
+});
 
 describe('a launched token whose pool the price feed does not list', () => {
   it('finds the pool from the token\'s own transaction and reads its price, holdings and supply from the chain', async () => {

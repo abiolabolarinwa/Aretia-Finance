@@ -1495,7 +1495,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function tokenBrowser(target: HTMLElement) {
     // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
     // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
-    type Kind = MarketKind | 'new' | 'favourites';
+    type Kind = MarketKind | 'new' | 'favourites' | 'rising';
+    /** The tabs that rank the same live list by a rule of their own. Rising reads the Trending feed and ranks it by buyer growth. */
+    const isRanked = (k: Kind): k is 'trending' | 'top' | 'gainers' | 'rising' => k === 'trending' || k === 'top' || k === 'gainers' || k === 'rising';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
     /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
@@ -1713,7 +1715,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           if (mine !== seq) return;
           rows = rateRows(rated);
         } else {
-          const q = { kind: m.kind, chain: m.chain, window: m.window };
+          const q = { kind: m.kind === 'rising' ? ('trending' as const) : m.kind, chain: m.chain, window: m.window };
           const key = listKey({ ...q, page: 0 });
           let got: MarketRow[];
           try {
@@ -1761,11 +1763,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
      * minute or two and carries on across list refreshes; each refresh lays what it has read so far under the fresh feed list.
      */
     function layDeeper(): void {
-      if (feedRows === null || (m.kind !== 'trending' && m.kind !== 'top' && m.kind !== 'gainers')) return;
+      if (feedRows === null || !isRanked(m.kind)) return;
       rows = rateRows(mergeIndexRows(mergeIndexRows(feedRows, deepSnapshot(m.chain)), indexRows));
     }
     async function addIndexRows(mine: number): Promise<void> {
-      if (m.kind !== 'trending' && m.kind !== 'top' && m.kind !== 'gainers') return;
+      if (!isRanked(m.kind)) return;
       const chain = m.chain;
       let shown = rows?.length ?? 0;
       const redraw = (): void => {
@@ -1810,7 +1812,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
       if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
       // Trending, Top and Gainers put what clears their bar in the chosen window first, best first; the rest follow.
-      if (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers') {
+      if (isRanked(m.kind)) {
         const ranked = modeRows(m.kind, m.window, strict);
         modeCount = ranked.count;
         return ranked.rows;
@@ -1908,7 +1910,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
@@ -1937,7 +1939,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }, tip));
       }
       bar.append(kindBox);
-      if (m.kind === 'trending' || m.kind === 'gainers') {
+      if (m.kind === 'trending' || m.kind === 'gainers' || m.kind === 'rising') {
         const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
         for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) {
           win.append(chip(label, m.window === w, () => {
@@ -1969,7 +1971,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
       const shownRows = visible();
-      if (rows !== null && (m.kind === 'trending' || m.kind === 'top' || m.kind === 'gainers')) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
+      if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));

@@ -74,6 +74,8 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
     };
     const volumeUsd: Changes = { m5: num(a.volume_usd?.m5), h1: num(a.volume_usd?.h1), h6: num(a.volume_usd?.h6), h24: num(a.volume_usd?.h24) };
     const txns: Changes = { m5: trades('m5'), h1: trades('h1'), h6: trades('h6'), h24: trades('h24') };
+    const buyerCount = (w: Window): number | null => num(tx(w)?.buyers);
+    const buyers: Changes = { m5: buyerCount('m5'), h1: buyerCount('h1'), h6: buyerCount('h6'), h24: buyerCount('h24') };
     const created = typeof a.pool_created_at === 'string' ? Date.parse(a.pool_created_at) : NaN;
     const change: Changes = { m5: num(a.price_change_percentage?.m5), h1: num(a.price_change_percentage?.h1), h6: num(a.price_change_percentage?.h6), h24: num(a.price_change_percentage?.h24) };
     const image = token.attributes?.image_url;
@@ -96,6 +98,7 @@ export function parseGeckoPools(body: unknown, now: number): MarketRow[] {
       traders24h: typeof t24?.buyers === 'number' && typeof t24?.sellers === 'number' ? t24.buyers + t24.sellers : null,
       volumeUsd,
       txns,
+      buyers,
       change,
       liquidityUsd: num(a.reserve_in_usd),
       risk: null,

@@ -41,14 +41,11 @@ import { decodeParams, encodeFunction } from '../engine/abiGeneric.js';
 import { executionIdOf, FEE_STEP_ID, parseExecutionId, type PermittedTokenTransfer, type SettlementCost, type SettlementIntent, type SettlementProvider, type SettlementQuote, type SettlementStatus, type SettlementStep, type SettlementTransaction, type SupportAnswer } from './types.js';
 
 /** CCTP domain ids, from Circle's list. BNB Chain is deliberately absent: Circle does not support USDC there. */
-export const CCTP_DOMAIN: Readonly<Partial<Record<ChainId, number>>> = { ethereum: 0, avalanche: 1, optimism: 2, arbitrum: 3, solana: 5, base: 6, polygon: 7 };
+export const CCTP_DOMAIN: Readonly<Partial<Record<ChainId, number>>> = { ethereum: 0, solana: 5, base: 6, polygon: 7 };
 
 /** Native USDC on each chain (issued by Circle, not bridged). Checked against the chain by the live tests. */
 export const CCTP_USDC: Readonly<Partial<Record<ChainId, string>>> = {
   ethereum: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  avalanche: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e',
-  optimism: '0x0b2c639c533813f4aa9d7837caf62653d097ff85',
-  arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
   base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
   polygon: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
   solana: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -80,12 +77,12 @@ export { MOVE_FEE_BPS, moveFeeFor };
 export const MAX_FEE_BPS = 100;
 
 /** Chains whose published CCTP "fast transfer" works from them as a source. */
-const FAST_SOURCE = new Set<ChainId>(['ethereum', 'optimism', 'arbitrum', 'base', 'solana']);
+const FAST_SOURCE = new Set<ChainId>(['ethereum', 'base', 'solana']);
 
 /** Average attestation times, in seconds, from Circle's published figures. */
 const ATTEST_SECONDS: Readonly<Record<'fast' | 'standard', Partial<Record<ChainId, number>>>> = {
-  fast: { ethereum: 20, arbitrum: 8, base: 8, optimism: 8, solana: 8 },
-  standard: { ethereum: 19 * 60, arbitrum: 19 * 60, base: 19 * 60, optimism: 19 * 60, avalanche: 8, polygon: 8, solana: 25 },
+  fast: { ethereum: 20, base: 8, solana: 8 },
+  standard: { ethereum: 19 * 60, base: 19 * 60, polygon: 8, solana: 25 },
 };
 /** Time to send the source transaction and to claim on the destination, on top of the attestation. */
 const HANDLING_SECONDS = 60;

@@ -138,7 +138,7 @@ describe('intent parser', () => {
 
   it('reads the four kinds of request', () => {
     expect(ok('buy 100 usd of usdc on base').intent).toEqual({ kind: 'buy', fiat: 'usd', amount: 100, token: { symbol: 'USDC', address: null }, chain: 'base' });
-    expect(ok('buy $250 of usdc on arbitrum').intent).toMatchObject({ kind: 'buy', fiat: 'usd', amount: 250, chain: 'arbitrum' });
+    expect(ok('buy $250 of usdc on polygon').intent).toMatchObject({ kind: 'buy', fiat: 'usd', amount: 250, chain: 'polygon' });
     expect(ok('sell 50 eur of usdc on ethereum').intent).toMatchObject({ kind: 'sell', fiat: 'eur', amount: 50, chain: 'ethereum' });
     expect(ok('swap 1.5 sol to act').intent).toMatchObject({ kind: 'swap', amount: '1.5', from: { symbol: 'SOL' }, to: { symbol: 'ACT' } });
     expect(ok('move 250 usdc from ethereum to base').intent).toEqual({ kind: 'move', amount: '250', token: { symbol: 'USDC', address: null }, fromChain: 'ethereum', toChain: 'base' });

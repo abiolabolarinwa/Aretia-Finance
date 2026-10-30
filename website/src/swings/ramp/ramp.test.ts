@@ -11,7 +11,7 @@ const intent = (over: Partial<RampIntent> = {}): RampIntent => ({ side: 'buy', f
 const catalog: RampApiCatalog = {
   countries: [{ code: 'US', name: 'United States', buy: true, sell: true }, { code: 'NG', name: 'Nigeria', buy: true, sell: false }],
   fiats: ['usd', 'eur'],
-  tokens: [{ chain: 'base', symbol: 'USDC', contract: BASE_USDC, sell: true }, { chain: 'optimism', symbol: 'USDC', contract: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', sell: false }],
+  tokens: [{ chain: 'base', symbol: 'USDC', contract: BASE_USDC, sell: true }, { chain: 'ethereum', symbol: 'USDC', contract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', sell: false }],
 };
 const api = (over: { status?: unknown; catalog?: unknown; session?: unknown; down?: boolean } = {}): { fn: RampApi; calls: Record<string, unknown>[] } => {
   const calls: Record<string, unknown>[] = [];
@@ -37,7 +37,7 @@ describe('MoonPay ramp provider', () => {
     expect((await provider().supports(intent({ country: null }))).reason).toMatch(/Choose your country/);
     expect((await provider().supports(intent({ country: 'NG', side: 'sell' }))).reason).toMatch(/does not buy crypto from customers in Nigeria/);
     expect((await provider().supports(intent({ asset: { chain: 'polygon', symbol: 'USDC', address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', decimals: 6 } }))).reason).toMatch(/does not list USDC on Polygon/);
-    expect((await provider().supports(intent({ side: 'sell', asset: { chain: 'optimism', symbol: 'USDC', address: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', decimals: 6 } }))).reason).toMatch(/selling USDC on Optimism/);
+    expect((await provider().supports(intent({ side: 'sell', asset: { chain: 'ethereum', symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', decimals: 6 } }))).reason).toMatch(/selling USDC on Ethereum/);
     expect((await provider().supports(intent({ fiat: 'ngn' }))).reason).toMatch(/NGN/);
     expect((await provider().supports(intent({ fiatAmount: 1.5 }))).reason).toMatch(/whole amount/);
   });

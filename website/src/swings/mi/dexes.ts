@@ -71,12 +71,11 @@ function fromEntry(e: DexEntry): DexAdapterSpec | null {
 /**
  * ApeSwap's V2 factories. Its documentation site could not be fetched while building this, so the addresses were confirmed
  * on-chain instead: each answers `allPairsLength()` and its first pair's `name()` is "ApeSwapFinance LPs" (checked 2026-10-23
- * on BNB Chain, Polygon, Arbitrum and Ethereum).
+ * on BNB Chain, Polygon and Ethereum).
  */
 const APESWAP: readonly [EvmMiChain, string][] = [
   ['bnb', '0x0841bd0b734e4f5853f0dd8d7ea041c241fb0da6'],
   ['polygon', '0xcf083be4164828f00cae704ec15a36d711491284'],
-  ['arbitrum', '0xcf083be4164828f00cae704ec15a36d711491284'],
   ['ethereum', '0xbae5dc9b19004883d0377419fef3c2c8832d7d7b'],
 ];
 

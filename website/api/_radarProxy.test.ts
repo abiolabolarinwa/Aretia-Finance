@@ -39,7 +39,7 @@ describe('radarAssetId', () => {
     for (const c of ['base', 'bnb', 'polygon']) expect(radarAssetId(`${c}:${PEPE}`)).toBe(`${c}:${PEPE.toLowerCase()}`);
   });
   it('rejects anything else, so nothing odd ever reaches the upstream address', () => {
-    for (const bad of [undefined, 5, '', 'ethereum:0x123', `arbitrum:${PEPE}`, `ethereum:${PEPE}/../x`, `ethereum:${PEPE}?a=1`, `solana:${MINT}x!`, '../etc/passwd', `solana:${'1'.repeat(45)}`]) expect(radarAssetId(bad)).toBeNull();
+    for (const bad of [undefined, 5, '', 'ethereum:0x123', `optimism:${PEPE}`, `ethereum:${PEPE}/../x`, `ethereum:${PEPE}?a=1`, `solana:${MINT}x!`, '../etc/passwd', `solana:${'1'.repeat(45)}`]) expect(radarAssetId(bad)).toBeNull();
   });
 });
 

@@ -8,7 +8,7 @@ import { WRAPPED_NATIVE } from '../dex/entries.js';
 import { PUBLIC_EVM_RPC, BACKUP_EVM_RPC } from '../chains/evmSession.js';
 
 /** The eight networks in scope. (Aretia's registry also knows Robinhood Chain; it is not part of this indexer.) */
-export const MI_CHAINS = ['solana', 'ethereum', 'base', 'bnb', 'polygon', 'arbitrum', 'optimism', 'avalanche'] as const satisfies readonly ChainId[];
+export const MI_CHAINS = ['solana', 'ethereum', 'base', 'bnb', 'polygon'] as const satisfies readonly ChainId[];
 export type MiChain = (typeof MI_CHAINS)[number];
 export const isMiChain = (v: unknown): v is MiChain => typeof v === 'string' && (MI_CHAINS as readonly string[]).includes(v);
 
@@ -50,8 +50,8 @@ const quotesOf = (chain: EvmMiChain): QuoteToken[] =>
   }));
 
 /** Reorg-safety depth per chain. Conservative; an operator can raise it with MI_CONFIRMATIONS_<CHAIN>. */
-const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10, arbitrum: 20, optimism: 10, avalanche: 6 };
-const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000, arbitrum: 2000, optimism: 1000, avalanche: 1000 };
+const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10 };
+const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000 };
 
 const SOLANA_QUOTES: readonly QuoteToken[] = [
   { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL', decimals: 9, role: 'native' },

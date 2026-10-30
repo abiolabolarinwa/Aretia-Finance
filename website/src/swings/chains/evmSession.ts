@@ -14,9 +14,6 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
   bnb: 'https://bsc-rpc.publicnode.com',
   polygon: 'https://polygon-bor-rpc.publicnode.com',
   base: 'https://base-rpc.publicnode.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
-  optimism: 'https://optimism-rpc.publicnode.com',
-  avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
   // publicnode, like the other networks. Robinhood's own public endpoint (rpc.mainnet.chain.robinhood.com) is documented as rate-limited
   // and dropped requests intermittently when tested from a browser.
   robinhood: 'https://robinhood-rpc.publicnode.com',
@@ -24,7 +21,7 @@ export const PUBLIC_EVM_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>
 
 /**
  * Tried, in order, when the main node refuses or cannot be reached. publicnode answers HTTP 403 ("archive requests require a
- * personal token") for the receipt of a transaction it has not seen yet, on BNB Chain, Base, Arbitrum and Optimism, which is
+ * personal token") for the receipt of a transaction it has not seen yet, on BNB Chain and Base, which is
  * exactly what a page asks a second after sending a swap. A second node returns the honest "not yet" (null) instead. Each was
  * checked to answer from a browser (CORS) and to return null for an unknown receipt.
  */
@@ -32,8 +29,6 @@ export const BACKUP_EVM_RPC: Readonly<Partial<Record<Exclude<ChainId, 'solana'>,
   ethereum: ['https://cloudflare-eth.com'],
   bnb: ['https://bsc-dataseed.binance.org', 'https://bsc-dataseed1.defibit.io', 'https://bsc.meowrpc.com'],
   base: ['https://mainnet.base.org'],
-  optimism: ['https://mainnet.optimism.io'],
-  avalanche: ['https://api.avax.network/ext/bc/C/rpc'],
   robinhood: ['https://rpc.mainnet.chain.robinhood.com'],
 };
 

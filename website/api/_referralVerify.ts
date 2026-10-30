@@ -35,9 +35,6 @@ export const EVM_READ_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>> 
   bnb: 'https://bsc-rpc.publicnode.com',
   polygon: 'https://polygon-bor-rpc.publicnode.com',
   base: 'https://base-rpc.publicnode.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
-  optimism: 'https://optimism-rpc.publicnode.com',
-  avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
   robinhood: 'https://robinhood-rpc.publicnode.com',
 };
 
@@ -47,18 +44,14 @@ export const EVM_READ_RPC: Readonly<Record<Exclude<ChainId, 'solana'>, string>> 
  *  - ethereum 64: two epochs, about 13 minutes, when the block is finalized by the beacon chain;
  *  - bnb 30: fast finality (BEP-126) finalizes in two to three blocks; 30 blocks is about 25 seconds at 0.75 s;
  *  - polygon 64: about two minutes at 2 s, well past Heimdall v2 milestones (seconds);
- *  - base / optimism 60: about two minutes at 2 s (sequencer reorgs are not expected; L1 batch posting follows);
- *  - arbitrum / robinhood 480: about two minutes at 0.25 s;
- *  - avalanche 1: Snowman consensus is final when the block is accepted.
+ *  - base 60: about two minutes at 2 s (sequencer reorgs are not expected; L1 batch posting follows);
+ *  - robinhood 480: about two minutes at 0.25 s.
  */
 export const EVM_CONFIRMATIONS: Readonly<Record<Exclude<ChainId, 'solana'>, number>> = {
   ethereum: 64,
   bnb: 30,
   polygon: 64,
   base: 60,
-  arbitrum: 480,
-  optimism: 60,
-  avalanche: 1,
   robinhood: 480,
 };
 

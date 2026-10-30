@@ -27,7 +27,7 @@ export type ParseResult = { ok: true; intent: Intent; missing: string[]; notes: 
 export const EXAMPLES = ['buy 100 usd of usdc on base', 'sell 50 usdc on ethereum for eur', 'swap 1 sol to act', 'move 250 usdc from ethereum to base'];
 
 const CHAIN_WORDS: Readonly<Record<string, ChainId>> = {
-  solana: 'solana', sol: 'solana', ethereum: 'ethereum', eth: 'ethereum', mainnet: 'ethereum', bnb: 'bnb', bsc: 'bnb', binance: 'bnb', polygon: 'polygon', matic: 'polygon', base: 'base', arbitrum: 'arbitrum', arb: 'arbitrum', optimism: 'optimism', op: 'optimism', avalanche: 'avalanche', avax: 'avalanche',
+  solana: 'solana', sol: 'solana', ethereum: 'ethereum', eth: 'ethereum', mainnet: 'ethereum', bnb: 'bnb', bsc: 'bnb', binance: 'bnb', polygon: 'polygon', matic: 'polygon', base: 'base',
 };
 const FIAT_SYMBOLS: Readonly<Record<string, string>> = { $: 'usd', '€': 'eur', '£': 'gbp' };
 const FIAT_CODES = new Set(['usd', 'eur', 'gbp', 'ngn', 'cad', 'aud', 'chf', 'jpy', 'inr', 'brl', 'mxn', 'zar', 'kes', 'ghs', 'try', 'sgd', 'hkd', 'nzd', 'sek', 'nok', 'dkk', 'pln']);

@@ -14,7 +14,7 @@ import { SwingsError, type ChainId } from '../core/types.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
 
 /** GeckoTerminal's network ids. */
-export const GECKO_NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avax', robinhood: 'robinhood' };
+export const GECKO_NETWORK: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'eth', bnb: 'bsc', polygon: 'polygon_pos', base: 'base', robinhood: 'robinhood' };
 
 export interface PoolInfo {
   network: string;
@@ -113,7 +113,7 @@ export function pickPool(chain: ChainId, address: string, pools: GeckoPool[]): P
 }
 
 /** DexScreener's names for the networks. */
-export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', arbitrum: 'arbitrum', optimism: 'optimism', avalanche: 'avalanche', robinhood: 'robinhood' };
+export const DEXSCREENER_CHAIN: Readonly<Record<ChainId, string>> = { solana: 'solana', ethereum: 'ethereum', bnb: 'bsc', polygon: 'polygon', base: 'base', robinhood: 'robinhood' };
 
 /**
  * GeckoTerminal's embedded chart, with its trades table and no info panel. It is the fallback the wallet shows when

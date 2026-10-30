@@ -37,11 +37,8 @@ export type Side = 'buy' | 'sell';
  */
 export const RAMP_EVM_USDC = {
   ethereum: { moonpay: 'usdc', contract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', sell: true },
-  arbitrum: { moonpay: 'usdc_arbitrum', contract: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', sell: true },
   base: { moonpay: 'usdc_base', contract: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', sell: true },
-  optimism: { moonpay: 'usdc_optimism', contract: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', sell: false },
   polygon: { moonpay: 'usdc_polygon', contract: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', sell: true },
-  avalanche: { moonpay: 'usdc_cchain', contract: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', sell: false },
 } as const;
 export type RampEvmChain = keyof typeof RAMP_EVM_USDC;
 export const isRampEvmChain = (c: unknown): c is RampEvmChain => typeof c === 'string' && Object.prototype.hasOwnProperty.call(RAMP_EVM_USDC, c);

@@ -1,5 +1,8 @@
 # Milestone status
 
+> **2026-10-30: Optimism, Avalanche and Arbitrum were removed from Aretia Finance** (chains, venues, Arena launchpad, fixtures, environment variables). Mentions below are history and no longer describe the code.
+
+
 ## Direction change (read this first)
 The target is now a **standalone, Aretia-owned engine** (direct DEX integrations, Aretia routing, Aretia transaction construction), not an aggregator client. The earlier work (Jupiter and 0x providers, `AretiaRouter` over provider quotes) is kept as **non-core**: benchmarking and migration only. See `ARETIA_SWINGS_ARCHITECTURE_AUDIT.md`.
 

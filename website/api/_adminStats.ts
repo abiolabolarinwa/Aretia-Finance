@@ -60,7 +60,7 @@ export function adminOwners(env: { ADMIN_WALLETS?: string }): Set<string> {
 // ---------------------------------------------------------------- the beacon
 
 const DAY = (now: number): string => new Date(now).toISOString().slice(0, 10);
-const CHAIN_IDS = ['solana', 'ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche', 'robinhood'];
+const CHAIN_IDS = ['solana', 'ethereum', 'bnb', 'polygon', 'base', 'robinhood'];
 const ISSUE_AREAS = ['js-error', 'unhandled-rejection', 'swap-failed', 'sign-in-failed', 'quote-failed', 'launch-failed', 'wallet-connect-failed', 'other'];
 const LABEL = /[^A-Za-z0-9 ._-]/g;
 

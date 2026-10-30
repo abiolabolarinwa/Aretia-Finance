@@ -2,7 +2,7 @@
 // database. No network, no files, no keys. See referral-export.mjs for the reading and docs/referrals.md for the rules.
 
 const NATIVE = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-const NATIVE_OF = { ethereum: 'ETH', bnb: 'BNB', polygon: 'POL', base: 'ETH', arbitrum: 'ETH', optimism: 'ETH', avalanche: 'AVAX', robinhood: 'ETH' };
+const NATIVE_OF = { ethereum: 'ETH', bnb: 'BNB', polygon: 'POL', base: 'ETH', robinhood: 'ETH' };
 const KNOWN = {
   So11111111111111111111111111111111111111112: { symbol: 'SOL', decimals: 9 },
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: { symbol: 'USDC', decimals: 6 },
@@ -104,12 +104,9 @@ export const EXPORT_RPC = {
   bnb: 'https://bsc-rpc.publicnode.com',
   polygon: 'https://polygon-bor-rpc.publicnode.com',
   base: 'https://base-rpc.publicnode.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
-  optimism: 'https://optimism-rpc.publicnode.com',
-  avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
   robinhood: 'https://robinhood-rpc.publicnode.com',
 };
-export const EXPORT_CONFIRMATIONS = { ethereum: 64, bnb: 30, polygon: 64, base: 60, arbitrum: 480, optimism: 60, avalanche: 1, robinhood: 480 };
+export const EXPORT_CONFIRMATIONS = { ethereum: 64, bnb: 30, polygon: 64, base: 60, robinhood: 480 };
 
 /**
  * Before paying: asks the chain again about every unpaid credited payment. Returns the keys (`paymentKey`) of those that are not

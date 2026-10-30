@@ -1,5 +1,5 @@
 /**
- * Transactions for Slipstream, the concentrated-liquidity pools of Aerodrome (Base) and Velodrome (Optimism). Pricing is
+ * Transactions for Slipstream, the concentrated-liquidity pools of Aerodrome (Base). Pricing is
  * the V3 adapter's (evmV3.ts, which reads the venue's own quoter); this file builds the swap the Slipstream router
  * takes. Its calls differ from Uniswap's SwapRouter02: the deadline is a field of the call, pools are named by tick
  * spacing, and there is no wrapping multicall. Output cannot be the native coin here, as with V3.

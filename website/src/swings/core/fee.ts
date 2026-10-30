@@ -2,7 +2,7 @@
  * Aretia's economics live here and only here: no provider, adapter or screen may carry its own rate.
  *
  * Policy: Aretia charges 0.58% of the amount the user pays, on every listed network, when the swap is PAID with a network's own
- * coin (SOL, ETH, BNB, POL, AVAX), that coin wrapped, or a main stablecoin (USDC, USDT, ...): see `core/feeAssets.ts`. Paying with
+ * coin (SOL, ETH, BNB, POL), that coin wrapped, or a main stablecoin (USDC, USDT, ...): see `core/feeAssets.ts`. Paying with
  * any other token (selling it) carries no fee. So the fee always arrives in an asset that is easy to sell, and swapping between two
  * of those assets (USDC to SOL, say) pays it too. It is taken out of the amount the user enters, so what the user spends is exactly
  * what they typed: the fee, plus the rest, which is what is swapped. The only other Aretia charge is the Move USDC fee below
@@ -56,9 +56,6 @@ export const DEFAULT_FEE_CONFIG: AretiaFeeConfig = {
     bnb: { chainId: 'bnb', enabled: false },
     polygon: { chainId: 'polygon', enabled: false },
     base: { chainId: 'base', enabled: false },
-    arbitrum: { chainId: 'arbitrum', enabled: false },
-    optimism: { chainId: 'optimism', enabled: false },
-    avalanche: { chainId: 'avalanche', enabled: false },
     robinhood: { chainId: 'robinhood', enabled: false },
   },
 };

@@ -1,5 +1,8 @@
 # Milestones 28 onward: completion reports
 
+> **2026-10-30: Optimism, Avalanche and Arbitrum were removed from Aretia Finance** (chains, venues, Arena launchpad, fixtures, environment variables). Mentions below are history and no longer describe the code.
+
+
 One report per milestone, written when the milestone is done and not before. "Done" means: tests, typecheck, lint and build all pass on the commit. Nothing here claims more than the tests and the checks show, and each report says what was NOT done.
 
 State of 0 to 27 at the start (inspected, not assumed): the standalone engine (direct venues on eight chains, routing, split, simulation), the token registry and risk engine, indexers, the ACT buyback (Solana), the swap store, the Swings UI, protected sending, the quote API and the staged-rollout brake. Cross-chain existed only as interfaces (`crosschain/types.ts`) with nothing executable. Wallets existed as Solana host (`window.AretiaWallet`) and EIP-6963/EIP-1193 (`chains/evmWallet.ts`, `chains/evmSession.ts`).

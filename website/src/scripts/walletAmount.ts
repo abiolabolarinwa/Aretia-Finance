@@ -14,9 +14,6 @@ export const FEE_CUSHION: Readonly<Record<ChainId, string>> = {
   bnb: '0.0005',
   polygon: '0.1',
   base: '0.0005',
-  arbitrum: '0.0005',
-  optimism: '0.0005',
-  avalanche: '0.02',
   robinhood: '0.0005',
 };
 

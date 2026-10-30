@@ -97,7 +97,7 @@ describe('Aretia fee policy', () => {
   });
 
   it('configures no EVM address by default', () => {
-    for (const id of ['ethereum', 'bnb', 'polygon', 'base', 'arbitrum', 'optimism', 'avalanche'] as const) expect(DEFAULT_FEE_CONFIG.chains[id].treasuryAddress).toBeUndefined();
+    for (const id of ['ethereum', 'bnb', 'polygon', 'base'] as const) expect(DEFAULT_FEE_CONFIG.chains[id].treasuryAddress).toBeUndefined();
   });
 });
 

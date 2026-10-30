@@ -18,14 +18,6 @@ const SIGS = {
   tokensForEthFee: 'swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)',
 } as const;
 
-/** The same three native-coin calls under the names Avalanche's V2 forks use. */
-const AVAX_SIGS = {
-  ethForTokens: 'swapExactAVAXForTokens(uint256,address[],address,uint256)',
-  tokensForEth: 'swapExactTokensForAVAX(uint256,uint256,address[],address,uint256)',
-  ethForTokensFee: 'swapExactAVAXForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)',
-  tokensForEthFee: 'swapExactTokensForAVAXSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)',
-} as const;
-
 export interface V2SwapParams {
   /** Token addresses along the route, lower-case. The wrapped native token stands in for the native coin. */
   path: string[];
@@ -69,7 +61,7 @@ export function buildV2Swap(entry: DexEntry, p: V2SwapParams, nowSeconds: number
   if (p.nativeOut && p.path[p.path.length - 1]!.toLowerCase() !== wrapped) throw new SwingsError('invalid', 'A swap into the native coin must end at the wrapped native token.');
 
   const fee = p.feeOnTransfer === true;
-  const SG = entry.nativeNaming === 'avax' ? { ...SIGS, ...AVAX_SIGS } : SIGS;
+  const SG = SIGS;
   const path = addressArray(p.path.map((a) => a.toLowerCase()));
   const to = address(p.recipient.toLowerCase());
   let data: string;
@@ -102,10 +94,10 @@ export interface InspectedSwap {
 /** Reads a V2 router swap's calldata back into its parts. Returns null for anything that is not one of the swap calls. */
 export function inspectV2Swap(data: string): InspectedSwap | null {
   const sel = data.slice(2, 10).toLowerCase();
-  const names = [...Object.values(SIGS), ...Object.values(AVAX_SIGS)];
+  const names = Object.values(SIGS);
   const sig = names.find((s) => selector(s) === sel);
   if (!sig) return null;
-  const ethIn = /swapExact(ETH|AVAX)ForTokens/.test(sig);
+  const ethIn = /swapExactETHForTokens/.test(sig);
   const staticCount = ethIn ? 4 : 5;
   const arrayIndex = ethIn ? 1 : 2;
   const { statics, path } = decodeAddressArrayCall(data, staticCount, arrayIndex);

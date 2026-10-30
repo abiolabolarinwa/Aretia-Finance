@@ -268,8 +268,8 @@ describe('EVM wallet discovery and adapter', () => {
       return { adapter, calls };
     }
 
-    it('offers to add Arbitrum, Optimism and Avalanche from its own stored parameters, then confirms the switch', async () => {
-      for (const id of [42161, 10, 43114]) {
+    it('offers to add Polygon and BNB Chain from its own stored parameters, then confirms the switch', async () => {
+      for (const id of [56, 137]) {
         const { adapter, calls } = walletWithout(id);
         await adapter.switchChain(id);
         const add = calls.find((c) => c.method === 'wallet_addEthereumChain');
@@ -283,8 +283,8 @@ describe('EVM wallet discovery and adapter', () => {
       const { adapter, calls } = walletWithout(999);
       await expect(adapter.switchChain(999)).rejects.toMatchObject({ code: 'invalid' });
       expect(calls.some((c) => c.method === 'wallet_addEthereumChain')).toBe(false);
-      const declined = walletWithout(42161, { declineAdd: true });
-      await expect(declined.adapter.switchChain(42161)).rejects.toMatchObject({ code: 'rejected' });
+      const declined = walletWithout(56, { declineAdd: true });
+      await expect(declined.adapter.switchChain(56)).rejects.toMatchObject({ code: 'rejected' });
     });
   });
 

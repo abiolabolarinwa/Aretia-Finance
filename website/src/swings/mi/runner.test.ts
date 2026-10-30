@@ -14,7 +14,7 @@ describe('runner', () => {
   it('runs only the demonstrated adapter by default, and what the environment names otherwise', () => {
     expect(enabledSpecs({}).map((s) => s.id)).toEqual(DEFAULT_ADAPTERS);
     expect(enabledSpecs({ MI_ADAPTERS: 'uniswap-v3-base, nope ,apeswap-v2-bnb' }).map((s) => s.id)).toEqual(['uniswap-v3-base', 'apeswap-v2-bnb']);
-    expect(enabledSpecs({ MI_ADAPTERS: '*' }).length).toBeGreaterThan(20);
+    expect(enabledSpecs({ MI_ADAPTERS: '*' }).length).toBeGreaterThan(15);
   });
 
   it('listing rules come from the environment, ignoring nonsense', () => {

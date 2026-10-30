@@ -30,12 +30,9 @@ export interface QuoteEnv extends ProxyEnv {
   EVM_RPC_BNB?: string;
   EVM_RPC_POLYGON?: string;
   EVM_RPC_BASE?: string;
-  EVM_RPC_ARBITRUM?: string;
-  EVM_RPC_OPTIMISM?: string;
-  EVM_RPC_AVALANCHE?: string;
 }
 
-const EVM_ENV: Readonly<Record<string, keyof QuoteEnv>> = { ethereum: 'EVM_RPC_ETHEREUM', bnb: 'EVM_RPC_BNB', polygon: 'EVM_RPC_POLYGON', base: 'EVM_RPC_BASE', arbitrum: 'EVM_RPC_ARBITRUM', optimism: 'EVM_RPC_OPTIMISM', avalanche: 'EVM_RPC_AVALANCHE' };
+const EVM_ENV: Readonly<Record<string, keyof QuoteEnv>> = { ethereum: 'EVM_RPC_ETHEREUM', bnb: 'EVM_RPC_BNB', polygon: 'EVM_RPC_POLYGON', base: 'EVM_RPC_BASE' };
 const INTEGRATOR = /^[a-z0-9_-]{1,32}$/;
 const MAX_AMOUNT_DIGITS = 40;
 const TIMEOUT_MS = 25_000;

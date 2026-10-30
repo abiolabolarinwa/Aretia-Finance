@@ -8,8 +8,8 @@ Goal: prove one real EVM-to-EVM move with Circle's CCTP, with a small amount, an
 - **Operator:** `PUBLIC_ARETIA_EVM_FEE_ADDRESS` must be set in the build, or moves from EVM networks are refused ("the Aretia fee address for EVM networks is not set up yet"). For a move from Solana, the fee wallet's USDC account must already exist (see `MANAGEMENT_FEE.md`, "Move USDC fee").
 - **Route (pick one):**
   - *Fastest first test:* **Polygon to Base**, standard. Polygon's standard attestation is about 8 seconds, so the whole move is a few minutes.
-  - *The common route:* **Base to Arbitrum**, standard. Attestation is about 19 minutes; this also tests the long wait and coming back to the page.
-- **You need:** the 2 USDC plus the fee (2.002 USDC) on the source network (native USDC, not bridged USDC.e), a little of the source network's coin for the burn fee (POL or ETH, cents), and **a little of the destination network's coin** (ETH on Base or Arbitrum). The claim is a transaction you pay for on the destination. The page warns if the destination balance is zero.
+  - *The common route:* **Base to Polygon**, standard. Attestation is about 19 minutes; this also tests the long wait and coming back to the page.
+- **You need:** the 2 USDC plus the fee (2.002 USDC) on the source network (native USDC, not bridged USDC.e), a little of the source network's coin for the burn fee (POL or ETH, cents), and **a little of the destination network's coin** (ETH on Base, POL on Polygon). The claim is a transaction you pay for on the destination. The page warns if the destination balance is zero.
 - **Operator switches (Vercel, Runtime):** both networks must be on. `SWINGS_EVM_CHAINS` unset means all EVM networks are on; if you set it, list both (for example `polygon,base`). If `SWINGS_CANARY_WALLETS` is set, your wallet's address must be in it, or Start says the wallet is "not in that group yet".
 - **Recovery copy:** optional. Without it the record lives in this browser only; **write down the Recovery code** shown on the status card.
 - Use the same browser and wallet for the whole move.

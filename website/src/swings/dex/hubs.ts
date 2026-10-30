@@ -40,16 +40,6 @@ export const HUB_TOKENS: Readonly<Partial<Record<ChainId, readonly HubToken[]>>>
     { address: WRAPPED_NATIVE.base, symbol: 'WETH', decimals: 18 },
     { address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', symbol: 'USDC', decimals: 6 },
   ],
-  arbitrum: [
-    { address: WRAPPED_NATIVE.arbitrum, symbol: 'WETH', decimals: 18 },
-    { address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', symbol: 'USDC', decimals: 6 },
-    { address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', symbol: 'USDT', decimals: 6 },
-  ],
-  optimism: [
-    { address: WRAPPED_NATIVE.optimism, symbol: 'WETH', decimals: 18 },
-    { address: '0x0b2c639c533813f4aa9d7837caf62653d097ff85', symbol: 'USDC', decimals: 6 },
-    { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', symbol: 'USDT', decimals: 6 },
-  ],
   // Robinhood Chain. Both addresses are in Robinhood's own token contracts list, and USDG's is in Paxos's documentation too; symbol,
   // name and decimals were read from the chain. USDG (Global Dollar, issued by Paxos) is the only stablecoin Robinhood lists: it
   // lists no USDC or USDT, so none is added.
@@ -60,10 +50,5 @@ export const HUB_TOKENS: Readonly<Partial<Record<ChainId, readonly HubToken[]>>>
   robinhood: [
     { address: WRAPPED_NATIVE.robinhood, symbol: 'WETH', decimals: 18 },
     { address: '0x5fc5360d0400a0fd4f2af552add042d716f1d168', symbol: 'USDG', decimals: 6, skipV4: true },
-  ],
-  avalanche: [
-    { address: WRAPPED_NATIVE.avalanche, symbol: 'WAVAX', decimals: 18 },
-    { address: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', symbol: 'USDC', decimals: 6 },
-    { address: '0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7', symbol: 'USDT', decimals: 6 },
   ],
 };

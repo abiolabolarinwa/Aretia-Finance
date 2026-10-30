@@ -65,7 +65,7 @@ EVIDENCE ${JSON.stringify(earned, null, 1)}
 `);
     expect(EVIDENCE).toEqual(earned);
     // Never claims what was not captured.
-    expect(Object.keys(earned).length).toBeGreaterThan(15);
+    expect(Object.keys(earned).length).toBeGreaterThan(12);
   });
 
   it('prices real swaps plausibly: the busy wrapped-native pools price at a sensible dollar value', () => {

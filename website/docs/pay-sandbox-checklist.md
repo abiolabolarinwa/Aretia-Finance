@@ -33,7 +33,7 @@ Use a small whole amount (for example 50). In Pay, choose the Stablecoin, Networ
 |---|---|---|
 | 1 | USDC, Solana, United States, USD 50 | See options lists MoonPay with "fee shown on the provider's page"; the new tab opens the sandbox widget with your Solana address already filled in |
 | 2 | USDT, Solana | Same, with USDT |
-| 3 | USDC on Base, Ethereum, Arbitrum, Polygon | Same, using the connected Ethereum-style account (USDT is not offered there) |
+| 3 | USDC on Base, Ethereum, Polygon | Same, using the connected Ethereum-style account (USDT is not offered there) |
 | 4 | A country MoonPay does not serve | A plain "does not sell crypto to customers in …", no checkout |
 | 5 | Amount `0`, `1.5`, empty | "Enter a whole amount of at least 1." |
 | 6 | Complete the purchase in the widget | See the next section |

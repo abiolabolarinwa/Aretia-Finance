@@ -24,14 +24,14 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | `ADMIN_WALLETS`, `SWINGS_SESSION_SECRET` | owner controls (already set for the admin page) | required for controls |
 | `MI_ADAPTERS` | comma list of adapter ids (EVM such as `uniswap-v3-base`, Solana `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`), or `*` | `pancakeswap-v2-bnb` |
 | `MI_RPC_<CHAIN>` or `EVM_RPC_<CHAIN>` | a dedicated node URL (https) for a chain; tried before the public nodes. Solana: `MI_RPC_SOLANA` or the existing `SOLANA_RPC_URL` | public nodes |
-| `MI_CONFIRMATIONS_<CHAIN>` | blocks to wait before trusting a log | ethereum 12, bnb 15, polygon 64, base 10, arbitrum 20, optimism 10, avalanche 6 |
+| `MI_CONFIRMATIONS_<CHAIN>` | blocks to wait before trusting a log | ethereum 12, bnb 15, polygon 64, base 10 |
 | `MI_ADDRESS_BATCH_<CHAIN>` | pool addresses per `getLogs` (public nodes allow 10) | 10 |
 | `MI_FOLLOW_NEWEST`, `MI_FOLLOW_RECENT` | pools whose swaps are followed per adapter (newest created, most recently traded) | 100 each |
 | `MI_MIN_LIQUIDITY_USD` | listing rule: minimum dollar liquidity where known | 500 |
 | `MI_INACTIVE_AFTER_HOURS` | a pool with no trade for this long becomes inactive | 168 |
 | `MI_TRADE_RETENTION_DAYS` | trades older than this are deleted | 30 |
 
-`<CHAIN>` is `ETHEREUM, BNB, POLYGON, BASE, ARBITRUM, OPTIMISM, AVALANCHE`.
+`<CHAIN>` is `ETHEREUM, BNB, POLYGON, BASE`.
 
 ## Deployment steps
 

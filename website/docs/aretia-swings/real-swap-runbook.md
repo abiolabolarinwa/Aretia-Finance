@@ -33,7 +33,7 @@
 - Then a token-to-token swap, which does need the exact-amount approval: confirm the approval is for exactly the amount, not unlimited.
 
 ## 5. Each remaining chain
-Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sensible amount), BNB Chain, Polygon, Arbitrum, Optimism, Avalanche. With `SWINGS_EVM_CHAINS` set to the one chain you are testing, change it to the next one each time.
+Repeat step 4, one chain at a time: Ethereum (gas is dear, use the smallest sensible amount), BNB Chain, Polygon. With `SWINGS_EVM_CHAINS` set to the one chain you are testing, change it to the next one each time.
 
 ## 6. Splits
 Splits trigger only for large trades on thin pools, so they are best proven by one deliberate test on a thin pair, small in absolute terms. Confirm one transaction, two legs, and that both legs' minimums are respected.

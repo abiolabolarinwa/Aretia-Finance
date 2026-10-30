@@ -10,7 +10,7 @@ import type { SettlementIntent } from './types.js';
 
 const SENDER = '0x' + 'a'.repeat(40);
 const RECIPIENT = '0x' + 'b'.repeat(40);
-const evm: ChainId[] = ['ethereum', 'avalanche', 'optimism', 'arbitrum', 'base', 'polygon'];
+const evm: ChainId[] = ['ethereum', 'base', 'polygon'];
 const intent = (s: ChainId, d: ChainId): SettlementIntent => ({ sourceChain: s, sourceAsset: { chain: s, address: CCTP_USDC[s]! }, sourceAmount: 100_000_000n, destinationChain: d, destinationAsset: { chain: d, address: CCTP_USDC[d]! }, sender: SENDER, recipient: RECIPIENT });
 const solRpc = async <T>(method: string, params: unknown[]): Promise<T> => {
   const res = await fetch('https://solana-rpc.publicnode.com', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });

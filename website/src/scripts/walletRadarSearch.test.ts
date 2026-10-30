@@ -64,19 +64,19 @@ const serve = (body: unknown): typeof fetch => (async (url: string | URL | Reque
 
 describe('searchForRadar', () => {
   it('keeps only networks Radar can analyze', async () => {
-    const f = serve(gecko([{ chain: 'ethereum', address: EVM(1), symbol: 'AAA', liq: 500 }, { chain: 'arbitrum', address: EVM(2), symbol: 'AAA', liq: 900 }, { chain: 'solana', address: SOL, symbol: 'AAA', liq: 700 }, { chain: 'avalanche', address: EVM(3), symbol: 'AAA', liq: 800 }]));
+    const f = serve(gecko([{ chain: 'ethereum', address: EVM(1), symbol: 'AAA', liq: 500 }, { chain: 'robinhood', address: EVM(2), symbol: 'AAA', liq: 900 }, { chain: 'solana', address: SOL, symbol: 'AAA', liq: 700 }, { chain: 'robinhood', address: EVM(3), symbol: 'AAA', liq: 800 }]));
     const hits = await searchForRadar('aaa', f);
     expect(hits.map((h) => h.chain).sort()).toEqual(['ethereum', 'solana']);
     for (const h of hits) expect(RADAR_CHAINS.has(h.chain)).toBe(true);
   });
   it('is not crowded out: results on other networks never use up the ten places', async () => {
-    const crowd = Array.from({ length: 14 }, (_, i) => ({ chain: 'arbitrum' as ChainId, address: EVM(100 + i), symbol: 'BBB', liq: 1_000_000 - i }));
+    const crowd = Array.from({ length: 14 }, (_, i) => ({ chain: 'robinhood' as ChainId, address: EVM(100 + i), symbol: 'BBB', liq: 1_000_000 - i }));
     const f = serve(gecko([...crowd, { chain: 'ethereum', address: EVM(1), symbol: 'BBB', liq: 10 }]));
     expect((await searchForRadar('bbb', f)).map((h) => h.address)).toEqual([EVM(1)]);
     // The same search with no filter, as the top bar makes it, is unchanged: ten results, all on the busy network.
     const plain = await searchTokens('bbb', f);
     expect(plain).toHaveLength(10);
-    expect(plain.every((h) => h.chain === 'arbitrum')).toBe(true);
+    expect(plain.every((h) => h.chain === 'robinhood')).toBe(true);
   });
   it('ranks by liquidity and stops at ten', async () => {
     const many = Array.from({ length: 13 }, (_, i) => ({ chain: 'ethereum' as ChainId, address: EVM(200 + i), symbol: 'CCC', liq: 100 + i }));

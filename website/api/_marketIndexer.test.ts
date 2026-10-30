@@ -145,7 +145,7 @@ describe('GET /api/v1 (public read API)', () => {
   it('reports every chain and DEX with its evidence, and lists what is not indexed', async () => {
     const { store, now } = await seeded();
     const s = body(await get(store, now, 'status')).data;
-    expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['arbitrum', 'avalanche', 'base', 'bnb', 'ethereum', 'optimism', 'polygon', 'solana']);
+    expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['base', 'bnb', 'ethereum', 'polygon', 'solana']);
     expect(s.chains.find((c: { id: string }) => c.id === 'solana')).toMatchObject({ supported: true, adapters: 3 });
     expect(s.dexes.find((d: { id: string }) => d.id === 'orca-whirlpool-solana')).toMatchObject({ evidence: 'live-verified', state: 'not-running' });
     expect(s.chains.find((c: { id: string }) => c.id === 'bnb').running).toBe(1);

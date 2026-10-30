@@ -9,6 +9,7 @@ import { overLimit } from './_rpcProxy.js';
 import { isChainId, type ChainId } from '../src/swings/core/types.js';
 import { GeckoMarket, type MarketKind, type Window as MarketWindow } from '../src/swings/market/gecko.js';
 import type { MarketRow } from '../src/swings/market/types.js';
+import { isDeadMarket } from '../src/swings/market/dead.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const KINDS: readonly string[] = ['trending', 'top', 'gainers', 'new'];
@@ -44,7 +45,8 @@ export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   const source = new GeckoMarket(input.fetchImpl, () => input.now, 0, undefined, input.sleep);
   try {
     const query = { kind: kind as MarketKind, chain: chain as ChainId | '', window: window as MarketWindow };
-    const rows = recent ? await source.loadRecent(query) : await source.load({ ...query, page });
+    // Tokens whose price has gone to nothing on every network are left out here, so no list carries them.
+    const rows = (recent ? await source.loadRecent(query) : await source.load({ ...query, page })).filter((r) => !isDeadMarket(r));
     if (lists.size > 400) lists.clear();
     lists.set(key, { at: input.now, rows });
     return ok(rows, false);

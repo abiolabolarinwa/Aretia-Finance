@@ -30,6 +30,15 @@ describe('shared Marketplace lists', () => {
     expect(a.headers['cache-control']).toContain('s-maxage=60');
   });
 
+  it('leaves out a token whose price is down 100% in the hour, six hours and day', async () => {
+    const dead = JSON.parse(JSON.stringify(body)) as typeof body;
+    dead.data[0]!.attributes = { ...dead.data[0]!.attributes, price_change_percentage: { m5: '0', h1: '-100', h6: '-100', h24: '-100' } } as never;
+    const f = (async () => new Response(JSON.stringify(dead))) as unknown as typeof fetch;
+    const out = await handleMarket(input({ kind: 'new', chain: 'solana' }, f));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body).rows).toHaveLength(0);
+  });
+
   it('answers the whole recent list in one reply with recent=1, kept apart from the paged list', async () => {
     const urls: string[] = [];
     const f = (async (u: string) => (urls.push(String(u)), new Response(JSON.stringify(body)))) as unknown as typeof fetch;

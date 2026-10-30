@@ -36,6 +36,7 @@ import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.
 import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
+import { isDeadMarket } from '../swings/market/dead.js';
 import { modeNote, modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
@@ -1837,6 +1838,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let modeCount = 0;
     function visible(): MarketRow[] {
       const pass = (r: MarketRow, withAge: boolean): boolean => {
+        // A token whose price has gone to nothing is never listed, on any network (a star on Favourites keeps it there).
+        if (m.kind !== 'favourites' && isDeadMarket(r)) return false;
         if (f.liquidity !== '0' && (r.liquidityUsd ?? 0) < Number(f.liquidity)) return false;
         if (withAge && f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
         const st = r.risk?.status ?? 'unknown';

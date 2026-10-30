@@ -100,6 +100,8 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
     const stored = await store.listPublic(LIST_LIMIT);
     let marketOk = true;
     let staleMarket = false;
+    /** Why the chain read for Solana tokens the price feed lacks did not run, in a few words; absent when it ran. */
+    let chainReadNote: string | undefined;
     const maps = new Map<LaunchChain, Map<string, MarketInfo>>();
     const curves = new Map<string, CurveView | 'none' | 'unknown'>();
     await Promise.all(
@@ -114,10 +116,15 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
             const map = await fetchPools(input.fetchImpl, chain, addrs);
             // A Solana token the price feed has no pool for yet (a new or one-sided pool opened on the Launch page) is read from the chain.
             if (chain === 'solana') {
-              const missing = addrs.filter((a) => !map.has(a));
-              const web3 = await import('@solana/web3.js');
-              const rpc = makeRpc(input.fetchImpl, input.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com');
-              for (const [k, v] of await dammMarkets({ rpc, web3, solUsd: () => solanaUsd(input.fetchImpl) }, missing).catch(() => new Map<string, MarketInfo>())) map.set(k, v);
+              try {
+                const missing = addrs.filter((a) => !map.has(a));
+                const web3 = await import('@solana/web3.js');
+                const rpc = makeRpc(input.fetchImpl, input.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com');
+                for (const [k, v] of await dammMarkets({ rpc, web3, solUsd: () => solanaUsd(input.fetchImpl) }, missing)) map.set(k, v);
+              } catch (e) {
+                // The chain read is an addition: the feed's numbers stand as they are.
+                chainReadNote = String(e instanceof Error ? e.message : e).slice(0, 120);
+              }
             }
             marketCache.set(chain, { at: input.now, map });
             maps.set(chain, map);
@@ -137,7 +144,7 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
       const key = t.chain === 'solana' ? t.address : t.address.toLowerCase();
       return toView(t, map?.get(key), map !== undefined, t.chain === 'solana' ? undefined : curves.get(`${t.chain}:${key}`));
     });
-    const body = { ...base, setup: 'ok', launches, index: indexStatus(cursors), staleMarket, marketOk };
+    const body = { ...base, setup: 'ok', launches, index: indexStatus(cursors), staleMarket, marketOk, ...(chainReadNote ? { chainReadNote } : {}) };
     page = { at: input.now, body };
     return json(200, body, { ...headers, 'cache-control': 'public, s-maxage=60, stale-while-revalidate=300' });
   } catch (e) {

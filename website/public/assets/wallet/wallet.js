@@ -120,7 +120,13 @@
       return "Your wallet is locked. Unlock it, then try again.";
     }
     try { console.warn("Aretia wallet connect failed:", msg.slice(0, 200)); } catch (e) {}
-    return "Something went wrong connecting your wallet. Please try again.";
+    // Some wallets refuse a site they do not know or have flagged: say that, instead of a message that sounds like a fault of ours.
+    if (/block|malicious|phish|untrusted|not trusted|suspicious|unverified|domain|origin|security/i.test(lower)) {
+      return "Your wallet declined to connect to this site (it may be warning about an unverified website). Check the wallet's own message, or try another wallet.";
+    }
+    // The wallet's own reason is shown, so a person (or we) can tell what is wrong instead of guessing.
+    var reason = msg.replace(/s+/g, " ").trim().slice(0, 140);
+    return "Something went wrong connecting your wallet" + (reason ? " (" + reason + ")" : "") + ". Please try again.";
   }
 
   // ------------------------------------------------------------------

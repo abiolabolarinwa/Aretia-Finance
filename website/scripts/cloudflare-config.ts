@@ -7,11 +7,15 @@ import { pathToFileURL } from 'node:url';
 
 interface VercelConfig {
   redirects: { source: string; destination: string; permanent: boolean }[];
+  rewrites?: { source: string; destination: string }[];
   headers: { source: string; headers: { key: string; value: string }[] }[];
 }
 
 export function cloudflareFiles(vercel: VercelConfig): { headers: string; redirects: string } {
-  const redirects = vercel.redirects.map((r) => `${r.source} ${r.destination} ${r.permanent ? 301 : 302}`).join('\n') + '\n';
+  // Page rewrites (a URL that serves another page, status 200) go after the redirects, so a redirect for the same path still wins.
+  // The /api rewrites are not here: Cloudflare sends /api to the API host.
+  const pageRewrites = (vercel.rewrites ?? []).filter((r) => !r.source.startsWith('/api/')).map((r) => `${r.source} ${r.destination} 200`);
+  const redirects = [...vercel.redirects.map((r) => `${r.source} ${r.destination} ${r.permanent ? 301 : 302}`), ...pageRewrites].join('\n') + '\n';
   const headers =
     vercel.headers
       .map((h) => `${h.source === '/(.*)' ? '/*' : h.source}\n${h.headers.map((x) => `  ${x.key}: ${x.value}`).join('\n')}`)

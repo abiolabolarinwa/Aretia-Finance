@@ -1,5 +1,6 @@
 import { ACT as ACT_INFO } from '../data/site';
 import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
+import { routeHash } from './tokenPageCore';
 import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding } from './walletEvmHoldings';
@@ -438,7 +439,7 @@ export function initWalletApp(): void {
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.
-    const raw = location.hash.replace(/^#\/?/, '').split('/')[0] ?? '';
+    const raw = routeHash(location.pathname, location.hash).replace(/^#\/?/, '').split('/')[0] ?? '';
     // Trade was folded into Swap, which covers more networks; old links still land somewhere useful.
     const h = (raw === 'trade' ? 'swap' : raw) as View;
     return VIEWS.includes(h) ? h : 'dashboard';
@@ -1125,6 +1126,8 @@ export function initWalletApp(): void {
 
   // ---- wiring
   function onRoute(): void {
+    // A hash chosen from a clean token path ("/wallet/<chain>/<address>#/send") goes back to the plain wallet address.
+    if (location.hash.length > 1 && /^\/wallet\/./.test(location.pathname)) history.replaceState(null, '', `/wallet${location.hash}`);
     renderChrome();
     const view = currentView();
     if (view === 'swings' || view === 'swap' || view === 'favourites') swings.onShow(view);
@@ -1135,7 +1138,7 @@ export function initWalletApp(): void {
     if (view === 'referrals') referrals?.onShow();
     if (view === 'activity') swings.onActivityShow();
     if (view === 'launchbox') launchTools.onShowLaunchBox();
-    if (view === 'shield') shield.onShow(location.hash);
+    if (view === 'shield') shield.onShow(routeHash(location.pathname, location.hash));
     if (view === 'launch') launchTools.onShowLaunch();
     if (view === 'send') {
       void loadWeb3();

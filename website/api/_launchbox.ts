@@ -14,7 +14,7 @@ import { LAUNCH_CHAINS, type CurveView, type LaunchChain, type LaunchView } from
 import { MissingTableError, SupabaseLaunchStore, type CursorRow, type LaunchStore } from '../src/swings/launchbox/store.js';
 import { PUBLIC_EVM_RPC, runIndexer, type IndexerEnv } from '../src/swings/launchbox/indexer.js';
 import { fetchPools, readCurves, toView, type MarketInfo } from '../src/swings/launchbox/markets.js';
-import { dammMarkets, makeRpc, solanaUsd } from '../src/swings/launchbox/dammMarkets.js';
+import { dammMarkets, makeRpc, solanaUsd, web3Lite } from '../src/swings/launchbox/dammMarkets.js';
 import { refreshLinks } from '../src/swings/launchbox/links.js';
 
 export interface LaunchboxEnv extends IndexerEnv {
@@ -118,9 +118,8 @@ export async function handleLaunchbox(input: LaunchboxInput): Promise<LaunchboxO
             if (chain === 'solana') {
               try {
                 const missing = addrs.filter((a) => !map.has(a));
-                const web3 = await import('@solana/web3.js');
                 const rpc = makeRpc(input.fetchImpl, input.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com');
-                for (const [k, v] of await dammMarkets({ rpc, web3, solUsd: () => solanaUsd(input.fetchImpl) }, missing)) map.set(k, v);
+                for (const [k, v] of await dammMarkets({ rpc, web3: web3Lite, solUsd: () => solanaUsd(input.fetchImpl) }, missing)) map.set(k, v);
               } catch (e) {
                 // The chain read is an addition: the feed's numbers stand as they are.
                 chainReadNote = String(e instanceof Error ? e.message : e).slice(0, 120);

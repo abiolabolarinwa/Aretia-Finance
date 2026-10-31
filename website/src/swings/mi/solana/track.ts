@@ -10,16 +10,36 @@ import type { RunReport } from '../engine.js';
 import { SOLANA_SPECS } from '../dexes.js';
 import { poolKeyOf } from '../types.js';
 import type { TrackResult } from '../track.js';
-import { fromBase64, isSolanaAddress, parseCpmmPool, parsePumpPool, parseWhirlpool, type PoolAccounts } from './accounts.js';
+import { dbcConfigQuoteMint, fromBase64, isSolanaAddress, parseAmmV4Pool, parseClmmPool, parseCpmmPool, parseDammV2Pool, parseDbcPool, parseDlmmPair, parsePumpPool, parseWhirlpool, type PoolAccounts } from './accounts.js';
+import { AMM_V4_PROGRAM } from './ammv4.js';
 import { followPool, refreshPool, registerPool, tradesFromSignatures, type SigInfo, type SolDeps, type TokenFacts } from './engine.js';
 import { PUMPSWAP_PROGRAM } from './pumpswap.js';
 
 const REPORT = (id: string): RunReport => ({ adapterId: id, ok: true, skipped: null, head: null, safeHead: null, fromBlock: null, toBlock: null, lagBlocks: null, creations: 0, poolsNew: 0, tokensNew: 0, swapsSeen: 0, tradesNew: 0, skippedLogs: 0, reorg: null, error: null, durationMs: 0 });
 
-const PROGRAMS: Readonly<Record<string, { id: string; venue: CreatedPool['venue']; parse: (d: Uint8Array) => PoolAccounts | null }>> = {
+type Parse = (d: Uint8Array, rpc: SolDeps['rpc']) => PoolAccounts | null | Promise<PoolAccounts | null>;
+
+/** Pool account parsers by owner program, each with the adapter that follows the pool afterwards. */
+const PROGRAMS: Readonly<Record<string, { id: string; venue: CreatedPool['venue']; parse: Parse }>> = {
   [RAYDIUM_CPMM_PROGRAM]: { id: 'raydium-cpmm-solana', venue: 'Raydium CPMM', parse: parseCpmmPool },
   [ORCA_WHIRLPOOL_PROGRAM]: { id: 'orca-whirlpool-solana', venue: 'Orca Whirlpool', parse: parseWhirlpool },
   [PUMPSWAP_PROGRAM]: { id: 'pumpswap-solana', venue: 'PumpSwap' as unknown as CreatedPool['venue'], parse: parsePumpPool },
+  [AMM_V4_PROGRAM]: { id: 'raydium-amm-v4-solana', venue: 'Raydium AMM v4' as unknown as CreatedPool['venue'], parse: parseAmmV4Pool },
+  CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK: { id: 'raydium-clmm-solana', venue: 'Raydium CLMM' as unknown as CreatedPool['venue'], parse: parseClmmPool },
+  LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo: { id: 'meteora-dlmm-solana', venue: 'Meteora DLMM' as unknown as CreatedPool['venue'], parse: parseDlmmPair },
+  cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG: { id: 'meteora-damm-v2-solana', venue: 'Meteora DAMM v2' as unknown as CreatedPool['venue'], parse: parseDammV2Pool },
+  dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN: {
+    id: 'meteora-dbc-solana',
+    venue: 'Meteora DBC' as unknown as CreatedPool['venue'],
+    // The pool names its base mint and both vaults; the quote mint is in its config account.
+    parse: async (d, rpc) => {
+      const v = parseDbcPool(d);
+      if (!v) return null;
+      const cfg = (await rpc('getAccountInfo', [v.config, { encoding: 'base64', commitment: 'finalized' }])) as { value: { data: [string, string] } | null };
+      const quote = cfg?.value ? dbcConfigQuoteMint(fromBase64(cfg.value.data[0])) : null;
+      return quote ? { mintA: v.baseMint, mintB: quote, vaultA: v.baseVault, vaultB: v.quoteVault } : null;
+    },
+  },
 };
 
 export type SolTrackDeps = Omit<SolDeps, 'spec'>;
@@ -32,7 +52,7 @@ export async function trackSolanaPool(d: SolTrackDeps, address: string): Promise
   if (!info?.value) return { status: 'unreadable', reason: 'no such account' };
   const program = PROGRAMS[info.value.owner];
   if (!program) return { status: 'unsupported', reason: 'not a pool of a DEX Aretia indexes on Solana' };
-  const parsed = program.parse(fromBase64(info.value.data[0]));
+  const parsed = await program.parse(fromBase64(info.value.data[0]), d.rpc);
   if (!parsed || !isSolanaAddress(parsed.mintA) || !isSolanaAddress(parsed.vaultA)) return { status: 'unreadable', reason: 'the pool account has an unexpected layout' };
   const spec = SOLANA_SPECS.find((s) => s.id === program.id)!;
   const deps: SolDeps = { ...d, spec, swapSigs: d.swapSigs ?? 120 };

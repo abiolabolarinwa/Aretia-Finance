@@ -30,7 +30,7 @@ on-chain fact.
 | `GET /pools/top` | active markets by 24h dollar volume (filter `chain`; paged) |
 | `GET /pools/gainers` | biggest rises over `window` (`m5 h1 h6 h24`) among markets with at least $1,000 liquidity, 5 trades and 3 accounts in 24h, older than 10 minutes |
 | `GET /pools/search?q=` | by symbol, name, token address or pool address. Filters: `chain`, `state` |
-| `GET /pools/{chain}/{address}` | one market with numbers recomputed from stored trades, and the token's other markets |
+| `GET /pools/{chain}/{address}` | one market (`address` is the pool; for Uniswap V4 its 32-byte id) with numbers recomputed from stored trades, and the token's other markets |
 | `GET /pools/{chain}/{address}/trades` | recent trades. `limit` (1 to 200), `before` (unix seconds) |
 | `GET /pools/{chain}/{address}/candles` | OHLCV. `tf` = `1m 5m 15m 1h 4h 1d`, `limit` (1 to 1000), `before` |
 | `GET /tokens/{chain}/{address}` | a token and every market it is in (several pools link to one token record) |
@@ -112,11 +112,22 @@ market from the index and asks no outside service for those pools.
 
 ## Adding an existing pool: `POST /api/v1/track`
 
-Body `{ "chain": "bnb", "pool": "0x..." }`. Only the site itself may call it (origin check; others get 404). It adds a pool the indexer
-did not discover (one that existed before the index started, or one outside the followed set). The pool must belong to a DEX
-Aretia indexes (its `factory()` on EVM, its owner program on Solana, matched against the catalogue before any log is read). Its
-tokens are registered and its recent swaps are read backwards from the newest block (6 hours on EVM, about 120 transactions on
-Solana), then it is followed like any other pool. Answers: `{ "data": { "status": "tracked" | "unsupported" | "unreadable" | "recent", ... } }`.
-Limits: 10 requests a minute per address, 120 per ten minutes in total, and a pool is not re-read for five minutes.
-The creation time of such a pool is not read: `createdAt` and `ageSeconds` are `null`, never guessed, and its history starts at the
-oldest block read, not at the pool's creation.
+Body `{ "chain": "bnb", "pool": "0x...", "token": "0x..." }` (`token` is optional: one token of the pool, used only to identify a hookless
+Uniswap V4 pool when the node will not search the PoolManager's whole history). Only the site itself may call it (origin check; others
+get 404). It adds a pool the indexer did not discover: one that existed before the index started, or one outside the followed set.
+A pool is a contract address (V2, V3, Aerodrome, Slipstream, every Solana venue) or, for Uniswap V4, its 32-byte pool id.
+
+- **Checked before anything is read:** a V2/V3 pool's `factory()` must be a catalogued factory; a V4 id must have an `Initialize` event
+  from a catalogued PoolManager (or, failing a node that allows that search, hash to the id from a standard key: the id is the keccak256
+  of the pool key, so a key that hashes to it is the pool's key); a Solana account must be owned by one of the indexed programs and
+  have that program's exact layout.
+- **What is read:** the pool, its tokens, and its swaps backwards from the newest block (24 hours on EVM, about 120 transactions on
+  Solana). Each later run reads a little further back (`deepenHistory`) until the pool's creation, or the retention limit (30 days).
+  `status` says whether the history is `complete`.
+- **Creation time:** read for Uniswap-style V3 and for V4 pools (their creation event can be searched by indexed fields) and then
+  `createdAt` is real. A V2 pair's creation event does not carry the pair address in a searchable field, so `createdAt` and
+  `ageSeconds` stay `null` and its history is read back as far as the retention limit; nothing is guessed.
+- **Limits:** 10 requests a minute per address, 120 per ten minutes in total, a pool is not re-read for five minutes.
+
+Answers: `{ "data": { "status": "tracked" | "unsupported" | "unreadable" | "recent", ... } }`.
+

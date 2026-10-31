@@ -252,7 +252,7 @@ export function createPoolDatafeed(
   const dexBase = deps.dexBase ?? 'https://api.dexscreener.com';
   /** Pools the indexer said it does not follow, and until when not to ask again. */
   const indexerUnknown = new Map<string, number>();
-  const INDEXER_UNKNOWN_MS = 5 * 60_000;
+  const INDEXER_UNKNOWN_MS = 15_000;
   const INDEXER_HEAD_START_MS = deps.indexerHeadStartMs ?? 600;
 
   /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
@@ -270,7 +270,7 @@ export function createPoolDatafeed(
    * Candles from Aretia's own Market Indexer, tried first for a pool that is not flagged as indexed: if the indexer follows the pool it has
    * stored its trades from the chain, so no outside service is needed. Returns the bars when it has some, otherwise null (it does not follow
    * the pool, has no trades in this window, or could not answer) and the caller reads the usual outside sources. A pool it does not know is
-   * remembered for five minutes, so the question is not asked again for each window. Never marks the shared route as down: "unknown pool"
+   * remembered for 15 seconds (a pool that was just added on request is then picked up soon), so the question is not asked again for each window. Never marks the shared route as down: "unknown pool"
    * is a normal answer, and the route also serves pools that are indexed.
    */
   async function fromIndexer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {

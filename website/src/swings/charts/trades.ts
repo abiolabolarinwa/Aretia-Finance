@@ -137,8 +137,10 @@ export function readServerTrades(body: unknown): Trade[] | null {
   const out: Trade[] = [];
   for (const r of list as Partial<Trade>[]) {
     if (!r || (r.kind !== 'buy' && r.kind !== 'sell') || typeof r.trader !== 'string' || !SAFE_ID.test(r.trader) || typeof r.tx !== 'string' || !SAFE_ID.test(r.tx)) continue;
-    if (![r.t, r.usd, r.tokenAmount, r.quoteAmount].every((v) => typeof v === 'number' && Number.isFinite(v))) continue;
-    out.push({ t: r.t!, kind: r.kind, usd: r.usd!, tokenAmount: r.tokenAmount!, quoteAmount: r.quoteAmount!, priceUsd: typeof r.priceUsd === 'number' && Number.isFinite(r.priceUsd) ? r.priceUsd : null, trader: r.trader, tx: r.tx });
+    // The dollar value is null for a pool quoted in the chain's own coin (the index does not convert history at today's rate); the table shows a dash.
+    if (![r.t, r.tokenAmount, r.quoteAmount].every((v) => typeof v === 'number' && Number.isFinite(v))) continue;
+    if (r.usd !== null && !(typeof r.usd === 'number' && Number.isFinite(r.usd))) continue;
+    out.push({ t: r.t!, kind: r.kind, usd: r.usd === null ? Number.NaN : (r.usd as number), tokenAmount: r.tokenAmount!, quoteAmount: r.quoteAmount!, priceUsd: typeof r.priceUsd === 'number' && Number.isFinite(r.priceUsd) ? r.priceUsd : null, trader: r.trader, tx: r.tx });
   }
   return out.slice(0, MAX_TRADES);
 }

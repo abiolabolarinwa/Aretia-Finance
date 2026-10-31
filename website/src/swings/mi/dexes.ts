@@ -9,6 +9,7 @@ import { keccak256 } from '../core/keccak.js';
 import { CPMM_CREATE_FEE_RECEIVER, ORCA_FEE_TIER_ACCOUNTS } from '../indexer/solanaIndexer.js';
 import { RAYDIUM_CPMM_PROGRAM } from '../solana/raydiumCpmm.js';
 import { ORCA_WHIRLPOOL_PROGRAM } from '../solana/orcaWhirlpool.js';
+import { AMM_V4_CREATE_FEE_DESTINATION, AMM_V4_PROGRAM } from './solana/ammv4.js';
 import { PUMPSWAP_PROGRAM, PUMP_MIGRATION_AUTHORITY } from './solana/pumpswap.js';
 import { EVM_AERODROME, EVM_PANCAKE_V3, EVM_SLIPSTREAM, EVM_V2_DEXES, EVM_V3_DEXES, EVM_V4 } from '../dex/entries.js';
 import type { DexEntry } from '../engine/registry.js';
@@ -140,6 +141,10 @@ export const EARNED_EVIDENCE: Readonly<Record<string, Evidence>> = earned as Rec
 export const LIVE_VERIFIED: Readonly<Record<string, { date: string; observed: string }>> = {
   'raydium-cpmm-solana': { date: '2026-10-23', observed: '5 pools and 6 tokens found from one hour of creations, 4 named from Metaplex metadata, 107 real swaps decoded from vault balance changes, SOL price read from Orca; a second run duplicated nothing' },
   'pumpswap-solana': { date: '2026-10-23', observed: '15 pump.fun graduation pools and 16 tokens found from one hour (all 16 named, Metaplex or Token-2022 metadata), 413 real swaps decoded from vault balance changes, SOL price read from Orca; a second run duplicated nothing. Pools created directly, not by graduation, are not found.' },
+  'raydium-clmm-solana': { date: '2026-10-31', observed: 'Added on request: the pool layout from the IDL parsed on a real pool (vaults are token accounts of the named mints); the SOL/USDC pool gave 28 real swaps priced at about $95.9, matching Orca and Meteora. New pools are not discovered.' },
+  'meteora-dlmm-solana': { date: '2026-10-31', observed: 'Added on request: layout parsed on real pools; the SOL/USDC pool gave 6 real swaps priced at about $95.96 (many transactions on that pool are failed arbitrage attempts and net-zero cycles, which are not swaps). New pools are not discovered.' },
+  'meteora-dbc-solana': { date: '2026-10-31', observed: 'Added on request: VirtualPool layout and the quote mint from its config account parsed on a real pool; 17 real swaps decoded. New pools are not discovered.' },
+  'raydium-amm-v4-solana': { date: '2026-10-31', observed: 'initialize2 creation anchor: 8 of 8 recent successful transactions of the fee destination were creations; pool layout parsed on real pools and a swap decoded. The engine run itself saw no creation in its one-hour window (new AMM v4 pools are rare, a few a day).' },
   'orca-whirlpool-solana': { date: '2026-10-23', observed: '3 pools and 3 tokens found from one hour of creations, 58 real swaps decoded from vault balance changes; a second run duplicated nothing' },
   'pancakeswap-v2-bnb': { date: '2026-10-23', observed: '31 pools and 34 tokens discovered from 2,400 blocks, 371 real swaps decoded and priced, resume from the checkpoint and a repeated backfill changed nothing' },
 };
@@ -158,7 +163,7 @@ export const specById = (id: string): DexAdapterSpec | null => allSpecs().find((
 
 export interface SolanaAdapterSpec {
   id: string;
-  family: 'raydium' | 'orca' | 'pump';
+  family: 'raydium' | 'orca' | 'pump' | 'meteora';
   name: string;
   chain: 'solana';
   kind: 'cpmm' | 'clmm';
@@ -167,7 +172,9 @@ export interface SolanaAdapterSpec {
   /** Accounts only pool creation touches: their signatures are the creations (see indexer/solanaIndexer.ts). */
   anchors: readonly string[];
   /** What the pool-creation decoder reports as the venue. */
-  venue: 'Raydium CPMM' | 'Orca Whirlpool' | 'PumpSwap';
+  venue: 'Raydium CPMM' | 'Orca Whirlpool' | 'PumpSwap' | 'Raydium AMM v4' | 'Raydium CLMM' | 'Meteora DLMM' | 'Meteora DAMM v2' | 'Meteora DBC';
+  /** 'creation': new pools are found from a creation-only account. 'on-request': no such account is known; a pool joins when someone opens it (see solana/track.ts). */
+  discovery: 'creation' | 'on-request';
   evidence: Evidence;
   source: string;
 }
@@ -177,9 +184,14 @@ export interface SolanaAdapterSpec {
  * changes of the pool's token accounts. Program ids are the routing catalogue's (checked on chain by its live tests).
  */
 export const SOLANA_SPECS: readonly SolanaAdapterSpec[] = [
-  { id: 'raydium-cpmm-solana', family: 'raydium', name: 'Raydium CPMM', chain: 'solana', kind: 'cpmm', program: RAYDIUM_CPMM_PROGRAM, anchors: [CPMM_CREATE_FEE_RECEIVER], venue: 'Raydium CPMM', evidence: 'address-verified', source: 'Aretia routing catalogue; the pool-creation fee receiver is touched only by pool creation' },
-  { id: 'orca-whirlpool-solana', family: 'orca', name: 'Orca Whirlpools', chain: 'solana', kind: 'clmm', program: ORCA_WHIRLPOOL_PROGRAM, anchors: Object.values(ORCA_FEE_TIER_ACCOUNTS), venue: 'Orca Whirlpool', evidence: 'address-verified', source: 'Aretia routing catalogue; each fee-tier account is named by every pool created in that tier' },
-  { id: 'pumpswap-solana', family: 'pump', name: 'PumpSwap', chain: 'solana', kind: 'cpmm', program: PUMPSWAP_PROGRAM, anchors: [PUMP_MIGRATION_AUTHORITY], venue: 'PumpSwap', evidence: 'address-verified', source: 'create_pool decoded from the official IDL (pump-fun/pump-public-docs); pools found through the pump.fun migration authority (observed on mainnet, not named in the docs): graduations only, not pools created directly' },
+  { id: 'raydium-cpmm-solana', family: 'raydium', name: 'Raydium CPMM', chain: 'solana', kind: 'cpmm', program: RAYDIUM_CPMM_PROGRAM, anchors: [CPMM_CREATE_FEE_RECEIVER], venue: 'Raydium CPMM', discovery: 'creation', evidence: 'address-verified', source: 'Aretia routing catalogue; the pool-creation fee receiver is touched only by pool creation' },
+  { id: 'orca-whirlpool-solana', family: 'orca', name: 'Orca Whirlpools', chain: 'solana', kind: 'clmm', program: ORCA_WHIRLPOOL_PROGRAM, anchors: Object.values(ORCA_FEE_TIER_ACCOUNTS), venue: 'Orca Whirlpool', discovery: 'creation', evidence: 'address-verified', source: 'Aretia routing catalogue; each fee-tier account is named by every pool created in that tier' },
+  { id: 'pumpswap-solana', family: 'pump', name: 'PumpSwap', chain: 'solana', kind: 'cpmm', program: PUMPSWAP_PROGRAM, anchors: [PUMP_MIGRATION_AUTHORITY], venue: 'PumpSwap', discovery: 'creation', evidence: 'address-verified', source: 'create_pool decoded from the official IDL (pump-fun/pump-public-docs); pools found through the pump.fun migration authority (observed on mainnet, not named in the docs): graduations only, not pools created directly' },
+  { id: 'raydium-amm-v4-solana', family: 'raydium', name: 'Raydium AMM v4', chain: 'solana', kind: 'cpmm', program: AMM_V4_PROGRAM, anchors: [AMM_V4_CREATE_FEE_DESTINATION], venue: 'Raydium AMM v4', discovery: 'creation', evidence: 'address-verified', source: 'initialize2 decoded exactly; the pool-creation fee destination is touched only by creations (8 of 8 recent transactions on mainnet held one). New AMM v4 pools are rare (a few a day).' },
+  { id: 'raydium-clmm-solana', family: 'raydium', name: 'Raydium CLMM', chain: 'solana', kind: 'cpmm', program: 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK', anchors: [], venue: 'Raydium CLMM', discovery: 'on-request', evidence: 'address-verified', source: 'Pool layout from Raydium\'s published IDL. No account only creation touches is known, so a pool joins when someone opens it.' },
+  { id: 'meteora-dlmm-solana', family: 'meteora', name: 'Meteora DLMM', chain: 'solana', kind: 'cpmm', program: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', anchors: [], venue: 'Meteora DLMM', discovery: 'on-request', evidence: 'address-verified', source: 'LbPair layout from Meteora\'s published IDL. New pools are not discovered (needs a streaming provider); a pool joins when someone opens it.' },
+  { id: 'meteora-damm-v2-solana', family: 'meteora', name: 'Meteora DAMM v2', chain: 'solana', kind: 'cpmm', program: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG', anchors: [], venue: 'Meteora DAMM v2', discovery: 'on-request', evidence: 'address-verified', source: 'Pool layout from Meteora\'s published IDL. New pools are not discovered (needs a streaming provider); a pool joins when someone opens it.' },
+  { id: 'meteora-dbc-solana', family: 'meteora', name: 'Meteora Dynamic Bonding Curve', chain: 'solana', kind: 'cpmm', program: 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN', anchors: [], venue: 'Meteora DBC', discovery: 'on-request', evidence: 'address-verified', source: 'VirtualPool layout from Meteora\'s published IDL; the quote mint is read from the pool\'s config account. New pools are not discovered; a pool joins when someone opens it.' },
 ].map((s) => ({ ...s, evidence: LIVE_VERIFIED[s.id] ? ('live-verified' as Evidence) : (EARNED_EVIDENCE[s.id] ?? s.evidence) })) as readonly SolanaAdapterSpec[];
 
 export const solanaSpecById = (id: string): SolanaAdapterSpec | null => SOLANA_SPECS.find((s) => s.id === id) ?? null;
@@ -192,10 +204,6 @@ export const adapterById = (id: string): { id: string; name: string; chain: MiCh
  * the routing catalogue, but no account that only their pool creation touches is known, so finding their pools needs a streaming
  * provider (a webhook or Geyser feed) or scanning the program's whole transaction stream.
  */
-export const SOLANA_PLANNED: readonly { id: string; name: string; program: string; status: Evidence; note: string }[] = [
-  { id: 'meteora-damm-v2', name: 'Meteora DAMM v2', program: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG', status: 'planned', note: 'Needs a streaming provider to find pools (no creation-only account).' },
-  { id: 'meteora-dlmm', name: 'Meteora DLMM', program: 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', status: 'planned', note: 'Not built.' },
-  { id: 'meteora-dbc', name: 'Meteora Dynamic Bonding Curve', program: 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN', status: 'planned', note: 'Not built.' },
-];
+export const SOLANA_PLANNED: readonly { id: string; name: string; program: string; status: Evidence; note: string }[] = [];
 
 export type { MiChain };

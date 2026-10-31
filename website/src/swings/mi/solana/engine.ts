@@ -27,6 +27,7 @@ import { cleanText } from '../../tokens/safeText.js';
 import { poolsCreatedIn, type CreatedPool } from '../../indexer/solanaIndexer.js';
 import { decodeSolanaSwap, type ParsedTx, type TrackedPool } from '../../store/swaps.js';
 import type { SolanaAdapterSpec } from '../dexes.js';
+import { ammV4PoolsCreatedIn } from './ammv4.js';
 import { pumpswapPoolsCreatedIn } from './pumpswap.js';
 import { fromBase64, isSolanaAddress, metadataAddress, parseMetadata, parseMint, parseToken2022Metadata, parseWhirlpool, tokenAmount, whirlpoolPriceScaled } from './accounts.js';
 
@@ -168,7 +169,7 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
           unavailable++;
           continue;
         }
-        const found = d.spec.family === 'pump' ? pumpswapPoolsCreatedIn(tx as never, sig) : poolsCreatedIn(tx as never, sig);
+        const found = d.spec.family === 'pump' ? pumpswapPoolsCreatedIn(tx as never, sig) : d.spec.venue === 'Raydium AMM v4' ? ammV4PoolsCreatedIn(tx as never, sig) : poolsCreatedIn(tx as never, sig);
         for (const p of found) if (p.venue === d.spec.venue) created.push({ pool: p, slot: tx.slot ?? slot });
       }
     }

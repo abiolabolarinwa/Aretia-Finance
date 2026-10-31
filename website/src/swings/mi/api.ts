@@ -120,9 +120,9 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
   const health = await store.listHealth();
   const byAdapter = new Map(health.map((h) => [h.adapterId, h]));
   const disabled = await store.disabledAdapters();
-  const specs: { id: string; name: string; chain: MiChain; kind: string; where: string; evidence: string }[] = [
-    ...allSpecs().map((x) => ({ id: x.id, name: x.name, chain: x.chain as MiChain, kind: x.kind, where: x.factory, evidence: x.evidence })),
-    ...SOLANA_SPECS.map((x) => ({ id: x.id, name: x.name, chain: 'solana' as MiChain, kind: x.kind, where: x.program, evidence: x.evidence })),
+  const specs: { id: string; name: string; chain: MiChain; kind: string; where: string; evidence: string; discovery: string }[] = [
+    ...allSpecs().map((x) => ({ id: x.id, name: x.name, chain: x.chain as MiChain, kind: x.kind, where: x.factory, evidence: x.evidence, discovery: 'creation' })),
+    ...SOLANA_SPECS.map((x) => ({ id: x.id, name: x.name, chain: 'solana' as MiChain, kind: x.kind, where: x.program, evidence: x.evidence, discovery: x.discovery })),
   ];
   const dexes = specs.map((s) => {
     const h = byAdapter.get(s.id);
@@ -136,6 +136,8 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
       // The factory contract (EVM) or the program id (Solana).
       address: s.where,
       evidence: s.evidence,
+      /** 'creation': new pools are found as they are created. 'on-request': a pool joins the index when someone opens it. */
+      discovery: s.discovery,
       state: disabled.has(s.id) ? 'disabled' : !running ? 'not-running' : fresh && (h.consecutiveFailures ?? 0) === 0 ? 'ok' : (h.consecutiveFailures ?? 0) > 0 ? 'failing' : 'stale',
       lagBlocks: h?.lagBlocks ?? null,
       checkpoint: h?.checkpoint ?? null,

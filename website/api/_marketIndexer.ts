@@ -300,7 +300,9 @@ export async function miTrades(input: { chain: string; pool: string; token: 'bas
     const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
     if (!p || p.paused) return null;
     const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
-    if (quote?.role !== 'usd') return null;
+    // A dollar-quoted pool gives a dollar value and price. A pool quoted in the chain's own coin has no dollar value that was true at the time of
+    // each trade, so those columns are left empty (null) rather than converted at today's rate.
+    const dollar = quote?.role === 'usd';
     const rows = await store.recentTrades(chain, pool, 100);
     const out: Trade[] = [];
     for (const t of rows) {
@@ -312,10 +314,10 @@ export async function miTrades(input: { chain: string; pool: string; token: 'bas
       out.push({
         t: t.time * 1000,
         kind: base ? t.side : t.side === 'buy' ? 'sell' : 'buy',
-        usd: quoteAmount,
+        usd: dollar ? quoteAmount : Number.NaN,
         tokenAmount: base ? baseAmount : quoteAmount,
         quoteAmount: base ? quoteAmount : baseAmount,
-        priceUsd: base ? price : null,
+        priceUsd: base && dollar ? price : null,
         trader: t.maker,
         tx: t.id.split(':')[0] ?? t.id,
       });

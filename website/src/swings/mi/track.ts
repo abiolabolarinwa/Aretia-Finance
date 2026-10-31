@@ -143,11 +143,10 @@ export async function trackEvmPool(d: TrackDeps, chain: MiChainConfig, address: 
     if (!spec) return { status: 'unsupported', reason: 'not a pool of a DEX Aretia indexes on this network' };
     const [t0, t1] = [await readAddress(d.read, id, '0x0dfe1681'), await readAddress(d.read, id, '0xd21220a7')];
     if (!t0 || !t1) return { status: 'unreadable', reason: 'the pool did not answer token0 and token1' };
-    let feeTier: number | null = null;
     creation = { token0: t0, token1: t1, pool: id, feeTier: null, block: 0, blockHash: '', tx: 'tracked', logIndex: 0 };
     if (spec.kind === 'v3' && !spec.creationShape) {
       const fee = Number.parseInt((await d.read('eth_call', [{ to: id, data: '0xddca3f43' }, 'latest'])) as string, 16);
-      feeTier = Number.isInteger(fee) ? fee : null;
+      const feeTier = Number.isInteger(fee) ? fee : null;
       creation.feeTier = feeTier;
       // PoolCreated indexes both tokens and the fee, so this pool's creation can be found exactly.
       if (feeTier !== null) {

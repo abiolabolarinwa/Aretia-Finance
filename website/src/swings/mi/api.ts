@@ -105,6 +105,11 @@ function indexResponse(now: number): ApiResponse {
   );
 }
 
+/** An error message that is safe to show: links and long tokens (a node URL, an API key) are replaced, and it is cut short. */
+export function publicError(message: string): string {
+  return message.replace(/https?:\/\/\S+/gi, '[node]').replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
 async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
   const health = await store.listHealth();
   const byAdapter = new Map(health.map((h) => [h.adapterId, h]));
@@ -129,6 +134,8 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
       lagBlocks: h?.lagBlocks ?? null,
       checkpoint: h?.checkpoint ?? null,
       lastSuccessAt: h?.lastSuccessAt ? new Date(h.lastSuccessAt).toISOString() : null,
+      // Why the last run failed, so an operator can tell a slow node from a bug. Addresses and keys are removed: a node URL carries its key.
+      ...((h?.consecutiveFailures ?? 0) > 0 && h?.lastError ? { lastError: publicError(h.lastError), failures: h.consecutiveFailures } : {}),
     };
   });
   const chains = MI_CHAINS.map((id) => {

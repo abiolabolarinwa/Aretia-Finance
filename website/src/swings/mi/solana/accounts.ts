@@ -208,3 +208,22 @@ export function parseToken2022Metadata(d: Uint8Array): MetadataInfo | null {
   }
   return null;
 }
+
+export interface PoolAccounts {
+  mintA: string;
+  mintB: string;
+  vaultA: string;
+  vaultB: string;
+}
+
+/** Raydium CPMM pool state (anchor tag, then fields in order): token vaults at 72 and 104, mints at 168 and 200. Total at least 413 bytes. */
+export function parseCpmmPool(d: Uint8Array): PoolAccounts | null {
+  return d.length >= 413 ? { vaultA: keyAt(d, 72), vaultB: keyAt(d, 104), mintA: keyAt(d, 168), mintB: keyAt(d, 200) } : null;
+}
+
+const PUMP_POOL_TAG = Uint8Array.of(241, 154, 109, 4, 17, 177, 109, 188);
+/** PumpSwap pool (official IDL): tag 8, bump 1, index 2, creator 32, base mint 32, quote mint 32, lp mint 32, base vault 32, quote vault 32. */
+export function parsePumpPool(d: Uint8Array): PoolAccounts | null {
+  if (d.length < 203 || !PUMP_POOL_TAG.every((b, i) => d[i] === b)) return null;
+  return { mintA: keyAt(d, 43), mintB: keyAt(d, 75), vaultA: keyAt(d, 139), vaultB: keyAt(d, 171) };
+}

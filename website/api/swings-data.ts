@@ -95,7 +95,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'admin') out = await handleAdmin({ ...common, body });
   else if (route === 'upload') out = await handleUpload({ ...common, query, body });
   else if (route === 'meta') out = await handleMeta({ ...common, query, body });
-  else if (route === 'mi') out = await handleMi({ ...common, query });
+  else if (route === 'mi') out = await handleMi({ ...common, query, body });
   else if (route === 'mi-run') out = await handleMiRun({ ...common, query });
   else if (route === 'mi-admin') out = await handleMiAdmin({ ...common, body });
   else if (route === 'launchbox') out = await handleLaunchbox(common);

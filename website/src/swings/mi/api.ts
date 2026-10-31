@@ -6,6 +6,8 @@
  *   GET /api/v1/status                                  chains, DEXs, evidence levels, adapter health
  *   GET /api/v1/pools/new                               newest markets (filters: chain, dex, state, maxAgeHours, q; pagination: limit, cursor)
  *   GET /api/v1/pools/trending                          ranked by guarded activity; paid placements are returned separately in `promoted`
+ *   GET /api/v1/pools/top                               by 24h dollar volume (filters: chain; pagination)
+ *   GET /api/v1/pools/gainers                           biggest price rises over `window` (m5, h1, h6, h24), with liquidity and trade floors
  *   GET /api/v1/pools/search?q=                         by symbol, name, token or pool address
  *   GET /api/v1/pools/{chain}/{address}                 one market, numbers recomputed from stored trades
  *   GET /api/v1/pools/{chain}/{address}/trades          recent trades (limit, before)
@@ -58,6 +60,7 @@ export async function handleRead(store: MiStore, req: ApiRequest): Promise<ApiRe
   if (a === 'pools') {
     if (b === 'new' && c === undefined) return listNew(store, req);
     if (b === 'trending' && c === undefined) return trending(store, req);
+    if ((b === 'top' || b === 'gainers') && c === undefined) return ranked(store, req, b);
     if (b === 'search' && c === undefined) return search(store, req);
     if (b !== undefined && c !== undefined) {
       const ref = parseRef(b, c);
@@ -92,6 +95,8 @@ function indexResponse(now: number): ApiResponse {
         'GET /api/v1/status',
         'GET /api/v1/pools/new',
         'GET /api/v1/pools/trending',
+        'GET /api/v1/pools/top',
+        'GET /api/v1/pools/gainers',
         'GET /api/v1/pools/search?q=',
         'GET /api/v1/pools/{chain}/{address}',
         'GET /api/v1/pools/{chain}/{address}/trades',
@@ -235,6 +240,37 @@ async function trending(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
     limit,
     method: 'Pools are ranked on one-hour dollar volume and trade count, discounted for one-sided flow, one trade dominating volume, few distinct accounts and volume far above liquidity. Pools under 10 minutes old, with fewer than 5 trades in the hour, fewer than 3 accounts in 24 hours, under $1,000 liquidity, or without a known dollar value are not ranked.',
   });
+}
+
+const WINDOWS_OK = ['m5', 'h1', 'h6', 'h24'] as const;
+type WindowKey = (typeof WINDOWS_OK)[number];
+export const GAINERS = { minLiquidityUsd: 1_000, minTrades24h: 5, minMakers24h: 3, minAgeMs: 10 * 60_000 } as const;
+
+/** `top`: busiest by dollar volume, paged. `gainers`: the biggest rises over a window among markets with real liquidity and trading. */
+async function ranked(store: MiStore, req: ApiRequest, which: 'top' | 'gainers'): Promise<ApiResponse> {
+  const limit = intParam(req.query.limit, DEFAULT_LIMIT, 1, MAX_LIMIT);
+  if (limit === null) return err(400, 'bad-limit', `limit must be 1 to ${MAX_LIMIT}.`);
+  const chain = chainFilter(req.query.chain);
+  if (isResponse(chain)) return chain;
+  if (which === 'top') {
+    const page = await store.listPools({ sort: 'volume24h', limit, cursor: req.query.cursor ?? null, chain, states: ['active'] });
+    const tokens = await tokensFor(store, page.pools);
+    return ok(page.pools.filter((p) => p.stats).map((p) => poolDto(p, tokens, req.now)), req.now, 15, { nextCursor: page.nextCursor, limit });
+  }
+  const win = (req.query.window ?? 'h24') as WindowKey;
+  if (!WINDOWS_OK.includes(win)) return err(400, 'bad-window', `window must be one of: ${WINDOWS_OK.join(', ')}.`);
+  const page = await store.listPools({ sort: 'volume24h', limit: 100, chain, states: ['active'] });
+  const rows = page.pools
+    .filter((p) => {
+      const s = p.stats;
+      if (!s || req.now - p.createdAt < GAINERS.minAgeMs) return false;
+      const change = s.change[win];
+      return change !== null && change > 0 && (s.liquidityUsd ?? 0) >= GAINERS.minLiquidityUsd && s.buys.h24 + s.sells.h24 >= GAINERS.minTrades24h && s.makers24h >= GAINERS.minMakers24h;
+    })
+    .sort((a, b) => (b.stats!.change[win] ?? 0) - (a.stats!.change[win] ?? 0))
+    .slice(0, limit);
+  const tokens = await tokensFor(store, rows);
+  return ok(rows.map((p) => poolDto(p, tokens, req.now)), req.now, 15, { limit, window: win, method: `Markets with at least $${GAINERS.minLiquidityUsd} of liquidity, ${GAINERS.minTrades24h} trades and ${GAINERS.minMakers24h} accounts in 24 hours, older than 10 minutes, ranked by price change over the window.` });
 }
 
 async function loadPool(store: MiStore, ref: Ref): Promise<MiPool | null> {

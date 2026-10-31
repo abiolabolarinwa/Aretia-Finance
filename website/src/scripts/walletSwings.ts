@@ -42,7 +42,7 @@ import { mountTrades, type TradesTable } from './walletTxTable';
 import { isDeadMarket } from '../swings/market/dead.js';
 import { modeNote, modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
-import { fetchIndexedPages, mergeIndexRows } from '../swings/mi/clientRows.js';
+import { fetchIndexedPages, fetchNativeList, mergeIndexRows, trackMarket } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1593,6 +1593,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     function showChart(r: MarketRow, noPool: 'looking' | 'none' | 'failed' | null = null): void {
       chartRow = r;
       chartHost.hidden = false;
+      // A market the index does not follow is added to it (once), so it is read from now on and joins the index's lists.
+      trackMarket(r);
       if (!r.pool) {
         // No pool: no chart and no trades are asked for. The token's address and Shield check stay in the panel.
         tvChart?.dispose();
@@ -1715,7 +1717,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         draw();
       }
       try {
-        if (m.kind === 'new') {
+        const native = m.kind === 'favourites' || m.kind === 'rising' ? null : await fetchNativeList(m.kind, m.chain, m.window, Date.now());
+        if (mine !== seq) return;
+        if (native) {
+          // Aretia's own index holds enough markets for this list and network: it is the list. The outside feed is not asked.
+          staleAt = null;
+          failures = 0;
+          rows = rateRows(native);
+        } else if (m.kind === 'new') {
           const q = new URLSearchParams();
           if (m.chain) q.set('chain', m.chain);
           if (f.age !== '0') q.set('maxAgeHours', f.age);

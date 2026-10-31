@@ -8,7 +8,7 @@ import { FakeChain, pairCreatedLog, v2SwapLog } from '../src/swings/mi/testkit.j
 import { resetBudgets } from './_limits.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, miTrades, resetMiCache, type MiEnv } from './_marketIndexer.js';
+import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, miTrades, resetMiCache, resetTrackState, type MiEnv } from './_marketIndexer.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -48,6 +48,7 @@ beforeEach(() => {
   resetBudgets();
   resetRateLimit();
   resetMiCache();
+  resetTrackState();
 });
 
 describe('GET /api/v1 (public read API)', () => {
@@ -285,6 +286,63 @@ describe('what the status says about a failure', () => {
     expect(text).not.toContain('abcdefghijklmnopqrstuvwxyz0123456789');
     expect(text).toContain('[node]');
     expect(text.length).toBeLessThanOrEqual(160);
+  });
+});
+
+describe('top and gainers from the index', () => {
+  it('top lists active markets by dollar volume; gainers need real liquidity, trades and accounts and a rise', async () => {
+    const { store, now } = await seeded();
+    const top = body(await get(store, now, 'pools/top', { chain: 'bnb' }));
+    expect(top.data).toHaveLength(1);
+    expect(top.data[0].address).toBe(POOL);
+    const g = body(await get(store, now, 'pools/gainers', { window: 'h24' }));
+    expect(g.meta.window).toBe('h24');
+    expect(g.meta.method).toMatch(/liquidity/);
+    // The seeded market's price is flat (buys and sells at the same price), so it has not risen: not a gainer.
+    expect(g.data).toEqual([]);
+    expect((await get(store, now, 'pools/gainers', { window: 'w1' })).status).toBe(400);
+  });
+});
+
+describe('POST /api/v1/track', () => {
+  const OLD = '0x' + 'd9'.repeat(20);
+  async function world() {
+    const chain = new FakeChain(1000, 1_700_000_000, 30);
+    chain.addToken(WBNB, 'WBNB', 18);
+    chain.addToken(TOKEN, 'OLD', 18, 'Old');
+    chain.reserves.set(OLD, [1_000_000n * E18, 100n * E18]);
+    chain.pairs.set(OLD, { factory: spec.factory, token0: TOKEN, token1: WBNB });
+    chain.mine([v2SwapLog(OLD, { in1: E18, out0: 10_000n * E18 }, maker(1))]);
+    chain.mineEmpty(30);
+    return { chain, store: new InMemoryMiStore() };
+  }
+  const post = (store: InMemoryMiStore, chain: FakeChain, b: unknown, over: Record<string, unknown> = {}) =>
+    handleMi({ method: 'POST', query: { path: 'track' }, origin: 'https://aretiafinance.org', body: b, authorization: null, ip: '5.5.5.5', env, fetchImpl: nofetch, now: 1_700_100_000_000, ...over } as Parameters<typeof handleMi>[0], store, { readFor: () => chain.read });
+
+  it('adds an existing pool of a catalogued DEX and reads its swaps; a repeat is not read again', async () => {
+    const { chain, store } = await world();
+    const out = await post(store, chain, { chain: 'bnb', pool: OLD });
+    expect(out.status).toBe(200);
+    expect(body(out).data).toMatchObject({ status: 'tracked', alreadyKnown: false, trades: 1 });
+    expect(store.pools.get(`bnb:${OLD}`)).toMatchObject({ createdAt: 0, createdTx: 'tracked' });
+    // Its age is unknown, and says so (no invented date).
+    const listed = body(await get(store, 1_700_100_000_000, 'pools/new', { state: 'active,inactive' })).data[0];
+    expect(listed.ageSeconds).toBeNull();
+    expect(listed.createdAt).toBeNull();
+    expect(body(await post(store, chain, { chain: 'bnb', pool: OLD })).data.status).toBe('recent');
+  });
+
+  it('is for the site only, validates input, and is rate limited', async () => {
+    const { chain, store } = await world();
+    expect((await post(store, chain, { chain: 'bnb', pool: OLD }, { origin: 'https://evil.example' })).status).toBe(404);
+    expect((await post(store, chain, { chain: 'bnb', pool: OLD }, { origin: null })).status).toBe(404);
+    expect((await post(store, chain, { chain: 'mars', pool: OLD })).status).toBe(400);
+    expect((await post(store, chain, { chain: 'bnb', pool: '0x12' })).status).toBe(400);
+    expect(body(await post(store, chain, { chain: 'bnb', pool: '0x' + '77'.repeat(20) })).data.status).toBe('unsupported');
+    expect(store.pools.size).toBe(0);
+    let last = 200;
+    for (let i = 0; i < 12; i++) last = (await post(store, chain, { chain: 'bnb', pool: '0x' + (i + 16).toString(16).repeat(20) })).status;
+    expect(last).toBe(429);
   });
 });
 

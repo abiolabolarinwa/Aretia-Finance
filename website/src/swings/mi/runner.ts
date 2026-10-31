@@ -25,8 +25,8 @@ export interface RunnerEnv {
   [k: string]: string | undefined;
 }
 
-/** What runs when nothing is configured: the one adapter that has been demonstrated end to end on a live network. */
-export const DEFAULT_ADAPTERS = ['pancakeswap-v2-bnb'];
+/** What runs when nothing is configured: the adapters that were run end to end against a live network (see `live-verified` in dexes.ts). */
+export const DEFAULT_ADAPTERS = ['pancakeswap-v2-bnb', 'raydium-cpmm-solana', 'orca-whirlpool-solana', 'pumpswap-solana'];
 
 export function enabledSpecs(env: RunnerEnv): DexAdapterSpec[] {
   const all = allSpecs();
@@ -39,7 +39,7 @@ export function enabledSpecs(env: RunnerEnv): DexAdapterSpec[] {
 export function enabledSolana(env: RunnerEnv): SolanaAdapterSpec[] {
   const raw = (env.MI_ADAPTERS ?? '').trim();
   if (raw === '*') return [...SOLANA_SPECS];
-  const ids = new Set(raw.split(/[\s,;]+/).filter(Boolean));
+  const ids = new Set(raw ? raw.split(/[\s,;]+/).filter(Boolean) : DEFAULT_ADAPTERS);
   return SOLANA_SPECS.filter((s) => ids.has(s.id));
 }
 

@@ -229,7 +229,7 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   return { hash: tip.hash };
 }
 
-async function registerPool(d: EngineDeps, c: Creation, createdAtMs: number, tokenFacts: (a: string) => Promise<TokenFacts | null>, report: RunReport): Promise<MiPool | null> {
+export async function registerPool(d: EngineDeps, c: Creation, createdAtMs: number, tokenFacts: (a: string) => Promise<TokenFacts | null>, report: RunReport): Promise<MiPool | null> {
   const key = poolKeyOf(d.spec.chain, c.pool);
   if ((await d.store.getPools([key])).has(key)) return null; // idempotent: a pool is registered once
   const t0 = c.token0.toLowerCase();
@@ -345,7 +345,7 @@ async function quoteUsdOf(d: EngineDeps, pool: MiPool): Promise<number | null> {
   return d.nativeUsd ? await d.nativeUsd() : null;
 }
 
-async function refreshPool(d: EngineDeps, pool: MiPool, newTrades: MiTrade[], tokenFacts: (a: string) => Promise<TokenFacts | null>): Promise<void> {
+export async function refreshPool(d: EngineDeps, pool: MiPool, newTrades: MiTrade[], tokenFacts: (a: string) => Promise<TokenFacts | null>): Promise<void> {
   const now = d.now();
   const quoteRecognised = d.chain.quoteTokens.some((q) => q.address === pool.base || q.address === pool.quote);
   const stored = (await d.store.getPools([pool.key])).get(pool.key) ?? pool;

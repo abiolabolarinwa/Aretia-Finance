@@ -22,7 +22,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | storage (already set for the site) | required |
 | `MI_CRON_SECRET` | authorises `GET /api/mi-run`; when set it is the only secret accepted there, so the other schedules keep `CRON_SECRET` | falls back to `CRON_SECRET` |
 | `ADMIN_WALLETS`, `SWINGS_SESSION_SECRET` | owner controls (already set for the admin page) | required for controls |
-| `MI_ADAPTERS` | comma list of adapter ids (EVM such as `uniswap-v3-base`, Solana `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`), or `*` | `pancakeswap-v2-bnb` |
+| `MI_ADAPTERS` | comma list of adapter ids (EVM such as `uniswap-v3-base`, Solana `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`), or `*` | the four live-verified adapters: `pancakeswap-v2-bnb`, `raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana` |
 | `MI_RPC_<CHAIN>` or `EVM_RPC_<CHAIN>` | a dedicated node URL (https) for a chain; tried before the public nodes. Solana: `MI_RPC_SOLANA` or the existing `SOLANA_RPC_URL` | public nodes |
 | `MI_CONFIRMATIONS_<CHAIN>` | blocks to wait before trusting a log | ethereum 12, bnb 15, polygon 64, base 10 |
 | `MI_ADDRESS_BATCH_<CHAIN>` | pool addresses per `getLogs` (public nodes allow 10) | 10 |

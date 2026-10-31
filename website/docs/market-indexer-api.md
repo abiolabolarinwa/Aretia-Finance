@@ -27,6 +27,8 @@ on-chain fact.
 | `GET /status` | chains, DEXs, evidence levels, per-adapter health (`ok`, `stale`, `failing`, `disabled`, `not-running`), lag in blocks |
 | `GET /pools/new` | markets, newest first. Filters: `chain`, `dex` (family, for example `pancakeswap`), `state` (comma list, default `active`), `maxAgeHours`, `q` |
 | `GET /pools/trending` | ranked markets plus `promoted` (paid placements, never ranked, always labelled) |
+| `GET /pools/top` | active markets by 24h dollar volume (filter `chain`; paged) |
+| `GET /pools/gainers` | biggest rises over `window` (`m5 h1 h6 h24`) among markets with at least $1,000 liquidity, 5 trades and 3 accounts in 24h, older than 10 minutes |
 | `GET /pools/search?q=` | by symbol, name, token address or pool address. Filters: `chain`, `state` |
 | `GET /pools/{chain}/{address}` | one market with numbers recomputed from stored trades, and the token's other markets |
 | `GET /pools/{chain}/{address}/trades` | recent trades. `limit` (1 to 200), `before` (unix seconds) |
@@ -107,3 +109,14 @@ allow-list as the admin page; anything else gets the 404 of an unknown path). Bo
 `GET /api/swings-ohlcv?source=aretia&chain=&pool=&tf=&agg=&before=&limit=&currency=` returns the same candle list the TradingView
 chart already reads (`data.attributes.ohlcv_list`, newest first), built from stored trades. The wallet's chart uses it for every
 market from the index and asks no outside service for those pools.
+
+## Adding an existing pool: `POST /api/v1/track`
+
+Body `{ "chain": "bnb", "pool": "0x..." }`. Only the site itself may call it (origin check; others get 404). It adds a pool the indexer
+did not discover (one that existed before the index started, or one outside the followed set). The pool must belong to a DEX
+Aretia indexes (its `factory()` on EVM, its owner program on Solana, matched against the catalogue before any log is read). Its
+tokens are registered and its recent swaps are read backwards from the newest block (6 hours on EVM, about 120 transactions on
+Solana), then it is followed like any other pool. Answers: `{ "data": { "status": "tracked" | "unsupported" | "unreadable" | "recent", ... } }`.
+Limits: 10 requests a minute per address, 120 per ten minutes in total, and a pool is not re-read for five minutes.
+The creation time of such a pool is not read: `createdAt` and `ageSeconds` are `null`, never guessed, and its history starts at the
+oldest block read, not at the pool's creation.

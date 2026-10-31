@@ -12,7 +12,8 @@ import { formatUnits, parseRaw } from './math.js';
 const ADDRESS = /^(0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
 /** An EVM transaction hash or a Solana signature. */
 const TX_ID = /^(0x[0-9a-f]{64}|[1-9A-HJ-NP-Za-km-z]{64,100})$/;
-const ago = (iso: string, now: number): number | null => {
+const ago = (iso: string | null, now: number): number | null => {
+  if (iso === null) return null;
   const t = Date.parse(iso);
   return Number.isFinite(t) ? Math.max(0, now - t) : null;
 };
@@ -157,4 +158,41 @@ export function mergeIndexRows(base: readonly MarketRow[], extra: readonly Marke
     added.push(r);
   }
   return [...base, ...added];
+}
+
+/** A list read from the index is used as the main list (instead of the outside feed) only when it holds at least this many markets. */
+export const NATIVE_MIN_ROWS = 25;
+
+/**
+ * The index's own answer for a Markets list: trending, top, gainers or new, for one network or all of them. Null when the index is
+ * unreachable, not set up, or too small to stand in for the feed (fewer than NATIVE_MIN_ROWS): the list then keeps using the feed.
+ */
+export async function fetchNativeList(kind: 'trending' | 'top' | 'gainers' | 'new', chain: string, window: string, now: number, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<MarketRow[] | null> {
+  try {
+    const q = new URLSearchParams({ limit: '100' });
+    if (chain) q.set('chain', chain);
+    if (kind === 'gainers' && ['m5', 'h1', 'h6', 'h24'].includes(window)) q.set('window', window);
+    const res = await fetchImpl(`/api/v1/pools/${kind}?${q}`, { headers: { accept: 'application/json' } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: unknown };
+    const list = kind === 'trending' ? (body.data as { ranked?: unknown } | undefined)?.ranked : body.data;
+    const rows = marketRowsFromPools(list, now);
+    return rows.length >= NATIVE_MIN_ROWS ? rows : null;
+  } catch {
+    return null;
+  }
+}
+
+const asked = new Set<string>();
+
+/**
+ * Tells the index about a market it does not follow, once per page load, so that it is read from then on (and joins the index's
+ * lists). Fire and forget: a failure changes nothing on screen.
+ */
+export function trackMarket(row: Pick<MarketRow, 'chain' | 'pool' | 'indexed'>, fetchImpl: typeof fetch = (...a) => fetch(...a)): void {
+  if (row.indexed || !row.pool) return;
+  const key = `${row.chain}:${row.pool}`;
+  if (asked.has(key)) return;
+  asked.add(key);
+  void fetchImpl('/api/v1/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: row.chain, pool: row.pool }) }).catch(() => undefined);
 }

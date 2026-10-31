@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchIndexedRows, fetchIndexedTrades, marketRowsFromPools, tradesFromIndexed } from './clientRows.js';
+import { fetchNativeList, trackMarket, NATIVE_MIN_ROWS, fetchIndexedRows, fetchIndexedTrades, marketRowsFromPools, tradesFromIndexed } from './clientRows.js';
 import { formatTradeUsd } from '../charts/trades.js';
 
 const pool = (over: Record<string, unknown> = {}) => ({
@@ -57,5 +57,26 @@ describe('Aretia Index rows for the existing tables', () => {
     expect(urls.every((u) => u.startsWith('/api/v1/'))).toBe(true);
     const down = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
     await expect(fetchIndexedRows('new', '', 1, down)).rejects.toThrow(/not set up/);
+  });
+
+  it('uses the index as a list only when it holds enough markets, else falls back (null)', async () => {
+    const make = (n: number) => (async (u: string) => new Response(JSON.stringify({ data: u.includes('trending') ? { ranked: Array.from({ length: n }, () => pool()) } : Array.from({ length: n }, () => pool()) }), { status: 200 })) as unknown as typeof fetch;
+    expect(await fetchNativeList('top', 'bnb', 'h24', 1_060_000, make(NATIVE_MIN_ROWS))).toHaveLength(NATIVE_MIN_ROWS);
+    expect(await fetchNativeList('trending', '', 'h24', 1_060_000, make(NATIVE_MIN_ROWS))).toHaveLength(NATIVE_MIN_ROWS);
+    expect(await fetchNativeList('top', 'bnb', 'h24', 1_060_000, make(NATIVE_MIN_ROWS - 1))).toBeNull();
+    const down = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
+    expect(await fetchNativeList('new', 'bnb', 'h24', 1, down)).toBeNull();
+    const boom = (async () => { throw new Error('x'); }) as unknown as typeof fetch;
+    expect(await fetchNativeList('gainers', '', 'h1', 1, boom)).toBeNull();
+  });
+
+  it('asks the index to track a market it does not follow, once, and never for an indexed one', () => {
+    const calls: { u: string; body: string }[] = [];
+    const f = (async (u: string, init: RequestInit) => (calls.push({ u, body: String(init.body) }), new Response('{}'))) as unknown as typeof fetch;
+    trackMarket({ chain: 'bnb', pool: '0xaa', indexed: undefined }, f);
+    trackMarket({ chain: 'bnb', pool: '0xaa', indexed: undefined }, f);
+    trackMarket({ chain: 'bnb', pool: '0xbb', indexed: { quoteIsDollar: true, evidence: 'x' } }, f);
+    trackMarket({ chain: 'bnb', pool: '', indexed: undefined }, f);
+    expect(calls).toEqual([{ u: '/api/v1/track', body: JSON.stringify({ chain: 'bnb', pool: '0xaa' }) }]);
   });
 });

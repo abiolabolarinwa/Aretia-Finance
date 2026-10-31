@@ -28,8 +28,9 @@ export interface PoolDto {
   feeTier: number | null;
   state: string;
   stateReason: string;
-  createdAt: string;
-  ageSeconds: number;
+  /** Null when the market was added on request and its creation time was not read (it is older than the index). */
+  createdAt: string | null;
+  ageSeconds: number | null;
   base: TokenDto;
   quote: TokenDto;
   price: { quote: string | null; usd: number | null };
@@ -76,8 +77,8 @@ export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): P
     feeTier: p.feeTier,
     state: p.state,
     stateReason: p.stateReason,
-    createdAt: new Date(p.createdAt).toISOString(),
-    ageSeconds: Math.max(0, Math.floor((now - p.createdAt) / 1000)),
+    createdAt: p.createdAt > 0 ? new Date(p.createdAt).toISOString() : null,
+    ageSeconds: p.createdAt > 0 ? Math.max(0, Math.floor((now - p.createdAt) / 1000)) : null,
     base: tokenDto(tokens.get(`${p.chain}:${p.base}`), p.base, p.baseDecimals, quotes.includes(p.base)),
     quote: tokenDto(tokens.get(`${p.chain}:${p.quote}`), p.quote, p.quoteDecimals, quotes.includes(p.quote)),
     price: { quote: s?.price ?? null, usd: s?.priceUsd ?? null },

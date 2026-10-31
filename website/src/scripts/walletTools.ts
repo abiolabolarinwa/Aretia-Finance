@@ -322,6 +322,24 @@ const PUMP_AMM_ERRORS: Record<number, string> = {
   6079: 'this pool pays cashback and needs the other trade form',
 };
 
+/** The system program's errors that a trial run can hit, in plain words. */
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const SYSTEM_ERRORS: Record<number, string> = {
+  0: 'an account the transaction creates already exists',
+  1: 'your wallet does not hold enough SOL for the fees and deposits (the network reports insufficient funds)',
+};
+
+/** A refused trial run in plain words; the text as it came where it is not a known system program error. */
+export function explainTrialError(error: string | null | undefined): string {
+  const text = error ?? 'unknown reason';
+  const m = /Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)/.exec(text);
+  if (m && m[1] === SYSTEM_PROGRAM) {
+    const what = SYSTEM_ERRORS[parseInt(m[2]!, 16)];
+    if (what) return what;
+  }
+  return text;
+}
+
 /** The program's own error text in plain words where it is known; otherwise the text as it came. */
 export function explainProgramError(error: string): string {
   const m = /Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)/.exec(error);

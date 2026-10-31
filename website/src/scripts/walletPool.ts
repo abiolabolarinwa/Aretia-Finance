@@ -260,6 +260,10 @@ export function initPool(host: PoolHost): { onShow(): void; onWalletChange(): vo
     const dl = h('dl', 'wapp__rows');
     row(dl, 'Token', short(config.mint));
     row(dl, 'Tokens going in', amountText(config.tokenAmountRaw, config.decimals));
+    if (token.supply > 0n) {
+      const hundredths = (config.tokenAmountRaw * 10000n) / token.supply;
+      row(dl, 'Share of the supply going in', hundredths === 0n ? 'less than 0.01%' : `${Number(hundredths) / 100}%`);
+    }
     const quote = quoteOf(config);
     row(dl, 'Pair', quote.symbol === 'SOL' ? 'SOL' : `${quote.symbol} (token ${quote.mint}, ${quote.decimals} decimals, read from the network)`);
     row(dl, 'Starting price', `${config.price} ${quote.symbol} per token`);

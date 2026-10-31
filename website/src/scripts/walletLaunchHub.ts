@@ -6,15 +6,11 @@
  *
  * Nothing here moves money or changes what a form sends. Everything typed is shown with textContent, never as markup.
  */
-import { fromSmallestUnit } from './walletTools';
-import { LAUNCH_FEE_LAMPORTS } from './walletLaunchCore';
-import { POOL_FEE_LAMPORTS } from './walletPoolCore';
-import { CURVE_FEE_BPS } from './walletCurveCore';
-import { LAUNCH_EVM_CHAINS } from './walletLaunchEvmCore';
 import type { LaunchApi, LaunchNetwork } from './walletLaunch';
 import { appendTokenShare } from './walletTokenLinks';
 import { detailsState, onDetailsChange } from './walletLaunchMeta';
-import { NO_PREVIEW_VALUES, previewValues, type PreviewValues } from './walletLaunchPreviewCore';
+import { NO_PREVIEW_VALUES, previewFromMint, previewValues, type ParsedMint, type PreviewValues } from './walletLaunchPreviewCore';
+import { rpcCall } from './walletSend';
 import { validateDetails } from '../swings/launchmeta/core.js';
 import { metaBlock } from './tokenMetaView';
 
@@ -71,7 +67,6 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
   const chips = $('[data-hub-networks]');
   const rail = $('[data-hub-rail]');
   const tabsEl = $('[data-hub-market-tabs]');
-  const feesEl = $('[data-hub-fees]');
   const previewEl = $('[data-hub-preview]');
   const marketOff = $('[data-hub-market-off]');
   const panel = (t: Tab): HTMLElement | null => $(`[data-market-panel="${t}"]`);
@@ -359,32 +354,6 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
     }
   }
 
-  // ---------------------------------------------------------------- fees
-
-  function drawFees(): void {
-    if (!feesEl) return;
-    const net = launch.getNetwork();
-    const r = roots();
-    const rows: [string, string][] = [];
-    if (net === 'solana') {
-      rows.push(['Create a token', `${fromSmallestUnit(LAUNCH_FEE_LAMPORTS, 9)} SOL`]);
-      if (stageOf(r.pool) !== 'off') rows.push(['Open a pool', `${fromSmallestUnit(POOL_FEE_LAMPORTS, 9)} SOL`]);
-    } else {
-      const chain = LAUNCH_EVM_CHAINS.find((c) => c.key === net);
-      if (chain) rows.push(['Create a token', `${fromSmallestUnit(chain.feeWei, 18)} ${chain.symbol}`]);
-      if (stageOf(r.pool) !== 'off') rows.push(['Open a pool', '10 USDC or USDT']);
-    }
-    if (opts.curveOn && r.curve && stageOf(r.curve) !== 'off') rows.push(['Sell on a curve', `${CURVE_FEE_BPS / 100}% of each trade`]);
-    feesEl.textContent = '';
-    const dl = h('dl', 'lh-fees');
-    for (const [k, v] of rows) {
-      const d = h('div');
-      d.append(h('dt', '', k), h('dd', '', v));
-      dl.append(d);
-    }
-    feesEl.append(h('h3', 'lh-side__h', 'What Aretia charges'), dl, h('p', 'lh-side__fine', 'Flat fees, shown again before you sign. Network fees and account deposits are extra and also shown first.'));
-  }
-
   // ---------------------------------------------------------------- preview
 
   function readInput(...ids: string[]): string {
@@ -406,6 +375,8 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
 
   /** The last values seen while the create form was on the page (it leaves the page on the review and "created" screens). */
   let remembered: PreviewValues = NO_PREVIEW_VALUES;
+  /** The token address the preview was last rebuilt from the network for, so one reload makes one read. */
+  let rebuiltFor: string | null = null;
 
   function drawPreview(): void {
     if (!previewEl) return;
@@ -417,6 +388,20 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
       remembered,
     );
     remembered = picked.remembered;
+    // After a reload the created token's form is gone and nothing was typed: read the token's name, symbol and supply off the network once.
+    if (stageOf(roots().token) === 'done' && !formOnPage && remembered.name === '' && remembered.symbol === '' && made.token && rebuiltFor !== made.token) {
+      const mint = made.token;
+      rebuiltFor = mint;
+      void rpcCall<{ value: { data: { parsed?: { info?: ParsedMint } } } | null }>('getAccountInfo', [mint, { encoding: 'jsonParsed' }])
+        .then((r) => {
+          const values = previewFromMint(r.value?.data?.parsed?.info);
+          if (values && made.token === mint && remembered.name === '' && remembered.symbol === '') {
+            remembered = values;
+            drawPreview();
+          }
+        })
+        .catch(() => undefined);
+    }
     const { name, symbol, supply } = picked.shown;
     const net = launch.networks().find((n) => n.key === launch.getNetwork());
     const done = stageOf(roots().token) === 'done';
@@ -467,7 +452,6 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
 
   function refresh(): void {
     drawTabs();
-    drawFees();
     drawPreview();
     const r = roots();
     const tokenStage = stageOf(r.token);

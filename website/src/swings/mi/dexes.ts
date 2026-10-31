@@ -52,7 +52,7 @@ const FAMILY_OF: Readonly<Record<string, DexFamily>> = { pancakeswap: 'pancakesw
 
 function fromEntry(e: DexEntry): DexAdapterSpec | null {
   const family = FAMILY_OF[e.id.split('-')[0]!];
-  if (!family || !e.factory || e.chain === 'solana' || e.chain === 'robinhood') return null;
+  if (!family || !e.factory || e.chain === 'solana') return null;
   const v3 = e.protocol === 'uniswap-v3';
   return {
     id: `${family}-${v3 ? 'v3' : 'v2'}-${e.chain}`,

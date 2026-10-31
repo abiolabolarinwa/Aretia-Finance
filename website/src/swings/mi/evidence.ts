@@ -16,6 +16,7 @@ export const EVIDENCE: Readonly<Record<string, string>> = {
   'uniswap-v3-polygon': 'fixture-tested',
   'uniswap-v3-base': 'fixture-tested',
   'uniswap-v3-bnb': 'fixture-tested',
+  'uniswap-v3-robinhood': 'fixture-tested',
   'pancakeswap-v3-bnb': 'fixture-tested',
   'pancakeswap-v3-ethereum': 'fixture-tested',
   'pancakeswap-v3-base': 'fixture-tested',

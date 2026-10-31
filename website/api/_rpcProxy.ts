@@ -35,6 +35,9 @@ export const ALLOWED_METHODS: ReadonlySet<string> = new Set([
   'simulateTransaction',
 ]);
 
+import { FREE_SOLANA_RPC } from '../src/swings/rpc/endpoints.js';
+import { RpcPool, sharedPool, type EndpointInput } from '../src/swings/rpc/pool.js';
+
 export const PUBLIC_FALLBACK_RPC = 'https://solana-rpc.publicnode.com';
 /** publicnode answers 403 to the indexed token-account reads; the Solana Foundation's endpoint allows them, slowly. Tried only when no keyed provider is set. */
 export const PUBLIC_INDEXED_RPC = 'https://api.mainnet-beta.solana.com';
@@ -42,7 +45,6 @@ export const MAX_BODY_BYTES = 16 * 1024;
 export const RATE_LIMIT = { perMinute: 120 };
 /** The RPC proxy alone gets more: a quote reads pools and simulates swaps, a few dozen calls even with the pool cache, and the screen asks again every few seconds. */
 export const RPC_RATE_LIMIT = { perMinute: 600 };
-const UPSTREAM_TIMEOUT_MS = 15_000;
 /** Public production origins; extra ones (previews, staging) come from RPC_ALLOWED_ORIGINS. */
 const BASE_ORIGINS = ['https://aretiafinance.org', 'https://www.aretiafinance.org'];
 
@@ -172,29 +174,21 @@ export async function proxyRpc(input: ProxyInput): Promise<ProxyOutput> {
 
   if (overLimit(`rpc:${input.ip}`, input.now, RPC_RATE_LIMIT.perMinute)) return rpcError(429, id, -32005, 'Too many requests. Try again in a minute.', { ...headers, 'retry-after': '60' });
 
-  const upstream = env.SOLANA_RPC_URL?.trim() || PUBLIC_FALLBACK_RPC;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  // The RPC Pool (src/swings/rpc/pool.ts): a configured node, if there is one, is preferred; the free public nodes share the rest of the work
+  // within each one's allowance, a node that refuses a kind of request (publicnode refuses indexed reads) is not asked it again, identical
+  // requests made at the same moment are answered once, and answers that barely change (the slot, the latest blockhash for a second) are shared.
+  // The budget is short because a serverless function on this plan may run for only a few seconds.
+  const keyed = env.SOLANA_RPC_URL?.trim();
+  const nodes: EndpointInput[] = [...(keyed ? [{ url: keyed, weight: 4, rps: 25 }] : []), ...FREE_SOLANA_RPC];
+  const options = { timeoutMs: 5_000, attempts: 4, budgetMs: 8_000 };
+  // A caller that brings its own fetch (a test) gets its own pool; the real one shares a pool for the life of the process.
+  const pool = input.fetchImpl === globalThis.fetch ? sharedPool(nodes, options) : new RpcPool(nodes, { ...options, fetchImpl: input.fetchImpl, now: () => input.now });
   try {
-    const send = (url: string) =>
-      input.fetchImpl(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        // Only what was validated above; the caller's extra fields are dropped.
-        body: JSON.stringify({ jsonrpc: '2.0', id, method: call.method, params: call.params ?? [] }),
-        signal: controller.signal,
-      });
-    let res = await send(upstream);
-    if (res.status === 403 && upstream === PUBLIC_FALLBACK_RPC) res = await send(PUBLIC_INDEXED_RPC);
-    const text = await res.text();
-    if (!res.ok) {
-      // Never relay an upstream error page: it can name the endpoint or the key's plan.
-      return rpcError(res.status === 429 ? 429 : 502, id, -32003, 'The RPC provider could not complete that request.', headers);
-    }
-    return { status: 200, body: text, headers: { ...headers, 'content-type': 'application/json' } };
-  } catch {
-    return rpcError(504, id, -32003, 'The RPC provider did not answer in time.', headers);
-  } finally {
-    clearTimeout(timer);
+    const answer = await pool.call(call.method, (call.params ?? []) as unknown[]);
+    return { status: 200, body: JSON.stringify({ jsonrpc: '2.0', id, ...(answer.error ? { error: answer.error } : { result: answer.result }) }), headers: { ...headers, 'content-type': 'application/json' } };
+  } catch (e) {
+    // Never relay an upstream error page or message: it can name an endpoint or the key's plan.
+    const limited = e instanceof Error && /429/.test(e.message);
+    return rpcError(limited ? 429 : 504, id, -32003, limited ? 'The RPC providers are busy. Try again in a moment.' : 'The RPC provider did not answer in time.', headers);
   }
 }

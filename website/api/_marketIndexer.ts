@@ -136,7 +136,8 @@ async function handleTrack(input: MiInput, storeOverride?: MiStore, deps?: { rea
     const cfg = chainConfig(chain, input.env);
     const read = deps?.readFor ? deps.readFor(chain) : makeRead(cfg.rpcUrls, { fetchImpl: input.fetchImpl, concurrency: 3 });
     const now = () => Date.now();
-    const base = { chain: cfg, store, rules: rulesFrom(input.env), now, budgetMs: 25_000 };
+    const tokenHint = typeof b.token === 'string' && /^0x[0-9a-fA-F]{40}$/.test(b.token) ? b.token.toLowerCase() : undefined;
+    const base = { chain: cfg, store, rules: rulesFrom(input.env), now, budgetMs: 25_000, tokenHint };
     const result: TrackResult = chain === 'solana' ? await trackSolanaPool({ ...base, rpc: read, nativeUsd: solUsdReader(read, now) }, pool) : await trackEvmPool({ ...base, read, nativeUsd: nativeUsdReader(cfg, read, now) }, cfg, pool);
     return json(200, { data: result }, cors);
   } catch (e) {
@@ -168,7 +169,8 @@ export async function handleMiRun(input: MiInput, storeOverride?: MiStore): Prom
 
 // ---------------------------------------------------------------------------------------------- owner controls
 
-const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+/** A pool on an EVM chain: a contract address, or (Uniswap V4) a 32-byte pool id. */
+const EVM_ADDRESS = /^0x(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
 const MAX_BACKFILL_BLOCKS = 200_000;
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const reasonOf = (v: unknown): string => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} .,:;()_'/+-]/gu, '').trim().slice(0, 200) : '');

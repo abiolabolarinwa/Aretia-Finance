@@ -5,6 +5,8 @@
 import { chainConfig, type EvmMiChain } from './chains.js';
 import { allSpecs, SOLANA_SPECS, type DexAdapterSpec, type SolanaAdapterSpec } from './dexes.js';
 import { runSolanaAdapter, solUsdReader } from './solana/engine.js';
+import { deepenSolanaHistory } from './solana/track.js';
+import { deepenHistory } from './track.js';
 import { runAdapter, type EngineDeps, type LaunchLookup, type RunReport } from './engine.js';
 import { DEFAULT_RULES, type ListingRules } from './lifecycle.js';
 import { nativeUsdReader } from './reference.js';
@@ -79,11 +81,25 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const rules = rulesFrom(d.env);
   const out: RunReport[] = [];
   const count = (v: string | undefined): number | undefined => (v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2_000 ? Number(v) : undefined);
+  const retentionDays = (): number => {
+    const v = Number(d.env.MI_TRADE_RETENTION_DAYS);
+    return Number.isFinite(v) && v >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? v : 30;
+  };
   const runOne = async (spec: DexAdapterSpec | SolanaAdapterSpec, budgetMs: number): Promise<RunReport> => {
-    if (spec.chain !== 'solana') return runAdapter(engineFor(spec as DexAdapterSpec, budgetMs));
+    // Most of the slice goes to the live run; a bounded part reads tracked pools' history further back (see track.ts).
+    const historyMs = Math.min(10_000, Math.floor(budgetMs / 4));
+    if (spec.chain !== 'solana') {
+      const deps = engineFor(spec as DexAdapterSpec, budgetMs - historyMs);
+      const report = await runAdapter(deps);
+      if (report.ok) await deepenHistory({ ...deps, retentionDays: retentionDays(), budgetMs: historyMs }, { budgetMs: historyMs }).catch(() => undefined);
+      return report;
+    }
     const chain = chainConfig('solana', d.env);
     const rpc = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
-    return runSolanaAdapter({ spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) });
+    const solDeps = { spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs: budgetMs - historyMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) };
+    const report = await runSolanaAdapter(solDeps);
+    if (report.ok) await deepenSolanaHistory({ ...solDeps, retentionDays: retentionDays() }, { budgetMs: historyMs }).catch(() => undefined);
+    return report;
   };
   const engineFor = (spec: DexAdapterSpec, budgetMs: number): EngineDeps => {
     const chain = chainConfig(spec.chain, d.env);

@@ -39,6 +39,7 @@ export interface ApiResponse {
 }
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const EVM_POOL = /^0x(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
 export const MAX_LIMIT = 100;
 export const DEFAULT_LIMIT = 25;
 const TF_SECONDS: Readonly<Record<string, number>> = { '1m': 60, '5m': 300, '15m': 900, '1h': 3_600, '4h': 14_400, '1d': 86_400 };
@@ -63,7 +64,7 @@ export async function handleRead(store: MiStore, req: ApiRequest): Promise<ApiRe
     if ((b === 'top' || b === 'gainers') && c === undefined) return ranked(store, req, b);
     if (b === 'search' && c === undefined) return search(store, req);
     if (b !== undefined && c !== undefined) {
-      const ref = parseRef(b, c);
+      const ref = parseRef(b, c, true);
       if ('error' in ref) return ref.error;
       if (d === undefined) return poolDetail(store, req, ref);
       if (d === 'trades') return poolTrades(store, req, ref);
@@ -81,10 +82,10 @@ interface Ref {
   chain: MiChain;
   address: string;
 }
-function parseRef(chain: string, address: string): Ref | { error: ApiResponse } {
+function parseRef(chain: string, address: string, pool = false): Ref | { error: ApiResponse } {
   if (!isMiChain(chain)) return { error: err(400, 'bad-chain', `chain must be one of: ${MI_CHAINS.join(', ')}.`) };
   if (chain === 'solana') return isSolanaAddress(address) ? { chain, address } : { error: err(400, 'bad-address', 'address must be a base58 Solana address.') };
-  if (!EVM_ADDRESS.test(address)) return { error: err(400, 'bad-address', 'address must be a 0x-prefixed 40-hex-digit address.') };
+  if (!(pool ? EVM_POOL : EVM_ADDRESS).test(address)) return { error: err(400, 'bad-address', pool ? 'pool must be a 0x-prefixed address (40 hex digits) or Uniswap V4 pool id (64).' : 'address must be a 0x-prefixed 40-hex-digit address.') };
   return { chain, address: address.toLowerCase() };
 }
 

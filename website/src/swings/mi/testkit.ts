@@ -34,6 +34,8 @@ export class FakeChain {
   balances = new Map<string, bigint>();
   /** Pool contracts that answer factory(), token0(), token1() and fee(). */
   pairs = new Map<string, { factory: string; token0: string; token1: string; fee?: number }>();
+  /** Uniswap V4 StateView answers, by pool id (getSlot0 and getLiquidity). */
+  v4States = new Map<string, { sqrtPriceX96: bigint; tick: number; liquidity: bigint }>();
   version = 0;
   /** When set, the next N calls of any method throw a transport error. */
   failNext = 0;
@@ -123,6 +125,9 @@ export class FakeChain {
         const to = c.to.toLowerCase();
         const sel = c.data.slice(0, 10);
         const tok = this.tokens.get(to);
+        const v4 = this.v4States.get('0x' + c.data.slice(10, 74).toLowerCase());
+        if (v4 && sel === '0xc815641c') return '0x' + word(v4.sqrtPriceX96) + signedWord(BigInt(v4.tick)) + word(0n) + word(3000n);
+        if (v4 && sel === '0xfa6793d5') return '0x' + word(v4.liquidity);
         const pair = this.pairs.get(to);
         if (pair && (sel === '0xc45a0155' || sel === '0x0dfe1681' || sel === '0xd21220a7')) return '0x' + pad(sel === '0xc45a0155' ? pair.factory : sel === '0x0dfe1681' ? pair.token0 : pair.token1);
         if (pair && sel === '0xddca3f43') return '0x' + word(BigInt(pair.fee ?? 0));
@@ -167,8 +172,18 @@ export function v2SwapLog(pool: string, a: { in0?: bigint; in1?: bigint; out0?: 
   return { address: pool, topics: [TOPICS.v2Swap, addrTopic('0x' + 'aa'.repeat(20)), addrTopic(to)], data: '0x' + word(a.in0 ?? 0n) + word(a.in1 ?? 0n) + word(a.out0 ?? 0n) + word(a.out1 ?? 0n) };
 }
 
+const signedWord = (n: bigint): string => (n < 0n ? (1n << 256n) + n : n).toString(16).padStart(64, '0');
 const signed = (n: bigint): string => (n < 0n ? (1n << 256n) + n : n).toString(16).padStart(64, '0');
 export function v3SwapLog(pool: string, amount0: bigint, amount1: bigint, to: string, topic = TOPICS.v3Swap, extraWords = 0): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
   const tail = word(0n).repeat(extraWords);
   return { address: pool, topics: [topic, addrTopic('0x' + 'aa'.repeat(20)), addrTopic(to)], data: '0x' + signed(amount0) + signed(amount1) + word(1n << 96n) + word(1000n) + signed(0n) + tail };
+}
+
+export function initializeLog(poolManager: string, id: string, currency0: string, currency1: string, fee: number, tickSpacing: number, hooks: string): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
+  return { address: poolManager, topics: [TOPICS.v4Initialize, id, addrTopic(currency0), addrTopic(currency1)], data: '0x' + word(BigInt(fee)) + word(BigInt(tickSpacing)) + pad(hooks) + word(1n << 96n) + word(0n) };
+}
+
+/** A V4 Swap log. The amounts are the SWAPPER's balance changes (positive: the swapper received it), as the PoolManager emits them. */
+export function v4SwapLog(poolManager: string, id: string, amount0: bigint, amount1: bigint, sender: string): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
+  return { address: poolManager, topics: [TOPICS.v4Swap, id, addrTopic(sender)], data: '0x' + signed(amount0) + signed(amount1) + word(1n << 96n) + word(1000n) + signed(0n) + word(3000n) };
 }

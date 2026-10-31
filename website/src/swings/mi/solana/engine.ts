@@ -57,7 +57,7 @@ interface TxJson extends ParsedTx {
   transaction?: { message?: { instructions?: unknown[]; accountKeys?: ({ pubkey?: string; signer?: boolean } | string)[] } };
 }
 
-interface SigInfo {
+export interface SigInfo {
   signature: string;
   blockTime?: number | null;
   slot?: number;
@@ -249,7 +249,7 @@ export async function registerPool(d: SolDeps, c: CreatedPool, slot: number, cac
   const now = d.now();
   const pool: MiPool = {
     key, chain: 'solana', address: c.pool, adapterId: d.spec.id, dex: d.spec.family, kind: d.spec.kind, feeTier: null, base, quote,
-    baseDecimals: bf?.decimals ?? 0, quoteDecimals: qf?.decimals ?? 0, baseIsToken0: true, baseVault, quoteVault,
+    baseDecimals: bf?.decimals ?? 0, quoteDecimals: qf?.decimals ?? 0, baseIsToken0: true, baseVault, quoteVault, tickSpacing: null, hooks: null, historyBlock: null, historyDone: c.signature !== 'tracked',
     createdBlock: slot, createdTx: c.signature, createdAt: c.blockTime * 1000, state: 'discovered', stateReason: 'creation seen', stateAt: now,
     reserveBase: null, reserveQuote: null, reserveBlock: null, firstTradeAt: null, lastTradeAt: null, paused: false, stats: null,
   };
@@ -314,16 +314,12 @@ interface Followed {
   read: boolean;
   truncated: boolean;
   unavailable: number;
+  oldest?: string | null;
+  exhausted?: boolean;
 }
 
-export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<Followed> {
-  const cp = await d.store.getCheckpoint(poolCursorKey(d.spec, pool.address));
-  const until = cp?.blockHash && /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(cp.blockHash) ? cp.blockHash : undefined;
-  const limit = d.swapSigs ?? 50;
-  const params: Record<string, unknown> = { limit, commitment: 'finalized' };
-  if (until) params.until = until;
-  const sigs = (await d.rpc('getSignaturesForAddress', [pool.quoteVault!, params])) as SigInfo[];
-  if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
+/** Trades from a list of signatures that touched a pool's quote token account: each transaction is read and decoded from the pool's balance changes. */
+export async function tradesFromSignatures(d: SolDeps, pool: MiPool, sigs: readonly SigInfo[], report: RunReport): Promise<{ trades: MiTrade[]; unavailable: number }> {
   const tracked: TrackedPool = { chain: 'solana', pool: pool.address, venue: d.spec.family, baseMint: pool.base, quoteMint: pool.quote, baseDecimals: pool.baseDecimals, quoteDecimals: pool.quoteDecimals, baseVault: pool.baseVault!, quoteVault: pool.quoteVault! };
   const trades: MiTrade[] = [];
   let unavailable = 0;
@@ -347,12 +343,25 @@ export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): P
       trades.push({ chain: 'solana', pool: pool.address, id: rec.id, block: tx.slot ?? rec.seq, blockHash: '', time: rec.time, side: rec.side, baseAmount: rec.baseAmount, quoteAmount: rec.quoteAmount, price, maker });
     }
   }
+  return { trades, unavailable };
+}
+
+export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<Followed> {
+  const cp = await d.store.getCheckpoint(poolCursorKey(d.spec, pool.address));
+  const until = cp?.blockHash && /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(cp.blockHash) ? cp.blockHash : undefined;
+  const limit = d.swapSigs ?? 50;
+  const params: Record<string, unknown> = { limit, commitment: 'finalized' };
+  if (until) params.until = until;
+  const sigs = (await d.rpc('getSignaturesForAddress', [pool.quoteVault!, params])) as SigInfo[];
+  if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
+  const { trades, unavailable } = await tradesFromSignatures(d, pool, sigs, report);
   const stored = await d.store.putTrades(d.spec.id, trades);
   report.tradesNew += stored;
   // The pool's cursor moves only after its trades were written. A pool with a failed fetch keeps the old cursor so it is read again.
   if (sigs.length > 0 && unavailable === 0) await d.store.setCheckpoint({ adapterId: poolCursorKey(d.spec, pool.address), block: sigs[0]!.slot ?? 0, blockHash: sigs[0]!.signature, updatedAt: d.now() });
   else await d.store.setCheckpoint({ adapterId: poolCursorKey(d.spec, pool.address), block: cp?.block ?? 0, blockHash: cp?.blockHash ?? '', updatedAt: d.now() });
-  return { stored, read: sigs.length > 0, truncated: sigs.length >= limit && until !== undefined, unavailable };
+  // `oldest` and `exhausted` say how far back this read reached: a first read that returned fewer signatures than asked for has the pool's whole history.
+  return { stored, read: sigs.length > 0, truncated: sigs.length >= limit && until !== undefined, unavailable, oldest: sigs.length ? sigs[sigs.length - 1]!.signature : null, exhausted: until === undefined && sigs.length < limit && unavailable === 0 };
 }
 
 export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, TokenFacts | null>): Promise<void> {

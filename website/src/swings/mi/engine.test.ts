@@ -4,7 +4,7 @@ import { specById } from './dexes.js';
 import { runAdapter, type EngineDeps, type LaunchLookup } from './engine.js';
 import { DEFAULT_RULES } from './lifecycle.js';
 import { InMemoryMiStore } from './store.js';
-import { FakeChain, pairCreatedLog, poolCreatedLog, v2SwapLog, v3SwapLog } from './testkit.js';
+import { FakeChain, initializeLog, pairCreatedLog, poolCreatedLog, v2SwapLog, v3SwapLog, v4SwapLog } from './testkit.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -147,6 +147,35 @@ describe('engine: liquidity arriving later, and V3', () => {
     const pool = [...store.pools.values()][0]!;
     expect([pool.kind, pool.feeTier, pool.state]).toEqual(['v3', 2500, 'active']);
     expect([...store.trades.values()][0]).toMatchObject({ side: 'buy', price: '0.0001' });
+  });
+});
+
+describe('engine: Uniswap V4', () => {
+  const v4 = specById('uniswap-v4-bnb')!;
+  const ID = '0x' + 'ab'.repeat(32);
+  const NATIVE = '0x' + '0'.repeat(40);
+
+  it('discovers a pool by its id from the PoolManager, prices swaps from the swapper-side amounts, and reads depth through StateView', async () => {
+    const { chain, store, deps } = setup({ spec: v4 });
+    chain.addToken(TOKEN, 'V4TOK', 18, 'V4 Token');
+    chain.v4States.set(ID, { sqrtPriceX96: 100n * (1n << 96n), tick: 92_000, liquidity: 10n ** 27n });
+    chain.mine([initializeLog(v4.factory, ID, NATIVE, TOKEN, 3000, 60, '0x' + '0'.repeat(40))]);
+    // The swapper pays 1 native coin (-) and receives 10,000 tokens (+): a buy of the token.
+    chain.mine([v4SwapLog(v4.factory, ID, -E18, 10_000n * E18, WHO)]);
+    // The swapper pays 5,000 tokens and receives 0.4 native: a sell.
+    chain.mine([v4SwapLog(v4.factory, ID, (4n * E18) / 10n, -5_000n * E18, WHO)]);
+    // A swap in some other pool of the same PoolManager is not ours.
+    chain.mine([v4SwapLog(v4.factory, '0x' + 'cd'.repeat(32), -E18, E18, WHO)]);
+    chain.mineEmpty(5);
+    const r = await runAdapter(deps);
+    expect(r.ok).toBe(true);
+    const pool = [...store.pools.values()][0]!;
+    expect([pool.address, pool.kind, pool.base, pool.quote, pool.baseIsToken0, pool.feeTier, pool.tickSpacing, pool.state]).toEqual([ID, 'v4', TOKEN, NATIVE, false, 3000, 60, 'active']);
+    expect(pool.historyDone).toBe(true);
+    const trades = [...store.trades.values()].sort((a, b) => a.block - b.block);
+    expect(trades.map((t) => [t.side, t.price])).toEqual([['buy', '0.0001'], ['sell', '0.00008']]);
+    expect(pool.stats!.priceUsd).toBeCloseTo(0.048, 10);
+    expect((await store.getTokens([`bnb:${NATIVE}`])).get(`bnb:${NATIVE}`)).toMatchObject({ symbol: 'BNB', decimals: 18 });
   });
 });
 

@@ -10,7 +10,7 @@ import { CPMM_CREATE_FEE_RECEIVER, ORCA_FEE_TIER_ACCOUNTS } from '../indexer/sol
 import { RAYDIUM_CPMM_PROGRAM } from '../solana/raydiumCpmm.js';
 import { ORCA_WHIRLPOOL_PROGRAM } from '../solana/orcaWhirlpool.js';
 import { PUMPSWAP_PROGRAM, PUMP_MIGRATION_AUTHORITY } from './solana/pumpswap.js';
-import { EVM_PANCAKE_V3, EVM_V2_DEXES, EVM_V3_DEXES } from '../dex/entries.js';
+import { EVM_AERODROME, EVM_PANCAKE_V3, EVM_SLIPSTREAM, EVM_V2_DEXES, EVM_V3_DEXES, EVM_V4 } from '../dex/entries.js';
 import type { DexEntry } from '../engine/registry.js';
 import type { EvmMiChain, MiChain } from './chains.js';
 import { EVIDENCE as earned } from './evidence.js';
@@ -27,42 +27,74 @@ export const SIGNATURES = {
   v3Swap: 'Swap(address,address,int256,int256,uint160,uint128,int24)',
   /** PancakeSwap V3 adds the protocol fee amounts to the Swap event, which changes its signature. */
   pancakeV3Swap: 'Swap(address,address,int256,int256,uint160,uint128,int24,uint128,uint128)',
+  /** Aerodrome (Base): V2-style pools with a stable flag, and Slipstream (concentrated liquidity, a Uniswap V3 fork keyed by tick spacing). */
+  aeroPoolCreated: 'PoolCreated(address,address,bool,address,uint256)',
+  aeroSwap: 'Swap(address,address,uint256,uint256,uint256,uint256)',
+  slipstreamPoolCreated: 'PoolCreated(address,address,int24,address)',
+  /** Uniswap V4: one PoolManager holds every pool; a pool is its 32-byte id. */
+  v4Initialize: 'Initialize(bytes32,address,address,uint24,int24,address,uint160,int24)',
+  v4Swap: 'Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)',
 } as const;
 
 export const TOPICS = Object.fromEntries(Object.entries(SIGNATURES).map(([k, v]) => [k, topicOf(v)])) as Record<keyof typeof SIGNATURES, string>;
 
-export type DexFamily = 'pancakeswap' | 'uniswap' | 'sushiswap' | 'apeswap';
+export type DexFamily = 'pancakeswap' | 'uniswap' | 'sushiswap' | 'apeswap' | 'aerodrome';
 
 export interface DexAdapterSpec {
   id: string;
   family: DexFamily;
   name: string;
   chain: EvmMiChain;
-  kind: 'v2' | 'v3';
-  /** Lower-case factory address. */
+  kind: 'v2' | 'v3' | 'v4';
+  /** Lower-case factory address (for V4: the PoolManager, which emits both the creation and the swap events). */
   factory: string;
   creationTopic: string;
   swapTopic: string;
   evidence: Evidence;
   /** Where the address was confirmed. */
   source: string;
+  /** Uniswap V4: the StateView contract that reads a pool's price and liquidity. */
+  stateView?: string;
+  /** Pools whose creation event is not Uniswap's: Aerodrome's `PoolCreated(token0, token1, stable, pool)` or Slipstream's `PoolCreated(token0, token1, tickSpacing, pool)`. */
+  creationShape?: 'aero' | 'slipstream';
 }
 
-const FAMILY_OF: Readonly<Record<string, DexFamily>> = { pancakeswap: 'pancakeswap', uniswap: 'uniswap', sushiswap: 'sushiswap' };
+const FAMILY_OF: Readonly<Record<string, DexFamily>> = { pancakeswap: 'pancakeswap', uniswap: 'uniswap', sushiswap: 'sushiswap', aerodrome: 'aerodrome' };
+
+function aerodromeSpec(e: DexEntry, family: DexFamily): DexAdapterSpec {
+  const slip = e.protocol === 'aerodrome-slipstream';
+  return {
+    id: slip ? `aerodrome-slipstream-${e.chain}` : `aerodrome-v2-${e.chain}`,
+    family,
+    name: slip ? 'Aerodrome Slipstream' : 'Aerodrome',
+    chain: e.chain as EvmMiChain,
+    kind: slip ? 'v3' : 'v2',
+    factory: e.factory!.toLowerCase(),
+    creationTopic: slip ? TOPICS.slipstreamPoolCreated : TOPICS.aeroPoolCreated,
+    swapTopic: slip ? TOPICS.v3Swap : TOPICS.aeroSwap,
+    creationShape: slip ? 'slipstream' : 'aero',
+    evidence: 'address-verified',
+    source: 'Aretia routing catalogue (dex/entries.ts), read back from the chain',
+  };
+}
 
 function fromEntry(e: DexEntry): DexAdapterSpec | null {
   const family = FAMILY_OF[e.id.split('-')[0]!];
   if (!family || !e.factory || e.chain === 'solana') return null;
+  if (family === 'aerodrome') return aerodromeSpec(e, family);
+  const v4 = e.protocol === 'uniswap-v4';
   const v3 = e.protocol === 'uniswap-v3';
+  if (v4 && !e.stateView) return null;
   return {
-    id: `${family}-${v3 ? 'v3' : 'v2'}-${e.chain}`,
+    id: `${family}-${v4 ? 'v4' : v3 ? 'v3' : 'v2'}-${e.chain}`,
     family,
     name: e.name,
     chain: e.chain as EvmMiChain,
-    kind: v3 ? 'v3' : 'v2',
+    kind: v4 ? 'v4' : v3 ? 'v3' : 'v2',
     factory: e.factory.toLowerCase(),
-    creationTopic: v3 ? TOPICS.v3PoolCreated : TOPICS.v2PairCreated,
-    swapTopic: v3 ? (family === 'pancakeswap' ? TOPICS.pancakeV3Swap : TOPICS.v3Swap) : TOPICS.v2Swap,
+    creationTopic: v4 ? TOPICS.v4Initialize : v3 ? TOPICS.v3PoolCreated : TOPICS.v2PairCreated,
+    swapTopic: v4 ? TOPICS.v4Swap : v3 ? (family === 'pancakeswap' ? TOPICS.pancakeV3Swap : TOPICS.v3Swap) : TOPICS.v2Swap,
+    ...(v4 ? { stateView: e.stateView!.toLowerCase() } : {}),
     evidence: 'address-verified',
     source: 'Aretia routing catalogue (dex/entries.ts), checked on-chain by dex.live.ts',
   };
@@ -114,7 +146,7 @@ export const LIVE_VERIFIED: Readonly<Record<string, { date: string; observed: st
 
 export function allSpecs(): DexAdapterSpec[] {
   const out: DexAdapterSpec[] = [];
-  for (const e of [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3]) {
+  for (const e of [...EVM_V2_DEXES, ...EVM_V3_DEXES, ...EVM_PANCAKE_V3, ...EVM_V4, ...EVM_AERODROME, ...EVM_SLIPSTREAM]) {
     const s = fromEntry(e);
     if (s) out.push(s);
   }

@@ -41,13 +41,18 @@ export interface MiChainConfig {
 
 const USD_SYMBOLS = new Set(['USDC', 'USDT', 'DAI', 'USDG']);
 
-const quotesOf = (chain: EvmMiChain): QuoteToken[] =>
-  (HUB_TOKENS[chain] ?? []).map((h) => ({
+/** Uniswap V4 pools hold the chain's own coin as address zero; it is the native quote just as the wrapped coin is. */
+export const NATIVE_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+const quotesOf = (chain: EvmMiChain): QuoteToken[] => [
+  ...(HUB_TOKENS[chain] ?? []).map((h) => ({
     address: h.address,
     symbol: h.symbol,
     decimals: h.decimals,
-    role: h.address === WRAPPED_NATIVE[chain] ? 'native' : USD_SYMBOLS.has(h.symbol) ? 'usd' : 'native',
-  }));
+    role: (h.address === WRAPPED_NATIVE[chain] ? 'native' : USD_SYMBOLS.has(h.symbol) ? 'usd' : 'native') as QuoteToken['role'],
+  })),
+  { address: NATIVE_ADDRESS, symbol: CHAINS[chain].nativeSymbol, decimals: CHAINS[chain].nativeDecimals, role: 'native' as const },
+];
 
 /** Reorg-safety depth per chain. Conservative; an operator can raise it with MI_CONFIRMATIONS_<CHAIN>. */
 const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10, robinhood: 20 };

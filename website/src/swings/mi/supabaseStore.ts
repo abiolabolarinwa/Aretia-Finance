@@ -39,6 +39,10 @@ export const poolFromRow = (r: Row): MiPool => ({
   baseDecimals: nz(r.base_decimals),
   quoteDecimals: nz(r.quote_decimals),
   baseIsToken0: r.base_is_token0 === true,
+  tickSpacing: n(r.tick_spacing),
+  historyBlock: n(r.history_block),
+  historyDone: r.history_done !== false,
+  hooks: (r.hooks as string | null) ?? null,
   baseVault: (r.base_vault as string | null) ?? null,
   quoteVault: (r.quote_vault as string | null) ?? null,
   createdBlock: nz(r.created_block),
@@ -56,7 +60,7 @@ export const poolFromRow = (r: Row): MiPool => ({
   stats: (r.stats as MiPool['stats']) ?? null,
 });
 
-const POOL_COLUMNS: Record<string, string> = { adapterId: 'adapter_id', feeTier: 'fee_tier', baseDecimals: 'base_decimals', quoteDecimals: 'quote_decimals', baseIsToken0: 'base_is_token0', baseVault: 'base_vault', quoteVault: 'quote_vault', createdBlock: 'created_block', createdTx: 'created_tx', createdAt: 'created_at', stateReason: 'state_reason', stateAt: 'state_at', reserveBase: 'reserve_base', reserveQuote: 'reserve_quote', reserveBlock: 'reserve_block', firstTradeAt: 'first_trade_at', lastTradeAt: 'last_trade_at' };
+const POOL_COLUMNS: Record<string, string> = { adapterId: 'adapter_id', feeTier: 'fee_tier', baseDecimals: 'base_decimals', quoteDecimals: 'quote_decimals', baseIsToken0: 'base_is_token0', baseVault: 'base_vault', quoteVault: 'quote_vault', tickSpacing: 'tick_spacing', historyBlock: 'history_block', historyDone: 'history_done', createdBlock: 'created_block', createdTx: 'created_tx', createdAt: 'created_at', stateReason: 'state_reason', stateAt: 'state_at', reserveBase: 'reserve_base', reserveQuote: 'reserve_quote', reserveBlock: 'reserve_block', firstTradeAt: 'first_trade_at', lastTradeAt: 'last_trade_at' };
 const poolColumn = (k: string): string => POOL_COLUMNS[k] ?? k;
 
 function poolToRow(p: MiPool, now: number): Row {
@@ -152,6 +156,9 @@ export class SupabaseMiStore implements MiStore {
     const ord = order === 'newest' ? 'created_block.desc,key.asc' : 'last_trade_at.desc.nullslast,key.asc';
     const extra = order === 'recent-trade' ? '&last_trade_at=not.is.null' : '';
     return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&state=in.(${list})&paused=is.false${extra}&select=*&order=${ord}&limit=${clampLimit(limit, 1000)}`)).map(poolFromRow);
+  }
+  async poolsNeedingHistory(adapterId: string, limit: number): Promise<MiPool[]> {
+    return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&history_done=is.false&paused=is.false&select=*&order=updated_at.asc&limit=${clampLimit(limit, 50)}`)).map(poolFromRow);
   }
   async listPools(query: PoolQuery): Promise<PoolPage> {
     const f: string[] = [];

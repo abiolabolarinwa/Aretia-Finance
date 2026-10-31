@@ -40,7 +40,7 @@ export async function getHead(read: Read): Promise<number> {
  * Logs in [from, to] for the filter. A node that refuses the range (too many results, too wide) is asked again with half of it,
  * down to a single block, so a busy range never blocks progress. Transport failures are not retried here (the reader did that).
  */
-export async function getLogsHalving(read: Read, filter: { address?: string | string[]; topics: (string | null)[] }, from: number, to: number, depth = 0): Promise<unknown[]> {
+export async function getLogsHalving(read: Read, filter: { address?: string | string[]; topics: (string | string[] | null)[] }, from: number, to: number, depth = 0): Promise<unknown[]> {
   try {
     const out = await read('eth_getLogs', [{ ...filter, fromBlock: toHex(from), toBlock: toHex(to) }]);
     if (!Array.isArray(out)) throw new RpcError('the node returned malformed logs', 'node-error');
@@ -136,4 +136,43 @@ export async function readAddress(read: Read, to: string, data: string): Promise
     if (e instanceof RpcError && e.kind === 'transport') throw e;
     return null;
   }
+}
+
+const SLOT0 = '0x' + selector('getSlot0(bytes32)');
+const LIQUIDITY = '0x' + selector('getLiquidity(bytes32)');
+
+export interface V4State {
+  sqrtPriceX96: bigint;
+  tick: number;
+  liquidity: bigint;
+}
+
+/** A Uniswap V4 pool's price and active liquidity, read through the StateView contract. Null when the pool does not answer. */
+export async function readV4State(read: Read, stateView: string, poolId: string): Promise<V4State | null> {
+  const id = poolId.replace(/^0x/, '').padStart(64, '0');
+  try {
+    const slot = words((await read('eth_call', [{ to: stateView, data: SLOT0 + id }, 'latest'])) as string);
+    const liq = words((await read('eth_call', [{ to: stateView, data: LIQUIDITY + id }, 'latest'])) as string);
+    if (slot.length < 2 || liq.length < 1) return null;
+    return { sqrtPriceX96: wordToBigInt(slot[0]!), tick: Number(BigInt.asIntN(24, wordToBigInt(slot[1]!))), liquidity: wordToBigInt(liq[0]!) };
+  } catch (e) {
+    if (e instanceof RpcError && e.kind === 'transport') throw e;
+    return null;
+  }
+}
+
+/**
+ * Token amounts a V4 pool can serve within 1% of its current price, assuming its active liquidity L stayed constant across that
+ * range: token0 = L (1/sqrtP - 1/sqrtP_up), token1 = L (sqrtP - sqrtP_down). A singleton PoolManager holds every pool's tokens
+ * together, so there is no per-pool balance to read; this is a depth estimate, not total value locked, and says so wherever it is shown.
+ */
+export function v4Depth(state: V4State): { amount0: bigint; amount1: bigint } | null {
+  if (state.sqrtPriceX96 <= 0n || state.liquidity <= 0n) return { amount0: 0n, amount1: 0n };
+  const sp = Number(state.sqrtPriceX96) / 2 ** 96;
+  const l = Number(state.liquidity);
+  const k = Math.sqrt(1.01);
+  const a0 = l * (1 / sp - 1 / (sp * k));
+  const a1 = l * (sp - sp / k);
+  if (!Number.isFinite(a0) || !Number.isFinite(a1) || a0 < 0 || a1 < 0) return null;
+  return { amount0: BigInt(Math.floor(a0)), amount1: BigInt(Math.floor(a1)) };
 }

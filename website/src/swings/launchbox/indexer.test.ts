@@ -104,6 +104,10 @@ describe('EVM indexer', () => {
     expect(report.error).toMatch(/upstream timeout/);
     expect((await store.getCursor('bnb'))?.cursor).toBe('19000');
     expect(store.rows.size).toBe(0);
+    // The reason is kept for the status, and the row still reads as stale (its time is not moved).
+    const row = await store.getCursor('bnb');
+    expect(row?.updatedAt).toBe(1);
+    expect(String((row?.stats as { note?: string } | null)?.note)).toMatch(/Last run failed: upstream timeout/);
   });
 
   it('does not advance past a window whose tokens could not be stored', async () => {
@@ -177,6 +181,76 @@ describe('EVM indexer', () => {
     expect(report.error).toBeUndefined();
     expect((await store.getCursor('bnb'))?.updatedAt).toBe(5_000);
     expect(calls.every((c) => c.url.includes('publicnode'))).toBe(true);
+  });
+
+  // The BNB index stood still for days: a node that answers an old log query with HTTP 403 (publicnode's "archive requests require a
+  // personal token") was read as a failure, so the cursor never moved off the old blocks and nothing was ever written again.
+  describe('a node that refuses log queries with an HTTP error', () => {
+    const refuseOld = (good: typeof fetch, refuse: (from: number) => boolean, calls: Call[] = []): typeof fetch =>
+      (async (url: string, init: { body: string }) => {
+        const { method, params } = JSON.parse(init.body) as { method: string; params: unknown[] };
+        if (method === 'eth_getLogs' && refuse(parseInt((params[0] as { fromBlock: string }).fromBlock, 16))) {
+          calls.push({ url, method, params });
+          return new Response('{"error":"Archive requests require a personal token"}', { status: 403 });
+        }
+        return good(url, init as never);
+      }) as unknown as typeof fetch;
+
+    it('skips past the old blocks it cannot read, so a cursor that fell far behind catches up', async () => {
+      const store = new FakeLaunchStore();
+      await store.setCursor('bnb', '100', 1, null);
+      const good = node({ ...baseHandlers(() => [], 500_000, 1) });
+      const report = await indexEvmChain('bnb', { store, fetchImpl: refuseOld(good, (from) => from < 400_000), env: {}, now: () => 9_000 }, 1e12);
+      expect(report.error).toBeUndefined();
+      const row = await store.getCursor('bnb');
+      expect(Number(row?.cursor)).toBeGreaterThan(490_000);
+      expect(row?.updatedAt).toBe(9_000);
+    });
+
+    it('keeps the index alive when logs are refused everywhere: the cursor stays, the creation count still runs, and the run is not a failure', async () => {
+      const store = new FakeLaunchStore();
+      await store.setCursor('bnb', '19000', 1, { expected: 0, indexed: 0 });
+      const calls: Call[] = [];
+      const good = node({ ...baseHandlers(() => [], 20_000, 1) });
+      const report = await indexEvmChain('bnb', { store, fetchImpl: refuseOld(good, () => true, calls), env: {}, now: () => 9_000 }, 1e12);
+      expect(report.error).toBeUndefined();
+      expect(report).toMatchObject({ expected: 0, indexed: 0 });
+      const row = await store.getCursor('bnb');
+      expect(row?.cursor).toBe('19000');
+      expect(row?.updatedAt).toBe(9_000);
+      expect(String((row?.stats as { note?: string } | null)?.note)).toMatch(/refuses log queries.*Archive requests/);
+      // The main node and both backups were asked once each; nothing looped.
+      expect(calls).toHaveLength(3);
+    });
+
+    it('finds tokens by the creation count when logs are refused', async () => {
+      const store = new FakeLaunchStore();
+      await store.setCursor('bnb', '19000', 1, null);
+      const good = node({ ...baseHandlers(() => [], 20_000, 2), eth_getCode: () => '0x6080', eth_call: (p: unknown[]) => ((p[0] as { data: string }).data === selector('decimals()') ? '0x' + w(18) : (p[0] as { data: string }).data === selector('totalSupply()') ? '0x' + w(5) : '0x' + w(32) + hexStr('Cnt')) });
+      const report = await indexEvmChain('bnb', { store, fetchImpl: refuseOld(good, () => true), env: {}, now: () => 9_000 }, 1e12);
+      expect(report).toMatchObject({ expected: 1, indexed: 1, added: 1 });
+    });
+
+    it('asks a backup node for the logs when the main one refuses them', async () => {
+      const store = new FakeLaunchStore();
+      await store.setCursor('bnb', '19000', 1, null);
+      const calls: Call[] = [];
+      const good = node(baseHandlers((r) => (parseInt(r.fromBlock, 16) <= 19500 && parseInt(r.toBlock, 16) >= 19500 ? [created(T1, 19500)] : []), 20_000, 2), calls);
+      const fetchImpl = (async (url: string, init: { body: string }) => (url.includes('publicnode') && JSON.parse(init.body).method === 'eth_getLogs' ? new Response('no', { status: 403 }) : good(url, init as never))) as unknown as typeof fetch;
+      const report = await indexEvmChain('bnb', { store, fetchImpl, env: {}, now: () => 9_000 }, 1e12);
+      expect(report.error).toBeUndefined();
+      expect(report.added).toBe(1);
+      expect(store.rows.get(`bnb:${T1}`)).toMatchObject({ creator: CREATOR, source: 'factory' });
+    });
+
+    it('still treats a timeout or a server error as a failure to retry, without moving the cursor', async () => {
+      const store = new FakeLaunchStore();
+      await store.setCursor('bnb', '19000', 1, null);
+      const fetchImpl = (async (url: string, init: { body: string }) => (JSON.parse(init.body).method === 'eth_getLogs' ? new Response('busy', { status: 503 }) : node(baseHandlers(() => [], 20_000, 1))(url, init as never))) as unknown as typeof fetch;
+      const report = await indexEvmChain('bnb', { store, fetchImpl, env: {}, now: () => 9_000 }, 1e12);
+      expect(report.error).toMatch(/503/);
+      expect((await store.getCursor('bnb'))?.cursor).toBe('19000');
+    });
   });
 });
 

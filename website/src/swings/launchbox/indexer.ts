@@ -105,6 +105,16 @@ export interface IndexerReport {
 
 // ---------------------------------------------------------------- JSON-RPC
 
+/** A node that answered with an HTTP error. Its own words are kept: a free node's refusal ("archive requests require a personal token") says why. */
+export class NodeRefusal extends Error {
+  constructor(
+    readonly status: number,
+    detail: string,
+  ) {
+    super(`The node answered ${status}${detail ? `: ${detail}` : '.'}`);
+  }
+}
+
 class Rpc {
   constructor(
     private readonly url: string,
@@ -118,7 +128,7 @@ class Rpc {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) throw new Error(`The node answered ${res.status}.`);
+    if (!res.ok) throw new NodeRefusal(res.status, (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120));
     const body = (await res.json()) as { result?: unknown; error?: { message?: string } };
     if (body.error) throw new Error(String(body.error.message ?? 'The node refused the request.').slice(0, 160));
     return body.result;
@@ -158,15 +168,23 @@ export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadl
       if (!w) break;
       let logs: unknown;
       try {
-        logs = await rpc.call('eth_getLogs', [{ address: factory, topics: [TOKEN_CREATED_TOPIC], fromBlock: hexNum(w.from), toBlock: hexNum(w.to) }]);
+        logs = await getLogsFrom(chain, rpc, d.fetchImpl, { address: factory, topics: [TOKEN_CREATED_TOPIC], fromBlock: hexNum(w.from), toBlock: hexNum(w.to) });
       } catch (e) {
         // A free node cannot answer for blocks this old. Skip to the recent window; the creation count below picks up what was skipped.
         const safe = latest - CONFIRMATIONS[chain];
-        if (w.to < safe - 3 * SPAN && /archive|range|exceed|too (old|many)|limit|pruned|missing trie/i.test(String(e instanceof Error ? e.message : e))) {
+        const said = String(e instanceof Error ? e.message : e);
+        const refused = e instanceof NodeRefusal && e.status >= 400 && e.status < 500;
+        if (w.to < safe - 3 * SPAN && (refused || /archive|range|exceed|too (old|many)|limit|pruned|missing trie|indexed/i.test(said))) {
           cursor = String(Math.max(w.to, safe - FIRST_LOOKBACK - 1));
           notes.push('Older blocks are not served by the node; earlier tokens come from the factory\'s creation count.');
           await d.store.setCursor(chain, cursor, d.now(), { note: notes.join(' ') });
           continue;
+        }
+        // The node (and the backups) refuse log queries even for recent blocks. That must not freeze the index: stop reading logs for
+        // this run, leave the cursor where it is, and let the creation count below find every token (without its creator and time).
+        if (refused) {
+          notes.push(`The node refuses log queries (${said.slice(0, 100)}); tokens come from the factory's creation count.`);
+          break;
         }
         throw e;
       }
@@ -212,8 +230,34 @@ export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadl
     if (e instanceof MissingTableError) throw e;
     report.error = String(e instanceof Error ? e.message : e).slice(0, 200);
     console.warn(`launchbox: indexing ${chain} failed: ${report.error}`);
+    // Keep the reason where the status can show it. The row's time is left as it was, so a chain that is stuck still reads as stale.
+    await d.store.setCursor(chain, cursor, row?.updatedAt ?? 0, { ...(row?.stats ?? {}), note: `Last run failed: ${report.error}` }).catch(() => undefined);
   }
   return report;
+}
+
+/** Other public nodes that answer log queries, tried when the main one refuses them. */
+const LOG_BACKUP: Readonly<Record<EvmLaunchChain, readonly string[]>> = {
+  bnb: ['https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed1.defibit.io'],
+  ethereum: [],
+  polygon: [],
+};
+
+/** eth_getLogs on the main node; if it refuses (an HTTP 4xx), the backups are asked in turn before the refusal is reported. */
+async function getLogsFrom(chain: EvmLaunchChain, rpc: Rpc, fetchImpl: typeof fetch, filter: Record<string, unknown>): Promise<unknown> {
+  try {
+    return await rpc.call('eth_getLogs', [filter]);
+  } catch (first) {
+    if (!(first instanceof NodeRefusal) || first.status < 400 || first.status >= 500) throw first;
+    for (const url of LOG_BACKUP[chain]) {
+      try {
+        return await new Rpc(url, fetchImpl).call('eth_getLogs', [filter]);
+      } catch {
+        // Try the next one.
+      }
+    }
+    throw first;
+  }
 }
 
 /** Reads one factory-made token from the chain: the log if the node can still serve it (a provider with history), otherwise name, symbol, decimals and supply by direct calls. */

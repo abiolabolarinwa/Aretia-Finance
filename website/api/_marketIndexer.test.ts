@@ -8,7 +8,7 @@ import { FakeChain, pairCreatedLog, v2SwapLog } from '../src/swings/mi/testkit.j
 import { resetBudgets } from './_limits.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, resetMiCache, resetTrackState, type MiEnv } from './_marketIndexer.js';
+import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, miTrades, resetMiCache, resetTrackState, type MiEnv } from './_marketIndexer.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -146,7 +146,7 @@ describe('GET /api/v1 (public read API)', () => {
   it('reports every chain and DEX with its evidence, and lists what is not indexed', async () => {
     const { store, now } = await seeded();
     const s = body(await get(store, now, 'status')).data;
-    expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['base', 'bnb', 'ethereum', 'polygon', 'solana']);
+    expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['base', 'bnb', 'ethereum', 'polygon', 'robinhood', 'solana']);
     expect(s.chains.find((c: { id: string }) => c.id === 'solana')).toMatchObject({ supported: true, adapters: 3 });
     expect(s.dexes.find((d: { id: string }) => d.id === 'orca-whirlpool-solana')).toMatchObject({ evidence: 'live-verified', state: 'not-running' });
     expect(s.chains.find((c: { id: string }) => c.id === 'bnb').running).toBe(1);
@@ -343,5 +343,29 @@ describe('POST /api/v1/track', () => {
     let last = 200;
     for (let i = 0; i < 12; i++) last = (await post(store, chain, { chain: 'bnb', pool: '0x' + (i + 16).toString(16).repeat(20) })).status;
     expect(last).toBe(429);
+  });
+});
+
+describe('trades for the chart table, from the index', () => {
+  it('gives the stored trades of a followed dollar-quoted pool, in the table shape, from either side', async () => {
+    const { store, now } = await seeded();
+    const base = await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store);
+    expect(base).not.toBeNull();
+    expect(base!.length).toBe(12);
+    expect(base![0]).toMatchObject({ kind: expect.stringMatching(/^(buy|sell)$/), usd: 100 });
+    expect(base![0]!.priceUsd).toBeGreaterThan(0);
+    expect(base![0]!.tx).toMatch(/^0x/);
+    // Newest first, and the other side of the pool flips what a buy is.
+    expect(base![0]!.t).toBeGreaterThanOrEqual(base![1]!.t);
+    const quote = await miTrades({ chain: 'bnb', pool: POOL, token: 'quote', env, fetchImpl: nofetch, now }, store);
+    expect(quote![0]!.kind).not.toBe(base![0]!.kind);
+    expect(quote![0]!.priceUsd).toBeNull();
+  });
+
+  it('answers null for a pool it does not follow, a chain it does not index, or no storage, so the usual source is read', async () => {
+    const { store, now } = await seeded();
+    expect(await miTrades({ chain: 'bnb', pool: '0x' + '9'.repeat(40), token: 'base', env, fetchImpl: nofetch, now }, store)).toBeNull();
+    expect(await miTrades({ chain: 'robinhood', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store)).toBeNull();
+    expect(await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env: {}, fetchImpl: nofetch, now })).toBeNull();
   });
 });

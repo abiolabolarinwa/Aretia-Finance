@@ -35,7 +35,7 @@ on-chain fact.
 | `GET /pools/{chain}/{address}/candles` | OHLCV. `tf` = `1m 5m 15m 1h 4h 1d`, `limit` (1 to 1000), `before` |
 | `GET /tokens/{chain}/{address}` | a token and every market it is in (several pools link to one token record) |
 
-`chain` is one of `solana, ethereum, base, bnb, polygon`. EVM addresses are matched case-insensitively;
+`chain` is one of `solana, ethereum, base, bnb, polygon, robinhood`. EVM addresses are matched case-insensitively;
 Solana addresses are base58 and case-sensitive. A paused market answers 404 and is not listed. `GET /status` lists, per chain and
 per DEX, whether it is supported and with what evidence, and under `notIndexed` the Solana programs that are not indexed.
 

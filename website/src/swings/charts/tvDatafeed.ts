@@ -225,6 +225,8 @@ export function createPoolDatafeed(
     onLoadFailed?: (message: string) => void;
     /** How long Aretia's endpoint has to answer before GeckoTerminal is also read directly, in milliseconds. */
     hedgeMs?: number;
+    /** How long Aretia's own index is waited for before the outside sources are also read (default 600). */
+    indexerHeadStartMs?: number;
     /** True once the chart this datafeed serves has been closed: reads still waiting their turn for GeckoTerminal are then dropped. */
     cancelled?: () => boolean;
   } = {},
@@ -248,6 +250,10 @@ export function createPoolDatafeed(
   const priceTimers = new Map<string, ReturnType<typeof setInterval>>();
   const livePriceMs = deps.livePriceMs ?? LIVE_PRICE_MS;
   const dexBase = deps.dexBase ?? 'https://api.dexscreener.com';
+  /** Pools the indexer said it does not follow, and until when not to ask again. */
+  const indexerUnknown = new Map<string, number>();
+  const INDEXER_UNKNOWN_MS = 5 * 60_000;
+  const INDEXER_HEAD_START_MS = deps.indexerHeadStartMs ?? 600;
 
   /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
   async function fetchLivePrice(): Promise<number | null> {
@@ -255,6 +261,32 @@ export function createPoolDatafeed(
     try {
       const response = await fetchImpl(`${dexBase}/latest/dex/pairs/${DEXSCREENER_CHAIN[o.chain]}/${encodeURIComponent(o.pool)}`, { headers: { accept: 'application/json' } });
       return response.ok ? livePriceFrom(await response.json(), side, currency) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Candles from Aretia's own Market Indexer, tried first for a pool that is not flagged as indexed: if the indexer follows the pool it has
+   * stored its trades from the chain, so no outside service is needed. Returns the bars when it has some, otherwise null (it does not follow
+   * the pool, has no trades in this window, or could not answer) and the caller reads the usual outside sources. A pool it does not know is
+   * remembered for five minutes, so the question is not asked again for each window. Never marks the shared route as down: "unknown pool"
+   * is a normal answer, and the route also serves pools that are indexed.
+   */
+  async function fromIndexer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
+    if (!deps.viaServer || o.source === 'aretia') return null;
+    const unknownKey = `${o.chain}|${o.pool}`;
+    if ((indexerUnknown.get(unknownKey) ?? 0) > now()) return null;
+    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency, source: 'aretia' });
+    try {
+      const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
+      if (response.status === 404) {
+        indexerUnknown.set(unknownKey, now() + INDEXER_UNKNOWN_MS);
+        return null;
+      }
+      if (!response.ok) return null;
+      const bars = parseBars(await response.json());
+      return bars.length > 0 ? bars : null;
     } catch {
       return null;
     }
@@ -330,16 +362,40 @@ export function createPoolDatafeed(
       if (own === null) throw new Error("Aretia's market index could not be reached.");
       return keep(own);
     }
-    const direct = (): Promise<TvBar[]> => readDirect(res, beforeSec, limit, attempts);
-    const server = fromServer(res, beforeSec, limit);
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<'late'>((resolve) => {
-      timer = setTimeout(() => resolve('late'), hedgeMs);
+    // Aretia's own index is asked first and given a short head start: a pool it follows needs no outside service at all. If it does not
+    // follow the pool, has nothing for this window or is slow, the usual sources are read, and bars the index sends meanwhile still win.
+    const indexed = fromIndexer(res, beforeSec, limit);
+    let headStart: ReturnType<typeof setTimeout> | undefined;
+    const tooSlow = new Promise<'late'>((resolve) => {
+      headStart = setTimeout(() => resolve('late'), INDEXER_HEAD_START_MS);
     });
-    const first = await Promise.race([server, late]);
-    clearTimeout(timer);
-    if (first !== 'late') return keep(first ?? (await direct()));
-    return keep(await firstGood(server, direct()));
+    const first = await Promise.race([indexed, tooSlow]);
+    clearTimeout(headStart);
+    if (Array.isArray(first)) return keep(first);
+    const usual = async (): Promise<TvBar[]> => {
+      const direct = (): Promise<TvBar[]> => readDirect(res, beforeSec, limit, attempts);
+      const server = fromServer(res, beforeSec, limit);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<'late'>((resolve) => {
+        timer = setTimeout(() => resolve('late'), hedgeMs);
+      });
+      const first = await Promise.race([server, late]);
+      clearTimeout(timer);
+      if (first !== 'late') return keep(first ?? (await direct()));
+      return keep(await firstGood(server, direct()));
+    };
+    const usualRead = usual();
+    return keep(
+      await new Promise<TvBar[]>((resolve, reject) => {
+        indexed.then((bars) => {
+          if (bars) resolve(bars);
+        });
+        usualRead.then(resolve, (e: unknown) => {
+          // The usual sources failed: the index may still answer.
+          indexed.then((bars) => (bars ? resolve(bars) : reject(e)), () => reject(e));
+        });
+      }),
+    );
   }
 
   /** Reads GeckoTerminal itself: spaced out, retried a little, and read into bars. */

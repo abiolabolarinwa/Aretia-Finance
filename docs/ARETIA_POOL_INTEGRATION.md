@@ -1,6 +1,6 @@
 # Trading Aretia tokens outside Aretia
 
-Status: **nothing here is live.** The Aretia Pool program is unaudited and exists on devnet only. This is the checklist and the pack to hand to the parties who decide whether outside apps can trade it. Written 2026-10-18.
+Status: **nothing here is live.** The Aretia Pool program is unaudited and exists on devnet only. This is the checklist and the pack to hand to the parties who decide whether outside apps can trade it. Written 2026-10-18. The ready-to-send pack, the four gates before sending, and draft messages to Jupiter and the trackers are in `ARETIA_POOL_AGGREGATOR_PACK.md` (2026-10-31).
 
 ## What already works outside Aretia
 

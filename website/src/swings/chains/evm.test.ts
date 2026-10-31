@@ -453,3 +453,12 @@ describe('router with EVM providers', () => {
     expect(res.failures.map((f) => f.providerId)).toEqual(['c']);
   });
 });
+
+describe('an Ethereum wallet that fails to connect', () => {
+  it("says what the wallet said, and keeps the plain messages for a decline and a waiting request", async () => {
+    const adapter = (err: unknown) => new Eip1193WalletAdapter({ request: async () => { throw err; } } as never);
+    await expect(adapter(new Error('Unexpected error')).connect()).rejects.toMatchObject({ message: expect.stringContaining('(Unexpected error)') });
+    await expect(adapter({ code: 4001 }).connect()).rejects.toMatchObject({ code: 'rejected' });
+    await expect(adapter({ code: -32002 }).connect()).rejects.toMatchObject({ message: expect.stringContaining('already has a request waiting') });
+  });
+});

@@ -155,7 +155,9 @@ export class Eip1193WalletAdapter implements EvmWalletAdapter {
       // -32002: the wallet already has a connection request open (a second click, or a window left behind).
       if ((e as { code?: number } | null)?.code === -32002) throw new SwingsError('invalid', 'Your wallet already has a request waiting. Open its icon in the browser toolbar, approve or reject it, then try again.');
       if (e instanceof SwingsError) throw e;
-      throw new SwingsError('invalid', "Your wallet didn't connect. If it is locked, unlock it and try again.");
+      // The wallet's own words are kept, so a failure can be told apart (locked, blocked, wrong network) instead of guessed at.
+      const why = e instanceof Error ? e.message.replace(/s+/g, ' ').trim().slice(0, 120) : '';
+      throw new SwingsError('invalid', `Your wallet didn't connect${why ? ` (${why})` : ''}. If it is locked, unlock it and try again.`);
     }
   }
 

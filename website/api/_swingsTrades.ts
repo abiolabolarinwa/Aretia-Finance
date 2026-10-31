@@ -14,6 +14,7 @@ import { isChainId } from '../src/swings/core/types.js';
 import { GECKO_NETWORK } from '../src/swings/charts/pool.js';
 import { parseTrades, type Trade } from '../src/swings/charts/trades.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
+import { miTrades } from './_marketIndexer.js';
 
 const POOL = /^[A-Za-z0-9]{20,100}$/;
 /**
@@ -50,6 +51,14 @@ export async function handleTrades(input: TokensInput): Promise<TokensOutput> {
   const hit = answers.get(key);
   if (hit && input.now - hit.at < FRESH_MS) return ok(hit.trades, false);
   if (overLimit(`trades:${input.ip}`, input.now)) return hit ? ok(hit.trades, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
+
+  // A pool Aretia's own Market Indexer follows is answered from the trades it stored from the chain; no outside service is asked.
+  const own = await miTrades({ chain, pool, token, env: input.env, fetchImpl: input.fetchImpl, now: input.now });
+  if (own) {
+    if (answers.size >= MAX_ENTRIES) answers.clear();
+    answers.set(key, { at: input.now, trades: own });
+    return ok(own, false);
+  }
 
   const url = `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/trades`;
   // Visitors asking for the same pool at once share one upstream request.

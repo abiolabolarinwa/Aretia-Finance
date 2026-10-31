@@ -8,7 +8,7 @@ import { FakeChain, pairCreatedLog, v2SwapLog } from '../src/swings/mi/testkit.j
 import { resetBudgets } from './_limits.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { issueSession } from './_swingsAuth.js';
-import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, resetMiCache, type MiEnv } from './_marketIndexer.js';
+import { handleMi, handleMiAdmin, handleMiRun, miOhlcv, miTrades, resetMiCache, type MiEnv } from './_marketIndexer.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
 const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
@@ -285,5 +285,29 @@ describe('what the status says about a failure', () => {
     expect(text).not.toContain('abcdefghijklmnopqrstuvwxyz0123456789');
     expect(text).toContain('[node]');
     expect(text.length).toBeLessThanOrEqual(160);
+  });
+});
+
+describe('trades for the chart table, from the index', () => {
+  it('gives the stored trades of a followed dollar-quoted pool, in the table shape, from either side', async () => {
+    const { store, now } = await seeded();
+    const base = await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store);
+    expect(base).not.toBeNull();
+    expect(base!.length).toBe(12);
+    expect(base![0]).toMatchObject({ kind: expect.stringMatching(/^(buy|sell)$/), usd: 100 });
+    expect(base![0]!.priceUsd).toBeGreaterThan(0);
+    expect(base![0]!.tx).toMatch(/^0x/);
+    // Newest first, and the other side of the pool flips what a buy is.
+    expect(base![0]!.t).toBeGreaterThanOrEqual(base![1]!.t);
+    const quote = await miTrades({ chain: 'bnb', pool: POOL, token: 'quote', env, fetchImpl: nofetch, now }, store);
+    expect(quote![0]!.kind).not.toBe(base![0]!.kind);
+    expect(quote![0]!.priceUsd).toBeNull();
+  });
+
+  it('answers null for a pool it does not follow, a chain it does not index, or no storage, so the usual source is read', async () => {
+    const { store, now } = await seeded();
+    expect(await miTrades({ chain: 'bnb', pool: '0x' + '9'.repeat(40), token: 'base', env, fetchImpl: nofetch, now }, store)).toBeNull();
+    expect(await miTrades({ chain: 'robinhood', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store)).toBeNull();
+    expect(await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env: {}, fetchImpl: nofetch, now })).toBeNull();
   });
 });

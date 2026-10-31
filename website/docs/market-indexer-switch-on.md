@@ -15,13 +15,7 @@ configuration you do in your own accounts, plus two pieces of work that are not 
 
 ## Steps, in order (each one is yours: they use your accounts)
 
-1. **Paid nodes.** Create mainnet endpoints with a provider (Helius, QuickNode, Alchemy, Triton) for Solana, BNB Chain, Ethereum, Base,
-   Polygon and Robinhood Chain (if the provider lists it; otherwise leave Robinhood on its public nodes). In Vercel (Production,
-   Sensitive) set:
-   - `SOLANA_RPC_URL` (also used by the site's own RPC proxy), or `MI_RPC_SOLANA`
-   - `MI_RPC_BNB`, `MI_RPC_ETHEREUM`, `MI_RPC_BASE`, `MI_RPC_POLYGON`, `MI_RPC_ROBINHOOD`
-   - optional, for a node that allows bigger `getLogs` batches: `MI_ADDRESS_BATCH_<CHAIN>` (public nodes allow 10; a paid node can take
-     50 or more) and `MI_CONFIRMATIONS_<CHAIN>` if you want a different depth.
+1. **Nodes: nothing to buy to start.** The RPC Pool (`rpc-pool.md`) shares the reads among the free public nodes with manners: it spreads load, respects each node's allowance, learns what each node refuses, shares identical requests and caches answers that cannot change. On the live free nodes it was 4 to 5 times faster than one node on Ethereum and Base, and no faster on BNB Chain, whose free nodes are slow. A paid node is an optional upgrade, not a prerequisite: set `SOLANA_RPC_URL` or `MI_RPC_<CHAIN>` (Vercel, Production, Sensitive) and it is added to the pool at a higher weight with the free nodes as the fallback.
 2. **Database.** In the Supabase SQL editor (or `npm run db:migrate`) apply `supabase/migrations/0019_market_indexer_robinhood.sql`.
    It is safe to run twice. Without it the Robinhood adapter's writes are refused.
 3. **Switch the adapters on.** Set `MI_ADAPTERS` to the list below (or `*` for everything catalogued), then redeploy. Start with the
@@ -41,8 +35,9 @@ configuration you do in your own accounts, plus two pieces of work that are not 
 ## The two failing adapters, as found on 2026-10-31
 
 - **PancakeSwap V2 (BNB Chain)** was 1,250,406 blocks behind (about six days): the free BNB node cannot serve a day's logs in the 45
-  seconds a run is allowed. This is a node problem, not a decoder problem (its decoders are verified on real logs); a paid
-  `MI_RPC_BNB` closes it. Until the lag closes, its pools' charts keep using the outside source.
+  seconds a run is allowed. It is a node problem, not a decoder problem (its decoders are verified on real logs). Now an adapter further
+  behind than about six hours of blocks skips ahead to that point instead of chasing the gap (the run reports `skippedBlocks`), and the pool
+  spreads the work over every free BNB node; a paid `MI_RPC_BNB` is still the way to follow many BNB pools without lag.
 - **Orca Whirlpools (Solana)** reported failures with a small lag (149 slots) and a recent success. The status did not say why; with this
   release it does. Read `lastError` after the next deploy, then send it over or fix by the message.
 

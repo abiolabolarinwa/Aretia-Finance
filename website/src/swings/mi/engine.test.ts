@@ -340,3 +340,26 @@ describe('engine: reorgs and controls', () => {
     expect(await store.getCheckpoint(spec.id)).toEqual(cp);
   });
 });
+
+describe('engine: too far behind', () => {
+  it('skips ahead to the allowed lag instead of chasing the whole gap, and says how much it skipped', async () => {
+    const { chain, store, deps } = setup();
+    chain.mineEmpty(20);
+    createPool(chain);
+    chain.mineEmpty(5);
+    expect((await runAdapter(deps)).ok).toBe(true);
+    const before = (await store.getCheckpoint(spec.id))!.block;
+    // A long stretch passes while nothing runs (a slow node, a deploy that was off).
+    chain.mineEmpty(300);
+    const capped = { ...deps, chain: { ...deps.chain, maxLagBlocks: 60 } };
+    const r = await runAdapter(capped);
+    expect(r.ok).toBe(true);
+    expect(r.skippedBlocks).toBeGreaterThan(200);
+    expect(r.fromBlock!).toBeGreaterThan(before + 200);
+    expect(r.lagBlocks).toBeLessThan(10);
+    // Within the allowance nothing is skipped.
+    chain.mineEmpty(20);
+    const next = await runAdapter(capped);
+    expect(next.skippedBlocks).toBeUndefined();
+  });
+});

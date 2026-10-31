@@ -48,6 +48,18 @@ const COLUMNS: { key: SortKey; label: string; title: string }[] = [
   { key: 'cap', label: 'Mcap', title: 'Market cap, or fully diluted value (FDV) when no market cap is reported' },
 ];
 
+/** The columns drawn in the table. 24H is not one: the change sits under the price. It stays in COLUMNS so the sort menu can still sort by it. */
+const TABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'change');
+
+/** The three headline numbers over the list. Pure: a missing figure adds nothing, and nothing is invented. */
+export function launchStats(rows: readonly Pick<LaunchView, 'volume24hUsd' | 'liquidityUsd'>[]): { tokens: number; volumeUsd: number | null; liquidityUsd: number | null } {
+  const sum = (pick: (r: Pick<LaunchView, 'volume24hUsd' | 'liquidityUsd'>) => number | null): number | null => {
+    const have = rows.map(pick).filter((v): v is number => v !== null && Number.isFinite(v) && v >= 0);
+    return have.length === 0 ? null : have.reduce((a, b) => a + b, 0);
+  };
+  return { tokens: rows.length, volumeUsd: sum((r) => r.volume24hUsd), liquidityUsd: sum((r) => r.liquidityUsd) };
+}
+
 const CURVE_LABEL: Record<string, string> = { trading: 'On curve', soldOut: 'Curve full', migrated: 'Left the curve', aborted: 'Curve unwound' };
 const REFRESH_MS = 60_000;
 
@@ -100,6 +112,13 @@ function priceText(r: LaunchView): { text: string; muted: boolean } {
   return { text: r.curve ? 'On curve' : 'No market yet', muted: true };
 }
 
+/** The price, with the 24-hour change under it in green or red. */
+function priceCell(price: { text: string; muted: boolean }, change: number | null): HTMLTableCellElement {
+  const td = num('Price', price.text, price.muted ? 'wapp-lb__muted' : '');
+  if (change !== null && !price.muted) td.append(el('small', `wapp-lb__delta ${change > 0 ? 'is-up' : change < 0 ? 'is-down' : ''}`.trim(), formatChange(change)));
+  return td;
+}
+
 function liquidityCell(r: LaunchView): HTMLTableCellElement {
   const td = num('Liquidity / curve', r.liquidityUsd !== null ? compactUsd(r.liquidityUsd) : '–');
   if (r.liquidityUsd === null && r.curve) {
@@ -133,7 +152,7 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
   const head = el('thead');
   const hr = el('tr');
   hr.append(Object.assign(el('th', 'wapp-mt__rank', '#')), el('th', 'wapp-mt__tokenhead', 'Token'));
-  for (const c of COLUMNS) {
+  for (const c of TABLE_COLUMNS) {
     const th = el('th', 'wapp-mt__numhead');
     th.title = c.title;
     const b = el('button', 'wapp-mt__sort', c.label);
@@ -145,6 +164,7 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     th.append(b);
     hr.append(th);
   }
+  hr.append(el('th', 'wapp-lb__acthead'));
   head.append(hr);
   const body = el('tbody');
   rows.forEach((r, i) => {
@@ -202,20 +222,30 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
       }
       names.append(row);
     }
+    const kind = r.curve ? CURVE_LABEL[r.curve.status] ?? 'Curve' : r.pool ? 'Pool' : null;
+    if (kind) line.append(el('span', `wapp-lb__tag${r.curve ? ' is-curve' : ''}`, kind));
     const cell = el('div', 'wapp-mt__cell');
-    cell.append(logo(r), names, chain);
+    const pic = el('span', 'wapp-lb__pic');
+    pic.append(logo(r), chain);
+    cell.append(pic, names);
     tok.append(cell);
     tr.append(tok);
     const price = priceText(r);
     tr.append(
       num('Age', r.createdAt === null ? '–' : formatAge(h.now - r.createdAt)),
-      num('Price', price.text, price.muted ? 'wapp-lb__muted' : ''),
-      num('24H', formatChange(r.change24h), r.change24h === null ? '' : r.change24h > 0 ? 'is-up' : r.change24h < 0 ? 'is-down' : ''),
+      priceCell(price, r.change24h),
       num('Volume', compactUsd(r.volume24hUsd)),
       liquidityCell(r),
       num(r.capKind === 'fdv' ? 'FDV' : 'Mcap', compactUsd(r.capUsd)),
     );
     if (r.capKind === 'fdv') tr.lastElementChild!.setAttribute('title', 'Fully diluted value: no market cap is reported for this token');
+    const act = el('td', 'wapp-lb__act');
+    const go = el('a', 'wapp-lb__go', 'Trade');
+    go.href = tokenHref(r);
+    go.setAttribute('aria-label', `Open ${symbol || 'token'} to trade`);
+    go.addEventListener('click', (e) => e.stopPropagation());
+    act.append(go);
+    tr.append(act);
     body.append(tr);
   });
   table.append(head, body);
@@ -313,11 +343,11 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
 
   function controls(): HTMLElement {
     const bar = el('div', 'wapp-lb__bar');
-    const tabs = el('div', 'wapp__seg wapp-lb__tabs');
+    const tabs = el('div', 'wapp-lb__tabs');
     tabs.setAttribute('role', 'group');
     tabs.setAttribute('aria-label', 'Show');
     for (const t of TABS) {
-      const b = el('button', 'wapp__chip wapp__chip--btn', t.label);
+      const b = el('button', 'wapp-lb__tab', t.label);
       b.type = 'button';
       b.title = t.title;
       b.setAttribute('aria-pressed', String(filter.tab === t.tab));
@@ -381,12 +411,14 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       sort = { key, dir };
       renderList();
     });
-    bar.append(tabs, chains, search, sortSel);
+    const tools = el('div', 'wapp-lb__tools');
+    tools.append(chains, search, sortSel);
+    bar.append(tabs, tools);
     return bar;
   }
 
   const listHost = el('div', 'wapp-lb__list');
-  const countHost = el('span', 'wapp-lb__count');
+  const statsHost = el('div', 'wapp-lb__stats');
   const statusHost = el('div');
   const footHost = el('div');
   let sortSelect: HTMLSelectElement | null = null;
@@ -434,16 +466,26 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
 
   function render(): void {
     root!.textContent = '';
-    const head = el('div', 'wapp-lb__head');
-    head.append(countHost);
+    const head = el('div', 'wapp-lb__hero');
+    const title = el('div', 'wapp-lb__titles');
+    title.append(el('p', 'wapp-lb__sub', 'Every token launched with Aretia, on every network.'));
+    head.append(title, statsHost);
     root!.append(head, controls(), statusHost, listHost, footHost);
     refreshData();
   }
 
   /** Everything that comes from the server: the count, the notes, the list and the time it was made. The controls are left alone. */
   function refreshData(): void {
-    countHost.textContent = data?.setup === 'ok' ? `${data.launches.length} token${data.launches.length === 1 ? '' : 's'}` : '';
-    countHost.hidden = data?.setup !== 'ok';
+    statsHost.textContent = '';
+    statsHost.hidden = data?.setup !== 'ok';
+    if (data?.setup === 'ok') {
+      const st = launchStats(data.launches);
+      for (const [label, value] of [['Tokens launched', String(st.tokens)], ['Volume (24H)', st.volumeUsd === null ? '–' : compactUsd(st.volumeUsd)], ['Liquidity', st.liquidityUsd === null ? '–' : compactUsd(st.liquidityUsd)]] as const) {
+        const box = el('div', 'wapp-lb__stat');
+        box.append(el('small', '', label), el('strong', '', value));
+        statsHost.append(box);
+      }
+    }
     statusHost.replaceChildren(...[status()].filter((n): n is HTMLElement => n !== null));
     renderList();
     footHost.textContent = '';

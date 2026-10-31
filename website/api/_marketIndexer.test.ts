@@ -276,3 +276,14 @@ describe('candles for the existing TradingView chart (source=aretia)', () => {
     expect((await ask(store, now, { pool: '0x' + '9'.repeat(40) })).status).toBe(404);
   });
 });
+
+describe('what the status says about a failure', () => {
+  it('shows the reason with links and keys removed, cut short', async () => {
+    const { publicError } = await import('../src/swings/mi/api.js');
+    const text = publicError('rpc eth_getLogs failed at https://bsc.example.org/v1/abcdefghijklmnopqrstuvwxyz0123456789: 429 Too  many requests ' + 'x'.repeat(300));
+    expect(text).not.toContain('https://');
+    expect(text).not.toContain('abcdefghijklmnopqrstuvwxyz0123456789');
+    expect(text).toContain('[node]');
+    expect(text.length).toBeLessThanOrEqual(160);
+  });
+});

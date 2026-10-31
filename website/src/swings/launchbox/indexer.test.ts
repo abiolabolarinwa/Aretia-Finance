@@ -172,7 +172,7 @@ describe('EVM indexer', () => {
     const calls: Call[] = [];
     const store = new FakeLaunchStore();
     const good = node(baseHandlers(() => [], 20_000, 1), calls);
-    const fetchImpl = (async (url: string, init: { body: string }) => (url.startsWith('https://own.example') ? new Response('nope', { status: 401 }) : good(url, init as never))) as unknown as typeof fetch;
+    const fetchImpl = (async (url: string, init: { body: string }) => (new URL(url).hostname === 'own.example' ? new Response('nope', { status: 401 }) : good(url, init as never))) as unknown as typeof fetch;
     const report = await indexEvmChain('bnb', { store, fetchImpl, env: { EVM_RPC_BNB: 'https://own.example/rpc' }, now: () => 5_000 }, 1e12);
     expect(report.error).toBeUndefined();
     expect((await store.getCursor('bnb'))?.updatedAt).toBe(5_000);
@@ -183,7 +183,7 @@ describe('EVM indexer', () => {
     const store = new FakeLaunchStore();
     const good = node(baseHandlers(() => [], 20_000, 1), calls);
     const fetchImpl = (async (url: string, init: { body: string }) => {
-      if (!url.startsWith('https://own.example')) return good(url, init as never);
+      if (new URL(url).hostname !== 'own.example') return good(url, init as never);
       const method = (JSON.parse(init.body) as { method: string }).method;
       return method === 'eth_blockNumber'
         ? new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x4e20' }), { status: 200 })

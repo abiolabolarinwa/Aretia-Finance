@@ -83,17 +83,22 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   if (hit && input.now - hit.at < fresh) return ok(hit.rows, false);
   if (overLimit(`ohlcv:${input.ip}`, input.now)) return hit ? ok(hit.rows, true) : json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '30' });
 
-  const url = `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency, token })}`;
+  // With a CoinGecko API key set (COINGECKO_API_KEY) the same data is read from the paid on-chain API, whose allowance is the account's own
+  // instead of the shared one the free service gives every caller on this server's address, which is what keeps refusing (429).
+  const apiKey = (input.env as { COINGECKO_API_KEY?: string }).COINGECKO_API_KEY?.trim();
+  const query = new URLSearchParams({ aggregate: String(aggregate), before_timestamp: String(alignedBefore), limit: String(limit), currency, token });
+  const url = apiKey ? `https://pro-api.coingecko.com/api/v3/onchain/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${query}` : `https://api.geckoterminal.com/api/v2/networks/${GECKO_NETWORK[chain]}/pools/${encodeURIComponent(pool)}/ohlcv/${tf}?${query}`;
+  const requestInit = { headers: { accept: 'application/json', ...(apiKey ? { 'x-cg-pro-api-key': apiKey } : {}) } };
   // Visitors asking for the same thing at once share one upstream request.
   let pending = inFlight.get(key);
   if (!pending) {
     pending = (async () => {
-      let res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });
+      let res = await input.fetchImpl(url, requestInit);
       // One retry for a server error. A 429 is not retried: a source that is rate-limiting stays that way for far longer than
       // a retry waits, so retrying only delays the answer (the page falls back to reading the source itself).
       if (res.status >= 500) {
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-        res = await input.fetchImpl(url, { headers: { accept: 'application/json' } });
+        res = await input.fetchImpl(url, requestInit);
       }
       if (res.status === 404) return [];
       if (!res.ok) throw new Error(`source ${res.status}`);
@@ -110,6 +115,14 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   } catch (e) {
     // The source refused or failed: the last good answer is better than an empty chart, and it is marked as old.
     if (hit && input.now - hit.at < STALE_MS) return ok(hit.rows, true);
+    // Nothing for this exact window, but the same pool and candle size asked a little earlier or later is almost the same chart: serve the
+    // newest such answer (marked old) instead of an empty chart. Rows are newest first, so those after the asked-for time are dropped.
+    const family = `${chain}|${chain === 'solana' ? pool : pool.toLowerCase()}|${tf}|${aggregate}|`;
+    const tail = `|${token}|${currency}`;
+    let near: { at: number; rows: Row[] } | undefined;
+    for (const [k, v] of answers) if (k.startsWith(family) && k.endsWith(tail) && input.now - v.at < STALE_MS && (!near || v.at > near.at)) near = v;
+    const usable = near?.rows.filter((r) => r[0] <= alignedBefore).slice(0, limit) ?? [];
+    if (usable.length > 0) return ok(usable, true);
     // Say what the source answered (a status number, or null when it could not be reached), so a failure can be diagnosed
     // from the response instead of guessed at.
     const status = /source (\d+)/.exec(e instanceof Error ? e.message : '')?.[1];

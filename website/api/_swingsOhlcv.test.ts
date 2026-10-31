@@ -35,6 +35,30 @@ describe('shared candles for the chart', () => {
     expect(down).toHaveBeenCalledTimes(2);
   });
 
+  it('answers from a nearby window of the same chart when the source refuses, rather than an empty chart', async () => {
+    await handleOhlcv(input(q({ before: String(NOW_S + 900) }), upstream()));
+    const refused = upstream({}, 429);
+    const out = await handleOhlcv(input(q({ limit: '200' }), refused, NOW + 5_000));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body).stale).toBe(true);
+    expect(out.headers['cache-control']).toBe('no-store');
+    // A different pool never borrows another chart's candles.
+    const other = await handleOhlcv(input(q({ pool: '0x2222222222222222222222222222222222222222' }), upstream({}, 429), NOW + 5_000));
+    expect(other.status).toBe(502);
+  });
+
+  it('reads from the paid on-chain API with its key when one is set, and from the free one otherwise', async () => {
+    const paid = upstream();
+    await handleOhlcv({ ...input(q(), paid), env: { COINGECKO_API_KEY: 'k' } as never });
+    expect(calls(paid)[0]!.host).toBe('pro-api.coingecko.com');
+    expect(calls(paid)[0]!.pathname).toContain('/onchain/networks/');
+    expect(((paid as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![1] as { headers: Record<string, string> }).headers['x-cg-pro-api-key']).toBe('k');
+    resetOhlcvCache(0);
+    const free = upstream();
+    await handleOhlcv(input(q(), free));
+    expect(calls(free)[0]!.host).toBe('api.geckoterminal.com');
+  });
+
   it('asks the right network, pool and size once, and returns the candles the page already knows how to read', async () => {
     const f = upstream();
     const out = await handleOhlcv(input(q(), f));

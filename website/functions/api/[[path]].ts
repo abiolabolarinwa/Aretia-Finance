@@ -32,16 +32,31 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
   const edge = request.method === 'GET' && edgeCacheable(incoming.pathname) ? (caches as unknown as { default: Cache }).default : null;
   // The cache key is the public URL alone: nothing the visitor sent (cookies, headers) changes a public candle answer.
   const cacheKey = new Request(incoming.toString(), { method: 'GET' });
+  // The edge cache is only a speed-up: if reading or writing it fails, the visitor still gets the answer from the API.
   if (edge) {
-    const hit = await edge.match(cacheKey);
-    if (hit) return hit;
+    try {
+      const hit = await edge.match(cacheKey);
+      if (hit) return hit;
+    } catch {
+      // fall through to the API
+    }
   }
-  const res = await fetch(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: 'manual' });
+  let res: Response;
+  try {
+    res = await fetch(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: 'manual' });
+  } catch (e) {
+    // Say what failed instead of showing an anonymous gateway page.
+    return new Response(JSON.stringify({ error: 'The API could not be reached', detail: e instanceof Error ? e.message.slice(0, 200) : 'unknown' }), { status: 502, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  }
   // Only an answer Vercel marked as shareable (a stale or refused one says no-store) is kept.
   if (edge && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '')) {
-    const keep = edge.put(cacheKey, res.clone());
-    if (context.waitUntil) context.waitUntil(keep);
-    else await keep;
+    try {
+      const keep = edge.put(cacheKey, res.clone()).catch(() => undefined);
+      if (context.waitUntil) context.waitUntil(keep);
+      else await keep;
+    } catch {
+      // not cached this time
+    }
   }
   return res;
 }

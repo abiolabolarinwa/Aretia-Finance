@@ -131,7 +131,20 @@ const pad32 = (a: string): string => a.slice(2).toLowerCase().padStart(64, '0');
 // ---------------------------------------------------------------- EVM
 
 export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadline: number): Promise<ChainReport> {
-  let own = d.env[ENV_KEY[chain]]?.trim();
+  const configured = d.env[ENV_KEY[chain]]?.trim() || undefined;
+  const first = await indexEvmChainOn(chain, d, deadline, configured);
+  // A configured node can answer the first block-number check and still refuse the log read (a key without log access, a range limit),
+  // which stops the index for good. The free public node is then tried for the whole chain, so a bad setting cannot freeze it.
+  if (first.error && configured) {
+    console.warn(`launchbox: the configured ${chain} node failed (${first.error}); trying the public node`);
+    const second = await indexEvmChainOn(chain, d, deadline, undefined);
+    return second.error ? { ...second, error: `${second.error} (the configured node failed first: ${first.error})`.slice(0, 300) } : second;
+  }
+  return first;
+}
+
+async function indexEvmChainOn(chain: EvmLaunchChain, d: IndexerDeps, deadline: number, configured: string | undefined): Promise<ChainReport> {
+  let own = configured;
   let rpc = new Rpc(own || PUBLIC_EVM_RPC[chain], d.fetchImpl);
   // A node the owner configured that is down, expired or wrong must not freeze the index: the free public node is used instead (it
   // serves recent blocks, which is all the log window needs; older tokens come from the creation count below).

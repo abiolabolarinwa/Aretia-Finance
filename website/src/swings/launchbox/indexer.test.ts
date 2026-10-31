@@ -178,6 +178,29 @@ describe('EVM indexer', () => {
     expect((await store.getCursor('bnb'))?.updatedAt).toBe(5_000);
     expect(calls.every((c) => c.url.includes('publicnode'))).toBe(true);
   });
+  it('falls back to the public node when the owner node answers the block number but refuses the log read', async () => {
+    const calls: Call[] = [];
+    const store = new FakeLaunchStore();
+    const good = node(baseHandlers(() => [], 20_000, 1), calls);
+    const fetchImpl = (async (url: string, init: { body: string }) => {
+      if (!url.startsWith('https://own.example')) return good(url, init as never);
+      const method = (JSON.parse(init.body) as { method: string }).method;
+      return method === 'eth_blockNumber'
+        ? new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x4e20' }), { status: 200 })
+        : new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { message: 'Indexed requests require a personal token.' } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const report = await indexEvmChain('bnb', { store, fetchImpl, env: { EVM_RPC_BNB: 'https://own.example/rpc' }, now: () => 5_000 }, 1e12);
+    expect(report.error).toBeUndefined();
+    expect((await store.getCursor('bnb'))?.updatedAt).toBe(5_000);
+  });
+
+  it('says what failed on both nodes when neither works, and leaves the index time alone', async () => {
+    const store = new FakeLaunchStore();
+    const fetchImpl = (async () => new Response('no', { status: 500 })) as unknown as typeof fetch;
+    const report = await indexEvmChain('bnb', { store, fetchImpl, env: { EVM_RPC_BNB: 'https://own.example/rpc' }, now: () => 5_000 }, 1e12);
+    expect(report.error).toContain('configured node failed first');
+    expect(await store.getCursor('bnb')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------- Solana

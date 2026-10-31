@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { specById } from './dexes.js';
-import { DEFAULT_ADAPTERS, enabledSpecs, rulesFrom, runAll } from './runner.js';
+import { DEFAULT_ADAPTERS, enabledSolana, enabledSpecs, rulesFrom, runAll } from './runner.js';
 import { InMemoryMiStore } from './store.js';
 import { FakeChain, pairCreatedLog, v2SwapLog } from './testkit.js';
 
@@ -11,8 +11,8 @@ const POOL = '0x' + 'c3'.repeat(20);
 const E18 = 10n ** 18n;
 
 describe('runner', () => {
-  it('runs only the demonstrated adapter by default, and what the environment names otherwise', () => {
-    expect(enabledSpecs({}).map((s) => s.id)).toEqual(DEFAULT_ADAPTERS);
+  it('runs the live-verified adapters by default, and what the environment names otherwise', () => {
+    expect([...enabledSpecs({}).map((s) => s.id), ...enabledSolana({}).map((s) => s.id)]).toEqual(DEFAULT_ADAPTERS);
     expect(enabledSpecs({ MI_ADAPTERS: 'uniswap-v3-base, nope ,apeswap-v2-bnb' }).map((s) => s.id)).toEqual(['uniswap-v3-base', 'apeswap-v2-bnb']);
     expect(enabledSpecs({ MI_ADAPTERS: '*' }).length).toBeGreaterThan(15);
   });

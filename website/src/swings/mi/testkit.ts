@@ -32,6 +32,8 @@ export class FakeChain {
   tokens = new Map<string, { symbol: string; name: string; decimals: number } | 'broken'>();
   reserves = new Map<string, [bigint, bigint]>();
   balances = new Map<string, bigint>();
+  /** Pool contracts that answer factory(), token0(), token1() and fee(). */
+  pairs = new Map<string, { factory: string; token0: string; token1: string; fee?: number }>();
   version = 0;
   /** When set, the next N calls of any method throw a transport error. */
   failNext = 0;
@@ -121,6 +123,9 @@ export class FakeChain {
         const to = c.to.toLowerCase();
         const sel = c.data.slice(0, 10);
         const tok = this.tokens.get(to);
+        const pair = this.pairs.get(to);
+        if (pair && (sel === '0xc45a0155' || sel === '0x0dfe1681' || sel === '0xd21220a7')) return '0x' + pad(sel === '0xc45a0155' ? pair.factory : sel === '0x0dfe1681' ? pair.token0 : pair.token1);
+        if (pair && sel === '0xddca3f43') return '0x' + word(BigInt(pair.fee ?? 0));
         if (sel === '0x313ce567') {
           if (!tok || tok === 'broken') throw new RpcError('execution reverted', 'node-error');
           return '0x' + word(BigInt(tok.decimals));

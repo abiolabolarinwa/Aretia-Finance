@@ -18,7 +18,12 @@ import { adminTransition } from '../src/swings/mi/lifecycle.js';
 import { launchLookup } from '../src/swings/mi/launchLink.js';
 import { chainConfig, isMiChain, type MiChain } from '../src/swings/mi/chains.js';
 import { makeRead } from '../src/swings/mi/rpc.js';
-import { runAll, type RunnerEnv } from '../src/swings/mi/runner.js';
+import { runAll, rulesFrom, type RunnerEnv } from '../src/swings/mi/runner.js';
+import { trackEvmPool, type TrackResult } from '../src/swings/mi/track.js';
+import { trackSolanaPool } from '../src/swings/mi/solana/track.js';
+import { isOriginAllowed } from './_rpcProxy.js';
+import { nativeUsdReader } from '../src/swings/mi/reference.js';
+import { solUsdReader } from '../src/swings/mi/solana/engine.js';
 import type { MiStore } from '../src/swings/mi/store.js';
 import { MiMissingTableError, SupabaseMiStore } from '../src/swings/mi/supabaseStore.js';
 import type { BackfillJob } from '../src/swings/mi/types.js';
@@ -31,6 +36,8 @@ export interface MiEnv extends AdminEnv, RunnerEnv {
 }
 export interface MiInput {
   method: string;
+  origin?: string | null;
+  body?: unknown;
   query: Record<string, string | undefined>;
   authorization: string | null;
   ip: string;
@@ -65,9 +72,10 @@ const NOT_CONFIGURED = (): MiOutput => json(503, { error: { code: 'not-configure
 
 // ---------------------------------------------------------------------------------------------- public read
 
-export async function handleMi(input: MiInput, storeOverride?: MiStore): Promise<MiOutput> {
+export async function handleMi(input: MiInput, storeOverride?: MiStore, trackDeps?: { readFor?: (chain: MiChain) => import('../src/swings/mi/rpc.js').Read }): Promise<MiOutput> {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-max-age': '86400' };
   if (input.method === 'OPTIONS') return { status: 204, body: '', headers: cors };
+  if (input.method === 'POST' && (input.query.path ?? '') === 'track') return handleTrack(input, storeOverride, trackDeps);
   if (input.method !== 'GET') return json(405, { error: { code: 'method', message: 'GET only.' } }, { ...cors, allow: 'GET, OPTIONS' });
   if (overBudget(`mi:${input.ip}`, input.now, RATE.perMinute)) return json(429, { error: { code: 'rate-limited', message: `At most ${RATE.perMinute} requests a minute per address.` } }, { ...cors, 'retry-after': '30' });
   const { path: rawPath, ...query } = input.query;
@@ -89,6 +97,50 @@ export async function handleMi(input: MiInput, storeOverride?: MiStore): Promise
   } catch (e) {
     if (e instanceof MiMissingTableError) return { ...MISSING(), headers: { ...MISSING().headers, ...cors } };
     return json(500, { error: { code: 'failed', message: 'The request could not be completed.' } }, cors);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- track a pool on request
+
+const trackedAt = new Map<string, number>();
+const TRACK_COOLDOWN_MS = 5 * 60_000;
+export function resetTrackState(): void {
+  trackedAt.clear();
+}
+
+/**
+ * POST /api/v1/track { chain, pool }: adds one existing pool to the index (see src/swings/mi/track.ts). Only the site itself may call it
+ * (origin check), each address is limited, there is one budget for all callers, and a pool is not re-read for five minutes. It reads
+ * from the chain only after the pool's own `factory()` / owner program has been matched to a DEX Aretia indexes.
+ */
+async function handleTrack(input: MiInput, storeOverride?: MiStore, deps?: { readFor?: (chain: MiChain) => import('../src/swings/mi/rpc.js').Read }): Promise<MiOutput> {
+  if (!isOriginAllowed(input.origin ?? null, input.env)) return json(404, { error: { code: 'not-found', message: 'No such endpoint.' } });
+  const cors = { vary: 'origin', 'access-control-allow-origin': input.origin! };
+  if (overBudget(`mi-track:${input.ip}`, input.now, 10) || overBudget('mi-track:all', input.now, 120, 600_000)) return json(429, { error: { code: 'rate-limited', message: 'Too many tracking requests. Try again in a minute.' } }, { ...cors, 'retry-after': '60' });
+  const b = typeof input.body === 'object' && input.body !== null ? (input.body as Record<string, unknown>) : {};
+  const chain = typeof b.chain === 'string' ? b.chain : '';
+  const rawPool = typeof b.pool === 'string' ? b.pool : '';
+  if (!isMiChain(chain)) return json(400, { error: { code: 'bad-chain', message: 'Unknown network.' } }, cors);
+  const pool = chain === 'solana' ? rawPool : rawPool.toLowerCase();
+  if (!(chain === 'solana' ? isSolanaAddress(pool) : EVM_ADDRESS.test(pool))) return json(400, { error: { code: 'bad-address', message: 'Not a valid pool address for that network.' } }, cors);
+  const store = storeOverride ?? storeFor(input.env, input.fetchImpl, () => input.now);
+  if (!store) return { ...NOT_CONFIGURED(), headers: { ...NOT_CONFIGURED().headers, ...cors } };
+  const key = `${chain}:${pool}`;
+  const last = trackedAt.get(key);
+  if (last !== undefined && input.now - last < TRACK_COOLDOWN_MS) return json(200, { data: { status: 'recent' } }, cors);
+  if (trackedAt.size > 2_000) trackedAt.clear();
+  trackedAt.set(key, input.now);
+  try {
+    const cfg = chainConfig(chain, input.env);
+    const read = deps?.readFor ? deps.readFor(chain) : makeRead(cfg.rpcUrls, { fetchImpl: input.fetchImpl, concurrency: 3 });
+    const now = () => Date.now();
+    const base = { chain: cfg, store, rules: rulesFrom(input.env), now, budgetMs: 25_000 };
+    const result: TrackResult = chain === 'solana' ? await trackSolanaPool({ ...base, rpc: read, nativeUsd: solUsdReader(read, now) }, pool) : await trackEvmPool({ ...base, read, nativeUsd: nativeUsdReader(cfg, read, now) }, cfg, pool);
+    return json(200, { data: result }, cors);
+  } catch (e) {
+    trackedAt.delete(key);
+    if (e instanceof MiMissingTableError) return { ...MISSING(), headers: { ...MISSING().headers, ...cors } };
+    return json(502, { error: { code: 'unreadable', message: 'The network could not be read just now.' } }, cors);
   }
 }
 

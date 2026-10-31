@@ -67,7 +67,7 @@ interface SigInfo {
 const TX_OPTS = { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'finalized' } as const;
 
 /** getMultipleAccounts in slices of 100; null for an account that does not exist. */
-async function accounts(rpc: Read, addresses: readonly string[]): Promise<Map<string, Uint8Array | null>> {
+export async function accounts(rpc: Read, addresses: readonly string[]): Promise<Map<string, Uint8Array | null>> {
   const out = new Map<string, Uint8Array | null>();
   for (let i = 0; i < addresses.length; i += 100) {
     const slice = addresses.slice(i, i + 100);
@@ -208,7 +208,7 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
   return finish();
 }
 
-interface TokenFacts {
+export interface TokenFacts {
   decimals: number;
   symbol: string;
   name: string;
@@ -231,7 +231,7 @@ async function tokenFactsFor(d: SolDeps, mints: readonly string[], cache: Map<st
   });
 }
 
-async function registerPool(d: SolDeps, c: CreatedPool, slot: number, cache: Map<string, TokenFacts | null>, report: RunReport): Promise<void> {
+export async function registerPool(d: SolDeps, c: CreatedPool, slot: number, cache: Map<string, TokenFacts | null>, report: RunReport): Promise<void> {
   const key = poolKeyOf('solana', c.pool);
   if ((await d.store.getPools([key])).has(key)) return;
   if (![c.pool, c.mintA, c.mintB, c.vaultA, c.vaultB].every(isSolanaAddress) || c.mintA === c.mintB) return;
@@ -316,7 +316,7 @@ interface Followed {
   unavailable: number;
 }
 
-async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<Followed> {
+export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<Followed> {
   const cp = await d.store.getCheckpoint(poolCursorKey(d.spec, pool.address));
   const until = cp?.blockHash && /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(cp.blockHash) ? cp.blockHash : undefined;
   const limit = d.swapSigs ?? 50;
@@ -355,7 +355,7 @@ async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<
   return { stored, read: sigs.length > 0, truncated: sigs.length >= limit && until !== undefined, unavailable };
 }
 
-async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, TokenFacts | null>): Promise<void> {
+export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, TokenFacts | null>): Promise<void> {
   const now = d.now();
   const stored = (await d.store.getPools([pool.key])).get(pool.key) ?? pool;
   const since = Math.floor(now / 1000) - 86_400;

@@ -96,6 +96,14 @@
   "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
  },
  {
+  "id": "uniswap-v3-robinhood",
+  "chain": "robinhood",
+  "kind": "v3",
+  "factory": "0x1f7d7550b1b028f7571e69a784071f0205fd2efa",
+  "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+ },
+ {
   "id": "pancakeswap-v3-bnb",
   "chain": "bnb",
   "kind": "v3",

@@ -31,7 +31,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | `MI_INACTIVE_AFTER_HOURS` | a pool with no trade for this long becomes inactive | 168 |
 | `MI_TRADE_RETENTION_DAYS` | trades older than this are deleted | 30 |
 
-`<CHAIN>` is `ETHEREUM, BNB, POLYGON, BASE`.
+`<CHAIN>` is `ETHEREUM, BNB, POLYGON, BASE, ROBINHOOD`. Robinhood Chain needs `supabase/migrations/0019_market_indexer_robinhood.sql` applied before `uniswap-v3-robinhood` is switched on.
 
 ## Deployment steps
 

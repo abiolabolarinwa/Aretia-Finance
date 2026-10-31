@@ -22,14 +22,15 @@ const RPC = {
   bnb: ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.binance.org'],
   polygon: ['https://polygon-bor-rpc.publicnode.com'],
   base: ['https://base-rpc.publicnode.com', 'https://mainnet.base.org'],
+  robinhood: ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'],
 };
 const WNATIVE = {
   ethereum: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', bnb: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', polygon: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
-  base: '0x4200000000000000000000000000000000000006',
+  base: '0x4200000000000000000000000000000000000006', robinhood: '0x0bd7d308f8e1639fab988df18a8011f41eacad73',
 };
 const STABLE = {
   ethereum: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', bnb: '0x55d398326f99059ff775485246999027b3197955', polygon: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
-  base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+  base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', robinhood: '0x5fc5360d0400a0fd4f2af552add042d716f1d168',
 };
 
 // The adapter list is read from the compiled catalogue's data by the caller: pass specs as JSON in MI_SPECS, or use this table.

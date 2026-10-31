@@ -201,7 +201,7 @@ describe('the datafeed', () => {
     let clock = 1_700_000_000_000;
     const f = vi.fn(async (url: unknown) => (String(url).startsWith('/api/swings-ohlcv') ? new Response('{}', { status: 502 }) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
     const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', now: () => clock, sleep: async () => undefined, livePriceMs: 0 });
-    const serverCalls = () => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('/api/swings-ohlcv')).length;
+    const serverCalls = () => (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).startsWith('/api/swings-ohlcv') && !String(c[0]).includes('source=aretia')).length;
     // A fresh load each time: the interval changes, so nothing comes from the short-lived cache.
     await getBars(feed, '5', { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true });
     expect(serverCalls()).toBe(1);
@@ -290,7 +290,7 @@ describe('the datafeed', () => {
   describe('speed: reading candles early, and not waiting on a slow endpoint', () => {
     const isServer = (u: unknown): boolean => String(u).startsWith('/api/swings-ohlcv');
     const make = (f: typeof fetch, extra: Partial<Parameters<typeof createPoolDatafeed>[1]> = {}) =>
-      createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', sleep: async () => undefined, livePriceMs: 0, ...extra });
+      createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', sleep: async () => undefined, livePriceMs: 0, indexerHeadStartMs: 0, ...extra });
     const first = { from: 0, to: 1_700_001_800, countBack: 330, firstDataRequest: true };
     const okBody = () => new Response(JSON.stringify(body(LIST)));
     const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -374,7 +374,7 @@ describe('the datafeed', () => {
       const f = vi.fn(async (u: unknown) => (isServer(u) ? new Response('{}', { status: 502 }) : okBody())) as unknown as typeof fetch;
       const r = await getBars(make(f, { hedgeMs: 10_000 }), '15', first);
       expect('bars' in r && r.bars).toHaveLength(3);
-      const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => isServer(c[0]));
+      const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => !String(c[0]).includes('source=aretia')).map((c) => isServer(c[0]));
       expect(calls).toEqual([true, false]);
     });
 
@@ -562,5 +562,36 @@ describe('a pool followed by Aretia\'s own Market Indexer', () => {
     const r = await getBars(feed, '15', { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
     expect('error' in r).toBe(true);
     expect(urls.every((u) => u.startsWith('/api/swings-ohlcv'))).toBe(true);
+  });
+});
+
+describe("Aretia's own index first", () => {
+  const first = { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true };
+  const isIndex = (u: unknown): boolean => String(u).includes('source=aretia');
+  const feedWith = (f: typeof fetch) => createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', sleep: async () => undefined, livePriceMs: 0, indexerHeadStartMs: 200 });
+
+  it('uses the stored trades of a pool the index follows, and never reads an outside service', async () => {
+    const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response(JSON.stringify(body(LIST))) : new Response('{}', { status: 500 }))) as unknown as typeof fetch;
+    const r = await getBars(feedWith(f), '15', first);
+    expect('bars' in r && r.bars).toHaveLength(3);
+    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(calls.every((u) => u.includes('source=aretia'))).toBe(true);
+  });
+
+  it('reads the usual sources for a pool it does not follow, and does not ask again for five minutes', async () => {
+    const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response('{"error":"unknown-pool"}', { status: 404 }) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
+    const feed = feedWith(f);
+    const a = await getBars(feed, '5', first);
+    const b = await getBars(feed, '15', first);
+    expect('bars' in a && a.bars).toHaveLength(3);
+    expect('bars' in b && b.bars).toHaveLength(3);
+    const asked = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => isIndex(c[0])).length;
+    expect(asked).toBe(1);
+  });
+
+  it('falls back to the usual sources when the index has nothing for this window', async () => {
+    const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response(JSON.stringify(body([]))) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
+    const r = await getBars(feedWith(f), '15', first);
+    expect('bars' in r && r.bars).toHaveLength(3);
   });
 });

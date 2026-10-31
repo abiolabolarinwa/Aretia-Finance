@@ -12,6 +12,8 @@ import { bearerMatches } from './_secrets.js';
 import { overBudget } from './_limits.js';
 import { handleRead } from '../src/swings/mi/api.js';
 import { buildCandleRows } from '../src/swings/mi/stats.js';
+import { parseRaw, toNumber, unitsToNumber } from '../src/swings/mi/math.js';
+import type { Trade } from '../src/swings/charts/trades.js';
 import { adapterById, allSpecs, SOLANA_SPECS, specById } from '../src/swings/mi/dexes.js';
 import { isSolanaAddress } from '../src/swings/mi/solana/accounts.js';
 import { adminTransition } from '../src/swings/mi/lifecycle.js';
@@ -223,5 +225,49 @@ export async function miOhlcv(input: { query: Record<string, string | undefined>
   } catch (e) {
     if (e instanceof MiMissingTableError) return MISSING();
     return json(500, { error: 'failed' });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- recent trades for the chart's table
+
+/**
+ * The newest trades of a pool the Market Indexer follows, in the shape the Transactions table under the chart reads, built from stored
+ * on-chain trades only. Returns null when the indexer cannot answer for this pool (not configured, the pool is not followed or is
+ * paused, it is quoted in something other than a dollar stablecoin so no dollar value is known, or it has no stored trade), so the caller
+ * reads its usual source. Never throws.
+ */
+export async function miTrades(input: { chain: string; pool: string; token: 'base' | 'quote'; env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }; fetchImpl: typeof fetch; now: number }, storeOverride?: MiStore): Promise<Trade[] | null> {
+  if (!isMiChain(input.chain)) return null;
+  const pool = input.chain === 'solana' ? input.pool : input.pool.toLowerCase();
+  try {
+    const store = storeOverride ?? storeFor(input.env, input.fetchImpl, () => input.now);
+    if (!store) return null;
+    const chain = input.chain as MiChain;
+    const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
+    if (!p || p.paused) return null;
+    const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
+    if (quote?.role !== 'usd') return null;
+    const rows = await store.recentTrades(chain, pool, 100);
+    const out: Trade[] = [];
+    for (const t of rows) {
+      const baseAmount = unitsToNumber(parseRaw(t.baseAmount) ?? 0n, p.baseDecimals);
+      const quoteAmount = unitsToNumber(parseRaw(t.quoteAmount) ?? 0n, p.quoteDecimals);
+      const price = toNumber(t.price);
+      if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(quoteAmount)) continue;
+      const base = input.token === 'base';
+      out.push({
+        t: t.time * 1000,
+        kind: base ? t.side : t.side === 'buy' ? 'sell' : 'buy',
+        usd: quoteAmount,
+        tokenAmount: base ? baseAmount : quoteAmount,
+        quoteAmount: base ? quoteAmount : baseAmount,
+        priceUsd: base ? price : null,
+        trader: t.maker,
+        tx: t.id.split(':')[0] ?? t.id,
+      });
+    }
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
   }
 }

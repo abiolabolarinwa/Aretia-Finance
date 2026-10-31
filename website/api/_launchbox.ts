@@ -69,11 +69,11 @@ function storeFor(input: Pick<LaunchboxInput, 'env' | 'fetchImpl' | 'store'>): L
 
 const evmUrl = (env: IndexerEnv, chain: Exclude<LaunchChain, 'solana'>): string => env[chain === 'bnb' ? 'EVM_RPC_BNB' : chain === 'ethereum' ? 'EVM_RPC_ETHEREUM' : 'EVM_RPC_POLYGON']?.trim() || PUBLIC_EVM_RPC[chain];
 
-function indexStatus(rows: CursorRow[]): { chain: LaunchChain; updatedAt: number | null; expected: number | null; indexed: number | null; unreadable: number | null }[] {
+function indexStatus(rows: CursorRow[]): { chain: LaunchChain; updatedAt: number | null; expected: number | null; indexed: number | null; unreadable: number | null; note: string | null }[] {
   return LAUNCH_CHAINS.map((chain) => {
     const r = rows.find((x) => x.chain === chain);
-    const s = (r?.stats ?? {}) as { expected?: number; indexed?: number; unreadable?: number };
-    return { chain, updatedAt: r?.updatedAt ?? null, expected: typeof s.expected === 'number' ? s.expected : null, indexed: typeof s.indexed === 'number' ? s.indexed : null, unreadable: typeof s.unreadable === 'number' ? s.unreadable : null };
+    const s = (r?.stats ?? {}) as { expected?: number; indexed?: number; unreadable?: number; note?: string };
+    return { chain, updatedAt: r?.updatedAt ?? null, expected: typeof s.expected === 'number' ? s.expected : null, indexed: typeof s.indexed === 'number' ? s.indexed : null, unreadable: typeof s.unreadable === 'number' ? s.unreadable : null, note: typeof s.note === 'string' ? s.note.slice(0, 200) : null };
   });
 }
 

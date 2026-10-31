@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ago, tokenHref } from './walletLaunchBox';
+import { ago, launchStats, tokenHref } from './walletLaunchBox';
 import { verifiedChecker } from './launchBoxVerified';
 
 describe('Launch Box page', () => {
@@ -55,5 +55,16 @@ describe('the server wiring', () => {
   });
   it('schedules the indexer once a day (the most the Hobby plan allows)', () => {
     expect(config.crons).toEqual([{ path: '/api/launchbox-run', schedule: '0 4 * * *' }]);
+  });
+});
+
+describe('the headline numbers', () => {
+  it('adds up what is known and shows a dash for what is not', () => {
+    expect(launchStats([{ volume24hUsd: 100, liquidityUsd: 40 }, { volume24hUsd: null, liquidityUsd: 10 }, { volume24hUsd: 50, liquidityUsd: null }])).toEqual({ tokens: 3, volumeUsd: 150, liquidityUsd: 50 });
+    expect(launchStats([{ volume24hUsd: null, liquidityUsd: null }])).toEqual({ tokens: 1, volumeUsd: null, liquidityUsd: null });
+    expect(launchStats([])).toEqual({ tokens: 0, volumeUsd: null, liquidityUsd: null });
+  });
+  it('ignores a figure that is not a usable number', () => {
+    expect(launchStats([{ volume24hUsd: Number.NaN, liquidityUsd: -5 }, { volume24hUsd: 7, liquidityUsd: 3 }])).toEqual({ tokens: 2, volumeUsd: 7, liquidityUsd: 3 });
   });
 });

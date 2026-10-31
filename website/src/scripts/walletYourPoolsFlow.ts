@@ -5,6 +5,7 @@
  * Claiming: build the transaction, check it against the position that was shown, try it on the network without sending, have the
  * wallet sign, send, wait, and read the position back to see that its fees are now claimed.
  */
+import { explainTrialError } from './walletTools';
 import type * as Web3 from '@solana/web3.js';
 import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlow';
 import type { PoolLibs } from './walletPoolTx';
@@ -53,7 +54,7 @@ export class YourPoolsFlow {
     const blockers = inspectClaim(web3, tx, owner, p);
     if (blockers.length === 0) {
       const sim = await this.d.simulate(tx);
-      if (!sim.ok) blockers.push(`The network would refuse this in a trial run: ${sim.error ?? 'unknown reason'}.`);
+      if (!sim.ok) blockers.push(`The network would refuse this in a trial run: ${explainTrialError(sim.error)}.`);
     }
     return { blockers, instructions };
   }

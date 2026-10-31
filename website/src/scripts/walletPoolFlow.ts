@@ -8,7 +8,7 @@
  * One transaction, so there is nothing half-done to resume: either the pool exists afterwards or nothing moved.
  */
 import type * as Web3 from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress } from './walletTools';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, ataAddress, explainTrialError } from './walletTools';
 import { accountAmount, parseMintAccount, type AccountReader } from './walletLaunchChain';
 import { LaunchError, friendlyError, type Confirmation } from './walletLaunchFlow';
 import { POOL_NETWORK_ESTIMATE_LAMPORTS, poolCost, quoteOf, tokenBlockers, type PoolConfig, type PoolCost, type PoolToken, type QuoteRead } from './walletPoolCore';
@@ -110,7 +110,7 @@ export class PoolFlow {
       const spent = balance - trial.lamportsAfter;
       const fee = poolCost(0n).aretiaFee;
       network = spent > fee ? spent - fee : 0n;
-    } else if (!trial.ok) blockers.push(`The network would refuse this in a trial run: ${trial.error ?? 'unknown reason'}.`);
+    } else if (!trial.ok) blockers.push(`The network would refuse this in a trial run: ${explainTrialError(trial.error)}.`);
 
     const cost = poolCost(network);
     if (balance < cost.total + SAFETY_MARGIN_LAMPORTS) blockers.push('Your wallet does not hold enough SOL to cover the fees and the deposits shown, with a small margin.');

@@ -230,6 +230,8 @@ export async function indexEvmChain(chain: EvmLaunchChain, d: IndexerDeps, deadl
     if (e instanceof MissingTableError) throw e;
     report.error = String(e instanceof Error ? e.message : e).slice(0, 200);
     console.warn(`launchbox: indexing ${chain} failed: ${report.error}`);
+    // Keep the reason where the status can show it. The row's time is left as it was, so a chain that is stuck still reads as stale.
+    await d.store.setCursor(chain, cursor, row?.updatedAt ?? 0, { ...(row?.stats ?? {}), note: `Last run failed: ${report.error}` }).catch(() => undefined);
   }
   return report;
 }

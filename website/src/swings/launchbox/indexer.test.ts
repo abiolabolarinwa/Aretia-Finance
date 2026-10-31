@@ -104,6 +104,10 @@ describe('EVM indexer', () => {
     expect(report.error).toMatch(/upstream timeout/);
     expect((await store.getCursor('bnb'))?.cursor).toBe('19000');
     expect(store.rows.size).toBe(0);
+    // The reason is kept for the status, and the row still reads as stale (its time is not moved).
+    const row = await store.getCursor('bnb');
+    expect(row?.updatedAt).toBe(1);
+    expect(String((row?.stats as { note?: string } | null)?.note)).toMatch(/Last run failed: upstream timeout/);
   });
 
   it('does not advance past a window whose tokens could not be stored', async () => {

@@ -63,6 +63,8 @@ export interface RunReport {
   swapsSeen: number;
   tradesNew: number;
   skippedLogs: number;
+  /** Blocks skipped because the adapter was further behind than the chain's allowed lag (see MiChainConfig.maxLagBlocks). */
+  skippedBlocks?: number;
   maintained?: number;
   reorg: { forkBlock: number; poolsDeleted: number; tradesDeleted: number } | null;
   error: string | null;
@@ -108,6 +110,13 @@ export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; 
     }
 
     let from = opts.range ? opts.range.from : cursor !== null ? cursor + 1 : Math.max(0, safe - d.chain.lookback);
+    // Too far behind (a slow node, or days of downtime): read the recent past instead of chasing the whole gap, which on a free node can
+    // take longer than the chain adds blocks. The skipped range is reported, and an admin backfill can read it later.
+    if (!opts.range && cursor !== null && d.chain.maxLagBlocks > 0 && safe - cursor > d.chain.maxLagBlocks) {
+      const jump = safe - d.chain.maxLagBlocks;
+      report.skippedBlocks = Math.max(0, jump - from);
+      from = Math.max(from, jump);
+    }
     const limit = opts.range ? Math.min(opts.range.to, safe) : safe;
     report.fromBlock = from;
     const deadline = t0 + (d.budgetMs ?? 40_000);

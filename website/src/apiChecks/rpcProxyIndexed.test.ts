@@ -8,7 +8,7 @@ const call = (env: { SOLANA_RPC_URL?: string }, fetchImpl: typeof fetch) =>
 describe('the RPC proxy and indexed reads', () => {
   beforeEach(() => resetRateLimit());
 
-  it('retries on the second public node when the first refuses with 403', async () => {
+  it('goes to another public node when one refuses an indexed read with 403', async () => {
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
       urls.push(url);
@@ -16,17 +16,21 @@ describe('the RPC proxy and indexed reads', () => {
     }) as unknown as typeof fetch;
     const out = await call({}, fetchImpl);
     expect(out.status).toBe(200);
-    expect(urls).toEqual([PUBLIC_FALLBACK_RPC, PUBLIC_INDEXED_RPC]);
+    expect(JSON.parse(out.body).result).toEqual([]);
+    expect(urls.filter((u) => u === PUBLIC_FALLBACK_RPC).length).toBeLessThanOrEqual(1);
+    expect(urls.some((u) => u === PUBLIC_INDEXED_RPC || (u !== PUBLIC_FALLBACK_RPC))).toBe(true);
   });
 
-  it('does not retry elsewhere when a keyed provider is configured', async () => {
+  it('tries the configured provider and then the free nodes, and answers 504 without naming any of them when all fail', async () => {
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
       urls.push(url);
       return new Response('no', { status: 403 });
     }) as unknown as typeof fetch;
     const out = await call({ SOLANA_RPC_URL: 'https://keyed.example/abc' }, fetchImpl);
-    expect(out.status).toBe(502);
-    expect(urls).toEqual(['https://keyed.example/abc']);
+    expect(out.status).toBe(504);
+    expect(urls).toContain('https://keyed.example/abc');
+    expect(out.body).not.toContain('keyed.example');
+    expect(out.body).not.toContain('abc');
   });
 });

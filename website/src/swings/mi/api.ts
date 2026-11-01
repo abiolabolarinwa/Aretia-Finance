@@ -15,6 +15,7 @@
  *   GET /api/v1/tokens/{chain}/{address}                a token and every market it is in
  */
 import { FEATURED } from '../../data/featured.js';
+import { sharedPoolHealth } from '../rpc/pool.js';
 import { FEATURED_LABEL, FEATURED_NOTE, featuredNow, tokenHref } from '../../lib/featured.js';
 import { chainConfig, isMiChain, MI_CHAINS, type MiChain } from './chains.js';
 import { allSpecs, SOLANA_PLANNED, SOLANA_SPECS } from './dexes.js';
@@ -160,7 +161,8 @@ async function status(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
       running: mine.filter((x) => x.state === 'ok').length,
     };
   });
-  return ok({ chains, dexes, notIndexed: SOLANA_PLANNED.map((p) => ({ id: p.id, name: p.name, program: p.program, evidence: p.status, note: p.note })), states: POOL_STATES }, req.now, 15);
+  // How each shared node of the RPC Pool has been doing in this process (host names only), so a failing or cooling node can be seen.
+  return ok({ chains, dexes, rpc: sharedPoolHealth(), notIndexed: SOLANA_PLANNED.map((p) => ({ id: p.id, name: p.name, program: p.program, evidence: p.status, note: p.note })), states: POOL_STATES }, req.now, 15);
 }
 
 async function tokensFor(store: MiStore, pools: readonly MiPool[]): Promise<Map<string, MiToken>> {

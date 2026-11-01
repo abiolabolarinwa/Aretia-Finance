@@ -5,7 +5,8 @@
 import { CHAINS, type ChainId } from '../core/types.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
 import { WRAPPED_NATIVE } from '../dex/entries.js';
-import { PUBLIC_EVM_RPC, BACKUP_EVM_RPC } from '../chains/evmSession.js';
+import { FREE_EVM_RPC, FREE_SOLANA_RPC } from '../rpc/endpoints.js';
+import type { EndpointInput } from '../rpc/pool.js';
 
 /** The networks the indexer covers. Robinhood Chain needs migration 0019 (the tables' chain check) before its adapter is switched on. */
 export const MI_CHAINS = ['solana', 'ethereum', 'base', 'bnb', 'polygon', 'robinhood'] as const satisfies readonly ChainId[];
@@ -36,7 +37,14 @@ export interface MiChainConfig {
   /** On the first run, how many blocks back to start. */
   lookback: number;
   quoteTokens: readonly QuoteToken[];
-  rpcUrls: readonly string[];
+  /** The nodes the RPC Pool shares its work among: a configured node first (it is given more weight), then the free public ones. */
+  rpcUrls: readonly EndpointInput[];
+  /**
+   * The furthest behind the chain an adapter may start a run: if it is further behind (a free node could not keep up, or it was off for
+   * days) it skips ahead to this many blocks behind instead of chasing the whole gap. The skipped range is reported, and an admin
+   * backfill can read it later. A market indexer is worth most on recent trades.
+   */
+  maxLagBlocks: number;
 }
 
 const USD_SYMBOLS = new Set(['USDC', 'USDT', 'DAI', 'USDG']);
@@ -58,24 +66,27 @@ const quotesOf = (chain: EvmMiChain): QuoteToken[] => [
 const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10, robinhood: 20 };
 const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000, robinhood: 1000 };
 
+/** About six hours of blocks per chain (12 s, 0.45 s, 2 s, 2 s and 0.25 s blocks): how far behind a run may start before it skips ahead. */
+const MAX_LAG: Readonly<Record<EvmMiChain, number>> = { ethereum: 1_800, bnb: 48_000, polygon: 10_800, base: 10_800, robinhood: 86_400 };
+
 const SOLANA_QUOTES: readonly QuoteToken[] = [
   { address: 'So11111111111111111111111111111111111111112', symbol: 'WSOL', decimals: 9, role: 'native' },
   { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', decimals: 6, role: 'usd' },
   { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', decimals: 6, role: 'usd' },
 ];
-const SOLANA_PUBLIC_RPC = ['https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'];
 
 export function chainConfig(chain: MiChain, env: Record<string, string | undefined> = {}): MiChainConfig {
   if (chain === 'solana') {
     const own = (env.MI_RPC_SOLANA ?? env.SOLANA_RPC_URL)?.trim();
     // Only finalized transactions are read, so there is no confirmation depth; `lookback` is seconds of history to read on the first run.
-    return { id: 'solana', name: CHAINS.solana.name, kind: 'solana', confirmations: 0, maxRange: 0, addressBatch: 0, lookback: 3_600, quoteTokens: SOLANA_QUOTES, rpcUrls: [...(own && /^https:\/\/[^\s]+$/.test(own) ? [own] : []), ...SOLANA_PUBLIC_RPC] };
+    return { id: 'solana', name: CHAINS.solana.name, kind: 'solana', confirmations: 0, maxRange: 0, addressBatch: 0, lookback: 3_600, quoteTokens: SOLANA_QUOTES, rpcUrls: [...(own && /^https:\/\/[^\s]+$/.test(own) ? [{ url: own, weight: 4, rps: 20 }] : []), ...FREE_SOLANA_RPC], maxLagBlocks: 0 };
   }
   const upper = chain.toUpperCase();
   // MI_RPC_<CHAIN> wins; otherwise the node the token registry already uses (EVM_RPC_<CHAIN>) is reused.
   const override = (env[`MI_RPC_${upper}`] ?? env[`EVM_RPC_${upper}`])?.trim();
   const confirmations = Number(env[`MI_CONFIRMATIONS_${upper}`]);
   const batch = Number(env[`MI_ADDRESS_BATCH_${upper}`]);
+  const lagCap = Number(env[`MI_MAX_LAG_BLOCKS_${upper}`]);
   return {
     id: chain,
     name: CHAINS[chain].name,
@@ -86,7 +97,8 @@ export function chainConfig(chain: MiChain, env: Record<string, string | undefin
     lookback: 300,
     quoteTokens: quotesOf(chain),
     // A configured node comes first (server-side secret, may carry a key); the public ones are the fallback.
-    rpcUrls: [...(override && /^https:\/\/[^\s]+$/.test(override) ? [override] : []), PUBLIC_EVM_RPC[chain], ...(BACKUP_EVM_RPC[chain] ?? [])],
+    rpcUrls: [...(override && /^https:\/\/[^\s]+$/.test(override) ? [{ url: override, weight: 4, rps: 20 }] : []), ...FREE_EVM_RPC[chain]],
+    maxLagBlocks: Number.isInteger(lagCap) && lagCap >= 100 ? lagCap : MAX_LAG[chain],
   };
 }
 

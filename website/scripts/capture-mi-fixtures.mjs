@@ -88,6 +88,32 @@ for (const s of specs) {
   try {
     const head = Number.parseInt(await rpc(s.chain, 'eth_blockNumber', []), 16);
     entry.head = head;
+    if (s.kind === 'v4') {
+      // Uniswap V4: one PoolManager; a pool is its 32-byte id. Take recent Initialize logs, then swaps of those same (new) pools, so the
+      // pool key (tokens, fee, hooks) is known without reading the chain's whole history.
+      const span = process.env.MI_WIDE ? 9000 : 3000;
+      const inits = await logsBack(s.chain, head - 5, { address: s.factory, topics: [s.creationTopic] }, 12, span / 6);
+      entry.factoryLogs = inits.slice(-3);
+      const ids = [...new Set(inits.map((l) => l.topics[1]))].slice(-10);
+      const swapsAll = ids.length ? await rpc(s.chain, 'eth_getLogs', [{ address: s.factory, topics: [s.swapTopic, ids], fromBlock: hexn(Math.max(0, head - span)), toBlock: hexn(head - 5) }]) : [];
+      const count = new Map();
+      for (const l of swapsAll) count.set(l.topics[1], (count.get(l.topics[1]) ?? 0) + 1);
+      const best = [...count.entries()].sort((x, y) => y[1] - x[1])[0];
+      if (!best) throw new Error('no swaps of a recently created pool in the window');
+      entry.swapLogs = swapsAll.filter((l) => l.topics[1] === best[0]).slice(-2);
+      const init = inits.find((l) => l.topics[1] === best[0]);
+      entry.poolInit = init;
+      const t0 = addr(init.topics[2]);
+      const t1 = addr(init.topics[3]);
+      const dec4 = async (t) => (/^0x0{40}$/.test(t) ? 18 : Number.parseInt(await call(s.chain, t, '0x313ce567'), 16));
+      entry.pool = { address: best[0], token0: t0, token1: t1, decimals0: await dec4(t0), decimals1: await dec4(t1) };
+      const blocks4 = [...new Set([...entry.factoryLogs, ...entry.swapLogs, init].map((l) => l.blockNumber))];
+      entry.blockTimes = {};
+      for (const b of blocks4) entry.blockTimes[b] = Number.parseInt((await rpc(s.chain, 'eth_getBlockByNumber', [b, false])).timestamp, 16);
+      console.error(s.id, 'ok', entry.factoryLogs.length, 'creations', entry.swapLogs.length, 'swaps');
+      result[s.id] = entry;
+      continue;
+    }
     entry.factoryLogs = await logsBack(s.chain, head - 5, { address: s.factory, topics: [s.creationTopic] }, 3, process.env.MI_WIDE ? 50000 : 3000);
     if (entry.factoryLogs.length < 1) {
       // A quiet factory: ask the node for its whole history (rare events, so the answer is small), keep the newest few.
@@ -98,7 +124,40 @@ for (const s of specs) {
     }
     // A busy pool of this factory: wrapped native against the stablecoin.
     let pool = null;
-    if (s.kind === 'v2') {
+    if (s.creationShape) {
+      // Aerodrome-style pools: the node will not list logs without an address, so take recently created pools from the factory and read
+      // their swaps by address. The pool is the first data word of the creation log; the tokens are its indexed topics.
+      const span = process.env.MI_WIDE ? 40000 : 12000;
+      const made = await logsBack(s.chain, head - 5, { address: s.factory, topics: [s.creationTopic] }, 10, span / 6);
+      entry.factoryLogs = made.slice(-3);
+      console.error(s.id, 'created in window', made.length);
+      const pools = made.map((l) => ({ pool: '0x' + l.data.slice(26, 66), t0: addr(l.topics[1]), t1: addr(l.topics[2]) })).slice(-10);
+      const swaps = pools.length ? await rpc(s.chain, 'eth_getLogs', [{ address: pools.map((x) => x.pool), topics: [s.swapTopic], fromBlock: hexn(Math.max(0, head - span)), toBlock: hexn(head - 5) }]) : [];
+      const count = new Map();
+      for (const l of swaps) count.set(l.address.toLowerCase(), (count.get(l.address.toLowerCase()) ?? 0) + 1);
+      const best = [...count.entries()].sort((x, y) => y[1] - x[1])[0];
+      if (best) {
+        pool = best[0];
+        entry.swapLogs = swaps.filter((x) => x.address.toLowerCase() === pool).slice(-2);
+        const meta = pools.find((x) => x.pool.toLowerCase() === pool);
+        entry.pool = { address: pool, token0: meta.t0, token1: meta.t1, decimals0: Number.parseInt(await call(s.chain, meta.t0, '0x313ce567'), 16), decimals1: Number.parseInt(await call(s.chain, meta.t1, '0x313ce567'), 16) };
+      } else if (s.creationShape === 'slipstream') {
+        // None of the new pools traded: use the factory's well-known wrapped-native / stablecoin pool, found by its tick spacing.
+        const [a, b] = [WNATIVE[s.chain], STABLE[s.chain]].sort();
+        for (const spacing of [100, 200, 1, 50, 500]) {
+          const r = await call(s.chain, s.factory, '0x28af8d0b' + pad(a) + pad(b) + spacing.toString(16).padStart(64, '0'));
+          const cand = addr(r);
+          if (/^0x0{40}$/.test(cand)) continue;
+          const sw = await logsBack(s.chain, head - 5, { address: cand, topics: [s.swapTopic] }, 2, 500);
+          if (sw.length) {
+            pool = cand;
+            entry.swapLogs = sw;
+            entry.pool = { address: pool, token0: a, token1: b, decimals0: Number.parseInt(await call(s.chain, a, '0x313ce567'), 16), decimals1: Number.parseInt(await call(s.chain, b, '0x313ce567'), 16) };
+            break;
+          }
+        }
+      }
+    } else if (s.kind === 'v2') {
       const r = await call(s.chain, s.factory, '0xe6a43905' + pad(WNATIVE[s.chain]) + pad(STABLE[s.chain]));
       pool = addr(r);
     } else {
@@ -109,6 +168,14 @@ for (const s of specs) {
       }
     }
     if (!pool || /^0x0{40}$/.test(pool)) throw new Error('no busy pool found');
+    if (s.creationShape) {
+      const blocksA = [...new Set([...entry.factoryLogs, ...entry.swapLogs].map((l) => l.blockNumber))];
+      entry.blockTimes = {};
+      for (const b2 of blocksA) entry.blockTimes[b2] = Number.parseInt((await rpc(s.chain, 'eth_getBlockByNumber', [b2, false])).timestamp, 16);
+      console.error(s.id, 'ok', entry.factoryLogs.length, 'creations', entry.swapLogs.length, 'swaps');
+      result[s.id] = entry;
+      continue;
+    }
     const t0 = addr(await call(s.chain, pool, '0x0dfe1681'));
     const t1 = addr(await call(s.chain, pool, '0xd21220a7'));
     const dec = async (t) => Number.parseInt(await call(s.chain, t, '0x313ce567'), 16);

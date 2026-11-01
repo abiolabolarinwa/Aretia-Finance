@@ -23,7 +23,7 @@ describe('DEX adapter catalogue', () => {
     for (const s of specs) {
       expect(s.factory).toMatch(/^0x[0-9a-f]{40}$/);
       expect(EVM_MI_CHAINS).toContain(s.chain);
-      expect(['pancakeswap', 'uniswap', 'sushiswap', 'apeswap']).toContain(s.family);
+      expect(['pancakeswap', 'uniswap', 'sushiswap', 'apeswap', 'aerodrome']).toContain(s.family);
     }
   });
 
@@ -33,7 +33,7 @@ describe('DEX adapter catalogue', () => {
   });
 
   it('keeps fixtures/specs.json (used by the capture script) in step with the catalogue', () => {
-    const current = allSpecs().map((s) => ({ id: s.id, chain: s.chain, kind: s.kind, factory: s.factory, creationTopic: s.creationTopic, swapTopic: s.swapTopic }));
+    const current = allSpecs().map((s) => ({ id: s.id, chain: s.chain, kind: s.kind, factory: s.factory, creationTopic: s.creationTopic, swapTopic: s.swapTopic, creationShape: s.creationShape ?? null }));
     if (process.env.MI_WRITE_SPECS === '1') writeFileSync(specsFile, JSON.stringify(current, null, 1));
     expect(JSON.parse(readFileSync(specsFile, 'utf8'))).toEqual(current);
   });

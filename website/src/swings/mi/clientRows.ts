@@ -9,7 +9,7 @@ import type { PoolDto } from './dto.js';
 import { formatUnits, parseRaw } from './math.js';
 
 /** An EVM address (lower-case) or a Solana public key (base58, case-sensitive). */
-const ADDRESS = /^(0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
+const ADDRESS = /^(0x[0-9a-f]{40}(?:[0-9a-f]{24})?|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
 /** An EVM transaction hash or a Solana signature. */
 const TX_ID = /^(0x[0-9a-f]{64}|[1-9A-HJ-NP-Za-km-z]{64,100})$/;
 const ago = (iso: string | null, now: number): number | null => {
@@ -189,10 +189,10 @@ const asked = new Set<string>();
  * Tells the index about a market it does not follow, once per page load, so that it is read from then on (and joins the index's
  * lists). Fire and forget: a failure changes nothing on screen.
  */
-export function trackMarket(row: Pick<MarketRow, 'chain' | 'pool' | 'indexed'>, fetchImpl: typeof fetch = (...a) => fetch(...a)): void {
+export function trackMarket(row: Pick<MarketRow, 'chain' | 'pool' | 'indexed'> & { address?: string }, fetchImpl: typeof fetch = (...a) => fetch(...a)): void {
   if (row.indexed || !row.pool) return;
   const key = `${row.chain}:${row.pool}`;
   if (asked.has(key)) return;
   asked.add(key);
-  void fetchImpl('/api/v1/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: row.chain, pool: row.pool }) }).catch(() => undefined);
+  void fetchImpl('/api/v1/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: row.chain, pool: row.pool, ...(row.address && row.address !== row.pool ? { token: row.address } : {}) }) }).catch(() => undefined);
 }

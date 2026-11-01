@@ -20,7 +20,7 @@ function evidenceFor(id: string): { creations: number; swaps: number; trades: nu
   const spec = allSpecs().find((s) => s.id === id)!;
   const f = fixtures[id];
   if (!f || f.error) return { creations: 0, swaps: 0, trades: 0 };
-  const creations = (f.factoryLogs ?? []).filter((l) => decodeCreation(l, spec.kind, spec.factory) !== null).length;
+  const creations = (f.factoryLogs ?? []).filter((l) => decodeCreation(l, spec.kind, spec.factory, spec.creationShape) !== null).length;
   let swaps = 0;
   let trades = 0;
   for (const l of f.swapLogs ?? []) {
@@ -40,11 +40,12 @@ describe('decoders on real captured logs', () => {
       expect(f, 'run scripts/capture-mi-fixtures.mjs').toBeDefined();
       expect(f!.error).toBeUndefined();
       for (const l of f!.factoryLogs ?? []) {
-        const c = decodeCreation(l, spec.kind, spec.factory);
+        const c = decodeCreation(l, spec.kind, spec.factory, spec.creationShape);
         expect(c, 'creation log').not.toBeNull();
-        expect(c!.pool).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(c!.pool).toMatch(spec.kind === 'v4' ? /^0x[0-9a-f]{64}$/ : /^0x[0-9a-f]{40}$/);
         expect(c!.token0).not.toBe(c!.token1);
-        if (spec.kind === 'v3') expect(c!.feeTier).toBeGreaterThan(0);
+        if (spec.kind === 'v3' && !spec.creationShape) expect(c!.feeTier).toBeGreaterThan(0);
+        if (spec.creationShape === 'slipstream') expect(c!.tickSpacing).toBeGreaterThan(0);
       }
       for (const l of f!.swapLogs ?? []) {
         const s = decodeSwap(l, spec.kind, spec.swapTopic);
@@ -66,6 +67,19 @@ EVIDENCE ${JSON.stringify(earned, null, 1)}
     expect(EVIDENCE).toEqual(earned);
     // Never claims what was not captured.
     expect(Object.keys(earned).length).toBeGreaterThan(12);
+  });
+
+  it('Uniswap V4: the Initialize log gives the pool key, and real swaps of that pool decode with the pool id', () => {
+    for (const id of ['uniswap-v4-ethereum', 'uniswap-v4-base', 'uniswap-v4-bnb']) {
+      const spec = allSpecs().find((x) => x.id === id)!;
+      const f = fixtures[id] as Fixture & { poolInit?: unknown };
+      const c = decodeCreation(f.poolInit, 'v4', spec.factory)!;
+      expect(c.pool).toBe(f.pool!.address);
+      expect([c.token0, c.token1]).toEqual([f.pool!.token0, f.pool!.token1]);
+      expect(c.token0 < c.token1).toBe(true);
+      expect(c.tickSpacing).not.toBe(0);
+      for (const l of f.swapLogs!) expect(decodeSwap(l, 'v4', spec.swapTopic)!.pool).toBe(c.pool);
+    }
   });
 
   it('prices real swaps plausibly: the busy wrapped-native pools price at a sensible dollar value', () => {

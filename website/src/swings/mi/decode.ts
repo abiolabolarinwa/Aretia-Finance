@@ -68,6 +68,11 @@ export interface Creation {
   token1: string;
   pool: string;
   feeTier: number | null;
+  /** Uniswap V4 only. */
+  tickSpacing?: number;
+  hooks?: string;
+  /** Set when the pool is being added on request rather than found at its creation event: its history is then not complete from the start. */
+  tracked?: boolean;
   block: number;
   blockHash: string;
   tx: string;
@@ -75,9 +80,38 @@ export interface Creation {
 }
 
 /** PairCreated (V2 factories) or PoolCreated (V3 factories) emitted by `factory`. */
-export function decodeCreation(raw: unknown, kind: 'v2' | 'v3', factory: string): Creation | null {
+const ID64 = /^0x[0-9a-f]{64}$/;
+const signed24 = (w: string): number => {
+  const v = Number(BigInt.asIntN(24, uint(w)));
+  return v;
+};
+
+export function decodeCreation(raw: unknown, kind: 'v2' | 'v3' | 'v4', factory: string, shape?: 'aero' | 'slipstream'): Creation | null {
   const m = logMeta(raw);
   if (!m || m.address !== factory.toLowerCase()) return null;
+  if (shape === 'aero') {
+    // PoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256)
+    if (m.topics.length !== 4 || m.topics[0] !== TOPICS.aeroPoolCreated) return null;
+    const w = dataWords(m.data, 2);
+    if (!w || !cleanAddressWord(w[0]!) || !cleanAddressWord(m.topics[1]!.slice(2)) || !cleanAddressWord(m.topics[2]!.slice(2))) return null;
+    return { token0: topicAddress(m.topics[1]!), token1: topicAddress(m.topics[2]!), pool: wordToAddress(w[0]!), feeTier: null, block: m.block, blockHash: m.blockHash, tx: m.tx, logIndex: m.logIndex };
+  }
+  if (shape === 'slipstream') {
+    // PoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, address pool)
+    if (m.topics.length !== 4 || m.topics[0] !== TOPICS.slipstreamPoolCreated) return null;
+    const w = dataWords(m.data, 1);
+    if (!w || !cleanAddressWord(w[0]!) || !cleanAddressWord(m.topics[1]!.slice(2)) || !cleanAddressWord(m.topics[2]!.slice(2))) return null;
+    return { token0: topicAddress(m.topics[1]!), token1: topicAddress(m.topics[2]!), pool: wordToAddress(w[0]!), feeTier: null, tickSpacing: signed24(m.topics[3]!.slice(2)), block: m.block, blockHash: m.blockHash, tx: m.tx, logIndex: m.logIndex };
+  }
+  if (kind === 'v4') {
+    // Initialize(bytes32 indexed id, address indexed currency0, address indexed currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96, int24 tick)
+    if (m.topics.length !== 4 || m.topics[0] !== TOPICS.v4Initialize || !ID64.test(m.topics[1]!)) return null;
+    const w = dataWords(m.data, 5);
+    if (!w || w.length !== 5 || !cleanAddressWord(w[2]!) || !cleanAddressWord(m.topics[2]!.slice(2)) || !cleanAddressWord(m.topics[3]!.slice(2))) return null;
+    const fee = Number(uint(w[0]!));
+    if (!Number.isSafeInteger(fee) || fee > 16_777_215) return null;
+    return { token0: topicAddress(m.topics[2]!), token1: topicAddress(m.topics[3]!), pool: m.topics[1]!, feeTier: fee, tickSpacing: signed24(w[1]!), hooks: wordToAddress(w[2]!), block: m.block, blockHash: m.blockHash, tx: m.tx, logIndex: m.logIndex };
+  }
   if (kind === 'v2') {
     if (m.topics.length !== 3 || m.topics[0] !== TOPICS.v2PairCreated) return null;
     const w = dataWords(m.data, 2);
@@ -105,9 +139,18 @@ export interface RawSwap {
 }
 
 /** A swap event of a V2 pair (`Swap`) or a V3 pool (Uniswap or Pancake shape), for the pool that emitted it. */
-export function decodeSwap(raw: unknown, kind: 'v2' | 'v3', swapTopic: string): RawSwap | null {
+export function decodeSwap(raw: unknown, kind: 'v2' | 'v3' | 'v4', swapTopic: string): RawSwap | null {
   const m = logMeta(raw);
   if (!m || m.topics.length !== 3 || m.topics[0] !== swapTopic) return null;
+  if (kind === 'v4') {
+    // Swap(bytes32 indexed id, address indexed sender, int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee).
+    // The amounts are the SWAPPER's balance changes (positive: the swapper received it; checked against the token transfers of real
+    // swaps), so the pool's side is their negative.
+    if (!ID64.test(m.topics[1]!)) return null;
+    const w = dataWords(m.data, 6);
+    if (!w || w.length !== 6) return null;
+    return { pool: m.topics[1]!, net0: -int256(w[0]!), net1: -int256(w[1]!), maker: topicAddress(m.topics[2]!), block: m.block, blockHash: m.blockHash, tx: m.tx, logIndex: m.logIndex };
+  }
   if (kind === 'v2') {
     const w = dataWords(m.data, 4);
     if (!w || w.length !== 4) return null;

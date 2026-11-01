@@ -13,7 +13,7 @@ export const isPoolState = (v: unknown): v is PoolState => typeof v === 'string'
 export type Evidence = 'planned' | 'address-verified' | 'fixture-tested' | 'live-verified';
 
 /** v2/v3: EVM constant-product / concentrated liquidity. cpmm/clmm: the same two shapes on Solana (Raydium CPMM; Orca Whirlpool). */
-export type PoolKind = 'v2' | 'v3' | 'cpmm' | 'clmm';
+export type PoolKind = 'v2' | 'v3' | 'v4' | 'cpmm' | 'clmm';
 
 export interface MiToken {
   /** `chain:address` (EVM addresses lower-case). */
@@ -51,6 +51,16 @@ export interface MiPool {
   /** Solana: the pool's two token accounts, whose balance changes are its swaps and whose balances are its liquidity. Null on EVM. */
   baseVault: string | null;
   quoteVault: string | null;
+  /** Uniswap V4: the pool key's tick spacing and hooks contract (null otherwise). A V4 pool's `address` is its 32-byte pool id. */
+  tickSpacing: number | null;
+  hooks: string | null;
+  /**
+   * How far back this pool's swaps are stored. A pool found at its creation has all of its history (`historyDone`). A pool added on request
+   * starts with a window and is read further back by later runs until its creation or the retention limit: `historyBlock` is the oldest
+   * block whose swaps are stored (EVM), null until the first window was read.
+   */
+  historyBlock: number | null;
+  historyDone: boolean;
   createdBlock: number;
   createdTx: string;
   /** ms, block timestamp of the creation event. */

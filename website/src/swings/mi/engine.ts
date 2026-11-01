@@ -15,7 +15,8 @@
 import type { MiChainConfig } from './chains.js';
 import { decodeCreation, decodeSwap, logMeta, tradeOf, type Creation } from './decode.js';
 import type { DexAdapterSpec } from './dexes.js';
-import { getBlock, getHead, getLogsHalving, readBalance, readToken, readV2Reserves, type BlockInfo, type TokenFacts } from './evmReads.js';
+import { NATIVE_ADDRESS } from './chains.js';
+import { getBlock, getHead, getLogsHalving, readBalance, readToken, readV2Reserves, readV4State, v4Depth, type BlockInfo, type TokenFacts } from './evmReads.js';
 import { evaluate, FOLLOWED_STATES, type ListingRules, type PoolFacts } from './lifecycle.js';
 import { parseRaw } from './math.js';
 import { RpcError, type Read } from './rpc.js';
@@ -72,6 +73,7 @@ export interface RunReport {
 
 const ZERO = /^0x0{40}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
+const POOL_ID = /^0x[0-9a-f]{64}$/;
 
 class ChunkAbort extends Error {}
 
@@ -172,7 +174,7 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   const tokenCache = new Map<string, TokenFacts | null>();
   const tokenFacts = async (address: string): Promise<TokenFacts | null> => {
     if (tokenCache.has(address)) return tokenCache.get(address) ?? null;
-    const f = await readToken(d.read, address);
+    const f = await readAnyToken(d, address);
     tokenCache.set(address, f);
     return f;
   };
@@ -181,8 +183,8 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   const rawCreations = await getLogsHalving(d.read, { address: d.spec.factory, topics: [d.spec.creationTopic] }, from, to);
   const creations: Creation[] = [];
   for (const raw of rawCreations) {
-    const c = decodeCreation(raw, d.spec.kind, d.spec.factory);
-    if (c && c.block >= from && c.block <= to && ADDRESS.test(c.pool) && !ZERO.test(c.pool)) creations.push(c);
+    const c = decodeCreation(raw, d.spec.kind, d.spec.factory, d.spec.creationShape);
+    if (c && c.block >= from && c.block <= to && (d.spec.kind === 'v4' ? POOL_ID.test(c.pool) : ADDRESS.test(c.pool) && !ZERO.test(c.pool))) creations.push(c);
     else report.skippedLogs++;
   }
   creations.sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
@@ -204,7 +206,7 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   const fetched: { group: MiPool[]; logs: unknown[] }[] = [];
   // A few getLogs calls at once: the reader limits concurrency per node, this only keeps it busy.
   for (let i = 0; i < groups.length; i += 4) {
-    fetched.push(...(await Promise.all(groups.slice(i, i + 4).map(async (group) => ({ group, logs: await getLogsHalving(d.read, { address: group.map((p) => p.address), topics: [d.spec.swapTopic] }, from, to) })))));
+    fetched.push(...(await Promise.all(groups.slice(i, i + 4).map(async (group) => ({ group, logs: await getLogsHalving(d.read, d.spec.kind === 'v4' ? { address: d.spec.factory, topics: [d.spec.swapTopic, group.map((p) => p.address)] } : { address: group.map((p) => p.address), topics: [d.spec.swapTopic] }, from, to) })))));
   }
   const trades: MiTrade[] = [];
   for (const { group, logs } of fetched) {
@@ -238,12 +240,22 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   return { hash: tip.hash };
 }
 
+/** A token's facts from the chain; address zero is the chain's own coin (Uniswap V4 pools hold it that way). */
+export async function readAnyToken(d: Pick<EngineDeps, 'read' | 'chain'>, address: string): Promise<TokenFacts | null> {
+  if (address === NATIVE_ADDRESS) {
+    const q = d.chain.quoteTokens.find((x) => x.address === NATIVE_ADDRESS);
+    return q ? { symbol: q.symbol, name: `${d.chain.name} coin`, decimals: q.decimals } : null;
+  }
+  return readToken(d.read, address);
+}
+
 export async function registerPool(d: EngineDeps, c: Creation, createdAtMs: number, tokenFacts: (a: string) => Promise<TokenFacts | null>, report: RunReport): Promise<MiPool | null> {
   const key = poolKeyOf(d.spec.chain, c.pool);
   if ((await d.store.getPools([key])).has(key)) return null; // idempotent: a pool is registered once
   const t0 = c.token0.toLowerCase();
   const t1 = c.token1.toLowerCase();
-  if (!ADDRESS.test(t0) || !ADDRESS.test(t1) || t0 === t1 || ZERO.test(t0) || ZERO.test(t1)) return null;
+  const native = d.spec.kind === 'v4' ? NATIVE_ADDRESS : null;
+  if (!ADDRESS.test(t0) || !ADDRESS.test(t1) || t0 === t1 || (ZERO.test(t0) && t0 !== native) || (ZERO.test(t1) && t1 !== native)) return null;
 
   const quotes = d.chain.quoteTokens;
   const q0 = quotes.find((q) => q.address === t0);
@@ -274,6 +286,11 @@ export async function registerPool(d: EngineDeps, c: Creation, createdAtMs: numb
     baseIsToken0: baseAddr === t0,
     baseVault: null,
     quoteVault: null,
+    tickSpacing: c.tickSpacing ?? null,
+    hooks: c.hooks ?? null,
+    // Found at its own creation event: it is read from that block on, so its history is complete. A pool added on request is not (see track.ts).
+    historyBlock: c.tracked ? null : c.block,
+    historyDone: !c.tracked,
     createdBlock: c.block,
     createdTx: c.tx,
     createdAt: createdAtMs,
@@ -322,6 +339,10 @@ async function poolFacts(d: EngineDeps, pool: MiPool, tokensReadable: boolean | 
     if (pool.kind === 'v2') {
       const r = await readV2Reserves(d.read, pool.address);
       if (r) reserves = pool.baseIsToken0 ? { base: r[0], quote: r[1] } : { base: r[1], quote: r[0] };
+    } else if (pool.kind === 'v4') {
+      const st = d.spec.stateView ? await readV4State(d.read, d.spec.stateView, pool.address) : null;
+      const depth = st ? v4Depth(st) : null;
+      if (depth) reserves = pool.baseIsToken0 ? { base: depth.amount0, quote: depth.amount1 } : { base: depth.amount1, quote: depth.amount0 };
     } else {
       // A V3 pool has no reserves call: the liquidity it can serve is bounded by the tokens it holds.
       const [b, q] = [await readBalance(d.read, pool.base, pool.address), await readBalance(d.read, pool.quote, pool.address)];
@@ -395,7 +416,7 @@ async function maintain(d: EngineDeps, report: RunReport): Promise<void> {
   const live = await d.store.poolsOfAdapter(d.spec.id, ['active', 'inactive'], d.maintainLive ?? 30, 'recent-trade');
   const tokenCache = new Map<string, TokenFacts | null>();
   const tokenFacts = async (a: string): Promise<TokenFacts | null> => {
-    if (!tokenCache.has(a)) tokenCache.set(a, await readToken(d.read, a));
+    if (!tokenCache.has(a)) tokenCache.set(a, await readAnyToken(d, a));
     return tokenCache.get(a) ?? null;
   };
   for (const p of [...waiting, ...live]) {

@@ -147,13 +147,15 @@ describe('GET /api/v1 (public read API)', () => {
     const { store, now } = await seeded();
     const s = body(await get(store, now, 'status')).data;
     expect(s.chains.map((c: { id: string }) => c.id).sort()).toEqual(['base', 'bnb', 'ethereum', 'polygon', 'robinhood', 'solana']);
-    expect(s.chains.find((c: { id: string }) => c.id === 'solana')).toMatchObject({ supported: true, adapters: 3 });
+    expect(s.chains.find((c: { id: string }) => c.id === 'solana')).toMatchObject({ supported: true, adapters: 8 });
     expect(s.dexes.find((d: { id: string }) => d.id === 'orca-whirlpool-solana')).toMatchObject({ evidence: 'live-verified', state: 'not-running' });
     expect(s.chains.find((c: { id: string }) => c.id === 'bnb').running).toBe(1);
     expect(s.dexes.find((d: { id: string }) => d.id === 'pancakeswap-v2-bnb').state).toBe('ok');
     expect(s.dexes.find((d: { id: string }) => d.id === 'apeswap-v2-polygon').state).toBe('not-running');
-    expect(s.notIndexed.map((p: { id: string }) => p.id)).toEqual(['meteora-damm-v2', 'meteora-dlmm', 'meteora-dbc']);
-    expect(s.notIndexed.every((p: { evidence: string }) => p.evidence === 'planned')).toBe(true);
+    expect(s.notIndexed).toEqual([]);
+    expect(s.dexes.find((d: { id: string }) => d.id === 'meteora-dlmm-solana')).toMatchObject({ discovery: 'on-request' });
+    expect(s.dexes.find((d: { id: string }) => d.id === 'raydium-amm-v4-solana')).toMatchObject({ discovery: 'creation' });
+    expect(s.dexes.find((d: { id: string }) => d.id === 'uniswap-v4-ethereum')).toMatchObject({ kind: 'v4', evidence: 'fixture-tested' });
   });
 
   it('rate limits per address and does not count other addresses', async () => {
@@ -360,6 +362,16 @@ describe('trades for the chart table, from the index', () => {
     const quote = await miTrades({ chain: 'bnb', pool: POOL, token: 'quote', env, fetchImpl: nofetch, now }, store);
     expect(quote![0]!.kind).not.toBe(base![0]!.kind);
     expect(quote![0]!.priceUsd).toBeNull();
+  });
+
+  it('serves a pool quoted in the chain coin too, with no dollar value (none is converted at the current rate)', async () => {
+    const { store, now } = await seeded();
+    await store.updatePool(`bnb:${POOL}`, { quote: WBNB });
+    const rows = await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store);
+    expect(rows!.length).toBeGreaterThan(0);
+    expect(Number.isNaN(rows![0]!.usd)).toBe(true);
+    expect(rows![0]!.priceUsd).toBeNull();
+    expect(rows![0]!.quoteAmount).toBeGreaterThan(0);
   });
 
   it('answers null for a pool it does not follow, a chain it does not index, or no storage, so the usual source is read', async () => {

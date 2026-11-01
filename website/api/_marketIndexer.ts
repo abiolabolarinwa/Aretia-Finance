@@ -136,7 +136,8 @@ async function handleTrack(input: MiInput, storeOverride?: MiStore, deps?: { rea
     const cfg = chainConfig(chain, input.env);
     const read = deps?.readFor ? deps.readFor(chain) : makeRead(cfg.rpcUrls, { fetchImpl: input.fetchImpl, concurrency: 3 });
     const now = () => Date.now();
-    const base = { chain: cfg, store, rules: rulesFrom(input.env), now, budgetMs: 25_000 };
+    const tokenHint = typeof b.token === 'string' && /^0x[0-9a-fA-F]{40}$/.test(b.token) ? b.token.toLowerCase() : undefined;
+    const base = { chain: cfg, store, rules: rulesFrom(input.env), now, budgetMs: 25_000, tokenHint };
     const result: TrackResult = chain === 'solana' ? await trackSolanaPool({ ...base, rpc: read, nativeUsd: solUsdReader(read, now) }, pool) : await trackEvmPool({ ...base, read, nativeUsd: nativeUsdReader(cfg, read, now) }, cfg, pool);
     return json(200, { data: result }, cors);
   } catch (e) {
@@ -168,7 +169,8 @@ export async function handleMiRun(input: MiInput, storeOverride?: MiStore): Prom
 
 // ---------------------------------------------------------------------------------------------- owner controls
 
-const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+/** A pool on an EVM chain: a contract address, or (Uniswap V4) a 32-byte pool id. */
+const EVM_ADDRESS = /^0x(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
 const MAX_BACKFILL_BLOCKS = 200_000;
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const reasonOf = (v: unknown): string => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} .,:;()_'/+-]/gu, '').trim().slice(0, 200) : '');
@@ -298,7 +300,9 @@ export async function miTrades(input: { chain: string; pool: string; token: 'bas
     const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
     if (!p || p.paused) return null;
     const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
-    if (quote?.role !== 'usd') return null;
+    // A dollar-quoted pool gives a dollar value and price. A pool quoted in the chain's own coin has no dollar value that was true at the time of
+    // each trade, so those columns are left empty (null) rather than converted at today's rate.
+    const dollar = quote?.role === 'usd';
     const rows = await store.recentTrades(chain, pool, 100);
     const out: Trade[] = [];
     for (const t of rows) {
@@ -310,10 +314,10 @@ export async function miTrades(input: { chain: string; pool: string; token: 'bas
       out.push({
         t: t.time * 1000,
         kind: base ? t.side : t.side === 'buy' ? 'sell' : 'buy',
-        usd: quoteAmount,
+        usd: dollar ? quoteAmount : Number.NaN,
         tokenAmount: base ? baseAmount : quoteAmount,
         quoteAmount: base ? quoteAmount : baseAmount,
-        priceUsd: base ? price : null,
+        priceUsd: base && dollar ? price : null,
         trader: t.maker,
         tx: t.id.split(':')[0] ?? t.id,
       });

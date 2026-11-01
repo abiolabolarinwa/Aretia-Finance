@@ -5,7 +5,8 @@
   "kind": "v2",
   "factory": "0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v2-bnb",
@@ -13,7 +14,8 @@
   "kind": "v2",
   "factory": "0xca143ce32fe78f1f7019d7d551a6402fc5350c73",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "uniswap-v2-base",
@@ -21,7 +23,8 @@
   "kind": "v2",
   "factory": "0x8909dc15e40173ff4699343b6eb8132c65e18ec6",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v2-ethereum",
@@ -29,7 +32,8 @@
   "kind": "v2",
   "factory": "0x1097053fd2ea711dad45caccc45eff7548fcb362",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v2-base",
@@ -37,7 +41,8 @@
   "kind": "v2",
   "factory": "0x02a84c1b3bbd7401a5f7fa98a384ebc70bb5749e",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "sushiswap-v2-ethereum",
@@ -45,7 +50,8 @@
   "kind": "v2",
   "factory": "0xc0aee478e3658e2610c5f7a4a2e1777ce9e4f2ac",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "sushiswap-v2-polygon",
@@ -53,7 +59,8 @@
   "kind": "v2",
   "factory": "0xc35dadb65012ec5796536bd9864ed8773abc74c4",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "sushiswap-v2-base",
@@ -61,7 +68,8 @@
   "kind": "v2",
   "factory": "0x71524b4f93c58fcbf659783284e38825f0622859",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "uniswap-v3-ethereum",
@@ -69,7 +77,8 @@
   "kind": "v3",
   "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": null
  },
  {
   "id": "uniswap-v3-polygon",
@@ -77,7 +86,8 @@
   "kind": "v3",
   "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": null
  },
  {
   "id": "uniswap-v3-base",
@@ -85,7 +95,8 @@
   "kind": "v3",
   "factory": "0x33128a8fc17869897dce68ed026d694621f6fdfd",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": null
  },
  {
   "id": "uniswap-v3-bnb",
@@ -93,7 +104,8 @@
   "kind": "v3",
   "factory": "0xdb1d10011ad0ff90774d0c6bb92e5c5c8b4461f7",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": null
  },
  {
   "id": "uniswap-v3-robinhood",
@@ -101,7 +113,8 @@
   "kind": "v3",
   "factory": "0x1f7d7550b1b028f7571e69a784071f0205fd2efa",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v3-bnb",
@@ -109,7 +122,8 @@
   "kind": "v3",
   "factory": "0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83"
+  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v3-ethereum",
@@ -117,7 +131,8 @@
   "kind": "v3",
   "factory": "0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83"
+  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83",
+  "creationShape": null
  },
  {
   "id": "pancakeswap-v3-base",
@@ -125,7 +140,71 @@
   "kind": "v3",
   "factory": "0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865",
   "creationTopic": "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83"
+  "swapTopic": "0x19b47279256b2a23a1665c810c8d55a1758940ee09377d4f8d26497a3577dc83",
+  "creationShape": null
+ },
+ {
+  "id": "uniswap-v4-ethereum",
+  "chain": "ethereum",
+  "kind": "v4",
+  "factory": "0x000000000004444c5dc75cb358380d2e3de08a90",
+  "creationTopic": "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "creationShape": null
+ },
+ {
+  "id": "uniswap-v4-base",
+  "chain": "base",
+  "kind": "v4",
+  "factory": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+  "creationTopic": "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "creationShape": null
+ },
+ {
+  "id": "uniswap-v4-polygon",
+  "chain": "polygon",
+  "kind": "v4",
+  "factory": "0x67366782805870060151383f4bbff9dab53e5cd6",
+  "creationTopic": "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "creationShape": null
+ },
+ {
+  "id": "uniswap-v4-bnb",
+  "chain": "bnb",
+  "kind": "v4",
+  "factory": "0x28e2ea090877bf75740558f6bfb36a5ffee9e9df",
+  "creationTopic": "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "creationShape": null
+ },
+ {
+  "id": "uniswap-v4-robinhood",
+  "chain": "robinhood",
+  "kind": "v4",
+  "factory": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+  "creationTopic": "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "creationShape": null
+ },
+ {
+  "id": "aerodrome-v2-base",
+  "chain": "base",
+  "kind": "v2",
+  "factory": "0x420dd381b31aef6683db6b902084cb0ffece40da",
+  "creationTopic": "0x2128d88d14c80cb081c1252a5acff7a264671bf199ce226b53788fb26065005e",
+  "swapTopic": "0xb3e2773606abfd36b5bd91394b3a54d1398336c65005baf7bf7a05efeffaf75b",
+  "creationShape": "aero"
+ },
+ {
+  "id": "aerodrome-slipstream-base",
+  "chain": "base",
+  "kind": "v3",
+  "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+  "creationTopic": "0xab0d57f0df537bb25e80245ef7748fa62353808c54d6e528a9dd20887aed9ac2",
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "creationShape": "slipstream"
  },
  {
   "id": "apeswap-v2-bnb",
@@ -133,7 +212,8 @@
   "kind": "v2",
   "factory": "0x0841bd0b734e4f5853f0dd8d7ea041c241fb0da6",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "apeswap-v2-polygon",
@@ -141,7 +221,8 @@
   "kind": "v2",
   "factory": "0xcf083be4164828f00cae704ec15a36d711491284",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  },
  {
   "id": "apeswap-v2-ethereum",
@@ -149,6 +230,7 @@
   "kind": "v2",
   "factory": "0xbae5dc9b19004883d0377419fef3c2c8832d7d7b",
   "creationTopic": "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9",
-  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"
+  "swapTopic": "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+  "creationShape": null
  }
 ]

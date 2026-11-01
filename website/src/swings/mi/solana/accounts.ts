@@ -227,3 +227,34 @@ export function parsePumpPool(d: Uint8Array): PoolAccounts | null {
   if (d.length < 203 || !PUMP_POOL_TAG.every((b, i) => d[i] === b)) return null;
   return { mintA: keyAt(d, 43), mintB: keyAt(d, 75), vaultA: keyAt(d, 139), vaultB: keyAt(d, 171) };
 }
+
+/** Raydium AMM v4 (not an Anchor program): coin vault 336, pc vault 368, coin mint 400, pc mint 432. Total 752 bytes. */
+export function parseAmmV4Pool(d: Uint8Array): PoolAccounts | null {
+  return d.length === 752 ? { vaultA: keyAt(d, 336), vaultB: keyAt(d, 368), mintA: keyAt(d, 400), mintB: keyAt(d, 432) } : null;
+}
+
+/**
+ * The next layouts are derived from each program's published IDL (field sizes summed in order after the 8-byte account tag), and each
+ * is checked against live pools in solana/track.live.ts (the parsed vaults must be token accounts of the parsed mints):
+ *  - Raydium CLMM PoolState (raydium-io/raydium-idl): mints 73 and 105, vaults 137 and 169; 1544 bytes.
+ *  - Meteora DLMM LbPair (MeteoraAg/dlmm-sdk): token X/Y mints 88 and 120, reserves 152 and 184; 904 bytes.
+ *  - Meteora DAMM v2 Pool (MeteoraAg/damm-v2): token A/B mints 168 and 200, vaults 232 and 264; 1112 bytes.
+ *  - Meteora Dynamic Bonding Curve VirtualPool: base mint 136, base vault 168, quote vault 200; 424 bytes. The quote mint lives in the
+ *    pool's config account (offset 72 names it; its quote_mint is at offset 8).
+ */
+export function parseClmmPool(d: Uint8Array): PoolAccounts | null {
+  return d.length === 1544 ? { mintA: keyAt(d, 73), mintB: keyAt(d, 105), vaultA: keyAt(d, 137), vaultB: keyAt(d, 169) } : null;
+}
+export function parseDlmmPair(d: Uint8Array): PoolAccounts | null {
+  return d.length === 904 ? { mintA: keyAt(d, 88), mintB: keyAt(d, 120), vaultA: keyAt(d, 152), vaultB: keyAt(d, 184) } : null;
+}
+export function parseDammV2Pool(d: Uint8Array): PoolAccounts | null {
+  return d.length === 1112 ? { mintA: keyAt(d, 168), mintB: keyAt(d, 200), vaultA: keyAt(d, 232), vaultB: keyAt(d, 264) } : null;
+}
+export function parseDbcPool(d: Uint8Array): { config: string; baseMint: string; baseVault: string; quoteVault: string } | null {
+  return d.length === 424 ? { config: keyAt(d, 72), baseMint: keyAt(d, 136), baseVault: keyAt(d, 168), quoteVault: keyAt(d, 200) } : null;
+}
+/** A Dynamic Bonding Curve config account's quote mint. */
+export function dbcConfigQuoteMint(d: Uint8Array): string | null {
+  return d.length === 1048 ? keyAt(d, 8) : null;
+}

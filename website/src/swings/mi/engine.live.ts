@@ -13,7 +13,7 @@ import { makeRead } from './rpc.js';
 import { InMemoryMiStore } from './store.js';
 
 const ids = (process.env.MI_LIVE_SPECS ?? 'pancakeswap-v2-bnb').split(',');
-const LOOKBACK: Record<string, number> = { bnb: 2_400, ethereum: 600, polygon: 2_000, base: 3_000,};
+const LOOKBACK: Record<string, number> = { robinhood: 6_000, bnb: 2_400, ethereum: 600, polygon: 2_000, base: 3_000,};
 
 for (const id of ids) {
   describe(`live market indexer: ${id}`, () => {
@@ -35,7 +35,7 @@ for (const id of ids) {
       expect(first.ok).toBe(true);
       expect(first.creations).toBeGreaterThan(0);
       for (const p of pools) {
-        expect(p.address).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(p.address).toMatch(spec.kind === 'v4' ? /^0x[0-9a-f]{64}$/ : /^0x[0-9a-f]{40}$/);
         expect(p.baseDecimals).toBeGreaterThanOrEqual(0);
       }
       const tradesAfterFirst = store.trades.size;

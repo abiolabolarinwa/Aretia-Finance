@@ -45,6 +45,8 @@ export interface MiStore {
   updatePool(key: string, patch: Partial<MiPool>): Promise<void>;
   /** Pools of one adapter in the given states, for swap following: newest created first, or most recently traded first. Paused pools are never returned. */
   poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: 'newest' | 'recent-trade'): Promise<MiPool[]>;
+  /** Pools of one adapter whose history is not complete yet (see MiPool.historyDone), least recently updated first. */
+  poolsNeedingHistory(adapterId: string, limit: number): Promise<MiPool[]>;
   listPools(q: PoolQuery): Promise<PoolPage>;
   countPools(by: { chain?: MiChain; state?: PoolState }): Promise<number>;
 
@@ -175,6 +177,10 @@ export class InMemoryMiStore implements MiStore {
       .sort((a, b) => (order === 'newest' ? b.createdBlock - a.createdBlock : (b.lastTradeAt ?? 0) - (a.lastTradeAt ?? 0)) || (a.key < b.key ? -1 : 1))
       .slice(0, limit)
       .map((p) => ({ ...p }));
+  }
+
+  async poolsNeedingHistory(adapterId: string, limit: number): Promise<MiPool[]> {
+    return [...this.pools.values()].filter((p) => p.adapterId === adapterId && !p.historyDone && !p.paused).slice(0, limit).map((p) => ({ ...p }));
   }
 
   async listPools(q: PoolQuery): Promise<PoolPage> {

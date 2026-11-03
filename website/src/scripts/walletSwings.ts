@@ -1512,12 +1512,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const PAGE_SIZE = 50;
 
   /** The lists come from Aretia's server, which fetches them once for everyone; if that is unreachable the page asks the source itself. */
-  async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow }): Promise<MarketRow[]> {
+  async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow }, onOld?: (at: number) => void): Promise<MarketRow[]> {
     try {
       const res = await fetch(`/api/swings-market?kind=${q.kind}&chain=${q.chain}&window=${q.window}&recent=1`);
       if (res.ok) {
-        const body = (await res.json()) as { rows?: MarketRow[] };
-        if (Array.isArray(body.rows)) return body.rows;
+        const body = (await res.json()) as { rows?: MarketRow[]; stale?: boolean; at?: number };
+        // The server's own copy is old because the source is refusing: a list that is minutes old beats an empty page, and the page says how old.
+        if (Array.isArray(body.rows) && body.rows.length > 0) {
+          if (body.stale === true && typeof body.at === 'number' && onOld) onOld(body.at);
+          return body.rows;
+        }
+        if (Array.isArray(body.rows) && body.stale !== true) return body.rows;
       }
     } catch {
       // fall through to the direct request
@@ -1768,10 +1773,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const key = listKey({ ...q, page: 0 });
           let got: MarketRow[];
           try {
-            got = await loadList(q);
-            saveList(browserStorage(), key, got, Date.now());
-            staleAt = null;
-            failures = 0;
+            let serverOld: number | null = null;
+            got = await loadList(q, (at) => (serverOld = at));
+            if (serverOld === null) saveList(browserStorage(), key, got, Date.now());
+            staleAt = serverOld;
+            if (serverOld === null) failures = 0;
+            // An old copy from the server is shown at once and tried again soon, so the list refreshes by itself when the source recovers.
+            if (serverOld !== null) {
+              clearTimeout(retryTimer);
+              retryTimer = setTimeout(() => {
+                if (!document.hidden && m.kind !== 'new' && m.kind !== 'favourites') void load(true);
+              }, retryDelayMs(failures++));
+            }
           } catch (err) {
             // The market service could not be reached: show the last list that loaded, say how old it is, and keep trying by itself.
             const old = readList(browserStorage(), key, Date.now());

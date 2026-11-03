@@ -134,27 +134,37 @@ function dedupe(rows: readonly MarketRow[]): MarketRow[] {
   });
 }
 
-export class GeckoMarket {
-  private readonly cache = new Map<string, { at: number; rows: MarketRow[] }>();
+/** Set when the source says it is refusing: until then no more requests are sent, so a refused source is not asked dozens of times over. */
+export interface Breaker {
+  until: number;
+}
+/** How long the source is left alone after it refused (it counts calls per minute, so this lets the count run down). */
+export const BREAKER_MS = 45_000;
 
+export class GeckoMarket {
   constructor(
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
     private readonly now: () => number = Date.now,
     private readonly ttlMs = 60_000,
     private readonly base = 'https://api.geckoterminal.com/api/v2',
     private readonly sleep?: (ms: number) => Promise<void>,
+    /** Answers by address, shared between instances (the server keeps one for all visitors, so lists that need the same page ask for it once). */
+    private readonly cache = new Map<string, { at: number; rows: MarketRow[] }>(),
+    private readonly breaker?: Breaker,
   ) {}
 
   private async list(path: string, signal?: AbortSignal): Promise<MarketRow[]> {
     const hit = this.cache.get(path);
     if (hit && this.now() - hit.at < this.ttlMs) return hit.rows;
+    if (this.breaker && this.now() < this.breaker.until) throw new SwingsError('provider-failed', 'The market service is busy. Try again in a minute.');
     let res: Response;
     try {
       // GeckoTerminal answers 429 when its shared limit is spent; a short wait usually clears it, so ask again a couple of times first.
-      res = await fetchRetrying429(this.fetchImpl, `${this.base}${path}`, { headers: { accept: 'application/json' }, signal }, this.sleep, { retries: 2, maxWaitMs: 1_500 });
+      res = await fetchRetrying429(this.fetchImpl, `${this.base}${path}`, { headers: { accept: 'application/json' }, signal }, this.sleep, { retries: 1, maxWaitMs: 1_500 });
     } catch {
       throw new SwingsError('provider-failed', 'The market service could not be reached. It may be busy; try again in a minute.');
     }
+    if (res.status === 429 && this.breaker) this.breaker.until = this.now() + BREAKER_MS;
     if (!res.ok) throw new SwingsError('provider-failed', res.status === 429 ? 'The market service is busy. Try again in a minute.' : `The market service answered ${res.status}.`);
     let body: unknown;
     try {
@@ -186,6 +196,13 @@ export class GeckoMarket {
     if (q.kind !== 'new') {
       const busy = (p: number): string => (net ? `/networks/${net}/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}` : `/networks/trending_pools?${inc}&duration=${DURATION[q.window]}&page=${p}`);
       rows = rows.concat(await fetchPages(busy, 1, 5));
+    }
+    // The all-networks feeds are almost all Solana, so with no network chosen each other network's first page is added: its tokens are listed too.
+    // These pages are the ones a single-network list reads, so the two views share them.
+    if (!net) {
+      const own = (c: ChainId): string => `/networks/${GECKO_NETWORK[c]}/${q.kind === 'new' ? 'new_pools' : 'trending_pools'}?${inc}${q.kind === 'new' ? '' : `&duration=${DURATION[q.window]}`}&page=1`;
+      const got = await Promise.allSettled(CHAIN_IDS.filter((c) => c !== 'solana').map((c) => this.list(own(c), signal)));
+      rows = rows.concat(got.flatMap((g) => (g.status === 'fulfilled' ? g.value : [])));
     }
     if (rows.length === 0) await this.list(fresh(1), signal); // all six failed: say why instead of an empty list
     if (net && rows.length < RECENT_MIN) {

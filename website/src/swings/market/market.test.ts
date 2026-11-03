@@ -122,6 +122,15 @@ describe('the Marketplace loader', () => {
     expect(urls[2]).toContain('/networks/solana/new_pools');
   });
 
+  it('adds each other network’s first page to an all-networks recent list, so it is not only Solana', async () => {
+    const urls: string[] = [];
+    const m = new GeckoMarket(reply(urls), () => NOW);
+    await m.loadRecent({ kind: 'trending', chain: '', window: 'h1' });
+    expect(urls.some((u) => u.includes('/networks/bsc/trending_pools?include=base_token&duration=1h&page=1'))).toBe(true);
+    expect(urls.some((u) => u.includes('/networks/eth/trending_pools'))).toBe(true);
+    expect(urls.some((u) => u.includes('/networks/solana/trending_pools'))).toBe(false);
+  });
+
   it('builds a recent list of at least 100 tokens: newest pools first, topped up with the busiest pools on a quiet network', async () => {
     // A network that has only one page of new pools (20 tokens, a few days old) still gets 100 rows, the young ones ranked first.
     const mk = (n: number, ageH: number, tag: string) => {

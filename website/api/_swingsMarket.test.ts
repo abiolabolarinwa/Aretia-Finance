@@ -49,8 +49,41 @@ describe('shared Marketplace lists', () => {
     const calls = urls.length;
     await handleMarket(input({ kind: 'new', chain: 'solana', recent: '1' }, f, NOW + 1000));
     expect(urls).toHaveLength(calls);
+    // The newest pools are one shared page, so the paged list reuses what the recent list already read.
     await handleMarket(input({ kind: 'new', chain: 'solana', page: '1' }, f, NOW + 2000));
-    expect(urls.length).toBeGreaterThan(calls);
+    expect(urls).toHaveLength(calls);
+    expect(JSON.parse((await handleMarket(input({ kind: 'new', chain: 'solana', page: '1' }, f, NOW + 3000))).body).rows).toHaveLength(1);
+  });
+
+  it('shares the newest pools between views and windows instead of asking the source again for each', async () => {
+    const urls: string[] = [];
+    const f = (async (u: string) => (urls.push(String(u)), new Response(JSON.stringify(body)))) as unknown as typeof fetch;
+    await handleMarket(input({ kind: 'new', chain: 'solana', window: 'h24', recent: '1' }, f));
+    const afterNew = urls.filter((u) => u.includes('/new_pools')).length;
+    await handleMarket(input({ kind: 'trending', chain: 'solana', window: 'h1', recent: '1' }, f, NOW + 1000));
+    await handleMarket(input({ kind: 'top', chain: 'solana', window: 'h6', recent: '1' }, f, NOW + 2000));
+    expect(urls.filter((u) => u.includes('/new_pools'))).toHaveLength(afterNew);
+  });
+
+  it('stops asking a refusing source for a while, and answers with the older list and when it is from', async () => {
+    const good = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
+    await handleMarket(input({ kind: 'trending', chain: 'solana', recent: '1' }, good));
+    let calls = 0;
+    const refused = (async () => (calls++, new Response('', { status: 429 }))) as unknown as typeof fetch;
+    // A different view has nothing older: it fails once, and trips the pause.
+    const first = await handleMarket(input({ kind: 'new', chain: 'bnb', recent: '1' }, refused, NOW + 120_000));
+    expect(first.status).toBe(502);
+    expect(JSON.parse(first.body).retryAfter).toBeGreaterThan(0);
+    const spent = calls;
+    expect(spent).toBeLessThan(20);
+    // While paused the older list is served at once without touching the source.
+    const old = await handleMarket(input({ kind: 'trending', chain: 'solana', recent: '1' }, refused, NOW + 125_000));
+    expect(JSON.parse(old.body)).toMatchObject({ stale: true, at: NOW });
+    await handleMarket(input({ kind: 'new', chain: 'bnb', recent: '1' }, refused, NOW + 126_000));
+    expect(calls).toBe(spent);
+    // After the pause the source is asked again.
+    await handleMarket(input({ kind: 'new', chain: 'bnb', recent: '1' }, refused, NOW + 200_000));
+    expect(calls).toBeGreaterThan(spent);
   });
 
   it('returns the last good list, marked stale, when the source refuses', async () => {
@@ -59,7 +92,7 @@ describe('shared Marketplace lists', () => {
     const refused = (async () => new Response('', { status: 429 })) as unknown as typeof fetch;
     const out = await handleMarket(input({ kind: 'top', chain: 'solana' }, refused, NOW + 15 * 60_000));
     expect(out.status).toBe(200);
-    expect(JSON.parse(out.body)).toMatchObject({ stale: true });
+    expect(JSON.parse(out.body)).toMatchObject({ stale: true, at: NOW });
     expect(out.headers['cache-control']).toBe('no-store');
     // nothing kept: an honest error, not an empty list
     resetMarketCache();

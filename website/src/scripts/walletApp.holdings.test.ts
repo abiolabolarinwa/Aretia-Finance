@@ -72,6 +72,19 @@ describe('loadHoldings', () => {
     expect(found).toMatchObject({ amount: 2.5, raw: '2500000', decimals: 6, price: 2, value: 5 });
   });
 
+  it('shows the SOL balance first, before the token accounts have answered', async () => {
+    stubNetwork({ jupiterBalances: {}, spl: [tokenAccount(OLD_TOKEN, '1', 0, '1')], lamports: 3_000_000_000 });
+    const seen: string[][] = [];
+    await loadHoldings(OWNER, (rows) => seen.push(rows.map((r) => r.mint)));
+    expect(seen[0]).toEqual([SOL]);
+    expect([...seen[seen.length - 1]!].sort()).toEqual([OLD_TOKEN, SOL].sort());
+  });
+
+  it('still shows the SOL balance when the token reads and Jupiter all fail', async () => {
+    stubNetwork({ jupiterBalances: 'fail', spl: 'fail', token2022: 'fail', lamports: 1_000_000_000 });
+    expect((await loadHoldings(OWNER)).map((h) => h.mint)).toEqual([SOL]);
+  });
+
   it('finds Token-2022 tokens too', async () => {
     stubNetwork({ jupiterBalances: {}, token2022: [tokenAccount(ACT, '1000000000', 9, '1')], lamports: 0 });
     expect((await loadHoldings(OWNER)).map((h) => h.mint)).toEqual([ACT]);

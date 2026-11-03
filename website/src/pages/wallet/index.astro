@@ -1417,7 +1417,7 @@ const sendTips = [
   .wapp-dash__link:hover, .wapp-dash__more:hover { text-decoration: underline; }
   /* The services: a small 3 by 2 matrix in the side column, each tile opens its screen. */
   .wapp-dash__services { gap: 12px; padding: 18px; }
-  .wapp-svc__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .wapp-svc__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
   .wapp-svc__grid li { display: flex; }
   .wapp-svc__tile { display: grid; justify-items: center; align-content: center; gap: 8px; width: 100%; min-height: 92px; padding: 12px 6px; font: inherit; text-align: center; color: var(--color-strong); background: #f8f8fa; border: 1px solid transparent; border-radius: 16px; cursor: pointer; transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
   .wapp-svc__tile strong { font-size: 12px; font-weight: 600; line-height: 1.2; }

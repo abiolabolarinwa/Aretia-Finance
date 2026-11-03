@@ -88,3 +88,12 @@ html[data-theme='dark'] .wapp__state--green { color: #7fe3ab; background: rgba(6
 html[data-theme='dark'] .wapp__state--yellow { color: #ffe27a; background: rgba(240, 190, 0, 0.2); }
 html[data-theme='dark'] .wapp__state--orange { color: #ffb978; background: rgba(238, 112, 14, 0.24); }
 html[data-theme='dark'] .lh-det__status.is-bad { color: #ffb4b4; }
+
+/* Contrast pass (UX audit, 2026-11): indigo text and hard-coded light fills that
+   fell below 4.5:1 on the dark canvas. Selected states keep their white-on-brand look. */
+html[data-theme='dark'] .wapp-svc__tile { background: var(--color-surface-2); border-color: var(--color-border); }
+html[data-theme='dark'] .wapp-svc__tile:hover { border-color: var(--color-border-strong); }
+html[data-theme='dark'] .wapp__chip:not([aria-pressed='true']):not([aria-selected='true']):not(.is-on):not(.is-active),
+html[data-theme='dark'] .lh-linkbtn,
+html[data-theme='dark'] :is(.wapp__fine, .wapp__list) a { color: var(--color-brand-bright); }
+html[data-theme='dark'] .wapp-sh__tab:not([aria-selected='true']) { color: var(--color-muted); }

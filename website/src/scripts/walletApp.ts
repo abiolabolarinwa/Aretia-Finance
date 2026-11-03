@@ -50,6 +50,8 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const MAX_MINTS = 100;
 /** How long Jupiter's balance list may lag behind the chain read before the page shows what the chain gave. */
 const JUPITER_GRACE_MS = 2500;
+/** When the chain read failed, Jupiter's list is all there is: it gets this long, with no second try, before the page gives up on it. */
+const JUPITER_ALONE_MS = 8000;
 
 interface WalletState {
   account: { address: string } | null;
@@ -196,11 +198,22 @@ export async function loadHoldings(address: string, onBalances?: (rows: Holding[
   const lamportsRead = rpcCall<{ value: number }>('getBalance', [address]);
   // Jupiter's free API is the slow one. The chain read already finds every token, so once it and the SOL balance are in,
   // Jupiter gets only a short grace period (it adds exact amounts and decimals) instead of holding the whole list back.
+  // The SOL balance is on screen as soon as it is read: it does not wait for the token accounts or for Jupiter.
+  let fullShown = false;
+  void lamportsRead.then(
+    (r) => {
+      if (fullShown) return;
+      const sol = lamportsToBalance(SOL_MINT, r.value);
+      if (sol) onBalances?.([{ mint: SOL_MINT, symbol: 'SOL', name: 'Solana', icon: null, amount: sol.amount, raw: sol.raw, decimals: 9, price: null, priceSource: null, value: null, thin: false }]);
+    },
+    () => undefined,
+  );
   const [onChain, lamports] = await Promise.allSettled([onChainRead, lamportsRead]);
-  const jupiterOrGrace = onChain.status === 'fulfilled' ? Promise.race([jupiterRead, new Promise<never>((_, no) => setTimeout(() => no(new Error('grace')), JUPITER_GRACE_MS))]) : jupiterRead;
+  const jupiterOrGrace = Promise.race([jupiterRead, new Promise<never>((_, no) => setTimeout(() => no(new Error('grace')), onChain.status === 'fulfilled' ? JUPITER_GRACE_MS : JUPITER_ALONE_MS))]);
   const [jupiter] = await Promise.allSettled([jupiterOrGrace]);
   void jupiterRead.catch(() => undefined);
-  if (jupiter.status === 'rejected' && onChain.status === 'rejected') throw jupiter.reason;
+  // The SOL balance alone is an answer: only when the chain, Jupiter and the SOL read all fail is it an error.
+  if (jupiter.status === 'rejected' && onChain.status === 'rejected' && lamports.status === 'rejected') throw jupiter.reason;
   const native = lamports.status === 'fulfilled' ? lamportsToBalance(SOL_MINT, lamports.value.value) : null;
   const merged = mergeBalances(jupiter.status === 'fulfilled' ? jupiter.value : [], [
     ...(onChain.status === 'fulfilled' ? onChain.value : []),
@@ -214,6 +227,7 @@ export async function loadHoldings(address: string, onBalances?: (rows: Holding[
   const rawByMint = new Map(entries.map(([mint, , raw]) => [mint, raw] as const));
   const decimalsByMint = new Map(ordered.map((b) => [b.mint, b.decimals] as const));
   // Balances are on screen now; names, icons and prices fill in as they arrive.
+  fullShown = true;
   onBalances?.(
     entries.map(([mint, amount]): Holding => {
       const native = mint === SOL_MINT;
@@ -762,7 +776,9 @@ export function initWalletApp(): void {
     const [h, act] = await Promise.allSettled([
       loadHoldings(a, (rows) => {
         // Balances first, so the list is usable while prices are still being fetched.
-        if (mine !== loadToken || holdings) return;
+        if (mine !== loadToken) return;
+        // The first list may be the SOL balance alone; the full one replaces it.
+        if (holdings && rows.length < holdings.length) return;
         holdings = rows;
         pricing = true;
         renderDashboard();

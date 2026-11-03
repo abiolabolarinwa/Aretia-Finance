@@ -30,6 +30,8 @@ import {
 /** Public endpoint: the fallback for the proxy, and what the Jupiter widget talks to directly. */
 export const RPC_URL = 'https://solana-rpc.publicnode.com';
 const PROXY_PATH = '/api/rpc';
+/** The Solana Foundation's public node: it serves the token-account reads that publicnode answers 403 to, if more slowly. Tried only after that 403. */
+export const INDEXED_FALLBACK_RPC_URL = 'https://api.mainnet-beta.solana.com';
 let proxySkipUntil = 0;
 
 /**
@@ -49,7 +51,8 @@ export async function rpcFetch(_input: RequestInfo | URL, init?: RequestInit): P
       proxySkipUntil = Date.now() + 60_000;
     }
   }
-  return fetch(RPC_URL, request);
+  const direct = await fetch(RPC_URL, request);
+  return direct.status === 403 ? fetch(INDEXED_FALLBACK_RPC_URL, request) : direct;
 }
 
 export async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {

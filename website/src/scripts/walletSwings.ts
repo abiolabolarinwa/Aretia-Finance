@@ -31,6 +31,7 @@ import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '..
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { alertsCard } from './walletAlerts.js';
+import { clearsMinLiquidity, loadMinLiquidity, MIN_LIQUIDITY_CHOICES, saveMinLiquidity } from './walletMinLiquidity.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeTx } from '../swings/shield/approvals.js';
 import { summariseSwap } from '../swings/account/trades.js';
@@ -1537,7 +1538,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** The tabs that rank the same live list by a rule of their own. Rising reads the Trending feed and ranks it by buyer growth. */
     const isRanked = (k: Kind): k is 'trending' | 'top' | 'gainers' | 'rising' => k === 'trending' || k === 'top' || k === 'gainers' || k === 'rising';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
-    const f = { age: '0', liquidity: '0', risk: '', hideRisky: true };
+    const f = { age: '0', liquidity: loadMinLiquidity(browserStorage()), risk: '', hideRisky: true };
     /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
     let autoAge = false;
     let rows: MarketRow[] | null = null;
@@ -1880,11 +1881,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */
     /** How many of the tokens listed clear the open tab's bar (the first that many rows). */
     let modeCount = 0;
+    /** How many rows only the minimum liquidity keeps off the list (the rest of the filters let them through). */
+    let lowHidden = 0;
     function visible(): MarketRow[] {
-      const pass = (r: MarketRow, withAge: boolean): boolean => {
+      const pass = (r: MarketRow, withAge: boolean, withLiquidity = true): boolean => {
         // A token whose price has gone to nothing is never listed, on any network (a star on Favourites keeps it there).
         if (m.kind !== 'favourites' && isDeadMarket(r)) return false;
-        if (f.liquidity !== '0' && (r.liquidityUsd ?? 0) < Number(f.liquidity)) return false;
+        if (withLiquidity && m.kind !== 'favourites' && !clearsMinLiquidity(r.liquidityUsd, f.liquidity)) return false;
         if (withAge && f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
         const st = r.risk?.status ?? 'unknown';
         if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted' && (st === 'high' || st === 'restricted')) return false;
@@ -1892,6 +1895,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         return true;
       };
       const all = rows ?? [];
+      lowHidden = m.kind === 'favourites' ? 0 : all.filter((r) => pass(r, true, false) && !pass(r, true)).length;
       const strict = all.filter((r) => pass(r, true));
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
       if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
@@ -2037,7 +2041,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // The network is chosen from the rail beside the sidebar (the Aretia mark is every network), so there is no network menu here.
       bar.append(
         select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; autoAge = false; refilter(); }),
-        select('Minimum liquidity', f.liquidity, [['0', 'Any liquidity'], ['10000', '$10K+'], ['100000', '$100K+'], ['1000000', '$1M+']], (v) => { f.liquidity = v; refilter(); }),
+        select('Minimum liquidity', f.liquidity, MIN_LIQUIDITY_CHOICES, (v) => { f.liquidity = v; saveMinLiquidity(browserStorage(), v); refilter(); }),
         select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Couldn\'t check']], (v) => { f.risk = v; refilter(); }),
       );
       if (m.kind === 'favourites') {
@@ -2055,6 +2059,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
       card.append(bar);
       const shownRows = visible();
+      if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
+        const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
+        const note = el('p', { class: 'wapp__fine', text: `${lowHidden} ${lowHidden === 1 ? 'token' : 'tokens'} with under ${limit} of liquidity (or none known) ${lowHidden === 1 ? 'is' : 'are'} hidden. ` });
+        const show = el('button', { class: 'wapp__chip wapp__chip--btn', text: 'Show low-liquidity tokens', attrs: { type: 'button' } });
+        show.addEventListener('click', () => {
+          f.liquidity = '0';
+          saveMinLiquidity(browserStorage(), '0');
+          refilter();
+        });
+        note.append(show);
+        card.append(note);
+      }
       if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;

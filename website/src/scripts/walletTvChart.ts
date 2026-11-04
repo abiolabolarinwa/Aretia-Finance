@@ -8,7 +8,7 @@
  */
 import type { ChainId } from '../swings/core/types.js';
 import { holdLowPriority } from '../swings/charts/geckoGate.js';
-import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
+import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
 
 const LIBRARY_PATH = '/charting_library/';
 const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
@@ -16,7 +16,7 @@ const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
 interface TvWidget {
   remove(): void;
   onChartReady(cb: () => void): void;
-  activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void } };
+  activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void }; getPanes?(): { getMainSourcePriceScale?(): { setMode(mode: number): void } | null }[] };
   headerReady(): Promise<void>;
   createButton(): HTMLElement;
 }
@@ -107,10 +107,10 @@ let lastInterval: string | null = null;
 export function mountTvChart(
   host: HTMLElement,
   o: TvChartOptions,
-  makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean) => TvDatafeed = (currency, label, onLoadFailed, cancelled) =>
+  makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean, onStatus?: (s: ChartStatus) => void) => TvDatafeed = (currency, label, onLoadFailed, cancelled, onStatus) =>
     createPoolDatafeed(
       { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}), ...(o.source ? { source: o.source } : {}) },
-      { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled },
+      { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled, ...(onStatus ? { onStatus } : {}) },
     ),
 ): TvChart {
   let widget: TvWidget | null = null;
@@ -199,9 +199,71 @@ export function mountTvChart(
     }, RESTART_AFTER_MS * (restarts + 1));
   }
 
+  /** The chart's own area says where its candles came from, or why there are none, instead of a blank chart with red warning icons. */
+  let overlay: HTMLElement | null = null;
+  let chartReady = false;
+  let wide = false;
+  function applyAxis(w: TvWidget): void {
+    if (!wide || !chartReady) return;
+    try {
+      // A price that moved a thousandfold (a pool that rugged, or just launched) is unreadable on a straight axis: use the logarithmic one (mode 1).
+      w.activeChart().getPanes?.()[0]?.getMainSourcePriceScale?.()?.setMode(1);
+    } catch {
+      // The library version has no such call: the straight axis stays.
+    }
+  }
+  function showStatus(w: TvWidget | null, s: ChartStatus): void {
+    if (disposed) return;
+    overlay?.remove();
+    overlay = null;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const el = host.ownerDocument.createElement('div');
+    el.className = 'wapp-tv-status';
+    el.setAttribute('role', 'status');
+    if (s.kind === 'ok') {
+      const label = s.source === 'aretia-index' ? 'Source: Aretia market index' : s.source === 'geckoterminal' ? 'Source: GeckoTerminal' : s.source === 'geckoterminal-stale' ? 'Source: GeckoTerminal (a little old)' : s.source === 'trades' ? 'Built from the latest trades' : '';
+      if (!label) return;
+      el.textContent = label;
+      if (s.note) el.title = s.note;
+      el.style.cssText = 'position:absolute;right:64px;top:6px;z-index:5;font:11px/1.3 system-ui,sans-serif;color:#64748b;background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      wide = !!s.wideRange;
+      if (w) applyAxis(w);
+    } else {
+      const retryable = s.kind === 'failed' && restarts < MAX_RESTARTS && !!library;
+      el.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;font:14px/1.45 system-ui,sans-serif;color:#334155;background:rgba(255,255,255,.96)';
+      const text = host.ownerDocument.createElement('div');
+      text.style.maxWidth = '420px';
+      text.textContent = s.kind === 'empty' ? (s.message ?? 'No candles yet for this market.') : retryable ? 'The price services did not answer. Trying again in a few seconds…' : 'No price service answered, so there are no candles to draw right now. The trades below are still live.';
+      el.append(text);
+      if (!retryable) {
+        const b = host.ownerDocument.createElement('button');
+        b.type = 'button';
+        b.textContent = 'Try again';
+        b.style.cssText = 'font:600 13px system-ui,sans-serif;padding:7px 14px;border-radius:8px;border:1px solid #4f46e5;background:#4f46e5;color:#fff;cursor:pointer';
+        b.addEventListener('click', () => {
+          if (disposed || !library) return;
+          restarts = 0;
+          try {
+            widget?.remove();
+          } catch {
+            // Already gone.
+          }
+          host.replaceChildren();
+          build(library);
+        });
+        el.append(b);
+      }
+    }
+    host.append(el);
+    overlay = el;
+  }
+
   function build(TradingView: TvGlobal): void {
     library = TradingView;
-    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart, isClosed);
+    chartReady = false;
+    wide = false;
+    overlay = null;
+    const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart, isClosed, (s) => showStatus(widget, s));
     try {
         const w = new TradingView.widget({
           container: host,
@@ -220,6 +282,8 @@ export function mountTvChart(
         widget = w;
         // Remember the timeframe the reader picks, but only one the datafeed can serve.
         w.onChartReady(() => {
+          chartReady = true;
+          applyAxis(w);
           try {
             w.activeChart().onIntervalChanged().subscribe(null, (interval) => {
               if (SUPPORTED_RESOLUTIONS.includes(interval)) lastInterval = interval;

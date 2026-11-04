@@ -37,7 +37,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 
 1. Apply the migrations: `npm run db:migrate` (needs `DATABASE_URL`) or paste `supabase/migrations/0017_market_indexer.sql` and then `0018_market_indexer_solana.sql` into the Supabase SQL editor.
 2. Set `MI_CRON_SECRET` on the site to a long random string (or rely on `CRON_SECRET`). Optionally set `MI_RPC_BNB` to a dedicated node.
-3. Schedule the run every minute: paste `supabase/cron/market-indexer-every-minute.sql` (after replacing the secret) into the Supabase SQL editor. The Vercel Hobby cron is daily only, so it is not used.
+3. Schedule the run every five minutes: paste `supabase/cron/market-indexer-every-5-minutes.sql` (after replacing the secret) into the Supabase SQL editor. The Vercel Hobby cron is daily only, so it is not used.
 4. Check `GET /api/v1/status`: the adapter should read `ok` within a few minutes, and `GET /api/v1/pools/new?chain=bnb` should list markets.
 5. Switch on further adapters one at a time (`MI_ADAPTERS=pancakeswap-v2-bnb,uniswap-v3-bnb`), watching `lagBlocks`.
 6. Nothing else changes for visitors: the wallet's Market gains two lists, **Index: new pairs** and **Index: trending**.
@@ -55,7 +55,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 
 ## Provider cost (estimates, not quotes)
 
-Steady-state call volume of one EVM adapter that follows about 200 pools, run every minute: roughly 25 to 60 JSON-RPC calls a
+Steady-state call volume of one EVM adapter that follows about 200 pools, run every five minutes: roughly 25 to 60 JSON-RPC calls a
 minute (head, checkpoint block, one creation `getLogs`, about 20 swap `getLogs` batches of 10 addresses, a block read per block
 holding a log, a few reserve reads), so about 35,000 to 85,000 calls a day per adapter. Public nodes cost nothing but throttle
 and drop requests; a dedicated node plan is priced by the provider per call or compute unit, so the monthly cost depends on that

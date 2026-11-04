@@ -6,7 +6,7 @@
  * must be a catalogued factory; a V4 pool id must have an `Initialize` event from a catalogued PoolManager), registers it and its
  * tokens, and reads its swaps backwards from the newest block for a window (default 24 hours). From then on it is followed like any
  * other pool, and `deepenHistory` extends its history a little each run until it reaches the pool's creation, or the retention
- * limit (the store keeps 30 days of trades, so reading further back would be thrown away).
+ * limit (the store keeps 14 days of trades, so reading further back would be thrown away).
  *
  * Creation time: V3 and V4 pools have an indexed creation event, so it is looked up and the pool gets its real age and a complete
  * history target. A V2 pair's creation event does not carry the pair address in a field a node can filter on, so a V2 pool keeps an
@@ -25,7 +25,7 @@ import { poolKeyOf, type MiPool, type MiTrade } from './types.js';
 const BLOCKS_PER_HOUR: Readonly<Record<string, number>> = { ethereum: 300, bnb: 4_800, polygon: 1_800, base: 1_800, robinhood: 14_400 };
 const perHour = (chain: string): number => BLOCKS_PER_HOUR[chain] ?? 1_800;
 export const DEFAULT_BACKFILL_HOURS = 24;
-export const DEFAULT_RETENTION_DAYS = 30;
+export const DEFAULT_RETENTION_DAYS = 14;
 
 export type TrackResult =
   | { status: 'tracked'; key: string; trades: number; alreadyKnown: boolean; coveredHours: number; complete: boolean }

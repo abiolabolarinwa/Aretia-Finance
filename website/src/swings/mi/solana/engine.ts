@@ -18,11 +18,11 @@ import type { MiChainConfig } from '../chains.js';
 import { evaluate, FOLLOWED_STATES, type ListingRules } from '../lifecycle.js';
 import { parseRaw, priceString, PRICE_SCALE, scaledToString } from '../math.js';
 import type { LaunchLookup } from '../engine.js';
-import type { RunReport } from '../engine.js';
+import { MAINTAIN_EVERY_MS, type RunReport } from '../engine.js';
 import { RpcError, type Read } from '../rpc.js';
 import { computeStats } from '../stats.js';
 import type { MiStore } from '../store.js';
-import { poolKeyOf, tokenKeyOf, type MiPool, type MiToken, type MiTrade } from '../types.js';
+import { poolKeyOf, tokenKeyOf, type AdapterHealth, type MiPool, type MiToken, type MiTrade } from '../types.js';
 import { cleanText } from '../../tokens/safeText.js';
 import { poolsCreatedIn, type CreatedPool } from '../../indexer/solanaIndexer.js';
 import { decodeSolanaSwap, type ParsedTx, type TrackedPool } from '../../store/swaps.js';
@@ -121,9 +121,12 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
   let truncated = 0;
   let unavailable = 0;
   const skippedTx: SkippedTx[] = [];
+  // One small read of this adapter's own health row (it holds when waiting pools were last re-read); recordHealth reuses it.
+  let prevHealth: AdapterHealth | null = null;
+  let maintainedAt: number | null = null;
   const finish = async (): Promise<RunReport> => {
     report.durationMs = d.now() - t0;
-    await recordHealth(d, report, truncated, unavailable, skippedTx).catch(() => undefined);
+    await recordHealth(d, report, truncated, unavailable, skippedTx, prevHealth, maintainedAt).catch(() => undefined);
     return report;
   };
   if ((await d.store.disabledAdapters()).has(d.spec.id)) {
@@ -132,6 +135,8 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
   }
   const deadline = t0 + (d.budgetMs ?? 40_000);
   try {
+    prevHealth = await d.store.getHealth(d.spec.id);
+    maintainedAt = prevHealth?.stats?.maintainedAt ?? null;
     const slot = Number(await d.rpc('getSlot', [{ commitment: 'finalized' }]));
     if (!Number.isSafeInteger(slot)) throw new RpcError('malformed slot', 'node-error');
     report.head = slot;
@@ -242,7 +247,11 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
     const toRefresh = new Map<string, MiPool>();
     for (const p of followed) if (touched.has(p.key)) toRefresh.set(p.key, p);
     // Pools that can change without a swap: the newest waiting ones.
-    for (const p of await d.store.poolsOfAdapter(d.spec.id, ['validating', 'awaiting_liquidity'], 30, 'newest')) toRefresh.set(p.key, p);
+    // (not on every run: at most once per MAINTAIN_EVERY_MS, as for the EVM engine)
+    if (maintainedAt === null || d.now() - maintainedAt >= MAINTAIN_EVERY_MS) {
+      for (const p of await d.store.poolsOfAdapter(d.spec.id, ['validating', 'awaiting_liquidity'], 30, 'newest')) toRefresh.set(p.key, p);
+      maintainedAt = d.now();
+    }
     for (const p of toRefresh.values()) await refreshPool(d, p, tokenCache);
 
     // The creation cursor moves last, and only past what was fully read.
@@ -434,11 +443,10 @@ export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, T
   const patch: Partial<MiPool> = { firstTradeAt: first, lastTradeAt: last, stats, ...(reserves ? { reserveBase: reserves.base.toString(), reserveQuote: reserves.quote.toString() } : {}) };
   if (ev.state !== stored.state) Object.assign(patch, { state: ev.state, stateReason: ev.reason, stateAt: now });
   await d.store.updatePool(live.key, patch);
-  if (first !== null) await d.store.setTokenFirstTrade(tokenKeyOf('solana', live.base), first);
+  if (first !== null && first !== stored.firstTradeAt) await d.store.setTokenFirstTrade(tokenKeyOf('solana', live.base), first);
 }
 
-async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number, skippedTx: readonly SkippedTx[] = []): Promise<void> {
-  const prev = (await d.store.listHealth()).find((h) => h.adapterId === d.spec.id);
+async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number, skippedTx: readonly SkippedTx[] = [], prev: AdapterHealth | null = null, maintainedAt: number | null = null): Promise<void> {
   const cp = await d.store.getCheckpoint(cursorKey(d.spec));
   const now = d.now();
   // The note of what was skipped: the newest signatures, kept in the store (not in the public status), so a missing trade can be re-read by hand.
@@ -454,7 +462,7 @@ async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavail
     lastSuccessAt: r.ok ? now : (prev?.lastSuccessAt ?? null),
     lastError: r.ok ? null : r.error,
     consecutiveFailures: r.ok ? 0 : (prev?.consecutiveFailures ?? 0) + 1,
-    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, truncated, unavailable, skippedTx: skippedTx.length, durationMs: r.durationMs },
+    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, truncated, unavailable, skippedTx: skippedTx.length, durationMs: r.durationMs, ...(maintainedAt !== null ? { maintainedAt } : {}) },
   });
 }
 

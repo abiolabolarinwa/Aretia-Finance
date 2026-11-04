@@ -170,7 +170,7 @@ export class SupabaseLaunchStore implements LaunchStore {
       indexed_at: now,
     }));
     // ignore-duplicates: a token already stored is never rewritten, so running twice (or two runs at once) adds nothing twice.
-    const out = (await this.call('launchbox_tokens?on_conflict=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(body) })) as unknown[] | null;
+    const out = (await this.call('launchbox_tokens?on_conflict=key&select=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(body) })) as unknown[] | null;
     return Array.isArray(out) ? out.length : 0;
   }
 

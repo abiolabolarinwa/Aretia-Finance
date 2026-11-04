@@ -101,7 +101,7 @@ including row-level security (no ordinary role can read) and the reorg/job funct
 ## 6. Files changed
 
 New: `website/src/swings/mi/**` (engine, Solana engine, decoders, store, API, runner, tests, fixtures), `website/api/_marketIndexer.ts`
-and its test, `supabase/migrations/0017*.sql` and `0018*.sql`, `supabase/cron/market-indexer-every-minute.sql`,
+and its test, `supabase/migrations/0017*.sql` and `0018*.sql`, `supabase/cron/market-indexer-every-5-minutes.sql`,
 `scripts/capture-mi-fixtures.mjs`, the four docs. Modified: `api/swings-data.ts`, `api/_swingsOhlcv.ts`, `api/_adminStats.ts`
 (owner check extracted, behaviour unchanged), `vercel.json` (rewrites), `functions/api/[[path]].ts` (edge cache for `/api/v1`),
 `src/swings/charts/tvDatafeed.ts`, `src/swings/charts/trades.ts`, `src/swings/market/types.ts`,
@@ -118,7 +118,7 @@ and are not part of `npm test`.
 ## 8. Environment variables and deployment
 
 See [market-indexer.md](market-indexer.md). In short: apply the two migrations, set `CRON_SECRET`, optionally a dedicated node
-(`MI_RPC_<CHAIN>`, `SOLANA_RPC_URL`), schedule `supabase/cron/market-indexer-every-minute.sql`, check `GET /api/v1/status`.
+(`MI_RPC_<CHAIN>`, `SOLANA_RPC_URL`), schedule `supabase/cron/market-indexer-every-5-minutes.sql`, check `GET /api/v1/status`.
 
 ## 9. Provider cost (estimates, not quotes)
 

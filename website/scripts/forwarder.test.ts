@@ -60,4 +60,20 @@ describe('the API forwarder keeps the last good Marketplace list', () => {
       globalThis.fetch = real;
     }
   });
+
+  it('serves the kept list when the API says it could not read one', async () => {
+    (globalThis as unknown as { caches: unknown }).caches = { default: fakeCache() };
+    const real = globalThis.fetch;
+    try {
+      globalThis.fetch = (async () => new Response(good, { status: 200, headers: { 'cache-control': 'public, s-maxage=60' } })) as typeof fetch;
+      await call('https://x.org/api/swings-market?kind=top&chain=base');
+      globalThis.fetch = (async () => new Response('{"rows":[],"stale":true,"error":"source"}', { status: 200, headers: { 'cache-control': 'no-store' } })) as typeof fetch;
+      const url = 'https://x.org/api/swings-market?kind=top&chain=base&v=2';
+      expect(await (await call(url)).json()).toMatchObject({ error: 'source' });
+      const same = await call('https://x.org/api/swings-market?kind=top&chain=base');
+      expect(await same.json()).toMatchObject({ rows: [{ symbol: 'A' }] });
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
 });

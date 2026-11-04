@@ -71,3 +71,14 @@ describe('runner', () => {
     expect(r.adapters[0]!.skipped).toBe('disabled');
   });
 });
+
+describe('run order', () => {
+  it('serves the adapter that last succeeded longest ago first, so a late one is not starved', async () => {
+    const store = new InMemoryMiStore();
+    const ids = ['uniswap-v2-ethereum', 'uniswap-v2-base', 'pancakeswap-v2-bnb'];
+    for (const [i, id] of ids.entries()) await store.putHealth({ adapterId: id, chain: 'ethereum', head: 1, safeHead: 1, checkpoint: 1, lagBlocks: 0, lastRunAt: 1000, lastSuccessAt: i === 2 ? 10 : 5000 + i, lastError: null, consecutiveFailures: 0, stats: {} });
+    const seen: string[] = [];
+    await runAll({ env: { MI_ADAPTERS: ids.join(',') }, store, now: () => 1_700_000_000_000, budgetMs: 30_000, readFor: (spec) => { seen.push(spec.id); return async () => { throw new Error('stop'); }; } });
+    expect([...new Set(seen)][0]).toBe('pancakeswap-v2-bnb');
+  });
+});

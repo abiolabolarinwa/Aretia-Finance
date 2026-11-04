@@ -67,6 +67,39 @@ export interface SigInfo {
 
 const TX_OPTS = { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'finalized' } as const;
 
+/** A node's own way of saying it does not have the transaction ("Transaction <signature> not found"). Not a failure of the run. */
+const TX_MISSING = /not found|could not be found|no transaction|missing in long-term storage|was skipped/i;
+/** Reads before a transaction is called missing. Each goes through the RPC pool, which tries a different node. */
+export const TX_ATTEMPTS = 3;
+/** A listed, finalized signature whose transaction no node returns after this long is not coming (nodes that lag catch up within minutes). */
+export const TX_GRACE_SECONDS = 1800;
+
+/** A signature that was skipped, kept as a note in the adapter's health so a missing trade is visible and can be re-read by hand. */
+export interface SkippedTx {
+  signature: string;
+  pool: string | null;
+}
+
+/**
+ * The transaction, or null when the nodes do not have it. A node saying "not found" (as an error or as a null answer) is asked again,
+ * up to TX_ATTEMPTS times; any other error (a transport failure, a rate limit with no node left) still fails the run, because that is a
+ * real outage and not a missing transaction.
+ */
+export async function readTx(rpc: Read, signature: string): Promise<TxJson | null> {
+  for (let i = 0; i < TX_ATTEMPTS; i++) {
+    try {
+      const tx = (await rpc('getTransaction', [signature, TX_OPTS])) as TxJson | null;
+      if (tx) return tx;
+    } catch (e) {
+      if (!(e instanceof RpcError) || e.kind !== 'node-error' || !TX_MISSING.test(e.message)) throw e;
+    }
+  }
+  return null;
+}
+
+/** Whether a signature is old enough that its missing transaction is skipped (recorded) rather than waited for. */
+export const pastGrace = (nowMs: number, blockTime: number | null | undefined): boolean => typeof blockTime === 'number' && nowMs / 1000 - blockTime > TX_GRACE_SECONDS;
+
 /** getMultipleAccounts in slices of 100; null for an account that does not exist. */
 export async function accounts(rpc: Read, addresses: readonly string[]): Promise<Map<string, Uint8Array | null>> {
   const out = new Map<string, Uint8Array | null>();
@@ -87,9 +120,10 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
   const report: RunReport = { adapterId: d.spec.id, ok: true, skipped: null, head: null, safeHead: null, fromBlock: null, toBlock: null, lagBlocks: null, creations: 0, poolsNew: 0, tokensNew: 0, swapsSeen: 0, tradesNew: 0, skippedLogs: 0, reorg: null, error: null, durationMs: 0 };
   let truncated = 0;
   let unavailable = 0;
+  const skippedTx: SkippedTx[] = [];
   const finish = async (): Promise<RunReport> => {
     report.durationMs = d.now() - t0;
-    await recordHealth(d, report, truncated, unavailable).catch(() => undefined);
+    await recordHealth(d, report, truncated, unavailable, skippedTx).catch(() => undefined);
     return report;
   };
   if ((await d.store.disabledAdapters()).has(d.spec.id)) {
@@ -162,16 +196,28 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
       }
     }
     const created: { pool: CreatedPool; slot: number }[] = [];
+    const held = new Set<string>();
     for (let i = 0; i < chosen.length; i += 4) {
-      const txs = await Promise.all(chosen.slice(i, i + 4).map(async ([sig]) => ({ sig, tx: (await d.rpc('getTransaction', [sig, TX_OPTS])) as TxJson | null })));
+      const txs = await Promise.all(chosen.slice(i, i + 4).map(async ([sig]) => ({ sig, tx: await readTx(d.rpc, sig) })));
       for (const { sig, tx } of txs) {
         if (tx === null) {
-          unavailable++;
+          // A young signature is waited for: its anchor's cursor stays put below. An old one is skipped and recorded.
+          const meta = fresh.get(sig)!;
+          if (pastGrace(d.now(), meta.time)) skippedTx.push({ signature: sig, pool: null });
+          else {
+            unavailable++;
+            held.add(meta.anchor);
+          }
           continue;
         }
         const found = d.spec.family === 'pump' ? pumpswapPoolsCreatedIn(tx as never, sig) : d.spec.venue === 'Raydium AMM v4' ? ammV4PoolsCreatedIn(tx as never, sig) : poolsCreatedIn(tx as never, sig);
         for (const p of found) if (p.venue === d.spec.venue) created.push({ pool: p, slot: tx.slot ?? slot });
       }
+    }
+    // An anchor with a creation transaction still being waited for does not move: it is read again next run (registering twice adds nothing).
+    for (const a of held) {
+      if (known[a]) next[a] = known[a]!;
+      else delete next[a];
     }
     report.creations = created.length;
     const tokenCache = new Map<string, TokenFacts | null>();
@@ -190,6 +236,7 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
       const got = await followPool(d, pool, report);
       truncated += got.truncated ? 1 : 0;
       unavailable += got.unavailable;
+      skippedTx.push(...got.skipped);
       if (got.stored > 0 || got.read) touched.add(pool.key);
     }
     const toRefresh = new Map<string, MiPool>();
@@ -315,21 +362,25 @@ interface Followed {
   read: boolean;
   truncated: boolean;
   unavailable: number;
+  skipped: SkippedTx[];
   oldest?: string | null;
   exhausted?: boolean;
 }
 
 /** Trades from a list of signatures that touched a pool's quote token account: each transaction is read and decoded from the pool's balance changes. */
-export async function tradesFromSignatures(d: SolDeps, pool: MiPool, sigs: readonly SigInfo[], report: RunReport): Promise<{ trades: MiTrade[]; unavailable: number }> {
+export async function tradesFromSignatures(d: SolDeps, pool: MiPool, sigs: readonly SigInfo[], report: RunReport): Promise<{ trades: MiTrade[]; unavailable: number; skipped: SkippedTx[] }> {
   const tracked: TrackedPool = { chain: 'solana', pool: pool.address, venue: d.spec.family, baseMint: pool.base, quoteMint: pool.quote, baseDecimals: pool.baseDecimals, quoteDecimals: pool.quoteDecimals, baseVault: pool.baseVault!, quoteVault: pool.quoteVault! };
   const trades: MiTrade[] = [];
   let unavailable = 0;
+  const skipped: SkippedTx[] = [];
   const wanted = sigs.filter((s) => s.err === null || s.err === undefined);
   for (let i = 0; i < wanted.length; i += 4) {
-    const txs = await Promise.all(wanted.slice(i, i + 4).map(async (s) => ({ s, tx: (await d.rpc('getTransaction', [s.signature, TX_OPTS])) as TxJson | null })));
+    const txs = await Promise.all(wanted.slice(i, i + 4).map(async (s) => ({ s, tx: await readTx(d.rpc, s.signature) })));
     for (const { s, tx } of txs) {
       if (tx === null) {
-        unavailable++;
+        // Waited for while young (the pool's cursor stays); skipped and recorded once past the grace period.
+        if (pastGrace(d.now(), s.blockTime)) skipped.push({ signature: s.signature, pool: pool.address });
+        else unavailable++;
         continue;
       }
       const rec = decodeSolanaSwap(tx, s.signature, tracked);
@@ -344,7 +395,7 @@ export async function tradesFromSignatures(d: SolDeps, pool: MiPool, sigs: reado
       trades.push({ chain: 'solana', pool: pool.address, id: rec.id, block: tx.slot ?? rec.seq, blockHash: '', time: rec.time, side: rec.side, baseAmount: rec.baseAmount, quoteAmount: rec.quoteAmount, price, maker });
     }
   }
-  return { trades, unavailable };
+  return { trades, unavailable, skipped };
 }
 
 export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): Promise<Followed> {
@@ -355,14 +406,14 @@ export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): P
   if (until) params.until = until;
   const sigs = (await d.rpc('getSignaturesForAddress', [pool.quoteVault!, params])) as SigInfo[];
   if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
-  const { trades, unavailable } = await tradesFromSignatures(d, pool, sigs, report);
+  const { trades, unavailable, skipped } = await tradesFromSignatures(d, pool, sigs, report);
   const stored = await d.store.putTrades(d.spec.id, trades);
   report.tradesNew += stored;
   // The pool's cursor moves only after its trades were written. A pool with a failed fetch keeps the old cursor so it is read again.
   if (sigs.length > 0 && unavailable === 0) await d.store.setCheckpoint({ adapterId: poolCursorKey(d.spec, pool.address), block: sigs[0]!.slot ?? 0, blockHash: sigs[0]!.signature, updatedAt: d.now() });
   else await d.store.setCheckpoint({ adapterId: poolCursorKey(d.spec, pool.address), block: cp?.block ?? 0, blockHash: cp?.blockHash ?? '', updatedAt: d.now() });
   // `oldest` and `exhausted` say how far back this read reached: a first read that returned fewer signatures than asked for has the pool's whole history.
-  return { stored, read: sigs.length > 0, truncated: sigs.length >= limit && until !== undefined, unavailable, oldest: sigs.length ? sigs[sigs.length - 1]!.signature : null, exhausted: until === undefined && sigs.length < limit && unavailable === 0 };
+  return { stored, read: sigs.length > 0, truncated: sigs.length >= limit && until !== undefined, unavailable, skipped, oldest: sigs.length ? sigs[sigs.length - 1]!.signature : null, exhausted: until === undefined && sigs.length < limit && unavailable === 0 };
 }
 
 export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, TokenFacts | null>): Promise<void> {
@@ -386,10 +437,12 @@ export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, T
   if (first !== null) await d.store.setTokenFirstTrade(tokenKeyOf('solana', live.base), first);
 }
 
-async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number): Promise<void> {
+async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number, skippedTx: readonly SkippedTx[] = []): Promise<void> {
   const prev = (await d.store.listHealth()).find((h) => h.adapterId === d.spec.id);
   const cp = await d.store.getCheckpoint(cursorKey(d.spec));
   const now = d.now();
+  // The note of what was skipped: the newest signatures, kept in the store (not in the public status), so a missing trade can be re-read by hand.
+  if (skippedTx.length > 0) await d.store.setCheckpoint({ adapterId: `${d.spec.id}|skipped-tx`, block: skippedTx.length, blockHash: JSON.stringify(skippedTx.slice(-20)), updatedAt: now });
   await d.store.putHealth({
     adapterId: d.spec.id,
     chain: 'solana',
@@ -401,7 +454,7 @@ async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavail
     lastSuccessAt: r.ok ? now : (prev?.lastSuccessAt ?? null),
     lastError: r.ok ? null : r.error,
     consecutiveFailures: r.ok ? 0 : (prev?.consecutiveFailures ?? 0) + 1,
-    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, truncated, unavailable, durationMs: r.durationMs },
+    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, truncated, unavailable, skippedTx: skippedTx.length, durationMs: r.durationMs },
   });
 }
 

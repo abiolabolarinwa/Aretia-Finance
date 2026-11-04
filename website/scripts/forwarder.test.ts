@@ -46,4 +46,18 @@ describe('the API forwarder keeps the last good Marketplace list', () => {
       globalThis.fetch = real;
     }
   });
+
+  it('hands on the API’s JSON reason when it answers a gateway error', async () => {
+    (globalThis as unknown as { caches: unknown }).caches = { default: fakeCache() };
+    const real = globalThis.fetch;
+    try {
+      globalThis.fetch = (async () => new Response('{"error":"source","retryAfter":36}', { status: 502, headers: { 'content-type': 'application/json', 'content-length': '9999' } })) as typeof fetch;
+      const out = await call('https://x.org/api/swings-ohlcv?chain=solana&pool=P');
+      expect(out.status).toBe(502);
+      expect(out.headers.get('content-type')).toContain('json');
+      expect(await out.json()).toEqual({ error: 'source', retryAfter: 36 });
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
 });

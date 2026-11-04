@@ -42,7 +42,7 @@ import { mountTrades, type TradesTable } from './walletTxTable';
 import { isDeadMarket } from '../swings/market/dead.js';
 import { modeNote, modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
-import { fetchIndexedPages, fetchNativeList, mergeIndexRows, trackMarket } from '../swings/mi/clientRows.js';
+import { fetchIndexedPages, fetchNativeList, mergeIndexRows, rankIndexRows, trackMarket } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1550,6 +1550,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let loading = false;
     /** When the list on screen was loaded, if it is the last saved one because the market service could not be reached. */
     let staleAt: number | null = null;
+    /** The list on screen is Aretia's own market index, because the outside market service has nothing right now. */
+    let fromIndex = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let page = false;
@@ -1711,6 +1713,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       showChart(r);
     }
 
+    /** What Aretia's own index holds for this list and network (its busiest, then its newest markets), ranked for the tab. Empty when it has nothing. */
+    async function indexStandIn(kind: 'trending' | 'top' | 'gainers', chain: '' | ChainId, window: MarketWindow): Promise<MarketRow[]> {
+      try {
+        const [listed, pages] = await Promise.all([fetchNativeList(kind, chain, window, Date.now(), undefined, 1).catch(() => null), fetchIndexedPages(chain, Date.now(), { max: 300 }).catch(() => [] as MarketRow[])]);
+        return rankIndexRows(kind, window, mergeIndexRows(listed ?? [], pages));
+      } catch {
+        return [];
+      }
+    }
+
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
       clearTimeout(retryTimer);
@@ -1773,6 +1785,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const key = listKey({ ...q, page: 0 });
           let got: MarketRow[];
           try {
+            fromIndex = false;
             let serverOld: number | null = null;
             got = await loadList(q, (at) => (serverOld = at));
             if (serverOld === null) saveList(browserStorage(), key, got, Date.now());
@@ -1787,14 +1800,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
             }
           } catch (err) {
             // The market service could not be reached: show the last list that loaded, say how old it is, and keep trying by itself.
-            const old = readList(browserStorage(), key, Date.now());
+            // Aretia's own market index stands in first when it has anything for this network: its rows are read from the chain itself.
+            const own = await indexStandIn(q.kind as 'trending' | 'top' | 'gainers', m.chain, m.window);
+            const old = own.length > 0 ? null : readList(browserStorage(), key, Date.now());
             clearTimeout(retryTimer);
             retryTimer = setTimeout(() => {
               if (!document.hidden && m.kind !== 'new' && m.kind !== 'favourites') void load(true);
             }, retryDelayMs(failures++));
-            if (!old) throw new Error(`${(err instanceof Error ? err.message : 'The market list is unavailable right now.').replace(/ It may be busy; try again in a minute\.| Try again in a minute\./, '')} Aretia is trying again by itself.`, { cause: err });
-            got = old.rows;
-            staleAt = old.at;
+            if (own.length > 0) {
+              fromIndex = true;
+              got = own;
+            } else if (!old) throw new Error(`${(err instanceof Error ? err.message : 'The market list is unavailable right now.').replace(/ It may be busy; try again in a minute\.| Try again in a minute\./, '')} Aretia is trying again by itself.`, { cause: err });
+            else {
+              got = old.rows;
+              staleAt = old.at;
+            }
           }
           if (mine !== seq) return;
           const rated = applyRatings(got, await fetchRatings(got));
@@ -2039,10 +2059,24 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));
-      if (error) card.append(banner('warn', error));
+      if (fromIndex && rows !== null && !error) card.append(banner('info', 'The outside market service is busy, so this list is read from Aretia’s own market index. It is shorter, and Aretia will switch back by itself.'));
+      if (error) {
+        card.append(banner('warn', error));
+        const again = el('button', { class: 'wapp__chip wapp__chip--btn', text: 'Try again', attrs: { type: 'button' } });
+        again.addEventListener('click', () => void load());
+        card.append(again);
+      }
       else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
-      else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
+      else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
+        card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));
+        const any = el('button', { class: 'wapp__chip wapp__chip--btn', text: 'Show any age', attrs: { type: 'button' } });
+        any.addEventListener('click', () => {
+          f.age = '0';
+          refilter();
+        });
+        card.append(any);
+      } else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;

@@ -99,7 +99,8 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
     out.set('cache-control', 'no-store');
     out.delete('content-length');
     out.delete('content-encoding');
-    return new Response(await res.text(), { status: res.status, headers: out });
+    // Cloudflare swaps even a re-made 502 or 504 for its own page, so the reason travels as a 503, which it leaves alone.
+    return new Response(await res.text(), { status: res.status === 502 || res.status === 504 ? 503 : res.status, headers: out });
   }
   return res;
 }

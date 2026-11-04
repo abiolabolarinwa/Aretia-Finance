@@ -68,7 +68,8 @@ export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   } catch {
     // The source refused or failed: the last good list is better than a blank page, and it is marked as old.
     if (hit && input.now - hit.at < STALE_MS) return ok(hit.rows, true, hit.at);
-    return json(502, { error: 'source', retryAfter: breaker.until > input.now ? Math.ceil((breaker.until - input.now) / 1000) : 15 }, headers);
+    // Answered 200 with no rows, not 502: Cloudflare replaces a 502 from this API with its own page, which hides the reason from the page.
+    return json(200, { rows: [], stale: true, error: 'source', retryAfter: breaker.until > input.now ? Math.ceil((breaker.until - input.now) / 1000) : 15 }, headers);
   }
 }
 

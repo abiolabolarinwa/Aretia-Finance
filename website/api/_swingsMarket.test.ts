@@ -72,7 +72,8 @@ describe('shared Marketplace lists', () => {
     const refused = (async () => (calls++, new Response('', { status: 429 }))) as unknown as typeof fetch;
     // A different view has nothing older: it fails once, and trips the pause.
     const first = await handleMarket(input({ kind: 'new', chain: 'bnb', recent: '1' }, refused, NOW + 120_000));
-    expect(first.status).toBe(502);
+    expect(first.status).toBe(200);
+    expect(JSON.parse(first.body).rows).toEqual([]);
     expect(JSON.parse(first.body).retryAfter).toBeGreaterThan(0);
     const spent = calls;
     expect(spent).toBeLessThan(20);
@@ -96,7 +97,9 @@ describe('shared Marketplace lists', () => {
     expect(out.headers['cache-control']).toBe('no-store');
     // nothing kept: an honest error, not an empty list
     resetMarketCache();
-    expect((await handleMarket(input({ kind: 'top', chain: 'solana' }, refused))).status).toBe(502);
+    const none = await handleMarket(input({ kind: 'top', chain: 'solana' }, refused));
+    expect(none.status).toBe(200);
+    expect(JSON.parse(none.body)).toMatchObject({ rows: [], stale: true, error: 'source' });
   });
 
   it('asks again after a 429 and serves the list that follows, and lets the CDN serve an old copy while it refreshes', async () => {

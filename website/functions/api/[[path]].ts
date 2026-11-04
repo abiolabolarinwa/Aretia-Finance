@@ -67,6 +67,14 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
     // Say what failed instead of showing an anonymous gateway page.
     return new Response(JSON.stringify({ error: 'The API could not be reached', detail: e instanceof Error ? e.message.slice(0, 200) : 'unknown' }), { status: 502, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
+  // The API answers a list it could not read as 200 with no rows and an error, so the older copy kept here is better.
+  if (incoming.pathname === LAST_GOOD && res.status === 200 && !(res.headers.get('cache-control') ?? '').includes('s-maxage')) {
+    const failed = await res.clone().json().then((b: { error?: unknown }) => typeof b?.error === 'string').catch(() => false);
+    if (failed) {
+      const old = await oldCopy();
+      if (old) return old;
+    }
+  }
   if (res.status >= 500 || res.status === 429) {
     const old = await oldCopy();
     if (old) return old;

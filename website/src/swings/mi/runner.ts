@@ -128,9 +128,11 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
     }
   }
 
-  // Fair share of what is left; the starting adapter rotates with the clock so a slow one does not starve the others.
-  const start = specs.length ? Math.floor(d.now() / 60_000) % specs.length : 0;
-  const order = specs.map((_, i) => specs[(start + i) % specs.length]!);
+  // Fair share of what is left. The adapter that last succeeded longest ago goes first (never run: first of all), so one that was cut short,
+  // or that sits late in the list, is served next time instead of waiting for a clock to rotate to it. Ties keep the catalogue order.
+  const health = new Map((await d.store.listHealth().catch(() => [])).map((h) => [h.adapterId, h]));
+  const age = (s: DexAdapterSpec | SolanaAdapterSpec): number => health.get(s.id)?.lastSuccessAt ?? 0;
+  const order = specs.map((s, i) => ({ s, i })).sort((x, y) => age(x.s) - age(y.s) || x.i - y.i).map((x) => x.s);
   for (let i = 0; i < order.length; i++) {
     const left = d.budgetMs - (d.now() - t0);
     if (left < 2_000) break;

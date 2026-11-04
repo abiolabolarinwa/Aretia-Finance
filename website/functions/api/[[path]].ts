@@ -92,5 +92,14 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
       // not cached this time
     }
   }
+  // A gateway error passed straight through is replaced by Cloudflare's own plain "error code: 502" page, which hides the API's JSON reason
+  // from the page. Handing the same status, headers and body on as a new response keeps what the API said.
+  if (res.status >= 500 && /json/.test(res.headers.get('content-type') ?? '')) {
+    const out = new Headers(res.headers);
+    out.set('cache-control', 'no-store');
+    out.delete('content-length');
+    out.delete('content-encoding');
+    return new Response(await res.text(), { status: res.status, headers: out });
+  }
   return res;
 }

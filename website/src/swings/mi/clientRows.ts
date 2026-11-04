@@ -167,7 +167,7 @@ export const NATIVE_MIN_ROWS = 25;
  * The index's own answer for a Markets list: trending, top, gainers or new, for one network or all of them. Null when the index is
  * unreachable, not set up, or too small to stand in for the feed (fewer than NATIVE_MIN_ROWS): the list then keeps using the feed.
  */
-export async function fetchNativeList(kind: 'trending' | 'top' | 'gainers' | 'new', chain: string, window: string, now: number, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<MarketRow[] | null> {
+export async function fetchNativeList(kind: 'trending' | 'top' | 'gainers' | 'new', chain: string, window: string, now: number, fetchImpl: typeof fetch = (...a) => fetch(...a), minRows = NATIVE_MIN_ROWS): Promise<MarketRow[] | null> {
   try {
     const q = new URLSearchParams({ limit: '100' });
     if (chain) q.set('chain', chain);
@@ -177,7 +177,7 @@ export async function fetchNativeList(kind: 'trending' | 'top' | 'gainers' | 'ne
     const body = (await res.json()) as { data?: unknown };
     const list = kind === 'trending' ? (body.data as { ranked?: unknown } | undefined)?.ranked : body.data;
     const rows = marketRowsFromPools(list, now);
-    return rows.length >= NATIVE_MIN_ROWS ? rows : null;
+    return rows.length >= minRows ? rows : null;
   } catch {
     return null;
   }
@@ -195,4 +195,26 @@ export function trackMarket(row: Pick<MarketRow, 'chain' | 'pool' | 'indexed'> &
   if (asked.has(key)) return;
   asked.add(key);
   void fetchImpl('/api/v1/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: row.chain, pool: row.pool, ...(row.address && row.address !== row.pool ? { token: row.address } : {}) }) }).catch(() => undefined);
+}
+
+/**
+ * Puts the index's rows in the order a Markets list asks for, for when the outside feed has nothing and the index stands in for it.
+ * Only numbers the index states are used: a row without the number a list ranks by goes last, and Gainers needs a little liquidity.
+ */
+export function rankIndexRows(kind: 'trending' | 'top' | 'gainers' | 'new', window: 'm5' | 'h1' | 'h6' | 'h24', rows: readonly MarketRow[]): MarketRow[] {
+  const by = (pick: (r: MarketRow) => number | null, dir: 1 | -1): MarketRow[] =>
+    [...rows].sort((a, b) => {
+      const x = pick(a);
+      const y = pick(b);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return (x - y) * dir;
+    });
+  switch (kind) {
+    case 'new': return by((r) => r.ageMs, 1);
+    case 'top': return by((r) => r.volume24hUsd, -1);
+    case 'gainers': return by((r) => r.change[window], -1).filter((r) => (r.liquidityUsd ?? 0) >= 1_000);
+    default: return by((r) => r.txns24h, -1);
+  }
 }

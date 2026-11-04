@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyLivePrice, createPoolDatafeed, livePriceFrom, parseBars, priceScaleFor, resetCandleStore, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
+import { applyLivePrice, barsFromTrades, createPoolDatafeed, hasWideRange, metaFromBody, livePriceFrom, parseBars, priceScaleFor, resetCandleStore, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
 import { setGeckoGap } from './geckoGate.js';
 import { resetUpstreamHealth } from './upstreamHealth.js';
 
@@ -131,11 +131,14 @@ describe('the datafeed', () => {
 
   it('says so plainly when the service is busy, down or unreachable, after trying a few times', async () => {
     const sleep = vi.fn(async () => undefined);
-    const run = (f: typeof fetch) => getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, sleep }), '15', { from: 0, to: 1, firstDataRequest: true });
-    expect(await run(reply({}, 429))).toEqual({ error: 'The price service is busy. Try again in a minute.' });
-    expect(await run(reply({}, 503))).toEqual({ error: 'The price service answered 503.' });
+    // The chart is told "no data" (an error would leave red warning icons on it) and the page is told why, to show it in the chart's area.
+    const why: string[] = [];
+    const run = (f: typeof fetch) => getBars(createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f, sleep, tradesFallback: false, onStatus: (s) => why.push(s.message ?? s.kind) }), '15', { from: 0, to: 1, firstDataRequest: true });
+    expect(await run(reply({}, 429))).toEqual({ bars: [], noData: true });
+    expect(await run(reply({}, 503))).toEqual({ bars: [], noData: true });
     const offline = vi.fn(async () => { throw new Error('offline'); }) as unknown as typeof fetch;
-    expect(await run(offline)).toEqual({ error: 'The price service could not be reached.' });
+    expect(await run(offline)).toEqual({ bars: [], noData: true });
+    expect(why).toEqual(['The price service is busy. Try again in a minute.', 'The price service answered 503.', 'The price service could not be reached.']);
     expect(offline).toHaveBeenCalledTimes(3);
   });
 
@@ -366,8 +369,10 @@ describe('the datafeed', () => {
         }
         return new Response('{}', { status: 429 });
       }) as unknown as typeof fetch;
-      const r = await getBars(make(f, { hedgeMs: 10 }), '15', first);
-      expect(r).toEqual({ error: 'The price service is busy. Try again in a minute.' });
+      const failures: string[] = [];
+      const r = await getBars(make(f, { hedgeMs: 10, tradesFallback: false, onLoadFailed: (m) => failures.push(m) }), '15', first);
+      expect(r).toEqual({ bars: [], noData: true });
+      expect(failures).toEqual(['The price service is busy. Try again in a minute.']);
     });
 
     it('goes straight to GeckoTerminal, without hedging, when the endpoint fails quickly', async () => {
@@ -560,7 +565,7 @@ describe('a pool followed by Aretia\'s own Market Indexer', () => {
     }) as unknown as typeof fetch;
     const feed = createPoolDatafeed({ chain: 'bnb', pool: '0x' + 'c3'.repeat(20), label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
     const r = await getBars(feed, '15', { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
-    expect('error' in r).toBe(true);
+    expect(r).toEqual({ bars: [], noData: true });
     expect(urls.every((u) => u.startsWith('/api/swings-ohlcv'))).toBe(true);
   });
 });
@@ -593,5 +598,84 @@ describe("Aretia's own index first", () => {
     const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response(JSON.stringify(body([]))) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
     const r = await getBars(feedWith(f), '15', first);
     expect('bars' in r && r.bars).toHaveLength(3);
+  });
+});
+
+describe('when no price service has candles', () => {
+  const first = { from: 0, to: 1_700_001_800, countBack: 300, firstDataRequest: true };
+  const NOW = 1_700_001_900_000;
+  const trade = (t: number, over: Partial<import('./trades.js').Trade> = {}): import('./trades.js').Trade => ({ t, kind: 'buy', usd: 10, tokenAmount: 100, quoteAmount: 0.005, priceUsd: 0.1, trader: '0xabc', tx: '0xdef', ...over });
+  const refused = vi.fn(async () => new Response('{}', { status: 429 })) as unknown as typeof fetch;
+
+  it('builds candles from the trades table as the last resort and says so, with no error shown on the chart', async () => {
+    const statuses: import('./tvDatafeed.js').ChartStatus[] = [];
+    const trades = [trade(1_700_001_000_000, { priceUsd: 0.1 }), trade(1_700_001_100_000, { priceUsd: 0.3, usd: 30 }), trade(1_700_001_200_000, { priceUsd: 0.2, usd: 20 })];
+    const feed = createPoolDatafeed({ chain: 'base', pool: POOL, label: 'X / USD' }, { fetchImpl: refused, now: () => NOW, sleep: async () => undefined, tradesImpl: async () => trades, onStatus: (s) => statuses.push(s) });
+    const r = await getBars(feed, '15', first);
+    expect('bars' in r && r.bars).toEqual([{ time: 1_700_000_100_000, open: 0.1, high: 0.3, low: 0.1, close: 0.2, volume: 60 }].map((b) => ({ ...b, time: Math.floor(1_700_001_000 / 900) * 900 * 1000 })));
+    expect(statuses[0]).toMatchObject({ kind: 'ok', source: 'trades', wideRange: false });
+    expect(statuses[0]!.note).toMatch(/trades/);
+  });
+
+  it('tells the chart there is nothing yet (a pool minutes old), never an error', async () => {
+    const statuses: import('./tvDatafeed.js').ChartStatus[] = [];
+    const feed = createPoolDatafeed({ chain: 'base', pool: POOL, label: 'X / USD' }, { fetchImpl: reply({}, 404), now: () => NOW, tradesImpl: async () => [], onStatus: (s) => statuses.push(s) });
+    expect(await getBars(feed, '15', first)).toEqual({ bars: [], noData: true });
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]!.kind).toBe('empty');
+    expect(statuses[0]!.message).toMatch(/No candles yet/);
+  });
+
+  it('still reports a failed load, with the reason, when the trades cannot make candles either', async () => {
+    const statuses: import('./tvDatafeed.js').ChartStatus[] = [];
+    const failures: string[] = [];
+    const feed = createPoolDatafeed({ chain: 'base', pool: POOL, label: 'X / USD' }, { fetchImpl: refused, now: () => NOW, sleep: async () => undefined, tradesImpl: async () => { throw new Error('down'); }, onStatus: (s) => statuses.push(s), onLoadFailed: (m) => failures.push(m) });
+    expect(await getBars(feed, '15', first)).toEqual({ bars: [], noData: true });
+    expect(statuses[0]).toMatchObject({ kind: 'failed' });
+    expect(failures).toHaveLength(1);
+  });
+
+  it('does not use trades for an older window, or a pool that only the index serves', async () => {
+    const tradesImpl = vi.fn(async () => [trade(1_700_001_000_000)]);
+    const feed = createPoolDatafeed({ chain: 'base', pool: POOL, label: 'X / USD' }, { fetchImpl: refused, now: () => NOW, sleep: async () => undefined, tradesImpl: tradesImpl as never });
+    expect(await getBars(feed, '15', { from: 0, to: 1_600_000_000, countBack: 300, firstDataRequest: false })).toEqual({ error: 'The price service is busy. Try again in a minute.' });
+    const indexOnly = createPoolDatafeed({ chain: 'base', pool: POOL, label: 'X / USD', source: 'aretia' }, { fetchImpl: reply({}, 502), viaServer: '/api/swings-ohlcv', now: () => NOW, tradesImpl: tradesImpl as never });
+    await getBars(indexOnly, '15', first);
+    expect(tradesImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('barsFromTrades, metaFromBody, hasWideRange', () => {
+  const t = (ms: number, over: Partial<import('./trades.js').Trade> = {}): import('./trades.js').Trade => ({ t: ms, kind: 'buy', usd: 5, tokenAmount: 50, quoteAmount: 0.002, priceUsd: null, trader: 'a', tx: 'b', ...over });
+
+  it('prices a trade in dollars from its own dollar value, or in the other token from the amounts, and skips a trade with no price', () => {
+    const trades = [t(900_000), t(1_000_000, { usd: Number.NaN, priceUsd: null }), t(1_800_000, { priceUsd: 0.5 })];
+    const usd = barsFromTrades(trades, 900, 'usd');
+    expect(usd.map((b) => [b.time, b.close])).toEqual([[900_000, 0.1], [1_800_000, 0.5]]);
+    const token = barsFromTrades(trades, 900, 'token');
+    expect(token[0]).toMatchObject({ open: 0.002 / 50, close: 0.002 / 50 });
+    expect(barsFromTrades([], 900, 'usd')).toEqual([]);
+  });
+
+  it('names the reference when dollars were converted, and keeps server text short and plain', () => {
+    const converted = metaFromBody({ source: 'aretia-index', unit: 'usd-converted', reference: { label: 'WETH / USDC', price: 2253.1, at: 1_793_766_600 } }, 'geckoterminal');
+    expect(converted.source).toBe('aretia-index');
+    expect(converted.note).toContain('WETH / USDC');
+    expect(converted.note).toContain('2253.1');
+    expect(converted.note).toContain('UTC');
+    expect(metaFromBody({ source: 'geckoterminal', stale: false }, 'aretia-index')).toEqual({ source: 'geckoterminal' });
+    expect(metaFromBody({ source: 'geckoterminal-stale' }, 'aretia-index').source).toBe('geckoterminal-stale');
+    expect(metaFromBody({}, 'geckoterminal')).toEqual({ source: 'geckoterminal' });
+    expect(metaFromBody({ source: 'evil', reference: 'x' }, 'geckoterminal')).toEqual({ source: 'geckoterminal' });
+  });
+
+  it('flags a thousandfold price range (rugged or just launched pool), and keeps tiny prices visible on the scale', () => {
+    const bar = (high: number, low: number): TvBar => ({ time: 0, open: low, high, low, close: low, volume: 0 });
+    expect(hasWideRange([bar(1.7e-6, 7.1e-14)])).toBe(true);
+    expect(hasWideRange([bar(2, 1)])).toBe(false);
+    expect(hasWideRange([])).toBe(false);
+    // A $0.00000000000017 token shows its digits: the old cap of 12 decimals showed it as 0.
+    expect(priceScaleFor(1.7e-13)).toBe(1e15);
+    expect(priceScaleFor(2.7e-13) * 2.7e-13).toBeGreaterThanOrEqual(100);
   });
 });

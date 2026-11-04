@@ -10,6 +10,7 @@
 import type { ChainId } from '../core/types.js';
 import { DEXSCREENER_CHAIN, GECKO_NETWORK } from './pool.js';
 import { CancelledRead, spaced } from './geckoGate.js';
+import { fetchTrades, type Trade } from './trades.js';
 import { markRouteDown, markRouteUp, routeIsDown } from './upstreamHealth.js';
 
 /** The name Aretia's candle route is remembered under while it is failing. */
@@ -50,6 +51,28 @@ const MAX_PER_REQUEST = 1000;
 /** About 30 requests a minute are allowed per visitor, so live updates are polled gently. */
 const LIVE_POLL_MS = 20_000;
 const CACHE_MS = 8_000;
+
+/** Where the candles on screen came from, so the chart can say so. */
+export type CandleSource = 'aretia-index' | 'geckoterminal' | 'geckoterminal-stale' | 'trades';
+export interface CandleMeta {
+  source: CandleSource;
+  /** A sentence about how the numbers were made, when that matters (converted to dollars, built from trades). */
+  note?: string;
+}
+interface Read {
+  bars: TvBar[];
+  meta: CandleMeta;
+}
+
+/** What the chart is told after a load, to show a badge, a message instead of an empty chart, or a log price axis. */
+export interface ChartStatus {
+  kind: 'ok' | 'empty' | 'failed';
+  source?: CandleSource;
+  note?: string;
+  /** The candles span more than a thousandfold in price (a pool that rugged or just launched): a log axis keeps them readable. */
+  wideRange?: boolean;
+  message?: string;
+}
 
 export interface PoolChartOptions {
   chain: ChainId;
@@ -113,7 +136,7 @@ export interface TvDatafeed {
 /** Decimals for the price scale: enough for four significant digits, from $60,000 coins down to $0.0000004 ones. */
 export function priceScaleFor(price: number | null | undefined): number {
   if (!price || !Number.isFinite(price) || price <= 0) return 1e6;
-  const decimals = Math.min(12, Math.max(2, 3 - Math.floor(Math.log10(price))));
+  const decimals = Math.min(15, Math.max(2, 3 - Math.floor(Math.log10(price))));
   return 10 ** decimals;
 }
 
@@ -129,6 +152,61 @@ export function parseBars(body: unknown): TvBar[] {
     bars.set(ts, { time: ts * 1000, open: o, high: h, low: l, close: c, volume: Number.isFinite(v) && v > 0 ? v : 0 });
   }
   return [...bars.values()].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Which source an Aretia endpoint answer came from, and how its dollar prices were made. A pool quoted in WETH, WBNB or the like has its
+ * candles converted with the quote coin's price at the time of each candle; the note names the reference pool and the time of its newest
+ * trade. Texts come from the server and are only ever shown as plain text. Pure.
+ */
+export function metaFromBody(body: unknown, fallback: CandleSource): CandleMeta {
+  const b = body as { source?: unknown; unit?: unknown; reference?: { label?: unknown; price?: unknown; at?: unknown } } | null;
+  const source: CandleSource = b?.source === 'aretia-index' || b?.source === 'geckoterminal' || b?.source === 'geckoterminal-stale' ? b.source : fallback;
+  const ref = b?.reference;
+  if (source === 'aretia-index' && b?.unit === 'usd-converted' && typeof ref?.label === 'string' && typeof ref.price === 'number' && Number.isFinite(ref.price) && typeof ref.at === 'number' && Number.isFinite(ref.at)) {
+    const at = new Date(ref.at * 1000).toISOString().slice(11, 16);
+    const label = ref.label.slice(0, 40);
+    return { source, note: `Aretia's market index. Dollar prices are converted from the pool's quote coin with the ${label} pool's price at the time of each candle (latest reference $${ref.price.toPrecision(5)} at ${at} UTC).` };
+  }
+  if (source === 'aretia-index') return { source, note: "Aretia's market index (trades read from the chain)." };
+  if (source === 'geckoterminal-stale') return { source, note: 'GeckoTerminal, as of a little while ago: the service is not answering right now.' };
+  return { source };
+}
+
+/**
+ * Candles from the trades the Transactions table lists, newest window only: a candle per period that had a trade, in dollars (the trade's
+ * own dollar price) or in the pool's other token (the amounts exchanged). A trade with no price in the unit asked for is skipped, never
+ * guessed. Oldest first. Pure.
+ */
+export function barsFromTrades(trades: readonly Trade[], seconds: number, currency: 'usd' | 'token'): TvBar[] {
+  const bars = new Map<number, TvBar>();
+  const ordered = [...trades].sort((a, b) => a.t - b.t);
+  for (const t of ordered) {
+    const price = currency === 'usd' ? (t.priceUsd !== null && t.priceUsd > 0 ? t.priceUsd : t.usd > 0 && t.tokenAmount > 0 ? t.usd / t.tokenAmount : null) : t.tokenAmount > 0 && t.quoteAmount > 0 ? t.quoteAmount / t.tokenAmount : null;
+    if (price === null || !Number.isFinite(price) || price <= 0) continue;
+    const volume = currency === 'usd' ? (Number.isFinite(t.usd) && t.usd > 0 ? t.usd : 0) : Number.isFinite(t.quoteAmount) && t.quoteAmount > 0 ? t.quoteAmount : 0;
+    const time = Math.floor(t.t / 1000 / seconds) * seconds * 1000;
+    const bar = bars.get(time);
+    if (bar) {
+      bar.high = Math.max(bar.high, price);
+      bar.low = Math.min(bar.low, price);
+      bar.close = price;
+      bar.volume += volume;
+    } else bars.set(time, { time, open: price, high: price, low: price, close: price, volume });
+  }
+  return [...bars.values()].sort((a, b) => a.time - b.time);
+}
+
+/** True when the candles' highest high is more than a thousand times their lowest low. Pure. */
+export function hasWideRange(bars: readonly TvBar[]): boolean {
+  if (bars.length === 0) return false;
+  let hi = 0;
+  let lo = Number.POSITIVE_INFINITY;
+  for (const b of bars) {
+    hi = Math.max(hi, b.high);
+    lo = Math.min(lo, b.low);
+  }
+  return lo > 0 && hi / lo > 1000;
 }
 
 /** The last candle's price follows the pool's live price this often: 60 reads a minute, against the 300 a minute DexScreener allows a visitor. */
@@ -181,11 +259,14 @@ const WARM_LIMIT = 500;
 
 /** Candles already read, shared by every datafeed so a read started early serves the chart that opens a moment later. */
 const store = new Map<string, { at: number; bars: TvBar[]; limit: number }>();
+/** Where each stored read came from. */
+const metaStore = new Map<string, CandleMeta>();
 const inFlight = new Map<string, { limit: number; promise: Promise<TvBar[]> }>();
 
 /** For tests, and for a page that wants a clean slate. */
 export function resetCandleStore(): void {
   store.clear();
+  metaStore.clear();
   inFlight.clear();
 }
 
@@ -193,14 +274,14 @@ export function resetCandleStore(): void {
  * Whichever of two reads gives a good answer first. A read that fails only counts against it if the other fails as well, and
  * then the direct read's own error is the one reported, since that is the more useful message. Pure apart from the promises.
  */
-function firstGood(server: Promise<TvBar[] | null>, direct: Promise<TvBar[]>): Promise<TvBar[]> {
-  return new Promise<TvBar[]>((resolve, reject) => {
+function firstGood(server: Promise<Read | null>, direct: Promise<Read>): Promise<Read> {
+  return new Promise<Read>((resolve, reject) => {
     let failed = 0;
     let directError: unknown = new Error('The price service could not be reached.');
     const oneFailed = (): void => {
       if (++failed === 2) reject(directError);
     };
-    server.then((bars) => (bars ? resolve(bars) : oneFailed()), oneFailed);
+    server.then((read) => (read && read.bars.length > 0 ? resolve(read) : oneFailed()), oneFailed);
     direct.then(resolve, (e: unknown) => {
       directError = e;
       oneFailed();
@@ -223,6 +304,12 @@ export function createPoolDatafeed(
     dexBase?: string;
     /** Called when the chart's first load of candles fails for good (after its own retries), so the chart can be started again. */
     onLoadFailed?: (message: string) => void;
+    /** Called after each first load with what the chart is showing: its source, a note, or why it has nothing. */
+    onStatus?: (status: ChartStatus) => void;
+    /** False turns off building candles from the trades table when every source fails. */
+    tradesFallback?: boolean;
+    /** For tests: the trades reader. */
+    tradesImpl?: typeof fetchTrades;
     /** How long Aretia's endpoint has to answer before GeckoTerminal is also read directly, in milliseconds. */
     hedgeMs?: number;
     /** How long Aretia's own index is waited for before the outside sources are also read (default 600). */
@@ -243,6 +330,8 @@ export function createPoolDatafeed(
   const exchange = o.exchange ?? 'aretiafinance.org';
   const hedgeMs = deps.hedgeMs ?? HEDGE_MS;
   const timers = new Map<string, ReturnType<typeof setInterval>>();
+  /** Where the newest read came from (see `candles`). */
+  let lastMeta: CandleMeta | null = null;
   /** Per interval: the time of the oldest candle the pool has, once a short answer showed there is nothing before it. */
   const exhausted = new Map<string, number>();
   /** Per interval: the newest candle loaded, where live price readings start from. */
@@ -273,7 +362,7 @@ export function createPoolDatafeed(
    * remembered for 15 seconds (a pool that was just added on request is then picked up soon), so the question is not asked again for each window. Never marks the shared route as down: "unknown pool"
    * is a normal answer, and the route also serves pools that are indexed.
    */
-  async function fromIndexer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
+  async function fromIndexer(res: Resolution, beforeSec: number, limit: number): Promise<Read | null> {
     if (!deps.viaServer || o.source === 'aretia') return null;
     const unknownKey = `${o.chain}|${o.pool}`;
     if ((indexerUnknown.get(unknownKey) ?? 0) > now()) return null;
@@ -285,18 +374,20 @@ export function createPoolDatafeed(
         return null;
       }
       if (!response.ok) return null;
-      const bars = parseBars(await response.json());
-      return bars.length > 0 ? bars : null;
+      const json: unknown = await response.json();
+      const bars = parseBars(json);
+      return bars.length > 0 ? { bars, meta: metaFromBody(json, 'aretia-index') } : null;
     } catch {
       return null;
     }
   }
 
   /**
-   * Candles from Aretia's own endpoint, which reads GeckoTerminal once for everyone and keeps the answer, so a visitor's
-   * own allowance is not spent. Null on any failure (not deployed, refused, unreadable) so the caller can go direct.
+   * Candles from Aretia's own endpoint, which reads GeckoTerminal once for everyone and keeps the answer (and falls back to Aretia's own
+   * index when GeckoTerminal has nothing or refuses), so a visitor's own allowance is not spent. Null on any failure (not deployed,
+   * refused, unreadable) so the caller can go direct.
    */
-  async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<TvBar[] | null> {
+  async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<Read | null> {
     if (!deps.viaServer) return null;
     // A route that failed in the last minute is skipped, so each load does not wait on a refusal before going direct.
     const route = o.source === 'aretia' ? `${CANDLES_ROUTE}-aretia` : CANDLES_ROUTE;
@@ -307,7 +398,8 @@ export function createPoolDatafeed(
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
       if (response.ok) {
         markRouteUp(route);
-        return parseBars(await response.json());
+        const json: unknown = await response.json();
+        return { bars: parseBars(json), meta: metaFromBody(json, o.source === 'aretia' ? 'aretia-index' : 'geckoterminal') };
       }
     } catch {
       // Treated like any other failure below.
@@ -329,13 +421,17 @@ export function createPoolDatafeed(
     // The store is shared by every datafeed, so a read started when a token is opened (see `warm`) serves the chart that
     // opens a moment later, and a read still under way is joined rather than made twice.
     const key = `${o.chain}|${o.pool}|${side}|${currency}|${o.source ?? ''}|${res.tf}|${res.aggregate}|${beforeSec}`;
+    const finish = (bars: TvBar[]): TvBar[] => {
+      lastMeta = metaStore.get(key) ?? null;
+      return bars;
+    };
     if (!fresh) {
       const hit = store.get(key);
-      if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return hit.bars.slice(-limit);
+      if (hit && now() - hit.at < CACHE_MS && hit.limit >= limit) return finish(hit.bars.slice(-limit));
       const pending = inFlight.get(key);
-      if (pending && pending.limit >= limit) return pending.promise.then((bars) => bars.slice(-limit));
+      if (pending && pending.limit >= limit) return pending.promise.then((bars) => finish(bars.slice(-limit)));
     }
-    const promise = loadCandles(res, beforeSec, limit, attempts, key);
+    const promise = loadCandles(res, beforeSec, limit, attempts, key).then(finish);
     const entry = { limit, promise };
     inFlight.set(key, entry);
     const forget = (): void => {
@@ -346,21 +442,54 @@ export function createPoolDatafeed(
   }
 
   /**
-   * Reads candles from whichever source answers first. Aretia's own endpoint is asked first (it shares one read among
-   * everyone), but it is often slower than going direct, and it can be refused outright. So if it has not answered within
-   * `hedgeMs`, the page also reads GeckoTerminal directly and takes whichever good answer arrives first. When the endpoint
-   * fails quickly the direct read simply follows, as before.
+   * The last resort: candles built in the browser from the trades the Transactions table shows. Only for the newest window (the table
+   * holds the last few hundred trades), only when every other source failed or had nothing, and said so on the chart. Null when the
+   * trades cannot make candles (none, or none with a price in the unit asked for).
+   */
+  async function fromTrades(res: Resolution, beforeSec: number): Promise<Read | null> {
+    // An indexed pool has one source; its trades table comes from the same index, so there is nothing separate to fall back to.
+    if (deps.tradesFallback === false || o.source === 'aretia') return null;
+    // Older windows than the newest one are not covered by recent trades.
+    if (beforeSec < Math.floor(now() / 1000) - res.seconds) return null;
+    try {
+      const trades = await (deps.tradesImpl ?? fetchTrades)(o.chain, o.pool, side, fetchImpl, undefined, now);
+      const bars = barsFromTrades(trades, res.seconds, currency).filter((b) => b.time < beforeSec * 1000);
+      return bars.length > 0 ? { bars, meta: { source: 'trades', note: 'Built in your browser from the trades listed below, because the price services had no candles. Only the latest trades are covered.' } } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Reads candles from the sources in order, and when all of them fail or are empty, builds them from the trades. The sources: Aretia's own
+   * endpoint is asked first (it shares one read among everyone), but it is often slower than going direct, and it can be refused outright.
+   * So if it has not answered within `hedgeMs`, the page also reads GeckoTerminal directly and takes whichever good answer arrives first.
    */
   async function loadCandles(res: Resolution, beforeSec: number, limit: number, attempts: number, key: string): Promise<TvBar[]> {
-    const keep = (bars: TvBar[]): TvBar[] => {
-      store.set(key, { at: now(), bars, limit });
-      return bars;
+    const keep = (read: Read): TvBar[] => {
+      store.set(key, { at: now(), bars: read.bars, limit });
+      metaStore.set(key, read.meta);
+      return read.bars;
     };
+    try {
+      const read = await loadFromSources(res, beforeSec, limit, attempts);
+      if (read.bars.length > 0) return keep(read);
+      return keep((await fromTrades(res, beforeSec)) ?? read);
+    } catch (e) {
+      // A read for a chart that has been closed is dropped, not replaced by another.
+      if (e instanceof CancelledRead) throw e;
+      const last = await fromTrades(res, beforeSec);
+      if (last) return keep(last);
+      throw e;
+    }
+  }
+
+  async function loadFromSources(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<Read> {
     if (o.source === 'aretia') {
       // An indexed pool has one source: Aretia's stored trades. No outside service is asked, hedged against or fallen back to.
       const own = await fromServer(res, beforeSec, limit);
       if (own === null) throw new Error("Aretia's market index could not be reached.");
-      return keep(own);
+      return own;
     }
     // Aretia's own index is asked first and given a short head start: a pool it follows needs no outside service at all. If it does not
     // follow the pool, has nothing for this window or is slow, the usual sources are read, and bars the index sends meanwhile still win.
@@ -371,35 +500,40 @@ export function createPoolDatafeed(
     });
     const first = await Promise.race([indexed, tooSlow]);
     clearTimeout(headStart);
-    if (Array.isArray(first)) return keep(first);
-    const usual = async (): Promise<TvBar[]> => {
-      const direct = (): Promise<TvBar[]> => readDirect(res, beforeSec, limit, attempts);
+    if (first !== 'late' && first !== null) return first;
+    const usual = async (): Promise<Read> => {
+      const direct = (): Promise<Read> => readDirect(res, beforeSec, limit, attempts);
       const server = fromServer(res, beforeSec, limit);
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = new Promise<'late'>((resolve) => {
         timer = setTimeout(() => resolve('late'), hedgeMs);
       });
-      const first = await Promise.race([server, late]);
+      const winner = await Promise.race([server, late]);
       clearTimeout(timer);
-      if (first !== 'late') return keep(first ?? (await direct()));
-      return keep(await firstGood(server, direct()));
+      if (winner !== 'late') return winner ?? (await direct());
+      return firstGood(server, direct());
     };
     const usualRead = usual();
-    return keep(
-      await new Promise<TvBar[]>((resolve, reject) => {
-        indexed.then((bars) => {
-          if (bars) resolve(bars);
-        });
-        usualRead.then(resolve, (e: unknown) => {
+    return new Promise<Read>((resolve, reject) => {
+      indexed.then((read) => {
+        if (read) resolve(read);
+      });
+      usualRead.then(
+        (read) => {
+          // An empty answer is not final while the index may still have candles.
+          if (read.bars.length > 0) resolve(read);
+          else indexed.then((r) => resolve(r ?? read), () => resolve(read));
+        },
+        (e: unknown) => {
           // The usual sources failed: the index may still answer.
-          indexed.then((bars) => (bars ? resolve(bars) : reject(e)), () => reject(e));
-        });
-      }),
-    );
+          indexed.then((read) => (read ? resolve(read) : reject(e)), () => reject(e));
+        },
+      );
+    });
   }
 
   /** Reads GeckoTerminal itself: spaced out, retried a little, and read into bars. */
-  async function readDirect(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<TvBar[]> {
+  async function readDirect(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<Read> {
     const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: side });
     const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     let response: Response | null = null;
@@ -418,7 +552,7 @@ export function createPoolDatafeed(
     }
     if (response === null) throw new Error('The price service could not be reached.');
     if (response.status === 429) throw new Error('The price service is busy. Try again in a minute.');
-    if (response.status === 404) return [];
+    if (response.status === 404) return { bars: [], meta: { source: 'geckoterminal' } };
     if (!response.ok) throw new Error(`The price service answered ${response.status}.`);
     let body: unknown;
     try {
@@ -426,7 +560,7 @@ export function createPoolDatafeed(
     } catch {
       throw new Error('The price service returned something unreadable.');
     }
-    return parseBars(body);
+    return { bars: parseBars(body), meta: { source: 'geckoterminal' } };
   }
 
   const info: TvSymbolInfo = {
@@ -496,12 +630,25 @@ export function createPoolDatafeed(
           const inRange = bars.filter((b) => (params.firstDataRequest ? b.time <= params.to * 1000 : b.time < params.to * 1000));
           // The newest candle is where live price readings start from.
           if (params.firstDataRequest && inRange.length > 0) newest.set(resolution, inRange[inRange.length - 1]!);
+          if (params.firstDataRequest) {
+            deps.onStatus?.(
+              inRange.length > 0
+                ? { kind: 'ok', ...(lastMeta ? { source: lastMeta.source, ...(lastMeta.note ? { note: lastMeta.note } : {}) } : {}), wideRange: hasWideRange(inRange) }
+                : { kind: 'empty', message: 'No candles yet for this market. It may be only minutes old, or no price source has trades for it. They appear here as soon as one does.' },
+            );
+          }
           onResult(inRange, { noData: inRange.length === 0 });
         })
         .catch((e: unknown) => {
           const message = e instanceof Error ? e.message : 'The chart data could not be loaded.';
-          // The chart gives up on a failed load and stays empty, so the owner is told and can try the whole chart again.
-          if (params.firstDataRequest) deps.onLoadFailed?.(message);
+          if (params.firstDataRequest && !(e instanceof CancelledRead)) {
+            // The chart is told there is no data rather than that an error happened, which would leave red warning icons on it; the reason is
+            // shown by the page in the chart's own area, and the whole chart is started again a few times.
+            deps.onStatus?.({ kind: 'failed', message });
+            deps.onLoadFailed?.(message);
+            onResult([], { noData: true });
+            return;
+          }
           onError(message);
         });
     },
@@ -544,6 +691,11 @@ export function createPoolDatafeed(
         // Skip what is stored so a live poll sees fresh data.
         candles(res, Math.floor(now() / 1000) + res.seconds, 2, 1, true)
           .then((bars) => {
+            // A market that had no candles when the chart opened (minutes old) gets its first ones here: the chart is told, so it drops its message.
+            if (bars.length > 0 && !newest.has(resolution)) {
+              newest.set(resolution, bars[bars.length - 1]!);
+              deps.onStatus?.({ kind: 'ok', ...(lastMeta ? { source: lastMeta.source, ...(lastMeta.note ? { note: lastMeta.note } : {}) } : {}), wideRange: hasWideRange(bars) });
+            }
             for (const b of bars) {
               // A candle the live price has just moved keeps that price until the candle data catches up.
               if (current && b.time === current.time && now() - liveAt < LIVE_PRICE_TRUST_MS) {

@@ -25,6 +25,7 @@ import { trackEvmPool, type TrackResult } from '../src/swings/mi/track.js';
 import { trackSolanaPool } from '../src/swings/mi/solana/track.js';
 import { isOriginAllowed } from './_rpcProxy.js';
 import { nativeUsdReader } from '../src/swings/mi/reference.js';
+import { convertRowsToUsd, loadQuoteReference } from '../src/swings/mi/quoteReference.js';
 import { solUsdReader } from '../src/swings/mi/solana/engine.js';
 import type { MiStore } from '../src/swings/mi/store.js';
 import { MiMissingTableError, SupabaseMiStore } from '../src/swings/mi/supabaseStore.js';
@@ -249,8 +250,9 @@ const OHLCV_SIZES: Readonly<Record<string, { aggregates: readonly number[]; seco
 /**
  * GET /api/swings-ohlcv?source=aretia: candles of a pool the Market Indexer follows, in the shape the chart already reads
  * (`data.attributes.ohlcv_list`, newest first). They are built from stored on-chain trades only; a period with no trade has no
- * candle. Dollars are offered only for a pool quoted in a dollar stablecoin; a pool quoted in the native coin answers an empty
- * list for `currency=usd` rather than converting history at today's rate.
+ * candle. A pool quoted in a dollar stablecoin is in dollars as stored. A pool quoted in the native coin is converted candle by candle
+ * with that coin's price at the time (from the indexer's own stored trades of its main dollar pool, see src/swings/mi/quoteReference.ts),
+ * never at today's rate, and the answer names the reference pool and the time of its newest trade. Without a reference: an empty list.
  */
 export async function miOhlcv(input: { query: Record<string, string | undefined>; env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }; fetchImpl: typeof fetch; now: number; ip: string }, storeOverride?: MiStore): Promise<MiOutput> {
   const q = input.query;
@@ -273,9 +275,21 @@ export async function miOhlcv(input: { query: Record<string, string | undefined>
     const trades = (await store.tradesSince(chain, pool, end - limit * step, 10_000)).filter((t) => t.time < end);
     const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
     const wantsUsd = (q.currency ?? 'usd') === 'usd';
-    const rows = wantsUsd && quote?.role !== 'usd' ? [] : buildCandleRows(trades, step, p.quoteDecimals);
+    let rows = buildCandleRows(trades, step, p.quoteDecimals);
+    let unit: 'usd' | 'quote' | 'usd-converted' = quote?.role === 'usd' ? 'usd' : 'quote';
+    let reference: { pool: string; label: string; price: number; at: number } | undefined;
+    if (wantsUsd && quote?.role !== 'usd') {
+      // A pool quoted in WETH, WBNB, WSOL or WMATIC: each candle is priced in dollars with the quote token's price at the time of that
+      // candle, read from the indexer's own stored trades of that token's most liquid dollar pool. No reference, no dollar candle.
+      const ref = rows.length > 0 ? await loadQuoteReference(store, chain, p.quote, end - limit * step, end) : null;
+      rows = ref ? convertRowsToUsd(rows, step, ref.points) : [];
+      if (ref && rows.length > 0) {
+        unit = 'usd-converted';
+        reference = { pool: ref.pool, label: ref.label, price: ref.latest.price, at: ref.latest.at };
+      }
+    }
     const fresh = end > nowSec ? 5 : 60;
-    return json(200, { data: { attributes: { ohlcv_list: [...rows].reverse() } }, source: 'aretia-index', unit: quote?.role === 'usd' ? 'usd' : 'quote', stale: false }, { 'cache-control': `public, s-maxage=${fresh}, stale-while-revalidate=${fresh * 4}` });
+    return json(200, { data: { attributes: { ohlcv_list: [...rows].reverse() } }, source: 'aretia-index', unit, ...(reference ? { reference } : {}), quoteSymbol: quote?.symbol ?? null, stale: false },{ 'cache-control': `public, s-maxage=${fresh}, stale-while-revalidate=${fresh * 4}` });
   } catch (e) {
     if (e instanceof MiMissingTableError) return MISSING();
     return json(500, { error: 'failed' });

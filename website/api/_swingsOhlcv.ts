@@ -77,7 +77,7 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
   const fresh = history ? HISTORY_FRESH_MS : (LIVE_FRESH_MS[tf] ?? 60_000);
   const key = `${chain}|${chain === 'solana' ? pool : pool.toLowerCase()}|${tf}|${aggregate}|${alignedBefore}|${limit}|${token}|${currency}`;
   const ok = (rows: Row[], stale: boolean): TokensOutput =>
-    json(200, { data: { attributes: { ohlcv_list: rows } }, stale }, { ...headers, 'cache-control': stale ? 'no-store' : `public, s-maxage=${Math.floor(fresh / 1000)}, stale-while-revalidate=${Math.floor(fresh / 500)}` });
+    json(200, { data: { attributes: { ohlcv_list: rows } }, source: stale ? 'geckoterminal-stale' : 'geckoterminal', stale }, { ...headers, 'cache-control': stale ? 'no-store' : `public, s-maxage=${Math.floor(fresh / 1000)}, stale-while-revalidate=${Math.floor(fresh / 500)}` });
 
   const hit = answers.get(key);
   if (hit && input.now - hit.at < fresh) return ok(hit.rows, false);
@@ -107,8 +107,25 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
     })().finally(() => inFlight.delete(key));
     inFlight.set(key, pending);
   }
+  /** Aretia's own index as the next source: for a pool GeckoTerminal does not have yet (404) or will not answer for. Null when it has no candles. */
+  const fromIndex = async (): Promise<TokensOutput | null> => {
+    if (token !== 'base') return null;
+    try {
+      const out = await miOhlcv({ query: { ...input.query, before: String(alignedBefore) }, env: input.env, fetchImpl: input.fetchImpl, now: input.now, ip: input.ip });
+      if (out.status !== 200) return null;
+      const list = (JSON.parse(out.body) as { data?: { attributes?: { ohlcv_list?: unknown[] } } }).data?.attributes?.ohlcv_list;
+      // Not kept in the shared answers: GeckoTerminal is asked again next time, and the cache time is the index's own.
+      return Array.isArray(list) && list.length > 0 ? out : null;
+    } catch {
+      return null;
+    }
+  };
   try {
     const rows = await pending;
+    if (rows.length === 0) {
+      const own = await fromIndex();
+      if (own) return own;
+    }
     if (answers.size >= MAX_ENTRIES) answers.clear();
     answers.set(key, { at: input.now, rows });
     return ok(rows, false);
@@ -123,6 +140,8 @@ export async function handleOhlcv(input: TokensInput): Promise<TokensOutput> {
     for (const [k, v] of answers) if (k.startsWith(family) && k.endsWith(tail) && input.now - v.at < STALE_MS && (!near || v.at > near.at)) near = v;
     const usable = near?.rows.filter((r) => r[0] <= alignedBefore).slice(0, limit) ?? [];
     if (usable.length > 0) return ok(usable, true);
+    const own = await fromIndex();
+    if (own) return own;
     // Say what the source answered (a status number, or null when it could not be reached), so a failure can be diagnosed
     // from the response instead of guessed at.
     const status = /source (\d+)/.exec(e instanceof Error ? e.message : '')?.[1];

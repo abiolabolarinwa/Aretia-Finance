@@ -68,7 +68,7 @@ describe('shared candles for the chart', () => {
     expect(u.searchParams.get('limit')).toBe('300');
     expect(u.searchParams.get('token')).toBe('base');
     expect(out.status).toBe(200);
-    expect(JSON.parse(out.body)).toEqual({ data: { attributes: { ohlcv_list: LIST } }, stale: false });
+    expect(JSON.parse(out.body)).toEqual({ data: { attributes: { ohlcv_list: LIST } }, source: 'geckoterminal', stale: false });
   });
 
   it('serves many visitors from one upstream request, even when their timestamps differ by a few seconds', async () => {

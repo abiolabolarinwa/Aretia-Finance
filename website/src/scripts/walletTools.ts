@@ -507,6 +507,16 @@ export function vetSwapInstructions(list: { role: 'swap' | 'support'; ix: PlainI
   return [...problems];
 }
 
+/**
+ * True when a simulated account is one the transaction closed. The token programs close an account by emptying its lamports, giving it
+ * to the system program and shrinking its data to nothing; the simulator can report that account as present with no data instead of
+ * as missing, so "missing" alone is not enough to recognise a closed account.
+ */
+export function isClosedAccount(account: { lamports: number | bigint; owner?: string } | null | undefined): boolean {
+  if (!account) return true;
+  return BigInt(account.lamports) === 0n && (account.owner === undefined || account.owner === SYSTEM_PROGRAM_ID);
+}
+
 /** The parts of a token account's data that say who controls it: owner, delegate, close authority. */
 export function tokenAccountControl(data: Uint8Array): { owner: Uint8Array; delegate: Uint8Array; closeAuthority: Uint8Array; mint: Uint8Array } | null {
   if (data.length < 165) return null;

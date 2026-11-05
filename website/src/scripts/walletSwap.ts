@@ -33,6 +33,7 @@ import {
   SYSTEM_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   tokenAccountOwnedBy,
+  isClosedAccount,
   tokenControlChange,
   transferCheckedInstruction,
   vetSwapInstructions,
@@ -359,10 +360,12 @@ export async function planSwap(args: PlanArgs): Promise<SwapPlan> {
     const before = pre.value[n];
     if (n === 0 || !isUserToken(before)) return;
     // No account of the wallet may get a new owner, delegate or close authority, whatever its balance does.
-    const changed = ran ? tokenControlChange(dataOf(before)!, dataOf(post[n])) : null;
+    // A token account the swap closes (Jupiter closes the wallet's wrapped SOL account) is reported as present with no data: it is closed, not changed.
+    const closed = isClosedAccount(post[n]);
+    const changed = ran ? tokenControlChange(dataOf(before)!, closed ? null : dataOf(post[n])) : null;
     if (changed) blockers.push(`The simulation shows this swap changing ${changed} for one of your token accounts. It was blocked.`);
     // The two accounts of the swap are judged below; a wSOL account that is closed has paid its SOL back into the wallet.
-    if (n === inIdx || n === outIdx || (isWsolAccount(dataOf(before)!) && !post[n])) return;
+    if (n === inIdx || n === outIdx || (isWsolAccount(dataOf(before)!) && closed)) return;
     others.push({ symbol: symbolOf(dataOf(before)!), pre: tokenAmount(before) ?? 0n, post: tokenAmount(post[n]) ?? 0n });
   });
   // A wallet reassigned to another program keeps its balance but is no longer the person's to spend.

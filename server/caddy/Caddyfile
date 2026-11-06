@@ -63,7 +63,7 @@
 	}
 	@rpc {
 		method POST
-		path_regexp rpc ^/rest/v1/rpc/(admin_bump|admin_prune_counters|aretia_prune|mi_claim_job|mi_delete_pools_from)$
+		path_regexp rpc ^/rest/v1/rpc/(admin_bump|admin_prune_counters|aretia_housekeeping|aretia_prune|mi_claim_job|mi_delete_pools_from|mi_prune_trades)$
 	}
 	@unsigned not header Authorization "Bearer *"
 

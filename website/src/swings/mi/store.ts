@@ -24,6 +24,8 @@ export interface PoolQuery {
   createdAfter?: number;
 }
 
+export type PoolOrder = 'newest' | 'recent-trade' | 'liquidity' | 'stale';
+
 export interface PoolPage {
   pools: MiPool[];
   nextCursor: string | null;
@@ -43,8 +45,11 @@ export interface MiStore {
   insertPool(p: MiPool): Promise<boolean>;
   getPools(keys: readonly string[]): Promise<Map<string, MiPool>>;
   updatePool(key: string, patch: Partial<MiPool>): Promise<void>;
-  /** Pools of one adapter in the given states, for swap following: newest created first, or most recently traded first. Paused pools are never returned. */
-  poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: 'newest' | 'recent-trade'): Promise<MiPool[]>;
+  /**
+   * Pools of one adapter in the given states: newest created first, most recently traded first, deepest liquidity first (pools without a
+   * known liquidity last), or least recently written first (for the reserves refresher). Paused pools are never returned.
+   */
+  poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: PoolOrder): Promise<MiPool[]>;
   /** Pools of one adapter whose history is not complete yet (see MiPool.historyDone), least recently updated first. */
   poolsNeedingHistory(adapterId: string, limit: number): Promise<MiPool[]>;
   listPools(q: PoolQuery): Promise<PoolPage>;
@@ -110,6 +115,9 @@ const tradeKey = (chain: string, pool: string, id: string): string => `${chain}|
 export class InMemoryMiStore implements MiStore {
   tokens = new Map<string, MiToken>();
   pools = new Map<string, MiPool>();
+  /** Order in which each pool was last written (for the 'stale' order). */
+  written = new Map<string, number>();
+  private seq = 0;
   trades = new Map<string, MiTrade>();
   tradeAdapter = new Map<string, string>();
   checkpoints = new Map<string, Checkpoint>();
@@ -157,6 +165,7 @@ export class InMemoryMiStore implements MiStore {
   async insertPool(p: MiPool): Promise<boolean> {
     if (this.pools.has(p.key)) return false;
     this.pools.set(p.key, { ...p });
+    this.written.set(p.key, ++this.seq);
     return true;
   }
   async getPools(keys: readonly string[]): Promise<Map<string, MiPool>> {
@@ -169,12 +178,27 @@ export class InMemoryMiStore implements MiStore {
   }
   async updatePool(key: string, patch: Partial<MiPool>): Promise<void> {
     const p = this.pools.get(key);
-    if (p) Object.assign(p, patch);
+    if (p) {
+      Object.assign(p, patch);
+      this.written.set(key, ++this.seq);
+    }
   }
-  async poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: 'newest' | 'recent-trade'): Promise<MiPool[]> {
+  async poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: PoolOrder): Promise<MiPool[]> {
+    const rank = (p: MiPool): number => {
+      switch (order) {
+        case 'newest':
+          return p.createdBlock;
+        case 'recent-trade':
+          return p.lastTradeAt ?? 0;
+        case 'liquidity':
+          return p.stats?.liquidityUsd ?? -1;
+        case 'stale':
+          return -(this.written.get(p.key) ?? 0);
+      }
+    };
     return [...this.pools.values()]
-      .filter((p) => p.adapterId === adapterId && states.includes(p.state) && !p.paused && (order === 'newest' || p.lastTradeAt !== null))
-      .sort((a, b) => (order === 'newest' ? b.createdBlock - a.createdBlock : (b.lastTradeAt ?? 0) - (a.lastTradeAt ?? 0)) || (a.key < b.key ? -1 : 1))
+      .filter((p) => p.adapterId === adapterId && states.includes(p.state) && !p.paused && (order !== 'recent-trade' || p.lastTradeAt !== null))
+      .sort((a, b) => rank(b) - rank(a) || (a.key < b.key ? -1 : 1))
       .slice(0, limit)
       .map((p) => ({ ...p }));
   }

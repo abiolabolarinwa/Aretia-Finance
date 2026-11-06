@@ -1,0 +1,8 @@
+[Unit]
+Description=Aretia disk space check
+
+[Service]
+Type=oneshot
+User=aretia
+WorkingDirectory=/opt/aretia/server
+ExecStart=/opt/aretia/server/bin/check-disk.sh

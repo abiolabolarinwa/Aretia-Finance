@@ -1,0 +1,95 @@
+# The only public entry. Everything the site needs from the data service lives under /rest/v1/ (the path Supabase uses), so the site
+# switches by changing SUPABASE_URL alone: Caddy strips /rest/v1 and hands the rest to PostgREST.
+#
+# What is reachable from the internet:
+#   GET  /healthz                          "ok" while PostgREST and the database answer (for the uptime pinger)
+#   *    /rest/v1/<table or view>          only the names in @data below (a test keeps this list equal to the migrations)
+#   POST /rest/v1/rpc/<function>           only the names in @rpc below
+# Everything else, including /rest/v1/ itself (PostgREST's schema listing), the storage paths and the admin port, answers 404.
+# The database port is never published. Requests need a signed key in the Authorization header; PostgREST checks the signature.
+
+{
+	order rate_limit before basicauth
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS} {
+	request_body {
+		max_size {$MAX_BODY}
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20MiB
+			roll_keep 3
+		}
+		format filter {
+			wrap json
+			request>headers>Authorization delete
+			request>headers>Apikey delete
+			request>headers>Cookie delete
+		}
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Cache-Control "no-store"
+	}
+
+	rate_limit {
+		zone per_ip {
+			key {remote_host}
+			events {$RATE_PER_MINUTE}
+			window 1m
+		}
+	}
+
+	handle /healthz {
+		rewrite * /ready
+		reverse_proxy postgrest:3001
+	}
+
+	@data {
+		method GET HEAD POST PATCH DELETE
+		path_regexp data ^/rest/v1/(account_sessions|admin_counters|auth_nonces|discovery_cursors|launchbox_cursors|launchbox_tokens|mi_audit|mi_block_hashes|mi_checkpoints|mi_controls|mi_health|mi_jobs|mi_pools|mi_tokens|mi_trades|notify_channels|notify_inbox|notify_links|notify_prefs|notify_state|pool_ticks|referral_bindings|referral_credits|referral_revocations|swings_events|swings_records|swings_shadow_summary|token_registry|tracked_pools|user_favourites|user_price_orders|user_trades)$
+	}
+	@rpc {
+		method POST
+		path_regexp rpc ^/rest/v1/rpc/(admin_bump|admin_prune_counters|aretia_prune|mi_claim_job|mi_delete_pools_from)$
+	}
+	@unsigned not header Authorization "Bearer *"
+
+	handle @data {
+		respond @unsigned 401
+		uri strip_prefix /rest/v1
+		reverse_proxy postgrest:3000
+	}
+	handle @rpc {
+		respond @unsigned 401
+		uri strip_prefix /rest/v1
+		reverse_proxy postgrest:3000
+	}
+
+	handle {
+		respond 404
+	}
+}
+
+# Private listener for the worker container on the compose network (port 8080 is not published). No rate limit, no key check here:
+# PostgREST still checks the signed key. It accepts any table, because the worker is trusted code of ours.
+:8080 {
+	handle_path /rest/v1/* {
+		reverse_proxy postgrest:3000
+	}
+	handle {
+		respond 404
+	}
+}

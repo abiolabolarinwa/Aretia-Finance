@@ -26,6 +26,13 @@ import { EVM_META_CHAINS, JSON_MAX_BYTES, UPLOAD_LIMITS, bucketProblem, hasMeta,
 import type { TokensEnv } from './_swingsTokens.js';
 
 export interface UploadEnv extends TokensEnv {
+  /**
+   * Where the picture bucket lives, when that is not where the database is. Both fall back to SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY,
+   * so a site that moves its database to another server (server/README.md) keeps its pictures on Supabase Storage by setting these two
+   * to the Supabase project's values until the pictures move to object storage.
+   */
+  STORAGE_URL?: string;
+  STORAGE_SERVICE_ROLE_KEY?: string;
   LAUNCH_ASSETS_BUCKET?: string;
   SWINGS_SESSION_SECRET?: string;
 }
@@ -69,8 +76,8 @@ export const bucketOf = (env: UploadEnv): string => {
 };
 
 function config(env: UploadEnv): { base: string; key: string; bucket: string } | null {
-  const base = supabaseBase(env.SUPABASE_URL);
-  const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const base = supabaseBase(env.STORAGE_URL?.trim() ? env.STORAGE_URL : env.SUPABASE_URL);
+  const key = (env.STORAGE_SERVICE_ROLE_KEY?.trim() ? env.STORAGE_SERVICE_ROLE_KEY : env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
   return base && key ? { base, key, bucket: bucketOf(env) } : null;
 }
 

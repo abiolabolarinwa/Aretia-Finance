@@ -1,6 +1,6 @@
 /**
  * MiStore over Supabase's PostgREST interface (plain fetch, service-role key, server side only). Schema: migration 0017.
- * Idempotence relies on primary keys with `resolution=ignore-duplicates`; counts of what was new come from `return=representation`.
+ * Idempotence relies on primary keys with `resolution=ignore-duplicates`; counts of what was new come from `return=representation` with `select=` limited to the key, so the echo is a few bytes a row, not the row.
  */
 import type { MiChain } from './chains.js';
 import { supabaseHeaders } from '../tokens/supabaseAuth.js';
@@ -20,6 +20,10 @@ const nz = (v: unknown): number => n(v) ?? 0;
 const q = (v: string): string => `"${v.replace(/[^A-Za-z0-9:._-]/g, '')}"`;
 /** A value after a plain `eq.`: PostgREST takes quote marks there literally (the value would then match nothing), so none are added. */
 const plain = (v: string): string => v.replace(/[^A-Za-z0-9:._-]/g, '');
+/** Every pool column except `stats` (a large jsonb, rewritten on each refresh). Used where the caller does not read the stats. */
+const POOL_LIGHT = 'key,chain,address,adapter_id,dex,kind,fee_tier,base,quote,base_decimals,quote_decimals,base_is_token0,tick_spacing,history_block,history_done,hooks,base_vault,quote_vault,created_block,created_tx,created_at,state,state_reason,state_at,reserve_base,reserve_quote,reserve_block,first_trade_at,last_trade_at,paused';
+/** The trade columns that statistics and candles read (not the block hash). */
+const TRADE_LIGHT = 'chain,pool,id,block,time,side,base_amount,quote_amount,price,maker';
 const clampLimit = (v: number, max = 1000): number => Math.max(1, Math.min(max, Math.floor(v)));
 export const MAX_OFFSET = 5_000;
 
@@ -97,7 +101,7 @@ export class SupabaseMiStore implements MiStore {
 
   // ---- tokens
   async upsertToken(t: MiToken): Promise<boolean> {
-    const out = (await this.call('mi_tokens?on_conflict=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify([tokenToRow(t, this.now())]) })) as unknown[] | null;
+    const out = (await this.call('mi_tokens?on_conflict=key&select=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify([tokenToRow(t, this.now())]) })) as unknown[] | null;
     if (Array.isArray(out) && out.length > 0) return true;
     const k = encodeURIComponent(t.key);
     // Fill what was unknown and keep the earliest sighting; nothing known is overwritten.
@@ -131,7 +135,7 @@ export class SupabaseMiStore implements MiStore {
 
   // ---- pools
   async insertPool(p: MiPool): Promise<boolean> {
-    const out = (await this.call('mi_pools?on_conflict=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify([poolToRow(p, this.now())]) })) as unknown[] | null;
+    const out = (await this.call('mi_pools?on_conflict=key&select=key', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify([poolToRow(p, this.now())]) })) as unknown[] | null;
     return Array.isArray(out) && out.length > 0;
   }
   async getPools(keys: readonly string[]): Promise<Map<string, MiPool>> {
@@ -155,10 +159,10 @@ export class SupabaseMiStore implements MiStore {
     const list = states.map((s) => `"${s}"`).join(',');
     const ord = { newest: 'created_block.desc,key.asc', 'recent-trade': 'last_trade_at.desc.nullslast,key.asc', liquidity: 'liquidity_usd.desc.nullslast,key.asc', stale: 'updated_at.asc,key.asc' }[order];
     const extra = order === 'recent-trade' ? '&last_trade_at=not.is.null' : '';
-    return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&state=in.(${list})&paused=is.false${extra}&select=*&order=${ord}&limit=${clampLimit(limit, 1000)}`)).map(poolFromRow);
+    return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&state=in.(${list})&paused=is.false${extra}&select=${POOL_LIGHT}&order=${ord}&limit=${clampLimit(limit, 1000)}`)).map(poolFromRow);
   }
   async poolsNeedingHistory(adapterId: string, limit: number): Promise<MiPool[]> {
-    return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&history_done=is.false&paused=is.false&select=*&order=updated_at.asc&limit=${clampLimit(limit, 50)}`)).map(poolFromRow);
+    return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&history_done=is.false&paused=is.false&select=${POOL_LIGHT}&order=updated_at.asc&limit=${clampLimit(limit, 50)}`)).map(poolFromRow);
   }
   async listPools(query: PoolQuery): Promise<PoolPage> {
     const f: string[] = [];
@@ -213,26 +217,32 @@ export class SupabaseMiStore implements MiStore {
     let added = 0;
     for (let i = 0; i < trades.length; i += 500) {
       const body = trades.slice(i, i + 500).map((t) => ({ chain: t.chain, pool: t.pool, id: t.id, adapter_id: adapterId, block: t.block, block_hash: t.blockHash, time: t.time, side: t.side, base_amount: t.baseAmount, quote_amount: t.quoteAmount, price: t.price, maker: t.maker }));
-      const out = (await this.call('mi_trades?on_conflict=chain,pool,id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(body) })) as unknown[] | null;
+      const out = (await this.call('mi_trades?on_conflict=chain,pool,id&select=id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(body) })) as unknown[] | null;
       added += Array.isArray(out) ? out.length : 0;
     }
     return added;
   }
-  private tradeFromRow = (r: Row): MiTrade => ({ chain: r.chain as MiChain, pool: String(r.pool), id: String(r.id), block: nz(r.block), blockHash: String(r.block_hash), time: nz(r.time), side: r.side as 'buy' | 'sell', baseAmount: String(r.base_amount), quoteAmount: String(r.quote_amount), price: String(r.price), maker: String(r.maker) });
+  private tradeFromRow = (r: Row): MiTrade => ({ chain: r.chain as MiChain, pool: String(r.pool), id: String(r.id), block: nz(r.block), blockHash: String(r.block_hash ?? ''), time: nz(r.time), side: r.side as 'buy' | 'sell', baseAmount: String(r.base_amount), quoteAmount: String(r.quote_amount), price: String(r.price), maker: String(r.maker) });
   async recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]> {
     const b = before !== undefined ? `&time=lt.${Math.floor(before)}` : '';
-    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}${b}&select=*&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
+    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}${b}&select=${TRADE_LIGHT}&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
   }
   async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
-    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}&select=*&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
+    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}&select=${TRADE_LIGHT}&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
   }
   async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
-    const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=lt.${Math.floor(beforeSec)}&select=*&order=time.desc,block.desc,id.desc&limit=1`);
+    const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=lt.${Math.floor(beforeSec)}&select=${TRADE_LIGHT}&order=time.desc,block.desc,id.desc&limit=1`);
     return r[0] ? this.tradeFromRow(r[0]) : null;
   }
   async pruneTrades(beforeSec: number, limit: number): Promise<number> {
-    // PostgREST cannot delete with a limit, so the oldest rows' keys are read first and removed by key.
-    const old = await this.rows(`mi_trades?time=lt.${Math.floor(beforeSec)}&select=chain,pool,id&order=time.asc&limit=${clampLimit(limit, 2_000)}`);
+    // One call: the database deletes the oldest rows itself (migration 0021, mi_prune_trades) and answers with the count.
+    try {
+      return nz(await this.call('rpc/mi_prune_trades', { method: 'POST', body: JSON.stringify({ p_before: Math.floor(beforeSec), p_limit: clampLimit(limit, 20_000) }) }));
+    } catch (e) {
+      if (!(e instanceof MiMissingTableError) && !(e instanceof Error && /answered (404|400)\./.test(e.message))) throw e;
+    }
+    // Before migration 0021: PostgREST cannot delete with a limit, so the oldest rows' keys are read first and removed one by one (slow, and each is a request).
+    const old = await this.rows(`mi_trades?time=lt.${Math.floor(beforeSec)}&select=chain,pool,id&order=time.asc&limit=${clampLimit(limit, 200)}`);
     let n = 0;
     for (const r of old) {
       await this.call(`mi_trades?chain=eq.${plain(String(r.chain))}&pool=eq.${plain(String(r.pool))}&id=eq.${plain(String(r.id))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
@@ -252,7 +262,7 @@ export class SupabaseMiStore implements MiStore {
   // ---- progress
   async getCheckpoint(adapterId: string): Promise<Checkpoint | null> {
     const r = (await this.rows(`mi_checkpoints?adapter_id=eq.${encodeURIComponent(adapterId)}&select=*&limit=1`))[0];
-    return r ? { adapterId: String(r.adapter_id), block: nz(r.block), blockHash: String(r.block_hash), updatedAt: nz(r.updated_at) } : null;
+    return r ? { adapterId: String(r.adapter_id), block: nz(r.block), blockHash: String(r.block_hash ?? ''), updatedAt: nz(r.updated_at) } : null;
   }
   async setCheckpoint(c: Checkpoint): Promise<void> {
     await this.call('mi_checkpoints?on_conflict=adapter_id', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ adapter_id: c.adapterId, block: c.block, block_hash: c.blockHash, updated_at: c.updatedAt }) });
@@ -273,6 +283,10 @@ export class SupabaseMiStore implements MiStore {
   }
   async putHealth(h: AdapterHealth): Promise<void> {
     await this.call('mi_health?on_conflict=adapter_id', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ adapter_id: h.adapterId, data: h, updated_at: h.lastRunAt }) });
+  }
+  async getHealth(adapterId: string): Promise<AdapterHealth | null> {
+    const r = (await this.rows(`mi_health?adapter_id=eq.${encodeURIComponent(adapterId)}&select=data&limit=1`))[0];
+    return r ? (r.data as AdapterHealth) : null;
   }
   async listHealth(): Promise<AdapterHealth[]> {
     return (await this.rows('mi_health?select=data&limit=200')).map((r) => r.data as AdapterHealth);

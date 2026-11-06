@@ -51,13 +51,13 @@ describe('runner', () => {
     const store = new InMemoryMiStore();
     const nowMs = 1_800_000_000_000;
     const t = (id: string, daysAgo: number) => ({ chain: 'bnb' as const, pool: '0xp', id, block: 1, blockHash: '0x', time: Math.floor(nowMs / 1000) - daysAgo * 86_400, side: 'buy' as const, baseAmount: '1', quoteAmount: '1', price: '1', maker: 'm' });
-    await store.putTrades('a', [t('old', 40), t('mid', 20), t('new', 1)]);
+    await store.putTrades('a', [t('old', 20), t('mid', 8), t('new', 1)]);
     const chain = new FakeChain();
     chain.mineEmpty(3);
     const r = await runAll({ env: { MI_ADAPTERS: '' }, store, now: () => nowMs, budgetMs: 10_000, readFor: () => chain.read });
     expect(r.pruned).toBe(1);
     expect([...store.trades.values()].map((x) => x.id).sort()).toEqual(['mid', 'new']);
-    const short = await runAll({ env: { MI_ADAPTERS: '', MI_TRADE_RETENTION_DAYS: '10' }, store, now: () => nowMs, budgetMs: 10_000, readFor: () => chain.read });
+    const short = await runAll({ env: { MI_ADAPTERS: '', MI_TRADE_RETENTION_DAYS: '5' }, store, now: () => nowMs, budgetMs: 10_000, readFor: () => chain.read });
     expect(short.pruned).toBe(1);
     expect(store.trades.size).toBe(1);
   });

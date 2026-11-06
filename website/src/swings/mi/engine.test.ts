@@ -120,6 +120,23 @@ describe('engine: discovery', () => {
   });
 });
 
+describe('engine: re-reading pools that can change without a swap is throttled', () => {
+  it('does it on the first run, not again within the interval, and again after it', async () => {
+    const { chain, store, deps } = setup();
+    createPool(chain, POOL_W, WBNB, [0n, 0n]);
+    chain.mineEmpty(5);
+    const first = await runAdapter(deps);
+    expect(first.maintained).toBeGreaterThan(0);
+    chain.mineEmpty(2);
+    const second = await runAdapter(deps);
+    expect(second.maintained).toBeUndefined();
+    expect((await store.getHealth(deps.spec.id))?.stats.maintainedAt).toBeTypeOf('number');
+    chain.mineEmpty(2);
+    const third = await runAdapter({ ...deps, maintainEveryMs: 0 });
+    expect(third.maintained).toBeGreaterThan(0);
+  });
+});
+
 describe('engine: liquidity arriving later, and V3', () => {
   it('a pool funded after creation becomes active without needing a swap first', async () => {
     const { chain, store, deps } = setup();
@@ -129,7 +146,7 @@ describe('engine: liquidity arriving later, and V3', () => {
     expect([...store.pools.values()][0]!.state).toBe('awaiting_liquidity');
     chain.reserves.set(POOL_W, [1_000_000n * E18, 100n * E18]);
     chain.mineEmpty(3);
-    await runAdapter(deps);
+    await runAdapter({ ...deps, maintainEveryMs: 0 });
     expect([...store.pools.values()][0]!.state).toBe('active');
   });
 

@@ -81,6 +81,8 @@ export interface MiStore {
   pruneBlockHashes(adapterId: string, belowBlock: number): Promise<void>;
   putHealth(h: AdapterHealth): Promise<void>;
   listHealth(): Promise<AdapterHealth[]>;
+  /** One adapter's row (one small read, instead of the whole table). */
+  getHealth(adapterId: string): Promise<AdapterHealth | null>;
 
   // ---- controls, audit, jobs
   disabledAdapters(): Promise<Map<string, { reason: string; at: number }>>;
@@ -343,6 +345,10 @@ export class InMemoryMiStore implements MiStore {
   }
   async listHealth(): Promise<AdapterHealth[]> {
     return [...this.health.values()].map((h) => ({ ...h }));
+  }
+  async getHealth(adapterId: string): Promise<AdapterHealth | null> {
+    const h = this.health.get(adapterId);
+    return h ? { ...h } : null;
   }
 
   async disabledAdapters(): Promise<Map<string, { reason: string; at: number }>> {

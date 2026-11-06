@@ -6,7 +6,7 @@ import { chainConfig, type EvmMiChain } from './chains.js';
 import { allSpecs, SOLANA_SPECS, type DexAdapterSpec, type SolanaAdapterSpec } from './dexes.js';
 import { runSolanaAdapter, solUsdReader } from './solana/engine.js';
 import { deepenSolanaHistory } from './solana/track.js';
-import { deepenHistory } from './track.js';
+import { deepenHistory, DEFAULT_RETENTION_DAYS as TRACK_RETENTION_DAYS } from './track.js';
 import { runAdapter, type EngineDeps, type LaunchLookup, type RunReport } from './engine.js';
 import { DEFAULT_RULES, type ListingRules } from './lifecycle.js';
 import { nativeUsdReader } from './reference.js';
@@ -19,13 +19,16 @@ export interface RunnerEnv {
   MI_ADAPTERS?: string;
   MI_MIN_LIQUIDITY_USD?: string;
   MI_INACTIVE_AFTER_HOURS?: string;
-  /** Trades older than this many days are deleted (default 30). Candles and stats for older periods are then not available. */
+  /** Trades older than this many days are deleted (default 14). Candles and stats for older periods are then not available. */
   MI_TRADE_RETENTION_DAYS?: string;
   /** How many pools' swaps are followed per adapter: the newest created and the most recently traded (default 100 each). */
   MI_FOLLOW_NEWEST?: string;
   MI_FOLLOW_RECENT?: string;
   [k: string]: string | undefined;
 }
+
+/** Trades older than this are deleted (the database also does it hourly, migration 0021). Charts of up to two weeks stay whole. */
+export const DEFAULT_RETENTION_DAYS = TRACK_RETENTION_DAYS;
 
 /** What runs when nothing is configured: the adapters that were run end to end against a live network (see `live-verified` in dexes.ts). */
 export const DEFAULT_ADAPTERS = ['pancakeswap-v2-bnb', 'raydium-cpmm-solana', 'orca-whirlpool-solana', 'pumpswap-solana'];
@@ -83,7 +86,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const count = (v: string | undefined): number | undefined => (v !== undefined && Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2_000 ? Number(v) : undefined);
   const retentionDays = (): number => {
     const v = Number(d.env.MI_TRADE_RETENTION_DAYS);
-    return Number.isFinite(v) && v >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? v : 30;
+    return Number.isFinite(v) && v >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? v : DEFAULT_RETENTION_DAYS;
   };
   const runOne = async (spec: DexAdapterSpec | SolanaAdapterSpec, budgetMs: number): Promise<RunReport> => {
     // Most of the slice goes to the live run; a bounded part reads tracked pools' history further back (see track.ts).
@@ -140,8 +143,8 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   }
   // Retention: a bounded slice per run, so the table cannot grow without limit and no run is slowed by a big delete.
   const days = Number(d.env.MI_TRADE_RETENTION_DAYS);
-  const keepDays = Number.isFinite(days) && days >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? days : 30;
-  const pruned = d.now() - t0 < d.budgetMs ? await d.store.pruneTrades(Math.floor(d.now() / 1000) - keepDays * 86_400, 200).catch(() => 0) : 0;
+  const keepDays = Number.isFinite(days) && days >= 2 && d.env.MI_TRADE_RETENTION_DAYS !== undefined ? days : DEFAULT_RETENTION_DAYS;
+  const pruned = d.now() - t0 < d.budgetMs ? await d.store.pruneTrades(Math.floor(d.now() / 1000) - keepDays * 86_400, 2_000).catch(() => 0) : 0;
   return { adapters: out, job, pruned, durationMs: d.now() - t0 };
 }
 

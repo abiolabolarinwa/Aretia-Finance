@@ -128,11 +128,46 @@ describe('Supabase store request shapes', () => {
     expect(await none.store.insertPool(pool(1))).toBe(false);
   });
 
+  it('echoes only the key of inserted rows, and never reads the stats column for the followed pools', async () => {
+    const { calls, store } = stub({ 'mi_pools': [] });
+    await store.insertPool(pool(1));
+    expect(calls[0]!.url).toContain('select=key');
+    await store.poolsOfAdapter('a1', ['active'], 100, 'newest');
+    expect(calls[1]!.url).not.toContain('select=*');
+    expect(calls[1]!.url).not.toMatch(/select=[^&]*stats/);
+    await store.tradesSince('bnb', '0xp', 1, 10);
+    expect(calls[2]!.url).not.toContain('select=*');
+    expect(calls[2]!.url).not.toContain('block_hash');
+  });
+
+  it('reads one health row instead of the whole table', async () => {
+    const { calls, store } = stub({ 'mi_health': [{ data: { adapterId: 'a1', stats: { maintainedAt: 5 } } }] });
+    expect((await store.getHealth('a1'))?.stats.maintainedAt).toBe(5);
+    expect(calls[0]!.url).toBe('mi_health?adapter_id=eq.a1&select=data&limit=1');
+  });
+
+  it('prunes old trades with one database call, and falls back to key-by-key deletes before migration 0021', async () => {
+    const one = stub({ 'rpc/mi_prune_trades': 7 });
+    expect(await one.store.pruneTrades(1000, 2000)).toBe(7);
+    expect(one.calls).toHaveLength(1);
+    expect(one.calls[0]!.url).toBe('rpc/mi_prune_trades');
+    const calls: string[] = [];
+    const fallbackFetch = (async (url: string, init: RequestInit = {}) => {
+      calls.push(`${init.method ?? 'GET'} ${url.replace('https://x.supabase.co/rest/v1/', '')}`);
+      if (url.includes('rpc/mi_prune_trades')) return new Response(JSON.stringify({ code: 'PGRST202', message: 'Could not find the function in the schema cache' }), { status: 404 });
+      if (url.includes('select=chain,pool,id')) return new Response(JSON.stringify([{ chain: 'bnb', pool: '0xp', id: 'a' }]), { status: 200 });
+      return new Response('', { status: 200 });
+    }) as unknown as typeof fetch;
+    const old = new SupabaseMiStore('https://x.supabase.co', 'sb_secret_test', fallbackFetch, () => 42);
+    expect(await old.pruneTrades(1000, 50)).toBe(1);
+    expect(calls.some((c) => c.startsWith('DELETE mi_trades?'))).toBe(true);
+  });
+
   it('writes trades idempotently on (chain,pool,id) and counts only the new ones', async () => {
     const { calls, store } = stub({ 'mi_trades': [{ id: 'a' }] });
     const t: MiTrade = { chain: 'bnb', pool: '0xp', id: 'a', block: 5, blockHash: '0xh', time: 9, side: 'sell', baseAmount: '123456789012345678901234567890', quoteAmount: '2', price: '0.1', maker: '0xm' };
     expect(await store.putTrades('a1', [t, { ...t, id: 'b' }])).toBe(1);
-    expect(calls[0]!.url).toBe('mi_trades?on_conflict=chain,pool,id');
+    expect(calls[0]!.url).toBe('mi_trades?on_conflict=chain,pool,id&select=id');
     expect((calls[0]!.body as Record<string, unknown>[])[0]).toMatchObject({ adapter_id: 'a1', base_amount: '123456789012345678901234567890' });
   });
 

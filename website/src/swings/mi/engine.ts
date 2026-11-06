@@ -22,7 +22,7 @@ import { parseRaw } from './math.js';
 import { RpcError, type Read } from './rpc.js';
 import { computeStats, type UsdContext } from './stats.js';
 import type { MiStore } from './store.js';
-import { poolKeyOf, tokenKeyOf, type MiPool, type MiToken, type MiTrade } from './types.js';
+import { poolKeyOf, tokenKeyOf, type AdapterHealth, type MiPool, type MiToken, type MiTrade } from './types.js';
 
 /** Looks up which of these token addresses Aretia Launch Box already holds. Read-only. */
 export interface LaunchLookup {
@@ -46,7 +46,11 @@ export interface EngineDeps {
   maintainWaiting?: number;
   maintainLive?: number;
   followRecent?: number;
+  /** Pools that can change without a swap are re-read at most this often per adapter (default 10 minutes). */
+  maintainEveryMs?: number;
 }
+
+export const MAINTAIN_EVERY_MS = 600_000;
 
 export interface RunReport {
   adapterId: string;
@@ -80,9 +84,12 @@ class ChunkAbort extends Error {}
 export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; to: number }; onProgress?: (doneBlock: number) => Promise<void> } = {}): Promise<RunReport> {
   const t0 = d.now();
   const report: RunReport = { adapterId: d.spec.id, ok: true, skipped: null, head: null, safeHead: null, fromBlock: null, toBlock: null, lagBlocks: null, creations: 0, poolsNew: 0, tokensNew: 0, swapsSeen: 0, tradesNew: 0, skippedLogs: 0, reorg: null, error: null, durationMs: 0 };
+  // One small read of this adapter's own health row (it holds when the pools were last re-read); recordHealth reuses it.
+  let prev: AdapterHealth | null = null;
+  let maintainedAt: number | null = null;
   const finish = async (): Promise<RunReport> => {
     report.durationMs = d.now() - t0;
-    await recordHealth(d, report).catch(() => undefined);
+    await recordHealth(d, report, prev, maintainedAt).catch(() => undefined);
     return report;
   };
   if ((await d.store.disabledAdapters()).has(d.spec.id)) {
@@ -90,6 +97,8 @@ export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; 
     return finish();
   }
   try {
+    prev = await d.store.getHealth(d.spec.id);
+    maintainedAt = prev?.stats?.maintainedAt ?? null;
     const head = await getHead(d.read);
     const safe = head - d.chain.confirmations;
     report.head = head;
@@ -120,9 +129,11 @@ export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; 
     const limit = opts.range ? Math.min(opts.range.to, safe) : safe;
     report.fromBlock = from;
     const deadline = t0 + (d.budgetMs ?? 40_000);
-    const follow = await followedPools(d);
+    // The followed pools are read only when there is a block range to read, so a run with nothing new costs almost nothing.
+    let follow: Follow | null = null;
 
     while (from <= limit && d.now() < deadline) {
+      follow ??= await followedPools(d);
       const to = Math.min(from + d.chain.maxRange - 1, limit);
       const chunk = await processChunk(d, from, to, follow, report);
       report.toBlock = to;
@@ -136,7 +147,10 @@ export async function runAdapter(d: EngineDeps, opts: { range?: { from: number; 
       from = to + 1;
     }
     // A pool can be funded, drained or go quiet without a swap to tell us: re-read the newest waiting pools and the busiest live ones.
-    if (!opts.range) await maintain(d, report);
+    if (!opts.range && (maintainedAt === null || d.now() - maintainedAt >= (d.maintainEveryMs ?? MAINTAIN_EVERY_MS))) {
+      await maintain(d, report);
+      maintainedAt = d.now();
+    }
     if (report.toBlock === null) report.skipped = 'up-to-date';
     const reached = report.toBlock ?? (from - 1);
     report.lagBlocks = Math.max(0, head - reached);
@@ -407,7 +421,8 @@ export async function refreshPool(d: EngineDeps, pool: MiPool, newTrades: MiTrad
     patch.stateAt = now;
   }
   await d.store.updatePool(live.key, patch);
-  if (first !== null) await d.store.setTokenFirstTrade(tokenKeyOf(live.chain, live.base), first);
+  // Only when the first trade actually moved: otherwise the write is a request that changes nothing.
+  if (first !== null && first !== stored.firstTradeAt) await d.store.setTokenFirstTrade(tokenKeyOf(live.chain, live.base), first);
 }
 
 /** Re-evaluates pools whose state can change without a swap. Bounded: a handful of reads per run. */
@@ -455,8 +470,7 @@ export async function rewind(d: EngineDeps, from: number): Promise<{ forkBlock: 
 
 // ---------------------------------------------------------------------------------------------- health
 
-async function recordHealth(d: EngineDeps, r: RunReport): Promise<void> {
-  const prev = (await d.store.listHealth()).find((h) => h.adapterId === d.spec.id);
+async function recordHealth(d: EngineDeps, r: RunReport, prev: AdapterHealth | null, maintainedAt: number | null): Promise<void> {
   const cp = await d.store.getCheckpoint(d.spec.id);
   const now = d.now();
   await d.store.putHealth({
@@ -470,7 +484,7 @@ async function recordHealth(d: EngineDeps, r: RunReport): Promise<void> {
     lastSuccessAt: r.ok ? now : (prev?.lastSuccessAt ?? null),
     lastError: r.ok ? null : r.error,
     consecutiveFailures: r.ok ? 0 : (prev?.consecutiveFailures ?? 0) + 1,
-    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, skippedLogs: r.skippedLogs, durationMs: r.durationMs, reorgs: r.reorg ? 1 : 0 },
+    stats: { creations: r.creations, poolsNew: r.poolsNew, tokensNew: r.tokensNew, swapsSeen: r.swapsSeen, tradesNew: r.tradesNew, skippedLogs: r.skippedLogs, durationMs: r.durationMs, reorgs: r.reorg ? 1 : 0, ...(maintainedAt !== null ? { maintainedAt } : {}) },
   });
 }
 

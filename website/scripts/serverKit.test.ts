@@ -9,7 +9,6 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error plain .mjs without types
 import { signKey } from '../../server/bin/make-keys.mjs';
 
 const server = resolve(__dirname, '../../server');

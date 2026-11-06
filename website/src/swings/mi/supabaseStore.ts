@@ -4,7 +4,7 @@
  */
 import type { MiChain } from './chains.js';
 import { supabaseHeaders } from '../tokens/supabaseAuth.js';
-import { decodeCursor, encodeCursor, type MiStore, type PoolPage, type PoolQuery } from './store.js';
+import { decodeCursor, encodeCursor, type MiStore, type PoolOrder, type PoolPage, type PoolQuery } from './store.js';
 import type { AdapterHealth, AuditEntry, BackfillJob, Checkpoint, MiPool, MiToken, MiTrade, PoolState } from './types.js';
 
 export class MiMissingTableError extends Error {
@@ -151,9 +151,9 @@ export class SupabaseMiStore implements MiStore {
     }
     await this.call(`mi_pools?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(body) });
   }
-  async poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: 'newest' | 'recent-trade'): Promise<MiPool[]> {
+  async poolsOfAdapter(adapterId: string, states: readonly PoolState[], limit: number, order: PoolOrder): Promise<MiPool[]> {
     const list = states.map((s) => `"${s}"`).join(',');
-    const ord = order === 'newest' ? 'created_block.desc,key.asc' : 'last_trade_at.desc.nullslast,key.asc';
+    const ord = { newest: 'created_block.desc,key.asc', 'recent-trade': 'last_trade_at.desc.nullslast,key.asc', liquidity: 'liquidity_usd.desc.nullslast,key.asc', stale: 'updated_at.asc,key.asc' }[order];
     const extra = order === 'recent-trade' ? '&last_trade_at=not.is.null' : '';
     return (await this.rows(`mi_pools?adapter_id=eq.${encodeURIComponent(adapterId)}&state=in.(${list})&paused=is.false${extra}&select=*&order=${ord}&limit=${clampLimit(limit, 1000)}`)).map(poolFromRow);
   }

@@ -232,7 +232,7 @@ async function trending(store: MiStore, req: ApiRequest): Promise<ApiResponse> {
   if (isResponse(chain)) return chain;
   const page = await store.listPools({ sort: 'volume24h', limit: 100, chain, states: ['active'] });
   const scored = page.pools
-    .filter((p) => !p.paused && p.stats)
+    .filter((p) => !p.paused && p.stats && !p.stats.reservesOnly)
     .map((p) => ({ p, score: trendingScore({ stats: p.stats!, createdAt: p.createdAt, now: req.now }) }))
     .filter((x): x is { p: MiPool; score: number } => x.score !== null)
     .sort((x, y) => y.score - x.score)
@@ -260,7 +260,7 @@ async function ranked(store: MiStore, req: ApiRequest, which: 'top' | 'gainers')
   if (which === 'top') {
     const page = await store.listPools({ sort: 'volume24h', limit, cursor: req.query.cursor ?? null, chain, states: ['active'] });
     const tokens = await tokensFor(store, page.pools);
-    return ok(page.pools.filter((p) => p.stats).map((p) => poolDto(p, tokens, req.now)), req.now, 15, { nextCursor: page.nextCursor, limit });
+    return ok(page.pools.filter((p) => p.stats && !p.stats.reservesOnly).map((p) => poolDto(p, tokens, req.now)), req.now, 15, { nextCursor: page.nextCursor, limit });
   }
   const win = (req.query.window ?? 'h24') as WindowKey;
   if (!WINDOWS_OK.includes(win)) return err(400, 'bad-window', `window must be one of: ${WINDOWS_OK.join(', ')}.`);
@@ -268,7 +268,7 @@ async function ranked(store: MiStore, req: ApiRequest, which: 'top' | 'gainers')
   const rows = page.pools
     .filter((p) => {
       const s = p.stats;
-      if (!s || req.now - p.createdAt < GAINERS.minAgeMs) return false;
+      if (!s || s.reservesOnly || req.now - p.createdAt < GAINERS.minAgeMs) return false;
       const change = s.change[win];
       return change !== null && change > 0 && (s.liquidityUsd ?? 0) >= GAINERS.minLiquidityUsd && s.buys.h24 + s.sells.h24 >= GAINERS.minTrades24h && s.makers24h >= GAINERS.minMakers24h;
     })

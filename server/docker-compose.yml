@@ -1,4 +1,4 @@
-# Aretia data server: Postgres 16 + PostgREST + Caddy + scheduler. (The long-running indexer worker is added to this file in phase 2.)
+# Aretia data server: Postgres 16 + PostgREST + Caddy + scheduler. The indexer worker is a separate profile.
 # Everything is configured by the .env file next to this one (see .env.example; `node bin/make-keys.mjs` creates it).
 # Only Caddy listens on the public internet (ports 80 and 443). Postgres is bound to 127.0.0.1 so only this machine can reach it.
 name: aretia
@@ -108,6 +108,40 @@ services:
     volumes:
       - ./worker/scheduler.mjs:/app/scheduler.mjs:ro
     command: ["node", "/app/scheduler.mjs"]
+    logging: *logs
+
+  # The Market Indexer as a long-running worker (no 45 second limit). Start it with:  docker compose --profile worker up -d --build worker
+  # Do not also let the scheduler call the HTTP run (SCHEDULER_JOBS must not contain `mi`): both are safe together but do double work.
+  worker:
+    profiles: ["worker"]
+    build:
+      context: ..
+      dockerfile: server/worker/Dockerfile
+      target: worker
+    restart: unless-stopped
+    stop_grace_period: 90s     # lets the running slice finish and checkpoint (MI_WORKER_GRACE_SECONDS is 75)
+    depends_on:
+      postgrest: { condition: service_started }
+      caddy: { condition: service_started }
+    environment:
+      # PostgREST on the private network through Caddy's internal-only listener (no rate limit, not reachable from the internet).
+      SUPABASE_URL: http://caddy:8080
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?set SERVICE_ROLE_KEY in .env}
+      MI_ADAPTERS: ${MI_ADAPTERS:-}
+      MI_RPC_BNB: ${MI_RPC_BNB:-}
+      MI_RPC_ETHEREUM: ${MI_RPC_ETHEREUM:-}
+      MI_RPC_POLYGON: ${MI_RPC_POLYGON:-}
+      MI_RPC_BASE: ${MI_RPC_BASE:-}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
+      MI_BACKFILL_DAYS: ${MI_BACKFILL_DAYS:-0}
+      MI_BACKFILL_ADAPTERS: ${MI_BACKFILL_ADAPTERS:-}
+      MI_BACKFILL_MIN_LIQUIDITY_USD: ${MI_BACKFILL_MIN_LIQUIDITY_USD:-}
+      MI_REFRESH: ${MI_REFRESH:-1}
+      MI_MIN_LIQUIDITY_USD: ${MI_MIN_LIQUIDITY_USD:-}
+      MI_INACTIVE_AFTER_HOURS: ${MI_INACTIVE_AFTER_HOURS:-}
+      MI_FOLLOW_NEWEST: ${MI_FOLLOW_NEWEST:-}
+      MI_FOLLOW_RECENT: ${MI_FOLLOW_RECENT:-}
+      MI_TRADE_RETENTION_DAYS: ${MI_TRADE_RETENTION_DAYS:-}
     logging: *logs
 
 volumes:

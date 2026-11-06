@@ -100,6 +100,11 @@ export interface PoolStats {
   makers24h: number;
   liquidityQuote: number | null;
   liquidityUsd: number | null;
+  /**
+   * Set when these stats hold only the pool's liquidity, read from its reserves, because no trade of the pool is stored. Price, price
+   * change, volume and transaction counts are then not known and are shown as absent, never as zero. The first stored trade replaces it.
+   */
+  reservesOnly?: boolean;
 }
 
 export interface MiTrade {

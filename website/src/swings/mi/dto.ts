@@ -65,6 +65,8 @@ const pct = (bps: number | null | undefined): number | null => (bps === null || 
 
 export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): PoolDto {
   const s = p.stats;
+  // Liquidity-only stats (no stored trade): the trade-derived fields are absent, not zero.
+  const t = s && !s.reservesOnly ? s : null;
   const quoteTokens = isMiChain(p.chain) ? chainConfig(p.chain).quoteTokens : [];
   const quotes = quoteTokens.map((q) => q.address);
   return {
@@ -81,10 +83,10 @@ export function poolDto(p: MiPool, tokens: Map<string, MiToken>, now: number): P
     ageSeconds: p.createdAt > 0 ? Math.max(0, Math.floor((now - p.createdAt) / 1000)) : null,
     base: tokenDto(tokens.get(`${p.chain}:${p.base}`), p.base, p.baseDecimals, quotes.includes(p.base)),
     quote: tokenDto(tokens.get(`${p.chain}:${p.quote}`), p.quote, p.quoteDecimals, quotes.includes(p.quote)),
-    price: { quote: s?.price ?? null, usd: s?.priceUsd ?? null },
-    changePct: { m5: pct(s?.change.m5), h1: pct(s?.change.h1), h6: pct(s?.change.h6), h24: pct(s?.change.h24) },
-    volume: { quote: s?.volumeQuote ?? null, usd: s?.volumeUsd ?? null },
-    txns: { buys: s?.buys ?? null, sells: s?.sells ?? null },
+    price: { quote: t?.price ?? null, usd: t?.priceUsd ?? null },
+    changePct: { m5: pct(t?.change.m5), h1: pct(t?.change.h1), h6: pct(t?.change.h6), h24: pct(t?.change.h24) },
+    volume: { quote: t?.volumeQuote ?? null, usd: t?.volumeUsd ?? null },
+    txns: { buys: t?.buys ?? null, sells: t?.sells ?? null },
     liquidity: { quote: s?.liquidityQuote ?? null, usd: s?.liquidityUsd ?? null },
     firstTradeAt: iso(p.firstTradeAt),
     lastTradeAt: iso(p.lastTradeAt),

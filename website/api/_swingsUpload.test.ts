@@ -102,7 +102,7 @@ describe('storage kept apart from the database', () => {
     const w = world();
     const r = await call(w, { op: 'status' }, { authorization: null, env: { SUPABASE_URL: 'https://data.example.org', SUPABASE_SERVICE_ROLE_KEY: 'db-key', STORAGE_URL: BASE, STORAGE_SERVICE_ROLE_KEY: KEY } });
     expect(r.data).toEqual({ enabled: true });
-    expect(w.calls.every((c) => !c.includes('data.example.org'))).toBe(true);
+    expect(w.calls.every((c) => new URL(c.split(' ')[1]!).host !== 'data.example.org')).toBe(true);
   });
 });
 

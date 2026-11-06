@@ -64,9 +64,14 @@ export function resetMiCache(): void {
   cache.clear();
 }
 
-function storeFor(env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }, fetchImpl: typeof fetch, now: () => number): MiStore | null {
-  const url = supabaseBase(env.SUPABASE_URL);
-  const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+/**
+ * The indexer's tables (mi_*) may live on another data service than the rest of the site (server/README.md, cut-over step 1): when
+ * MI_DATA_URL and MI_DATA_SERVICE_ROLE_KEY are set they are used for the indexer only; otherwise SUPABASE_URL and the service key, as before.
+ */
+function storeFor(env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; MI_DATA_URL?: string; MI_DATA_SERVICE_ROLE_KEY?: string }, fetchImpl: typeof fetch, now: () => number): MiStore | null {
+  const own = Boolean(env.MI_DATA_URL?.trim() && env.MI_DATA_SERVICE_ROLE_KEY?.trim());
+  const url = supabaseBase(own ? env.MI_DATA_URL : env.SUPABASE_URL);
+  const key = (own ? env.MI_DATA_SERVICE_ROLE_KEY : env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
   return url && key ? new SupabaseMiStore(url, key, fetchImpl, now) : null;
 }
 

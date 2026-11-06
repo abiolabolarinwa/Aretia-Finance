@@ -97,6 +97,15 @@ describe('status', () => {
   });
 });
 
+describe('storage kept apart from the database', () => {
+  it('uses STORAGE_URL and STORAGE_SERVICE_ROLE_KEY when set, so a database on another server leaves pictures where they are', async () => {
+    const w = world();
+    const r = await call(w, { op: 'status' }, { authorization: null, env: { SUPABASE_URL: 'https://data.example.org', SUPABASE_SERVICE_ROLE_KEY: 'db-key', STORAGE_URL: BASE, STORAGE_SERVICE_ROLE_KEY: KEY } });
+    expect(r.data).toEqual({ enabled: true });
+    expect(w.calls.every((c) => !c.includes('data.example.org'))).toBe(true);
+  });
+});
+
 describe('sign', () => {
   it('needs a wallet sign-in', async () => {
     expect((await call(world(), image, { authorization: null })).status).toBe(401);

@@ -1,0 +1,116 @@
+# Aretia data server: Postgres 16 + PostgREST + Caddy + scheduler. (The long-running indexer worker is added to this file in phase 2.)
+# Everything is configured by the .env file next to this one (see .env.example; `node bin/make-keys.mjs` creates it).
+# Only Caddy listens on the public internet (ports 80 and 443). Postgres is bound to 127.0.0.1 so only this machine can reach it.
+name: aretia
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: aretia
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?set AUTHENTICATOR_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    shm_size: 256mb
+    # Tuned for an 8 GB machine that also runs the other containers. Lower shared_buffers if you rent less memory.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1536MB
+      - -c
+      - effective_cache_size=4GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - max_connections=60
+      - -c
+      - log_min_duration_statement=2000
+      - -c
+      - log_statement=none
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aretia"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: &logs
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # One-shot: applies website/supabase/migrations/*.sql in order with the repo's own runner (checksummed, one at a time).
+  # Run again after every update: `docker compose run --rm migrate` (bin/update.sh does it).
+  migrate:
+    build:
+      context: ..
+      dockerfile: server/worker/Dockerfile
+      target: tools
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/aretia?sslmode=disable
+    command: ["node", "scripts/apply-migrations.ts"]
+    logging: *logs
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/aretia
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      PGRST_DB_MAX_ROWS: "1000"            # Supabase's default, which the site's paging assumes
+      PGRST_DB_POOL: "12"
+      PGRST_SERVER_HOST: 0.0.0.0
+      PGRST_SERVER_PORT: "3000"
+      PGRST_ADMIN_SERVER_PORT: "3001"      # /live and /ready, reachable only inside the compose network
+    # No published ports: Caddy is the only way in.
+    logging: *logs
+
+  caddy:
+    build:
+      context: ./caddy
+    restart: unless-stopped
+    depends_on:
+      - postgrest
+    environment:
+      SITE_ADDRESS: ${DATA_HOSTNAME:?set DATA_HOSTNAME in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      RATE_PER_MINUTE: ${RATE_PER_MINUTE:-1200}
+      MAX_BODY: ${MAX_BODY:-2MB}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *logs
+
+  # Replaces pg_cron + pg_net. Calls the site's scheduled endpoints on time (alerts every minute, Launch Box every five).
+  scheduler:
+    image: node:24-alpine
+    restart: unless-stopped
+    environment:
+      SITE_URL: ${SITE_URL:-https://aretiafinance.org}
+      CRON_SECRET: ${CRON_SECRET:-}
+      MI_CRON_SECRET: ${MI_CRON_SECRET:-}
+      SCHEDULER_JOBS: ${SCHEDULER_JOBS:-alerts,launchbox}
+      PING_URL: ${SCHEDULER_PING_URL:-}
+    volumes:
+      - ./worker/scheduler.mjs:/app/scheduler.mjs:ro
+    command: ["node", "/app/scheduler.mjs"]
+    logging: *logs
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

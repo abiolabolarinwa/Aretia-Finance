@@ -22,7 +22,7 @@ const dryRun = process.argv.includes('--dry-run');
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'supabase', 'migrations');
 const migrations = loadMigrations(readdirSync(dir).filter((f) => f.endsWith('.sql')).map((name) => ({ name, sql: readFileSync(join(dir, name), 'utf8') })));
 
-const client = new pg.Client({ connectionString: url, ssl: /localhost|127\.0\.0\.1/.test(url) ? undefined : { rejectUnauthorized: true } });
+const client = new pg.Client({ connectionString: url, ssl: /localhost|127\.0\.0\.1|sslmode=disable/.test(url) ? undefined : { rejectUnauthorized: true } });
 const db: SqlClient = {
   exec: async (sql) => {
     await client.query(sql);

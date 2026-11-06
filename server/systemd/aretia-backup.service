@@ -1,0 +1,9 @@
+[Unit]
+Description=Aretia nightly database backup
+After=docker.service
+
+[Service]
+Type=oneshot
+User=aretia
+WorkingDirectory=/opt/aretia/server
+ExecStart=/opt/aretia/server/bin/backup.sh

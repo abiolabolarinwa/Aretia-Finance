@@ -3,9 +3,9 @@ name: website-ci
 # Runs on every push and pull request that touches the website. Nothing here deploys.
 on:
   push:
-    paths: ['website/**', '.github/workflows/website-ci.yml']
+    paths: ['website/**', 'server/**', '.github/workflows/website-ci.yml']
   pull_request:
-    paths: ['website/**', '.github/workflows/website-ci.yml']
+    paths: ['website/**', 'server/**', '.github/workflows/website-ci.yml']
 
 permissions:
   contents: read

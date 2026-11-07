@@ -48,7 +48,9 @@ Each step is reversible by putting the previous value back and redeploying. Supa
 
 Put the previous values of `SUPABASE_*` / `MI_DATA_*` back and redeploy. Data written to the new server since the switch is not in Supabase; the copy script runs the other way if you swap the two connection strings (ask first). For the indexer nothing needs copying back: it rebuilds from the chain.
 
-## Pictures on Cloudflare R2: design only (not built)
+## Pictures on Cloudflare R2: built (see R2_LAUNCH_ASSETS.md)
+
+Built as designed below, with the owner steps, CORS rules and the copy script in [R2_LAUNCH_ASSETS.md](R2_LAUNCH_ASSETS.md). Differences: the public address must be a subdomain of aretiafinance.org, and the sign-in is checked on the site database (SUPABASE_URL), not on storage. The original design follows.
 
 Today `/api/swings-upload` asks Supabase Storage for a signed upload link, the browser PUTs the file straight to the public bucket, and the
 public URL is `<supabase>/storage/v1/object/public/launch-assets/<path>`. The bucket's own limits (size, allowed types) are the guard,
@@ -62,7 +64,7 @@ R2 version, same flow for the browser:
 5. Existing pictures: copy once with `rclone copy` from Supabase Storage (S3-compatible endpoint) to R2 and keep the old URLs working by leaving Supabase Storage up until the metadata that points at it is rewritten, or by redirecting the old path in Cloudflare.
 6. New variables: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE`; the access key limited to that one bucket.
 
-It is not built here because it needs an R2 bucket, a custom domain and a key from the owner to test against.
+Not yet tested against a real R2 bucket (needs the owner's bucket, domain and key).
 
 ## What was and was not verified
 

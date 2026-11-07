@@ -111,13 +111,19 @@ export class LaunchUploader {
   /** Sends one file through a one-use link and answers its public address. A file that is already there is not sent again. */
   async put(request: Record<string, unknown>, bytes: Uint8Array, contentType: string): Promise<string> {
     const session = await this.d.session();
-    const signed = await this.d.call<{ exists?: boolean; url: string; uploadUrl?: string; upsert?: boolean }>(session, { op: 'sign', ...request, size: bytes.length });
+    const signed = await this.d.call<{ exists?: boolean; url: string; uploadUrl?: string; upsert?: boolean; raw?: boolean }>(session, { op: 'sign', ...request, size: bytes.length });
     if (signed.exists) return signed.url;
     if (!signed.uploadUrl) throw new Error('The picture store did not give an upload link. Try again.');
-    const form = new FormData();
-    form.append('cacheControl', '31536000');
-    form.append('', new Blob([bytes as BlobPart], { type: contentType }));
-    const res = await this.d.fetchImpl(signed.uploadUrl, { method: 'PUT', headers: signed.upsert ? { 'x-upsert': 'true' } : {}, body: form });
+    let res: Response;
+    if (signed.raw) {
+      // Cloudflare R2: the file itself, with exactly the type the link was signed for (the browser adds the length).
+      res = await this.d.fetchImpl(signed.uploadUrl, { method: 'PUT', headers: { 'content-type': contentType }, body: new Blob([bytes as BlobPart], { type: contentType }) });
+    } else {
+      const form = new FormData();
+      form.append('cacheControl', '31536000');
+      form.append('', new Blob([bytes as BlobPart], { type: contentType }));
+      res = await this.d.fetchImpl(signed.uploadUrl, { method: 'PUT', headers: signed.upsert ? { 'x-upsert': 'true' } : {}, body: form });
+    }
     if (!res.ok) throw new Error(res.status === 413 ? 'The picture store refused the file as too large.' : 'The upload did not go through. Try again.');
     return signed.url;
   }

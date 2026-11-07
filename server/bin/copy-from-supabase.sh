@@ -19,13 +19,22 @@ touch "$STATE/done"
 # -e SRC_DB_URL without a value passes the variable from this shell into the container; it is never on a command line.
 src_psql() { "${DC[@]}" exec -T -e SRC_DB_URL postgres sh -c 'exec psql "$SRC_DB_URL" -X -q -v ON_ERROR_STOP=1 "$@"' sh "$@"; }
 
+# The source must answer before anything else: otherwise a wrong password, a refused connection or a restricted project would look like
+# "the table is not there" and the copy would report success on nothing.
+if ! probe="$(src_psql -At -c 'select 1' 2>&1)" || [ "$(printf '%s' "$probe" | tr -d '[:space:]')" != 1 ]; then
+  echo "Cannot read the source database. Nothing was copied. The message was:" >&2
+  printf '%s\n' "$probe" | head -5 >&2
+  exit 1
+fi
+
 # Parents before children (notify_inbox points at notify_channels).
 tables="$(dst_psql -At -c "select tablename from pg_tables where schemaname='public' and tablename <> 'aretia_schema_migrations' order by (tablename = 'notify_inbox'), tablename")"
 fail=0
 for t in $tables; do
   case " ${SKIP_TABLES:-} " in *" $t "*) echo "skip   $t (SKIP_TABLES)"; continue;; esac
   if grep -qx "$t" "$STATE/done"; then echo "done   $t (earlier run)"; continue; fi
-  if ! src_psql -At -c "select 1 from public.$t limit 1" > /dev/null 2>&1; then echo "absent $t (not in the source; skipped)"; continue; fi
+  if ! present="$(src_psql -At -c "select to_regclass('public.$t') is not null" 2>&1)"; then echo "FAILED $t: cannot read the source: $(printf '%s' "$present" | head -1)" >&2; exit 1; fi
+  if [ "$present" != t ]; then echo "absent $t (not in the source; skipped)"; continue; fi
   cols="$(dst_psql -At -c "select string_agg(quote_ident(column_name), ',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='$t'")"
   # replica role: foreign-key checks are off for this session, so a half-copied table can be emptied and refilled in any order.
   if src_psql -c "\\copy (select $cols from public.$t) to stdout with (format csv)" \
@@ -46,7 +55,9 @@ for t in $tables; do
   s="$(src_psql -At -c "select count(*) from public.$t" 2>/dev/null || echo n/a)"
   d="$(dst_psql -At -c "select count(*) from public.$t")"
   mark=""
-  if [ "$s" != n/a ] && [ "$s" != "$d" ]; then mark="  <-- differs (the site may have written since)"; bad=1; fi
+  if [ "$s" = n/a ]; then
+    if [ "$(src_psql -At -c "select to_regclass('public.$t') is not null" 2>/dev/null)" = t ]; then mark="  <-- the source count could not be read"; bad=1; fi
+  elif [ "$s" != "$d" ]; then mark="  <-- differs (the site may have written since)"; bad=1; fi
   printf '%-28s %10s %10s%s\n' "$t" "$s" "$d" "$mark"
 done
 [ "$fail" = 0 ] || exit 1

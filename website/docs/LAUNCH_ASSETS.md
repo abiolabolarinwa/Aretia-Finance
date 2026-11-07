@@ -1,5 +1,7 @@
 # Launch assets: token pictures, descriptions and links
 
+> **Storage can now be Cloudflare R2.** Set the five `R2_` variables and the site uses R2 instead of the Supabase bucket described below; with none set it behaves as written here. To move off Supabase, follow [R2_LAUNCH_ASSETS.md](R2_LAUNCH_ASSETS.md).
+
 What this is: the Launch page lets a creator add a picture, a short description and website / X / Telegram links to a token. Aretia stores them in one **public Supabase Storage bucket**. This page says what you (the owner) must create for it to work. Until you do, the Launch page says **"Image upload is not set up yet"** next to the picture field, and every other part of the page works as before. Creating a token without a picture, description or links never needs the bucket.
 
 Nothing here needs a key in the repository. The browser never sees the service key.

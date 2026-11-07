@@ -4,7 +4,7 @@
  * a person typed and to build the file), by the server (to decide whether to hand out an upload slot) and by the token page and
  * Launch Box (to read the file back safely).
  *
- * Where things live: a public Supabase Storage bucket the owner creates (docs/LAUNCH_ASSETS.md).
+ * Where things live: a public bucket the owner creates, on Cloudflare R2 (docs/R2_LAUNCH_ASSETS.md) or, the first home, Supabase Storage (docs/LAUNCH_ASSETS.md).
  *   img/<sha256>.<png|jpg|gif>   the picture, named by the SHA-256 of its bytes
  *   meta/<sha256>.json           the metadata JSON of a Solana token, named by the SHA-256 of its bytes (its URL is the token's on-chain uri)
  *   evm/<chain>/<address>.json   the metadata JSON of an Ethereum-style token, keyed by the token's address (the token has no uri)
@@ -144,14 +144,49 @@ export function buildMetadataJson(input: MetadataInput): string {
 /** Where a bucket's public files are read from. */
 export const publicUrl = (supabaseBase: string, bucket: string, path: string): string => `${supabaseBase.replace(/\/+$/, '')}/storage/v1/object/public/${bucket}/${path}`;
 
-/** True for a link to a public Supabase Storage file. Pictures and files are shown only from there, never from an address a stranger chose. */
+/** The public address of the R2 bucket as an origin (https, a subdomain of aretiafinance.org, no path), or null when it is not acceptable. */
+export function r2PublicBase(value: string | undefined): string | null {
+  const raw = (value ?? '').trim().replace(/^["']+|["']+$/g, '').trim().replace(/\/+$/, '');
+  try {
+    const u = new URL(raw);
+    const ok = u.protocol === 'https:' && u.port === '' && u.username === '' && u.password === '' && u.pathname === '/' && u.search === '' && u.hash === '' && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.aretiafinance\.org$/.test(u.hostname);
+    return ok ? `https://${u.hostname}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The path of a public file in Aretia's bucket layout (img/, meta/ or evm/), whichever store it is in. */
+const ASSET_PATH = /^(img\/[0-9a-f]{64}\.(png|jpg|gif)|meta\/[0-9a-f]{64}\.json|evm\/[a-z]+\/0x[0-9a-f]{40}\.json)$/;
+
+/**
+ * True for a link to a public Aretia picture or details file: on Supabase Storage (the first home, `*.supabase.co/storage/v1/object/public/`)
+ * or on Aretia's own picture domain (R2). Pictures and files are shown only from there, never from an address a stranger chose.
+ */
 export function isTrustedAssetUrl(url: unknown): url is string {
   if (typeof url !== 'string' || url.length > 300) return false;
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' && /^[a-z0-9-]+\.supabase\.co$/.test(u.hostname) && u.port === '' && u.username === '' && u.pathname.startsWith('/storage/v1/object/public/') && u.search === '';
+    if (u.protocol !== 'https:' || u.port !== '' || u.username !== '' || u.search !== '' || u.hash !== '') return false;
+    if (/^[a-z0-9-]+\.supabase\.co$/.test(u.hostname)) return u.pathname.startsWith('/storage/v1/object/public/');
+    return r2PublicBase(`https://${u.hostname}`) !== null && ASSET_PATH.test(u.pathname.slice(1));
   } catch {
     return false;
+  }
+}
+
+/**
+ * A link into the old public Supabase bucket, moved to the same path under `base` (the R2 address), or null when `url` is not such a link.
+ * Used so tokens made before the move still show their picture once their files have been copied (docs/R2_LAUNCH_ASSETS.md).
+ */
+export function legacyToR2(url: string, base: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || !/^[a-z0-9-]+\.supabase\.co$/.test(u.hostname) || u.search !== '') return null;
+    const m = /^\/storage\/v1\/object\/public\/[a-z0-9_-]+\/(.+)$/.exec(u.pathname);
+    return m && ASSET_PATH.test(m[1]!) ? `${base}/${m[1]}` : null;
+  } catch {
+    return null;
   }
 }
 

@@ -33,6 +33,8 @@ describe('presignUrl', () => {
   it('encodes path segments but keeps the slashes', async () => {
     expect(uriEncode("a b/c'd")).toBe('a%20b%2Fc%27d');
     const url = await presignUrl({ method: 'PUT', host: 'h.example', path: '/b/a b.png', region: 'auto', service: 's3', accessKeyId: 'k', secretAccessKey: 's', expires: 60, now: new Date(0) });
-    expect(url.startsWith('https://h.example/b/a%20b.png?')).toBe(true);
+    const u = new URL(url);
+    expect(u.hostname).toBe('h.example');
+    expect(u.pathname).toBe('/b/a%20b.png');
   });
 });

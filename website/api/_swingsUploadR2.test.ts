@@ -33,7 +33,7 @@ function world(opts: { existing?: Set<string>; files?: Record<string, string>; a
     const url = String(input);
     calls.push(`${init?.method ?? 'GET'} ${url}`);
     if (url.includes('/rest/v1/account_sessions')) return new Response('[]', { status: 200 });
-    if (url.startsWith(`${R2}/`)) {
+    if (new URL(url).origin === R2) {
       const path = url.slice(R2.length + 1);
       if (init?.method === 'HEAD') return new Response(null, { status: opts.existing?.has(path) ? 200 : 404 });
       const f = opts.files?.[path];
@@ -48,6 +48,8 @@ function world(opts: { existing?: Set<string>; files?: Record<string, string>; a
   }) as typeof fetch;
   return { fetchImpl, calls };
 }
+/** The host names of the requests a world saw (calls are "METHOD url"). */
+const hostsOf = (calls: string[]): string[] => calls.map((c) => new URL(c.split(' ')[1]!).hostname);
 const call = (w: World, body: unknown, over: Partial<UploadInput> = {}) =>
   handleUpload({ method: 'POST', origin: ORIGIN, authorization: bearer(SOL_OWNER), ip: '1.1.1.1', query: {}, body, env, fetchImpl: w.fetchImpl, now: NOW, ...over }).then((r) => ({ status: r.status, data: JSON.parse(r.body || '{}') as Record<string, unknown> }));
 
@@ -62,10 +64,10 @@ describe('upload to Cloudflare R2', () => {
     const w = world();
     expect((await call(w, { op: 'status' }, { authorization: null })).data).toEqual({ enabled: true });
     expect((await call(w, image)).status).toBe(200);
-    const rest = w.calls.filter((c) => c.includes('/rest/v1/'));
+    const rest = w.calls.filter((c) => new URL(c.split(' ')[1]!).pathname.startsWith('/rest/v1/'));
     expect(rest.length).toBeGreaterThan(0);
-    expect(rest.every((c) => c.includes('https://data.example.org/'))).toBe(true);
-    expect(w.calls.some((c) => c.includes('supabase.co'))).toBe(false);
+    expect(hostsOf(rest).every((h) => h === 'data.example.org')).toBe(true);
+    expect(hostsOf(w.calls).some((h) => h.endsWith('supabase.co'))).toBe(false);
   });
   it('hands out a presigned PUT for one path, bound to type and size, valid five minutes, and never the secret', async () => {
     const r = await call(world(), image);
@@ -140,12 +142,12 @@ describe('reading details back with R2', () => {
   it('shows a token made before the move from the copy on R2, picture included, without touching Supabase', async () => {
     const w = world({ files: { [`meta/${SHA}.json`]: oldFile }, accounts: [account(publicUrl(OLD, 'launch-assets', `meta/${SHA}.json`))] });
     expect((await get(w, 'solana', mint))[mint]?.image).toBe(`${R2}/img/${SHA}.png`);
-    expect(w.calls.some((c) => c.includes('supabase.co'))).toBe(false);
+    expect(hostsOf(w.calls).some((h) => h.endsWith('supabase.co'))).toBe(false);
   });
   it('never follows a uri outside the bucket', async () => {
     const w = world({ accounts: [account('https://tracker.example/x.json')] });
     expect(await get(w, 'solana', mint)).toEqual({});
-    expect(w.calls.some((c) => c.includes('tracker.example'))).toBe(false);
+    expect(hostsOf(w.calls)).not.toContain('tracker.example');
   });
   it('reads an Ethereum-style file by address', async () => {
     const w = world({ files: { [`evm/polygon/${TOKEN}.json`]: oldFile } });

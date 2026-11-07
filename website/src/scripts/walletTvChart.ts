@@ -225,7 +225,7 @@ export function mountTvChart(
       if (!label) return;
       el.textContent = label;
       if (s.note) el.title = s.note;
-      el.style.cssText = 'position:absolute;right:64px;top:6px;z-index:5;font:11px/1.3 system-ui,sans-serif;color:#64748b;background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      el.style.cssText = 'position:absolute;right:76px;bottom:46px;z-index:5;pointer-events:auto;font:11px/1.3 system-ui,sans-serif;color:#64748b;background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
       wide = !!s.wideRange;
       if (w) applyAxis(w);
     } else {

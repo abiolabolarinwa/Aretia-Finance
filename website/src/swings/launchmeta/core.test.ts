@@ -68,7 +68,7 @@ describe('pictures', () => {
     expect(sniffImageType(new TextEncoder().encode('<svg xmlns='))).toBeNull();
     expect(sniffImageType(new TextEncoder().encode('RIFFxxxxWEBP'))).toBeNull();
   });
-  it('is limited to 15 MB', () => {
+  it('is limited to 10 MB', () => {
     expect(checkImage({ size: IMAGE_RULES.maxBytes }, PNG)).toEqual({ ok: true, type: 'image/png' });
     expect(checkImage({ size: IMAGE_RULES.maxBytes + 1 }, PNG).ok).toBe(false);
     expect(checkImage({ size: 0 }, PNG).ok).toBe(false);
@@ -142,7 +142,7 @@ describe('planUpload', () => {
 });
 
 describe('bucketProblem', () => {
-  const good = { public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] };
+  const good = { public: true, file_size_limit: 10 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] };
   it('accepts a public, capped bucket that lists only the allowed types, or a subset of them', () => {
     expect(bucketProblem(good)).toBeNull();
     expect(bucketProblem({ ...good, allowed_mime_types: ['image/png'], file_size_limit: 1000 })).toBeNull();
@@ -152,7 +152,7 @@ describe('bucketProblem', () => {
     expect(bucketProblem({ ...good, public: false })).not.toBeNull();
     expect(bucketProblem({ ...good, file_size_limit: null })).not.toBeNull();
     expect(bucketProblem({ ...good, file_size_limit: 0 })).not.toBeNull();
-    expect(bucketProblem({ ...good, file_size_limit: 15 * 1024 * 1024 + 1 })).not.toBeNull();
+    expect(bucketProblem({ ...good, file_size_limit: 10 * 1024 * 1024 + 1 })).not.toBeNull();
     expect(bucketProblem({ ...good, allowed_mime_types: null })).not.toBeNull();
     expect(bucketProblem({ ...good, allowed_mime_types: [] })).not.toBeNull();
     expect(bucketProblem({ ...good, allowed_mime_types: ['image/png', 'text/html'] })).not.toBeNull();

@@ -14,7 +14,7 @@
 
 export const IMAGE_RULES = {
   types: { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif' } as Readonly<Record<string, string>>,
-  maxBytes: 15 * 1024 * 1024,
+  maxBytes: 10 * 1024 * 1024,
 } as const;
 export const JSON_MAX_BYTES = 4096;
 

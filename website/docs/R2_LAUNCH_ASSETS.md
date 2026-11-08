@@ -8,7 +8,7 @@ You do each step, check the "You should see" line, and only then go on. Nothing 
 
 ## How it works (one paragraph)
 
-The Launch page asks the site for a one-use upload link. The site checks the wallet's sign-in, the file type (PNG, JPG, GIF, or the small details file) and the size (15 MB for a picture, 4 KB for the details file), then signs a link for that one file name that works for 5 minutes. The browser sends the file straight to R2 with that link. People see pictures at `https://assets.aretiafinance.org/...`. If the five `R2_` variables are **not** set the site keeps using Supabase exactly as before, so you can switch over (and back) just by setting or removing the variables.
+The Launch page asks the site for a one-use upload link. The site checks the wallet's sign-in, the file type (PNG, JPG, GIF, or the small details file) and the size (10 MB for a picture, 4 KB for the details file), then signs a link for that one file name that works for 5 minutes. The browser sends the file straight to R2 with that link. People see pictures at `https://assets.aretiafinance.org/...`. If the five `R2_` variables are **not** set the site keeps using Supabase exactly as before, so you can switch over (and back) just by setting or removing the variables.
 
 File names are unchanged: `img/<hash>.png|jpg|gif`, `meta/<hash>.json`, `evm/<chain>/<token address>.json`.
 

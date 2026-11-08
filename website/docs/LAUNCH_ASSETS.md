@@ -11,15 +11,15 @@ Nothing here needs a key in the repository. The browser never sees the service k
 1. In the Supabase dashboard, open **Storage** and create a bucket:
    - **Name:** `launch-assets` (or any other name, then set `LAUNCH_ASSETS_BUCKET` to it)
    - **Public bucket:** **on.** Anyone must be able to read a picture and a details file by its address.
-   - **File size limit:** `15 MB` (the picture limit; the page and the server also enforce it)
+   - **File size limit:** `10 MB` (the picture limit; the page and the server also enforce it)
    - **Allowed MIME types:** `image/png, image/jpeg, image/gif, application/json`
 2. **Policies:** add none. Uploads are made with a one-use signed upload link that the server asks Supabase for with the service key, and a public bucket needs no read policy for its public address. Do **not** add any policy that lets `anon` or `authenticated` insert, update or delete in this bucket; with none, a browser cannot write to it except through a link the server issued. (Equivalent SQL, if you prefer to create it that way:)
 
    ```sql
    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-   values ('launch-assets', 'launch-assets', true, 15728640,
+   values ('launch-assets', 'launch-assets', true, 10485760,
            array['image/png', 'image/jpeg', 'image/gif', 'application/json'])
-   on conflict (id) do update set public = true, file_size_limit = 15728640,
+   on conflict (id) do update set public = true, file_size_limit = 10485760,
            allowed_mime_types = array['image/png', 'image/jpeg', 'image/gif', 'application/json'];
    ```
 3. **Environment variables** (Vercel → Project → Settings → Environment Variables; names only here, never values in the repo):
@@ -38,7 +38,7 @@ Nothing here needs a key in the repository. The browser never sees the service k
 
 - **Route.** No new function file: `api/swings-data.ts` has two more `route=` values, rewritten in `vercel.json`: `/api/swings-upload` (POST) and `/api/swings-meta` (GET). The code is in `api/_swingsUpload.ts`; the rules (types, sizes, names, the details file) are in `src/swings/launchmeta/core.ts`.
 - **Sign-in.** `sign` needs the wallet sign-in session the rest of the site uses (one plain message signed once; no transaction, no key). Without a session the answer is 401.
-- **What may be uploaded.** A JPG, PNG or GIF up to 15 MB, or a details JSON up to 4 KB. The server refuses anything else before asking Supabase for a link, and Supabase's own bucket limits (above) refuse it again. The page also reads the picture's first bytes, so a renamed file is refused.
+- **What may be uploaded.** A JPG, PNG or GIF up to 10 MB, or a details JSON up to 4 KB. The server refuses anything else before asking Supabase for a link, and Supabase's own bucket limits (above) refuse it again. The page also reads the picture's first bytes, so a renamed file is refused.
 - **Limits.** 12 upload links per wallet per hour, 40 per IP per hour, plus the general per-IP limit. These counters are in memory per server instance, like the other limits (see `docs/operations-2026-10-security.md`).
 - **Names.** A picture is stored at `img/<sha256 of its bytes>.<png|jpg|gif>` and a Solana token's details file at `meta/<sha256 of its bytes>.json`. Storage never overwrites an existing name, so a stored file cannot be replaced. The hash is computed by the browser and trusted only as a name: the server never sees the bytes.
 - **Link lifetime.** Supabase signed upload links are valid for about two hours and for one path only. The server cannot shorten that.

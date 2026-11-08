@@ -93,7 +93,7 @@ describe('upload to Cloudflare R2', () => {
     expect((await call(w, image, { authorization: null })).status).toBe(401);
     expect((await call(w, image, { origin: 'https://evil.example' })).status).toBe(403);
     expect((await call(w, { ...image, contentType: 'image/svg+xml' })).status).toBe(400);
-    expect((await call(w, { ...image, size: 15 * 1024 * 1024 + 1 })).status).toBe(400);
+    expect((await call(w, { ...image, size: 10 * 1024 * 1024 + 1 })).status).toBe(400);
     expect((await call(w, { ...image, sha256: '../x' })).status).toBe(400);
     expect((await call(w, { op: 'sign', kind: 'json', size: 9000, sha256: SHA })).status).toBe(400);
     for (let i = 0; i < 12; i++) expect((await call(w, { ...image, sha256: i.toString(16).padStart(64, '0') })).status).toBe(200);
@@ -161,7 +161,7 @@ describe('fallback to Supabase Storage', () => {
     const calls: string[] = [];
     const fetchImpl = (async (u: string | URL, i?: RequestInit) => {
       calls.push(String(u));
-      if (String(u) === `${OLD}/storage/v1/bucket/launch-assets`) return new Response(JSON.stringify({ public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] }));
+      if (String(u) === `${OLD}/storage/v1/bucket/launch-assets`) return new Response(JSON.stringify({ public: true, file_size_limit: 10 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] }));
       return w.fetchImpl(u, i);
     }) as typeof fetch;
     const r = await call(w, { op: 'status' }, { authorization: null, fetchImpl, env: { SUPABASE_URL: OLD, SUPABASE_SERVICE_ROLE_KEY: 'old-key', R2_ACCOUNT_ID: '  ' } });

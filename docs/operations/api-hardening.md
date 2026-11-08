@@ -31,14 +31,14 @@ Also set a monthly spend cap and a requests-per-second cap on the Solana RPC key
 
 ## 3. The launch-assets bucket must be restricted
 
-A signed upload link does not fix the file's type, size or name, so the bucket's own limits are the control. The server now refuses to issue links (`/api/swings-upload` answers "Image upload is not set up yet") unless the bucket is public, has a file size limit of at most 15 MB, and lists only `image/png`, `image/jpeg`, `image/gif` and `application/json`.
+A signed upload link does not fix the file's type, size or name, so the bucket's own limits are the control. The server now refuses to issue links (`/api/swings-upload` answers "Image upload is not set up yet") unless the bucket is public, has a file size limit of at most 10 MB, and lists only `image/png`, `image/jpeg`, `image/gif` and `application/json`.
 
 Set it once, in the Supabase SQL editor (replace the bucket name if `LAUNCH_ASSETS_BUCKET` is not the default):
 
 ```sql
 update storage.buckets
 set public = true,
-    file_size_limit = 15728640,
+    file_size_limit = 10485760,
     allowed_mime_types = array['image/png', 'image/jpeg', 'image/gif', 'application/json']
 where id = 'launch-assets';
 ```

@@ -25,7 +25,7 @@ const oldBucket = env('OLD_BUCKET') || 'launch-assets';
 const r2Host = `${env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`;
 const r2Bucket = env('R2_BUCKET');
 
-const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_BYTES = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', json: 'application/json' };
 /** The paths Aretia's Launch page ever writes (src/swings/launchmeta/core.ts). Anything else in the bucket is counted and left alone. */
 const LAYOUT = /^(img\/[0-9a-f]{64}\.(png|jpg|gif)|meta\/[0-9a-f]{64}\.json|evm\/[a-z]+\/0x[0-9a-fA-F]{40}\.json)$/;

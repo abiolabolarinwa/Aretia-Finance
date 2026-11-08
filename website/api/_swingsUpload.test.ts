@@ -20,9 +20,9 @@ const pad = (a: string) => '0x' + a.replace('0x', '').padStart(64, '0');
 const session = (owner: string) => `Bearer ${issueSession(KEY, owner, NOW).token}`;
 
 const GOOD_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'application/json'];
-/** The bucket record the storage API returns: public, capped at 15 MB, only the allowed types (what the upload check requires). */
+/** The bucket record the storage API returns: public, capped at 10 MB, only the allowed types (what the upload check requires). */
 function bucketRecord(kind: string | undefined): Record<string, unknown> {
-  const good = { id: BUCKET, public: true, file_size_limit: 15 * 1024 * 1024, allowed_mime_types: GOOD_TYPES };
+  const good = { id: BUCKET, public: true, file_size_limit: 10 * 1024 * 1024, allowed_mime_types: GOOD_TYPES };
   if (kind === 'private') return { ...good, public: false };
   if (kind === 'unrestricted') return { id: BUCKET, public: true, file_size_limit: null, allowed_mime_types: null };
   if (kind === 'wide-types') return { ...good, allowed_mime_types: [...GOOD_TYPES, 'text/html'] };
@@ -75,7 +75,7 @@ describe('status', () => {
   it('is enabled when the bucket exists and is public', async () => {
     expect((await call(world(), { op: 'status' }, { authorization: null })).data).toEqual({ enabled: true });
   });
-  it('is not enabled for a public bucket with no size limit, no type list, a type list that allows other files, or a limit above 15 MB', async () => {
+  it('is not enabled for a public bucket with no size limit, no type list, a type list that allows other files, or a limit above 10 MB', async () => {
     for (const bucket of ['unrestricted', 'wide-types', 'huge-limit'] as const) {
       resetUploadState();
       const status = await call(world({ bucket }), { op: 'status' }, { authorization: null });
@@ -132,7 +132,7 @@ describe('sign', () => {
   it('refuses by type, size and hash before asking storage', async () => {
     const w = world();
     expect((await call(w, { ...image, contentType: 'image/svg+xml' })).status).toBe(400);
-    expect((await call(w, { ...image, size: 15 * 1024 * 1024 + 1 })).status).toBe(400);
+    expect((await call(w, { ...image, size: 10 * 1024 * 1024 + 1 })).status).toBe(400);
     expect((await call(w, { ...image, sha256: '../x' })).status).toBe(400);
     expect((await call(w, { op: 'sign', kind: 'json', size: 9000, sha256: SHA })).status).toBe(400);
     expect(w.calls.some((c) => c.includes('/upload/sign/'))).toBe(false);

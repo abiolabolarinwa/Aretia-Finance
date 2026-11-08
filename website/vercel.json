@@ -33,18 +33,78 @@
   ],
   "redirects": [
     {
+      "source": "/whitepaper",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/roadmap",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/docs",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/marketplace",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/apply",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/token",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/buy",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/stake",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/details",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/ecosystem",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/landing-classic",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/verify",
+      "destination": "/",
+      "permanent": false
+    },
+    {
       "source": "/tokenomics",
-      "destination": "/token",
+      "destination": "/",
       "permanent": false
     },
     {
       "source": "/insights",
-      "destination": "/details#economics",
+      "destination": "/",
       "permanent": false
     },
     {
       "source": "/presale",
-      "destination": "/buy",
+      "destination": "/",
       "permanent": false
     },
     {

@@ -1,6 +1,5 @@
 ---
 import ProductLogo from '../brand/ProductLogo.astro';
-import { LINKS } from '../../data/site';
 import type { ProductKey } from '../../lib/logos';
 
 /* The closing area on every page: first a way into each product, then the
@@ -9,7 +8,6 @@ const products: { key: ProductKey; name: string; line: string; href: string }[] 
   { key: 'wallet', name: 'Aretia Wallet', line: 'Self-custody across six chains', href: '/wallet/about' },
   { key: 'swap', name: 'Aretia Swap', line: 'Swap with the price shown first', href: '/wallet' },
   { key: 'pay', name: 'Aretia Pay', line: 'Send to a name, not an address', href: '/features#pay' },
-  { key: 'market', name: 'Aretia Market', line: 'Climate projects seeking capital', href: '/marketplace' },
   { key: 'carbon', name: 'Aretia Carbon Credit', line: 'Registry-backed, then retired', href: '/carboncredit' },
 ];
 ---
@@ -37,11 +35,11 @@ const products: { key: ProductKey; name: string; line: string; href: string }[] 
 <section class="bands" aria-labelledby="cta-title">
   <div class="band">
     <div class="container band__inner">
-      <h2 id="cta-title" class="band__title" data-reveal>The future of money<br />should fund the future.</h2>
-      <p class="band__lead" data-reveal>ACT is live on Solana today, automatically funding a Climate Treasury on every transfer. The wallet brings self-custody across six chains as it ships.</p>
+      <h2 id="cta-title" class="band__title" data-reveal>Create it.<br />Trade it.</h2>
+      <p class="band__lead" data-reveal>Launch your own token in minutes, give it a market, and trade thousands of others across Solana, BNB Chain, Ethereum, Base and Polygon. Your wallet signs every step.</p>
       <div class="band__actions" data-reveal>
-        <a class="band__btn band__btn--white" href={LINKS.buyAct}>Get ACT</a>
-        <a class="band__btn band__btn--ghost" href={LINKS.walletWaitlist}>Join the wallet waitlist</a>
+        <a class="band__btn band__btn--white" href="/wallet#/swings">Start trading</a>
+        <a class="band__btn band__btn--ghost" href="/wallet#/launch">Create a token</a>
       </div>
       <p class="band__note">The wallet's browser extension is in development and not yet on the Web Store.</p>
     </div>

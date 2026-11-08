@@ -2,31 +2,22 @@
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/typography/PageHero.astro';
 import Button from '../components/buttons/Button.astro';
-import { DOCS, FAQS } from '../data/help';
+import { FAQS } from '../data/help';
 import { PRODUCTS } from '../data/site';
 import { getPublishedPosts } from '../lib/blog';
 
 const posts = await getPublishedPosts();
 const pages = [
-  { title: 'Web wallet', text: 'Connect the Solana wallet you already use to see balances and activity and trade ACT.', url: '/wallet' },
+  { title: 'Web wallet', text: 'Connect the Solana wallet you already use to see balances and activity, trade tokens and launch your own.', url: '/wallet' },
   { title: 'Aretia Wallet', text: 'Multichain self-custody wallet for Solana and EVM networks.', url: '/wallet/about' },
-  { title: 'Features', text: 'Wallet, Pay, Shield, ACT, Climate Treasury, security, developers.', url: '/features' },
-  { title: 'ACT token', text: 'Supply, transfer fee, utility and mint verification.', url: '/token' },
-  { title: 'Ecosystem', text: 'How the wallet, products, ACT and Climate Treasury connect.', url: '/ecosystem' },
-  { title: 'Climate Treasury', text: 'The catalyst fund financed by ACT transfer fees.', url: '/details' },
-  { title: 'Capital Marketplace', text: 'Climate projects seeking capital.', url: '/marketplace' },
+  { title: 'Features', text: 'Wallet, Pay, Shield and security.', url: '/features' },
   { title: 'Carbon Credit', text: 'Sandbox software for putting registry-authorised carbon credits on a chain. Not live.', url: '/carboncredit' },
-  { title: 'Staking', text: 'Capital Access Score and staking status.', url: '/stake' },
-  { title: 'Verify', text: 'Verify the ACT mint on-chain.', url: '/verify' },
-  { title: 'Roadmap', text: 'What ships next.', url: '/roadmap' },
-  { title: 'Whitepaper', text: 'The protocol design.', url: '/whitepaper' },
   { title: 'About', text: 'Why Aretia exists.', url: '/about' },
   ...PRODUCTS.map((p) => ({ title: p.name, text: `${p.role}. ${p.summary}`, url: `/features#${p.slug}` })),
 ];
 
 const index = [
   ...pages.map((p) => ({ type: 'Page', ...p })),
-  ...DOCS.map((d) => ({ type: 'Docs', title: d.title, text: `${d.summary} ${d.body.join(' ')}`, url: `/docs#${d.id}` })),
   ...FAQS.map((f) => ({ type: 'Support', title: f.q, text: f.a, url: `/support#${f.id}` })),
   ...posts.map((p) => ({ type: 'Blog', title: p.data.title, text: `${p.data.category}. ${p.data.description}`, url: `/blog/${p.id}` })),
 ];

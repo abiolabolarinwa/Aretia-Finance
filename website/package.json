@@ -8,6 +8,9 @@
     "fetch:charting-library": "node scripts/fetch-charting-library.ts",
     "preview": "astro preview",
     "typecheck": "astro check",
+    "app:sync": "cap sync",
+    "app:android": "cap open android",
+    "app:ios": "cap open ios",
     "typecheck:api": "tsc -p tsconfig.api.json",
     "lint": "eslint .",
     "test": "vitest run",
@@ -22,6 +25,9 @@
   },
   "dependencies": {
     "@bonfida/spl-name-service": "^4.0.1",
+    "@capacitor/android": "^7.6.10",
+    "@capacitor/core": "^7.6.10",
+    "@capacitor/ios": "^7.6.10",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
@@ -38,6 +44,8 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^7.6.10",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@types/pg": "^8.23.1",

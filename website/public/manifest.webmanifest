@@ -1,0 +1,25 @@
+{
+  "name": "Aretia Finance",
+  "short_name": "Aretia",
+  "description": "Markets, Pay, Launch and more from your own wallet. Aretia never holds your keys.",
+  "id": "/wallet",
+  "start_url": "/wallet",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
+  "categories": ["finance"],
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Markets", "url": "/wallet#/swings" },
+    { "name": "Pay", "url": "/wallet#/send" },
+    { "name": "Launch", "url": "/wallet#/launch" },
+    { "name": "Launch Box", "url": "/wallet#/launchbox" },
+    { "name": "Favourites", "url": "/wallet#/favourites" }
+  ]
+}

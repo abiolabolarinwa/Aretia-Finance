@@ -211,33 +211,6 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    label: 'Ecosystem',
-    items: [
-      { label: 'Ecosystem map', href: '/ecosystem', description: 'How every part connects' },
-      { label: 'Climate Treasury', href: '/details', description: 'Where the 2% goes' },
-      { label: 'Capital Marketplace', href: '/marketplace', description: 'Climate projects seeking capital' },
-      { label: 'Submit a project', href: '/apply', description: 'Apply for catalyst funding' },
-      // Carbon Credit is hidden for now (kept for later): { label: 'Carbon Credit', href: '/carboncredit', description: 'Sandbox carbon-credit infrastructure' },
-    ],
-  },
-  {
-    label: 'ACT',
-    items: [
-      { label: 'Token', href: '/token', description: 'Supply, fees and utility' },
-      { label: 'Buy ACT', href: '/buy', description: 'Swap into ACT via Jupiter' },
-      { label: 'Staking', href: '/stake', description: 'Capital Access Score' },
-      { label: 'Verify', href: '/verify', description: 'Check the mint on-chain' },
-    ],
-  },
-  {
-    label: 'Developers',
-    items: [
-      { label: 'Docs', href: '/docs', description: 'Build with Aretia' },
-      { label: 'Whitepaper', href: '/whitepaper', description: 'Protocol design' },
-      { label: 'Roadmap', href: '/roadmap', description: 'What ships next' },
-    ],
-  },
-  {
     label: 'Company',
     items: [
       { label: 'About', href: '/about', description: 'Why Aretia exists' },

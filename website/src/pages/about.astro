@@ -1,7 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/typography/PageHero.astro';
-import Button from '../components/buttons/Button.astro';
 import { paperClass, type PaperTheme } from '../lib/paper';
 
 const CHAPTER_PAPERS: PaperTheme[] = ['brand', 'mint', 'ink', 'light', 'bright'];
@@ -36,15 +35,6 @@ const chapters = [
   },
   {
     n: '04',
-    label: 'The role of ACT',
-    title: 'A fee built into the token itself.',
-    body: [
-      'Every ACT transfer has a 1.5% fee withheld by the Solana token program, not by a promise. 1% flows to the Climate Treasury, a 2-of-3 multisig catalyst fund; 0.5% to the operational work of running the treasury honestly.',
-      'The fund grows as the token moves, without running a new fundraiser each time.',
-    ],
-  },
-  {
-    n: '05',
     label: 'The long view',
     title: 'Money that can’t quietly go missing.',
     body: [
@@ -82,13 +72,6 @@ const chapters = [
     }
   </div>
 
-  <section class="section">
-    <div class="container about-links" data-reveal>
-      <Button href="/whitepaper" variant="secondary" arrow>Read the whitepaper</Button>
-      <Button href="/details" variant="ghost">How the Climate Treasury works</Button>
-      <Button href="/roadmap" variant="ghost">Roadmap</Button>
-    </div>
-  </section>
 </Base>
 
 <style>

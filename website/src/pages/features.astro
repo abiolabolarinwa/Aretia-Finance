@@ -5,19 +5,17 @@ import ProductSection from '../components/product/ProductSection.astro';
 import WalletMock from '../components/wallet/WalletMock.astro';
 import ShieldVisual from '../components/shield/ShieldVisual.astro';
 import PayVisual from '../components/pay/PayVisual.astro';
-import ActSection from '../components/token/ActSection.astro';
-import ClimateSection from '../components/climate/ClimateSection.astro';
 import InfoGrid from '../components/cards/InfoGrid.astro';
-import { PRODUCTS, SECURITY, DEVELOPERS } from '../data/site';
+import { PRODUCTS, SECURITY } from '../data/site';
 
 const p = Object.fromEntries(PRODUCTS.map((x) => [x.slug, x]));
 const index = [
   ['#wallet', 'Multichain Wallet'], ['#pay', 'Pay'], ['#shield', 'Shield'],
-  ['#act', 'ACT'], ['#climate', 'Climate Treasury'], ['#security', 'Security'], ['#developers', 'Developers'],
+  ['#security', 'Security'],
 ];
 ---
 
-<Base title="Features" description="Everything Aretia does today, and what is on the roadmap: multichain wallet, Pay, Shield, ACT, the Climate Treasury, security and developer infrastructure.">
+<Base title="Features" description="Everything Aretia does today, and what is on the roadmap: multichain wallet, Pay, Shield and security.">
   <PageHero
     eyebrow="Features"
     title="Everything Aretia does, in one place."
@@ -50,9 +48,6 @@ const index = [
   </ProductSection>
 
 
-  <ActSection />
-  <ClimateSection />
-
   <section class="section" id="security" aria-labelledby="security-title">
     <div class="container stack">
       <header class="stack__head">
@@ -63,15 +58,6 @@ const index = [
     </div>
   </section>
 
-  <section class="section" id="developers" aria-labelledby="dev-title">
-    <div class="container stack">
-      <header class="stack__head">
-        <h2 id="dev-title" class="heading" data-split>Built on open standards.</h2>
-        <p class="lead" data-reveal>Aretia speaks the interfaces dApps already use, so integrating needs no Aretia-specific code.</p>
-      </header>
-      <InfoGrid items={DEVELOPERS.map((d) => ({ ...d, href: '/docs' }))} />
-    </div>
-  </section>
 </Base>
 
 <style>

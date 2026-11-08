@@ -10,11 +10,13 @@ describe('Cloudflare Pages config', () => {
     expect(read('../public/_headers')).toBe(out.headers);
     expect(read('../public/_redirects')).toBe(out.redirects);
   });
-  it('keeps the security headers, the five redirects and the clean wallet token path', () => {
+  it('keeps the security headers, the redirects for removed pages and the clean wallet token path', () => {
     expect(out.headers).toContain('/*\n  Content-Security-Policy: ');
     expect(out.headers).toContain('X-Content-Type-Options: nosniff');
     const lines = out.redirects.trim().split('\n');
-    expect(lines.filter((l) => l.endsWith(' 301') || l.endsWith(' 302'))).toHaveLength(5);
+    // The pages taken off the site (ACT, treasury, marketplace, docs, whitepaper, roadmap, and the rest) go to /, which opens Markets.
+    expect(lines.filter((l) => l.endsWith(' 301') || l.endsWith(' 302'))).toHaveLength(17);
+    for (const gone of ['whitepaper', 'roadmap', 'docs', 'marketplace', 'apply', 'token', 'buy', 'stake', 'details', 'ecosystem']) expect(lines).toContain(`/${gone} / 302`);
     // /wallet/app stays a redirect and comes first; any other /wallet/<chain>/<address> serves the wallet page.
     expect(lines.indexOf('/wallet/app /wallet 302')).toBeLessThan(lines.indexOf('/wallet/:chain/:address /wallet 200'));
     expect(lines).toContain('/wallet/:chain/:address /wallet 200');

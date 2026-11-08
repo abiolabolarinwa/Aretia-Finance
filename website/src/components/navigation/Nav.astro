@@ -1,5 +1,5 @@
 ---
-import { NAV, LINKS, ACT, POOLS } from '../../data/site';
+import { NAV, LINKS } from '../../data/site';
 import Button from '../buttons/Button.astro';
 
 interface Props {
@@ -7,20 +7,9 @@ interface Props {
   walletConnect?: boolean;
 }
 const { walletConnect = false } = Astro.props;
-const feeChange = ACT.transferFee.scheduled;
-const pricePair = POOLS[0].address;
 ---
 
 <header class:list={['nav', { 'nav--wallet': walletConnect }]} data-nav>
-  {
-    feeChange && (
-      <a class="nav__notice" href="/verify">
-        <b class="nav__notice-long">ACT's transfer fee drops from {feeChange.previousPercent}% to {ACT.transferFee.totalPercent}% at Solana epoch {feeChange.fromEpoch}, scheduled on-chain. Until then transfers pay {feeChange.previousPercent}%.</b>
-        <b class="nav__notice-short">ACT fee: {feeChange.previousPercent}% → {ACT.transferFee.totalPercent}% at epoch {feeChange.fromEpoch}</b>
-        <span>Verify</span>
-      </a>
-    )
-  }
   <div class="nav__bar container">
     <a href="/" class="nav__brand" aria-label="Aretia Finance home">
       <img src="/assets/logo-mark.png" alt="" width="28" height="28" />
@@ -56,10 +45,6 @@ const pricePair = POOLS[0].address;
 
     <div class="nav__actions">
       <a href={LINKS.walletWaitlist} class="nav__secondary">Wallet waitlist</a>
-      <a class="nav__price" href={LINKS.dexscreener} data-act-price data-pair={pricePair} target="_blank" rel="noopener" hidden aria-label="ACT price on DexScreener">
-        <span class="nav__price-label">ACT</span> <span data-price-value></span> <span class="nav__price-chg" data-price-change></span>
-      </a>
-      <Button href={LINKS.buyAct} size="md" variant="gold">Buy ACT</Button>
     </div>
 
     {
@@ -98,10 +83,6 @@ const pricePair = POOLS[0].address;
         }
       </ul>
       <div class="mobile__actions">
-        <a class="nav__price nav__price--mobile" href={LINKS.dexscreener} data-act-price data-pair={pricePair} target="_blank" rel="noopener" hidden aria-label="ACT price on DexScreener">
-          <span class="nav__price-label">ACT</span> <span data-price-value></span> <span class="nav__price-chg" data-price-change></span>
-        </a>
-        <Button href={LINKS.buyAct} size="lg" variant="gold">Buy ACT</Button>
         <Button href={LINKS.walletWaitlist} size="lg" variant="secondary">Wallet waitlist</Button>
       </div>
     </div>
@@ -202,7 +183,6 @@ const pricePair = POOLS[0].address;
 </style>
 
 <script>
-  import { initActPrice } from '../../scripts/actPrice';
   import { initThemeToggle } from '../../scripts/walletTheme';
 
   const header = document.querySelector<HTMLElement>('[data-nav]')!;
@@ -279,6 +259,5 @@ const pricePair = POOLS[0].address;
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  initActPrice(header);
   initThemeToggle();
 </script>

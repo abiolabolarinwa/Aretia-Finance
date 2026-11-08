@@ -8,12 +8,16 @@ const store = () => {
 
 describe('the minimum liquidity of the Markets lists', () => {
   beforeEach(resetMinLiquidityMemory);
-  it('defaults to $1,000 and remembers a choice, including Any liquidity', () => {
+  it('defaults to $1,000 and remembers a choice, including the $100 floor', () => {
     const st = store();
     expect(loadMinLiquidity(st)).toBe(DEFAULT_MIN_LIQUIDITY);
-    saveMinLiquidity(st, '0');
+    saveMinLiquidity(st, '100');
     resetMinLiquidityMemory();
-    expect(loadMinLiquidity(st)).toBe('0');
+    expect(loadMinLiquidity(st)).toBe('100');
+    // A choice made before the floor existed ("Any liquidity") now means the floor.
+    st.setItem('aretia-market-min-liquidity-v1', '0');
+    resetMinLiquidityMemory();
+    expect(loadMinLiquidity(st)).toBe('100');
   });
   it('ignores a stored value that is not one of the choices', () => {
     const st = store();
@@ -35,10 +39,13 @@ describe('the minimum liquidity of the Markets lists', () => {
     expect(loadMinLiquidity(broken)).toBe('10000');
     expect(loadMinLiquidity(null)).toBe('10000');
   });
-  it('counts unknown liquidity as below the minimum, except under Any liquidity', () => {
+  it('never lists a token under $100, whatever the bar, and counts unknown liquidity as below it', () => {
     expect(clearsMinLiquidity(null, '1000')).toBe(false);
     expect(clearsMinLiquidity(999, '1000')).toBe(false);
     expect(clearsMinLiquidity(1000, '1000')).toBe(true);
-    expect(clearsMinLiquidity(null, '0')).toBe(true);
+    expect(clearsMinLiquidity(null, '0')).toBe(false);
+    expect(clearsMinLiquidity(0, '0')).toBe(false);
+    expect(clearsMinLiquidity(99, '100')).toBe(false);
+    expect(clearsMinLiquidity(100, '0')).toBe(true);
   });
 });

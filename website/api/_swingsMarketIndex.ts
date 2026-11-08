@@ -36,7 +36,7 @@ export function parseListQuery(query: Record<string, string | undefined>): ListQ
   if (!Number.isFinite(page) || page < 1 || !PAGE_SIZES.includes(size) || page * size > MAX_RESULT + size) return null;
   if (!Number.isFinite(minLiquidityUsd) || minLiquidityUsd < 0 || minLiquidityUsd > 1e9) return null;
   if (!Number.isFinite(maxAgeHours) || maxAgeHours < 0 || maxAgeHours > 24 * 365) return null;
-  return { kind, chain: chain as ListQuery['chain'], window, sort, dir: query.dir === 'asc' ? 'asc' : 'desc', page, size, minLiquidityUsd: Math.floor(minLiquidityUsd), maxAgeHours: Math.floor(maxAgeHours) };
+  return { kind, chain: chain as ListQuery['chain'], window, sort, dir: query.dir === 'asc' ? 'asc' : 'desc', page, size, minLiquidityUsd: Math.max(100, Math.floor(minLiquidityUsd)), maxAgeHours: Math.floor(maxAgeHours) };
 }
 
 export async function handleMarketIndex(input: TokensInput): Promise<TokensOutput> {

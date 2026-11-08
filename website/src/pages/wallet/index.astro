@@ -1615,7 +1615,7 @@ const sendTips = [
   }
 
   /* Swings: no page title; the tabs sit in the top bar beside the search box; the chart takes the freed space */
-  .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top h1 { display: none; }
+  .wapp:is([data-view='swings'], [data-view='swap'], [data-view='launchbox']) .wapp__top h1 { display: none; }
   .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top:not(:has(.wapp__chips, .wapp-search, .wapp__seg--tabs)) { display: none; }
   .nav__bar > .wapp__seg--tabs { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0 0 0 12px; }
   .nav__bar > .wapp__seg--tabs .wapp__chip { padding: 7px 11px; font-size: 12px; white-space: nowrap; }

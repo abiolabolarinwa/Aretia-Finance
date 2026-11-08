@@ -1852,6 +1852,20 @@ const sendTips = [
   .wapp-lb__go:hover { color: #fff; background: var(--color-brand); }
   .wapp-lb__table .wapp-mt__table thead th { position: sticky; top: 0; z-index: 1; background: var(--color-bg); }
   .wapp-lb__row td { padding-block: 14px; }
+  /* The list on one side and the chart of the chosen token on the other; on a narrow screen the chart sits under the list. */
+  .wapp-lb__split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
+  .wapp-lb__list, .wapp-lb__chart { min-width: 0; }
+  .wapp-lb__chart { display: grid; gap: 10px; padding: 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
+  .wapp-lb__chartempty { margin: 0; padding: 40px 12px; text-align: center; }
+  .wapp-lb__row { cursor: pointer; }
+  .wapp-lb__row.is-selected td { background: var(--color-brand-soft); }
+  @media (min-width: 1100px) {
+    .wapp-lb__split { grid-template-columns: minmax(0, 1.15fr) minmax(360px, 1fr); }
+    .wapp-lb__chart { position: sticky; top: 12px; }
+    .wapp-lb__split .wapp-lb__table .wapp-mt__table { min-width: 0; }
+    /* Beside a chart the list keeps what it needs to choose a token: Volume and Mcap are on the token's page. */
+    .wapp-lb__split .wapp-mt__table tr > :nth-child(5), .wapp-lb__split .wapp-mt__table tr > :nth-child(7) { display: none; }
+  }
   @media (max-width: 720px) {
     .wapp-lb__sort { display: block; }
     .wapp-lb__chains, .wapp-lb__tabs { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; padding-bottom: 2px; }

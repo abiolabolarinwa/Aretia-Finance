@@ -2,7 +2,7 @@
  * Launch Box on the web wallet: a Markets-style list of every token created through Aretia Launch, on every chain.
  *
  * The list comes from /api/launchbox (Aretia's own index of the chains plus DexScreener market data and curve progress read from the chain).
- * The table reuses the Markets table's look (the wapp-mt styles and its number formats); rows open the public token page. Every number is
+ * The table reuses the Markets table's look (the wapp-mt styles and its number formats); the page is split in two: choosing a row shows that token's chart beside the list, and the symbol and Trade button open the public token page. Every number is
  * the server's; a token with no pool shows "No market yet", and data that could not be refreshed is marked old.
  */
 import { CHAINS } from '../swings/core/types.js';
@@ -14,6 +14,9 @@ import { LAUNCH_CHAINS, defaultSort, tokenKey, viewLaunches, type Filter, type L
 import { verifiedChecker } from './launchBoxVerified';
 import { cleanText } from '../swings/tokens/safeText.js';
 import { imitationChip } from '../lib/imitationChip';
+import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
+import { mountTvChart, type TvChart } from './walletTvChart';
+import { mountTrades, type TradesTable } from './walletTxTable';
 
 export interface LaunchBoxIndexRow {
   chain: LaunchChain;
@@ -136,10 +139,19 @@ function liquidityCell(r: LaunchView): HTMLTableCellElement {
   return td;
 }
 
+/** What the chart pane shows for a token: its pool's chart, or the plain reason there is none. Pure. */
+export function chartPlan(r: Pick<LaunchView, 'pool' | 'curve'>): { kind: 'pool'; pool: string } | { kind: 'none'; why: string } {
+  if (r.pool?.address) return { kind: 'pool', pool: r.pool.address };
+  return { kind: 'none', why: r.curve ? 'This token is still sold on an Aretia Curve and has no trading pool yet, so there is no price chart. Its page shows how much of the curve is sold.' : 'This token has no trading pool yet, so there is no chart to show.' };
+}
+
 export interface TableHandlers {
   sort: Sort;
   onSort(key: SortKey): void;
+  /** A row was chosen: its chart is shown beside the list. */
   open(r: LaunchView): void;
+  /** The row whose chart is showing, marked in the list. */
+  selectedKey?: string | null;
   isVerified: ((chain: LaunchChain, address: string) => boolean) | null;
   /** The description and links the token's creator saved with Aretia, when known. */
   meta?: (r: LaunchView) => TokenMeta | undefined;
@@ -168,13 +180,15 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
   head.append(hr);
   const body = el('tbody');
   rows.forEach((r, i) => {
-    const tr = el('tr', 'wapp-mt__row wapp-lb__row');
+    const key = tokenKey(r.chain, r.address);
+    const tr = el('tr', `wapp-mt__row wapp-lb__row${h.selectedKey === key ? ' is-selected' : ''}`);
     tr.tabIndex = 0;
-    tr.dataset.k = tokenKey(r.chain, r.address);
-    tr.setAttribute('role', 'link');
+    tr.dataset.k = key;
+    tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-pressed', String(h.selectedKey === key));
     const symbol = cleanText(r.symbol, 32);
     const name = cleanText(r.name, 64);
-    tr.setAttribute('aria-label', `${symbol || 'Token'} on ${CHAINS[r.chain].name}: open`);
+    tr.setAttribute('aria-label', `${symbol || 'Token'} on ${CHAINS[r.chain].name}: show chart`);
     tr.addEventListener('click', () => h.open(r));
     tr.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -263,7 +277,6 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   const root = document.querySelector<HTMLElement>('[data-lb-root]');
   if (!root) return { onShow() {} };
   const doFetch: typeof fetch = o.fetchImpl ?? ((input, init) => fetch(input, init));
-  const navigate = o.navigate ?? ((href: string) => location.assign(href));
   const filter: Filter = { tab: 'new', chain: '', query: '' };
   let sort: Sort | null = null;
   let data: LaunchBoxData | null = null;
@@ -418,6 +431,67 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
   }
 
   const listHost = el('div', 'wapp-lb__list');
+  /** The chart of the chosen token, beside the list. */
+  const chartHost = el('aside', 'wapp-lb__chart');
+  chartHost.setAttribute('aria-label', 'Token chart');
+  let chosen: LaunchView | null = null;
+  let chosenKey: string | null = null;
+  let tvChart: TvChart | null = null;
+  let tradesTable: TradesTable | null = null;
+
+  function disposeChart(): void {
+    tvChart?.dispose();
+    tradesTable?.dispose();
+    tvChart = null;
+    tradesTable = null;
+    shownChart = null;
+  }
+  /** What the chart pane is drawn for, so a refresh of the list does not rebuild a chart that is already showing. */
+  let shownChart: string | null = null;
+
+  /** Shows the chosen token's chart (or says why there is none) in the pane beside the list. */
+  function showChosen(): void {
+    const r = chosen;
+    if (!r) {
+      disposeChart();
+      chartHost.replaceChildren(el('p', 'wapp__fine wapp-lb__chartempty', 'Choose a token in the list to see its chart.'));
+      return;
+    }
+    const symbol = cleanText(r.symbol, 32) || '?';
+    const quote = cleanText(r.pool?.quoteSymbol ?? '', 20);
+    const key = `${tokenKey(r.chain, r.address)}:${r.pool?.address ?? 'none'}`;
+    if (shownChart === key) return;
+    disposeChart();
+    shownChart = key;
+    const head = el('div', 'wapp-mt__chart-head');
+    const title = el('strong', 'wapp-mt__chart-title', `${symbol}${quote ? ` / ${quote}` : ''} · ${CHAINS[r.chain].name}`);
+    const open = el('a', 'wapp__btn wapp__btn--ghost', 'Open token page');
+    open.href = tokenHref(r);
+    head.append(title, open);
+    const plan = chartPlan(r);
+    if (plan.kind === 'none') {
+      chartHost.replaceChildren(head, el('p', 'wapp__fine', plan.why));
+      return;
+    }
+    const pool = plan.pool;
+    const plot = el('div', 'wapp-mt__chart-frame');
+    plot.setAttribute('role', 'img');
+    plot.setAttribute('aria-label', `${symbol} price chart`);
+    const trades = el('div', 'wapp-mt__trades');
+    chartHost.replaceChildren(head, plot, trades);
+    tvChart = mountTvChart(plot, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool }), title: `${symbol} price chart` });
+    tradesTable = mountTrades(trades, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}) });
+  }
+
+  /** A row was chosen: it is marked in the list and its chart is drawn. Narrow screens stack the chart under the list, so it is scrolled to. */
+  function choose(r: LaunchView, scroll = true): void {
+    chosen = r;
+    chosenKey = tokenKey(r.chain, r.address);
+    renderList();
+    showChosen();
+    if (scroll && window.matchMedia?.('(max-width: 1099px)').matches) chartHost.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
   const statsHost = el('div', 'wapp-lb__stats');
   const statusHost = el('div');
   const footHost = el('div');
@@ -456,7 +530,8 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
           sort = { key, dir: cur.key === key ? (cur.dir === 'desc' ? 'asc' : 'desc') : 'desc' };
           renderList();
         },
-        open: (r) => navigate(tokenHref(r)),
+        open: (r) => choose(r),
+        selectedKey: chosenKey,
         isVerified: verified,
         meta: (r) => metas.get(`${r.chain}:${r.address}`),
         now: Date.now(),
@@ -470,8 +545,22 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     const title = el('div', 'wapp-lb__titles');
     title.append(el('p', 'wapp-lb__sub', 'Every token launched with Aretia, on every network.'));
     head.append(title, statsHost);
-    root!.append(head, controls(), statusHost, listHost, footHost);
+    // The list on one side, the chart of the chosen token on the other (stacked on a narrow screen).
+    const split = el('div', 'wapp-lb__split');
+    split.append(listHost, chartHost);
+    root!.append(head, controls(), statusHost, split, footHost);
+    // The chart node was taken out of the page with the rest; it is drawn again for the same token.
+    shownChart = null;
+    disposeChart();
+    showChosen();
     refreshData();
+  }
+
+  /** With nothing chosen yet, the first token that has a pool is shown, so the pane is not empty. A choice already made stays. */
+  function pickDefault(): void {
+    if (chosen || !data || data.setup !== 'ok') return;
+    const first = viewLaunches(data.launches, filter, sort).find((r) => r.pool) ?? null;
+    if (first) choose(first, false);
   }
 
   /** Everything that comes from the server: the count, the notes, the list and the time it was made. The controls are left alone. */
@@ -487,6 +576,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       }
     }
     statusHost.replaceChildren(...[status()].filter((n): n is HTMLElement => n !== null));
+    pickDefault();
     renderList();
     footHost.textContent = '';
     if (data?.setup === 'ok') {

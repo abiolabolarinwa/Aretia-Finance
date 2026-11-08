@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ago, launchStats, tokenHref } from './walletLaunchBox';
+import { ago, chartPlan, launchStats, tokenHref } from './walletLaunchBox';
 import { verifiedChecker } from './launchBoxVerified';
 
 describe('Launch Box page', () => {
@@ -66,5 +66,23 @@ describe('the headline numbers', () => {
   });
   it('ignores a figure that is not a usable number', () => {
     expect(launchStats([{ volume24hUsd: Number.NaN, liquidityUsd: -5 }, { volume24hUsd: 7, liquidityUsd: 3 }])).toEqual({ tokens: 2, volumeUsd: 7, liquidityUsd: 3 });
+  });
+});
+
+describe('the chart beside the list', () => {
+  it('charts a token that has a pool, by its pool address', () => {
+    expect(chartPlan({ pool: { dex: 'raydium', address: 'PoolAddr', url: 'https://x' }, curve: null })).toEqual({ kind: 'pool', pool: 'PoolAddr' });
+  });
+  it('says plainly why a token on a curve, or with no market, has no chart', () => {
+    const onCurve = chartPlan({ pool: null, curve: { status: 'trading', progressPct: 12 } });
+    expect(onCurve.kind).toBe('none');
+    expect(onCurve.kind === 'none' && onCurve.why).toContain('Aretia Curve');
+    const none = chartPlan({ pool: null, curve: null });
+    expect(none.kind === 'none' && none.why).toContain('no trading pool');
+  });
+  it('lays the page out in two parts that stack on a narrow screen', () => {
+    const page = readFileSync(new URL('../pages/wallet/index.astro', import.meta.url), 'utf8');
+    expect(page).toContain('.wapp-lb__split');
+    expect(page).toMatch(/@media \(min-width: 1100px\) \{\s*\.wapp-lb__split \{ grid-template-columns/);
   });
 });

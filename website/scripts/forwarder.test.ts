@@ -145,3 +145,38 @@ describe('the API forwarder keeps the last good Marketplace list', () => {
     }
   });
 });
+
+describe('the API forwarder lets the native apps call it, and only them', () => {
+  const env = { API_ORIGIN: 'https://api.example', CF_PROXY_SECRET: 's', APP_ORIGINS: 'capacitor://localhost, https://localhost' };
+  const withFetch = async (run: () => Promise<void>): Promise<void> => {
+    (globalThis as unknown as { caches: unknown }).caches = { default: { match: async () => undefined, put: async () => undefined } };
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => new Response('{"ok":true}', { status: 200 })) as typeof fetch;
+    try {
+      await run();
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+
+  it('answers the preflight and adds the headers for a listed app origin', async () => {
+    await withFetch(async () => {
+      const pre = await onRequest({ request: new Request('https://x.org/api/swings-account', { method: 'OPTIONS', headers: { origin: 'capacitor://localhost', 'access-control-request-headers': 'content-type,authorization' } }), env });
+      expect(pre.status).toBe(204);
+      expect(pre.headers.get('access-control-allow-origin')).toBe('capacitor://localhost');
+      expect(pre.headers.get('access-control-allow-headers')).toBe('content-type,authorization');
+      const res = await onRequest({ request: new Request('https://x.org/api/swings-account', { method: 'POST', body: '{}', headers: { origin: 'https://localhost' } }), env });
+      expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost');
+      expect(await res.json()).toEqual({ ok: true });
+    });
+  });
+
+  it('adds nothing for other origins, or when no app origin is configured', async () => {
+    await withFetch(async () => {
+      const other = await onRequest({ request: new Request('https://x.org/api/swings-market', { headers: { origin: 'https://evil.example' } }), env });
+      expect(other.headers.get('access-control-allow-origin')).toBeNull();
+      const none = await onRequest({ request: new Request('https://x.org/api/swings-market', { headers: { origin: 'capacitor://localhost' } }), env: { API_ORIGIN: env.API_ORIGIN, CF_PROXY_SECRET: 's' } });
+      expect(none.headers.get('access-control-allow-origin')).toBeNull();
+    });
+  });
+});

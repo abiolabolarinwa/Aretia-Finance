@@ -8,6 +8,8 @@
 interface Env {
   API_ORIGIN?: string;
   CF_PROXY_SECRET?: string;
+  /** Comma-separated origins of the native apps that may call the API from inside the app (capacitor://localhost, https://localhost). Empty: no cross-origin access. */
+  APP_ORIGINS?: string;
 }
 
 const DROP = new Set(['host', 'cf-connecting-ip', 'cf-ray', 'cf-visitor', 'cf-ipcountry', 'x-forwarded-for', 'x-real-ip', 'x-aretia-proxy-secret', 'x-aretia-client-ip']);
@@ -43,7 +45,7 @@ const candleRows = (body: unknown): CandleRow[] => {
 /** The Market Indexer's public read API: every GET under it is shared data, and the answer says how long it may be kept (s-maxage). */
 const edgeCacheable = (pathname: string): boolean => EDGE_CACHED.has(pathname) || pathname === '/api/v1' || pathname.startsWith('/api/v1/');
 
-export async function onRequest(context: { request: Request; env: Env; waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
+async function handle(context: { request: Request; env: Env; waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
   const { request, env } = context;
   if (!env.API_ORIGIN || !env.CF_PROXY_SECRET) return new Response(JSON.stringify({ error: 'API is not configured' }), { status: 503, headers: { 'content-type': 'application/json' } });
   const incoming = new URL(request.url);
@@ -172,4 +174,30 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
   // A plain-text gateway error (Vercel's or the network's) would reach the page as an anonymous 502: hand on a JSON 503 that says who failed.
   if (res.status >= 500) return new Response(JSON.stringify({ error: 'The API answered with an error', upstream: res.status }), { status: 503, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   return res;
+}
+
+/**
+ * Cross-origin access for the native apps only. The apps load the site from capacitor://localhost or https://localhost, so their API
+ * calls are cross-origin. Only the origins listed in APP_ORIGINS get the headers; with none listed the website behaves as before.
+ */
+export async function onRequest(context: { request: Request; env: Env; waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
+  const origin = context.request.headers.get('origin') ?? '';
+  const allowed = (context.env.APP_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!origin || !allowed.includes(origin)) return handle(context);
+  const cors: Record<string, string> = { 'access-control-allow-origin': origin, vary: 'Origin' };
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...cors,
+        'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'access-control-allow-headers': context.request.headers.get('access-control-request-headers') ?? 'content-type',
+        'access-control-max-age': '86400',
+      },
+    });
+  }
+  const res = await handle(context);
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
+  return out;
 }

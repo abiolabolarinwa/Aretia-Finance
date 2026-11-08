@@ -88,8 +88,10 @@ export interface PoolChartOptions {
   exchange?: string | null;
   /**
    * 'aretia': the pool is one Aretia's own Market Indexer follows, so candles come from its stored on-chain trades
-   * (/api/swings-ohlcv?source=aretia). GeckoTerminal and DexScreener are NOT asked for such a pool: an outside source must never
-   * stand in for, or override, what the indexer read from the chain.
+   * (/api/swings-ohlcv?source=aretia). An outside source never stands in for, or overrides, candles the indexer has: once it has
+   * answered with candles for this chart, only it is asked. But the index follows a pool without necessarily holding its trade history
+   * (it lists far more pools than it follows swaps for), so while it has no candle at all for the pool, the usual outside sources are
+   * read instead and the chart says so ("Source: GeckoTerminal"), rather than showing an empty chart for a market that has candles.
    */
   source?: 'aretia';
 }
@@ -343,10 +345,12 @@ export function createPoolDatafeed(
   const indexerUnknown = new Map<string, number>();
   const INDEXER_UNKNOWN_MS = 15_000;
   const INDEXER_HEAD_START_MS = deps.indexerHeadStartMs ?? 600;
+  /** True once the index has given an indexed pool's chart candles: from then on no outside source is asked for it. */
+  let indexHadBars = false;
 
   /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
   async function fetchLivePrice(): Promise<number | null> {
-    if (o.source === 'aretia') return null;
+    if (o.source === 'aretia' && indexHadBars) return null;
     try {
       const response = await fetchImpl(`${dexBase}/latest/dex/pairs/${DEXSCREENER_CHAIN[o.chain]}/${encodeURIComponent(o.pool)}`, { headers: { accept: 'application/json' } });
       return response.ok ? livePriceFrom(await response.json(), side, currency) : null;
@@ -387,19 +391,21 @@ export function createPoolDatafeed(
    * index when GeckoTerminal has nothing or refuses), so a visitor's own allowance is not spent. Null on any failure (not deployed,
    * refused, unreadable) so the caller can go direct.
    */
-  async function fromServer(res: Resolution, beforeSec: number, limit: number): Promise<Read | null> {
+  async function fromServer(res: Resolution, beforeSec: number, limit: number, outside = false): Promise<Read | null> {
     if (!deps.viaServer) return null;
+    // `outside`: an indexed pool whose index has no candles asks the shared GeckoTerminal route, like any other pool.
+    const own = o.source === 'aretia' && !outside;
     // A route that failed in the last minute is skipped, so each load does not wait on a refusal before going direct.
-    const route = o.source === 'aretia' ? `${CANDLES_ROUTE}-aretia` : CANDLES_ROUTE;
+    const route = own ? `${CANDLES_ROUTE}-aretia` : CANDLES_ROUTE;
     if (routeIsDown(route, now())) return null;
     const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency });
-    if (o.source) q.set('source', o.source);
+    if (own) q.set('source', 'aretia');
     try {
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
       if (response.ok) {
         markRouteUp(route);
         const json: unknown = await response.json();
-        return { bars: parseBars(json), meta: metaFromBody(json, o.source === 'aretia' ? 'aretia-index' : 'geckoterminal') };
+        return { bars: parseBars(json), meta: metaFromBody(json, own ? 'aretia-index' : 'geckoterminal') };
       }
     } catch {
       // Treated like any other failure below.
@@ -484,12 +490,34 @@ export function createPoolDatafeed(
     }
   }
 
+  /** Aretia's shared GeckoTerminal route, hedged with a direct read if it is slow or refuses. */
+  async function usualSources(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<Read> {
+    const direct = (): Promise<Read> => readDirect(res, beforeSec, limit, attempts);
+    const server = fromServer(res, beforeSec, limit, true);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<'late'>((resolve) => {
+      timer = setTimeout(() => resolve('late'), hedgeMs);
+    });
+    const winner = await Promise.race([server, late]);
+    clearTimeout(timer);
+    if (winner !== 'late') return winner ?? (await direct());
+    return firstGood(server, direct());
+  }
+
   async function loadFromSources(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<Read> {
     if (o.source === 'aretia') {
-      // An indexed pool has one source: Aretia's stored trades. No outside service is asked, hedged against or fallen back to.
+      // An indexed pool's source is Aretia's stored trades. Once the index has given this chart candles, nothing outside is asked.
       const own = await fromServer(res, beforeSec, limit);
-      if (own === null) throw new Error("Aretia's market index could not be reached.");
-      return own;
+      if (own !== null && own.bars.length > 0) {
+        indexHadBars = true;
+        return own;
+      }
+      if (indexHadBars) {
+        if (own === null) throw new Error("Aretia's market index could not be reached.");
+        return own;
+      }
+      // The index holds no candle for this pool (or could not be reached): read the usual outside sources instead.
+      return usualSources(res, beforeSec, limit, attempts);
     }
     // Aretia's own index is asked first and given a short head start: a pool it follows needs no outside service at all. If it does not
     // follow the pool, has nothing for this window or is slow, the usual sources are read, and bars the index sends meanwhile still win.
@@ -501,19 +529,7 @@ export function createPoolDatafeed(
     const first = await Promise.race([indexed, tooSlow]);
     clearTimeout(headStart);
     if (first !== 'late' && first !== null) return first;
-    const usual = async (): Promise<Read> => {
-      const direct = (): Promise<Read> => readDirect(res, beforeSec, limit, attempts);
-      const server = fromServer(res, beforeSec, limit);
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const late = new Promise<'late'>((resolve) => {
-        timer = setTimeout(() => resolve('late'), hedgeMs);
-      });
-      const winner = await Promise.race([server, late]);
-      clearTimeout(timer);
-      if (winner !== 'late') return winner ?? (await direct());
-      return firstGood(server, direct());
-    };
-    const usualRead = usual();
+    const usualRead = usualSources(res, beforeSec, limit, attempts);
     return new Promise<Read>((resolve, reject) => {
       indexed.then((read) => {
         if (read) resolve(read);

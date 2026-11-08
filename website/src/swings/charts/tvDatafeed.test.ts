@@ -557,16 +557,48 @@ describe('a pool followed by Aretia\'s own Market Indexer', () => {
     }
   });
 
-  it('reports an error, rather than asking an outside service, when Aretia\'s endpoint fails', async () => {
-    const urls: string[] = [];
-    const f = vi.fn(async (url: string) => {
-      urls.push(String(url));
-      return new Response('{}', { status: 502 });
+  const first = { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true };
+  const pool = '0x' + 'c3'.repeat(20);
+  const isIndex = (u: unknown): boolean => String(u).includes('source=aretia');
+
+  it('reads the usual sources when the index holds no candle for the pool, so the chart is not empty for a market that has candles', async () => {
+    const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response(JSON.stringify(body([]))) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'solana', pool, label: 'USPR / USD', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
+    const r = await getBars(feed, '15', first);
+    expect('bars' in r && r.bars).toHaveLength(3);
+    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => isIndex(u))).toBe(true); // the index is still asked first
+    expect(calls.some((u) => !isIndex(u))).toBe(true);
+  });
+
+  it('also reads the usual sources when the index cannot be reached', async () => {
+    const f = vi.fn(async (u: unknown) => (isIndex(u) ? new Response('{}', { status: 502 }) : new Response(JSON.stringify(body(LIST))))) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'bnb', pool, label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
+    const r = await getBars(feed, '15', first);
+    expect('bars' in r && r.bars).toHaveLength(3);
+  });
+
+  it('once the index has given the chart candles, an empty older window is not filled from an outside service', async () => {
+    let asked = 0;
+    const f = vi.fn(async (u: unknown) => {
+      if (!isIndex(u)) {
+        asked++;
+        return new Response(JSON.stringify(body(LIST)));
+      }
+      return new Response(JSON.stringify(body(String(u).includes('before=1700002') || String(u).includes('before=17000') ? LIST : [])));
     }) as unknown as typeof fetch;
-    const feed = createPoolDatafeed({ chain: 'bnb', pool: '0x' + 'c3'.repeat(20), label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
-    const r = await getBars(feed, '15', { from: 1_699_990_000, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
+    const feed = createPoolDatafeed({ chain: 'bnb', pool, label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined });
+    await getBars(feed, '15', first);
+    expect(asked).toBe(0);
+    await getBars(feed, '15', { from: 0, to: 1_600_000_000, countBack: 300, firstDataRequest: false });
+    expect(asked).toBe(0);
+  });
+
+  it('reports no candles when neither the index nor the outside services have any', async () => {
+    const f = vi.fn(async () => new Response('{}', { status: 502 })) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'bnb', pool, label: 'MEME / USDT', source: 'aretia' }, { fetchImpl: f, viaServer: '/api/swings-ohlcv', livePriceMs: 0, sleep: async () => undefined, tradesFallback: false });
+    const r = await getBars(feed, '15', first);
     expect(r).toEqual({ bars: [], noData: true });
-    expect(urls.every((u) => u.startsWith('/api/swings-ohlcv'))).toBe(true);
   });
 });
 

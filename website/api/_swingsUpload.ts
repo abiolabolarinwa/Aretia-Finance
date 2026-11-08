@@ -1,43 +1,34 @@
 /**
- * Token pictures and details, the server side (docs/LAUNCH_ASSETS.md).
+ * Token pictures and details, the server side (docs/R2_LAUNCH_ASSETS.md).
  *
  *   POST /api/swings-upload  { op: 'status' }                  (no sign-in) whether uploads are set up
  *                            { op: 'sign', kind, ... }          (needs the wallet sign-in session) a one-use upload link for ONE file
  *   GET  /api/swings-meta?chain=<chain>&address=<a,b,...>       (public, cached) the picture, description and links of tokens
  *
- * The file itself never passes through here: the browser sends it straight to a PUBLIC bucket on Cloudflare R2 (a presigned PUT link this
- * file signs itself with SigV4, bound to one path, one type and one size, valid five minutes) or, when no R2 variables are set, to a public
- * Supabase Storage bucket (a signed upload link asked of Supabase with the service key). The keys stay on the server. What may be uploaded (type, size, name) is decided by planUpload in src/swings/launchmeta/core.ts. A picture and a Solana
+ * The file itself never passes through here: the browser sends it straight to a PUBLIC bucket on Cloudflare R2, using a presigned PUT link
+ * this file signs itself with SigV4 (bound to one path, one type and one size, valid five minutes). The R2 keys stay on the server.
+ * What may be uploaded (type, size, name) is decided by planUpload in src/swings/launchmeta/core.ts. A picture and a Solana
  * details file are named by the SHA-256 of their bytes and are never overwritten. An Ethereum-style token's details file is keyed by
  * the token's address, and is accepted only from the wallet that created the token: the creation transaction is read back from the chain
  * and must contain the factory's TokenCreated log naming that token and that wallet.
  *
- * Needs the R2_* values, or SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and a public bucket (LAUNCH_ASSETS_BUCKET, default "launch-assets"). Without them
- * 'status' answers { enabled: false } and the Launch page says image upload is not set up yet; nothing else changes.
+ * Needs the five R2_* values (docs/R2_LAUNCH_ASSETS.md). Without them 'status' answers { enabled: false } and the Launch page says image
+ * upload is not set up yet; nothing else changes.
  */
-import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth.js';
+import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
 import { isOriginAllowed, overLimit } from './_rpcProxy.js';
 import { sessionOwner, sessionSecret } from './_swingsAuth.js';
 import { rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
 import { EVM_FACTORIES, TOKEN_CREATED_TOPIC, type EvmLaunchChain } from '../src/swings/launchbox/core.js';
 import { PUBLIC_EVM_RPC } from '../src/swings/launchbox/indexer.js';
-import { EVM_META_CHAINS, JSON_MAX_BYTES, UPLOAD_LIMITS, bucketProblem, hasMeta, legacyToR2, parseMetadataJson, planUpload, publicUrl, r2PublicBase, type TokenMeta } from '../src/swings/launchmeta/core.js';
+import { EVM_META_CHAINS, JSON_MAX_BYTES, UPLOAD_LIMITS, hasMeta, legacyToR2, parseMetadataJson, planUpload, r2PublicBase, type TokenMeta } from '../src/swings/launchmeta/core.js';
 import { presignUrl } from '../src/swings/launchmeta/r2sign.js';
 import type { TokensEnv } from './_swingsTokens.js';
 
 export interface UploadEnv extends TokensEnv {
   /**
-   * Where the picture bucket lives, when that is not where the database is. Both fall back to SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY,
-   * so a site that moves its database to another server (server/README.md) keeps its pictures on Supabase Storage by setting these two
-   * to the Supabase project's values until the pictures move to object storage.
-   */
-  STORAGE_URL?: string;
-  STORAGE_SERVICE_ROLE_KEY?: string;
-  LAUNCH_ASSETS_BUCKET?: string;
-  /**
-   * Cloudflare R2 (docs/R2_LAUNCH_ASSETS.md). When any of the five R2_ values is set, pictures use R2 and the Supabase storage values are
-   * ignored; when none is set, Supabase Storage is used as before. R2_PUBLIC_BASE is the bucket's custom domain, a subdomain of aretiafinance.org.
+   * Cloudflare R2 (docs/R2_LAUNCH_ASSETS.md); all five must be valid. R2_PUBLIC_BASE is the bucket's custom domain, a subdomain of aretiafinance.org.
    * R2_SIGN_CONTENT_LENGTH=0 stops the link from binding the file size (only if R2 ever refuses a link that does).
    */
   R2_ACCOUNT_ID?: string;
@@ -67,7 +58,6 @@ export interface UploadOutput {
 
 const NOT_SET_UP = 'Image upload is not set up yet';
 const HOUR = 3_600_000;
-const STATUS_TTL_MS = 5 * 60_000;
 const META_TTL_MS = 5 * 60_000;
 const META_MISS_TTL_MS = 60_000;
 const MAX_ADDRESSES = 20;
@@ -76,64 +66,42 @@ const R2_LINK_SECONDS = 300;
 const json = (status: number, data: unknown, headers: Record<string, string>): UploadOutput => ({ status, body: JSON.stringify(data), headers: { ...headers, 'content-type': 'application/json' } });
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
-let statusCache: { key: string; at: number; ok: boolean } | null = null;
 const metaCache = new Map<string, { at: number; meta: TokenMeta | null }>();
 export function resetUploadState(): void {
-  statusCache = null;
   metaCache.clear();
 }
 
-export const bucketOf = (env: UploadEnv): string => {
-  const b = (env.LAUNCH_ASSETS_BUCKET ?? '').trim();
-  return /^[a-z0-9][a-z0-9_-]{1,62}$/.test(b) ? b : 'launch-assets';
-};
-
-/** Where files are kept. Cloudflare R2 when any R2_ value is set (and then all must be valid), otherwise Supabase Storage. */
-export type Storage =
-  | { kind: 'r2'; account: string; keyId: string; secret: string; bucket: string; base: string; signLength: boolean }
-  | { kind: 'supabase'; base: string; key: string; bucket: string };
+/** Where files are kept: one Cloudflare R2 bucket with a public custom domain. */
+export interface Storage {
+  account: string;
+  keyId: string;
+  secret: string;
+  bucket: string;
+  /** The public address, an https origin on aretiafinance.org. */
+  base: string;
+  signLength: boolean;
+}
 
 const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE'] as const;
 
+/** The R2 settings, or null when any is missing or unacceptable (then uploads are "not set up"). */
 export function storageConfig(env: UploadEnv): Storage | null {
-  if (R2_NAMES.some((n) => (env[n] ?? '').trim() !== '')) {
-    const account = (env.R2_ACCOUNT_ID ?? '').trim();
-    const keyId = (env.R2_ACCESS_KEY_ID ?? '').trim();
-    const secret = (env.R2_SECRET_ACCESS_KEY ?? '').trim();
-    const bucket = (env.R2_BUCKET ?? '').trim();
-    const base = r2PublicBase(env.R2_PUBLIC_BASE);
-    if (!/^[0-9a-f]{32}$/i.test(account) || !keyId || !secret || !/^[a-z0-9][a-z0-9-]{1,62}$/.test(bucket) || !base) return null;
-    return { kind: 'r2', account, keyId, secret, bucket, base, signLength: (env.R2_SIGN_CONTENT_LENGTH ?? '').trim() !== '0' };
-  }
-  const base = supabaseBase(env.STORAGE_URL?.trim() ? env.STORAGE_URL : env.SUPABASE_URL);
-  const key = (env.STORAGE_SERVICE_ROLE_KEY?.trim() ? env.STORAGE_SERVICE_ROLE_KEY : env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
-  return base && key ? { kind: 'supabase', base, key, bucket: bucketOf(env) } : null;
+  if (R2_NAMES.some((n) => (env[n] ?? '').trim() === '')) return null;
+  const account = (env.R2_ACCOUNT_ID ?? '').trim();
+  const bucket = (env.R2_BUCKET ?? '').trim();
+  const base = r2PublicBase(env.R2_PUBLIC_BASE);
+  if (!/^[0-9a-f]{32}$/i.test(account) || !/^[a-z0-9][a-z0-9-]{1,62}$/.test(bucket) || !base) return null;
+  return { account, keyId: (env.R2_ACCESS_KEY_ID ?? '').trim(), secret: (env.R2_SECRET_ACCESS_KEY ?? '').trim(), bucket, base, signLength: (env.R2_SIGN_CONTENT_LENGTH ?? '').trim() !== '0' };
 }
 
 /** The public address of a file in the store. */
-export const fileUrl = (c: Storage, path: string): string => (c.kind === 'r2' ? `${c.base}/${path}` : publicUrl(c.base, c.bucket, path));
+export const fileUrl = (c: Storage, path: string): string => `${c.base}/${path}`;
 
-/** The database that holds wallet sign-in sessions: SUPABASE_URL / key (the site's database), and only when that is unset the Supabase storage project. */
-function database(env: UploadEnv, c: Storage): { base: string; key: string } | null {
+/** The database that holds wallet sign-in sessions: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (the site's own data server). */
+function database(env: UploadEnv): { base: string; key: string } | null {
   const base = supabaseBase(env.SUPABASE_URL);
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (base && key) return { base, key };
-  return c.kind === 'supabase' ? { base: c.base, key: c.key } : null;
-}
-
-/**
- * True when the bucket exists, is public, caps file size and lists only the allowed file types (`bucketProblem`), asked of Supabase at
- * most every five minutes. A signed upload link does not bind the file's type or size, so the bucket's own limits are what hold.
- */
-async function bucketReady(c: Storage, fetchImpl: typeof fetch, now: number): Promise<boolean> {
-  if (c.kind === 'r2') return true; // R2 has no bucket limits to read: the link itself binds the path, type and size
-  const id = `${c.base}|${c.bucket}`;
-  if (statusCache && statusCache.key === id && now - statusCache.at < STATUS_TTL_MS) return statusCache.ok;
-  const ok = await fetchImpl(`${c.base}/storage/v1/bucket/${encodeURIComponent(c.bucket)}`, { headers: supabaseHeaders(c.key) })
-    .then(async (res) => res.ok && bucketProblem(await res.json().catch(() => null)) === null)
-    .catch(() => false);
-  statusCache = { key: id, at: now, ok };
-  return ok;
+  return base && key ? { base, key } : null;
 }
 
 // ---------------------------------------------------------------- Ethereum-style creation check
@@ -173,13 +141,13 @@ export async function handleUpload(input: UploadInput): Promise<UploadOutput> {
   const body = obj(input.body);
 
   if (body.op === 'status') {
-    const enabled = c !== null && (await bucketReady(c, input.fetchImpl, input.now));
+    const enabled = c !== null;
     return json(200, enabled ? { enabled: true } : { enabled: false, message: NOT_SET_UP }, headers);
   }
   if (body.op !== 'sign') return json(400, { error: 'bad-request' }, headers);
-  if (!c || !(await bucketReady(c, input.fetchImpl, input.now))) return json(503, { error: 'not-configured', message: NOT_SET_UP }, headers);
+  if (!c) return json(503, { error: 'not-configured', message: NOT_SET_UP }, headers);
 
-  const db = database(input.env, c);
+  const db = database(input.env);
   const secret = sessionSecret(input.env) ?? db?.key;
   if (!db || !secret) return json(503, { error: 'not-configured', message: NOT_SET_UP }, headers);
   let owner: string | null;
@@ -218,32 +186,13 @@ export async function handleUpload(input: UploadInput): Promise<UploadOutput> {
       // not known to exist: a link is issued, and an upload of the same bytes to an existing name is refused by Storage
     }
   }
-  if (c.kind === 'r2') {
-    try {
-      // The link is for this path only, for five minutes, and binds the file type and (unless switched off) its exact size.
-      const signedHeaders: Record<string, string> = { 'content-type': plan.contentType, ...(c.signLength ? { 'content-length': String(body.size) } : {}) };
-      const uploadUrl = await presignUrl({ method: 'PUT', host: `${c.account}.r2.cloudflarestorage.com`, path: `/${c.bucket}/${plan.path}`, region: 'auto', service: 's3', accessKeyId: c.keyId, secretAccessKey: c.secret, expires: R2_LINK_SECONDS, now: new Date(input.now), signedHeaders });
-      return json(200, { uploadUrl, url, contentType: plan.contentType, raw: true, upsert: !plan.immutableName, maxBytes: plan.contentType === 'application/json' ? JSON_MAX_BYTES : undefined }, headers);
-    } catch {
-      return json(502, { error: 'storage', message: 'The picture store did not give an upload link. Try again.' }, headers);
-    }
-  }
   try {
-    const res = await input.fetchImpl(`${c.base}/storage/v1/object/upload/sign/${encodeURIComponent(c.bucket)}/${plan.path.split('/').map(encodeURIComponent).join('/')}`, {
-      method: 'POST',
-      headers: { ...supabaseHeaders(c.key), 'content-type': 'application/json', ...(plan.immutableName ? {} : { 'x-upsert': 'true' }) },
-      body: '{}',
-    });
-    const data = obj(await res.json().catch(() => null));
-    if (!res.ok || typeof data.url !== 'string') {
-      if (res.status === 404) statusCache = null;
-      return json(502, { error: 'storage', message: res.status === 404 ? NOT_SET_UP : 'The picture store did not give an upload link. Try again.' }, headers);
-    }
-    const uploadUrl = data.url.startsWith('https://') ? data.url : `${c.base}/storage/v1${data.url.startsWith('/') ? '' : '/'}${data.url}`;
-    if (!uploadUrl.startsWith(`${c.base}/storage/v1/object/upload/sign/`)) return json(502, { error: 'storage', message: 'The picture store answered unexpectedly.' }, headers);
-    return json(200, { uploadUrl, url, contentType: plan.contentType, upsert: !plan.immutableName, maxBytes: plan.contentType === 'application/json' ? JSON_MAX_BYTES : undefined }, headers);
+    // The link is for this path only, for five minutes, and binds the file type and (unless switched off) its exact size.
+    const signedHeaders: Record<string, string> = { 'content-type': plan.contentType, ...(c.signLength ? { 'content-length': String(body.size) } : {}) };
+    const uploadUrl = await presignUrl({ method: 'PUT', host: `${c.account}.r2.cloudflarestorage.com`, path: `/${c.bucket}/${plan.path}`, region: 'auto', service: 's3', accessKeyId: c.keyId, secretAccessKey: c.secret, expires: R2_LINK_SECONDS, now: new Date(input.now), signedHeaders });
+    return json(200, { uploadUrl, url, contentType: plan.contentType, raw: true, upsert: !plan.immutableName, maxBytes: plan.contentType === 'application/json' ? JSON_MAX_BYTES : undefined }, headers);
   } catch {
-    return json(502, { error: 'storage', message: 'The picture store could not be reached. Try again.' }, headers);
+    return json(502, { error: 'storage', message: 'The picture store did not give an upload link. Try again.' }, headers);
   }
 }
 
@@ -259,7 +208,7 @@ async function fetchMetaJson(fetchImpl: typeof fetch, url: string, c: Storage): 
     const text = await res.text();
     const meta = text.length <= JSON_MAX_BYTES * 4 ? parseMetadataJson(text) : null;
     // The file may still name its picture at the old Supabase address (it was copied unchanged): point it at the copy on R2.
-    if (meta?.image && c.kind === 'r2') meta.image = legacyToR2(meta.image, c.base) ?? meta.image;
+    if (meta?.image) meta.image = legacyToR2(meta.image, c.base) ?? meta.image;
     return meta;
   } catch {
     return null;
@@ -316,8 +265,8 @@ export async function handleMeta(input: UploadInput): Promise<UploadOutput> {
         const uris = await solanaUris(input, todo);
         await Promise.all(todo.map(async (a) => {
           let uri = uris.get(a);
-          // A token made before the pictures moved to R2 has the old Supabase address on the chain; its file was copied to the same path.
-          if (uri && c.kind === 'r2') uri = legacyToR2(uri, c.base) ?? uri;
+          // A token made before the pictures moved to R2 has the old Supabase address on the chain; its file, if copied, is at the same path on R2.
+          if (uri) uri = legacyToR2(uri, c.base) ?? uri;
           // Only a file in Aretia's own bucket is read: a token may point its uri anywhere, and that is not fetched from here.
           found.set(a, uri && uri.startsWith(prefix) && /^[0-9a-f]{64}\.json$/.test(uri.slice(prefix.length)) ? await fetchMetaJson(input.fetchImpl, uri, c) : null);
         }));

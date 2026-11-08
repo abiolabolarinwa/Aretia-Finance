@@ -106,11 +106,11 @@ describe('upload to Cloudflare R2', () => {
     const exists = await call(world({ existing: new Set([`img/${SHA}.png`]) }), image);
     expect(exists.data).toEqual({ exists: true, url: `${R2}/img/${SHA}.png` });
   });
-  it('treats incomplete or unacceptable R2 settings as not set up, with no fallback to Supabase', async () => {
+  it('treats incomplete or unacceptable R2 settings as not set up', async () => {
     const bad: Record<string, string>[] = [{ R2_ACCOUNT_ID: 'short' }, { R2_BUCKET: 'Bad Name' }, { R2_PUBLIC_BASE: 'https://evil.example' }, { R2_PUBLIC_BASE: 'http://assets.aretiafinance.org' }, { R2_PUBLIC_BASE: 'https://aretiafinance.org' }, { R2_SECRET_ACCESS_KEY: '' }];
     for (const patch of bad) {
       const w = world();
-      const r = await call(w, { op: 'status' }, { authorization: null, env: { ...env, ...patch, STORAGE_URL: OLD, STORAGE_SERVICE_ROLE_KEY: 'old-key' } });
+      const r = await call(w, { op: 'status' }, { authorization: null, env: { ...env, ...patch } });
       expect(r.data.enabled, JSON.stringify(patch)).toBe(false);
       expect(w.calls).toEqual([]);
     }
@@ -155,17 +155,34 @@ describe('reading details back with R2', () => {
   });
 });
 
-describe('fallback to Supabase Storage', () => {
-  it('uses Supabase when no R2 value is set', async () => {
-    const w = world();
-    const calls: string[] = [];
-    const fetchImpl = (async (u: string | URL, i?: RequestInit) => {
-      calls.push(String(u));
-      if (String(u) === `${OLD}/storage/v1/bucket/launch-assets`) return new Response(JSON.stringify({ public: true, file_size_limit: 10 * 1024 * 1024, allowed_mime_types: ['image/png', 'image/jpeg', 'image/gif', 'application/json'] }));
-      return w.fetchImpl(u, i);
-    }) as typeof fetch;
-    const r = await call(w, { op: 'status' }, { authorization: null, fetchImpl, env: { SUPABASE_URL: OLD, SUPABASE_SERVICE_ROLE_KEY: 'old-key', R2_ACCOUNT_ID: '  ' } });
-    expect(r.data).toEqual({ enabled: true });
-    expect(calls).toContain(`${OLD}/storage/v1/bucket/launch-assets`);
+describe('without R2 settings', () => {
+  it('says upload is not set up, refuses to sign, and calls no server', async () => {
+    for (const e of [{}, { SUPABASE_URL: OLD, SUPABASE_SERVICE_ROLE_KEY: 'old-key' }, { ...env, R2_BUCKET: '' }]) {
+      const w = world();
+      expect((await call(w, { op: 'status' }, { authorization: null, env: e })).data).toEqual({ enabled: false, message: 'Image upload is not set up yet' });
+      const sign = await call(w, image, { env: e });
+      expect(sign.status).toBe(503);
+      expect(sign.data.message).toBe('Image upload is not set up yet');
+      expect(w.calls).toEqual([]);
+    }
+  });
+  it('answers an empty list when reading details back, and ignores bad input', async () => {
+    const get = (w: World, chain: string, address: string, e: UploadEnv) => handleMeta({ method: 'GET', origin: null, authorization: null, ip: '2.2.2.2', query: { chain, address }, body: undefined, env: e, fetchImpl: w.fetchImpl, now: NOW }).then((r) => ({ status: r.status, items: (JSON.parse(r.body) as { items?: Record<string, unknown> }).items }));
+    expect((await get(world(), 'bnb', TOKEN, {})).items).toEqual({});
+    expect((await get(world(), 'bnb', 'junk', env)).items).toEqual({});
+    expect((await get(world(), 'sepolia', TOKEN, env)).status).toBe(400);
+    const w = world({ files: { [`evm/bnb/${TOKEN}.json`]: JSON.stringify({ image: 'https://tracker.example/p.png' }) } });
+    expect((await get(w, 'bnb', TOKEN, env)).items).toEqual({});
+  });
+  it('refuses details for another wallet, another token, a failed or foreign creation, and a Solana sign-in', async () => {
+    const created = { status: '0x1', logs: [{ address: EVM_FACTORIES.bnb, topics: [TOKEN_CREATED_TOPIC, pad(TOKEN), pad(CREATOR)], data: '0x' }] };
+    const body = { op: 'sign', kind: 'evm-meta', chain: 'bnb', address: TOKEN, size: 300, txHash: TX };
+    const as = { authorization: bearer(`evm:${CREATOR}`) };
+    expect((await call(world({ receipt: created }), { ...body, address: '0x' + '3'.repeat(40) }, as)).status).toBe(403);
+    expect((await call(world({ receipt: { ...created, status: '0x0' } }), body, as)).status).toBe(403);
+    expect((await call(world({ receipt: { status: '0x1', logs: [{ ...created.logs[0], address: '0x' + '4'.repeat(40) }] } }), body, as)).status).toBe(403);
+    expect((await call(world({ receipt: null }), body, as)).status).toBe(403);
+    expect((await call(world({ receipt: created }), body)).status).toBe(400);
+    expect((await call(world({ receipt: created }), { ...body, txHash: undefined }, as)).status).toBe(400);
   });
 });

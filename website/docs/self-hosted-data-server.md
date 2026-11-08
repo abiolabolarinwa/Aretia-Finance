@@ -10,9 +10,9 @@ depends on Supabase-specific behaviour, and the order to move things so that not
 |---|---|---|
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | the data service for **every** table (21 files read these). Set them to the new server (`https://data.<domain>` and the `eyJ...` key from `node server/bin/make-keys.mjs --print-key`) | the Supabase project |
 | `MI_DATA_URL` + `MI_DATA_SERVICE_ROLE_KEY` | the data service for the **indexer's tables only** (`mi_*`: the public `/api/v1/*` read API, `/api/mi-run`, the owner controls). Both must be set; one alone is ignored | `SUPABASE_URL` / key |
-| `STORAGE_URL` + `STORAGE_SERVICE_ROLE_KEY` | where the Launch Box picture bucket lives (`/storage/v1`) | `SUPABASE_URL` / key |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE` | the Launch picture bucket on Cloudflare R2 (docs/R2_LAUNCH_ASSETS.md) | none: upload is off until set |
 
-So step by step moves are possible: indexer first (`MI_DATA_*`), everything else later (`SUPABASE_*`), pictures last (`STORAGE_*` stays on Supabase meanwhile).
+So step by step moves are possible: indexer first (`MI_DATA_*`), everything else later (`SUPABASE_*`), pictures are on R2 (`R2_*`).
 
 ## What the code relies on, and how each is handled
 
@@ -41,7 +41,7 @@ Each step is reversible by putting the previous value back and redeploying. Supa
    4. In Vercel set `MI_DATA_URL` and `MI_DATA_SERVICE_ROLE_KEY`, redeploy. The public read API now reads the new tables. Remove `mi` from the Supabase `pg_cron` job (`select cron.unschedule('aretia-market-indexer');`) so Supabase stops being called every minute.
    5. The Launch Box link (`launchbox_tokens`) is read from Supabase by the Vercel route and from the new database by the worker. Until step 2 below, tokens launched on Aretia will not show their Launch Box badge from the worker's rows; the Vercel run is unaffected.
 2. **Other tables later**, in a quiet hour: pause writers (set the site's maintenance flag or accept a minute of lost writes), run `./bin/copy-from-supabase.sh --restart` for the remaining tables (resets id counters, prints row counts), check counts, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the new server, redeploy, and test: sign in, favourites, notifications, a referral, the admin page, Launch Box. Switch the `scheduler` jobs on (`SCHEDULER_JOBS=alerts,launchbox`) and unschedule the matching Supabase `pg_cron` jobs.
-3. **Pictures.** Until then set `STORAGE_URL` and `STORAGE_SERVICE_ROLE_KEY` to the Supabase project's values *before* step 2, so uploads keep working. Moving them is the R2 design below.
+3. **Pictures.** On R2, set up as in [R2_LAUNCH_ASSETS.md](R2_LAUNCH_ASSETS.md). They no longer depend on Supabase.
 4. **Retire Supabase** only after two weeks of clean running and two successful nightly backups restored once. Keep a final dump in the drive. Until then Supabase is the rollback.
 
 ### Rollback

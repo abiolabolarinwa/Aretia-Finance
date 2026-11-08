@@ -8,7 +8,7 @@ You do each step, check the "You should see" line, and only then go on. Nothing 
 
 ## How it works (one paragraph)
 
-The Launch page asks the site for a one-use upload link. The site checks the wallet's sign-in, the file type (PNG, JPG, GIF, or the small details file) and the size (10 MB for a picture, 4 KB for the details file), then signs a link for that one file name that works for 5 minutes. The browser sends the file straight to R2 with that link. People see pictures at `https://assets.aretiafinance.org/...`. If the five `R2_` variables are **not** set the site keeps using Supabase exactly as before, so you can switch over (and back) just by setting or removing the variables.
+The Launch page asks the site for a one-use upload link. The site checks the wallet's sign-in, the file type (PNG, JPG, GIF, or the small details file) and the size (10 MB for a picture, 4 KB for the details file), then signs a link for that one file name that works for 5 minutes. The browser sends the file straight to R2 with that link. People see pictures at `https://assets.aretiafinance.org/...`. There is no Supabase fallback: if the five `R2_` variables are missing or wrong, the Launch page says "Image upload is not set up yet".
 
 File names are unchanged: `img/<hash>.png|jpg|gif`, `meta/<hash>.json`, `evm/<chain>/<token address>.json`.
 
@@ -83,10 +83,12 @@ If you ever test from another address, such as a preview deployment, that addres
 | `R2_PUBLIC_BASE` | `https://assets.aretiafinance.org` (no slash at the end) |
 
 3. Check that `SUPABASE_URL` is `https://data.aretiafinance.org` and `SUPABASE_SERVICE_ROLE_KEY` is your own server's key (the database you moved). Wallet sign-ins for uploads are now checked against **that** database, not against the old Supabase project.
-4. Leave `STORAGE_URL` and `STORAGE_SERVICE_ROLE_KEY` as they are for now. When the R2 variables are set they are ignored; they are your way back if something goes wrong (remove the five R2 variables and redeploy, and Supabase is used again).
-5. Do **not** redeploy yet. Do Step 7 first so old tokens keep working the moment you switch.
+4. `STORAGE_URL`, `STORAGE_SERVICE_ROLE_KEY` and `LAUNCH_ASSETS_BUCKET` are no longer used. You can delete them now.
+5. Redeploy (Step 8) for the variables to take effect.
 
-## Step 7. Copy the existing files to R2
+## Step 7 (optional). Copy the existing files to R2
+
+Only needed if you want Aretia's own pages to keep showing the picture of a token made before the move (today only the MAS test token). New uploads do not need it. You can skip it.
 
 You need the old Supabase address (`https://<project>.supabase.co`) and its **service_role** key (you have them saved). Run this on your own Windows PC, in PowerShell, from the `website` folder of the project (Node 22 or newer is needed; `node --version` shows it). Run the lines one at a time. `Read-Host` asks you to paste each value, so nothing is saved in your command history.
 
@@ -172,4 +174,4 @@ Whichever you choose, run Step 7 first: it keeps a full copy of every file in R2
 
 ## What is not verified
 
-Written and unit-tested here (the SigV4 signer is checked against AWS's published test vector; upload rules, fallback and reading back are tested against stand-ins). **Not yet run against a real R2 bucket**: the first real upload and the copy script have not been exercised. Step 8 and Step 7's dry run are that test.
+Written and unit-tested here (the SigV4 signer is checked against AWS's published test vector; upload rules, the not-set-up cases and reading back are tested against stand-ins). **Not yet run against a real R2 bucket**: the first real upload and the copy script have not been exercised. Step 8 and Step 7's dry run are that test.

@@ -29,18 +29,6 @@ The limits in `website/api/_limits.ts`, `_rpcProxy.ts` and `_radarProxy.ts` live
 
 Also set a monthly spend cap and a requests-per-second cap on the Solana RPC key at the provider, and keep a public fallback node in the client for when it is exhausted.
 
-## 3. The launch-assets bucket must be restricted
+## 3. Launch pictures: R2 upload links
 
-A signed upload link does not fix the file's type, size or name, so the bucket's own limits are the control. The server now refuses to issue links (`/api/swings-upload` answers "Image upload is not set up yet") unless the bucket is public, has a file size limit of at most 10 MB, and lists only `image/png`, `image/jpeg`, `image/gif` and `application/json`.
-
-Set it once, in the Supabase SQL editor (replace the bucket name if `LAUNCH_ASSETS_BUCKET` is not the default):
-
-```sql
-update storage.buckets
-set public = true,
-    file_size_limit = 10485760,
-    allowed_mime_types = array['image/png', 'image/jpeg', 'image/gif', 'application/json']
-where id = 'launch-assets';
-```
-
-Check: `select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'launch-assets';`, then open the Launch page and confirm picture upload is offered.
+Pictures live on Cloudflare R2 (docs/R2_LAUNCH_ASSETS.md). The server signs a five-minute link for one path that fixes the file type and size (10 MB at most for a picture), so the bucket needs no size or type rules of its own. Keep the R2 API token limited to that one bucket (Object Read & Write), keep the r2.dev address disabled, and keep CORS limited to `https://aretiafinance.org` and `https://www.aretiafinance.org` for `PUT`, `GET`, `HEAD`.

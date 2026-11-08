@@ -43,6 +43,7 @@ import { mountTrades, type TradesTable } from './walletTxTable';
 import { isDeadMarket } from '../swings/market/dead.js';
 import { modeNote, modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
+import { fetchIndexPage, loadPageSize, savePageSize, PAGE_SIZE_CHOICES, pageButtons, showingText, serverSort, indexCovers, type IndexPage, type IndexSort, type IndexWindow } from '../swings/market/pagedList.js';
 import { fetchIndexedPages, fetchNativeList, mergeIndexRows, rankIndexRows, trackMarket } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
@@ -1510,7 +1511,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   /** Wallets are looked for by themselves the first time the connect box is shown. */
   let evmAutoFound = false;
   const market = new GeckoMarket();
-  const PAGE_SIZE = 50;
 
   /** The lists come from Aretia's server, which fetches them once for everyone; if that is unreachable the page asks the source itself. */
   async function loadList(q: { kind: MarketKind; chain: '' | ChainId; window: MarketWindow }, onOld?: (at: number) => void): Promise<MarketRow[]> {
@@ -1534,7 +1534,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function tokenBrowser(target: HTMLElement) {
     // One list for everything trading: what is busy now, plus the tokens Aretia itself has just detected. Every row carries
     // Aretia's rating and the burned-liquidity padlock where Aretia has checked the token.
-    type Kind = MarketKind | 'new' | 'favourites' | 'rising';
+    type Kind = MarketKind | 'new' | 'favourites' | 'rising' | 'liquidity';
     /** The tabs that rank the same live list by a rule of their own. Rising reads the Trending feed and ranks it by buyer growth. */
     const isRanked = (k: Kind): k is 'trending' | 'top' | 'gainers' | 'rising' => k === 'trending' || k === 'top' || k === 'gainers' || k === 'rising';
     const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
@@ -1547,6 +1547,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const startSort = (): TableState => (m.kind === 'new' ? { key: 'age', dir: 'asc' } : { key: null, dir: 'desc' });
     let tsort: TableState = startSort();
     let pageNo = 1;
+    /** Rows per page, kept in this browser. */
+    let pageSize = loadPageSize(browserStorage());
+    /** Set while the list on screen is one page of Aretia's own index (paged by the server); null when it is the outside feed's list. */
+    let ix: IndexPage | null = null;
+    /** A column the person sorted by that the server can sort the whole list by. */
+    let ixSort: { kind: Kind; sort: IndexSort; dir: 'asc' | 'desc'; window?: IndexWindow } | null = null;
     let error: string | null = null;
     let loading = false;
     /** When the list on screen was loaded, if it is the last saved one because the market service could not be reached. */
@@ -1735,13 +1741,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         draw();
       }
       try {
-        const native = m.kind === 'favourites' || m.kind === 'rising' ? null : await fetchNativeList(m.kind, m.chain, m.window, Date.now());
+        const wantsIndex = m.kind !== 'favourites' && m.kind !== 'rising' && indexCovers(m.chain);
+        const sorted = ixSort && ixSort.kind === m.kind ? ixSort : null;
+        const paged = wantsIndex
+          ? await fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: m.chain, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: pageNo, size: pageSize, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age) })
+          : null;
         if (mine !== seq) return;
-        if (native) {
-          // Aretia's own index holds enough markets for this list and network: it is the list. The outside feed is not asked.
+        ix = paged;
+        if (paged) {
+          // Aretia's own index holds enough markets for this list and network: it is the list, paged by the server. The outside feed is not asked.
           staleAt = null;
+          fromIndex = false;
           failures = 0;
-          rows = rateRows(native);
+          pageNo = paged.page;
+          rows = rateRows(paged.rows);
         } else if (m.kind === 'new') {
           const q = new URLSearchParams();
           if (m.chain) q.set('chain', m.chain);
@@ -1782,7 +1795,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           if (mine !== seq) return;
           rows = rateRows(rated);
         } else {
-          const q = { kind: m.kind === 'rising' ? ('trending' as const) : m.kind, chain: m.chain, window: m.window };
+          const q = { kind: m.kind === 'rising' ? ('trending' as const) : m.kind === 'liquidity' ? ('top' as const) : m.kind, chain: m.chain, window: m.window };
           const key = listKey({ ...q, page: 0 });
           let got: MarketRow[];
           try {
@@ -1887,8 +1900,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const pass = (r: MarketRow, withAge: boolean, withLiquidity = true): boolean => {
         // A token whose price has gone to nothing is never listed, on any network (a star on Favourites keeps it there).
         if (m.kind !== 'favourites' && isDeadMarket(r)) return false;
-        if (withLiquidity && m.kind !== 'favourites' && !clearsMinLiquidity(r.liquidityUsd, f.liquidity)) return false;
-        if (withAge && f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
+        // A page of Aretia's index already holds only what clears the liquidity and age filters: the server applied them to the whole list, so the counts are right.
+        if (withLiquidity && m.kind !== 'favourites' && !ix && !clearsMinLiquidity(r.liquidityUsd, f.liquidity)) return false;
+        if (withAge && !ix && f.age !== '0' && (r.ageMs === null || r.ageMs > Number(f.age) * 3_600_000)) return false;
         const st = r.risk?.status ?? 'unknown';
         if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted' && (st === 'high' || st === 'restricted')) return false;
         if (f.risk && st !== f.risk) return false;
@@ -1898,6 +1912,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       lowHidden = m.kind === 'favourites' ? 0 : all.filter((r) => pass(r, true, false) && !pass(r, true)).length;
       const strict = all.filter((r) => pass(r, true));
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
+      if (ix) return strict;
       if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
       // Trending, Top and Gainers put what clears their bar in the chosen window first, best first; the rest follow.
       if (isRanked(m.kind)) {
@@ -1977,7 +1992,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** A filter that changes which tokens Aretia's own list asks for goes back to the server; the others are applied here. */
     const refilter = (): void => {
       pageNo = 1;
-      if (m.kind === 'new') void load();
+      if (m.kind === 'new' || ix) void load();
       else draw();
     };
 
@@ -1998,7 +2013,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool'], ['liquidity', 'By liquidity', 'Largest pools first, including pools with no trade yet']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
@@ -2071,7 +2086,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         note.append(show);
         card.append(note);
       }
-      if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
+      if (rows !== null && ix) card.append(el('p', { class: 'wapp__fine', text: `${ix.note} Read from Aretia’s own market index.` }));
+      else if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));
@@ -2095,14 +2111,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       } else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
-        const shown = m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: m.kind !== 'favourites' ? (pageNo - 1) * PAGE_SIZE + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; draw(); }, onOpen: userPick });
+        const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
+        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick });
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;
         card.append(main);
-        const pages = m.kind === 'favourites' ? 1 : Math.max(1, Math.ceil(shownRows.length / PAGE_SIZE));
-        main.append(pager(pages));
+        const pages = m.kind === 'favourites' ? 1 : Math.max(1, Math.ceil(shownRows.length / pageSize));
+        main.append(ix ? indexPager(ix) : pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
@@ -2142,6 +2158,41 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         box.append(list);
       }
       return box;
+    }
+
+    /** The pager for a page of Aretia's index: how many there are, page buttons, a jump box and the page size (kept in this browser). */
+    function indexPager(info: IndexPage): HTMLElement {
+      const go = (n: number): void => {
+        pageNo = Math.min(Math.max(Math.floor(n) || 1, 1), info.pages);
+        void load(true);
+        target.scrollIntoView({ block: 'start' });
+      };
+      const button = (label: string, aria: string, to: number, disabled: boolean, current = false): HTMLButtonElement => {
+        const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: label, attrs: { type: 'button', 'aria-label': aria, 'aria-pressed': String(current), ...(current ? { 'aria-current': 'page' } : {}) } });
+        b.disabled = disabled;
+        b.addEventListener('click', () => go(to));
+        return b;
+      };
+      const nav = el('div', { class: 'wapp-mt__pager', attrs: { role: 'navigation', 'aria-label': 'Pages' } });
+      nav.append(button('←', 'Previous page', info.page - 1, info.page <= 1));
+      for (const n of pageButtons(info.page, info.pages)) nav.append(n === null ? el('span', { class: 'wapp__fine', text: '…' }) : button(String(n), `Page ${n}`, n, false, n === info.page));
+      nav.append(button('→', 'Next page', info.page + 1, info.page >= info.pages));
+      const jump = el('input', { class: 'wapp__input wapp-mt__pageno', attrs: { inputmode: 'numeric', 'aria-label': 'Go to page', placeholder: 'Page', value: '' } });
+      jump.addEventListener('change', () => {
+        if (jump.value.trim() !== '') go(Number(jump.value));
+      });
+      nav.append(jump);
+      const size = el('select', { class: 'wapp__input', attrs: { 'aria-label': 'Rows per page' } });
+      for (const n of PAGE_SIZE_CHOICES) size.append(el('option', { text: `${n} per page`, attrs: { value: String(n) } }));
+      size.value = String(pageSize);
+      size.addEventListener('change', () => {
+        pageSize = Number(size.value);
+        savePageSize(browserStorage(), pageSize);
+        pageNo = 1;
+        void load(true);
+      });
+      nav.append(size);
+      return el('div', { class: 'wapp-mt__pagerbox' }, [el('p', { class: 'wapp__fine wapp-mt__showing', text: showingText(info.page, info.size, info.total, info.rows.length), attrs: { 'aria-live': 'polite' } }), nav]);
     }
 
     /** Previous and next arrows with a page number box. */

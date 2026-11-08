@@ -24,7 +24,8 @@ const hashNow = (): string => routeHash(location.pathname, location.hash);
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
-import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
+import { checkLock, LOCK_MIN_PCT, padlockShown } from '../swings/market/lock.js';
+import { LOCK_ICON, lockTitle } from './walletIcons.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
@@ -52,7 +53,7 @@ import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRo
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
-import { formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
+import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { featuredForMarkets } from './walletFeatured';
@@ -1604,6 +1605,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let chartRow: MarketRow | null = null;
     let tvChart: TvChart | null = null;
     let tradesTable: TradesTable | null = null;
+    /** Liquidity, market cap and 24H volume of the charted pool, in the chart's header bar (a dash where unknown). The padlock shows when the liquidity is proven locked. */
+    function chartStats(r: MarketRow): HTMLElement {
+      const box = el('div', { class: 'wapp-mt__chart-stats' });
+      const item = (label: string, value: string, title: string): HTMLElement => el('span', { class: 'wapp-mt__chart-stat', attrs: { title } }, [el('small', { text: label }), el('strong', { text: value })]);
+      const liq = item('Liquidity', compactUsd(r.liquidityUsd), 'Money in the pool. A padlock means the liquidity is shown to be locked.');
+      if (padlockShown(r.lockedPct, r.risk)) {
+        const timed = r.lockInfo?.kind === 'time-locked';
+        const lock = el('span', { class: `wapp-mp__lock${timed ? ' is-timed' : ''}`, attrs: { role: 'img', 'aria-label': timed ? 'Liquidity locked in a locker' : 'Liquidity tokens burned', title: lockTitle(r.lockedPct, r.lockInfo) } });
+        lock.innerHTML = LOCK_ICON;
+        liq.querySelector('strong')?.prepend(lock);
+      }
+      box.append(liq, item('Market cap', compactUsd(r.capUsd), 'Market cap, or fully diluted value when no market cap is reported'), item('Volume 24H', compactUsd(r.volume24hUsd), 'Money traded in this pool in the last 24 hours'));
+      return box;
+    }
     function showChart(r: MarketRow, noPool: 'looking' | 'none' | 'failed' | null = null): void {
       chartRow = r;
       chartHost.hidden = false;
@@ -1619,7 +1634,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
         close.addEventListener('click', hideChart);
         const text = noPool === 'none' ? 'This token has no trading pool yet, so there is no chart. A token still on its launch curve looks like this. Its address and Aretia’s check are on the right.' : noPool === 'failed' ? 'The pool for this token could not be looked up just now. Try again in a minute.' : 'Looking for this token’s trading pool…';
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol} · ${CHAINS[r.chain].name}` }), close]), el('p', { class: 'wapp__fine', text }));
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol} · ${CHAINS[r.chain].name}` }), chartStats(r), close]), el('p', { class: 'wapp__fine', text }));
         if (chartHost.parentElement !== target) target.prepend(chartHost);
         return;
       }
@@ -1634,7 +1649,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         tradesTable?.dispose();
         const plot = el('div', { class: 'wapp-mt__chart-frame', attrs: { role: 'img', 'aria-label': `${r.symbol} price chart` } });
         const trades = el('div', { class: 'wapp-mt__trades' });
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, close]), plot, trades);
+        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, chartStats(r), close]), plot, trades);
         // A market the index follows is charted from the index's own stored trades; no outside chart is shown in its place.
         tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, symbol: r.symbol, ...(r.quoteSymbol ? { quoteSymbol: r.quoteSymbol } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, ...(r.indexed ? { source: 'aretia' as const, usdAvailable: r.indexed.quoteIsDollar } : { fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }) }), title: `${r.symbol} price chart` });
         // The pool's recent trades, under the chart.

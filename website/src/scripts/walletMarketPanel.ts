@@ -7,9 +7,8 @@
 import { LINK_ICONS, linkKind } from './walletLinkIcons.js';
 import { CHAINS, type ChainId, type TokenRisk } from '../swings/core/types.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
-import { compactCount, compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
-import { padlockShown } from '../swings/market/lock.js';
-import { CHECK_ICON, COPY_ICON, LOCK_ICON, lockTitle, OPEN_ICON } from './walletIcons.js';
+import { compactCount, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
+import { CHECK_ICON, COPY_ICON, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenTitle } from './walletTitle.js';
 
@@ -158,18 +157,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
   /** The numbers as one grid table: size, price change by time window, and what traded in the window that is picked. */
   function dataGrid(r: MarketRow, d: PairDetail | null): HTMLElement {
     const g = el('div', 'wapp-mp__grid');
-    const liq = cell('Liquidity', compactUsd(d?.liquidityUsd ?? r.liquidityUsd), 4);
-    // A padlock beside the figure when the pool's liquidity is shown to be locked.
-    if (padlockShown(r.lockedPct, r.risk)) {
-      const timed = r.lockInfo?.kind === 'time-locked';
-      const lock = el('span', `wapp-mp__lock${timed ? ' is-timed' : ''}`);
-      lock.innerHTML = LOCK_ICON;
-      lock.title = lockTitle(r.lockedPct, r.lockInfo);
-      lock.setAttribute('role', 'img');
-      lock.setAttribute('aria-label', timed ? `Liquidity locked, ${r.lockedPct.toFixed(1)} percent in a locker` : `Liquidity tokens burned, ${r.lockedPct.toFixed(1)} percent`);
-      liq.querySelector('.wapp-mp__v')?.prepend(lock);
-    }
-    g.append(liq, cell('FDV', compactUsd(d?.fdvUsd ?? null), 4), cell('Market cap', compactUsd(d?.marketCapUsd ?? r.capUsd), 4));
+    // Liquidity, market cap and 24H volume sit in the chart's header bar, beside Close chart, so they are read with the chart.
     if (!r.pool) {
       g.append(el('div', 'wapp-mp__cell wapp-mp__span-12 wapp-mp__wait', poolState === 'none' ? 'This token has no trading pool yet, so there is no price, liquidity or chart to show. A token still on its launch curve looks like this. Check back once it has a pool.' : poolState === 'failed' ? 'The pool for this token could not be looked up just now. Try again in a minute.' : 'Looking for this token’s trading pool…'));
       return g;
@@ -207,7 +195,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
       holder.append(meter);
       g.append(holder);
     }
-    g.append(cell('Volume', compactUsd(d.volumeUsd[win]), 6), cell('Traders (24H)', compactCount(row?.traders24h ?? null), 6));
+    g.append(cell('Traders (24H)', compactCount(row?.traders24h ?? null), 12));
     return g;
   }
 

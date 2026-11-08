@@ -221,7 +221,8 @@ export function mountTvChart(
     el.className = 'wapp-tv-status';
     el.setAttribute('role', 'status');
     if (s.kind === 'ok') {
-      const label = s.source === 'aretia-index' ? 'Source: Aretia market index' : s.source === 'geckoterminal' ? 'Source: GeckoTerminal' : s.source === 'geckoterminal-stale' ? 'Source: GeckoTerminal (a little old)' : s.source === 'trades' ? 'Built from the latest trades' : '';
+      // The data source is not named; only what a reader needs to judge the candles: they are old, or built from trades.
+      const label = s.source === 'geckoterminal-stale' ? 'Prices a little old' : s.source === 'trades' ? 'Built from the latest trades' : '';
       if (!label) return;
       el.textContent = label;
       if (s.note) el.title = s.note;

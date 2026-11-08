@@ -50,7 +50,14 @@ export interface MarketRow {
   fresh: boolean;
   /** A market read by Aretia's own Market Indexer from the chain (its chart and trades come from the index, not from an outside service). */
   indexed?: { quoteIsDollar: boolean; evidence: string };
+  /** Which service this row was read from. Absent on rows from the outside market feed (GeckoTerminal). */
+  source?: 'index' | 'gecko';
+  /** The exchange the pool is on (for example PancakeSwap V2), when the source names it. */
+  venue?: string;
 }
+
+/** The label a row carries for its source, shown beside its name. */
+export const sourceLabel = (r: Pick<MarketRow, 'source' | 'indexed'>): string => (r.source === 'index' || (r.source === undefined && r.indexed) ? 'Aretia index' : 'GeckoTerminal');
 
 export type SortKey = 'cap' | 'price' | 'age' | 'txns' | 'volume' | 'traders' | 'm5' | 'h1' | 'h6' | 'h24' | 'liquidity';
 

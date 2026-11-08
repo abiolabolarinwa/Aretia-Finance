@@ -10,6 +10,7 @@ import { isChainId, type ChainId } from '../src/swings/core/types.js';
 import { GeckoMarket, type Breaker, type MarketKind, type Window as MarketWindow } from '../src/swings/market/gecko.js';
 import type { MarketRow } from '../src/swings/market/types.js';
 import { isDeadMarket } from '../src/swings/market/dead.js';
+import { handleMarketIndex } from './_swingsMarketIndex.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const KINDS: readonly string[] = ['trending', 'top', 'gainers', 'new'];
@@ -39,6 +40,8 @@ const json = (status: number, data: unknown, headers: Record<string, string>): T
 export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   if (input.method !== 'GET') return json(405, { error: 'method' }, { ...headers, allow: 'GET' });
+  // `src=index` is the paged list read from Aretia's own Market Indexer (api/_swingsMarketIndex.ts); the rest is the outside feed.
+  if (input.query.src === 'index') return handleMarketIndex(input);
   const { kind = 'trending', chain = '', window = 'h24' } = input.query;
   const page = Math.floor(Number(input.query.page ?? '1'));
   if (!KINDS.includes(kind) || !WINDOWS.includes(window) || (chain !== '' && !isChainId(chain)) || !Number.isFinite(page) || page < 1 || page > 10) return json(400, { error: 'bad-request' }, headers);

@@ -10,6 +10,7 @@ import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types
 import { initWalletLock } from './walletLock';
 import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
+import { initWalletConnectSolana } from './solanaWc';
 import { initReferrals } from './walletReferrals';
 import { initShield } from './walletShield';
 import { loadTrades, type TradeRow } from './walletTrades';
@@ -1217,6 +1218,8 @@ export function initWalletApp(): void {
     },
   });
   initNotifications();
+  // Inside the Aretia app only: lets phone wallets connect through WalletConnect (no effect on the website).
+  initWalletConnectSolana();
   const referralsRoot = document.querySelector<HTMLElement>('[data-referrals]');
   referrals = referralsRoot ? initReferrals(referralsRoot) : null;
 

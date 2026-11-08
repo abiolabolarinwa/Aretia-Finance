@@ -17,6 +17,29 @@ const EDGE_CACHED = new Set(['/api/swings-ohlcv', '/api/swings-market']);
 /** The Marketplace lists also keep a long-lived copy of the last good answer, served (marked old) when the API fails or the source refuses. */
 const LAST_GOOD = '/api/swings-market';
 const LAST_GOOD_SECONDS = 86_400;
+/**
+ * Candles keep a day-long copy per pool and candle size (not per time window), served marked old, and cut to the window asked for, when the
+ * API or the price service fails or refuses. The free price service allows each caller only a few requests a minute, so a burst of opens
+ * (or a quiet minute after one) would otherwise leave the chart empty although the same pool was read a moment ago.
+ */
+const CANDLES = '/api/swings-ohlcv';
+const CANDLES_KEPT_SECONDS = 86_400;
+function candlesKey(u: URL): Request | null {
+  if (u.pathname !== CANDLES || u.searchParams.has('source')) return null;
+  const chain = u.searchParams.get('chain') ?? '';
+  const pool = u.searchParams.get('pool') ?? '';
+  const q = new URLSearchParams();
+  q.set('chain', chain);
+  q.set('pool', chain === 'solana' ? pool : pool.toLowerCase());
+  for (const k of ['tf', 'agg', 'token', 'currency']) q.set(k, u.searchParams.get(k) ?? '');
+  return new Request(`${u.origin}${u.pathname}?${q.toString()}#last-good`, { method: 'GET' });
+}
+type CandleRow = number[];
+const candleRows = (body: unknown): CandleRow[] => {
+  const list = (body as { data?: { attributes?: { ohlcv_list?: unknown } } } | null)?.data?.attributes?.ohlcv_list;
+  return Array.isArray(list) ? (list.filter((r) => Array.isArray(r) && r.length >= 6 && Number.isFinite(Number(r[0]))) as CandleRow[]) : [];
+};
+
 /** The Market Indexer's public read API: every GET under it is shared data, and the answer says how long it may be kept (s-maxage). */
 const edgeCacheable = (pathname: string): boolean => EDGE_CACHED.has(pathname) || pathname === '/api/v1' || pathname.startsWith('/api/v1/');
 
@@ -47,7 +70,23 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
   const lastKey = new Request(`${incoming.toString()}#last-good`, { method: 'GET' });
   /** The last good list, as a normal answer that says it is old and from when, or null when none was kept. */
   const oldCopy = async (): Promise<Response | null> => {
-    if (!edge || incoming.pathname !== LAST_GOOD || request.method !== 'GET') return null;
+    if (!edge || request.method !== 'GET') return null;
+    const candleCopy = candlesKey(incoming);
+    if (candleCopy) {
+      try {
+        const kept = await edge.match(candleCopy);
+        if (!kept) return null;
+        const before = Number(incoming.searchParams.get('before'));
+        const limit = Math.min(1000, Math.max(1, Math.floor(Number(incoming.searchParams.get('limit')) || 300)));
+        // Rows are newest first; only candles that opened at or before the asked-for time belong to this window.
+        const rows = candleRows(await kept.json()).filter((r) => !Number.isFinite(before) || r[0]! <= before).slice(0, limit);
+        if (rows.length === 0) return null;
+        return new Response(JSON.stringify({ data: { attributes: { ohlcv_list: rows } }, source: 'geckoterminal-stale', stale: true }), { status: 200, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+      } catch {
+        return null;
+      }
+    }
+    if (incoming.pathname !== LAST_GOOD) return null;
     try {
       const kept = await edge.match(lastKey);
       if (!kept) return null;
@@ -65,7 +104,8 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
     const old = await oldCopy();
     if (old) return old;
     // Say what failed instead of showing an anonymous gateway page.
-    return new Response(JSON.stringify({ error: 'The API could not be reached', detail: e instanceof Error ? e.message.slice(0, 200) : 'unknown' }), { status: 502, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+    // A 503, not a 502: Cloudflare swaps even a 502 made here for its own plain page, which hides this reason from the chart.
+    return new Response(JSON.stringify({ error: 'The API could not be reached', detail: e instanceof Error ? e.message.slice(0, 200) : 'unknown' }), { status: 503, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
   // The API answers a list it could not read as 200 with no rows and an error, so the older copy kept here is better.
   if (incoming.pathname === LAST_GOOD && res.status === 200 && !(res.headers.get('cache-control') ?? '').includes('s-maxage')) {
@@ -90,6 +130,25 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
       // not kept this time
     }
   }
+  // Keep the last good candles of this pool and candle size for a day (never an old or index-built answer, never an empty one).
+  const candleKeep = edge && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '') ? candlesKey(incoming) : null;
+  if (edge && candleKeep) {
+    try {
+      const copy = res.clone();
+      const keepCandles = copy
+        .text()
+        .then((text) => {
+          const body = JSON.parse(text) as { source?: string; stale?: boolean };
+          if (body.source !== 'geckoterminal' || body.stale === true || candleRows(body).length === 0) return undefined;
+          return edge.put(candleKeep, new Response(text, { headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${CANDLES_KEPT_SECONDS}` } }));
+        })
+        .catch(() => undefined);
+      if (context.waitUntil) context.waitUntil(keepCandles);
+      else await keepCandles;
+    } catch {
+      // not kept this time
+    }
+  }
   // Only an answer Vercel marked as shareable (a stale or refused one says no-store) is kept.
   if (edge && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '')) {
     try {
@@ -110,5 +169,7 @@ export async function onRequest(context: { request: Request; env: Env; waitUntil
     // Cloudflare swaps even a re-made 502 or 504 for its own page, so the reason travels as a 503, which it leaves alone.
     return new Response(await res.text(), { status: res.status === 502 || res.status === 504 ? 503 : res.status, headers: out });
   }
+  // A plain-text gateway error (Vercel's or the network's) would reach the page as an anonymous 502: hand on a JSON 503 that says who failed.
+  if (res.status >= 500) return new Response(JSON.stringify({ error: 'The API answered with an error', upstream: res.status }), { status: 503, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   return res;
 }

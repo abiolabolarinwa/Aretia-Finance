@@ -41,8 +41,8 @@ If something fails, send: what you tapped, what you expected, what happened, a s
 
 ## Not done yet
 
-- Solana wallet connection from inside the app (Phantom and others cannot be injected into the page; needs Mobile Wallet Adapter on
-  Android and WalletConnect or a wallet hand-off on iPhone).
+- Solana wallet connection inside the app is built (WalletConnect, `src/scripts/solanaWc*.ts`) but untested on a real wallet. A native
+  Android Mobile Wallet Adapter option and an iPhone hand-off may still be worth adding after the first test.
 - Push alerts, device unlock, store listings, app signing and release builds.
 - Nothing here has been run on a device yet: the project files were generated and the website build was checked, but no one has
   launched the app.

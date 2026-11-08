@@ -52,6 +52,9 @@ describe('pager numbers', () => {
     expect(showingText(1, 50, 22431, 50)).toBe('Showing 1-50 of 22,431');
     expect(showingText(3, 100, 250, 50)).toBe('Showing 201-250 of 250');
     expect(showingText(1, 50, 0, 0)).toBe('Showing 0 of 0');
+    // Two rows dropped by the dead/duplicate rules: the range still follows the page.
+    expect(showingText(1, 50, 399, 48)).toBe('Showing 1-50 of 399');
+    expect(showingText(8, 50, 399, 49)).toBe('Showing 351-399 of 399');
   });
   it('shows the ends and the neighbours with gaps', () => {
     expect(pageButtons(1, 3)).toEqual([1, 2, 3]);

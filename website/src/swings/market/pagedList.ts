@@ -96,7 +96,8 @@ export async function fetchIndexPage(r: IndexRequest, fetchImpl: typeof fetch = 
 export function showingText(page: number, size: number, total: number, onPage: number): string {
   if (total === 0 || onPage === 0) return 'Showing 0 of 0';
   const from = (page - 1) * size + 1;
-  return `Showing ${from.toLocaleString('en-US')}-${(from + onPage - 1).toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`;
+  // The range is the page's place in the whole list, so a page that lost a row to the dead/duplicate rules still reads 1-50, and page 2 starts at 51.
+  return `Showing ${from.toLocaleString('en-US')}-${Math.min(total, page * size).toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`;
 }
 
 /** The page buttons to draw: the first, the last and the neighbours of the current page, with null for a gap. */

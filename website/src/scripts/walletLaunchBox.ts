@@ -15,6 +15,7 @@ import { verifiedChecker } from './launchBoxVerified';
 import { cleanText } from '../swings/tokens/safeText.js';
 import { imitationChip } from '../lib/imitationChip';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
+import { trackMarket } from '../swings/mi/clientRows.js';
 import { mountTvChart, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 
@@ -474,6 +475,8 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       return;
     }
     const pool = plan.pool;
+    // A market the index does not follow yet is added to it (once), so its chart and trades can be read from the chain from then on.
+    trackMarket({ chain: r.chain, pool, address: r.address });
     const plot = el('div', 'wapp-mt__chart-frame');
     plot.setAttribute('role', 'img');
     plot.setAttribute('aria-label', `${symbol} price chart`);

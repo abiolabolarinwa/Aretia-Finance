@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TokenRecord } from '../core/types.js';
 import { InMemoryTokenRepository, TokenRegistryService } from '../tokens/registry.js';
 import { rowFromRecord, rowsFromRecords } from './registryRows.js';
-import { isFresh, marketFromAttributes, refreshSnapshots, SNAPSHOT_FRESH_MS } from './snapshot.js';
+import { fetchPoolMarkets, isFresh, marketFromAttributes, refreshSnapshots, SNAPSHOT_FRESH_MS } from './snapshot.js';
 
 const NOW = 1_800_000_000_000;
 const POOL = 'Pool1111111111111111111111111111111111111111';
@@ -53,5 +53,19 @@ describe('market snapshot', () => {
     expect((await repo.get(ref))!.market?.priceUsd).toBe(0.5);
     const failed = await refreshSnapshots('solana', [rec], async () => undefined, (async () => new Response('', { status: 429 })) as typeof fetch, NOW);
     expect(failed.error).toMatch(/429/);
+  });
+});
+
+describe('pool addresses in the snapshot request', () => {
+  it('keeps a Solana pool address as it is (a lower-cased one names no pool) and lower-cases an EVM one', async () => {
+    const urls: string[] = [];
+    const f = (async (u: unknown) => {
+      urls.push(String(u));
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }) as typeof fetch;
+    await fetchPoolMarkets('solana', ['GF1Nz9bpesZ77QSJgF41q48SZPs47w2xaxv8PvH9Bhdm'], f, NOW);
+    await fetchPoolMarkets('bnb', ['0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD'], f, NOW);
+    expect(urls[0]).toContain('/pools/multi/GF1Nz9bpesZ77QSJgF41q48SZPs47w2xaxv8PvH9Bhdm');
+    expect(urls[1]).toContain('/pools/multi/0xabcdefabcdefabcdefabcdefabcdefabcdefabcd');
   });
 });

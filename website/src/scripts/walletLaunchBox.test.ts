@@ -41,6 +41,9 @@ describe('the wallet page has Launch Box', () => {
     expect(page).toContain('data-pane="launchbox"');
     expect(page).toContain('data-lb-root');
   });
+  it('has no second title above the list: the page heading is hidden for Launch Box', () => {
+    expect(page).toContain("[data-view='launchbox']) .wapp__top h1 { display: none; }");
+  });
   it('does not ask for a wallet to look at it', () => {
     expect(page).toMatch(/\[data-connected='false'\]\[data-view='launchbox'\] \.wapp__gate \{ display: none; \}/);
   });

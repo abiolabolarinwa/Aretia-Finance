@@ -164,6 +164,16 @@ export function pairCreatedLog(factory: string, token0: string, token1: string, 
   return { address: factory, topics: [TOPICS.v2PairCreated, addrTopic(token0), addrTopic(token1)], data: '0x' + pad(pair) + word(1n) };
 }
 
+/** Aerodrome V2: PoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256). */
+export function aeroPoolCreatedLog(factory: string, token0: string, token1: string, stable: boolean, pool: string): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
+  return { address: factory, topics: [TOPICS.aeroPoolCreated, addrTopic(token0), addrTopic(token1), '0x' + word(stable ? 1n : 0n)], data: '0x' + pad(pool) + word(1n) };
+}
+
+/** Slipstream: PoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, address pool). */
+export function slipstreamPoolCreatedLog(factory: string, token0: string, token1: string, tickSpacing: number, pool: string): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
+  return { address: factory, topics: [TOPICS.slipstreamPoolCreated, addrTopic(token0), addrTopic(token1), '0x' + word(BigInt(tickSpacing))], data: '0x' + pad(pool) };
+}
+
 export function poolCreatedLog(factory: string, token0: string, token1: string, fee: number, pool: string): Omit<FakeLog, 'logIndex' | 'transactionHash'> {
   return { address: factory, topics: [TOPICS.v3PoolCreated, addrTopic(token0), addrTopic(token1), '0x' + word(BigInt(fee))], data: '0x' + word(60n) + pad(pool) };
 }

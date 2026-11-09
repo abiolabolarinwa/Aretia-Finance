@@ -23,8 +23,15 @@ describe('DEX adapter catalogue', () => {
     for (const s of specs) {
       expect(s.factory).toMatch(/^0x[0-9a-f]{40}$/);
       expect(EVM_MI_CHAINS).toContain(s.chain);
-      expect(['pancakeswap', 'uniswap', 'sushiswap', 'apeswap', 'aerodrome']).toContain(s.family);
+      expect(['pancakeswap', 'uniswap', 'sushiswap', 'apeswap', 'aerodrome', 'quickswap']).toContain(s.family);
     }
+  });
+
+  it('lists QuickSwap V2 on Polygon as a plain Uniswap V2 fork (same events), with the catalogue\'s factory', () => {
+    const q = specById('quickswap-v2-polygon')!;
+    expect(q).toMatchObject({ family: 'quickswap', chain: 'polygon', kind: 'v2', factory: '0x5757371414417b8c6caad45baef941abc7d3ab32', creationTopic: TOPICS.v2PairCreated, swapTopic: TOPICS.v2Swap });
+    expect(q.creationShape).toBeUndefined();
+    expect(q.evidence).toBe('fixture-tested'); // decoded real logs captured from that factory; never claimed as run live until it has been
   });
 
   it('lists ApeSwap on the three chains it was verified on, and nothing invented elsewhere', () => {

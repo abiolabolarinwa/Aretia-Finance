@@ -8,7 +8,7 @@ import { refreshReserves } from '../refresher.js';
 import { MULTICALL3 } from '../reserves.js';
 import type { Read } from '../rpc.js';
 import { InMemoryMiStore } from '../store.js';
-import { FakeChain, pairCreatedLog } from '../testkit.js';
+import { aeroPoolCreatedLog, FakeChain, pairCreatedLog, slipstreamPoolCreatedLog } from '../testkit.js';
 import { backoffMs, DEFAULT_LOOP, failureType, FailureLog, runWorker, type WorkerTask } from './loop.js';
 import { buildTasks } from './tasks.js';
 
@@ -220,5 +220,64 @@ describe('worker loop', () => {
     f.failed('x', 'timeout', 500);
     f.failed('x', 'timeout', 1500);
     expect(log.length).toBe(2); // first, then one summary after the window
+  });
+});
+
+describe('pool backfill and refresher on Base (Aerodrome)', () => {
+  const aero = specById('aerodrome-v2-base')!;
+  const slip = specById('aerodrome-slipstream-base')!;
+  const WETH = '0x4200000000000000000000000000000000000006';
+  function baseWorld(creations: (chain: FakeChain) => void) {
+    const chain = new FakeChain();
+    chain.addToken(WETH, 'WETH', 18);
+    chain.addToken(TOKEN, 'MEME', 18);
+    chain.mineEmpty(3);
+    creations(chain);
+    chain.mineEmpty(40);
+    const now = () => (chain.blocks[chain.blocks.length - 1]!.time + 5) * 1000;
+    return { chain, read: withMulticall(chain), now, cfg: chainConfig('base', { MI_CONFIRMATIONS_BASE: '2' }) };
+  }
+
+  it('backfills Aerodrome V2 pools from their own creation events (stable or volatile)', async () => {
+    const { read, now, cfg } = baseWorld((c) => {
+      c.reserves.set(POOL, [1_000_000n * E18, 100n * E18]);
+      c.mine([aeroPoolCreatedLog(aero.factory, TOKEN, WETH, false, POOL)]);
+    });
+    const store = new InMemoryMiStore();
+    const r = await backfillCreations({ spec: aero, chain: cfg, read, store, rules: DEFAULT_RULES, now, nativeUsd: async () => 3000, budgetMs: 30_000, days: 0.02 });
+    expect(r).toMatchObject({ ok: true, state: 'done', creations: 1, registered: 1 });
+    const pool = store.pools.get(`base:${POOL}`)!;
+    expect(pool).toMatchObject({ dex: 'aerodrome', kind: 'v2', base: TOKEN, quote: WETH, adapterId: 'aerodrome-v2-base' });
+    expect(store.trades.size).toBe(0);
+  });
+
+  it('shows an Aerodrome V2 pool\'s liquidity but no reserve price (its curve may be the stable one)', async () => {
+    const { read, now, cfg } = baseWorld((c) => {
+      c.reserves.set(POOL, [1_000_000n * E18, 100n * E18]);
+      c.mine([aeroPoolCreatedLog(aero.factory, TOKEN, WETH, true, POOL)]);
+    });
+    const store = new InMemoryMiStore();
+    const deps = { spec: aero, chain: cfg, read, store, rules: DEFAULT_RULES, now, nativeUsd: async () => 3000, budgetMs: 30_000 };
+    await backfillCreations({ ...deps, days: 0.02 });
+    await refreshReserves(deps);
+    const stats = store.pools.get(`base:${POOL}`)!.stats!;
+    expect(stats.reservesOnly).toBe(true);
+    expect(stats.liquidityUsd).toBe(600_000); // 100 WETH x 2 x $3,000
+    expect(stats.reservePrice).toBeUndefined();
+    expect(stats.reservePriceUsd).toBeUndefined();
+  });
+
+  it('backfills Slipstream pools (concentrated liquidity) and reads their liquidity from token balances', async () => {
+    const { chain, read, now, cfg } = baseWorld((c) => {
+      c.mine([slipstreamPoolCreatedLog(slip.factory, TOKEN, WETH, 100, POOL)]);
+    });
+    chain.balances.set(`${TOKEN}|${POOL}`, 2_000_000n * E18);
+    chain.balances.set(`${WETH}|${POOL}`, 50n * E18);
+    const store = new InMemoryMiStore();
+    const r = await backfillCreations({ spec: slip, chain: cfg, read, store, rules: DEFAULT_RULES, now, nativeUsd: async () => 3000, budgetMs: 30_000, days: 0.02 });
+    expect(r).toMatchObject({ ok: true, state: 'done', creations: 1, registered: 1 });
+    const pool = store.pools.get(`base:${POOL}`)!;
+    expect(pool).toMatchObject({ kind: 'v3', tickSpacing: 100, adapterId: 'aerodrome-slipstream-base' });
+    expect(pool.reserveQuote).toBe((50n * E18).toString());
   });
 });

@@ -89,6 +89,12 @@ export async function refreshReserves(d: RefreshDeps): Promise<RefreshReport> {
   return r;
 }
 
+/**
+ * Aerodrome's V2 pools may be "stable" pools, which price on a different curve than constant product, and the index does not record which a
+ * pool is. Their reserve ratio is therefore not a price, so no reserve price is shown for them (a traded price still is, once trades exist).
+ */
+const isStableCurve = (pool: Pick<MiPool, 'dex' | 'kind'>): boolean => pool.dex === 'aerodrome' && pool.kind === 'v2';
+
 /** Stores one pool's fresh reserves; returns true when its listing state changed. */
 async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; quote: bigint; sqrtPriceX96?: bigint }): Promise<boolean> {
   const now = d.now();
@@ -112,7 +118,7 @@ async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; 
   const patch: Partial<MiPool> = {
     reserveBase: res.base.toString(),
     reserveQuote: res.quote.toString(),
-    stats: stats ?? liquidityOnly(now, quoteUsd, liquidityQuote, liquidityUsd, pool.kind === 'v2' || pool.kind === 'v3' ? reservePriceOf(pool.kind, res, pool.baseIsToken0, pool.baseDecimals, pool.quoteDecimals, quoteUsd) : null),
+    stats: stats ?? liquidityOnly(now, quoteUsd, liquidityQuote, liquidityUsd, (pool.kind === 'v2' || pool.kind === 'v3') && !isStableCurve(pool) ? reservePriceOf(pool.kind, res, pool.baseIsToken0, pool.baseDecimals, pool.quoteDecimals, quoteUsd) : null),
   };
   const changed = ev.state !== pool.state;
   if (changed) {

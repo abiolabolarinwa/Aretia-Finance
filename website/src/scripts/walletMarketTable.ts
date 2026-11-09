@@ -8,6 +8,7 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
+import { dexInitial, dexLogoSrc } from '../swings/market/dexLogo.js';
 import { padlockShown } from '../swings/market/lock.js';
 import { verifiedBadge } from '../lib/verifiedBadge';
 import { imitationChip } from '../lib/imitationChip';
@@ -206,11 +207,27 @@ export function marketTable(o: TableOptions): HTMLElement {
     const imitates = imitationChip(r.chain, r.address, r.symbol, r.name);
     if (imitates) line.append(imitates);
     const full = el('small', 'wapp-mt__fullname', r.name || 'No name given');
-    // Where the numbers were read from is not shown: it is the same market either way. The venue (the DEX) is.
-    if (r.venue) full.append(el('span', 'wapp-mt__source', ` · ${r.venue}`));
+    // Neither the data source nor the exchange is written out: the exchange is a logo beside the network's.
     names.append(line, full);
     const cell = el('div', 'wapp-mt__cell');
-    cell.append(logo(r), names, chain);
+    cell.append(logo(r), names);
+    if (r.venue) {
+      const src = dexLogoSrc(r.venue);
+      let dex: HTMLElement;
+      if (src) {
+        const img = el('img', 'wapp-mt__chain wapp-mt__dex');
+        img.src = src;
+        img.width = 14;
+        img.height = 14;
+        img.alt = r.venue;
+        dex = img;
+      } else {
+        dex = el('span', 'wapp-mt__chain wapp-mt__dex wapp-mt__dex--letter', dexInitial(r.venue));
+      }
+      dex.title = r.venue;
+      cell.append(dex);
+    }
+    cell.append(chain);
     tok.append(cell);
     tr.append(tok);
     if (o.showRisk) {

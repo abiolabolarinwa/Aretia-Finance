@@ -49,6 +49,20 @@ export function priceString(baseRaw: bigint, baseDecimals: number, quoteRaw: big
   return p === null || p <= 0n ? null : scaledToString(p);
 }
 
+/**
+ * Price of one whole base token in whole quote tokens from a Uniswap V3 pool's `sqrtPriceX96` (the pool's own current price, which its
+ * token balances cannot give for concentrated liquidity). `sqrtPriceX96 ^ 2 / 2^192` is raw token1 per raw token0. Null for a zero price.
+ */
+export function priceFromSqrt(sqrtPriceX96: bigint, baseIsToken0: boolean, baseDecimals: number, quoteDecimals: number): string | null {
+  if (sqrtPriceX96 <= 0n) return null;
+  const sq = sqrtPriceX96 * sqrtPriceX96;
+  const q192 = 1n << 192n;
+  const num = (baseIsToken0 ? sq : q192) * pow10(baseDecimals) * PRICE_UNIT;
+  const den = (baseIsToken0 ? q192 : sq) * pow10(quoteDecimals);
+  const p = (num * 2n + den) / (den * 2n);
+  return p <= 0n ? null : scaledToString(p);
+}
+
 /** A raw amount in whole tokens, as a decimal string. */
 export function formatUnits(raw: bigint, decimals: number): string {
   return scaledToString(raw, decimals);

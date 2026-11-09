@@ -72,6 +72,7 @@ export interface PoolRecord {
   liquidity_usd: number | null;
   vol24_usd: number | null;
   p_usd: number | null;
+  rp?: number | null;
   chg: { m5: number | null; h1: number | null; h6: number | null; h24: number | null } | null;
   buys: Window4 | null;
   sells: Window4 | null;
@@ -86,8 +87,9 @@ interface Window4 {
 }
 
 /** Columns read from mi_pools and nothing else: the stats document is picked apart in the database, never sent whole. */
-export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly';
+export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly';
 
+const reservePrice = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const pct = (bps: unknown): number | null => {
   const n = num(bps);
@@ -154,7 +156,9 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, Pick<Mi
     icon: null,
     decimals: p.base_decimals,
     pool: p.address,
-    priceUsd: traded ? num(p.p_usd) : null,
+    // A pool with no stored trade shows the price read from its reserves, marked as such; a traded price is never replaced by it.
+    priceUsd: traded ? num(p.p_usd) : reservePrice(p.rp),
+    ...(!traded && reservePrice(p.rp) !== null ? { priceFromReserves: true } : {}),
     capUsd: null,
     ageMs: created !== null && created > 0 ? Math.max(0, now - created) : null,
     txns24h: sum('h24'),

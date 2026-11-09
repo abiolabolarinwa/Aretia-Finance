@@ -113,6 +113,8 @@ describe('pool backfill and reserves refresher (BNB Chain, PancakeSwap V2)', () 
     expect(stats.reservesOnly).toBe(true);
     expect(stats.liquidityUsd).toBe(120_000); // 100 WBNB x 2 x $600
     expect(stats.price).toBeNull();
+    expect(stats.reservePrice).toBe('0.0001'); // 100 WBNB / 1,000,000 MEME, read from the reserves
+    expect(stats.reservePriceUsd).toBeCloseTo(0.06, 10); // x $600
     const dto = poolDto(store.pools.get(`bnb:${POOL}`)!, new Map(), now());
     expect(dto.liquidity.usd).toBe(120_000);
     expect(dto.volume.usd).toBeNull(); // absent, not zero

@@ -6,14 +6,15 @@
  * through Multicall3 (reserves.ts), re-evaluates their listing state with the usual rules (lifecycle.ts) and stores the liquidity.
  *
  * What it will not do: invent trade figures. A pool with at least one stored trade gets its full numbers recomputed from those trades
- * (exactly as the engine does); a pool with none gets liquidity-only stats (`reservesOnly`), whose price, change, volume and
- * transaction counts stay absent. Dollar liquidity exists only where the quote token's dollar price is known (stablecoin, or the
+ * (exactly as the engine does); a pool with none gets liquidity-only stats (`reservesOnly`), whose trade price, change, volume and
+ * transaction counts stay absent. Its current price, read from the reserves (V2) or the pool's own price (V3), is kept apart as
+ * `reservePrice` / `reservePriceUsd`, so a list can show it marked as a reserve price and never as a trade price. Dollar liquidity exists only where the quote token's dollar price is known (stablecoin, or the
  * chain's coin with a readable reference price).
  */
 import type { MiChainConfig } from './chains.js';
 import type { DexAdapterSpec } from './dexes.js';
 import { evaluate, type ListingRules } from './lifecycle.js';
-import { liquidityUsdOf, MULTICALL_CHAINS, quoteUsdFor, readReservesBatch, type ReserveQuery } from './reserves.js';
+import { liquidityUsdOf, MULTICALL_CHAINS, quoteUsdFor, readReservesBatch, reservePriceOf, type ReserveQuery } from './reserves.js';
 import { RpcError, type Read } from './rpc.js';
 import { computeStats } from './stats.js';
 import type { MiStore } from './store.js';
@@ -89,7 +90,7 @@ export async function refreshReserves(d: RefreshDeps): Promise<RefreshReport> {
 }
 
 /** Stores one pool's fresh reserves; returns true when its listing state changed. */
-async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; quote: bigint }): Promise<boolean> {
+async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; quote: bigint; sqrtPriceX96?: bigint }): Promise<boolean> {
   const now = d.now();
   const quoteUsd = await quoteUsdFor(d.chain, pool.quote, d.nativeUsd);
   const liquidityUsd = liquidityUsdOf(res.quote, pool.quoteDecimals, quoteUsd);
@@ -111,7 +112,7 @@ async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; 
   const patch: Partial<MiPool> = {
     reserveBase: res.base.toString(),
     reserveQuote: res.quote.toString(),
-    stats: stats ?? liquidityOnly(now, quoteUsd, liquidityQuote, liquidityUsd),
+    stats: stats ?? liquidityOnly(now, quoteUsd, liquidityQuote, liquidityUsd, pool.kind === 'v2' || pool.kind === 'v3' ? reservePriceOf(pool.kind, res, pool.baseIsToken0, pool.baseDecimals, pool.quoteDecimals, quoteUsd) : null),
   };
   const changed = ev.state !== pool.state;
   if (changed) {
@@ -124,7 +125,7 @@ async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; 
 }
 
 /** Stats for a pool with no stored trade: its liquidity and nothing else (see PoolStats.reservesOnly). */
-export function liquidityOnly(asOf: number, quoteUsd: number | null, liquidityQuote: number, liquidityUsd: number | null): PoolStats {
+export function liquidityOnly(asOf: number, quoteUsd: number | null, liquidityQuote: number, liquidityUsd: number | null, reserve: { price: string; usd: number | null } | null = null): PoolStats {
   return {
     asOf,
     price: null,
@@ -140,5 +141,6 @@ export function liquidityOnly(asOf: number, quoteUsd: number | null, liquidityQu
     liquidityQuote,
     liquidityUsd,
     reservesOnly: true,
+    ...(reserve ? { reservePrice: reserve.price, reservePriceUsd: reserve.usd } : {}),
   };
 }

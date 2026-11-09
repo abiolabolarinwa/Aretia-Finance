@@ -71,6 +71,14 @@ function logo(r: MarketRow): HTMLElement {
   return img;
 }
 
+/** The price, with a tilde and a hover note when it was read from the pool's reserves because no trade of the pool is stored yet. */
+function priceCell(r: MarketRow): HTMLElement {
+  if (!r.priceFromReserves) return el('td', 'wapp-mt__num', formatPrice(r.priceUsd));
+  const td = el('td', 'wapp-mt__num', `~${formatPrice(r.priceUsd)}`);
+  td.title = "Read from the pool's reserves. No trade of this pool has been recorded yet.";
+  return td;
+}
+
 function changeCell(n: number | null): HTMLElement {
   const td = el('td', `wapp-mt__num ${n === null ? '' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`, formatChange(n));
   return td;
@@ -235,7 +243,7 @@ export function marketTable(o: TableOptions): HTMLElement {
     }
     tr.append(
       el('td', 'wapp-mt__num', compactUsd(r.capUsd)),
-      el('td', 'wapp-mt__num', formatPrice(r.priceUsd)),
+      priceCell(r),
       el('td', 'wapp-mt__num', formatAge(r.ageMs)),
       el('td', 'wapp-mt__num', compactCount(r.txns24h)),
       el('td', 'wapp-mt__num', compactUsd(r.volume24hUsd)),

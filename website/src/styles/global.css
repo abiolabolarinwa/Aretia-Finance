@@ -139,3 +139,27 @@ html.motion-ok [data-reveal='scale'] { transform: scale(0.96); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+/* ---- Loading: the Aretia Finance mark, its three pieces sliding together and apart (see lib/loader.ts) ---- */
+.aretia-mark { flex: none; display: inline-block; vertical-align: -0.2em; overflow: visible; }
+.aretia-mark__tile { fill: #19191c; stroke: rgba(255, 255, 255, 0.14); stroke-width: 2; animation: aretia-breathe 1.6s ease-in-out infinite; transform-origin: 64px 64px; }
+.aretia-mark path { fill: #fff; stroke: #fff; stroke-width: 1.4; stroke-linejoin: round; animation: aretia-assemble 1.6s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+.aretia-mark__a { --dx: 18px; --dy: -18px; }
+.aretia-mark .aretia-mark__b { --dx: -20px; --dy: 0px; animation-delay: 0.12s; }
+.aretia-mark .aretia-mark__c { --dx: 0px; --dy: 20px; animation-delay: 0.24s; }
+@keyframes aretia-assemble {
+  0%, 100% { transform: translate(var(--dx), var(--dy)); opacity: 0.15; }
+  38%, 66% { transform: translate(0, 0); opacity: 1; }
+}
+@keyframes aretia-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes aretia-fade { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+/* Someone who asks for less motion still sees that something is happening: the pieces stay put and the mark fades in and out. */
+@media (prefers-reduced-motion: reduce) {
+  .aretia-mark__tile { animation: none !important; }
+  .aretia-mark path { animation: aretia-fade 1.6s ease-in-out infinite !important; transform: none; opacity: 1; }
+}
+.aretia-loading--block { display: grid; justify-items: center; gap: 12px; padding: 36px 16px; text-align: center; color: var(--color-muted, #6b6b73); font-size: 0.875rem; }
+.aretia-loading--block .aretia-mark { vertical-align: baseline; }
+.aretia-loading--row { display: flex; align-items: center; gap: 10px; }
+.aretia-loading--inline { display: inline-flex; align-items: center; gap: 0.5em; }
+.aretia-loading--inline .aretia-mark { vertical-align: baseline; }

@@ -16,6 +16,7 @@ import { cleanText } from '../swings/tokens/safeText.js';
 import { imitationChip } from '../lib/imitationChip';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
 import { trackMarket } from '../swings/mi/clientRows.js';
+import { loadingBlock } from '../lib/loader';
 import { mountTvChart, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 
@@ -508,7 +509,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       sortSelect.value = `${cur.key}:${cur.dir}`;
     }
     if (!data) {
-      listHost.append(failed ? empty('Launch Box could not be loaded', 'Check your connection and try again in a moment.', false) : el('p', 'wapp__fine', 'Loading…'));
+      listHost.append(failed ? empty('Launch Box could not be loaded', 'Check your connection and try again in a moment.', false) : loadingBlock('Loading Launch Box…'));
       return;
     }
     if (data.setup !== 'ok') {

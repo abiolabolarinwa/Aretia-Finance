@@ -11,6 +11,7 @@ import { runAdapter, type EngineDeps, type LaunchLookup, type RunReport } from '
 import { DEFAULT_RULES, type ListingRules } from './lifecycle.js';
 import { nativeUsdReader } from './reference.js';
 import { makeRead } from './rpc.js';
+import { scanCacheFor, swapScanChains } from './swapScan.js';
 import type { MiStore } from './store.js';
 import type { BackfillJob } from './types.js';
 
@@ -24,6 +25,8 @@ export interface RunnerEnv {
   /** How many pools' swaps are followed per adapter: the newest created and the most recently traded (default 100 each). */
   MI_FOLLOW_NEWEST?: string;
   MI_FOLLOW_RECENT?: string;
+  /** Chains (comma list, e.g. `ethereum,base`) whose V2/V3 swaps are read chain-wide by event, covering every registered pool (swapScan.ts). Off by default. */
+  MI_SWAP_SCAN?: string;
   [k: string]: string | undefined;
 }
 
@@ -104,10 +107,12 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
     if (report.ok) await deepenSolanaHistory({ ...solDeps, retentionDays: retentionDays() }, { budgetMs: historyMs }).catch(() => undefined);
     return report;
   };
+  const scanChains = swapScanChains(d.env.MI_SWAP_SCAN);
+  const swapScan = (spec: DexAdapterSpec): boolean => spec.kind !== 'v4' && scanChains.has(spec.chain);
   const engineFor = (spec: DexAdapterSpec, budgetMs: number): EngineDeps => {
     const chain = chainConfig(spec.chain, d.env);
     const read = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl });
-    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) };
+    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), ...(swapScan(spec) ? { swapScan: true, scanCache: scanCacheFor(spec.id) } : {}) };
   };
 
   // A backfill requested by an administrator runs first, in its own slice of the budget.

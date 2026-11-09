@@ -16,6 +16,7 @@ import type { MiChainConfig } from './chains.js';
 import { decodeCreation, decodeSwap, logMeta, tradeOf, type Creation } from './decode.js';
 import type { DexAdapterSpec } from './dexes.js';
 import { NATIVE_ADDRESS } from './chains.js';
+import { scanCacheFor, scanSwaps, type ScanCache } from './swapScan.js';
 import { getBlock, getHead, getLogsHalving, readBalance, readToken, readV2Reserves, readV4State, v4Depth, type BlockInfo, type TokenFacts } from './evmReads.js';
 import { evaluate, FOLLOWED_STATES, type ListingRules, type PoolFacts } from './lifecycle.js';
 import { parseRaw } from './math.js';
@@ -48,6 +49,12 @@ export interface EngineDeps {
   followRecent?: number;
   /** Pools that can change without a swap are re-read at most this often per adapter (default 10 minutes). */
   maintainEveryMs?: number;
+  /**
+   * Read swaps chain-wide by event topic instead of by pool address, keeping the swaps of this adapter's registered pools (swapScan.ts).
+   * V2 and V3 style adapters only. Covers every registered pool, where the by-address path covers `followNewest` + `followRecent`.
+   */
+  swapScan?: boolean;
+  scanCache?: ScanCache;
 }
 
 export const MAINTAIN_EVERY_MS = 600_000;
@@ -208,12 +215,36 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
     const b = await blockAt(c.block);
     if (b.hash !== c.blockHash) throw new ChunkAbort(`block ${c.block} changed while it was being read`);
     const created = await registerPool(d, c, b.time * 1000, tokenFacts, report);
-    if (created) follow.pools.set(created.address, created);
+    if (created) {
+      follow.pools.set(created.address, created);
+      // A pool registered in this very chunk may swap in it: the scan must know it without waiting for its memory to expire.
+      if (d.swapScan) (d.scanCache ?? scanCacheFor(d.spec.id)).pools.set(created.address, { pool: created, at: d.now() });
+    }
     touched.add(c.pool);
   }
 
   // ---- swaps of followed pools
-  const poolList = [...follow.pools.values()].filter((p) => p.createdBlock <= to);
+  const trades: MiTrade[] = [];
+  const scanning = d.swapScan === true && d.spec.kind !== 'v4';
+  if (scanning) {
+    // Chain-wide: every swap of the event in this range, kept when it is a registered pool of this adapter.
+    const hits = await scanSwaps(d, from, to, d.scanCache ?? scanCacheFor(d.spec.id));
+    const movedPools = new Set<string>();
+    for (const { swap: s, pool } of hits) {
+      const b = await blockAt(s.block);
+      if (b.hash !== s.blockHash) throw new ChunkAbort(`block ${s.block} changed while it was being read`);
+      const t = tradeOf(pool, s, b.time);
+      report.swapsSeen++;
+      if (t) trades.push(t);
+      movedPools.add(pool.address);
+    }
+    // The pools that traded are read fresh (their stored state may have moved since the scan remembered them) before they are refreshed.
+    if (movedPools.size > 0) {
+      const fresh = await d.store.getPools([...movedPools].map((a) => poolKeyOf(d.spec.chain, a)));
+      for (const p of fresh.values()) follow.pools.set(p.address, p);
+    }
+  }
+  const poolList = scanning ? [] : [...follow.pools.values()].filter((p) => p.createdBlock <= to);
   const batch = Math.max(1, d.chain.addressBatch);
   const groups: MiPool[][] = [];
   for (let i = 0; i < poolList.length; i += batch) groups.push(poolList.slice(i, i + batch));
@@ -222,7 +253,6 @@ async function processChunk(d: EngineDeps, from: number, to: number, follow: Fol
   for (let i = 0; i < groups.length; i += 4) {
     fetched.push(...(await Promise.all(groups.slice(i, i + 4).map(async (group) => ({ group, logs: await getLogsHalving(d.read, d.spec.kind === 'v4' ? { address: d.spec.factory, topics: [d.spec.swapTopic, group.map((p) => p.address)] } : { address: group.map((p) => p.address), topics: [d.spec.swapTopic] }, from, to) })))));
   }
-  const trades: MiTrade[] = [];
   for (const { group, logs } of fetched) {
     const byAddr = new Map(group.map((p) => [p.address, p]));
     const decoded = [];

@@ -39,6 +39,20 @@
 - **Not covered:** Uniswap V4, Aerodrome and Solana have no refresher or backfill. V3 liquidity is the doubled quote-token balance (an upper
   bound of what the pool can serve, as in the engine), not in-range depth.
 
+## Chain-wide swap reading (`MI_SWAP_SCAN`)
+
+By default the engine follows the swaps of a bounded set of pools by address (`MI_FOLLOW_NEWEST` + `MI_FOLLOW_RECENT` per adapter, 10 addresses
+per `eth_getLogs` call on a public node). That cannot reach thousands of pools. Every V2 and V3 pool announces a swap with the same event, so
+`MI_SWAP_SCAN=ethereum` (comma list of chains; empty = off) makes the V2/V3 adapters of those chains ask the node for that event across the
+whole chain for each block range, and keep only the swaps of pools the adapter has registered (`src/swings/mi/swapScan.ts`). One request per
+range replaces hundreds, and every registered pool gets real trades (price, change, volume, trades), stored exactly as on the by-address path.
+
+- Other pools that emit the same event (other forks, unlisted dust pools) are dropped. What is looked up is remembered: a pool the adapter does not hold is asked about again after 10 minutes, a held one is re-read after 5.
+- A node that refuses a range as too big (a result cap) is handled by halving the range (`getLogsHalving`). A node that answers a big range quietly with a partial list would lose swaps: check the log for `skipped` and the Ethereum counts after switching it on, and lower `maxRange` for the chain if needed.
+- Uniswap V4 adapters are not covered (their swaps are read per pool id).
+- With the scan on for a chain, `MI_FOLLOW_NEWEST` / `MI_FOLLOW_RECENT` no longer matter for its V2/V3 adapters.
+- **Not yet run against a live node.** Tested with the fake chain only (`swapScan.test.ts`).
+
 ## Status
 
 Tested with a fake chain and a fake Multicall3 (`worker/worker.test.ts`). **Not yet run against a live node or in Docker.** A first run

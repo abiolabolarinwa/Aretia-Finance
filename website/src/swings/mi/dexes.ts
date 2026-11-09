@@ -39,7 +39,7 @@ export const SIGNATURES = {
 
 export const TOPICS = Object.fromEntries(Object.entries(SIGNATURES).map(([k, v]) => [k, topicOf(v)])) as Record<keyof typeof SIGNATURES, string>;
 
-export type DexFamily = 'pancakeswap' | 'uniswap' | 'sushiswap' | 'apeswap' | 'aerodrome';
+export type DexFamily = 'pancakeswap' | 'uniswap' | 'sushiswap' | 'apeswap' | 'aerodrome' | 'quickswap';
 
 export interface DexAdapterSpec {
   id: string;
@@ -60,7 +60,9 @@ export interface DexAdapterSpec {
   creationShape?: 'aero' | 'slipstream';
 }
 
-const FAMILY_OF: Readonly<Record<string, DexFamily>> = { pancakeswap: 'pancakeswap', uniswap: 'uniswap', sushiswap: 'sushiswap', aerodrome: 'aerodrome' };
+// QuickSwap V2 (Polygon) is a Uniswap V2 fork: same PairCreated and Swap events, so it needs no decoder of its own. Its V3 (Algebra) uses other
+// events and is not indexed.
+const FAMILY_OF: Readonly<Record<string, DexFamily>> = { pancakeswap: 'pancakeswap', uniswap: 'uniswap', sushiswap: 'sushiswap', aerodrome: 'aerodrome', quickswap: 'quickswap' };
 
 function aerodromeSpec(e: DexEntry, family: DexFamily): DexAdapterSpec {
   const slip = e.protocol === 'aerodrome-slipstream';

@@ -53,6 +53,13 @@ range replaces hundreds, and every registered pool gets real trades (price, chan
 - With the scan on for a chain, `MI_FOLLOW_NEWEST` / `MI_FOLLOW_RECENT` no longer matter for its V2/V3 adapters.
 - **Not yet run against a live node.** Tested with the fake chain only (`swapScan.test.ts`).
 
+## More venues on Base and Polygon
+
+- **Aerodrome and Slipstream backfill.** The pool backfill (`MI_BACKFILL_DAYS`) now reads Aerodrome V2 and Slipstream creation events (their own `PoolCreated` shapes, already decoded by the live path), so Base's biggest venue can be walked back like Uniswap. Add `aerodrome-v2-base` and `aerodrome-slipstream-base` to `MI_BACKFILL_ADAPTERS`. Slipstream gets its price from the pool's own `slot0()` like any V3 pool. **Aerodrome V2 shows liquidity but no reserve price**: its pools may use the stable curve and the index does not record which a pool is, so the reserve ratio is not trusted as a price (a traded price is shown once trades exist).
+- **QuickSwap V2 (Polygon)** is a Uniswap V2 fork with the same events, so it is now an adapter: `quickswap-v2-polygon`. Its decoder test runs on real logs captured from its factory (`fixtures/real-logs.json`, `scripts/capture-mi-fixtures.mjs`); it has **not** been run end to end against a live node, so it is `fixture-tested`, not `live-verified`. Not added: QuickSwap V3 (Algebra: different creation and swap events, no verified addresses in the catalogue) and Uniswap V4 pools on these chains (the V4 adapters exist but are not part of the backfill).
+- **Enabling them.** The catalogue also holds adapters that the default list does not run (for example `pancakeswap-v2-base`, `pancakeswap-v3-base`, `sushiswap-v2-base`, `quickswap-v2-polygon`). Add the ids you want to `MI_ADAPTERS` and, to walk their history, to `MI_BACKFILL_ADAPTERS`. Each adapter adds node requests: on free public nodes add them one at a time and watch the failure count.
+- Base produces blocks far faster than Ethereum, so a 30-day backfill there is over twelve million blocks per factory: it needs a node that accepts many requests.
+
 ## Status
 
 Tested with a fake chain and a fake Multicall3 (`worker/worker.test.ts`). **Not yet run against a live node or in Docker.** A first run

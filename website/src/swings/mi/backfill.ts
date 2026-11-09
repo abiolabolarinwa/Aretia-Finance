@@ -79,7 +79,8 @@ export async function backfillCreations(d: BackfillDeps): Promise<BackfillReport
   const t0 = d.now();
   const r: BackfillReport = { adapterId: d.spec.id, ok: true, state: 'walking', skipped: null, fromBlock: null, toBlock: null, creations: 0, candidates: 0, registered: 0, belowFloor: 0, unpriced: 0, error: null, durationMs: 0 };
   const finish = (): BackfillReport => ({ ...r, durationMs: d.now() - t0 });
-  if (d.spec.kind === 'v4' || d.spec.creationShape || !MULTICALL_CHAINS.includes(d.chain.id)) return finish_(r, 'skipped', 'unsupported', t0, d);
+  // Aerodrome and Slipstream pools announce themselves with their own creation events (`creationShape`); the decoder reads them. Only V4 is left out.
+  if (d.spec.kind === 'v4' || !MULTICALL_CHAINS.includes(d.chain.id)) return finish_(r, 'skipped', 'unsupported', t0, d);
   try {
     if ((await d.store.disabledAdapters()).has(d.spec.id)) return finish_(r, 'skipped', 'disabled', t0, d);
     const key = backfillKey(d.spec.id, d.days);
@@ -110,7 +111,7 @@ export async function backfillCreations(d: BackfillDeps): Promise<BackfillReport
       const logs = await getLogsHalving(d.read, { address: d.spec.factory, topics: [d.spec.creationTopic] }, from, to);
       const creations: Creation[] = [];
       for (const raw of logs) {
-        const c = decodeCreation(raw, d.spec.kind, d.spec.factory);
+        const c = decodeCreation(raw, d.spec.kind, d.spec.factory, d.spec.creationShape);
         if (c && ADDRESS.test(c.pool) && c.block >= from && c.block <= to) creations.push(c);
       }
       r.creations += creations.length;

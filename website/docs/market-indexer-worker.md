@@ -29,7 +29,8 @@
   batches of `MI_REFRESH_BATCH` (150), every `MI_REFRESH_EVERY_SECONDS` (60), from the pools' own on-chain reserves (V2 `getReserves`; V3 the
   pool's token balances). It updates liquidity and re-applies the listing rules. Listing pages already sort by liquidity, so this is what
   ranks thousands of pools.
-- **No invented numbers.** A pool with no stored trade gets liquidity only (`reservesOnly`): price, price change, volume and transaction
+- **No invented numbers.** A pool with no stored trade gets liquidity only (`reservesOnly`) plus a price read from its reserves (V2) or its own
+  current price (V3, via `slot0()`), stored as `reservePrice` / `reservePriceUsd` and shown in Markets marked with a tilde. Trade price, price change, volume and transaction
   counts are null in the API, never zero, and the pool is left out of Trending, Top and Gainers. They appear once trades are stored (the
   engine follows the newest and most recently traded pools; raise `MI_FOLLOW_*` with a dedicated node).
 - **Inactive rule.** A pool that has never traded is "active" only until `MI_INACTIVE_AFTER_HOURS` (168) after its creation; set it to

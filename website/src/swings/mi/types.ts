@@ -105,6 +105,12 @@ export interface PoolStats {
    * change, volume and transaction counts are then not known and are shown as absent, never as zero. The first stored trade replaces it.
    */
   reservesOnly?: boolean;
+  /**
+   * For a `reservesOnly` pool: the price read from its reserves (V2) or its own current price (V3), quote per base, and in dollars when
+   * the quote's dollar value is known. It is a state price, not a trade: lists show it marked as such and never as a trade price.
+   */
+  reservePrice?: string | null;
+  reservePriceUsd?: number | null;
 }
 
 export interface MiTrade {

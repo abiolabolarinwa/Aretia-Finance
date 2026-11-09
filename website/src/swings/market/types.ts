@@ -24,6 +24,8 @@ export interface MarketRow {
   decimals: number | null;
   pool: string;
   priceUsd: number | null;
+  /** True when `priceUsd` was read from the pool's reserves (no trade of the pool is stored yet), not from a trade. */
+  priceFromReserves?: boolean;
   /** Market cap when the source has one, otherwise fully diluted value. */
   capUsd: number | null;
   /** Pool age in milliseconds, or null when unknown. */

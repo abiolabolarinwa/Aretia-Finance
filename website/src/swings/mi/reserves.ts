@@ -8,6 +8,7 @@ import { encodeAggregate3 } from '../shield/approvals.js';
 import { selector } from '../engine/abi.js';
 import { WRAPPED_NATIVE } from '../dex/entries.js';
 import { NATIVE_ADDRESS, type MiChainConfig } from './chains.js';
+import { priceFromSqrt, priceString } from './math.js';
 import type { Read } from './rpc.js';
 
 export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
@@ -21,9 +22,11 @@ export interface ReserveQuery {
   quote: string;
   baseIsToken0: boolean;
 }
-export type Reserves = { base: bigint; quote: bigint } | null;
+/** `sqrtPriceX96` is the pool's own current price, read for V3 pools only (a V3 pool's balances do not give its price). */
+export type Reserves = { base: bigint; quote: bigint; sqrtPriceX96?: bigint } | null;
 
 const GET_RESERVES = '0x' + selector('getReserves()');
+const SLOT0 = '0x' + selector('slot0()');
 const balanceOf = (holder: string): string => '0x70a08231' + holder.replace(/^0x/, '').toLowerCase().padStart(64, '0');
 
 /** The reply of `aggregate3`: for each call whether it worked and the bytes it returned (hex, no prefix). */
@@ -51,7 +54,7 @@ export async function readReservesBatch(read: Read, queries: readonly ReserveQue
   const calls: { target: string; data: string }[] = [];
   for (const q of queries) {
     if (q.kind === 'v2') calls.push({ target: q.pool, data: GET_RESERVES });
-    else calls.push({ target: q.base, data: balanceOf(q.pool) }, { target: q.quote, data: balanceOf(q.pool) });
+    else calls.push({ target: q.base, data: balanceOf(q.pool) }, { target: q.quote, data: balanceOf(q.pool) }, { target: q.pool, data: SLOT0 });
   }
   const raw = (await read('eth_call', [{ to: MULTICALL3, data: encodeAggregate3(calls) }, 'latest'])) as string;
   const res = decodeAggregate3Data(String(raw));
@@ -67,9 +70,13 @@ export async function readReservesBatch(read: Read, queries: readonly ReserveQue
     }
     const b = res[i++]!;
     const qt = res[i++]!;
+    const sl = res[i++]!;
     const bb = b.success ? wordAt(b.data, 0) : null;
     const qb = qt.success ? wordAt(qt.data, 0) : null;
-    return bb === null || qb === null ? null : { base: bb, quote: qb };
+    const sp = sl.success ? wordAt(sl.data, 0) : null;
+    if (bb === null || qb === null) return null;
+    // A failed slot0 read leaves the price out; the balances (liquidity) are still good.
+    return sp !== null && sp > 0n ? { base: bb, quote: qb, sqrtPriceX96: sp } : { base: bb, quote: qb };
   });
 }
 
@@ -84,6 +91,18 @@ export async function quoteUsdFor(chain: MiChainConfig, quote: string, nativeUsd
   const wrapped = (WRAPPED_NATIVE as Record<string, string>)[chain.id]?.toLowerCase();
   if (q.address === NATIVE_ADDRESS || q.address === wrapped) return nativeUsd ? await nativeUsd() : null;
   return null;
+}
+
+/**
+ * The pool's current price from its reserves: quote per base (a fixed-point string) and in dollars when the quote's dollar value is known.
+ * V2: the reserve ratio. V3: the pool's own `sqrtPriceX96`. Null when the reserves cannot give one. This is a price read from the
+ * pool's state, not a traded price: it is never stored as one.
+ */
+export function reservePriceOf(kind: 'v2' | 'v3', res: { base: bigint; quote: bigint; sqrtPriceX96?: bigint }, baseIsToken0: boolean, baseDecimals: number, quoteDecimals: number, quoteUsd: number | null): { price: string; usd: number | null } | null {
+  const price = kind === 'v2' ? priceString(res.base, baseDecimals, res.quote, quoteDecimals) : res.sqrtPriceX96 !== undefined ? priceFromSqrt(res.sqrtPriceX96, baseIsToken0, baseDecimals, quoteDecimals) : null;
+  if (price === null) return null;
+  const n = Number(price);
+  return { price, usd: quoteUsd !== null && Number.isFinite(n) && n > 0 ? n * quoteUsd : null };
 }
 
 export const liquidityUsdOf = (quoteReserve: bigint, quoteDecimals: number, quoteUsd: number | null): number | null => (quoteUsd === null ? null : (Number(quoteReserve) / 10 ** quoteDecimals) * 2 * quoteUsd);

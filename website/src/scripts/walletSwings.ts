@@ -32,6 +32,7 @@ import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '..
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { alertsCard } from './walletAlerts.js';
+import { loadingBlock } from '../lib/loader';
 import { clearsMinLiquidity, loadMinLiquidity, MIN_LIQUIDITY_CHOICES, saveMinLiquidity } from './walletMinLiquidity.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeTx } from '../swings/shield/approvals.js';
@@ -2113,7 +2114,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         again.addEventListener('click', () => void load());
         card.append(again);
       }
-      else if (rows === null || (loading && rows === null)) card.append(el('p', { class: 'wapp__fine', text: 'Loading…' }));
+      else if (rows === null || (loading && rows === null)) card.append(loadingBlock('Loading the list…'));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
         card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));

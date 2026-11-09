@@ -5,7 +5,7 @@
  */
 import { CHAINS } from '../swings/core/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
-import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, sourceLabel, type MarketRow, type SortKey } from '../swings/market/types.js';
+import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
 import { padlockShown } from '../swings/market/lock.js';
@@ -206,9 +206,8 @@ export function marketTable(o: TableOptions): HTMLElement {
     const imitates = imitationChip(r.chain, r.address, r.symbol, r.name);
     if (imitates) line.append(imitates);
     const full = el('small', 'wapp-mt__fullname', r.name || 'No name given');
-    const from = el('span', 'wapp-mt__source', ` · ${sourceLabel(r)}${r.venue ? `, ${r.venue}` : ''}`);
-    from.title = r.source === 'index' || r.indexed ? 'Read from Aretia’s own market index, which reads the chain itself.' : 'Read from GeckoTerminal, an outside market service.';
-    full.append(from);
+    // Where the numbers were read from is not shown: it is the same market either way. The venue (the DEX) is.
+    if (r.venue) full.append(el('span', 'wapp-mt__source', ` · ${r.venue}`));
     names.append(line, full);
     const cell = el('div', 'wapp-mt__cell');
     cell.append(logo(r), names, chain);

@@ -127,8 +127,27 @@ export class SupabaseMiStore implements MiStore {
     await this.call(`mi_tokens?key=eq.${k}&or=(first_trade_at.is.null,first_trade_at.gt.${at})`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ first_trade_at: at }) });
   }
   async tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]> {
-    const rows = await this.rows(`mi_tokens?chain=eq.${plain(chain)}&or=(supply_at.is.null,supply_at.lt.${Math.floor(olderThanMs)})&order=supply_at.asc.nullsfirst&limit=${clampLimit(limit, 2000)}&select=key,chain,address,symbol,name,decimals,first_seen_at,first_trade_at,launchbox_key,supply_at`);
-    return rows.map(tokenFromRow);
+    const cols = 'key,chain,address,symbol,name,decimals,first_seen_at,first_trade_at,launchbox_key,supply_at';
+    const due = `or=(supply_at.is.null,supply_at.lt.${Math.floor(olderThanMs)})`;
+    const max = clampLimit(limit, 5000);
+    const out = new Map<string, MiToken>();
+    // The tokens of listed (active) pools come first: those are the rows people see. An index holds many more tokens than that (every
+    // new pair's tokens, mostly junk), and they would otherwise be read in no useful order.
+    const keys = new Set<string>();
+    for (let offset = 0; offset < 5_000; offset += 1_000) {
+      const pools = await this.rows(`mi_pools?chain=eq.${plain(chain)}&state=eq.active&select=base&order=liquidity_usd.desc.nullslast,key.asc&limit=1000&offset=${offset}`);
+      for (const r of pools) keys.add(`${chain}:${String(r.base)}`);
+      if (pools.length < 1_000) break;
+    }
+    const list = [...keys];
+    for (let i = 0; i < list.length && out.size < max; i += 50) {
+      const batch = list.slice(i, i + 50).map(q).join(',');
+      for (const r of await this.rows(`mi_tokens?key=in.(${batch})&${due}&select=${cols}`)) out.set(String(r.key), tokenFromRow(r));
+    }
+    if (out.size < max) {
+      for (const r of await this.rows(`mi_tokens?chain=eq.${plain(chain)}&${due}&order=supply_at.asc.nullsfirst&limit=${max}&select=${cols}`)) if (!out.has(String(r.key))) out.set(String(r.key), tokenFromRow(r));
+    }
+    return [...out.values()].slice(0, max);
   }
   async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
     await this.call(`mi_tokens?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ total_supply: supply, supply_at: at }) });

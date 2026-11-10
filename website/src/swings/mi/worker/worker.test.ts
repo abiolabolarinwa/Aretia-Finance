@@ -318,8 +318,25 @@ describe('token supply refresher (EVM)', () => {
     expect((await refreshSupplies({ chain: cfg, read, store, now, budgetMs: 10_000 })).considered).toBe(0);
     chain.supplies.set(TOKEN, 2_000_000n * E18); // minted since
     const later = await refreshSupplies({ chain: cfg, read, store, now: SOON(now, 25), budgetMs: 10_000 });
-    expect(later.considered).toBe(4);
+    expect(later.considered).toBe(0); // a supply is read again only after a week
+    const muchLater = await refreshSupplies({ chain: cfg, read, store, now: SOON(now, 24 * 8), budgetMs: 10_000 });
+    expect(muchLater.considered).toBe(4);
     expect(store.tokens.get(`bnb:${TOKEN}`)!.totalSupply).toBe((2_000_000n * E18).toString());
+  });
+  it('reads the tokens of listed pools first, whatever else is waiting', async () => {
+    const { chain, read, now, cfg } = bnbWorld();
+    chain.supplies.set(TOKEN, 1n * E18);
+    chain.supplies.set(JUNK, 2n * E18);
+    const store = new InMemoryMiStore();
+    const tok = (address: string, symbol: string) => ({ key: `bnb:${address}`, chain: 'bnb' as const, address, symbol, name: symbol, decimals: 18, firstSeenAt: 1, firstTradeAt: null, launchboxKey: null });
+    await store.upsertToken(tok(JUNK, 'JUNK'));
+    await store.upsertToken(tok(OTHER, 'OA'));
+    await store.upsertToken(tok(TOKEN, 'MEME'));
+    store.pools.set(`bnb:${POOL}`, { key: `bnb:${POOL}`, chain: 'bnb', address: POOL, base: TOKEN, state: 'active' } as never);
+    const r = await refreshSupplies({ chain: cfg, read, store, now, budgetMs: 10_000, limit: 1 });
+    expect(r.considered).toBe(1);
+    expect(store.tokens.get(`bnb:${TOKEN}`)!.totalSupply).toBe(E18.toString()); // the listed one, though added last
+    expect(store.tokens.get(`bnb:${JUNK}`)!.supplyAt ?? null).toBeNull();
   });
   it('leaves a chain without Multicall3 alone', async () => {
     const { read, now } = bnbWorld();

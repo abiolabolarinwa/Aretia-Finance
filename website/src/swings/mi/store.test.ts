@@ -128,6 +128,19 @@ describe('Supabase store request shapes', () => {
     expect(await none.store.insertPool(pool(1))).toBe(false);
   });
 
+  it('asks for the tokens of listed pools first when it needs supplies, then for the rest, without repeats', async () => {
+    const p = pool(1);
+    const t1 = { key: `bnb:${p.base}`, chain: 'bnb', address: p.base, symbol: 'A', name: 'A', decimals: 18, first_seen_at: 1, first_trade_at: null, launchbox_key: null, supply_at: null };
+    const t2 = { ...t1, key: 'bnb:0xjunk', address: '0xjunk', symbol: 'J' };
+    const { calls, store } = stub({ 'select=base': [{ base: p.base }], 'key=in.': [t1], 'order=supply_at.asc.nullsfirst': [t1, t2] });
+    const out = await store.tokensNeedingSupply('bnb', 5_000, 10);
+    expect(out.map((t) => t.key)).toEqual([t1.key, t2.key]); // the listed token first, the other after, none twice
+    expect(calls[0]!.url).toMatch(/^mi_pools\?chain=eq\.bnb&state=eq\.active&select=base/);
+    expect(calls[1]!.url).toContain('mi_tokens?key=in.(');
+    expect(calls[1]!.url).toContain('supply_at.is.null,supply_at.lt.5000');
+    expect(calls[2]!.url).toContain('order=supply_at.asc.nullsfirst');
+  });
+
   it('echoes only the key of inserted rows, and never reads the stats column for the followed pools', async () => {
     const { calls, store } = stub({ 'mi_pools': [] });
     await store.insertPool(pool(1));

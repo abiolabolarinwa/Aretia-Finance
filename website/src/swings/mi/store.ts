@@ -163,9 +163,12 @@ export class InMemoryMiStore implements MiStore {
     if (t && (t.firstTradeAt === null || at < t.firstTradeAt)) t.firstTradeAt = at;
   }
   async tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]> {
+    // The tokens of listed (active) pools first, then the never-tried, then the oldest.
+    const listed = new Set<string>();
+    for (const p of this.pools.values()) if (p.chain === chain && p.state === 'active') listed.add(`${chain}:${p.base}`);
     return [...this.tokens.values()]
       .filter((t) => t.chain === chain && (t.supplyAt === undefined || t.supplyAt === null || t.supplyAt < olderThanMs))
-      .sort((a, b) => (a.supplyAt ?? -1) - (b.supplyAt ?? -1))
+      .sort((a, b) => Number(listed.has(b.key)) - Number(listed.has(a.key)) || (a.supplyAt ?? -1) - (b.supplyAt ?? -1))
       .slice(0, limit)
       .map((t) => ({ ...t }));
   }

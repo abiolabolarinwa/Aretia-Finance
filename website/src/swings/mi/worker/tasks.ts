@@ -18,7 +18,7 @@ import { SOLANA_SPECS } from '../dexes.js';
 import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
 import { solUsdReader } from '../solana/engine.js';
 import { refreshSolanaReserves } from '../solana/refresher.js';
-import { refreshSupplies } from '../supply.js';
+import { refreshSupplies, SUPPLY_LIMIT } from '../supply.js';
 import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
 import type { WorkerTask } from './loop.js';
@@ -95,7 +95,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         run: async (budgetMs) => {
           const r = readerFor(spec);
           const rep = await refreshSupplies({ chain: r.chain, read: r.read, store: d.store, now: d.now, budgetMs });
-          return { ok: rep.ok, error: rep.error, caughtUp: true };
+          return { ok: rep.ok, error: rep.error, caughtUp: rep.considered < SUPPLY_LIMIT };
         },
       });
     }
@@ -108,7 +108,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         idleMs: 600_000,
         run: async (budgetMs) => {
           const rep = await refreshSupplies({ chain, read: rpc, store: d.store, now: d.now, budgetMs });
-          return { ok: rep.ok, error: rep.error, caughtUp: true };
+          return { ok: rep.ok, error: rep.error, caughtUp: rep.considered < SUPPLY_LIMIT };
         },
       });
     }

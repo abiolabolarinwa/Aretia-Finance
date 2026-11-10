@@ -4,8 +4,8 @@
  *
  * EVM chains with Multicall3: `totalSupply()` of up to 150 tokens in one node request. Solana: the supply held in the mint account, 100 mints
  * per `getMultipleAccounts`. Each pass takes the tokens never tried, then the ones tried longest ago (so a supply that changes, by minting
- * or burning, is read again after `staleMs`). A token that does not answer is recorded as unreadable with the time, so it is not asked
- * again on every pass.
+ * or burning, is read again after `staleMs`, a week). A token that does not answer is recorded as unreadable with the time, so it is not asked
+ * again on every pass. The tokens of listed (active) pools are read first, since those are the rows people see.
  */
 import type { MiChainConfig } from './chains.js';
 import { MULTICALL_CHAINS, readTotalSupplies } from './reserves.js';
@@ -25,6 +25,9 @@ export interface SupplyReport {
   durationMs: number;
 }
 
+/** Tokens considered per pass by default; a pass that fills it means there is more to read, so the task runs again at once. */
+export const SUPPLY_LIMIT = 3_000;
+
 export interface SupplyDeps {
   chain: MiChainConfig;
   read: Read;
@@ -34,9 +37,9 @@ export interface SupplyDeps {
   budgetMs: number;
   /** Tokens read per node request (default 150 on EVM, 100 on Solana). */
   batch?: number;
-  /** Tokens considered per pass at most (default 600). */
+  /** Tokens considered per pass at most (default SUPPLY_LIMIT). */
   limit?: number;
-  /** A supply is read again after this long (default 24 hours). */
+  /** A supply is read again after this long (default 7 days: a supply seldom changes). */
   staleMs?: number;
 }
 
@@ -48,7 +51,7 @@ export async function refreshSupplies(d: SupplyDeps): Promise<SupplyReport> {
   const r: SupplyReport = { chain: d.chain.id, ok: true, skipped: null, considered: 0, read: 0, unreadable: 0, error: null, durationMs: 0 };
   if (!solana && !MULTICALL_CHAINS.includes(d.chain.id)) return { ...r, skipped: 'unsupported' };
   try {
-    const tokens = await d.store.tokensNeedingSupply(d.chain.id, t0 - (d.staleMs ?? 86_400_000), d.limit ?? 600);
+    const tokens = await d.store.tokensNeedingSupply(d.chain.id, t0 - (d.staleMs ?? 7 * 86_400_000), d.limit ?? SUPPLY_LIMIT);
     r.considered = tokens.length;
     const size = Math.max(1, Math.min(solana ? 100 : 150, d.batch ?? (solana ? 100 : 150)));
     const deadline = t0 + d.budgetMs;
@@ -69,11 +72,16 @@ export async function refreshSupplies(d: SupplyDeps): Promise<SupplyReport> {
         supplies = asked.map((a) => (a === null ? null : (answers[k++] ?? null)));
       }
       const at = d.now();
-      for (let k = 0; k < group.length; k++) {
-        const s = supplies[k] ?? null;
-        await d.store.setTokenSupply(group[k]!.key, s === null ? null : s.toString(), at);
-        if (s === null) r.unreadable++;
-        else r.read++;
+      // Written ten at a time: a first pass over tens of thousands of tokens would otherwise be one request after another.
+      for (let k = 0; k < group.length; k += 10) {
+        await Promise.all(
+          group.slice(k, k + 10).map(async (t, j) => {
+            const s = supplies[k + j] ?? null;
+            await d.store.setTokenSupply(t.key, s === null ? null : s.toString(), at);
+            if (s === null) r.unreadable++;
+            else r.read++;
+          }),
+        );
       }
     }
   } catch (e) {

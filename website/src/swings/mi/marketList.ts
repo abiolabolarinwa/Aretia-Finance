@@ -19,6 +19,7 @@
  */
 import type { MarketRow } from '../market/types.js';
 import { isDeadMarket } from '../market/dead.js';
+import { BULLISH_TEXT, isBullish } from '../market/bullish.js';
 import { chainConfig, isMiChain, type MiChain } from './chains.js';
 import { adapterById } from './dexes.js';
 import { tokenDto } from './dto.js';
@@ -57,6 +58,8 @@ export interface ListQuery {
   minLiquidityUsd: number;
   /** Only pools created within this many hours (0 = any age). */
   maxAgeHours: number;
+  /** The "Bullish only" filter (market/bullish.ts): only rows that are up over both 1 hour and 24 hours, with enough trades, wallets and liquidity. */
+  bullish?: boolean;
 }
 
 /** What a pool record holds after the narrow select (no whole stats document). */
@@ -101,7 +104,7 @@ const pct = (bps: unknown): number | null => {
 
 /** True when the list ranks by something only the stats document holds, so it is built from the candidates. */
 export function usesCandidates(q: ListQuery): boolean {
-  if (q.kind === 'gainers' || q.sort === 'change') return true;
+  if (q.kind === 'gainers' || q.sort === 'change' || q.bullish === true) return true;
   return q.kind === 'trending' && q.window !== 'h24';
 }
 
@@ -227,6 +230,7 @@ function merit(q: ListQuery, r: MarketRow): number | null {
 /** Ranks the candidates for a gainers / windowed-trending / change-sorted list. Pure. */
 export function rankCandidates(q: ListQuery, rows: readonly { row: MarketRow; rec: PoolRecord }[]): { row: MarketRow; rec: PoolRecord }[] {
   let kept = rows.filter((x) => !isUnsafeLooking(x.row, x.rec));
+  if (q.bullish) kept = kept.filter((x) => isBullish(x.row));
   if (q.kind === 'gainers') {
     kept = kept.filter((x) => {
       const c = x.row.change[q.window];
@@ -268,6 +272,7 @@ export interface Reader {
 
 /** The note a tab shows when it has fewer rows than the others, in words. */
 export function listNote(q: ListQuery, total: number, rankedAmong?: number): string {
+  if (q.bullish) return `${BULLISH_TEXT} Among the ${rankedAmong ?? total} busiest pools, ${total} fit.`;
   const floor = `$${Math.max(q.minLiquidityUsd, DUST_LIQUIDITY_USD).toLocaleString('en-US')}`;
   const liq = `Pools with under ${floor} of liquidity, or none known in dollars, are left out.`;
   if (q.kind === 'new') return `${liq} Newest pools first, including pools with liquidity but no trade yet (their price change, volume and trades show a dash).`;

@@ -39,6 +39,16 @@ The Markets page lists tokens from Aretia's Market Indexer first. GeckoTerminal 
 - **Traders** is the number of distinct accounts that received the output of a swap in the last 24 hours (the index's `makers24h`). A router or aggregator counts as one wallet, so it is a close count, not an exact one. Pools with no stored trade show a dash.
 - **Needs migration 0022** (two columns on `mi_tokens`). Until it is applied the list still works: it asks for the supply once, falls back to a list without it, and does not ask again for five minutes.
 
+## Bullish views (all opt-in and labelled)
+
+The Markets page opens on **Gainers**, and none of its lists is filtered or reordered to look more positive than the data. Three views put rising tokens in front, each saying what it is:
+
+- **Gainers is the first tab shown.** It is the index's own Gainers list (price up in the chosen window, $1,000+ of liquidity, 5+ trades in 24 hours, a pool older than ten minutes), drawn from real pools. Every other tab is one click away.
+- **A "Top gainers · 24H" strip** above every list except Gainers: the five biggest 24-hour rises on the chosen network (or on all), with their change, liquidity in the hover text, and the line "Not a recommendation". It is the Gainers list's top five, nothing added or removed. If the index has none it is not shown (never an error).
+- **A "Bullish only" checkbox**, off by default, with its rule written under the list while it is on and in its hover text: price up over **both** the last hour and the last 24 hours, with at least 10 trades, 5 wallets (where the source counts them) and $1,000 of liquidity in the last 24 hours. The server applies it (`bullish=1`) to the busiest 600 pools of the chosen network before paging, so it works on every tab and the count it shows is right; the page also applies it to a list that comes from the outside feed. Turning it off shows every token again. The note says how many of the busiest pools fit.
+
+Quality first is the existing default, not a hidden ordering: a minimum liquidity of $1,000 (a visitor who chose a lower bar keeps theirs), "Hide risky tokens" on, and a note saying how many tokens each filter hides.
+
 ## What this does not cover
 
 - Rising still ranks by distinct buyers per window, which needs a per-window count from `mi_trades`. That is not a cheap read through PostgREST, so Rising stays on its current source.

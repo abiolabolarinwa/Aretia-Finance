@@ -23,8 +23,22 @@ describe('buildStats', () => {
     );
     expect(s.chains.ethereum).toMatchObject({ volume24hUsd: 1_500, txns24h: 12, pools: 2, latestBlock: null });
     expect(s.chains.bnb).toMatchObject({ volume24hUsd: 250, txns24h: 2, pools: 1 });
-    expect(s.total).toEqual({ volume24hUsd: 1_750, txns24h: 14, pools: 3 });
+    expect(s.total).toEqual({ volume24hUsd: 1_750, txns24h: 14, pools: 3, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0 });
     expect(s.asOf).toBe(NOW);
+  });
+  it('leaves out a pool trading over 100 times its liquidity, says so, and counts pools whose window was capped', () => {
+    const s = buildStats(
+      [
+        { chain: 'bnb', vol24_usd: 201_500_000, buys: { h24: 900 }, sells: { h24: 900 }, liquidity_usd: 1_370_000 },
+        { chain: 'bnb', vol24_usd: 100_000, buys: { h24: 50 }, sells: { h24: 50 }, liquidity_usd: 1_000_000, cp: true },
+        { chain: 'bnb', vol24_usd: 100 * 1_000, buys: { h24: 1 }, sells: { h24: 1 }, liquidity_usd: 1_000 },
+        { chain: 'bnb', vol24_usd: 5_000, buys: { h24: 3 }, sells: { h24: 3 }, liquidity_usd: null },
+      ],
+      [],
+      NOW,
+    );
+    expect(s.chains.bnb).toMatchObject({ volume24hUsd: 205_000, pools: 3, excludedPools: 1, excludedVolume24hUsd: 201_500_000, cappedPools: 1, txns24h: 100 + 2 + 6 });
+    expect(s.total).toMatchObject({ pools: 3, excludedPools: 1, cappedPools: 1 });
   });
   it('takes the newest block each network has been seen at, and when', () => {
     const s = buildStats([], [h('ethereum', 100), h('ethereum', 130, { lastSuccessAt: NOW - 1_000 }), h('ethereum', 120), h('solana', 9_000), h('base', null), h('nope', 5)] as never, NOW);

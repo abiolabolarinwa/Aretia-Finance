@@ -57,6 +57,11 @@ A three-cell bar sits above the Markets lists, for the chosen network or, with a
 - **LATEST BLOCK** is the newest block (Solana: slot) the index has seen on the network, with how long ago it saw it. With all networks chosen it lists each network's block, busiest first. It is the index's own view: if a network's adapter is behind or stopped, its block is older, and that is shown.
 - Code: `GET /api/swings-market?src=stats` (`api/_swingsMarketStats.ts`, no new function file), numbers built in `src/swings/mi/marketStats.ts`, the bar in `walletSwings.ts`. The answer is kept 30 seconds in the function and at the CDN (an older answer is served, marked stale, if the database fails). Pools with a trade are read 1,000 at a time (up to ten pages).
 
+### What the bar leaves out, and what it can undercount
+
+- **Outlier pools are left out.** A pool whose 24-hour volume is more than 100 times its own liquidity is wash trading or a broken price, and one such pool can outweigh a whole network, so it is not summed. The hover text says how many pools were left out and the volume they claimed.
+- **A pool's day is read in full, newest trades first.** A pool's 24-hour figures are computed over its newest 5,000 trades of the day (`RECENT_TRADE_LIMIT`), read a page of 1,000 at a time because the database never answers more than 1,000 rows. A pool with more than 5,000 trades is marked `windowCapped`: its transactions show as "5,000+" and the bar's hover text says the totals are a floor. Before this, only the oldest 1,000 trades of the day were read, which left busy pools with a stale price and undercounted volume. Pools refresh as they next trade or are refreshed by the worker.
+
 ## What this does not cover
 
 - Rising still ranks by distinct buyers per window, which needs a per-window count from `mi_trades`. That is not a cheap read through PostgREST, so Rising stays on its current source.

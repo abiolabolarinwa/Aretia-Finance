@@ -8,12 +8,15 @@ export interface ChainStatsDto {
   volume24hUsd: number;
   txns24h: number;
   pools: number;
+  excludedPools?: number;
+  excludedVolume24hUsd?: number;
+  cappedPools?: number;
   latestBlock: number | null;
   blockSeenAt: number | null;
 }
 export interface MarketStatsDto {
   asOf: number;
-  total: { volume24hUsd: number; txns24h: number; pools: number };
+  total: { volume24hUsd: number; txns24h: number; pools: number; excludedPools?: number; excludedVolume24hUsd?: number; cappedPools?: number };
   chains: Partial<Record<string, ChainStatsDto>>;
 }
 
@@ -23,10 +26,10 @@ export const STATS_URL = '/api/swings-market?src=stats';
 export const CHAIN_SHORT: Readonly<Record<string, string>> = { solana: 'SOL', ethereum: 'ETH', bnb: 'BNB', base: 'Base', polygon: 'Polygon', robinhood: 'Robinhood' };
 
 /** The numbers for the chosen network, or for all networks together. Null when the index has none. */
-export function statsFor(s: MarketStatsDto | null, chain: '' | ChainId): { volume24hUsd: number; txns24h: number; pools: number } | null {
+export function statsFor(s: MarketStatsDto | null, chain: '' | ChainId): { volume24hUsd: number; txns24h: number; pools: number; excludedPools: number; excludedVolume24hUsd: number; cappedPools: number } | null {
   if (!s) return null;
   const t = chain === '' ? s.total : s.chains[chain];
-  return t && t.pools > 0 ? { volume24hUsd: t.volume24hUsd, txns24h: t.txns24h, pools: t.pools } : null;
+  return t && t.pools > 0 ? { volume24hUsd: t.volume24hUsd, txns24h: t.txns24h, pools: t.pools, excludedPools: t.excludedPools ?? 0, excludedVolume24hUsd: t.excludedVolume24hUsd ?? 0, cappedPools: t.cappedPools ?? 0 } : null;
 }
 
 /** The latest blocks to show: the chosen network's one, or one per network (busiest first) when all are chosen. */

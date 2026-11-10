@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCandleRows, computeStats, trendingScore } from './stats.js';
+import { buildCandleRows, computeStats, RECENT_TRADE_LIMIT, trendingScore } from './stats.js';
 import type { MiTrade } from './types.js';
 
 const mk = (i: number, time: number, price: string, quote: bigint, side: 'buy' | 'sell' = 'buy', maker = 'm' + i): MiTrade => ({ chain: 'bnb', pool: '0xp', id: `0x${i}:0`, block: i, blockHash: '0x', time, side, baseAmount: '1', quoteAmount: quote.toString(), price, maker });
@@ -21,6 +21,11 @@ describe('stats', () => {
     expect(s.liquidityUsd).toBe(100);
     expect(s.maxTradeShare24h).toBe(0.5);
     expect(s.makers24h).toBe(3);
+  });
+  it('flags a window that holds the most trades the statistics read, and only then', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => mk(i, nowSec - 5_000 + i, '1', 1_000_000n));
+    expect(computeStats({ quoteDecimals: 6 }, many(RECENT_TRADE_LIMIT), null, now, { quoteUsd: 1 }, null)!.windowCapped).toBe(true);
+    expect(computeStats({ quoteDecimals: 6 }, many(RECENT_TRADE_LIMIT - 1), null, now, { quoteUsd: 1 }, null)!.windowCapped).toBeUndefined();
   });
   it('states no USD when the quote has no known dollar value', () => {
     const s = computeStats({ quoteDecimals: 18 }, [mk(1, nowSec - 10, '2', 5n * 10n ** 18n), mk(2, nowSec - 5, '3', 10n ** 18n)], null, now, { quoteUsd: null }, null)!;

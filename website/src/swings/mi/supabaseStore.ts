@@ -253,8 +253,23 @@ export class SupabaseMiStore implements MiStore {
     const b = before !== undefined ? `&time=lt.${Math.floor(before)}` : '';
     return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}${b}&select=${TRADE_LIGHT}&order=time.desc,block.desc,id.desc&limit=${clampLimit(limit, 500)}`)).map(this.tradeFromRow);
   }
+  /** The database answers at most 1,000 rows a request whatever `limit` says, so longer reads are taken a page at a time. */
+  private async tradePages(order: string, base: string, limit: number): Promise<MiTrade[]> {
+    const want = clampLimit(limit, 10_000);
+    const out: MiTrade[] = [];
+    while (out.length < want) {
+      const n = Math.min(1000, want - out.length);
+      const page = await this.rows(`${base}&select=${TRADE_LIGHT}&order=${order}&limit=${n}&offset=${out.length}`);
+      for (const r of page) out.push(this.tradeFromRow(r));
+      if (page.length < n) break;
+    }
+    return out;
+  }
   async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
-    return (await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}&select=${TRADE_LIGHT}&order=time.asc,block.asc,id.asc&limit=${clampLimit(limit, 10_000)}`)).map(this.tradeFromRow);
+    return this.tradePages('time.asc,block.asc,id.asc', `mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}`, limit);
+  }
+  async windowTrades(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
+    return (await this.tradePages('time.desc,block.desc,id.desc', `mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=gte.${Math.floor(fromSec)}`, limit)).reverse();
   }
   async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
     const r = await this.rows(`mi_trades?chain=eq.${chain}&pool=eq.${plain(pool)}&time=lt.${Math.floor(beforeSec)}&select=${TRADE_LIGHT}&order=time.desc,block.desc,id.desc&limit=1`);

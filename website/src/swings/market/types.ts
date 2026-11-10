@@ -28,6 +28,8 @@ export interface MarketRow {
   priceFromReserves?: boolean;
   /** Market cap when the source has one, otherwise fully diluted value. */
   capUsd: number | null;
+  /** True when `capUsd` is a fully diluted value (price x total supply read from the chain), not a market cap. Aretia's index only ever gives this. */
+  capIsFdv?: boolean;
   /** Pool age in milliseconds, or null when unknown. */
   ageMs: number | null;
   txns24h: number | null;

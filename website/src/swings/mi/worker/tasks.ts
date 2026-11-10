@@ -4,6 +4,7 @@
  *   <adapter>:refresh    the reserves refresher (EVM V2/V3 on chains with Multicall3), on unless MI_REFRESH=0
  *   <adapter>:backfill   the creation backfill, only when MI_BACKFILL_DAYS > 0; default adapters: the V2/V3 adapters of BNB Chain
  *   <solana adapter>:discover / :refresh   discovery of existing Solana pools and their liquidity refresher, only when MI_SOLANA_DISCOVERY is set
+ *   <chain>:supply       the token supply refresher (for the Markets list's fully diluted value), one per chain, on unless MI_SUPPLY=0
  */
 import { chainConfig, type MiChainConfig } from '../chains.js';
 import { allSpecs, type DexAdapterSpec } from '../dexes.js';
@@ -17,6 +18,8 @@ import { SOLANA_SPECS } from '../dexes.js';
 import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
 import { solUsdReader } from '../solana/engine.js';
 import { refreshSolanaReserves } from '../solana/refresher.js';
+import { refreshSupplies } from '../supply.js';
+import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
 import type { WorkerTask } from './loop.js';
 
@@ -74,6 +77,37 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         run: async (budgetMs) => {
           const r = readerFor(spec);
           const rep = await refreshReserves({ spec, chain: r.chain, read: r.read, store: d.store, rules, now: d.now, nativeUsd: r.nativeUsd, budgetMs, batch: int(d.env.MI_REFRESH_BATCH, 150, 10, 400), limit: int(d.env.MI_REFRESH_LIMIT, 1_500, 10, 20_000) });
+          return { ok: rep.ok, error: rep.error, caughtUp: true };
+        },
+      });
+    }
+  }
+
+  // Token supplies, one task per chain: price x supply is the fully diluted value shown in Markets.
+  if (d.env.MI_SUPPLY !== '0') {
+    const evmChains = new Map<string, DexAdapterSpec>();
+    for (const s of enabledSpecs(d.env)) if (MULTICALL_CHAINS.includes(s.chain) && !evmChains.has(s.chain)) evmChains.set(s.chain, s);
+    for (const [chainId, spec] of evmChains) {
+      tasks.push({
+        id: `${chainId}:supply`,
+        chain: spec.chain,
+        idleMs: 600_000,
+        run: async (budgetMs) => {
+          const r = readerFor(spec);
+          const rep = await refreshSupplies({ chain: r.chain, read: r.read, store: d.store, now: d.now, budgetMs });
+          return { ok: rep.ok, error: rep.error, caughtUp: true };
+        },
+      });
+    }
+    if (enabledSolana(d.env).length > 0 || discoveryAdapters(d.env.MI_SOLANA_DISCOVERY).length > 0) {
+      const chain = chainConfig('solana', d.env);
+      const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+      tasks.push({
+        id: 'solana:supply',
+        chain: 'solana',
+        idleMs: 600_000,
+        run: async (budgetMs) => {
+          const rep = await refreshSupplies({ chain, read: rpc, store: d.store, now: d.now, budgetMs });
           return { ok: rep.ok, error: rep.error, caughtUp: true };
         },
       });

@@ -22,6 +22,7 @@ import { isDeadMarket } from '../market/dead.js';
 import { chainConfig, isMiChain, type MiChain } from './chains.js';
 import { adapterById } from './dexes.js';
 import { tokenDto } from './dto.js';
+import { unitsToNumber } from './math.js';
 import type { MiToken } from './types.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
@@ -78,6 +79,8 @@ export interface PoolRecord {
   sells: Window4 | null;
   vol: { m5: number | null; h1: number | null; h6: number | null; h24: number | null } | null;
   ro: boolean | null;
+  /** Distinct accounts that received the output of a swap in 24h (the index's best count of traders). */
+  mk?: number | null;
 }
 interface Window4 {
   m5: number;
@@ -87,7 +90,7 @@ interface Window4 {
 }
 
 /** Columns read from mi_pools and nothing else: the stats document is picked apart in the database, never sent whole. */
-export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly';
+export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly,mk:stats->makers24h';
 
 const reservePrice = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -127,13 +130,25 @@ export function candidatePath(q: ListQuery, now: number): string {
   return `mi_pools?select=${POOL_SELECT}&${baseFilters({ ...q, kind: 'top' }, now).join('&')}&order=vol24_usd.desc.nullslast,key.desc&limit=${CANDIDATE_CAP}`;
 }
 
-export function tokenPath(keys: readonly string[]): string {
+export function tokenPath(keys: readonly string[], withSupply = false): string {
   const list = keys.map((k) => `"${k.replace(/[^A-Za-z0-9:._-]/g, '')}"`).join(',');
-  return `mi_tokens?key=in.(${list})&select=key,symbol,name,decimals&limit=${keys.length}`;
+  return `mi_tokens?key=in.(${list})&select=key,symbol,name,decimals${withSupply ? ',total_supply' : ''}&limit=${keys.length}`;
 }
 
+/** The most a fully diluted value may be to be shown: a larger one comes from a price or supply that cannot be trusted. */
+export const FDV_MAX_USD = 1e12;
+
+/** Price x total supply, in dollars; null when either is unknown or the result is not plausible. This is a fully diluted value, never a market cap. */
+export function fdvOf(priceUsd: number | null, supply: string | null | undefined, decimals: number | null): number | null {
+  if (priceUsd === null || !(priceUsd > 0) || decimals === null || typeof supply !== 'string' || !/^[0-9]{1,78}$/.test(supply)) return null;
+  const v = priceUsd * unitsToNumber(BigInt(supply), decimals);
+  return Number.isFinite(v) && v > 0 && v <= FDV_MAX_USD ? v : null;
+}
+
+type TokenInfo = Pick<MiToken, 'symbol' | 'name' | 'decimals'> & { total_supply?: string | null };
+
 /** A pool record as a Markets row. A number the index does not state stays null (drawn as a dash), never zero. */
-export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, Pick<MiToken, 'symbol' | 'name' | 'decimals'>>, now: number): MarketRow | null {
+export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenInfo>, now: number): MarketRow | null {
   if (!isMiChain(p.chain) || !p.base || !p.address) return null;
   const chain = p.chain;
   const cfg = chainConfig(chain);
@@ -147,6 +162,8 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, Pick<Mi
   const win = (pick: (w: ListWindow) => number | null): { m5: number | null; h1: number | null; h6: number | null; h24: number | null } => ({ m5: pick('m5'), h1: pick('h1'), h6: pick('h6'), h24: pick('h24') });
   const quoteUsdRole = cfg.quoteTokens.some((q) => q.address === p.quote && q.role === 'usd');
   const created = num(p.created_at);
+  const priceUsd = traded ? num(p.p_usd) : reservePrice(p.rp);
+  const fdv = fdvOf(priceUsd, base?.total_supply, p.base_decimals ?? base?.decimals ?? null);
   return {
     chain,
     address: p.base,
@@ -157,13 +174,14 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, Pick<Mi
     decimals: p.base_decimals,
     pool: p.address,
     // A pool with no stored trade shows the price read from its reserves, marked as such; a traded price is never replaced by it.
-    priceUsd: traded ? num(p.p_usd) : reservePrice(p.rp),
+    priceUsd,
     ...(!traded && reservePrice(p.rp) !== null ? { priceFromReserves: true } : {}),
-    capUsd: null,
+    capUsd: fdv,
+    ...(fdv !== null ? { capIsFdv: true } : {}),
     ageMs: created !== null && created > 0 ? Math.max(0, now - created) : null,
     txns24h: sum('h24'),
     volume24hUsd: traded ? num(p.vol?.h24) : null,
-    traders24h: null,
+    traders24h: traded ? num(p.mk) : null,
     volumeUsd: win((w) => (traded ? num(p.vol?.[w]) : null)),
     txns: win(sum),
     change: win((w) => (traded ? pct(p.chg?.[w]) : null)),
@@ -260,6 +278,12 @@ export function listNote(q: ListQuery, total: number, rankedAmong?: number): str
   return `${trades} ${liq}`;
 }
 
+let supplyColumnMissingUntil = 0;
+/** Test hook. */
+export const resetSupplyColumnMemory = (): void => {
+  supplyColumnMissingUntil = 0;
+};
+
 export async function readList(reader: Reader, q: ListQuery, now: number): Promise<ListAnswer> {
   const wrap = (rows: MarketRow[], total: number, rankedAmong?: number): ListAnswer => ({ rows, total, page: q.page, size: q.size, pages: Math.max(1, Math.ceil(total / q.size)), ...(rankedAmong === undefined ? {} : { rankedAmong }), note: listNote(q, total, rankedAmong) });
   const toRows = async (records: PoolRecord[]): Promise<{ row: MarketRow; rec: PoolRecord }[]> => {
@@ -268,11 +292,21 @@ export async function readList(reader: Reader, q: ListQuery, now: number): Promi
       keys.add(`${p.chain}:${p.base}`);
       keys.add(`${p.chain}:${p.quote}`);
     }
-    const tokens = new Map<string, Pick<MiToken, 'symbol' | 'name' | 'decimals'>>();
+    const tokens = new Map<string, TokenInfo>();
     const all = [...keys];
     for (let i = 0; i < all.length; i += 50) {
-      const got = await reader.get(tokenPath(all.slice(i, i + 50)), false);
-      for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number }[]) tokens.set(t.key, t);
+      let got: { rows: unknown[] };
+      if (supplyColumnMissingUntil > now) got = await reader.get(tokenPath(all.slice(i, i + 50)), false);
+      else {
+        try {
+          got = await reader.get(tokenPath(all.slice(i, i + 50), true), false);
+        } catch {
+          // The database has not got the supply column yet (migration 0022 not applied): list without market caps, and do not ask again for a while.
+          supplyColumnMissingUntil = now + 300_000;
+          got = await reader.get(tokenPath(all.slice(i, i + 50)), false);
+        }
+      }
+      for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number; total_supply?: string | null }[]) tokens.set(t.key, t);
     }
     const out: { row: MarketRow; rec: PoolRecord }[] = [];
     for (const rec of records) {

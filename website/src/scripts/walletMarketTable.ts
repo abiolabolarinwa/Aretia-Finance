@@ -48,7 +48,7 @@ const COLUMNS: { key: SortKey; label: string; title: string }[] = [
   { key: 'age', label: 'Age', title: 'How long the pool has existed' },
   { key: 'txns', label: 'Txns', title: 'Buys and sells in the last 24 hours' },
   { key: 'volume', label: 'Volume', title: 'Trading volume in the last 24 hours' },
-  { key: 'traders', label: 'Traders', title: 'People who bought or sold in the last 24 hours, where the source counts them' },
+  { key: 'traders', label: 'Traders', title: 'Different wallets that received the output of a swap in the last 24 hours, where the source counts them. A router or aggregator counts as one wallet.' },
   { key: 'm5', label: '5M', title: 'Price change over 5 minutes' },
   { key: 'h1', label: '1H', title: 'Price change over 1 hour' },
   { key: 'h6', label: '6H', title: 'Price change over 6 hours' },
@@ -69,6 +69,13 @@ function logo(r: MarketRow): HTMLElement {
   img.src = url;
   img.addEventListener('error', () => img.replaceWith(letters), { once: true });
   return img;
+}
+
+/** The market cap, or the fully diluted value (price x total supply) the index gives, with a hover note saying so. */
+function capCell(r: MarketRow): HTMLElement {
+  const td = el('td', 'wapp-mt__num', compactUsd(r.capUsd));
+  if (r.capIsFdv) td.title = 'Fully diluted value: price times the token\'s total supply. How much is in circulation is not known.';
+  return td;
 }
 
 /** The price, with a tilde and a hover note when it was read from the pool's reserves because no trade of the pool is stored yet. */
@@ -242,7 +249,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       tr.append(ratingCell(r, o.ratingState?.(r)));
     }
     tr.append(
-      el('td', 'wapp-mt__num', compactUsd(r.capUsd)),
+      capCell(r),
       priceCell(r),
       el('td', 'wapp-mt__num', formatAge(r.ageMs)),
       el('td', 'wapp-mt__num', compactCount(r.txns24h)),

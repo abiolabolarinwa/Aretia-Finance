@@ -57,6 +57,7 @@ import { FavouriteStore, type Favourite } from '../swings/account/favourites.js'
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
 import { BULLISH_TEXT, isBullish } from '../swings/market/bullish.js';
 import { fetchGainersStrip } from '../swings/market/gainersStrip.js';
+import { agoText, blocksFor, CHAIN_SHORT, fetchMarketStats, statsFor, type MarketStatsDto } from '../swings/market/marketStats.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { featuredForMarkets } from './walletFeatured';
@@ -1945,6 +1946,49 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       return strict;
     }
 
+    /** The bar above the lists: 24-hour volume and transactions, and the latest block, read from Aretia's own index. */
+    let statsData: MarketStatsDto | null = null;
+    let statsHost: HTMLElement | null = null;
+    let statsTimer: ReturnType<typeof setInterval> | undefined;
+    function renderStats(): void {
+      const host = statsHost;
+      if (!host) return;
+      host.replaceChildren();
+      const s = statsFor(statsData, m.chain);
+      const blocks = blocksFor(statsData, m.chain);
+      host.hidden = s === null && blocks.length === 0;
+      if (host.hidden) return;
+      const where = m.chain === '' ? 'all networks' : (CHAIN_SHORT[m.chain] ?? m.chain);
+      const cell = (label: string, value: string, title: string): HTMLElement => el('div', { class: 'wapp-mt__stat', attrs: { title } }, [el('span', { class: 'wapp__fine', text: label }), el('strong', { text: value })]);
+      const scope = `across the ${s?.pools ?? 0} pools Aretia's index has a stored trade for on ${where}. It counts the pools the index follows, not the whole market.`;
+      host.append(cell('24H VOLUME', s ? compactUsd(s.volume24hUsd) : '–', `Money traded in the last 24 hours ${scope}`));
+      host.append(cell('24H TXNS', s ? s.txns24h.toLocaleString('en-US') : '–', `Buys plus sells in the last 24 hours ${scope}`));
+      const now = Date.now();
+      const first = blocks[0];
+      const value = blocks.length === 0 ? '–' : m.chain === '' ? blocks.slice(0, 6).map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')}`).join(' · ') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();
+      const title = blocks.length === 0 ? 'The index has not seen a block on this network yet.' : `The newest block (Solana: slot) Aretia's index has seen: ${blocks.map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')} ${agoText(b.seenAt, now)}`.trim()).join('; ')}.`;
+      host.append(cell('LATEST BLOCK', first ? value : '–', title));
+    }
+    async function loadStats(): Promise<void> {
+      const got = await fetchMarketStats();
+      if (!got) return;
+      statsData = got;
+      renderStats();
+    }
+    /** Starts the bar's own refresh: every 20 seconds while this page is on screen, and it stops by itself when the page has gone. */
+    function startStats(): void {
+      if (statsTimer !== undefined) return;
+      void loadStats();
+      statsTimer = setInterval(() => {
+        if (!target.isConnected) {
+          clearInterval(statsTimer);
+          statsTimer = undefined;
+          return;
+        }
+        if (!document.hidden) void loadStats();
+      }, 20_000);
+    }
+
     /** The five biggest 24-hour price rises on the chosen network, above every list but Gainers itself (which is that list). */
     let stripRows: MarketRow[] = [];
     let stripHost: HTMLElement | null = null;
@@ -2056,6 +2100,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (chartRow && chartHost.parentElement !== target) target.prepend(chartHost);
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
+      statsHost = el('div', { class: 'wapp-mt__stats' });
+      renderStats();
+      card.append(statsHost);
+      startStats();
       const bar = el('div', { class: 'wapp-mt__bar' });
       // A swap can be started from here without picking a token first; the Swap page itself has no sidebar entry.
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });

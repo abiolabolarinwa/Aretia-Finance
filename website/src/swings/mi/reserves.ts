@@ -13,7 +13,7 @@ import type { Read } from './rpc.js';
 
 export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 /** Chains where Multicall3 is deployed at the standard address. Others fall back to the engine's per-pool reads. */
-export const MULTICALL_CHAINS: readonly string[] = ['ethereum', 'bnb', 'polygon', 'base'];
+export const MULTICALL_CHAINS: readonly string[] = ['ethereum', 'bnb', 'polygon', 'base', 'robinhood']; // Multicall3 checked deployed on Robinhood Chain (eth_getCode, 2026-11-10)
 
 export interface ReserveQuery {
   kind: 'v2' | 'v3';

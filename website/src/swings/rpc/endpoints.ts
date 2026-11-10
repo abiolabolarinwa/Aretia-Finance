@@ -30,7 +30,8 @@ export const FREE_EVM_RPC: Readonly<Record<FreeEvmChain, readonly EndpointInput[
   ],
   polygon: [{ url: 'https://polygon-bor-rpc.publicnode.com', weight: 2 }, 'https://gateway.tenderly.co/public/polygon', { url: 'https://polygon.drpc.org', weight: 0.5 }],
   base: [{ url: 'https://base-rpc.publicnode.com', weight: 2 }, 'https://gateway.tenderly.co/public/base', 'https://mainnet.base.org', { url: 'https://base.drpc.org', weight: 0.5 }],
-  robinhood: ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'],
+  // Robinhood's own node first: it serves eth_getLogs near the head, while publicnode answers "archive requests require a personal token" for logs a few thousand blocks back.
+  robinhood: ['https://rpc.mainnet.chain.robinhood.com', 'https://robinhood-rpc.publicnode.com'],
 };
 
 /** Solana. The public node of the Solana Foundation serves indexed reads but is strict; publicnode refuses those (the pool learns that). */

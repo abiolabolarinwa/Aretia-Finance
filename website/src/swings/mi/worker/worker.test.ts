@@ -340,7 +340,7 @@ describe('token supply refresher (EVM)', () => {
   });
   it('leaves a chain without Multicall3 alone', async () => {
     const { read, now } = bnbWorld();
-    const r = await refreshSupplies({ chain: chainConfig('robinhood'), read, store: new InMemoryMiStore(), now, budgetMs: 1000 });
+    const r = await refreshSupplies({ chain: { ...chainConfig('bnb'), id: 'somechain' as never }, read, store: new InMemoryMiStore(), now, budgetMs: 1000 });
     expect(r.skipped).toBe('unsupported');
   });
 });

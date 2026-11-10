@@ -33,7 +33,7 @@ import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
 import { mountIsland, selectNewest, type IslandToken } from './walletIsland.js';
 import { alertsCard } from './walletAlerts.js';
 import { loadingBlock } from '../lib/loader';
-import { clearsMinLiquidity, loadMinLiquidity, MIN_LIQUIDITY_CHOICES, saveMinLiquidity } from './walletMinLiquidity.js';
+import { clearsMinLiquidity, loadMinLiquidity, saveMinLiquidity } from './walletMinLiquidity.js';
 import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCache.js';
 import { revokeTx } from '../swings/shield/approvals.js';
 import { summariseSwap } from '../swings/account/trades.js';
@@ -2150,11 +2150,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         bar.append(win);
       }
       // The network is chosen from the rail beside the sidebar (the Aretia mark is every network), so there is no network menu here.
-      bar.append(
-        select('Age', f.age, [['1', 'Last hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'], ['168', 'Last 7 days'], ['0', 'Any age']], (v) => { f.age = v; autoAge = false; refilter(); }),
-        select('Minimum liquidity', f.liquidity, MIN_LIQUIDITY_CHOICES, (v) => { f.liquidity = v; saveMinLiquidity(browserStorage(), v); refilter(); }),
-        select('Risk', f.risk, [['', 'Any risk'], ['established', 'Established'], ['new', 'New'], ['unverified', 'Unverified'], ['elevated', 'Elevated risk'], ['high', 'High risk'], ['restricted', 'Restricted'], ['unknown', 'Couldn\'t check']], (v) => { f.risk = v; refilter(); }),
-      );
       if (m.kind === 'favourites') {
         bar.append(select('Price alerts', String(alerts.pct()), PCT_CHOICES.map((p): [string, string] => [String(p), `Alert at ±${p}%`]), (v) => {
           alerts.setPct(Number(v));

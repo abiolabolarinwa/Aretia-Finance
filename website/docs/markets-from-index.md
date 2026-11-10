@@ -49,6 +49,14 @@ The Markets page opens on **Gainers**, and none of its lists is filtered or reor
 
 Quality first is the existing default, not a hidden ordering: a minimum liquidity of $1,000 (a visitor who chose a lower bar keeps theirs), "Hide risky tokens" on, and a note saying how many tokens each filter hides.
 
+## The stats bar (24H volume, 24H transactions, latest block)
+
+A three-cell bar sits above the Markets lists, for the chosen network or, with all networks chosen, for every network together. It refreshes every 20 seconds while the page is open, and is simply not shown when the index cannot be reached.
+
+- **24H VOLUME** and **24H TXNS** are sums over the pools the index follows and holds a stored trade for in the last 24 hours (liquidity $100+, listed). They are *the index's* volume and transactions, not the whole market of a network, and the cell's hover text says how many pools it counts. Transactions are buys plus sells.
+- **LATEST BLOCK** is the newest block (Solana: slot) the index has seen on the network, with how long ago it saw it. With all networks chosen it lists each network's block, busiest first. It is the index's own view: if a network's adapter is behind or stopped, its block is older, and that is shown.
+- Code: `GET /api/swings-market?src=stats` (`api/_swingsMarketStats.ts`, no new function file), numbers built in `src/swings/mi/marketStats.ts`, the bar in `walletSwings.ts`. The answer is kept 30 seconds in the function and at the CDN (an older answer is served, marked stale, if the database fails). Pools with a trade are read 1,000 at a time (up to ten pages).
+
 ## What this does not cover
 
 - Rising still ranks by distinct buyers per window, which needs a per-window count from `mi_trades`. That is not a cheap read through PostgREST, so Rising stays on its current source.

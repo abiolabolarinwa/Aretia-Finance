@@ -94,3 +94,12 @@ describe('column sorting', () => {
     expect(['', 'bnb', 'solana', 'base'].every((c) => indexCovers(c as never))).toBe(true);
   });
 });
+
+describe('the bullish request', () => {
+  it('adds bullish=1 only when asked', () => {
+    const base = { kind: 'top' as const, chain: 'bnb' as const, window: 'h24' as const, page: 1, size: 50, minLiquidityUsd: 1000 };
+    expect(indexUrl(base)).not.toContain('bullish');
+    expect(indexUrl({ ...base, bullish: false })).not.toContain('bullish');
+    expect(indexUrl({ ...base, bullish: true })).toContain('bullish=1');
+  });
+});

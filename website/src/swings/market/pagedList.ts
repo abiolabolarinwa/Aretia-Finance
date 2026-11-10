@@ -62,6 +62,8 @@ export interface IndexRequest {
   size: number;
   minLiquidityUsd: number;
   maxAgeHours?: number;
+  /** The "Bullish only" filter, applied by the server to the whole list (see bullish.ts). */
+  bullish?: boolean;
 }
 
 export function indexUrl(r: IndexRequest): string {
@@ -72,6 +74,7 @@ export function indexUrl(r: IndexRequest): string {
     q.set('dir', r.dir ?? 'desc');
   }
   if (r.maxAgeHours && r.maxAgeHours > 0) q.set('maxAgeHours', String(Math.floor(r.maxAgeHours)));
+  if (r.bullish) q.set('bullish', '1');
   return `/api/swings-market?${q}`;
 }
 

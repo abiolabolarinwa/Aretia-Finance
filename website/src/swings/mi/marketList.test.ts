@@ -273,3 +273,43 @@ describe('fully diluted value and traders in a Markets row', () => {
     resetSupplyColumnMemory();
   });
 });
+
+describe('the bullish filter on the server', () => {
+  const recs = [
+    rec(1), // up over 1h and 24h, 110 trades, $5,001
+    rec(2, { chg: { m5: 0, h1: -50, h6: 0, h24: 900 } }), // down over the hour
+    rec(3, { chg: { m5: 0, h1: 100, h6: 0, h24: -200 } }), // down over the day
+    rec(4, { buys: { m5: 0, h1: 0, h6: 0, h24: 2 }, sells: { m5: 0, h1: 0, h6: 0, h24: 3 } }), // 5 trades
+    rec(5, { mk: 2 }), // two wallets
+    rec(6, { liquidity_usd: 500 }), // thin
+  ];
+  const reader = (paths: string[]): Reader => ({
+    async get(path) {
+      paths.push(path);
+      if (path.startsWith('mi_tokens')) return { rows: [...recs.map((r) => ({ key: `bnb:${r.base}`, symbol: `T${recs.indexOf(r) + 1}`, name: 'Token', decimals: 18 })), { key: `bnb:${WBNB}`, symbol: 'WBNB', name: 'Wrapped BNB', decimals: 18 }], total: null };
+      return { rows: recs, total: recs.length };
+    },
+  });
+  it('is built from the busiest pools and keeps only the rows that fit the rule, whatever the tab', async () => {
+    resetSupplyColumnMemory();
+    for (const kind of ['trending', 'top', 'new', 'liquidity'] as const) {
+      const paths: string[] = [];
+      const a = await readList(reader(paths), q({ kind, bullish: true, sort: 'rank' }), NOW);
+      expect(a.rows.map((r) => r.symbol), kind).toEqual(['T1']);
+      expect(a.note).toContain('Bullish only');
+      expect(a.note).toContain('1 fit');
+      expect(paths.some((p) => p.includes('vol24_usd=gt.0') && !p.includes('offset='))).toBe(true);
+    }
+  });
+  it('changes nothing when it is off', async () => {
+    const a = await readList(reader([]), q({ kind: 'liquidity', sort: 'rank' }), NOW);
+    expect(a.rows.length).toBe(6);
+    expect(a.note).not.toContain('Bullish');
+  });
+  it('is read from the request as bullish=1 only, and keeps its own cache entry', () => {
+    expect(parseListQuery({ kind: 'top', chain: 'bnb', bullish: '1' })?.bullish).toBe(true);
+    expect(parseListQuery({ kind: 'top', chain: 'bnb', bullish: '0' })?.bullish).toBeUndefined();
+    expect(parseListQuery({ kind: 'top', chain: 'bnb' })?.bullish).toBeUndefined();
+    expect(parseListQuery({ kind: 'top', chain: 'bnb', bullish: 'yes' })).toBeNull();
+  });
+});

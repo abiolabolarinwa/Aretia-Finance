@@ -55,6 +55,8 @@ import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
+import { BULLISH_TEXT, isBullish } from '../swings/market/bullish.js';
+import { fetchGainersStrip } from '../swings/market/gainersStrip.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
 import { featuredForMarkets } from './walletFeatured';
@@ -1539,8 +1541,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     type Kind = MarketKind | 'new' | 'favourites' | 'rising' | 'liquidity';
     /** The tabs that rank the same live list by a rule of their own. Rising reads the Trending feed and ranks it by buyer growth. */
     const isRanked = (k: Kind): k is 'trending' | 'top' | 'gainers' | 'rising' => k === 'trending' || k === 'top' || k === 'gainers' || k === 'rising';
-    const m = { kind: 'trending' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
-    const f = { age: '0', liquidity: loadMinLiquidity(browserStorage()), risk: '', hideRisky: true };
+    // The list opens on Gainers, the biggest price rises (each row is a real token with a real number; the tabs beside it show every other view).
+    const m = { kind: 'gainers' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
+    const f = { age: '0', liquidity: loadMinLiquidity(browserStorage()), risk: '', hideRisky: true, bullish: false };
     /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
     let autoAge = false;
     let rows: MarketRow[] | null = null;
@@ -1749,6 +1752,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
       clearTimeout(retryTimer);
+      if (!silent) void loadStrip();
       if (m.kind === 'new' || m.kind === 'favourites') staleAt = null;
       if (!silent) {
         failures = 0;
@@ -1760,7 +1764,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const wantsIndex = m.kind !== 'favourites' && m.kind !== 'rising' && indexCovers(m.chain);
         const sorted = ixSort && ixSort.kind === m.kind ? ixSort : null;
         const paged = wantsIndex
-          ? await fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: m.chain, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: pageNo, size: pageSize, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age) })
+          ? await fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: m.chain, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: pageNo, size: pageSize, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })
           : null;
         if (mine !== seq) return;
         ix = paged;
@@ -1922,6 +1926,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const st = r.risk?.status ?? 'unknown';
         if (f.hideRisky && f.risk !== 'high' && f.risk !== 'restricted' && (st === 'high' || st === 'restricted')) return false;
         if (f.risk && st !== f.risk) return false;
+        // "Bullish only" is a filter the person turned on, with its rule written on the page (market/bullish.ts).
+        if (f.bullish && m.kind !== 'favourites' && !isBullish(r)) return false;
         return true;
       };
       const all = rows ?? [];
@@ -1937,6 +1943,32 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         return ranked.rows;
       }
       return strict;
+    }
+
+    /** The five biggest 24-hour price rises on the chosen network, above every list but Gainers itself (which is that list). */
+    let stripRows: MarketRow[] = [];
+    let stripHost: HTMLElement | null = null;
+    let stripSeq = 0;
+    function renderStrip(): void {
+      const host = stripHost;
+      if (!host) return;
+      host.replaceChildren();
+      host.hidden = m.kind === 'gainers' || m.kind === 'favourites' || stripRows.length === 0;
+      if (host.hidden) return;
+      host.append(el('span', { class: 'wapp__fine', text: 'Top gainers · 24H' }));
+      for (const r of stripRows) {
+        const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${r.symbol} ${formatChange(r.change.h24)}`, attrs: { type: 'button', title: `${r.name || r.symbol}: ${formatChange(r.change.h24)} in 24 hours, ${compactUsd(r.liquidityUsd)} of liquidity` } });
+        b.addEventListener('click', () => userPick(r));
+        host.append(b);
+      }
+      host.append(el('span', { class: 'wapp__fine', text: 'Biggest rises among tokens with $1K+ of liquidity and 5+ trades, from Aretia’s own market index. Not a recommendation.' }));
+    }
+    async function loadStrip(): Promise<void> {
+      const mine = ++stripSeq;
+      const got = await fetchGainersStrip(m.chain);
+      if (mine !== stripSeq) return;
+      stripRows = got;
+      renderStrip();
     }
 
     function select(label: string, value: string, options: [string, string][], onChange: (v: string) => void): HTMLElement {
@@ -2088,7 +2120,19 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         refilter();
       });
       bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'hide-risky-mk' } }, [hide, el('span', { text: 'Hide risky tokens' })]));
+      if (m.kind !== 'favourites') {
+        const bull = el('input', { attrs: { type: 'checkbox', id: 'bullish-mk' } });
+        bull.checked = f.bullish;
+        bull.addEventListener('change', () => {
+          f.bullish = bull.checked;
+          refilter();
+        });
+        bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'bullish-mk', title: BULLISH_TEXT } }, [bull, el('span', { text: 'Bullish only' })]));
+      }
       card.append(bar);
+      stripHost = el('div', { class: 'wapp-mt__strip' });
+      renderStrip();
+      card.append(stripHost);
       const shownRows = visible();
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
         const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
@@ -2102,6 +2146,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         note.append(show);
         card.append(note);
       }
+      if (rows !== null && f.bullish && !ix && m.kind !== 'favourites') card.append(el('p', { class: 'wapp__fine', text: BULLISH_TEXT }));
       if (rows !== null && ix) card.append(el('p', { class: 'wapp__fine', text: `${ix.note} Read from Aretia’s own market index.` }));
       else if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
@@ -2124,7 +2169,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           refilter();
         });
         card.append(any);
-      } else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
+      } else if (shownRows.length === 0) card.append(el('p', { class: 'wapp__fine', text: f.bullish ? 'No token fits the bullish rule right now. Turn off Bullish only to see every token.' : f.hideRisky ? 'Nothing matches. Risky tokens are hidden: untick the box above to see them, or widen the filters.' : 'Nothing matches these filters right now.' }));
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
@@ -2260,7 +2305,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         } else if (favPage) {
           favPage = false;
           if (m.kind === 'favourites') {
-            m.kind = 'trending';
+            m.kind = 'gainers';
             tsort = startSort();
             pageNo = 1;
             rows = null;

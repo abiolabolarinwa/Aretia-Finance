@@ -29,6 +29,10 @@ export interface MiToken {
   firstTradeAt: number | null;
   /** Set when Aretia Launch Box holds the same token (`chain:address`); the token record is shared, never duplicated. */
   launchboxKey: string | null;
+  /** Total supply as a raw integer written out in full, from the chain; null when it could not be read, absent when never tried (migration 0022). */
+  totalSupply?: string | null;
+  /** ms the supply was last read or tried; null/absent: never. */
+  supplyAt?: number | null;
 }
 
 export interface MiPool {

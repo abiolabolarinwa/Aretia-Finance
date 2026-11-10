@@ -31,6 +31,8 @@ export class FakeChain {
   blocks: FakeBlock[] = [];
   tokens = new Map<string, { symbol: string; name: string; decimals: number } | 'broken'>();
   reserves = new Map<string, [bigint, bigint]>();
+  /** totalSupply() of a token, by address (a token with none reverts). */
+  supplies = new Map<string, bigint>();
   balances = new Map<string, bigint>();
   /** Pool contracts that answer factory(), token0(), token1() and fee(). */
   pairs = new Map<string, { factory: string; token0: string; token1: string; fee?: number }>();
@@ -143,6 +145,11 @@ export class FakeChain {
           const r = this.reserves.get(to);
           if (!r) throw new RpcError('execution reverted', 'node-error');
           return '0x' + word(r[0]) + word(r[1]) + word(0n);
+        }
+        if (sel === '0x18160ddd') {
+          const s = this.supplies.get(to);
+          if (s === undefined) throw new RpcError('execution reverted', 'node-error');
+          return '0x' + word(s);
         }
         if (sel === '0x70a08231') {
           const holder = '0x' + c.data.slice(-40).toLowerCase();

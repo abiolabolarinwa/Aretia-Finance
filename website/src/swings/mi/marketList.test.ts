@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { candidatePath, dedupeTokens, listNote, postgrestReader, readList, rowFromRecord, sqlPath, usesCandidates, type ListQuery, type PoolRecord, type Reader } from './marketList';
+import { fdvOf, resetSupplyColumnMemory, candidatePath, dedupeTokens, listNote, postgrestReader, readList, rowFromRecord, sqlPath, usesCandidates, type ListQuery, type PoolRecord, type Reader } from './marketList';
 import { sourceLabel } from '../market/types';
 import { parseListQuery } from '../../../api/_swingsMarketIndex';
 
@@ -223,3 +223,53 @@ describe('parseListQuery', () => {
 });
 
 void CAKE;
+
+describe('fully diluted value and traders in a Markets row', () => {
+  const tok = (supply: string | null | undefined, decimals = 18) => new Map([[`bnb:${hex(1)}`, { symbol: 'MEME', name: 'Meme', decimals, ...(supply === undefined ? {} : { total_supply: supply }) }]]);
+  const E18 = 10n ** 18n;
+  it('is price times total supply in whole tokens, marked as a fully diluted value', () => {
+    expect(fdvOf(2, (1_000n * E18).toString(), 18)).toBe(2000);
+    expect(fdvOf(0.5, '1000000', 6)).toBe(0.5);
+    const r = rowFromRecord(rec(1), tok((1_000n * E18).toString()), NOW)!;
+    expect(r.capUsd).toBe(1500); // price $1.5 from the record
+    expect(r.capIsFdv).toBe(true);
+  });
+  it('is a dash when the price or the supply is unknown, or the result is not plausible', () => {
+    expect(rowFromRecord(rec(1), tok(null), NOW)!.capUsd).toBeNull();
+    expect(rowFromRecord(rec(1), tok(undefined), NOW)!.capUsd).toBeNull();
+    expect(rowFromRecord(rec(1, { ro: true, p_usd: null, rp: null }), tok('1000'), NOW)!.capUsd).toBeNull();
+    for (const bad of ['', 'abc', '-5', '1e18', '9'.repeat(79)]) expect(fdvOf(1, bad, 18), bad).toBeNull();
+    expect(fdvOf(1, '0', 18)).toBeNull();
+    expect(fdvOf(Number.NaN, '1000', 18)).toBeNull();
+    expect(fdvOf(1, (10n ** 40n).toString(), 18)).toBeNull(); // $1e22: past the plausibility limit
+  });
+  it('also prices a pool with no trade from its reserve price', () => {
+    const r = rowFromRecord(rec(1, { ro: true, p_usd: null, rp: 0.01, vol24_usd: null }), tok((1_000n * E18).toString()), NOW)!;
+    expect(r.priceFromReserves).toBe(true);
+    expect(r.capUsd).toBe(10);
+  });
+  it('shows the traders (distinct receiving accounts) of a traded pool, and a dash otherwise', () => {
+    expect(rowFromRecord(rec(1, { mk: 37 }), tok(null), NOW)!.traders24h).toBe(37);
+    expect(rowFromRecord(rec(1, { mk: null }), tok(null), NOW)!.traders24h).toBeNull();
+    expect(rowFromRecord(rec(1, { ro: true, mk: 0 }), tok(null), NOW)!.traders24h).toBeNull();
+  });
+  it('asks for the supply, and still lists (without caps) when the database has not got the column yet', async () => {
+    resetSupplyColumnMemory();
+    const paths: string[] = [];
+    const reader: Reader = {
+      async get(path) {
+        paths.push(path);
+        if (path.startsWith('mi_tokens') && path.includes('total_supply')) throw new Error('The Market Indexer database answered 400.');
+        if (path.startsWith('mi_tokens')) return { rows: [{ key: `bnb:${hex(1)}`, symbol: 'MEME', name: 'Meme', decimals: 18 }, { key: `bnb:${WBNB}`, symbol: 'WBNB', name: 'Wrapped BNB', decimals: 18 }], total: null };
+        return { rows: [rec(1)], total: 1 };
+      },
+    };
+    const a = await readList(reader, q({ kind: 'liquidity', sort: 'rank' }), NOW);
+    expect(a.rows).toHaveLength(1);
+    expect(a.rows[0]!.capUsd).toBeNull();
+    expect(paths.filter((p) => p.startsWith('mi_tokens'))).toHaveLength(2); // tried with the supply, then without
+    await readList(reader, q({ kind: 'liquidity', sort: 'rank' }), NOW + 1000);
+    expect(paths.filter((p) => p.startsWith('mi_tokens') && p.includes('total_supply'))).toHaveLength(1); // not asked again for a while
+    resetSupplyColumnMemory();
+  });
+});

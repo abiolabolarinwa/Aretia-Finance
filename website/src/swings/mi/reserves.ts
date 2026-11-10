@@ -49,6 +49,17 @@ export function decodeAggregate3Data(hex: string): { success: boolean; data: str
 
 const wordAt = (data: string, i: number): bigint | null => (data.length >= (i + 1) * 64 ? BigInt('0x' + data.slice(i * 64, (i + 1) * 64)) : null);
 
+const TOTAL_SUPPLY = '0x18160ddd'; // totalSupply()
+
+/** The total supply of many ERC-20 tokens in one node request; null for a token that does not answer or answers nonsense. */
+export async function readTotalSupplies(read: Read, tokens: readonly string[]): Promise<(bigint | null)[]> {
+  if (tokens.length === 0) return [];
+  const raw = (await read('eth_call', [{ to: MULTICALL3, data: encodeAggregate3(tokens.map((t) => ({ target: t, data: TOTAL_SUPPLY }))) }, 'latest'])) as string;
+  const res = decodeAggregate3Data(String(raw));
+  if (res.length !== tokens.length) throw new Error('the multicall answered with the wrong number of results');
+  return res.map((r) => (r.success ? wordAt(r.data, 0) : null));
+}
+
 export async function readReservesBatch(read: Read, queries: readonly ReserveQuery[]): Promise<Reserves[]> {
   if (queries.length === 0) return [];
   const calls: { target: string; data: string }[] = [];

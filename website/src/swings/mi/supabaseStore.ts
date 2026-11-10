@@ -27,7 +27,7 @@ const TRADE_LIGHT = 'chain,pool,id,block,time,side,base_amount,quote_amount,pric
 const clampLimit = (v: number, max = 1000): number => Math.max(1, Math.min(max, Math.floor(v)));
 export const MAX_OFFSET = 5_000;
 
-const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as MiChain, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null });
+const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as MiChain, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null, totalSupply: r.total_supply === null || r.total_supply === undefined ? null : String(r.total_supply), supplyAt: n(r.supply_at) });
 const tokenToRow = (t: MiToken, now: number): Row => ({ key: t.key, chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, first_seen_at: t.firstSeenAt, first_trade_at: t.firstTradeAt, launchbox_key: t.launchboxKey, updated_at: now });
 
 export const poolFromRow = (r: Row): MiPool => ({
@@ -125,6 +125,13 @@ export class SupabaseMiStore implements MiStore {
   async setTokenFirstTrade(key: string, at: number): Promise<void> {
     const k = encodeURIComponent(key);
     await this.call(`mi_tokens?key=eq.${k}&or=(first_trade_at.is.null,first_trade_at.gt.${at})`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ first_trade_at: at }) });
+  }
+  async tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]> {
+    const rows = await this.rows(`mi_tokens?chain=eq.${plain(chain)}&or=(supply_at.is.null,supply_at.lt.${Math.floor(olderThanMs)})&order=supply_at.asc.nullsfirst&limit=${clampLimit(limit, 2000)}&select=key,chain,address,symbol,name,decimals,first_seen_at,first_trade_at,launchbox_key,supply_at`);
+    return rows.map(tokenFromRow);
+  }
+  async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
+    await this.call(`mi_tokens?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ total_supply: supply, supply_at: at }) });
   }
   async searchTokens(text: string, limit: number): Promise<MiToken[]> {
     const t = text.trim().toLowerCase().replace(/[^a-z0-9 ._:-]/g, '');

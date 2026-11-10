@@ -33,6 +33,12 @@ The Markets page lists tokens from Aretia's Market Indexer first. GeckoTerminal 
 - One row per token: if a token is in several pools, the best-ranked pool stays. On SQL-paged lists this is applied within each page, so a token may appear again on a far-away page and a page can hold a few rows fewer than its size; the total counts pools.
 - The page falls back to GeckoTerminal (merged with the index's newest pools, as before) when the index has fewer than 25 pools for the list or cannot be reached.
 
+## Market cap and traders columns
+
+- **Mcap is a fully diluted value (FDV), never a market cap.** The index reads each token's total supply from the chain (EVM `totalSupply()`, the Solana mint's supply) with a refresher task, and the list multiplies it by the price shown for the row (traded price, or the `~` reserve price): price x total supply in whole tokens. How much of that supply is circulating is not on the chain, so a true market cap cannot be stated. The cell's hover text says so, and rows carry `capIsFdv`. A value above $1 trillion is not shown (it comes from a price or supply that cannot be trusted). A token whose supply could not be read, or a row with no price, keeps a dash.
+- **Traders** is the number of distinct accounts that received the output of a swap in the last 24 hours (the index's `makers24h`). A router or aggregator counts as one wallet, so it is a close count, not an exact one. Pools with no stored trade show a dash.
+- **Needs migration 0022** (two columns on `mi_tokens`). Until it is applied the list still works: it asks for the supply once, falls back to a list without it, and does not ask again for five minutes.
+
 ## What this does not cover
 
 - Rising still ranks by distinct buyers per window, which needs a per-window count from `mi_trades`. That is not a cheap read through PostgREST, so Rising stays on its current source.

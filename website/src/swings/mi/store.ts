@@ -38,6 +38,10 @@ export interface MiStore {
   getTokens(keys: readonly string[]): Promise<Map<string, MiToken>>;
   setTokenLaunchbox(key: string, launchboxKey: string): Promise<void>;
   setTokenFirstTrade(key: string, at: number): Promise<void>;
+  /** Tokens of one chain whose supply was never read or was last tried before `olderThanMs`, never-tried first, then the oldest. */
+  tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]>;
+  /** Records a token's supply (null: unreadable) and when it was tried. Replaces what was there: a supply can change. */
+  setTokenSupply(key: string, supply: string | null, at: number): Promise<void>;
   searchTokens(text: string, limit: number): Promise<MiToken[]>;
 
   // ---- pools
@@ -157,6 +161,20 @@ export class InMemoryMiStore implements MiStore {
   async setTokenFirstTrade(key: string, at: number): Promise<void> {
     const t = this.tokens.get(key);
     if (t && (t.firstTradeAt === null || at < t.firstTradeAt)) t.firstTradeAt = at;
+  }
+  async tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]> {
+    return [...this.tokens.values()]
+      .filter((t) => t.chain === chain && (t.supplyAt === undefined || t.supplyAt === null || t.supplyAt < olderThanMs))
+      .sort((a, b) => (a.supplyAt ?? -1) - (b.supplyAt ?? -1))
+      .slice(0, limit)
+      .map((t) => ({ ...t }));
+  }
+  async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
+    const t = this.tokens.get(key);
+    if (t) {
+      t.totalSupply = supply;
+      t.supplyAt = at;
+    }
   }
   async searchTokens(text: string, limit: number): Promise<MiToken[]> {
     const q = text.trim().toLowerCase();

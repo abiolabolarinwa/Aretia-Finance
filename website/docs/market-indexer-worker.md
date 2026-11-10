@@ -53,6 +53,10 @@ range replaces hundreds, and every registered pool gets real trades (price, chan
 - With the scan on for a chain, `MI_FOLLOW_NEWEST` / `MI_FOLLOW_RECENT` no longer matter for its V2/V3 adapters.
 - **Not yet run against a live node.** Tested with the fake chain only (`swapScan.test.ts`).
 
+## Token supply (`<chain>:supply`)
+
+One task per chain, on unless `MI_SUPPLY=0`: reads the total supply of tokens the index knows (EVM: `totalSupply()` for 150 tokens per Multicall3 request; Solana: the mint account, 100 per request), never-tried tokens first, then the ones read longest ago (a supply that changes is read again after 24 hours). A token with no readable supply (and the chain's own coin) is recorded as unreadable with the time, so it is not asked again every pass. The Markets list uses it for the fully diluted value (see markets-from-index.md). It needs migration 0022 (`total_supply`, `supply_at` on `mi_tokens`), applied on the server with `docker compose run --rm migrate` (run it after `git pull`, before rebuilding the worker; `up -d worker` does not re-run it). About 3,000 Ethereum tokens are read in a few minutes (20 requests).
+
 ## More venues on Base and Polygon
 
 - **Aerodrome and Slipstream backfill.** The pool backfill (`MI_BACKFILL_DAYS`) now reads Aerodrome V2 and Slipstream creation events (their own `PoolCreated` shapes, already decoded by the live path), so Base's biggest venue can be walked back like Uniswap. Add `aerodrome-v2-base` and `aerodrome-slipstream-base` to `MI_BACKFILL_ADAPTERS`. Slipstream gets its price from the pool's own `slot0()` like any V3 pool. **Aerodrome V2 shows liquidity but no reserve price**: its pools may use the stable curve and the index does not record which a pool is, so the reserve ratio is not trusted as a price (a traded price is shown once trades exist).

@@ -5,6 +5,7 @@ import { poolDto } from '../dto.js';
 import { specById } from '../dexes.js';
 import { DEFAULT_RULES } from '../lifecycle.js';
 import { refreshReserves } from '../refresher.js';
+import { refreshSupplies } from '../supply.js';
 import { MULTICALL3 } from '../reserves.js';
 import type { Read } from '../rpc.js';
 import { InMemoryMiStore } from '../store.js';
@@ -141,12 +142,19 @@ describe('tasks from configuration', () => {
   const store = new InMemoryMiStore();
   const ids = (env: Record<string, string>) => buildTasks({ env, store, now: Date.now, readFor: () => (async () => null) as unknown as Read }).map((t) => t.id);
   it('live task per adapter, a refresher per V2/V3 adapter, and a backfill only when asked (BNB V2/V3 by default)', () => {
-    expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb' })).toEqual(['pancakeswap-v2-bnb', 'pancakeswap-v2-bnb:refresh']);
-    expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_REFRESH: '0' })).toEqual(['pancakeswap-v2-bnb']);
+    expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb' })).toEqual(['pancakeswap-v2-bnb', 'pancakeswap-v2-bnb:refresh', 'bnb:supply']);
+    expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_REFRESH: '0' })).toEqual(['pancakeswap-v2-bnb', 'bnb:supply']);
     const withBackfill = ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_BACKFILL_DAYS: '7' });
     expect(withBackfill).toContain('pancakeswap-v2-bnb:backfill');
     expect(withBackfill.some((i) => i.endsWith('-bnb:backfill') && i.startsWith('uniswap-v3'))).toBe(true);
     expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_BACKFILL_DAYS: '7', MI_BACKFILL_ADAPTERS: 'apeswap-v2-bnb' }).filter((i) => i.endsWith(':backfill'))).toEqual(['apeswap-v2-bnb:backfill']);
+  });
+
+  it('adds one supply task per chain, and a Solana one when Solana adapters run, unless MI_SUPPLY=0', () => {
+    const sup = (env: Record<string, string>) => ids(env).filter((i) => i.endsWith(':supply'));
+    expect(sup({ MI_ADAPTERS: 'pancakeswap-v2-bnb,pancakeswap-v3-bnb,uniswap-v2-ethereum' }).sort()).toEqual(['bnb:supply', 'ethereum:supply']);
+    expect(sup({ MI_ADAPTERS: 'pancakeswap-v2-bnb,meteora-dlmm-solana' }).sort()).toEqual(['bnb:supply', 'solana:supply']);
+    expect(sup({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_SUPPLY: '0' })).toEqual([]);
   });
 
   it('adds Solana discovery and refresh tasks only for the venues MI_SOLANA_DISCOVERY names', () => {
@@ -288,5 +296,34 @@ describe('pool backfill and refresher on Base (Aerodrome)', () => {
     const pool = store.pools.get(`base:${POOL}`)!;
     expect(pool).toMatchObject({ kind: 'v3', tickSpacing: 100, adapterId: 'aerodrome-slipstream-base' });
     expect(pool.reserveQuote).toBe((50n * E18).toString());
+  });
+});
+
+describe('token supply refresher (EVM)', () => {
+  const SOON = (now: () => number, h: number) => () => now() + h * 3_600_000;
+  it('reads total supplies in one multicall, records the unreadable ones with the time, and rereads after a day', async () => {
+    const { chain, read, now, cfg } = bnbWorld();
+    chain.supplies.set(TOKEN, 1_000_000n * E18);
+    chain.supplies.set(WBNB, 5_000_000n * E18);
+    const store = new InMemoryMiStore();
+    const tok = (address: string, symbol: string) => ({ key: `bnb:${address}`, chain: 'bnb' as const, address, symbol, name: symbol, decimals: 18, firstSeenAt: 1, firstTradeAt: null, launchboxKey: null });
+    for (const t of [tok(TOKEN, 'MEME'), tok(WBNB, 'WBNB'), tok(JUNK, 'JUNK'), tok('0x' + '0'.repeat(40), 'BNB')]) await store.upsertToken(t);
+    const before = chain.calls.filter((c) => c === 'eth_call').length;
+    const r = await refreshSupplies({ chain: cfg, read, store, now, budgetMs: 10_000 });
+    expect(r).toMatchObject({ ok: true, considered: 4, read: 2, unreadable: 2 });
+    expect(chain.calls.filter((c) => c === 'eth_call').length - before).toBe(3); // three tokens asked about (not the chain's own coin), in one multicall (the fake runs each call)
+    expect(store.tokens.get(`bnb:${TOKEN}`)).toMatchObject({ totalSupply: (1_000_000n * E18).toString(), supplyAt: now() });
+    expect(store.tokens.get(`bnb:${JUNK}`)).toMatchObject({ totalSupply: null, supplyAt: now() }); // no totalSupply(): recorded, not retried every pass
+    expect(store.tokens.get('bnb:0x' + '0'.repeat(40))).toMatchObject({ totalSupply: null }); // the chain's own coin has none
+    expect((await refreshSupplies({ chain: cfg, read, store, now, budgetMs: 10_000 })).considered).toBe(0);
+    chain.supplies.set(TOKEN, 2_000_000n * E18); // minted since
+    const later = await refreshSupplies({ chain: cfg, read, store, now: SOON(now, 25), budgetMs: 10_000 });
+    expect(later.considered).toBe(4);
+    expect(store.tokens.get(`bnb:${TOKEN}`)!.totalSupply).toBe((2_000_000n * E18).toString());
+  });
+  it('leaves a chain without Multicall3 alone', async () => {
+    const { read, now } = bnbWorld();
+    const r = await refreshSupplies({ chain: chainConfig('robinhood'), read, store: new InMemoryMiStore(), now, budgetMs: 1000 });
+    expect(r.skipped).toBe('unsupported');
   });
 });

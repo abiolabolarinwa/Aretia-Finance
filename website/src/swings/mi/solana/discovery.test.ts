@@ -7,6 +7,7 @@ import { InMemoryMiStore } from '../store.js';
 import { decodeBase58, encodeBase58 } from './accounts.js';
 import { discoverVenue, discoveryAdapters, resetDiscoveryMemory, slicesFor, VENUE_LAYOUTS, type DiscoveryDeps } from './discovery.js';
 import { refreshSolanaReserves } from './refresher.js';
+import { refreshSupplies } from '../supply.js';
 
 const WSOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -239,5 +240,21 @@ describe('Solana reserves refresher', () => {
     expect(stats.reservesOnly).toBe(true);
     expect(stats.liquidityUsd).toBe(15_000);
     expect(stats.reservePrice).toBeUndefined();
+  });
+});
+
+describe('Solana token supply', () => {
+  it('reads the supply held in each mint account and records an unreadable mint', async () => {
+    const accs = new Map<string, Acc>();
+    const mint = mintAccount(6);
+    putU64(mint, 36, 1_000_000_000_000n);
+    accs.set(addr(40), { owner: 'tok', data: mint });
+    const { read } = node(accs);
+    const store = new InMemoryMiStore();
+    for (const a of [addr(40), addr(41)]) await store.upsertToken({ key: `solana:${a}`, chain: 'solana', address: a, symbol: 'X', name: 'X', decimals: 6, firstSeenAt: 1, firstTradeAt: null, launchboxKey: null });
+    const r = await refreshSupplies({ chain: chainConfig('solana'), read, store, now: () => NOW, budgetMs: 10_000 });
+    expect(r).toMatchObject({ ok: true, considered: 2, read: 1, unreadable: 1 });
+    expect(store.tokens.get(`solana:${addr(40)}`)).toMatchObject({ totalSupply: '1000000000000', supplyAt: NOW });
+    expect(store.tokens.get(`solana:${addr(41)}`)).toMatchObject({ totalSupply: null, supplyAt: NOW });
   });
 });

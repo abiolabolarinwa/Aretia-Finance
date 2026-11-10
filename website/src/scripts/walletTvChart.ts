@@ -120,7 +120,7 @@ export function mountTvChart(
   let library: TvGlobal | null = null;
   let restarts = 0;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
-  // A market the index follows whose quote is not a dollar stablecoin is charted in its quote token only: dollars would mean converting history at today's rate.
+  // A market the page says has no dollar view is charted in its quote token only (no switch). The Markets page no longer says so for indexed pools: the index converts them to dollars.
   const tokenOnly = o.source === 'aretia' && o.usdAvailable === false && !!o.quoteSymbol;
   const canSwitch = !!o.quoteSymbol && !tokenOnly;
   let currency: 'usd' | 'token' = tokenOnly ? 'token' : canSwitch ? lastCurrency : 'usd';

@@ -252,7 +252,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       capCell(r),
       priceCell(r),
       el('td', 'wapp-mt__num', formatAge(r.ageMs)),
-      el('td', 'wapp-mt__num', compactCount(r.txns24h)),
+      (() => { const td = el('td', 'wapp-mt__num', r.txnsCapped && r.txns24h !== null ? `${compactCount(r.txns24h)}+` : compactCount(r.txns24h)); if (r.txnsCapped) td.title = 'This pool traded more than 5,000 times today. Aretia counts its newest 5,000, so the real number of transactions and the volume are higher.'; return td; })(),
       el('td', 'wapp-mt__num', compactUsd(r.volume24hUsd)),
       el('td', 'wapp-mt__num', compactCount(r.traders24h)),
       changeCell(r.change.m5),

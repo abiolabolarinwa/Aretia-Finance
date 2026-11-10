@@ -1960,9 +1960,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (host.hidden) return;
       const where = m.chain === '' ? 'all networks' : (CHAIN_SHORT[m.chain] ?? m.chain);
       const cell = (label: string, value: string, title: string): HTMLElement => el('div', { class: 'wapp-mt__stat', attrs: { title } }, [el('span', { class: 'wapp__fine', text: label }), el('strong', { text: value })]);
-      const scope = `across the ${s?.pools ?? 0} pools Aretia's index has a stored trade for on ${where}. It counts the pools the index follows, not the whole market.`;
+      const scope = `across the ${s?.pools ?? 0} pools Aretia's index has a stored trade for on ${where}. It counts the pools the index follows, not the whole market.${s && s.excludedPools > 0 ? ` Left out: ${s.excludedPools} pool${s.excludedPools === 1 ? '' : 's'} claiming ${compactUsd(s.excludedVolume24hUsd)} of volume, because a pool trading more than 100 times its own liquidity in a day is wash trading or a broken price.` : ''}${s && s.cappedPools > 0 ? ` ${s.cappedPools} busy pool${s.cappedPools === 1 ? '' : 's'} traded more than 5,000 times, and only the newest 5,000 are counted, so these figures are a floor.` : ''}`;
       host.append(cell('24H VOLUME', s ? compactUsd(s.volume24hUsd) : '–', `Money traded in the last 24 hours ${scope}`));
-      host.append(cell('24H TXNS', s ? s.txns24h.toLocaleString('en-US') : '–', `Buys plus sells in the last 24 hours ${scope}`));
+      host.append(cell('24H TXNS', s ? `${s.txns24h.toLocaleString('en-US')}${s.cappedPools > 0 ? '+' : ''}` : '–', `Buys plus sells in the last 24 hours ${scope}`));
       const now = Date.now();
       const first = blocks[0];
       const value = blocks.length === 0 ? '–' : m.chain === '' ? blocks.slice(0, 6).map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')}`).join(' · ') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();

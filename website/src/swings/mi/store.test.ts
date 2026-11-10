@@ -141,6 +141,37 @@ describe('Supabase store request shapes', () => {
     expect(calls[2]!.url).toContain('order=supply_at.asc.nullsfirst');
   });
 
+  it('reads the trades of a pool a page of 1,000 at a time, newest first for the statistics window, and stops at a short page', async () => {
+    const row = (i: number) => ({ chain: 'bnb', pool: 'p', id: `t${i}`, block: i, time: i, side: 'buy', base_amount: '1', quote_amount: '1', price: '1', maker: 'm' });
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      const off = Number(/offset=(\d+)/.exec(url)![1]);
+      const n = Number(/limit=(\d+)/.exec(url)![1]);
+      return new Response(JSON.stringify(Array.from({ length: Math.min(n, 2_500 - off) }, (_, i) => row(off + i))), { status: 200 });
+    }) as unknown as typeof fetch;
+    const store = new SupabaseMiStore('https://x.supabase.co', 'sb_secret_test', fetchImpl, () => 42);
+    const got = await store.windowTrades('bnb', 'p', 0, 5_000);
+    expect(got).toHaveLength(2_500); // three requests: 1,000 + 1,000 + 500, the last short
+    expect(urls).toHaveLength(3);
+    expect(urls[0]).toContain('order=time.desc,block.desc,id.desc');
+    expect(got[0]!.time).toBeGreaterThan(got[got.length - 1]!.time); // the fake answers in descending-less order; only the reversal is checked
+    urls.length = 0;
+    expect(await store.tradesSince('bnb', 'p', 0, 1_500)).toHaveLength(1_500);
+    expect(urls[0]).toContain('order=time.asc,block.asc,id.asc');
+    expect(urls).toHaveLength(2);
+  });
+
+  it('keeps the newest trades of a window in memory, oldest first', async () => {
+    const store = new InMemoryMiStore();
+    const p = pool(1);
+    await store.insertPool(p);
+    const t = (i: number): MiTrade => ({ chain: 'bnb', pool: p.address, id: `t${i}`, block: i, blockHash: '0x', time: 100 + i, side: 'buy', baseAmount: '1', quoteAmount: '1', price: '1', maker: 'm' });
+    await store.putTrades('a1', [1, 2, 3, 4, 5].map(t));
+    expect((await store.windowTrades('bnb', p.address, 0, 3)).map((x) => x.id)).toEqual(['t3', 't4', 't5']);
+    expect((await store.windowTrades('bnb', p.address, 103, 10)).map((x) => x.id)).toEqual(['t3', 't4', 't5']);
+  });
+
   it('echoes only the key of inserted rows, and never reads the stats column for the followed pools', async () => {
     const { calls, store } = stub({ 'mi_pools': [] });
     await store.insertPool(pool(1));

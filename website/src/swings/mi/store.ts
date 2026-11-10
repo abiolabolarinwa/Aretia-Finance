@@ -66,6 +66,8 @@ export interface MiStore {
   recentTrades(chain: MiChain, pool: string, limit: number, before?: number): Promise<MiTrade[]>;
   /** Oldest first, from `fromSec` (unix seconds) on. */
   tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]>;
+  /** The newest `limit` trades from `fromSec` on, returned oldest first: the window a pool's statistics are computed over, so a busy pool keeps its latest trades. */
+  windowTrades(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]>;
   /** The last trade strictly before `beforeSec`, for the price a window opened at. */
   lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null>;
   /** Retention: removes trades older than `beforeSec` (unix seconds), at most `limit` per call; returns how many. */
@@ -294,6 +296,10 @@ export class InMemoryMiStore implements MiStore {
   }
   async tradesSince(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
     return this.sortedTrades(chain, pool).filter((t) => t.time >= fromSec).slice(0, limit);
+  }
+  async windowTrades(chain: MiChain, pool: string, fromSec: number, limit: number): Promise<MiTrade[]> {
+    const all = this.sortedTrades(chain, pool).filter((t) => t.time >= fromSec);
+    return all.slice(Math.max(0, all.length - limit));
   }
   async lastTradeBefore(chain: MiChain, pool: string, beforeSec: number): Promise<MiTrade | null> {
     const all = this.sortedTrades(chain, pool).filter((t) => t.time < beforeSec);

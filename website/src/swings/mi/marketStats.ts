@@ -11,11 +11,17 @@ import type { AdapterHealth } from './types.js';
 /** Pools below this liquidity are left out (the same floor as every Markets list). */
 export const STATS_MIN_LIQUIDITY_USD = 100;
 
+/** A pool whose 24h volume is more than this many times its liquidity is left out of the totals: that is wash trading or a broken price, and one such pool can outweigh a whole network. */
+export const STATS_MAX_VOLUME_TO_LIQUIDITY = 100;
+
 export interface StatsPoolRow {
   chain: string;
   vol24_usd: number | null;
   buys?: { h24?: number | null } | null;
   sells?: { h24?: number | null } | null;
+  liquidity_usd?: number | null;
+  /** The pool's counts cover only its newest trades of the day. */
+  cp?: boolean | null;
 }
 
 export interface ChainStats {
@@ -23,6 +29,11 @@ export interface ChainStats {
   txns24h: number;
   /** Pools with a stored trade in the last 24 hours that were counted. */
   pools: number;
+  /** Pools left out because their volume is over 100 times their liquidity, and the volume they claimed. */
+  excludedPools: number;
+  excludedVolume24hUsd: number;
+  /** Counted pools that traded more than the stored window holds, so the totals are a floor. */
+  cappedPools: number;
   /** The newest block (Solana: slot) the index has seen on this network, and when it saw it (ms). Null when no adapter of the network has run. */
   latestBlock: number | null;
   blockSeenAt: number | null;
@@ -30,7 +41,7 @@ export interface ChainStats {
 
 export interface MarketStats {
   asOf: number;
-  total: { volume24hUsd: number; txns24h: number; pools: number };
+  total: { volume24hUsd: number; txns24h: number; pools: number; excludedPools: number; excludedVolume24hUsd: number; cappedPools: number };
   chains: Partial<Record<MiChain, ChainStats>>;
 }
 
@@ -38,12 +49,19 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
 
 export function buildStats(pools: readonly StatsPoolRow[], health: readonly Pick<AdapterHealth, 'chain' | 'head' | 'safeHead' | 'lastSuccessAt' | 'lastRunAt'>[], now: number): MarketStats {
   const chains: Partial<Record<MiChain, ChainStats>> = {};
-  const at = (c: MiChain): ChainStats => (chains[c] ??= { volume24hUsd: 0, txns24h: 0, pools: 0, latestBlock: null, blockSeenAt: null });
+  const at = (c: MiChain): ChainStats => (chains[c] ??= { volume24hUsd: 0, txns24h: 0, pools: 0, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0, latestBlock: null, blockSeenAt: null });
   for (const p of pools) {
     if (!isMiChain(p.chain)) continue;
     const vol = num(p.vol24_usd);
     if (vol === 0) continue;
     const c = at(p.chain);
+    const liq = num(p.liquidity_usd);
+    if (liq > 0 && vol > liq * STATS_MAX_VOLUME_TO_LIQUIDITY) {
+      c.excludedPools += 1;
+      c.excludedVolume24hUsd += vol;
+      continue;
+    }
+    if (p.cp === true) c.cappedPools += 1;
     c.volume24hUsd += vol;
     c.txns24h += num(p.buys?.h24) + num(p.sells?.h24);
     c.pools += 1;
@@ -58,13 +76,16 @@ export function buildStats(pools: readonly StatsPoolRow[], health: readonly Pick
       c.blockSeenAt = h.lastSuccessAt ?? h.lastRunAt;
     }
   }
-  const total = { volume24hUsd: 0, txns24h: 0, pools: 0 };
+  const total = { volume24hUsd: 0, txns24h: 0, pools: 0, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0 };
   for (const c of MI_CHAINS) {
     const s = chains[c];
     if (!s) continue;
     total.volume24hUsd += s.volume24hUsd;
     total.txns24h += s.txns24h;
     total.pools += s.pools;
+    total.excludedPools += s.excludedPools;
+    total.excludedVolume24hUsd += s.excludedVolume24hUsd;
+    total.cappedPools += s.cappedPools;
   }
   return { asOf: now, total, chains };
 }

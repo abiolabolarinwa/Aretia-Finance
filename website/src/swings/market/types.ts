@@ -33,6 +33,8 @@ export interface MarketRow {
   /** Pool age in milliseconds, or null when unknown. */
   ageMs: number | null;
   txns24h: number | null;
+  /** True when the index counted only the pool's newest 5,000 trades of the day, so the transactions and volume are a floor. */
+  txnsCapped?: boolean;
   volume24hUsd: number | null;
   /** People who traded in 24h (buyers plus sellers), when the source counts them. */
   traders24h: number | null;

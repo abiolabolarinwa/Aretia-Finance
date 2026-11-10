@@ -16,7 +16,7 @@ import type { DexAdapterSpec } from './dexes.js';
 import { evaluate, type ListingRules } from './lifecycle.js';
 import { liquidityUsdOf, MULTICALL_CHAINS, quoteUsdFor, readReservesBatch, reservePriceOf, type ReserveQuery } from './reserves.js';
 import { RpcError, type Read } from './rpc.js';
-import { computeStats } from './stats.js';
+import { computeStats, RECENT_TRADE_LIMIT } from './stats.js';
 import type { MiStore } from './store.js';
 import type { MiPool, PoolStats } from './types.js';
 
@@ -109,7 +109,7 @@ async function applyReserves(d: RefreshDeps, pool: MiPool, res: { base: bigint; 
   let stats: PoolStats | null;
   if (pool.lastTradeAt !== null) {
     const since = Math.floor(now / 1000) - 86_400;
-    const [recent, prior] = await Promise.all([d.store.tradesSince(pool.chain, pool.address, since, 5_000), d.store.lastTradeBefore(pool.chain, pool.address, since)]);
+    const [recent, prior] = await Promise.all([d.store.windowTrades(pool.chain, pool.address, since, RECENT_TRADE_LIMIT), d.store.lastTradeBefore(pool.chain, pool.address, since)]);
     stats = computeStats(pool, recent, prior, now, { quoteUsd }, res.quote);
   } else {
     stats = null;

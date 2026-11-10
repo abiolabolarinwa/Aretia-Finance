@@ -12,7 +12,7 @@ import { evaluate } from '../lifecycle.js';
 import { priceString } from '../math.js';
 import { liquidityOnly, REFRESH_STATES, type RefreshReport } from '../refresher.js';
 import { RpcError } from '../rpc.js';
-import { computeStats } from '../stats.js';
+import { computeStats, RECENT_TRADE_LIMIT } from '../stats.js';
 import type { MiPool, PoolStats } from '../types.js';
 import { tokenAmount } from './accounts.js';
 import { accounts, factsOf, quoteUsdOf, type SolDeps } from './engine.js';
@@ -74,7 +74,7 @@ async function applyVaults(d: SolRefreshDeps, pool: MiPool, res: { base: bigint;
   let stats: PoolStats | null = null;
   if (pool.lastTradeAt !== null) {
     const since = Math.floor(now / 1000) - 86_400;
-    const [recent, prior] = await Promise.all([d.store.tradesSince('solana', pool.address, since, 5_000), d.store.lastTradeBefore('solana', pool.address, since)]);
+    const [recent, prior] = await Promise.all([d.store.windowTrades('solana', pool.address, since, RECENT_TRADE_LIMIT), d.store.lastTradeBefore('solana', pool.address, since)]);
     stats = computeStats(pool, recent, prior, now, { quoteUsd }, res.quote);
   }
   if (stats === null) {

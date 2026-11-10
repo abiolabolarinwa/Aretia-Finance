@@ -40,7 +40,7 @@ export async function handleMarketStats(input: TokensInput): Promise<TokensOutpu
     const reader = postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS));
     const pools: StatsPoolRow[] = [];
     for (let page = 0; page < MAX_PAGES; page++) {
-      const got = await reader.get(`mi_pools?select=chain,vol24_usd,buys:stats->buys,sells:stats->sells&state=eq.active&paused=is.false&vol24_usd=gt.0&liquidity_usd=gte.${STATS_MIN_LIQUIDITY_USD}&order=key.asc&limit=${PAGE}&offset=${page * PAGE}`, false);
+      const got = await reader.get(`mi_pools?select=chain,vol24_usd,buys:stats->buys,sells:stats->sells,cp:stats->windowCapped,liquidity_usd&state=eq.active&paused=is.false&vol24_usd=gt.0&liquidity_usd=gte.${STATS_MIN_LIQUIDITY_USD}&order=key.asc&limit=${PAGE}&offset=${page * PAGE}`, false);
       pools.push(...(got.rows as StatsPoolRow[]));
       if (got.rows.length < PAGE) break;
     }

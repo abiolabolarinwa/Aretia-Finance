@@ -21,7 +21,7 @@ import { getBlock, getHead, getLogsHalving, readBalance, readToken, readV2Reserv
 import { evaluate, FOLLOWED_STATES, type ListingRules, type PoolFacts } from './lifecycle.js';
 import { parseRaw } from './math.js';
 import { RpcError, type Read } from './rpc.js';
-import { computeStats, type UsdContext } from './stats.js';
+import { computeStats, RECENT_TRADE_LIMIT, type UsdContext } from './stats.js';
 import type { MiStore } from './store.js';
 import { poolKeyOf, tokenKeyOf, type AdapterHealth, type MiPool, type MiToken, type MiTrade } from './types.js';
 
@@ -437,7 +437,7 @@ export async function refreshPool(d: EngineDeps, pool: MiPool, newTrades: MiTrad
 
   const nowSec = Math.floor(now / 1000);
   const since = nowSec - 86_400;
-  const recent = await d.store.tradesSince(live.chain, live.address, since, 5_000);
+  const recent = await d.store.windowTrades(live.chain, live.address, since, RECENT_TRADE_LIMIT);
   const prior = await d.store.lastTradeBefore(live.chain, live.address, since);
   const quoteUsd = await quoteUsdOf(d, live);
   const usd: UsdContext = { quoteUsd };

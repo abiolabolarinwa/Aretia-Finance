@@ -15,8 +15,8 @@ const stats: MarketStatsDto = {
 
 describe('the stats bar numbers', () => {
   it('gives the totals for all networks, or one network’s own, and nothing when the index has none', () => {
-    expect(statsFor(stats, '')).toEqual({ volume24hUsd: 700, txns24h: 90, pools: 5 });
-    expect(statsFor(stats, 'bnb')).toEqual({ volume24hUsd: 200, txns24h: 30, pools: 2 });
+    expect(statsFor(stats, '')).toEqual({ volume24hUsd: 700, txns24h: 90, pools: 5, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0 });
+    expect(statsFor(stats, 'bnb')).toEqual({ volume24hUsd: 200, txns24h: 30, pools: 2, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0 });
     expect(statsFor(stats, 'base')).toBeNull();
     expect(statsFor(stats, 'solana')).toBeNull();
     expect(statsFor(null, '')).toBeNull();

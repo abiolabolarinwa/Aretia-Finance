@@ -104,6 +104,8 @@ export interface PoolStats {
   makers24h: number;
   liquidityQuote: number | null;
   liquidityUsd: number | null;
+  /** True when the pool traded more than `RECENT_TRADE_LIMIT` times in the 24 hours, so the counts and volume cover only its newest trades and are a floor. */
+  windowCapped?: boolean;
   /**
    * Set when these stats hold only the pool's liquidity, read from its reserves, because no trade of the pool is stored. Price, price
    * change, volume and transaction counts are then not known and are shown as absent, never as zero. The first stored trade replaces it.

@@ -20,7 +20,7 @@ import { parseRaw, priceString, PRICE_SCALE, scaledToString } from '../math.js';
 import type { LaunchLookup } from '../engine.js';
 import { MAINTAIN_EVERY_MS, type RunReport } from '../engine.js';
 import { RpcError, type Read } from '../rpc.js';
-import { computeStats } from '../stats.js';
+import { computeStats, RECENT_TRADE_LIMIT } from '../stats.js';
 import type { MiStore } from '../store.js';
 import { poolKeyOf, tokenKeyOf, type AdapterHealth, type MiPool, type MiToken, type MiTrade } from '../types.js';
 import { cleanText } from '../../tokens/safeText.js';
@@ -430,7 +430,7 @@ export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, T
   const now = d.now();
   const stored = (await d.store.getPools([pool.key])).get(pool.key) ?? pool;
   const since = Math.floor(now / 1000) - 86_400;
-  const [recent, prior] = await Promise.all([d.store.tradesSince('solana', stored.address, since, 5_000), d.store.lastTradeBefore('solana', stored.address, since)]);
+  const [recent, prior] = await Promise.all([d.store.windowTrades('solana', stored.address, since, RECENT_TRADE_LIMIT), d.store.lastTradeBefore('solana', stored.address, since)]);
   const last = recent.length ? recent[recent.length - 1]!.time * 1000 : stored.lastTradeAt;
   const first = recent.length ? Math.min(stored.firstTradeAt ?? Infinity, recent[0]!.time * 1000) : stored.firstTradeAt;
   const live: MiPool = { ...stored, firstTradeAt: first, lastTradeAt: last };

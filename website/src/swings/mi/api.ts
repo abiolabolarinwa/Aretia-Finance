@@ -22,7 +22,7 @@ import { allSpecs, SOLANA_PLANNED, SOLANA_SPECS } from './dexes.js';
 import { poolDto, tokenDto } from './dto.js';
 import { isSolanaAddress } from './solana/accounts.js';
 import { isPoolState, POOL_STATES, type MiPool, type MiToken, type PoolState } from './types.js';
-import { buildCandleRows, computeStats, trendingScore } from './stats.js';
+import { buildCandleRows, computeStats, RECENT_TRADE_LIMIT, trendingScore } from './stats.js';
 import { parseRaw } from './math.js';
 import type { MiStore } from './store.js';
 
@@ -287,7 +287,7 @@ async function poolDetail(store: MiStore, req: ApiRequest, ref: Ref): Promise<Ap
   if (!pool || pool.paused) return err(404, 'not-found', 'No such market.');
   // Numbers are recomputed from the stored trades so the page is never older than the last indexed block.
   const since = Math.floor(req.now / 1000) - 86_400;
-  const [recent, prior] = await Promise.all([store.tradesSince(pool.chain, pool.address, since, 5_000), store.lastTradeBefore(pool.chain, pool.address, since)]);
+  const [recent, prior] = await Promise.all([store.windowTrades(pool.chain, pool.address, since, RECENT_TRADE_LIMIT), store.lastTradeBefore(pool.chain, pool.address, since)]);
   const fresh: MiPool = pool.stats ? { ...pool, stats: computeStats(pool, recent, prior, req.now, { quoteUsd: pool.stats.quoteUsd }, parseRaw(pool.reserveQuote)) ?? pool.stats } : pool;
   const siblings = (await store.listPools({ sort: 'liquidity', limit: 20, tokenKey: `${pool.chain}:${pool.base}`, states: ['active', 'awaiting_liquidity', 'inactive'] })).pools.filter((p) => p.key !== pool.key);
   const tokens = await tokensFor(store, [fresh, ...siblings]);

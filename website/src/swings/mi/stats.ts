@@ -13,6 +13,9 @@ export interface UsdContext {
   quoteUsd: number | null;
 }
 
+/** How many of a pool's newest trades the 24-hour statistics are computed over; a pool with more is flagged `windowCapped`. */
+export const RECENT_TRADE_LIMIT = 5_000;
+
 /**
  * @param trades   the pool's trades from `now - 24h` on, oldest first
  * @param prior    the last trade before `now - 24h`, if any
@@ -73,6 +76,7 @@ export function computeStats(pool: Pick<MiPool, 'quoteDecimals'>, trades: readon
     // the quote-token balance the pool holds, which can overstate usable depth; it is labelled that way by the API.
     liquidityQuote,
     liquidityUsd: u !== null && liquidityQuote !== null ? liquidityQuote * u : null,
+    ...(trades.length >= RECENT_TRADE_LIMIT ? { windowCapped: true } : {}),
   };
 }
 

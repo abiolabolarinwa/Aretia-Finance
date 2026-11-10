@@ -148,6 +148,15 @@ describe('tasks from configuration', () => {
     expect(withBackfill.some((i) => i.endsWith('-bnb:backfill') && i.startsWith('uniswap-v3'))).toBe(true);
     expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_BACKFILL_DAYS: '7', MI_BACKFILL_ADAPTERS: 'apeswap-v2-bnb' }).filter((i) => i.endsWith(':backfill'))).toEqual(['apeswap-v2-bnb:backfill']);
   });
+
+  it('adds Solana discovery and refresh tasks only for the venues MI_SOLANA_DISCOVERY names', () => {
+    const sol = (env: Record<string, string>) => ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', ...env }).filter((i) => i.includes(':discover') || (i.endsWith(':refresh') && i.includes('solana')));
+    expect(sol({})).toEqual([]);
+    expect(sol({ MI_SOLANA_DISCOVERY: '0' })).toEqual([]);
+    expect(sol({ MI_SOLANA_DISCOVERY: 'raydium-cpmm-solana,nope' })).toEqual(['raydium-cpmm-solana:discover', 'raydium-cpmm-solana:refresh']);
+    expect(sol({ MI_SOLANA_DISCOVERY: 'raydium-cpmm-solana', MI_REFRESH: '0' })).toEqual(['raydium-cpmm-solana:discover']);
+    expect(sol({ MI_SOLANA_DISCOVERY: '*' }).filter((i) => i.endsWith(':discover'))).toHaveLength(8);
+  });
 });
 
 describe('worker loop', () => {

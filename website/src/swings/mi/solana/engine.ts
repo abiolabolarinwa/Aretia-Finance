@@ -333,13 +333,13 @@ async function readReserves(d: SolDeps, pool: MiPool): Promise<{ base: bigint; q
   return b !== null && q !== null ? { base: b, quote: q } : null;
 }
 
-async function quoteUsdOf(d: SolDeps, pool: MiPool): Promise<number | null> {
+export async function quoteUsdOf(d: SolDeps, pool: MiPool): Promise<number | null> {
   const q = d.chain.quoteTokens.find((x) => x.address === pool.quote);
   if (!q) return null;
   return q.role === 'usd' ? 1 : d.nativeUsd ? await d.nativeUsd() : null;
 }
 
-async function factsOf(d: SolDeps, pool: MiPool, readable: boolean, recognised: boolean, reserves: { base: bigint; quote: bigint } | null) {
+export async function factsOf(d: SolDeps, pool: MiPool, readable: boolean, recognised: boolean, reserves: { base: bigint; quote: bigint } | null) {
   const usd = await quoteUsdOf(d, pool);
   return {
     tokensReadable: readable,
@@ -347,7 +347,8 @@ async function factsOf(d: SolDeps, pool: MiPool, readable: boolean, recognised: 
     reserveBase: reserves ? reserves.base : null,
     reserveQuote: reserves ? reserves.quote : null,
     liquidityUsd: reserves && usd !== null ? (Number(reserves.quote) / 10 ** pool.quoteDecimals) * 2 * usd : null,
-    createdAt: pool.createdAt,
+    // A pool found by discovery or opened on request has no known creation time (0): it is judged from when the index first saw it.
+    createdAt: pool.createdAt > 0 ? pool.createdAt : pool.stateAt,
     firstSeenAt: pool.stateAt,
     lastTradeAt: pool.lastTradeAt,
     paused: pool.paused,

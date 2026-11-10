@@ -3,6 +3,7 @@
  *   <adapter>            the live run of an adapter (the same `runAll` the HTTP route uses, limited to that one adapter and given a longer slice)
  *   <adapter>:refresh    the reserves refresher (EVM V2/V3 on chains with Multicall3), on unless MI_REFRESH=0
  *   <adapter>:backfill   the creation backfill, only when MI_BACKFILL_DAYS > 0; default adapters: the V2/V3 adapters of BNB Chain
+ *   <solana adapter>:discover / :refresh   discovery of existing Solana pools and their liquidity refresher, only when MI_SOLANA_DISCOVERY is set
  */
 import { chainConfig, type MiChainConfig } from '../chains.js';
 import { allSpecs, type DexAdapterSpec } from '../dexes.js';
@@ -12,6 +13,10 @@ import { nativeUsdReader } from '../reference.js';
 import { refreshReserves } from '../refresher.js';
 import { makeRead, type Read } from '../rpc.js';
 import { enabledSolana, enabledSpecs, rulesFrom, runAll, type RunnerEnv } from '../runner.js';
+import { SOLANA_SPECS } from '../dexes.js';
+import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
+import { solUsdReader } from '../solana/engine.js';
+import { refreshSolanaReserves } from '../solana/refresher.js';
 import type { MiStore } from '../store.js';
 import type { WorkerTask } from './loop.js';
 
@@ -72,6 +77,39 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
           return { ok: rep.ok, error: rep.error, caughtUp: true };
         },
       });
+    }
+  }
+
+  // Existing Solana pools: found by listing a venue's program accounts and kept current from their vaults. Off unless MI_SOLANA_DISCOVERY names venues.
+  const solana = discoveryAdapters(d.env.MI_SOLANA_DISCOVERY);
+  if (solana.length > 0) {
+    const chain = chainConfig('solana', d.env);
+    const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+    const nativeUsd = solUsdReader(rpc, d.now);
+    const floor = d.env.MI_BACKFILL_MIN_LIQUIDITY_USD ? Number(d.env.MI_BACKFILL_MIN_LIQUIDITY_USD) : undefined;
+    for (const id of solana) {
+      const spec = SOLANA_SPECS.find((s) => s.id === id);
+      if (!spec) continue;
+      tasks.push({
+        id: `${id}:discover`,
+        chain: 'solana',
+        idleMs: 3_600_000,
+        run: async (budgetMs) => {
+          const rep = await discoverVenue({ chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd, ...(floor !== undefined && Number.isFinite(floor) ? { floorUsd: floor } : {}), maxList: int(d.env.MI_SOLANA_DISCOVERY_MAX, 400_000, 1_000, 5_000_000) }, id, budgetMs);
+          return { ok: rep.ok, error: rep.error, caughtUp: rep.complete };
+        },
+      });
+      if (d.env.MI_REFRESH !== '0') {
+        tasks.push({
+          id: `${id}:refresh`,
+          chain: 'solana',
+          idleMs: int(d.env.MI_REFRESH_EVERY_SECONDS, 60, 10, 86_400) * 1000,
+          run: async (budgetMs) => {
+            const rep = await refreshSolanaReserves({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd, budgetMs, limit: int(d.env.MI_REFRESH_LIMIT, 1_500, 10, 20_000) });
+            return { ok: rep.ok, error: rep.error, caughtUp: true };
+          },
+        });
+      }
     }
   }
 

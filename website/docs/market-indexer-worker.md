@@ -60,6 +60,30 @@ range replaces hundreds, and every registered pool gets real trades (price, chan
 - **Enabling them.** The catalogue also holds adapters that the default list does not run (for example `pancakeswap-v2-base`, `pancakeswap-v3-base`, `sushiswap-v2-base`, `quickswap-v2-polygon`). Add the ids you want to `MI_ADAPTERS` and, to walk their history, to `MI_BACKFILL_ADAPTERS`. Each adapter adds node requests: on free public nodes add them one at a time and watch the failure count.
 - Base produces blocks far faster than Ethereum, so a 30-day backfill there is over twelve million blocks per factory: it needs a node that accepts many requests.
 
+## Solana: discovery of existing pools (`MI_SOLANA_DISCOVERY`)
+
+The live Solana adapters find pools as they are created, or when someone opens one. `MI_SOLANA_DISCOVERY` (off by default) adds the pools a
+venue **already has**: `*` for every venue, or a comma list of adapter ids (`raydium-cpmm-solana`, `orca-whirlpool-solana`, `pumpswap-solana`,
+`raydium-amm-v4-solana`, `raydium-clmm-solana`, `meteora-dlmm-solana`, `meteora-damm-v2-solana`, `meteora-dbc-solana`). Code: `src/swings/mi/solana/discovery.ts`.
+
+- **How.** For each venue the worker lists the program's pool accounts with `getProgramAccounts`, filtered by the pool account's size and by one of
+  its two mints being SOL, USDC or USDT (a few slices per venue), asking for pubkeys only. It then reads the pools 100 at a time with
+  `getMultipleAccounts`, parses them with the venue's own layout (the same parsers as adding a pool on request), reads the two token accounts for the
+  liquidity in dollars, and registers pools at or above the floor (`MI_BACKFILL_MIN_LIQUIDITY_USD`, else `MI_MIN_LIQUIDITY_USD`, default $500) through the
+  same path as the live adapters. Progress is a cursor per slice, so a restart resumes; a finished slice is walked again after 24 hours.
+- **A refresher keeps them current.** `<venue>:refresh` re-reads the vault balances of the pools written longest ago (50 pools per request) and updates
+  liquidity and listing state. A pool with no stored trade gets liquidity only; its price is read from the vault ratio **only for Raydium CPMM and
+  PumpSwap** (plain constant-product pools). For Orca, Raydium CLMM, Meteora and AMM v4 the vault ratio is not the price, so no reserve price is shown.
+- **What a free node cannot do.** Public Solana nodes refuse `getProgramAccounts` for big programs. The worker then stops with the node's own words
+  (a `refused:` line in the log and the adapter health), remembers it for six hours and does not ask again meanwhile. Use a Solana node that allows
+  the call (set `SOLANA_RPC_URL` or `MI_RPC_SOLANA`) before switching this on, and check a provider's own limits first.
+- **Memory.** One slice's pubkey list is held in memory (at most `MI_SOLANA_DISCOVERY_MAX`, default 400,000, about tens of megabytes); a longer list is
+  cut and reported as `truncated`. Switch on one venue first on a small server.
+- **What discovered pools do not have.** No known creation time (the age shows as unknown; a pool is judged active from when the index first saw it) and no
+  stored trades until the live adapter follows them (the 40 newest and 40 most recently traded per adapter by default).
+- **Not yet run against a live node.** The pool sizes of Raydium CPMM (637), Orca Whirlpool (653) and PumpSwap (301) and their account tags were read back
+  from real mainnet pool accounts when this was written; the other venues' sizes come from the repo's parsers. Tested with a fake node (`discovery.test.ts`).
+
 ## Status
 
 Tested with a fake chain and a fake Multicall3 (`worker/worker.test.ts`). **Not yet run against a live node or in Docker.** A first run

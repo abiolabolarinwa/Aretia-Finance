@@ -27,6 +27,9 @@ export interface RunnerEnv {
   MI_FOLLOW_RECENT?: string;
   /** Chains (comma list, e.g. `ethereum,base`) whose V2/V3 swaps are read chain-wide by event, covering every registered pool (swapScan.ts). Off by default. */
   MI_SWAP_SCAN?: string;
+  /** Solana venues whose existing pools are discovered and refreshed (`*` for all, or a comma list of adapter ids). Off by default (solana/discovery.ts). */
+  MI_SOLANA_DISCOVERY?: string;
+  MI_SOLANA_DISCOVERY_MAX?: string;
   [k: string]: string | undefined;
 }
 

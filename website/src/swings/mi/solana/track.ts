@@ -20,7 +20,7 @@ const REPORT = (id: string): RunReport => ({ adapterId: id, ok: true, skipped: n
 type Parse = (d: Uint8Array, rpc: SolDeps['rpc']) => PoolAccounts | null | Promise<PoolAccounts | null>;
 
 /** Pool account parsers by owner program, each with the adapter that follows the pool afterwards. */
-const PROGRAMS: Readonly<Record<string, { id: string; venue: CreatedPool['venue']; parse: Parse }>> = {
+export const PROGRAMS: Readonly<Record<string, { id: string; venue: CreatedPool['venue']; parse: Parse }>> = {
   [RAYDIUM_CPMM_PROGRAM]: { id: 'raydium-cpmm-solana', venue: 'Raydium CPMM', parse: parseCpmmPool },
   [ORCA_WHIRLPOOL_PROGRAM]: { id: 'orca-whirlpool-solana', venue: 'Orca Whirlpool', parse: parseWhirlpool },
   [PUMPSWAP_PROGRAM]: { id: 'pumpswap-solana', venue: 'PumpSwap' as unknown as CreatedPool['venue'], parse: parsePumpPool },

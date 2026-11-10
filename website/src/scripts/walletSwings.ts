@@ -1656,7 +1656,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const trades = el('div', { class: 'wapp-mt__trades' });
         chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, chartStats(r), close]), plot, trades);
         // A market the index follows is charted from the index's own stored trades; no outside chart is shown in its place.
-        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, symbol: r.symbol, ...(r.quoteSymbol ? { quoteSymbol: r.quoteSymbol } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, ...(r.indexed ? { source: 'aretia' as const, usdAvailable: r.indexed.quoteIsDollar } : { fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }) }), title: `${r.symbol} price chart` });
+        // Dollars are always offered: the index prices a WETH, WBNB or WSOL pool in dollars from its own reference trades, and the chart reads the outside sources when it cannot.
+        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, symbol: r.symbol, ...(r.quoteSymbol ? { quoteSymbol: r.quoteSymbol } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, ...(r.indexed ? { source: 'aretia' as const, usdAvailable: true } : { fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }) }), title: `${r.symbol} price chart` });
         // The pool's recent trades, under the chart.
         tradesTable = mountTrades(trades, { chain: r.chain, pool: r.pool, symbol: r.symbol, quoteSymbol: r.quoteSymbol, ...(r.indexed ? { source: 'aretia' as const, quoteIsDollar: r.indexed.quoteIsDollar } : {}) });
       }

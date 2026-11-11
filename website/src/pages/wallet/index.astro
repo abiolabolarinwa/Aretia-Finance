@@ -1714,17 +1714,13 @@ const sendTips = [
   .wapp-tp__chg { padding: 2px 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-muted); background: var(--color-bg-alt); border-radius: 999px; }
   .wapp-tp__chg.is-up { color: #1b8a4b; background: rgba(27, 138, 75, 0.1); }
   .wapp-tp__chg.is-down { color: #b3261e; background: rgba(179, 38, 30, 0.1); }
-  .wapp-tp__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12px; color: var(--color-strong); background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); }
-  .wapp-tp__toggle:hover { border-color: var(--color-brand); }
-  .wapp-tp__toggle-ico { font-size: 15px; line-height: 1; color: var(--color-accent); }
-  .wapp-tp__grid { --tp-panel: 390px; --tp-gap: 14px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-panel); gap: var(--tp-gap); align-items: start; transition: grid-template-columns 240ms var(--ease-out), column-gap 240ms var(--ease-out); }
-  .wapp-tp__grid.is-collapsed { --tp-panel: 0px; --tp-gap: 0px; }
-  .wapp-tp__edge { position: absolute; z-index: 3; top: 84px; right: max(0px, calc(var(--tp-panel) + var(--tp-gap) - 13px)); width: 26px; height: 52px; padding: 0; font-size: 16px; line-height: 1; color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 10px; cursor: pointer; box-shadow: var(--shadow-soft); transition: right 240ms var(--ease-out), color var(--duration-fast); }
-  .wapp-tp__edge:hover { color: var(--color-accent); border-color: var(--color-brand); }
-  .wapp-tp__edge:focus-visible, .wapp-tp__toggle:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  /* The numbers that matter, in the top row beside the name and price; they wrap onto a second line on a narrow screen. */
+  .wapp-tp__stats { margin-left: auto; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: flex-end; gap: 8px; min-width: 0; }
+  .wapp-tp__stats .wapp-tp__stat { padding: 5px 12px; text-align: left; white-space: nowrap; }
+  .wapp-tp__stats .wapp-tp__meter { align-self: center; width: 72px; }
+  .wapp-tp__grid { --tp-panel: 390px; --tp-gap: 14px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-panel); gap: var(--tp-gap); align-items: start; }
   .wapp-tp__chart, .wapp-tp__side { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; padding: 12px; }
-  .wapp-tp__side { position: sticky; top: 12px; min-width: 0; max-height: calc(100vh - 24px); overflow-y: auto; transition: opacity 180ms var(--ease-out), padding 240ms var(--ease-out), border-width 240ms; }
-  .wapp-tp__grid.is-collapsed .wapp-tp__side { padding-inline: 0; border-width: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+  .wapp-tp__side { position: sticky; top: 12px; min-width: 0; max-height: calc(100vh - 24px); overflow-y: auto; }
   .wapp-tp__frame { display: block; width: 100%; height: calc(max(640px, calc(100vh - 190px)) + var(--dex-footer-crop)); margin-bottom: calc(var(--dex-footer-crop) * -1); clip-path: inset(0 0 var(--dex-footer-crop) 0 round 10px); border: 0; border-radius: 10px; background: #fff; }
   .wapp-tp__side { display: grid; gap: 12px; align-content: start; }
   .wapp-tp__pair { margin: 0; font-size: 14px; color: var(--color-strong); }
@@ -1748,11 +1744,9 @@ const sendTips = [
   .wapp-tp__swap .wapp__trade-side { display: none; }
   .wapp-tp__swap .wapp__swap { width: 100%; box-shadow: none; }
   @media (max-width: 1000px) {
-    .wapp-tp__grid, .wapp-tp__grid.is-collapsed { grid-template-columns: 1fr; --tp-gap: 14px; }
+    .wapp-tp__grid { grid-template-columns: 1fr; --tp-gap: 14px; }
     .wapp-tp__side { position: static; max-height: none; }
-    .wapp-tp__grid.is-collapsed .wapp-tp__side { display: none; }
-    .wapp-tp__edge { display: none; }
-    .wapp-tp__toggle { margin-left: 0; }
+    .wapp-tp__stats { margin-left: 0; justify-content: flex-start; }
     .wapp-tp__frame { height: calc(560px + var(--dex-footer-crop)); }
   }
   .wapp-mt__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }

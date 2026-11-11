@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Aretia Swings screen for the web wallet: Swap, New Tokens, Markets and Activity.
  *
  * Live: same-chain swaps on Solana (Jupiter, behind the Aretia router). EVM swaps (0x, behind the same
@@ -129,7 +129,7 @@ export function shortAmount(v: string): string {
   const kept = frac.slice(0, Math.max(8, lead + 6)).replace(/0+$/, '');
   return kept ? `${whole}.${kept}` : whole;
 }
-const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}â€¦${a.slice(-4)}` : a);
+const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 /** A stroked 24x24 icon from one path, built as real SVG so nothing is parsed from text. */
 function icon(path: string, size = 18): SVGElement {
   const ns = 'http://www.w3.org/2000/svg';
@@ -226,7 +226,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // A burst is capped so the pop-ups do not run on for minutes; every alert is still listed on the Favourites page.
     res.alerts.forEach((a, i) => {
       const up = a.movePct > 0;
-      const note = { title: `${a.symbol} ${up ? 'â–² +' : 'â–¼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon } as const;
+      const note = { title: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%`, detail: `${formatPrice(a.price)}, was ${formatPrice(a.baseline)}`, tone: up ? 'up' : 'down', icon: a.icon } as const;
       const token = { chain: a.chain, address: a.address, symbol: a.symbol, name: favourites.list().find((f) => f.chain === a.chain && f.address === a.address)?.name ?? a.symbol };
       if (i < 5) toaster.show(note);
       // Every alert goes to the bell; a burst rings once, for the biggest move.
@@ -356,7 +356,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       });
       bar.append(el('span', { class: 'wapp__fine', text: `Saved to ${short(session.address)}: your favourites and swaps follow this wallet on every device.` }), off);
     } else if (sg) {
-      const on = el('button', { class: 'wapp__btn wapp__btn--ghost', text: accountBusy ? 'Waiting for your walletâ€¦' : 'Save to my wallet', attrs: { type: 'button' } });
+      const on = el('button', { class: 'wapp__btn wapp__btn--ghost', text: accountBusy ? 'Waiting for your wallet…' : 'Save to my wallet', attrs: { type: 'button' } });
       on.disabled = accountBusy;
       on.addEventListener('click', () => void signInNow());
       bar.append(on, el('span', { class: 'wapp__fine', text: 'Sign a free message (it is not a transaction and cannot move funds) to keep favourites and swap history on every device.' }));
@@ -912,7 +912,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (!s.from) return row;
     loadBalance();
     const bal = currentBalance();
-    row.append(el('span', { class: 'wapp__sub', text: bal === null ? 'Reading your balanceâ€¦' : `Balance ${shortAmount(fromSmallestUnit(bal, s.from.decimals))} ${s.from.symbol}` }));
+    row.append(el('span', { class: 'wapp__sub', text: bal === null ? 'Reading your balance…' : `Balance ${shortAmount(fromSmallestUnit(bal, s.from.decimals))} ${s.from.symbol}` }));
     const chips = el('div', { class: 'wapp__swap-shares', attrs: { role: 'group', 'aria-label': 'Fill in part of your balance' } });
     for (const share of SHARES) {
       const label = share === 100 ? 'Max' : `${share}%`;
@@ -958,7 +958,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   });
   document.addEventListener('pointerdown', (e) => {
     const t = e.target as Element | null;
-    if (!s.picker || !t || t.closest('.wapp__pick-pop, .wapp__token-btn')) return;
+    if (!s.picker || !t || t.closest('.wapp__pick-pop, .wapp-pk__card, .wapp__token-btn')) return;
     s.picker = null;
     render();
   });
@@ -995,7 +995,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       });
       chips = el('div', { class: 'wapp-pk__chips' });
       list = el('div', { class: 'wapp-pk__list' });
-      const card = el('div', { class: 'wapp-pk__card wapp__pick-pop' }, [
+      const card = el('div', { class: 'wapp-pk__card' }, [
         el('div', { class: 'wapp-pk__head' }, [el('h2', { class: 'wapp-pk__title', text: p.side === 'from' ? 'Select the token you pay' : 'Select the token you receive' }), close]),
         typed,
         chips,
@@ -1010,7 +1010,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (input.value !== p.query) input.value = p.query;
     const row = (t: TokenInfo): HTMLElement => {
       const b = el('button', { class: 'wapp-pk__row', attrs: { type: 'button' } });
-      b.append(avatar(t.symbol, logoOf(s.chain, t)), el('span', { class: 'wapp-pk__names' }, [el('strong', { text: t.symbol }, [t.mint === EVM_NATIVE_ADDRESS ? null : imitationChip(s.chain, t.mint, t.symbol, t.name)]), el('small', { text: `${t.name ? t.name + ' Â· ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' Â· unverified' : ''}` })]));
+      b.append(avatar(t.symbol, logoOf(s.chain, t)), el('span', { class: 'wapp-pk__names' }, [el('strong', { text: t.symbol }, [t.mint === EVM_NATIVE_ADDRESS ? null : imitationChip(s.chain, t.mint, t.symbol, t.name)]), el('small', { text: `${t.name ? t.name + ' · ' : ''}${t.mint === EVM_NATIVE_ADDRESS ? 'native coin' : short(t.mint)}${t.verified === false ? ' · unverified' : ''}` })]));
       b.addEventListener('click', () => void pick(p.side, t));
       return b;
     };
@@ -1027,7 +1027,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     }
     chips.hidden = searching || chips.childElementCount === 0;
     list.replaceChildren(el('small', { class: 'wapp-pk__group', text: searching ? 'Search results' : 'Popular and held tokens' }));
-    if (p.loading) list.append(el('p', { class: 'wapp__fine', text: 'Searchingâ€¦' }));
+    if (p.loading) list.append(el('p', { class: 'wapp__fine', text: 'Searching…' }));
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
     for (const t of items.slice(0, 20)) list.append(row(t));
     wantLogos(s.chain, items.slice(0, 20));
@@ -1083,7 +1083,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function evmConnect(): HTMLElement {
     const box = el('div', { class: 'wapp__stack' });
     if (evm.account) {
-      box.append(el('span', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} Â· ${short(evm.account)}` }));
+      box.append(el('span', { class: 'wapp__fine', text: `${evm.walletName ?? 'EVM wallet'} · ${short(evm.account)}` }));
       return box;
     }
     if (evm.locked && evm.adapter) {
@@ -1123,7 +1123,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const b = el('button', { class: 'wapp__btn wapp__btn--primary', text, attrs: { type: 'button' } });
       b.addEventListener('click', () => {
         b.disabled = true;
-        b.textContent = 'Lookingâ€¦';
+        b.textContent = 'Looking…';
         look();
       });
       return b;
@@ -1134,7 +1134,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         evmAutoFound = true;
         look();
       }
-      box.append(el('p', { class: 'wapp__fine', text: 'Looking for your walletâ€¦' }), lookButton('Find wallets'));
+      box.append(el('p', { class: 'wapp__fine', text: 'Looking for your wallet…' }), lookButton('Find wallets'));
     } else if (s.walletChoices.length === 0 && !isProjectId(WC_PROJECT_ID)) {
       box.append(banner('warn', 'No Ethereum-style wallet was found in this browser. If MetaMask is installed, make sure it is enabled for this site and unlocked, then look again.'), lookButton('Look again'));
     }
@@ -1327,7 +1327,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     card.append(flip);
     // The amount to receive fills in by itself as soon as a price is read.
     const reading = s.phase === 'quoting' && rawAmount() !== null;
-    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? shortAmount(fromSmallestUnit(s.quote.expectedOut, s.to.decimals)) : reading ? 'â€¦' : '0.0';
+    const estimate = s.quote && s.to && s.phase !== 'idle' && s.phase !== 'quoting' ? shortAmount(fromSmallestUnit(s.quote.expectedOut, s.to.decimals)) : reading ? '…' : '0.0';
     card.append(
       el('div', { class: 'wapp__swap-box' }, [
         el('div', { class: 'wapp__row' }, [el('span', { class: 'wapp__eyebrow', text: 'You receive' }), tokenNote('to')]),
@@ -1442,7 +1442,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let side: OrderSide = s.to ? 'buy' : 'sell';
     if (picked) {
       const key = watchKey(s.chain, picked.mint);
-      const now = el('p', { class: 'wapp__fine', text: `${picked.symbol} now: ${orderPrices[key] != null ? formatPrice(orderPrices[key] ?? null) : 'readingâ€¦'}` });
+      const now = el('p', { class: 'wapp__fine', text: `${picked.symbol} now: ${orderPrices[key] != null ? formatPrice(orderPrices[key] ?? null) : 'reading…'}` });
       const sideSel = el('select', { class: 'wapp-po__side', attrs: { 'aria-label': 'Buy or sell' } }, [el('option', { text: 'Buy when the price falls to', attrs: { value: 'buy' } }), el('option', { text: 'Sell when the price rises to', attrs: { value: 'sell' } })]);
       sideSel.value = side;
       sideSel.addEventListener('change', () => { side = sideSel.value === 'sell' ? 'sell' : 'buy'; });
@@ -1474,7 +1474,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const del = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Remove', attrs: { type: 'button', 'aria-label': `Remove the ${o.symbol} price order` } });
         del.addEventListener('click', () => { orders.remove(o.id); pushOrders(); render(); swapPanel.querySelector<HTMLDetailsElement>('.wapp-po')?.setAttribute('open', ''); });
         const state = o.hitAt === null ? 'watching' : `reached at ${formatPrice(o.hitPrice)}`;
-        list.append(el('li', {}, [el('span', { text: `${o.symbol}: ${o.side === 'buy' ? 'buy at or below' : 'sell at or above'} ${formatPrice(o.targetUsd)} Â· ${state}` }), del]));
+        list.append(el('li', {}, [el('span', { text: `${o.symbol}: ${o.side === 'buy' ? 'buy at or below' : 'sell at or above'} ${formatPrice(o.targetUsd)} · ${state}` }), del]));
       }
       box.append(list);
     }
@@ -1504,7 +1504,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     rows.push(['Slippage allowed', `${(q.request.slippageBps / 100).toFixed(2)}%`]);
     rows.push(['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}, shown by your wallet`]);
     rows.push(['Aretia fee', sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT})` : 'None']);
-    rows.push(['Route', `${providerLabel(q.providerId)}${sum.swap.route.length > 0 ? ` Â· ${sum.swap.route.join(' + ')}` : ''}`]);
+    rows.push(['Route', `${providerLabel(q.providerId)}${sum.swap.route.length > 0 ? ` · ${sum.swap.route.join(' + ')}` : ''}`]);
     const ex = s.execution;
     const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck();
     return {
@@ -1587,12 +1587,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       );
       return;
     }
-    if (s.phase === 'signing') return void actions.append(btn('Confirm in your walletâ€¦', () => undefined, true));
-    if (s.phase === 'tracking') return void actions.append(btn('Waiting for the networkâ€¦', () => undefined, true));
+    if (s.phase === 'signing') return void actions.append(btn('Confirm in your wallet…', () => undefined, true));
+    if (s.phase === 'tracking') return void actions.append(btn('Waiting for the network…', () => undefined, true));
     if (s.phase === 'quoted' && s.error) return void actions.append(btn('Try again', () => void getQuote()));
     if (s.phase === 'idle' && s.error && amountIn !== null && s.from && s.to) return void actions.append(btn('Try again', () => void getQuote()));
     if (s.phase === 'idle' || s.phase === 'quoting' || s.phase === 'preparing') {
-      const label = !s.from || !s.to ? 'Choose the tokens' : amountIn === null ? (s.amount.trim() ? 'Enter a valid amount' : 'Enter an amount') : problem ? problem : 'Getting the best priceâ€¦';
+      const label = !s.from || !s.to ? 'Choose the tokens' : amountIn === null ? (s.amount.trim() ? 'Enter a valid amount' : 'Enter an amount') : problem ? problem : 'Getting the best price…';
       actions.append(btn(label, () => undefined, true));
       return;
     }
@@ -1993,13 +1993,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const where = m.chain === '' ? 'all networks' : (CHAIN_SHORT[m.chain] ?? m.chain);
       const cell = (label: string, value: string, title: string): HTMLElement => el('div', { class: 'wapp-mt__stat', attrs: { title } }, [el('span', { class: 'wapp__fine', text: label }), el('strong', { text: value })]);
       const scope = `across the ${s?.pools ?? 0} pools Aretia's index has a stored trade for on ${where}. It counts the pools the index follows, not the whole market.${s && s.excludedPools > 0 ? ` Left out: ${s.excludedPools} pool${s.excludedPools === 1 ? '' : 's'} claiming ${compactUsd(s.excludedVolume24hUsd)} of volume, because a pool trading more than 100 times its own liquidity in a day is wash trading or a broken price.` : ''}${s && s.cappedPools > 0 ? ` ${s.cappedPools} busy pool${s.cappedPools === 1 ? '' : 's'} traded more than 5,000 times, and only the newest 5,000 are counted, so these figures are a floor.` : ''}`;
-      host.append(cell('24H VOLUME', s ? compactUsd(s.volume24hUsd) : 'â€“', `Money traded in the last 24 hours ${scope}`));
-      host.append(cell('24H TXNS', s ? `${s.txns24h.toLocaleString('en-US')}${s.cappedPools > 0 ? '+' : ''}` : 'â€“', `Buys plus sells in the last 24 hours ${scope}`));
+      host.append(cell('24H VOLUME', s ? compactUsd(s.volume24hUsd) : '–', `Money traded in the last 24 hours ${scope}`));
+      host.append(cell('24H TXNS', s ? `${s.txns24h.toLocaleString('en-US')}${s.cappedPools > 0 ? '+' : ''}` : '–', `Buys plus sells in the last 24 hours ${scope}`));
       const now = Date.now();
       const first = blocks[0];
-      const value = blocks.length === 0 ? 'â€“' : m.chain === '' ? blocks.slice(0, 6).map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')}`).join(' Â· ') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();
+      const value = blocks.length === 0 ? '–' : m.chain === '' ? blocks.slice(0, 6).map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')}`).join(' · ') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();
       const title = blocks.length === 0 ? 'The index has not seen a block on this network yet.' : `The newest block (Solana: slot) Aretia's index has seen: ${blocks.map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')} ${agoText(b.seenAt, now)}`.trim()).join('; ')}.`;
-      host.append(cell('LATEST BLOCK', first ? value : 'â€“', title));
+      host.append(cell('LATEST BLOCK', first ? value : '–', title));
     }
     async function loadStats(): Promise<void> {
       const got = await fetchMarketStats();
@@ -2041,7 +2041,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const on = favourites.toggle(fav);
       if (on) {
         alerts.startWatching(r.chain, r.address, r.priceUsd);
-        toaster.show({ title: `${r.symbol} added to Favourites`, detail: `${formatPrice(r.priceUsd)} Â· 24H ${formatChange(r.change.h24)} Â· alerts at Â±${alerts.pct()}%`, tone: 'info', icon: r.icon });
+        toaster.show({ title: `${r.symbol} added to Favourites`, detail: `${formatPrice(r.priceUsd)} · 24H ${formatChange(r.change.h24)} · alerts at ±${alerts.pct()}%`, tone: 'info', icon: r.icon });
       } else alerts.stopWatching(r.chain, r.address);
       const session = sessionNow();
       if (session) void account.setFavourite(session, fav, on).catch(() => undefined);
@@ -2116,11 +2116,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', 'â˜… Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool'], ['liquidity', 'By liquidity', 'Largest pools first, including pools with no trade yet']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool'], ['liquidity', 'By liquidity', 'Largest pools first, including pools with no trade yet']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {
-          // The â˜… list has its own sidebar page, and the other lists live on Markets, so the title and the marked sidebar entry follow the choice.
+          // The ★ list has its own sidebar page, and the other lists live on Markets, so the title and the marked sidebar entry follow the choice.
           if (k === 'favourites' && !favPage && isMarketsHash(hashNow())) {
             location.hash = '#/favourites';
             return;
@@ -2158,7 +2158,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       // The network is chosen from the rail beside the sidebar (the Aretia mark is every network), so there is no network menu here.
       if (m.kind === 'favourites') {
-        bar.append(select('Price alerts', String(alerts.pct()), PCT_CHOICES.map((p): [string, string] => [String(p), `Alert at Â±${p}%`]), (v) => {
+        bar.append(select('Price alerts', String(alerts.pct()), PCT_CHOICES.map((p): [string, string] => [String(p), `Alert at ±${p}%`]), (v) => {
           alerts.setPct(Number(v));
           draw();
         }));
@@ -2197,15 +2197,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));
-      if (fromIndex && rows !== null && !error) card.append(banner('info', 'The outside market service is busy, so this list is read from Aretiaâ€™s own market index. It is shorter, and Aretia will switch back by itself.'));
+      if (fromIndex && rows !== null && !error) card.append(banner('info', 'The outside market service is busy, so this list is read from Aretia’s own market index. It is shorter, and Aretia will switch back by itself.'));
       if (error) {
         card.append(banner('warn', error));
         const again = el('button', { class: 'wapp__chip wapp__chip--btn', text: 'Try again', attrs: { type: 'button' } });
         again.addEventListener('click', () => void load());
         card.append(again);
       }
-      else if (rows === null || (loading && rows === null)) card.append(loadingBlock('Loading the listâ€¦'));
-      else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the â˜† beside any token to keep it here.' }));
+      else if (rows === null || (loading && rows === null)) card.append(loadingBlock('Loading the list…'));
+      else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
         card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));
         const any = el('button', { class: 'wapp__chip wapp__chip--btn', text: 'Show any age', attrs: { type: 'button' } });
@@ -2229,7 +2229,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const byChain = new Map<ChainId, string[]>();
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);
         if (byChain.size > 0) void Promise.all([...byChain].map(([c, a]) => ensureLogos(c, a))).then((r) => { if (r.some(Boolean)) draw(); });
-        main.append(el('p', { class: 'wapp__fine' }, [promoteButton('Promote your token'), document.createTextNode(' Â· Featured places and the Verified by Aretia badge are by request, and neither is a rating or an endorsement.')]));
+        main.append(el('p', { class: 'wapp__fine' }, [promoteButton('Promote your token'), document.createTextNode(' · Featured places and the Verified by Aretia badge are by request, and neither is a rating or an endorsement.')]));
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);
@@ -2249,14 +2249,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     function favouriteAlerts(): HTMLElement {
       const box = el('div', { class: 'wapp-alerts' });
       box.append(alertsCard({ account, session: sessionNow, signIn: signInNow, canSign: () => signerNow() !== null }));
-      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved Â±${alerts.pct()}% from where it was when you starred it or last alerted. With "Alerts on your phone" above turned on, Aretia also checks for you when the page is closed.` }));
+      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved ±${alerts.pct()}% from where it was when you starred it or last alerted. With "Alerts on your phone" above turned on, Aretia also checks for you when the page is closed.` }));
       const log = alerts.log();
       if (log.length > 0) {
         box.append(el('span', { class: 'wapp__eyebrow', text: 'Recent alerts' }));
         const list = el('ul', { class: 'wapp-alerts__list' });
         for (const a of log.slice(0, 8)) {
           const up = a.movePct > 0;
-          list.append(el('li', { class: up ? 'is-up' : 'is-down', text: `${a.symbol} ${up ? 'â–² +' : 'â–¼ '}${a.movePct.toFixed(1)}% to ${formatPrice(a.price)} Â· ${formatAge(Date.now() - a.at)} ago` }));
+          list.append(el('li', { class: up ? 'is-up' : 'is-down', text: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}% to ${formatPrice(a.price)} · ${formatAge(Date.now() - a.at)} ago` }));
         }
         box.append(list);
       }
@@ -2277,9 +2277,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         return b;
       };
       const nav = el('div', { class: 'wapp-mt__pager', attrs: { role: 'navigation', 'aria-label': 'Pages' } });
-      nav.append(button('â†', 'Previous page', info.page - 1, info.page <= 1));
-      for (const n of pageButtons(info.page, info.pages)) nav.append(n === null ? el('span', { class: 'wapp__fine', text: 'â€¦' }) : button(String(n), `Page ${n}`, n, false, n === info.page));
-      nav.append(button('â†’', 'Next page', info.page + 1, info.page >= info.pages));
+      nav.append(button('←', 'Previous page', info.page - 1, info.page <= 1));
+      for (const n of pageButtons(info.page, info.pages)) nav.append(n === null ? el('span', { class: 'wapp__fine', text: '…' }) : button(String(n), `Page ${n}`, n, false, n === info.page));
+      nav.append(button('→', 'Next page', info.page + 1, info.page >= info.pages));
       const jump = el('input', { class: 'wapp__input wapp-mt__pageno', attrs: { inputmode: 'numeric', 'aria-label': 'Go to page', placeholder: 'Page', value: '' } });
       jump.addEventListener('change', () => {
         if (jump.value.trim() !== '') go(Number(jump.value));
@@ -2315,11 +2315,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       input.value = String(pageNo);
       input.addEventListener('change', () => go(Number(input.value) || 1));
       return el('div', { class: 'wapp-mt__pager', attrs: { role: 'navigation', 'aria-label': 'Pages' } }, [
-        arrow('â†', 'Previous page', pageNo - 1, pageNo <= 1 || loading),
+        arrow('←', 'Previous page', pageNo - 1, pageNo <= 1 || loading),
         el('span', { class: 'wapp__fine', text: 'Page' }),
         input,
         el('span', { class: 'wapp__fine', text: `of ${pages}` }),
-        arrow('â†’', 'Next page', pageNo + 1, pageNo >= pages || loading),
+        arrow('→', 'Next page', pageNo + 1, pageNo >= pages || loading),
       ]);
     }
 
@@ -2446,11 +2446,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // The token itself is a button: it opens that token's details and chart on Markets.
         const heading = el('strong', { text: `${verb} ${s.token.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })} ` });
         heading.append(tokenLink(i, s.token.symbol, s.kind === 'bought' ? i.toAddress : i.fromAddress));
-        row.append(el('div', {}, [heading, el('span', { text: `${price} each Â· ${money} Â· ${CHAINS[i.chain].name} Â· ${i.provider} Â· ${new Date(i.at).toLocaleString()}` })]));
+        row.append(el('div', {}, [heading, el('span', { text: `${price} each · ${money} · ${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()}` })]));
       } else {
-        const heading = el('strong', { text: `${i.amountIn} ${i.fromSymbol} â†’ ` });
+        const heading = el('strong', { text: `${i.amountIn} ${i.fromSymbol} → ` });
         heading.append(tokenLink(i, i.toSymbol, i.toAddress));
-        row.append(el('div', {}, [heading, el('span', { text: `${CHAINS[i.chain].name} Â· ${i.provider} Â· ${new Date(i.at).toLocaleString()} Â· expected ${i.expectedOut} ${i.toSymbol}` })]));
+        row.append(el('div', {}, [heading, el('span', { text: `${CHAINS[i.chain].name} · ${i.provider} · ${new Date(i.at).toLocaleString()} · expected ${i.expectedOut} ${i.toSymbol}` })]));
       }
       const right = el('div', { class: 'wapp__row-actions' });
       right.append(el('span', { class: `wapp__state wapp__state--${i.status === 'confirmed' ? 'on' : i.status === 'failed' ? 'warn' : 'off'}`, text: i.status }));
@@ -2676,7 +2676,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const same = (a: string): boolean => (chain === 'solana' ? a === address : a.toLowerCase() === address);
     let hit: SearchHit | undefined = (await searchEverywhere(address, undefined, undefined, { accept: (h) => h.chain === chain && same(h.address), limit: 1 }).catch(() => []))[0];
     hit ??= (await lookupAddress(address)).find((h) => h.chain === chain);
-    const fallback = `${address.slice(0, 4)}â€¦${address.slice(-4)}`;
+    const fallback = `${address.slice(0, 4)}…${address.slice(-4)}`;
     const detail: SearchHit = hit ?? { chain, address, symbol: fallback, name: '', icon: null, decimals: null, liquidityUsd: null, priceUsd: null, fresh: false, risk: null };
     window.dispatchEvent(new CustomEvent(OPEN_TOKEN_EVENT, { detail }));
   }
@@ -2687,7 +2687,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const same = (a: string): boolean => (chain === 'solana' ? a === address : a.toLowerCase() === address);
     let hit: SearchHit | undefined = (await searchEverywhere(address, undefined, undefined, { accept: (h) => h.chain === chain && same(h.address), limit: 1 }).catch(() => []))[0];
     hit ??= (await lookupAddress(address)).find((h) => h.chain === chain);
-    const fallback = `${address.slice(0, 4)}â€¦${address.slice(-4)}`;
+    const fallback = `${address.slice(0, 4)}…${address.slice(-4)}`;
     await markets.showToken({ chain, address, symbol: hit?.symbol ?? fallback, name: hit?.name ?? '', icon: hit?.icon ?? null });
   }
 

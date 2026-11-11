@@ -11,3 +11,22 @@ describe('the full token page on a wide screen', () => {
     expect(page).toContain("[data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 56px minmax(0, 1fr) 360px; }");
   });
 });
+
+describe('the token page header', () => {
+  const code = readFileSync(new URL('./walletTokenPage.ts', import.meta.url), 'utf8');
+  it('carries the numbers in the top row and has no hide-panel control', () => {
+    expect(code).toContain('data-tp-stats');
+    for (const label of ['Liquidity', 'FDV', 'Market cap', 'Txns 24H', 'Buys', 'Sells']) expect(code).toContain(`stat('${label}'`);
+    expect(code).not.toContain('Hide panel');
+    expect(code).not.toContain('is-collapsed');
+  });
+});
+
+describe('the token list window', () => {
+  const code = readFileSync(new URL('./walletSwings.ts', import.meta.url), 'utf8');
+  it('is not styled as the old drop-down, which pinned it to the corner of the page', () => {
+    expect(code).toContain("class: 'wapp-pk__card'");
+    expect(code).not.toContain('wapp-pk__card wapp__pick-pop');
+  });
+});
+

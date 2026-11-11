@@ -61,8 +61,6 @@ function nativePrice(d: PairDetail): string {
   return d.priceNative === null ? '–' : `${formatPrice(d.priceNative).replace('$', '')} ${d.quoteSymbol}`;
 }
 
-const PANEL_KEY = 'aretia-token-panel';
-
 export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   const root = el('section', 'wapp-tp');
   let seq = 0;
@@ -96,35 +94,15 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     const title = el('div', 'wapp-tp__title');
     const headline = el('div', 'wapp-tp__headline');
     headline.dataset.tpHeadline = '';
-    const toggle = el('button', 'wapp__btn wapp-tp__toggle');
-    toggle.type = 'button';
-    bar.append(back, title, headline, toggle);
+    // The numbers that matter (prices, liquidity, value, trades) sit in this row, beside the name and price.
+    const stats = el('div', 'wapp-tp__stats');
+    stats.dataset.tpStats = '';
+    bar.append(back, title, headline, stats);
     const grid = el('div', 'wapp-tp__grid');
     const chart = el('div', 'wapp-tp__chart');
     const side = el('aside', 'wapp-tp__side');
     side.id = 'wapp-tp-side';
-    const edge = el('button', 'wapp-tp__edge');
-    edge.type = 'button';
-    grid.append(chart, side, edge);
-    // The trade panel can be tucked away to give the chart the whole width.
-    const setPanel = (open: boolean, remember = true): void => {
-      grid.classList.toggle('is-collapsed', !open);
-      side.inert = !open;
-      for (const b of [toggle, edge]) b.setAttribute('aria-expanded', String(open));
-      toggle.replaceChildren(el('span', 'wapp-tp__toggle-ico', open ? '›' : '‹'), document.createTextNode(open ? 'Hide panel' : 'Show panel'));
-      edge.textContent = open ? '›' : '‹';
-      edge.setAttribute('aria-label', open ? 'Hide the trade panel' : 'Show the trade panel');
-      if (remember) try { localStorage.setItem(PANEL_KEY, open ? 'open' : 'closed'); } catch { /* storage unavailable */ }
-      // The chart is sized by its container: let it re-measure once the panel has moved.
-      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
-    };
-    for (const b of [toggle, edge]) {
-      b.setAttribute('aria-controls', 'wapp-tp-side');
-      b.addEventListener('click', () => setPanel(grid.classList.contains('is-collapsed')));
-    }
-    let startOpen = true;
-    try { startOpen = localStorage.getItem(PANEL_KEY) !== 'closed'; } catch { /* storage unavailable */ }
-    setPanel(startOpen, false);
+    grid.append(chart, side);
     root.append(bar, grid);
     title.append(picture(o.symbol, o.icon ?? cachedLogo(o.chain, o.address)), el('strong', 'wapp-tp__name', o.symbol), el('span', 'wapp-tp__net', `${o.name ? `${o.name} · ` : ''}${CHAINS[o.chain].name}`));
     chart.append(el('p', 'wapp__fine', 'Finding the main pool for this token…'));
@@ -172,10 +150,6 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     if (problem || !d) {
       side.append(el('p', 'wapp__fine', problem ?? 'No numbers were found for this pool.'));
     } else {
-      const prices = el('div', 'wapp-tp__duo');
-      prices.append(stat('Price USD', formatPrice(d.priceUsd)), stat(`Price ${d.quoteSymbol}`, nativePrice(d)));
-      const money = el('div', 'wapp-tp__trio');
-      money.append(stat('Liquidity', compactUsd(d.liquidityUsd)), stat('FDV', compactUsd(d.fdvUsd)), stat('Market cap', compactUsd(d.marketCapUsd)));
       const changes = el('div', 'wapp-tp__quad');
       for (const w of WINDOWS) {
         const n = d.change[w];
@@ -187,19 +161,21 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       const buys = sum(d.buys);
       const sells = sum(d.sells);
       const txns = buys === null || sells === null ? null : buys + sells;
-      const flow = el('div', 'wapp-tp__trio');
-      flow.append(stat('Txns 24H', compactCount(txns)), stat('Buys', compactCount(buys)), stat('Sells', compactCount(sells)));
-      if (buys !== null && sells !== null && buys + sells > 0) {
-        const meter = el('div', 'wapp-tp__meter');
-        const bar = el('span', 'wapp-tp__meter-buy');
-        bar.style.width = `${Math.round((buys / (buys + sells)) * 100)}%`;
-        meter.append(bar);
-        meter.title = 'Share of the 24-hour trades that were buys (green) and sells (red)';
-        flow.append(meter);
+      const stats = root.querySelector<HTMLElement>('[data-tp-stats]');
+      if (stats) {
+        stats.replaceChildren(stat(`Price ${d.quoteSymbol}`, nativePrice(d)), stat('Liquidity', compactUsd(d.liquidityUsd)), stat('FDV', compactUsd(d.fdvUsd)), stat('Market cap', compactUsd(d.marketCapUsd)), stat('Txns 24H', compactCount(txns)), stat('Buys', compactCount(buys)), stat('Sells', compactCount(sells)));
+        if (buys !== null && sells !== null && buys + sells > 0) {
+          const meter = el('div', 'wapp-tp__meter');
+          const share = el('span', 'wapp-tp__meter-buy');
+          share.style.width = `${Math.round((buys / (buys + sells)) * 100)}%`;
+          meter.append(share);
+          meter.title = 'Share of the 24-hour trades that were buys (green) and sells (red)';
+          stats.append(meter);
+        }
       }
       const vol = el('div', 'wapp-tp__duo');
       vol.append(stat('Volume 24H', compactUsd(d.volumeUsd.h24)), stat('Pool age', formatAge(d.ageMs)));
-      side.append(prices, money, changes, flow, vol);
+      side.append(changes, vol);
       if (d.links.length > 0) {
         const links = el('div', 'wapp-tp__links');
         for (const l of d.links) {

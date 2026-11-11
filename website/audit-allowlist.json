@@ -30,6 +30,11 @@
       "id": "GHSA-mrhx-c7xc-m3w5",
       "package": "zod (via @walletconnect/ethereum-provider, @reown/appkit, @coinbase/cdp-sdk)",
       "reason": "Published after the first audit run (it appeared on the day of the remediation review). Memory exhaustion when zod validates a very large constrained collection; zod here validates messages inside the WalletConnect and Coinbase wallet SDKs, whose input comes from the user's own paired wallet, so the effect is a stalled tab, not loss of funds. The only fix npm offers is a major downgrade of the WalletConnect provider. Accepted 2026-10-23 pending a WalletConnect release that updates zod."
+    },
+    {
+      "id": "GHSA-h895-cgqg-jf52",
+      "package": "toml (via @coral-xyz/anchor, via @meteora-ag/cp-amm-sdk)",
+      "reason": "Same dependency path as GHSA-82x6-q7mm-w9cf: prototype pollution needs attacker-controlled TOML text, and the site parses none. Accepted 2026-11-11 at the owner's request."
     }
   ]
 }

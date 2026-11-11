@@ -43,7 +43,7 @@ import { resolveRowPool } from '../swings/market/resolvePool.js';
 import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { isDeadMarket } from '../swings/market/dead.js';
-import { modeNote, modeRows } from '../swings/market/marketModes.js';
+import { modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexPage, loadPageSize, savePageSize, PAGE_SIZE_CHOICES, pageButtons, showingText, serverSort, indexCovers, type IndexPage, type IndexSort, type IndexWindow } from '../swings/market/pagedList.js';
 import { fetchIndexedPages, fetchNativeList, mergeIndexRows, rankIndexRows, trackMarket } from '../swings/mi/clientRows.js';
@@ -56,7 +56,6 @@ import { AccountClient, type Session, type Signer } from '../swings/account/clie
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
 import { BULLISH_TEXT, isBullish } from '../swings/market/bullish.js';
-import { fetchGainersStrip } from '../swings/market/gainersStrip.js';
 import { agoText, blocksFor, CHAIN_SHORT, fetchMarketStats, statsFor, type MarketStatsDto } from '../swings/market/marketStats.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
 import { createToaster } from './walletToast.js';
@@ -1754,7 +1753,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
       clearTimeout(retryTimer);
-      if (!silent) void loadStrip();
       if (m.kind === 'new' || m.kind === 'favourites') staleAt = null;
       if (!silent) {
         failures = 0;
@@ -1914,8 +1912,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     }
 
     /** The rows that pass the filters. Rows Aretia has not rated count as "not enough data", so they are never hidden as risky. */
-    /** How many of the tokens listed clear the open tab's bar (the first that many rows). */
-    let modeCount = 0;
     /** How many rows only the minimum liquidity keeps off the list (the rest of the filters let them through). */
     let lowHidden = 0;
     function visible(): MarketRow[] {
@@ -1941,7 +1937,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // Trending, Top and Gainers put what clears their bar in the chosen window first, best first; the rest follow.
       if (isRanked(m.kind)) {
         const ranked = modeRows(m.kind, m.window, strict);
-        modeCount = ranked.count;
         return ranked.rows;
       }
       return strict;
@@ -1988,32 +1983,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
         if (!document.hidden) void loadStats();
       }, 20_000);
-    }
-
-    /** The five biggest 24-hour price rises on the chosen network, above every list but Gainers itself (which is that list). */
-    let stripRows: MarketRow[] = [];
-    let stripHost: HTMLElement | null = null;
-    let stripSeq = 0;
-    function renderStrip(): void {
-      const host = stripHost;
-      if (!host) return;
-      host.replaceChildren();
-      host.hidden = m.kind === 'gainers' || m.kind === 'favourites' || stripRows.length === 0;
-      if (host.hidden) return;
-      host.append(el('span', { class: 'wapp__fine', text: 'Top gainers · 24H' }));
-      for (const r of stripRows) {
-        const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${r.symbol} ${formatChange(r.change.h24)}`, attrs: { type: 'button', title: `${r.name || r.symbol}: ${formatChange(r.change.h24)} in 24 hours, ${compactUsd(r.liquidityUsd)} of liquidity` } });
-        b.addEventListener('click', () => userPick(r));
-        host.append(b);
-      }
-      host.append(el('span', { class: 'wapp__fine', text: 'Biggest rises among tokens with $1K+ of liquidity and 5+ trades, from Aretia’s own market index. Not a recommendation.' }));
-    }
-    async function loadStrip(): Promise<void> {
-      const mine = ++stripSeq;
-      const got = await fetchGainersStrip(m.chain);
-      if (mine !== stripSeq) return;
-      stripRows = got;
-      renderStrip();
     }
 
     function select(label: string, value: string, options: [string, string][], onChange: (v: string) => void): HTMLElement {
@@ -2174,9 +2143,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         bar.append(el('label', { class: 'wapp-mt__check wapp__fine', attrs: { for: 'bullish-mk', title: BULLISH_TEXT } }, [bull, el('span', { text: 'Bullish only' })]));
       }
       card.append(bar);
-      stripHost = el('div', { class: 'wapp-mt__strip' });
-      renderStrip();
-      card.append(stripHost);
       const shownRows = visible();
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
         const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
@@ -2191,8 +2157,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         card.append(note);
       }
       if (rows !== null && f.bullish && !ix && m.kind !== 'favourites') card.append(el('p', { class: 'wapp__fine', text: BULLISH_TEXT }));
-      if (rows !== null && ix) card.append(el('p', { class: 'wapp__fine', text: `${ix.note} Read from Aretia’s own market index.` }));
-      else if (rows !== null && isRanked(m.kind)) card.append(el('p', { class: 'wapp__fine', text: modeNote(m.kind, m.window, modeCount, shownRows.length) }));
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));

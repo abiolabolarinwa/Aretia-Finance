@@ -60,7 +60,24 @@ export async function readTotalSupplies(read: Read, tokens: readonly string[]): 
   return res.map((r) => (r.success ? wordAt(r.data, 0) : null));
 }
 
+/** A node refusing a call because its answer would be too long ("result of length 100864 exceeding limit 100000", "response size exceeded"). */
+const tooLarge = (e: unknown): boolean => e instanceof Error && /exceed|too large|too big|response size|result size/i.test(e.message);
+
+/**
+ * Reads the reserves of many pools in one multicall. Some nodes cap the answer of one call (Polygon's at 100,000 bytes, which 150 V3
+ * pools just pass), so a batch they refuse as too large is split in halves and read again, down to one pool.
+ */
 export async function readReservesBatch(read: Read, queries: readonly ReserveQuery[]): Promise<Reserves[]> {
+  try {
+    return await readReservesOnce(read, queries);
+  } catch (e) {
+    if (queries.length < 2 || !tooLarge(e)) throw e;
+    const mid = Math.ceil(queries.length / 2);
+    return [...(await readReservesBatch(read, queries.slice(0, mid))), ...(await readReservesBatch(read, queries.slice(mid)))];
+  }
+}
+
+async function readReservesOnce(read: Read, queries: readonly ReserveQuery[]): Promise<Reserves[]> {
   if (queries.length === 0) return [];
   const calls: { target: string; data: string }[] = [];
   for (const q of queries) {

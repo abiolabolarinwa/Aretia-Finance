@@ -82,6 +82,41 @@ describe('readReservesBatch for a V3 pool', () => {
   });
 });
 
+describe('readReservesBatch against a node that caps the size of an answer', () => {
+  const w = (n: bigint): string => n.toString(16).padStart(64, '0');
+  const item = (data: string): string => w(1n) + w(0x40n) + w(BigInt(data.length / 2)) + data;
+  const answer = (items: string[]): string => {
+    let off = 32 * items.length;
+    const offs = items.map((b) => {
+      const o = off;
+      off += b.length / 2;
+      return w(BigInt(o));
+    });
+    return '0x' + w(0x20n) + w(BigInt(items.length)) + offs.join('') + items.join('');
+  };
+  const queries = Array.from({ length: 5 }, (_, i) => ({ kind: 'v3' as const, pool: hex(10 + i), base: hex(20 + i), quote: hex(30 + i), baseIsToken0: true }));
+  /** Answers pools in groups of at most `cap`, and refuses a longer group the way Polygon's node does. */
+  const capped = (cap: number, seen: number[]) => async (_m: string, params: unknown[]): Promise<string> => {
+    const data = (params[0] as { data: string }).data;
+    const pools = Number(BigInt('0x' + data.slice(2 + 8 + 64, 2 + 8 + 128))) / 3;
+    seen.push(pools);
+    if (pools > cap) throw new Error('node-error: call returned result of length 100864 exceeding limit 100000');
+    return answer(Array.from({ length: pools }, () => [item(w(5n)), item(w(7n)), item(w(2n * Q96))]).flat());
+  };
+  it('splits a batch the node calls too large, and still answers every pool in order', async () => {
+    const seen: number[] = [];
+    const res = await readReservesBatch(capped(2, seen) as never, queries);
+    expect(res).toHaveLength(5);
+    for (const r of res) expect(r).toMatchObject({ base: 5n, quote: 7n });
+    expect(seen[0]).toBe(5); // tried whole first
+    expect(Math.max(...seen.slice(1))).toBeLessThanOrEqual(3);
+  });
+  it('does not split for any other failure, nor a single pool that is too large', async () => {
+    await expect(readReservesBatch((async () => { throw new Error('rate-limited'); }) as never, queries)).rejects.toThrow('rate-limited');
+    await expect(readReservesBatch(capped(0, []) as never, queries.slice(0, 1))).rejects.toThrow('exceeding limit');
+  });
+});
+
 describe('the Markets row for a pool without trades', () => {
   const rec = (over: Partial<PoolRecord>): PoolRecord => ({
     key: `bnb:${hex(1001)}`,

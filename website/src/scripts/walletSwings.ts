@@ -24,8 +24,7 @@ const hashNow = (): string => routeHash(location.pathname, location.hash);
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
-import { checkLock, LOCK_MIN_PCT, padlockShown } from '../swings/market/lock.js';
-import { LOCK_ICON, lockTitle } from './walletIcons.js';
+import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
@@ -38,15 +37,12 @@ import { ago, listKey, readList, retryDelayMs, saveList } from './walletListCach
 import { revokeTx } from '../swings/shield/approvals.js';
 import { summariseSwap } from '../swings/account/trades.js';
 import { FEE_PERCENT } from '../swings/core/fee.js';
-import { embedUrl, GECKO_NETWORK, GeckoPoolFinder } from '../swings/charts/pool.js';
-import { resolveRowPool } from '../swings/market/resolvePool.js';
-import { mountTvChart, preloadChartingLibrary, type TvChart } from './walletTvChart';
-import { mountTrades, type TradesTable } from './walletTxTable';
+import { preloadChartingLibrary } from './walletTvChart';
 import { isDeadMarket } from '../swings/market/dead.js';
 import { modeRows } from '../swings/market/marketModes.js';
 import { deepSnapshot, fetchDeepRows } from '../swings/market/deepList.js';
 import { fetchIndexPage, loadPageSize, savePageSize, PAGE_SIZE_CHOICES, pageButtons, showingText, serverSort, indexCovers, type IndexPage, type IndexSort, type IndexWindow } from '../swings/market/pagedList.js';
-import { fetchIndexedPages, fetchNativeList, mergeIndexRows, rankIndexRows, trackMarket } from '../swings/mi/clientRows.js';
+import { fetchIndexedPages, fetchNativeList, mergeIndexRows, rankIndexRows } from '../swings/mi/clientRows.js';
 import { createRatingQueue } from './walletRatings.js';
 import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.js';
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
@@ -1736,80 +1732,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       },
     });
 
-    // Picking a token (or "Full chart") opens the chart in the centre, above the list, on a wide screen. It lives in its own element that a redraw of
-    // the list leaves alone, because taking an embedded chart out of the page and putting it back reloads it.
-    const chartHost = el('section', { class: 'wapp-mt__chart', attrs: { 'aria-label': 'Price chart' } });
-    chartHost.hidden = true;
-    let chartKey = '';
-    let chartRow: MarketRow | null = null;
-    let tvChart: TvChart | null = null;
-    let tradesTable: TradesTable | null = null;
-    /** Liquidity, market cap and 24H volume of the charted pool, in the chart's header bar (a dash where unknown). The padlock shows when the liquidity is proven locked. */
-    function chartStats(r: MarketRow): HTMLElement {
-      const box = el('div', { class: 'wapp-mt__chart-stats' });
-      const item = (label: string, value: string, title: string): HTMLElement => el('span', { class: 'wapp-mt__chart-stat', attrs: { title } }, [el('small', { text: label }), el('strong', { text: value })]);
-      const liq = item('Liquidity', compactUsd(r.liquidityUsd), 'Money in the pool. A padlock means the liquidity is shown to be locked.');
-      if (padlockShown(r.lockedPct, r.risk)) {
-        const timed = r.lockInfo?.kind === 'time-locked';
-        const lock = el('span', { class: `wapp-mp__lock${timed ? ' is-timed' : ''}`, attrs: { role: 'img', 'aria-label': timed ? 'Liquidity locked in a locker' : 'Liquidity tokens burned', title: lockTitle(r.lockedPct, r.lockInfo) } });
-        lock.innerHTML = LOCK_ICON;
-        liq.querySelector('strong')?.prepend(lock);
-      }
-      box.append(liq, item('Market cap', compactUsd(r.capUsd), 'Market cap, or fully diluted value when no market cap is reported'), item('Volume 24H', compactUsd(r.volume24hUsd), 'Money traded in this pool in the last 24 hours'));
-      return box;
-    }
-    function showChart(r: MarketRow, noPool: 'looking' | 'none' | 'failed' | null = null): void {
-      chartRow = r;
-      chartHost.hidden = false;
-      // A market the index does not follow is added to it (once), so it is read from now on and joins the index's lists.
-      trackMarket(r);
-      if (!r.pool) {
-        // No pool: no chart and no trades are asked for. The token's address and Shield check stay in the panel.
-        tvChart?.dispose();
-        tradesTable?.dispose();
-        tvChart = null;
-        tradesTable = null;
-        chartKey = `${r.chain}:none:${r.address}:${noPool ?? 'looking'}`;
-        const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
-        close.addEventListener('click', hideChart);
-        const text = noPool === 'none' ? 'This token has no trading pool yet, so there is no chart. A token still on its launch curve looks like this. Its address and Aretiaâ€™s check are on the right.' : noPool === 'failed' ? 'The pool for this token could not be looked up just now. Try again in a minute.' : 'Looking for this tokenâ€™s trading poolâ€¦';
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol} Â· ${CHAINS[r.chain].name}` }), chartStats(r), close]), el('p', { class: 'wapp__fine', text }));
-        if (chartHost.parentElement !== target) target.prepend(chartHost);
-        return;
-      }
-      const key = `${r.chain}:${r.pool}`;
-      if (chartKey !== key) {
-        chartKey = key;
-        const title = el('strong', { class: 'wapp-mt__chart-title', text: `${r.symbol}${r.quoteSymbol ? ` / ${r.quoteSymbol}` : ''} Â· ${CHAINS[r.chain].name}` });
-        const close = el('button', { class: 'wapp__btn wapp__btn--ghost wapp-mt__chart-close', text: 'Close chart', attrs: { type: 'button' } });
-        close.addEventListener('click', hideChart);
-        // Aretia's own TradingView chart, drawn in the page. Taking it down on a token change stops its live polling.
-        tvChart?.dispose();
-        tradesTable?.dispose();
-        const plot = el('div', { class: 'wapp-mt__chart-frame', attrs: { role: 'img', 'aria-label': `${r.symbol} price chart` } });
-        const trades = el('div', { class: 'wapp-mt__trades' });
-        chartHost.replaceChildren(el('div', { class: 'wapp-mt__chart-head' }, [title, chartStats(r), close]), plot, trades);
-        // A market the index follows is charted from the index's own stored trades; no outside chart is shown in its place.
-        // Dollars are always offered: the index prices a WETH, WBNB or WSOL pool in dollars from its own reference trades, and the chart reads the outside sources when it cannot.
-        tvChart = mountTvChart(plot, { chain: r.chain, pool: r.pool, symbol: r.symbol, ...(r.quoteSymbol ? { quoteSymbol: r.quoteSymbol } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, ...(r.indexed ? { source: 'aretia' as const, usdAvailable: true } : { fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool: r.pool }) }), title: `${r.symbol} price chart` });
-        // The pool's recent trades, under the chart.
-        tradesTable = mountTrades(trades, { chain: r.chain, pool: r.pool, symbol: r.symbol, quoteSymbol: r.quoteSymbol, ...(r.indexed ? { source: 'aretia' as const, quoteIsDollar: r.indexed.quoteIsDollar } : {}) });
-      }
-      if (chartHost.parentElement !== target) target.prepend(chartHost);
-      chartHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-    function hideChart(): void {
-      if (parseMarketsHash(hashNow())) window.history.replaceState(window.history.state, '', '/wallet#/swings');
-      tvChart?.dispose();
-      tvChart = null;
-      tradesTable?.dispose();
-      tradesTable = null;
-      chartRow = null;
-      chartKey = '';
-      chartHost.hidden = true;
-      chartHost.replaceChildren();
-    }
-
     // Which pools have their liquidity locked (burned), worked out in the page for the rows on screen. A padlock appears as each is proven.
     const locks = createLockQueue({
       check: async (row) => {
@@ -1835,8 +1757,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       assess: assessRow,
       isFavourite: (r) => favourites.has(r.chain, r.address),
       toggleFavourite: (r) => toggleFavourite(r),
-      // Beside the docked panel the chart opens in place; on a narrow screen it still opens the full token page.
-      openChart: (r) => (panelShown() ? showChart(r) : openRow(r)),
+      openChart: (r) => openRow(r),
       swapFor: (r) => swapHandler(r),
       mountSwap: (host, r) => embedSwap(host, r, records.get(rowKey(r.chain, r.address))),
     });
@@ -1844,35 +1765,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.
     (document.querySelector<HTMLElement>('[data-wapp]') ?? target).append(panel.element);
     const panelShown = (): boolean => panel.element.isConnected && panel.element.offsetParent !== null;
-    const poolFinder = new GeckoPoolFinder();
-    let pickSeq = 0;
     /** The token the person chose goes into the address bar, so the link they copy names it and opens it again. */
     function userPick(r: MarketRow): void {
       if (!favPage && isMarketsHash(hashNow())) window.history.replaceState(window.history.state, '', walletTokenPath(r.chain, r.address));
       pick(r);
     }
 
+    /** A token picked from a list opens the whole page: its chart and trades, with the numbers and the swap beside them. */
     function pick(r: MarketRow): void {
-      if (!panelShown()) return openRow(r);
-      const mine = ++pickSeq;
-      // A token known only by its address (ticker, search, notification, link) gets its best real pool before anything asks for a chart or trades.
-      if (!r.pool) {
-        panel.show(r, 'looking');
-        if (tableEl) markSelected(tableEl, tableRowKey(r));
-        showChart(r, 'looking');
-        void resolveRowPool(r, (c, a) => poolFinder.find(c, a)).then((res) => {
-          if (mine !== pickSeq) return;
-          if (res.status === 'ready') return pick(res.row);
-          const why = res.status === 'none' ? 'none' : 'failed';
-          panel.show(r, why);
-          showChart(r, why);
-        });
-        return;
-      }
-      panel.show(r);
-      if (tableEl) markSelected(tableEl, tableRowKey(r));
-      // Picking a token opens its chart at once, in the centre above the list; a token picked after that swaps the chart to it.
-      showChart(r);
+      openRow(r);
     }
 
     /** What Aretia's own index holds for this list and network (its busiest, then its newest markets), ranked for the tab. Empty when it has nothing. */
@@ -2178,6 +2079,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         mountSwap: (host) => embedSwap(host, r, rec),
         unmountSwap: releaseSwap,
         onBack: () => {
+          // The address bar goes back to the list, so a copied link opens the list and not the token that was left.
+          if (parseMarketsHash(hashNow())) window.history.replaceState(window.history.state, '', '/wallet#/swings');
           tokenPage.close();
           page = false;
           draw();
@@ -2201,8 +2104,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
         return;
       }
-      for (const child of [...target.children]) if (child !== chartHost) child.remove();
-      if (chartRow && chartHost.parentElement !== target) target.prepend(chartHost);
+      for (const child of [...target.children]) child.remove();
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
       statsHost = el('div', { class: 'wapp-mt__stats' });
@@ -2335,10 +2237,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();
         const ordered = tsort.key ? sortRows(shownNow, tsort.key, tsort.dir) : shownNow;
-        // While a chart is open the panel describes that token and no other, even when the list has changed under it and the token is no
-        // longer in it. Without a chart, it follows the selected row, or the first one.
-        const charted = chartRow ? (rows ?? []).find((r) => r.chain === chartRow!.chain && r.pool === chartRow!.pool) ?? chartRow : null;
-        const cur = charted ?? ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
+        const cur = ordered.find((r) => tableRowKey(r) === panel.selectedKey()) ?? ordered[0];
         if (cur) {
           panel.show(cur);
           markSelected(tableEl, tableRowKey(cur));
@@ -2737,10 +2636,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         location.hash = '#/swap';
         await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
       }
+      // From Markets or Favourites a chosen token opens as the whole page, its chart with the swap beside it; on the Swap page the swap is already in place.
+      if (mode === 'markets-dialog') {
+        await markets.showToken({ chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, icon: t.icon });
+        return;
+      }
       selectChain(t.chain);
-      // From Markets or Favourites the swap opens over the list; on the Swap page it is already in place.
-      if (mode === 'markets-dialog') openSwapDialog();
-      else showTab('swap');
+      showTab('swap');
       // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
       await pick('to', { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals ?? 0, icon: t.icon, verified: null }, t.chain);
     })();

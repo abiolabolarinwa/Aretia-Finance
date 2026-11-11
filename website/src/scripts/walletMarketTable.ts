@@ -86,9 +86,14 @@ function priceCell(r: MarketRow): HTMLElement {
   return td;
 }
 
+/** A price change; grey "0.00%" with a hover note while the pool has no trade data for the window, never a coloured figure. */
 function changeCell(n: number | null): HTMLElement {
-  const td = el('td', `wapp-mt__num ${n === null ? '' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`, formatChange(n));
-  return td;
+  if (n === null) {
+    const td = el('td', 'wapp-mt__num is-pending', formatChange(0));
+    td.title = 'No trade data for this window yet. It fills in when the pool trades.';
+    return td;
+  }
+  return el('td', `wapp-mt__num ${n > 0 ? 'is-up' : n < 0 ? 'is-down' : ''}`, formatChange(n));
 }
 
 /** The liquidity figure, with a padlock when the pool's liquidity tokens are shown to be burned or locked, and the token keeps no admin power. */

@@ -972,6 +972,9 @@ const sendTips = [
     [data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 56px minmax(0, 1fr) 360px; }
     /* The list (and the chart above it) run right up to the docked panel, with no empty strip between them. */
     [data-wapp].wapp[data-view='swings'] .wapp__main { padding-right: 0; }
+    /* While a token's full page is open the panel is hidden, so its column and the strip of padding beside the list are given back to the page. */
+    [data-wapp].wapp[data-view='swings']:has(> .wapp-mp[hidden]) { grid-template-columns: var(--wapp-side) 56px minmax(0, 1fr); }
+    [data-wapp].wapp[data-view='swings']:has(> .wapp-mp[hidden]) .wapp__main { padding-right: 36px; }
     [data-wapp].wapp[data-view='swings'] :is(.wapp-mt__card, .wapp-mt__chart) { border-right: 0; border-radius: var(--radius-xl) 0 0 var(--radius-xl); box-shadow: none; }
     [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: flex; flex-direction: column; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 10px; padding: 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
   }

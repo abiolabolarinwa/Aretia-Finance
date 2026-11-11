@@ -13,6 +13,9 @@ export interface UsdContext {
   quoteUsd: number | null;
 }
 
+/** A price change beyond this (1,000,000%) is not a market move but a first trade priced from a dust amount; it is stored as unknown. */
+export const MAX_PLAUSIBLE_CHANGE_BPS = 100_000_000;
+
 /** How many of a pool's newest trades the 24-hour statistics are computed over; a pool with more is flagged `windowCapped`. */
 export const RECENT_TRADE_LIMIT = 5_000;
 
@@ -53,7 +56,8 @@ export function computeStats(pool: Pick<MiPool, 'quoteDecimals'>, trades: readon
     for (const t of all) if (t.time <= start) ref = t;
     if (!ref) ref = all[0] ?? null;
     // A single trade gives no change to speak of.
-    change[w] = ref && ref.id !== last.id ? changeBps(ref.price, price) : null;
+    const bps = ref && ref.id !== last.id ? changeBps(ref.price, price) : null;
+    change[w] = bps !== null && Math.abs(bps) > MAX_PLAUSIBLE_CHANGE_BPS ? null : bps;
   }
   const total24 = vol.h24;
   const toQ = (v: bigint): number => unitsToNumber(v, pool.quoteDecimals);

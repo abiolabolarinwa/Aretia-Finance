@@ -1,6 +1,6 @@
 /**
  * The public token page (/token#/<chain>/<address>): its address scheme and the pure parts of what it shows.
- * Nothing here touches the network or the page, so every line is testable. The page itself is walletTokenPublic.ts.
+ * Nothing here touches the network or the page, so every line is testable.
  *
  * Honesty rule: a fact is either read from a chain (and said so) or marked as not read. Nothing is guessed.
  */

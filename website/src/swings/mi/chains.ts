@@ -64,7 +64,7 @@ const quotesOf = (chain: EvmMiChain): QuoteToken[] => [
 
 /** Reorg-safety depth per chain. Conservative; an operator can raise it with MI_CONFIRMATIONS_<CHAIN>. */
 const CONFIRMATIONS: Readonly<Record<EvmMiChain, number>> = { ethereum: 12, bnb: 15, polygon: 64, base: 10, robinhood: 20 };
-const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000, robinhood: 1000 };
+const MAX_RANGE: Readonly<Record<EvmMiChain, number>> = { ethereum: 500, bnb: 1000, polygon: 1000, base: 1000, robinhood: 4000 }; // Robinhood: 0.25 s blocks, and its node allows 30,000 blocks per getLogs (10,000,000 with an address filter)
 
 /** About six hours of blocks per chain (12 s, 0.45 s, 2 s, 2 s and 0.25 s blocks): how far behind a run may start before it skips ahead. */
 const MAX_LAG: Readonly<Record<EvmMiChain, number>> = { ethereum: 1_800, bnb: 48_000, polygon: 10_800, base: 10_800, robinhood: 86_400 };

@@ -22,6 +22,13 @@ describe('stats', () => {
     expect(s.maxTradeShare24h).toBe(0.5);
     expect(s.makers24h).toBe(3);
   });
+  it('stores a change beyond 1,000,000% as unknown, and keeps the other windows', () => {
+    const trades = [mk(1, nowSec - 20_000, '0.0000000001', 1n), mk(2, nowSec - 4_000, '1', 1_000_000n), mk(3, nowSec - 100, '1.1', 1_000_000n)];
+    const s = computeStats({ quoteDecimals: 6 }, trades, null, now, { quoteUsd: 1 }, null)!;
+    expect(s.change.h24).toBeNull(); // 1e-10 to 1.1 is far beyond any real move
+    expect(s.change.h6).toBeNull();
+    expect(s.change.h1).toBe(1000); // 1 to 1.1
+  });
   it('flags a window that holds the most trades the statistics read, and only then', () => {
     const many = (n: number) => Array.from({ length: n }, (_, i) => mk(i, nowSec - 5_000 + i, '1', 1_000_000n));
     expect(computeStats({ quoteDecimals: 6 }, many(RECENT_TRADE_LIMIT), null, now, { quoteUsd: 1 }, null)!.windowCapped).toBe(true);

@@ -15,6 +15,7 @@ import { decodeAbiString } from '../swings/chains/evmSession.js';
 import type { EvmFlowDeps } from './walletLaunchEvmFlow';
 import { keccak256 } from '../swings/core/keccak.js';
 import { SEL as POOL_SEL } from './walletPoolEvmTx';
+import { findFactoryNonce } from './walletCurveEvmCore';
 import {
   evmLimitPrice,
   evmOrderDisclosures,
@@ -32,6 +33,9 @@ import {
 import type { OrderTerms } from './walletOrdersCore';
 import {
   ORDER_CREATED_TOPIC,
+  buildProveTx,
+  inspectProve,
+  provenReadData,
   buildCancelOrderTx,
   buildCreateNativeBuyTx,
   buildCreateOrderTx,
@@ -52,7 +56,7 @@ export class EvmOrdersError extends Error {
   }
 }
 
-export type EvmOrdersProgress = 'checking' | 'approving' | 'confirming-approve' | 'sending' | 'confirming' | 'verifying' | 'done';
+export type EvmOrdersProgress = 'checking' | 'proving' | 'confirming-proof' | 'approving' | 'confirming-approve' | 'sending' | 'confirming' | 'verifying' | 'done';
 
 export interface EvmMarket {
   chain: EvmOrdersChain;
@@ -66,6 +70,10 @@ export interface EvmMarket {
   /** The payment asset held (for the chain's coin, the coin itself). */
   quoteBalance: bigint;
   coinBalance: bigint;
+  /** The orders contract already knows the factory made this token. */
+  proven: boolean;
+  /** The factory nonce that makes the token's address, found locally; null if the factory did not make it. */
+  proofNonce: bigint | null;
 }
 
 interface ReviewBase {
@@ -81,6 +89,8 @@ export interface EvmPlaceReview extends ReviewBase {
   terms: OrderTerms;
   preview: EvmOrderPreview;
   disclosures: { severity: 'info' | 'caution'; text: string }[];
+  /** Present when the contract has not yet been shown that the factory made this token. Sent first, once per token. */
+  proveTx: EvmTxRequest | null;
   /** Present when the contract needs an allowance first. */
   approveTx: EvmTxRequest | null;
   tx: EvmTxRequest;
@@ -165,11 +175,13 @@ export class EvmOrdersFlow {
         this.call(chain.orders, minAmountReadData(quote.address)),
         this.call(quote.address, SEL.balanceOf + pad(owner)),
         this.d.read('eth_getBalance', [owner, 'latest']),
+        this.call(chain.orders, provenReadData(token)),
+        this.d.read('eth_getTransactionCount', [chain.factory, 'latest']),
       ]);
     } catch {
       return { problem: 'That address is not a token this page can read.' };
     }
-    const [dec, sym, held, min, qBal, coin] = reads;
+    const [dec, sym, held, min, qBal, coin, provenWord, factoryCount] = reads;
     const decimals = wordOf(dec);
     const symbol = decodeAbiString(sym);
     const tokenBalance = wordOf(held);
@@ -179,6 +191,11 @@ export class EvmOrdersFlow {
     if (decimals === null || decimals > 36n || symbol === null || tokenBalance === null || minQuote === null || quoteBalance === null || coinBalance === null)
       return { problem: 'That address is not a token this page can read.' };
     if (minQuote === 0n) return { problem: `Limit orders in ${quote.symbol} are not switched on.` };
+    const proven = wordOf(provenWord) === 1n;
+    const count = asBig(factoryCount);
+    // Only the factory's own tokens can have orders: the contract is shown the factory made one by the token's address.
+    const proofNonce = proven || count === null ? null : findFactoryNonce(chain.factory, token, count);
+    if (!proven && proofNonce === null) return { problem: 'This token was not made by Aretia’s token factory, so it cannot have limit orders.' };
     // An order can only ever fill if the token has a real pool against the payment asset on the exchange the contract uses.
     const pair = await this.pool(chain, token, quote.address);
     if (!pair) return { problem: `This token has no ${quote.symbol} pool on ${chain.name}, so an order in ${quote.symbol} could never fill.` };
@@ -192,6 +209,8 @@ export class EvmOrdersFlow {
       tokenBalance,
       quoteBalance: quote.native ? coinBalance : quoteBalance,
       coinBalance,
+      proven,
+      proofNonce,
     };
   }
 
@@ -286,6 +305,7 @@ export class EvmOrdersFlow {
     const native = terms.side === 'buy' && quote.native;
     const escrowToken = terms.side === 'buy' ? quote.address : market.token;
     const isBuy = terms.side === 'buy';
+    const proveTx: EvmTxRequest | null = !market.proven && market.proofNonce !== null ? buildProveTx(account, chain, market.token, market.proofNonce) : null;
     let approveTx: EvmTxRequest | null = null;
     let gasCostWei: bigint | null = null;
     let coinBalance = 0n;
@@ -297,17 +317,23 @@ export class EvmOrdersFlow {
         coinBalance = asBig(await this.d.read('eth_getBalance', [account, 'latest'])) ?? 0n;
         const gasEstimates: bigint[] = [];
         const price = await this.gasPrice();
+        if (proveTx) {
+          const g = await this.estimate(proveTx);
+          if (g === null) blockers.push(`The network would not accept the proof, so nothing was sent${this.lastEstimateFailure}.`);
+          else gasEstimates.push(g);
+        }
         if (!native) {
           const allowance = await this.allowanceOf(escrowToken, account, chain);
           if (allowance < terms.amountIn) {
             approveTx = buildOrderApproveTx(account, escrowToken, chain, terms.amountIn);
+            // With a proof still to send, the approval cannot be estimated against the real state either way: it does not depend on it.
             const g = await this.estimate(approveTx);
             if (g === null) blockers.push(`The network would not accept the approval, so nothing was sent${this.lastEstimateFailure}.`);
             else gasEstimates.push(g);
           }
         }
         // The order itself can only be estimated once the contract may take the money; before that, the estimate would fail for that reason alone.
-        if (approveTx === null) {
+        if (approveTx === null && proveTx === null) {
           const g = await this.estimate(tx);
           if (g === null) blockers.push(`The network would not accept this order, so nothing was sent${this.lastEstimateFailure}.`);
           else gasEstimates.push(g);
@@ -331,6 +357,7 @@ export class EvmOrdersFlow {
       terms,
       preview: previewEvmOrder(terms, market.decimals, quote),
       disclosures: evmOrderDisclosures(terms.side, quote, chain),
+      proveTx,
       approveTx,
       tx,
       isNative: native,
@@ -345,6 +372,13 @@ export class EvmOrdersFlow {
     await this.begin(review, progress);
     const hashes: string[] = [];
     const escrowToken = terms.side === 'buy' ? market.quote.address : market.token;
+    if (review.proveTx) {
+      const nonce = market.proofNonce;
+      if (nonce === null) throw new EvmOrdersError('The proof for this token is missing. Start again.', true);
+      hashes.push(
+        await this.runTx(review.proveTx, (tx, id) => inspectProve(tx, { chain, from: review.account, token: market.token, factoryNonce: nonce }, id), 'proof', progress, 'proving', 'confirming-proof'),
+      );
+    }
     if (review.approveTx) {
       hashes.push(
         await this.runTx(
@@ -371,9 +405,11 @@ export class EvmOrdersFlow {
     try {
       hash = await this.runTx(review.tx, (tx, id) => inspectCreateOrder(tx, check, id), 'order', progress, 'sending', 'confirming');
     } catch (e) {
-      if (review.approveTx && e instanceof EvmOrdersError)
+      if ((review.approveTx || review.proveTx) && e instanceof EvmOrdersError)
         throw new EvmOrdersError(
-          `${e.message} Your approval went through: the orders contract may take exactly ${terms.amountIn} base units of the ${terms.side === 'buy' ? market.quote.symbol : market.symbol}, and nothing else has happened.`,
+          review.approveTx
+            ? `${e.message} Your approval went through: the orders contract may take exactly ${terms.amountIn} base units of the ${terms.side === 'buy' ? market.quote.symbol : market.symbol}, and nothing else has happened.`
+            : `${e.message} The proof went through (it only shows the contract that Aretia’s factory made this token); nothing else has happened.`,
           e.nothingSent,
         );
       throw e;

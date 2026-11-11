@@ -33,6 +33,8 @@ const coinText = (wei: bigint, symbol: string): string => `${fromSmallestUnit(we
 
 const STEPS: { id: EvmOrdersProgress; label: string }[] = [
   { id: 'checking', label: 'Checking everything once more' },
+  { id: 'proving', label: 'Waiting for you to approve the one-time proof in your wallet' },
+  { id: 'confirming-proof', label: 'Confirming the proof' },
   { id: 'approving', label: 'Waiting for you to approve the token approval in your wallet' },
   { id: 'confirming-approve', label: 'Confirming the approval' },
   { id: 'sending', label: 'Waiting for you to approve the transaction in your wallet' },
@@ -235,7 +237,12 @@ export function createEvmOrders(host: OrdersEvmHost): { draw(card: HTMLElement, 
       row(dl, 'Network gas, at most about', r.gasCostWei === null ? 'could not be estimated' : coinText(r.gasCostWei, chain.symbol));
       row(dl, 'Your balance', coinText(r.coinBalance, chain.symbol));
       card.append(dl);
-      if (r.approveTx) card.append(h('p', 'wapp__fine', `This takes two approvals in your wallet: first letting the orders contract hold exactly this amount, then placing the order.`));
+      if (r.proveTx || r.approveTx) {
+        const first = [r.proveTx ? 'a one-time proof that Aretia’s factory made this token (it moves no money)' : null, r.approveTx ? 'letting the orders contract hold exactly this amount' : null]
+          .filter(Boolean)
+          .join(', then ');
+        card.append(h('p', 'wapp__fine', `This takes ${r.proveTx && r.approveTx ? 'three' : 'two'} approvals in your wallet: first ${first}, then placing the order.`));
+      }
       for (const d of r.disclosures) card.append(h('p', d.severity === 'caution' ? 'wapp__banner wapp__banner--warn' : 'wapp__fine', d.text));
     } else {
       card.append(h('h3', 'wapp__h3', 'Review the cancel'));

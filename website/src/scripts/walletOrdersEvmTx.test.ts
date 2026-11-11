@@ -9,6 +9,8 @@ import {
   buildCreateNativeBuyTx,
   buildCreateOrderTx,
   buildOrderApproveTx,
+  buildProveTx,
+  inspectProve,
   decodeCancelOrder,
   decodeCreateOrder,
   inspectCancelOrder,
@@ -28,10 +30,13 @@ describe('calldata matches the real contract', () => {
     expect(buildCreateOrderTx(ME, chain, { launchToken: L, quoteToken: Q, isBuy: false, amountIn: 5_000_000_000_000_000_000n, minOut: 90_000_000n }).data).toBe(fixture.createOrderSell);
     expect(buildCreateNativeBuyTx(ME, chain, { launchToken: L, wei: 1n, minOut: 123456789n }).data).toBe(fixture.createBuyWithNative);
     expect(buildCancelOrderTx(ME, chain, 42n).data).toBe(fixture.cancel);
+    expect(buildProveTx(ME, chain, L, 2n).data).toBe(fixture.proveLaunchToken);
   });
   it('selectors and the creation event topic match', () => {
     expect(ORDERS_SEL.orders).toBe(fixture.selectors.orders);
     expect(ORDERS_SEL.minAmount).toBe(fixture.selectors.minAmount);
+    expect(ORDERS_SEL.proveLaunchToken).toBe(fixture.selectors.proveLaunchToken);
+    expect(ORDERS_SEL.proven).toBe(fixture.selectors.proven);
     expect(ORDER_CREATED_TOPIC).toBe(fixture.orderCreatedTopic);
   });
   it('decodes what it builds, and nothing else', () => {
@@ -93,5 +98,19 @@ describe('the check before signing', () => {
   it('a cancel must name the chosen order and carry nothing', () => {
     expect(inspectCancelOrder(buildCancelOrderTx(ME, chain, 8n), { chain, from: ME, id: 7n }, 1).join(' ')).toContain('different order');
     expect(inspectCancelOrder({ ...buildCancelOrderTx(ME, chain, 7n), value: '0x5' }, { chain, from: ME, id: 7n }, 1).join(' ')).toContain('carries coins');
+  });
+});
+
+describe('the one-time proof', () => {
+  const c = { chain, from: ME, token: L, factoryNonce: 2n };
+  it('passes exactly what was worked out', () => {
+    expect(inspectProve(buildProveTx(ME, chain, L, 2n), c, 1)).toEqual([]);
+  });
+  it('refuses another token, another nonce, another contract, coins, and a wrong network', () => {
+    expect(inspectProve(buildProveTx(ME, chain, Q, 2n), c, 1).join(' ')).toContain('different token');
+    expect(inspectProve(buildProveTx(ME, chain, L, 3n), c, 1).join(' ')).toContain('different factory nonce');
+    expect(inspectProve({ ...buildProveTx(ME, chain, L, 2n), to: '0x2222222222222222222222222222222222222222' }, c, 1).join(' ')).toContain('not sent to the Aretia orders contract');
+    expect(inspectProve({ ...buildProveTx(ME, chain, L, 2n), value: '0x1' }, c, 1).join(' ')).toContain('carries coins');
+    expect(inspectProve(buildProveTx(ME, chain, L, 2n), c, 56).join(' ')).toContain('wallet is on network 56');
   });
 });

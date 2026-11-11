@@ -2,7 +2,7 @@
  * Launch Box on the web wallet: a Markets-style list of every token created through Aretia Launch, on every chain.
  *
  * The list comes from /api/launchbox (Aretia's own index of the chains plus DexScreener market data and curve progress read from the chain).
- * The table reuses the Markets table's look (the wapp-mt styles and its number formats); the page is split in two: choosing a row shows that token's chart beside the list, and the symbol and Trade button open the public token page. Every number is
+ * The table reuses the Markets table's look (the wapp-mt styles and its number formats); the list takes the full width and choosing a row shows that token's chart under it, and the symbol and Trade button open the public token page. Every number is
  * the server's; a token with no pool shows "No market yet", and data that could not be refreshed is marked old.
  */
 import { CHAINS } from '../swings/core/types.js';
@@ -46,15 +46,15 @@ const TABS: { tab: Tab; label: string; title: string }[] = [
 
 const COLUMNS: { key: SortKey; label: string; title: string }[] = [
   { key: 'age', label: 'Age', title: 'How long ago the token was created' },
+  { key: 'cap', label: 'Mcap', title: 'Market cap, or fully diluted value (FDV) when no market cap is reported' },
   { key: 'price', label: 'Price', title: 'Price in US dollars from its biggest pool' },
   { key: 'change', label: '24H', title: 'Price change over 24 hours' },
-  { key: 'volume', label: 'Volume', title: 'Trading volume in the last 24 hours' },
   { key: 'liquidity', label: 'Liquidity / curve', title: 'Money in the pool, or how much of an Aretia Curve is sold' },
-  { key: 'cap', label: 'Mcap', title: 'Market cap, or fully diluted value (FDV) when no market cap is reported' },
+  { key: 'volume', label: 'Volume', title: 'Trading volume in the last 24 hours' },
 ];
 
-/** The columns drawn in the table. 24H is not one: the change sits under the price. It stays in COLUMNS so the sort menu can still sort by it. */
-const TABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'change');
+/** Every column is drawn, in this order. */
+const TABLE_COLUMNS = COLUMNS;
 
 /** The three headline numbers over the list. Pure: a missing figure adds nothing, and nothing is invented. */
 export function launchStats(rows: readonly Pick<LaunchView, 'volume24hUsd' | 'liquidityUsd'>[]): { tokens: number; volumeUsd: number | null; liquidityUsd: number | null } {
@@ -117,11 +117,15 @@ function priceText(r: LaunchView): { text: string; muted: boolean } {
   return { text: r.curve ? 'On curve' : 'No market yet', muted: true };
 }
 
-/** The price, with the 24-hour change under it in green or red. */
-function priceCell(price: { text: string; muted: boolean }, change: number | null): HTMLTableCellElement {
-  const td = num('Price', price.text, price.muted ? 'wapp-lb__muted' : '');
-  if (change !== null && !price.muted) td.append(el('small', `wapp-lb__delta ${change > 0 ? 'is-up' : change < 0 ? 'is-down' : ''}`.trim(), formatChange(change)));
-  return td;
+/** The price on its own; the 24-hour change has its own column. */
+function priceCell(price: { text: string; muted: boolean }): HTMLTableCellElement {
+  return num('Price', price.text, price.muted ? 'wapp-lb__muted' : '');
+}
+
+/** The 24-hour change in green or red; a dash when there is no price to compare. */
+function changeCell(price: { muted: boolean }, change: number | null): HTMLTableCellElement {
+  if (change === null || price.muted) return num('24H', '–', 'wapp-lb__muted');
+  return num('24H', formatChange(change), `wapp-lb__chg ${change > 0 ? 'is-up' : change < 0 ? 'is-down' : ''}`.trim());
 }
 
 function liquidityCell(r: LaunchView): HTMLTableCellElement {
@@ -222,7 +226,7 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     }
     const imitates = imitationChip(r.chain, r.address, symbol, name);
     if (imitates) line.append(imitates);
-    names.append(line, el('small', 'wapp-mt__fullname', name || 'No name given'));
+    names.append(line, el('small', 'wapp-mt__fullname', `${name || 'No name given'} · ${CHAINS[r.chain].name}`));
     const meta = h.meta?.(r);
     if (meta?.description) names.append(el('small', 'wapp-mt__fullname wapp-lb__desc', meta.description.replace(/\s+/g, ' ')));
     const links = meta ? ([['Website', meta.website], ['X', meta.x], ['Telegram', meta.telegram]] as const).filter(([, u]) => u) : [];
@@ -238,8 +242,8 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
       }
       names.append(row);
     }
-    const kind = r.curve ? CURVE_LABEL[r.curve.status] ?? 'Curve' : r.pool ? 'Pool' : null;
-    if (kind) line.append(el('span', `wapp-lb__tag${r.curve ? ' is-curve' : ''}`, kind));
+    const kind = r.curve ? CURVE_LABEL[r.curve.status] ?? 'Curve' : r.pool ? (r.pool.dex ? cleanText(r.pool.dex, 24) : 'Pool') : null;
+    if (kind) names.append(el('span', `wapp-lb__tag${r.curve ? ' is-curve' : ''}`, kind));
     const cell = el('div', 'wapp-mt__cell');
     const pic = el('span', 'wapp-lb__pic');
     pic.append(logo(r), chain);
@@ -247,16 +251,28 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
     tok.append(cell);
     tr.append(tok);
     const price = priceText(r);
+    const cap = num(r.capKind === 'fdv' ? 'FDV' : 'Mcap', compactUsd(r.capUsd));
+    if (r.capKind === 'fdv') cap.setAttribute('title', 'Fully diluted value: no market cap is reported for this token');
     tr.append(
       num('Age', r.createdAt === null ? '–' : formatAge(h.now - r.createdAt)),
-      priceCell(price, r.change24h),
-      num('Volume', compactUsd(r.volume24hUsd)),
+      cap,
+      priceCell(price),
+      changeCell(price, r.change24h),
       liquidityCell(r),
-      num(r.capKind === 'fdv' ? 'FDV' : 'Mcap', compactUsd(r.capUsd)),
+      num('Volume', compactUsd(r.volume24hUsd)),
     );
-    if (r.capKind === 'fdv') tr.lastElementChild!.setAttribute('title', 'Fully diluted value: no market cap is reported for this token');
     const act = el('td', 'wapp-lb__act');
-    const go = el('a', 'wapp-lb__go', 'Trade');
+    const go = el('a', 'wapp-lb__go');
+    const bolt = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    bolt.setAttribute('viewBox', '0 0 16 16');
+    bolt.setAttribute('width', '13');
+    bolt.setAttribute('height', '13');
+    bolt.setAttribute('aria-hidden', 'true');
+    const boltPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    boltPath.setAttribute('d', 'M9.2 1 3 9h4l-.8 6L13 6.8H8.8z');
+    boltPath.setAttribute('fill', 'currentColor');
+    bolt.append(boltPath);
+    go.append(bolt, document.createTextNode('Trade'));
     go.href = tokenHref(r);
     go.setAttribute('aria-label', `Open ${symbol || 'token'} to trade`);
     go.addEventListener('click', (e) => e.stopPropagation());
@@ -487,13 +503,13 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     tradesTable = mountTrades(trades, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}) });
   }
 
-  /** A row was chosen: it is marked in the list and its chart is drawn. Narrow screens stack the chart under the list, so it is scrolled to. */
+  /** A row was chosen: it is marked in the list and its chart is drawn. The chart sits under the list, so it is scrolled to. */
   function choose(r: LaunchView, scroll = true): void {
     chosen = r;
     chosenKey = tokenKey(r.chain, r.address);
     renderList();
     showChosen();
-    if (scroll && window.matchMedia?.('(max-width: 1099px)').matches) chartHost.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (scroll) chartHost.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   const statsHost = el('div', 'wapp-lb__stats');
@@ -547,7 +563,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     root!.textContent = '';
     const head = el('div', 'wapp-lb__hero');
     const title = el('div', 'wapp-lb__titles');
-    title.append(el('p', 'wapp-lb__sub', 'Every token launched with Aretia, on every network.'));
+    title.append(el('h2', 'wapp-lb__headline', 'Tokens launched with Aretia'), el('p', 'wapp-lb__sub', 'Every token created with Aretia Launch, on every network. Pick one to see its chart, or trade it in a click.'));
     head.append(title, statsHost);
     // The list on one side, the chart of the chosen token on the other (stacked on a narrow screen).
     const split = el('div', 'wapp-lb__split');

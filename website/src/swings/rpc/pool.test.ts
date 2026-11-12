@@ -84,6 +84,19 @@ describe('RPC pool: refusals', () => {
     await expect(f.pool.read(...logs(1, 5000))).rejects.toMatchObject({ kind: 'node-error', message: expect.stringContaining('more than 10000') });
   });
 
+  it('answers a range wider than every available node has learned to take with a range refusal (so the caller halves), not a transport failure', async () => {
+    const f = fixture(['https://narrow', 'https://nologs'], (url, req) => {
+      if (url === 'https://nologs' && req.method === 'eth_getLogs') return reply({}, 403);
+      const [filter] = req.params as [{ fromBlock: string; toBlock: string }];
+      const span = Number.parseInt(filter.toBlock, 16) - Number.parseInt(filter.fromBlock, 16) + 1;
+      return span > 100 ? reply({ error: { message: 'block range is too wide' } }) : ok([]);
+    }, { rps: 50 });
+    await expect(f.pool.read(...logs(1, 1000))).rejects.toMatchObject({ kind: 'node-error' }); // the first refusal teaches the limit
+    // the node now takes at most 500 blocks: the next 1,000-block request has no node to go to, and must still be a refusal
+    await expect(f.pool.read(...logs(2001, 3000))).rejects.toMatchObject({ kind: 'node-error', message: expect.stringContaining('block range') });
+    await expect(f.pool.read(...logs(5001, 5050))).resolves.toEqual([]); // a range it does take still works
+  });
+
   it("returns a node's own error (a revert) at once, without trying the other nodes", async () => {
     const f = fixture(['https://a', 'https://b'], () => reply({ error: { code: 3, message: 'execution reverted' } }), { rps: 50 });
     await expect(f.pool.read('eth_call', [{}, 'latest'])).rejects.toMatchObject({ kind: 'node-error' });

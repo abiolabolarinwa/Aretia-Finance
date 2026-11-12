@@ -16,7 +16,7 @@ const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
 interface TvWidget {
   remove(): void;
   onChartReady(cb: () => void): void;
-  activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void }; getPanes?(): { getMainSourcePriceScale?(): { setMode(mode: number): void } | null }[] };
+  activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void }; getPanes?(): { getMainSourcePriceScale?(): { setMode(mode: number): void; setAutoScale?(on: boolean): void } | null }[]; setVisibleRange?(range: { from: number; to: number }, options?: { percentRightMargin?: number }): Promise<void> };
   headerReady(): Promise<void>;
   createButton(): HTMLElement;
 }
@@ -203,14 +203,61 @@ export function mountTvChart(
   let overlay: HTMLElement | null = null;
   let chartReady = false;
   let wide = false;
+  let zoomOffered = false;
+  let currentFeed: TvDatafeed | null = null;
   function applyAxis(w: TvWidget): void {
-    if (!wide || !chartReady) return;
+    if (!chartReady) return;
+    offerZoom(w);
+    if (!wide) return;
     try {
       // A price that moved a thousandfold (a pool that rugged, or just launched) is unreadable on a straight axis: use the logarithmic one (mode 1).
       w.activeChart().getPanes?.()[0]?.getMainSourcePriceScale?.()?.setMode(1);
     } catch {
       // The library version has no such call: the straight axis stays.
     }
+  }
+  /**
+   * A pool whose price jumped or fell by more than tenfold has a history that dwarfs today's candles. A "Recent" button in the chart's
+   * toolbar zooms to the run of prices around today's, and "All" brings the whole history back.
+   */
+  function offerZoom(w: TvWidget): void {
+    if (zoomOffered || !chartReady || !currentFeed?.zoomRange?.()) return;
+    zoomOffered = true;
+    void w
+      .headerReady()
+      .then(() => {
+        if (disposed || widget !== w) return;
+        const button = w.createButton();
+        let recent = false;
+        const paint = (): void => {
+          button.textContent = recent ? 'All' : 'Recent';
+          button.title = recent ? 'Show the whole price history' : "Zoom to the recent prices: the history is far from today's price";
+        };
+        paint();
+        button.addEventListener('click', () => {
+          const range = currentFeed?.zoomRange?.();
+          const chart = w.activeChart();
+          if (!range || !chart.setVisibleRange) return;
+          const to = Math.floor(Date.now() / 1000);
+          // A little room before the first recent candle, but never so much that the candle ahead of it (at the old price) comes into view.
+          const room = Math.max(300, (to - range.recent / 1000) * 0.08);
+          const from = recent ? range.all / 1000 : Math.max(range.recent / 1000 - room, range.before / 1000 + 1);
+          recent = !recent;
+          paint();
+          void chart
+            .setVisibleRange({ from: Math.floor(from), to }, { percentRightMargin: 5 })
+            .then(() => {
+              // The price axis is fitted to the candles now in view, not to the ones that were.
+              try {
+                chart.getPanes?.()[0]?.getMainSourcePriceScale?.()?.setAutoScale?.(true);
+              } catch {
+                // The library version has no such call.
+              }
+            })
+            .catch(() => undefined);
+        });
+      })
+      .catch(() => undefined);
   }
   function showStatus(w: TvWidget | null, s: ChartStatus): void {
     if (disposed) return;
@@ -221,14 +268,15 @@ export function mountTvChart(
     el.className = 'wapp-tv-status';
     el.setAttribute('role', 'status');
     if (s.kind === 'ok') {
+      // How far the prices moved decides the axis and the Recent button, whether or not there is a note to show.
+      wide = !!s.wideRange;
+      if (w) applyAxis(w);
       // The data source is not named; only what a reader needs to judge the candles: they are old, or built from trades.
       const label = s.source === 'geckoterminal-stale' ? 'Prices a little old' : s.source === 'trades' ? 'Built from the latest trades' : '';
       if (!label) return;
       el.textContent = label;
       if (s.note) el.title = s.note;
       el.style.cssText = 'position:absolute;right:76px;bottom:46px;z-index:5;pointer-events:auto;font:11px/1.3 system-ui,sans-serif;color:#64748b;background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-      wide = !!s.wideRange;
-      if (w) applyAxis(w);
     } else {
       const retryable = s.kind === 'failed' && restarts < MAX_RESTARTS && !!library;
       el.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;font:14px/1.45 system-ui,sans-serif;color:#334155;background:rgba(255,255,255,.96)';
@@ -263,6 +311,7 @@ export function mountTvChart(
     library = TradingView;
     chartReady = false;
     wide = false;
+    zoomOffered = false;
     overlay = null;
     const feed = makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, scheduleRestart, isClosed, (s) => showStatus(widget, s));
     try {
@@ -281,6 +330,7 @@ export function mountTvChart(
           overrides: { 'paneProperties.background': '#ffffff', 'paneProperties.backgroundType': 'solid', 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });
         widget = w;
+        currentFeed = feed;
         // Remember the timeframe the reader picks, but only one the datafeed can serve.
         w.onChartReady(() => {
           chartReady = true;

@@ -133,6 +133,8 @@ export interface TvDatafeed {
   getBars(info: TvSymbolInfo, resolution: string, params: PeriodParams, onResult: (bars: TvBar[], meta: { noData: boolean }) => void, onError: (reason: string) => void): void;
   subscribeBars(info: TvSymbolInfo, resolution: string, onTick: (bar: TvBar) => void, uid: string): void;
   unsubscribeBars(uid: string): void;
+  /** Where the recent prices begin (see recentStart) and where all the history begins, in ms, for the candles read so far; null when there is no such zoom. */
+  zoomRange?(): { recent: number; all: number; before: number } | null;
 }
 
 /** Decimals for the price scale: enough for four significant digits, from $60,000 coins down to $0.0000004 ones. */
@@ -197,6 +199,25 @@ export function barsFromTrades(trades: readonly Trade[], seconds: number, curren
     } else bars.set(time, { time, open: price, high: price, low: price, close: price, volume });
   }
   return [...bars.values()].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Where "the recent prices" begin: the time (ms) of the first candle of the run that ends at the newest one and stays within `factor`
+ * times of the newest price, in either direction. A pool that rugged or launched at a thousand times today's price has a recent run
+ * that starts after the move; zooming to it makes today's candles readable. Null when the whole history is one run (nothing to
+ * zoom to), or when the recent run is shorter than `minBars` candles. Pure.
+ */
+export function recentStart(bars: readonly TvBar[], factor = 10, minBars = 3): number | null {
+  const last = bars[bars.length - 1];
+  if (!last || !(last.close > 0)) return null;
+  let first = bars.length - 1;
+  for (let i = bars.length - 1; i >= 0; i--) {
+    const b = bars[i]!;
+    if (b.high > last.close * factor || b.low < last.close / factor) break;
+    first = i;
+  }
+  if (first === 0 || bars.length - first < minBars) return null;
+  return bars[first]!.time;
 }
 
 /** True when the candles' highest high is more than a thousand times their lowest low. Pure. */
@@ -599,7 +620,17 @@ export function createPoolDatafeed(
     data_status: 'streaming',
   };
 
+  /** The candles the chart opened with, for the "Recent" zoom. */
+  let firstLoad: TvBar[] = [];
+
   return {
+    zoomRange() {
+      const recent = recentStart(firstLoad);
+      if (recent === null || firstLoad.length === 0) return null;
+      // `before` is the candle just ahead of the recent run: a zoom must start after it, or its old price comes back into view.
+      const at = firstLoad.findIndex((b) => b.time === recent);
+      return { recent, all: firstLoad[0]!.time, before: at > 0 ? firstLoad[at - 1]!.time : recent };
+    },
     warm(resolution) {
       const res = RESOLUTIONS[resolution];
       if (!res) return;
@@ -646,6 +677,7 @@ export function createPoolDatafeed(
           const inRange = bars.filter((b) => (params.firstDataRequest ? b.time <= params.to * 1000 : b.time < params.to * 1000));
           // The newest candle is where live price readings start from.
           if (params.firstDataRequest && inRange.length > 0) newest.set(resolution, inRange[inRange.length - 1]!);
+          if (params.firstDataRequest) firstLoad = inRange;
           if (params.firstDataRequest) {
             deps.onStatus?.(
               inRange.length > 0

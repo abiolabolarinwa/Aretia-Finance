@@ -51,6 +51,7 @@ import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
+import { dedupeBySymbol } from '../swings/market/credible.js';
 import { BULLISH_TEXT, isBullish } from '../swings/market/bullish.js';
 import { agoText, blocksFor, CHAIN_SHORT, fetchMarketStats, statsFor, type MarketStatsDto } from '../swings/market/marketStats.js';
 import { AlertStore, evaluateMoves, PCT_CHOICES, watchKey } from '../swings/account/priceAlerts.js';
@@ -1968,14 +1969,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       lowHidden = m.kind === 'favourites' ? 0 : all.filter((r) => pass(r, true, false) && !pass(r, true)).length;
       const strict = all.filter((r) => pass(r, true));
       // The 24-hour limit was applied by opening New, not chosen: where fewer than 100 tokens are that young, the newest 100 are shown instead.
-      if (ix) return strict;
-      if (autoAge && strict.length < RECENT_MIN) return all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity)).slice(0, RECENT_MIN);
+      // A symbol is listed once per network (a favourites list is the person's own and is left alone).
+      const once = <T extends MarketRow>(l: readonly T[]): T[] => (m.kind === 'favourites' ? [...l] : dedupeBySymbol(l));
+      if (ix) return once(strict);
+      if (autoAge && strict.length < RECENT_MIN) return once(all.filter((r) => pass(r, false)).sort((a, b) => (a.ageMs ?? Infinity) - (b.ageMs ?? Infinity))).slice(0, RECENT_MIN);
       // Trending, Top and Gainers put what clears their bar in the chosen window first, best first; the rest follow.
       if (isRanked(m.kind)) {
         const ranked = modeRows(m.kind, m.window, strict);
-        return ranked.rows;
+        return once(ranked.rows);
       }
-      return strict;
+      return once(strict);
     }
 
     /** The bar above the lists: 24-hour volume and transactions, and the latest block, read from Aretia's own index. */

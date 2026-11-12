@@ -34,8 +34,9 @@ describe('number formatting', () => {
     expect(compactCount(73_263)).toBe('73,263');
     expect(formatChange(19.55)).toBe('19.55%');
     expect(formatChange(-3.39)).toBe('-3.39%');
-    expect(formatChange(2392)).toBe('2,392%');
-    expect(formatChange(354_000)).toBe('354K%');
+    expect(formatChange(999.5)).toBe('999.50%');
+    expect(formatChange(2392)).toBe('>1,000%');
+    expect(formatChange(354_000)).toBe('>1,000%');
     expect(formatChange(null)).toBe('–');
     expect(formatAge(3 * 60_000)).toBe('3m');
     expect(formatAge(7 * 3_600_000)).toBe('7h');

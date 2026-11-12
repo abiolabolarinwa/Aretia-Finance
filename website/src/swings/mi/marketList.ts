@@ -17,6 +17,7 @@
  *    (nobody could sell: honeypot pattern), names the safe-text rules hide;
  *  - one row per token: the same token in several pools keeps its best-ranked pool.
  */
+import { isBeyondCredible } from '../market/credible.js';
 import type { MarketRow } from '../market/types.js';
 import { isDeadMarket } from '../market/dead.js';
 import { BULLISH_TEXT, isBullish } from '../market/bullish.js';
@@ -236,7 +237,7 @@ export function rankCandidates(q: ListQuery, rows: readonly { row: MarketRow; re
   if (q.kind === 'gainers') {
     kept = kept.filter((x) => {
       const c = x.row.change[q.window];
-      return c !== null && c > 0 && (x.row.liquidityUsd ?? 0) >= GAINER_MIN_LIQUIDITY_USD && (x.row.txns24h ?? 0) >= GAINER_MIN_TRADES && (x.row.ageMs ?? 0) >= GAINER_MIN_AGE_MS;
+      return c !== null && c > 0 && !isBeyondCredible(c) && (x.row.liquidityUsd ?? 0) >= GAINER_MIN_LIQUIDITY_USD && (x.row.txns24h ?? 0) >= GAINER_MIN_TRADES && (x.row.ageMs ?? 0) >= GAINER_MIN_AGE_MS;
     });
   } else if (q.kind === 'trending') {
     kept = kept.filter((x) => (x.row.volumeUsd?.[q.window] ?? 0) > 0);

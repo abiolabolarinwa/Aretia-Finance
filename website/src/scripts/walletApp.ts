@@ -6,6 +6,7 @@ import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
 import { browserStorage, SwapHistory } from '../swings/history.js';
 import { requestSwap, swapRequestFor } from './walletHoldingActions';
+import { discoverEvmTokens } from './walletTokenDiscovery';
 import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
@@ -517,6 +518,7 @@ export function initWalletApp(): void {
       renderSendAssets();
       return renderDashboard();
     }
+    let drawn = false;
     try {
       // The tokens this wallet has swapped through Aretia are looked for too, so one just bought shows here.
       const extra: ExtraToken[] = [];
@@ -524,12 +526,23 @@ export function initWalletApp(): void {
         if (h.status !== 'confirmed' && h.status !== 'submitted') continue;
         for (const address of [h.toAddress, h.fromAddress]) if (address && isChainId(h.chain)) extra.push({ chain: h.chain, address });
       }
-      const rows = await loadEvmHoldings(account, CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm'), { extra });
+      const evmChains = CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm');
+      // What is already known is drawn at once; the search for every other token the wallet holds follows and fills the rest in.
+      const rows = await loadEvmHoldings(account, evmChains, { extra });
       if (mine !== evmToken) return;
       evmHoldings = rows;
+      drawn = true;
+      renderDashboard();
+      renderSendAssets();
+      const found = await discoverEvmTokens(account, evmChains).catch(() => []);
+      if (mine !== evmToken || found.length === 0) return;
+      const all = await loadEvmHoldings(account, evmChains, { extra: [...extra, ...found] });
+      if (mine !== evmToken) return;
+      evmHoldings = all;
     } catch {
       if (mine !== evmToken) return;
-      evmHoldings = [];
+      // A failed second step keeps what the first one found; a failed first step shows no Ethereum-style tokens rather than another account's.
+      if (!drawn) evmHoldings = [];
     }
     renderDashboard();
     renderSendAssets();

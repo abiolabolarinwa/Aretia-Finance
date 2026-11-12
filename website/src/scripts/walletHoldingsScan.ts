@@ -27,26 +27,43 @@ const PARALLEL = 3;
 const word = (n: bigint | number): string => BigInt(n).toString(16).padStart(64, '0');
 const pad32 = (hex: string): string => hex.padEnd(Math.ceil(hex.length / 64) * 64, '0');
 
-/** The Multicall3 `aggregate3` read for `balanceOf(holder)` on each token; a token that fails is reported, not fatal. Pure. */
-export function encodeBalanceCalls(holder: string, tokens: readonly string[]): string {
-  const data = BALANCE_OF + holder.toLowerCase().replace(/^0x/, '').padStart(64, '0');
-  const bytes = data.length / 2;
-  const padded = pad32(data);
-  // One struct: target, allowFailure, offset to the bytes (always 3 words on), the bytes' length, the bytes.
-  const size = 32 * 3 + 32 + padded.length / 2;
-  const offsets = tokens.map((_, i) => word(tokens.length * 32 + i * size)).join('');
-  const structs = tokens.map((t) => word(BigInt(t)) + word(1) + word(0x60) + word(bytes) + padded).join('');
-  return AGGREGATE3 + word(0x20) + word(tokens.length) + offsets + structs;
+/** One read inside a Multicall3 call: the contract to ask and the call data (hex, no 0x prefix). */
+export interface Call {
+  target: string;
+  data: string;
 }
 
-export interface CallResult {
+/** The Multicall3 `aggregate3` read for these calls; a call that fails is reported, not fatal. Pure. */
+export function encodeAggregate3(calls: readonly Call[]): string {
+  const parts = calls.map((c) => {
+    const padded = pad32(c.data);
+    return { target: c.target, bytes: c.data.length / 2, padded, size: 32 * 3 + 32 + padded.length / 2 };
+  });
+  // One struct per call: target, allowFailure, offset to the bytes (always 3 words on), the bytes' length, the bytes.
+  let at = calls.length * 32;
+  const offsets = parts.map((p) => {
+    const o = word(at);
+    at += p.size;
+    return o;
+  });
+  const structs = parts.map((p) => word(BigInt(p.target)) + word(1) + word(0x60) + word(p.bytes) + p.padded).join('');
+  return AGGREGATE3 + word(0x20) + word(calls.length) + offsets.join('') + structs;
+}
+
+/** The calls for `balanceOf(holder)` on each token. Pure. */
+export function encodeBalanceCalls(holder: string, tokens: readonly string[]): string {
+  const data = BALANCE_OF + holder.toLowerCase().replace(/^0x/, '').padStart(64, '0');
+  return encodeAggregate3(tokens.map((target) => ({ target, data })));
+}
+
+export interface RawResult {
   ok: boolean;
-  /** The first 32-byte word of the answer, or 0 when there was none. */
-  value: bigint;
+  /** What the call returned, as hex without the 0x prefix. */
+  data: string;
 }
 
 /** Reads the `aggregate3` answer. Null when it is not a well-formed answer. Pure. */
-export function decodeResults(hex: unknown): CallResult[] | null {
+export function decodeAggregate3(hex: unknown): RawResult[] | null {
   if (typeof hex !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(hex)) return null;
   const body = hex.slice(2);
   const at = (byte: number): bigint | null => (byte >= 0 && byte * 2 + 64 <= body.length ? BigInt('0x' + body.slice(byte * 2, byte * 2 + 64)) : null);
@@ -55,7 +72,7 @@ export function decodeResults(hex: unknown): CallResult[] | null {
   const arr = Number(start);
   const count = at(arr);
   if (count === null || count > 100_000n) return null;
-  const out: CallResult[] = [];
+  const out: RawResult[] = [];
   for (let i = 0; i < Number(count); i++) {
     const off = at(arr + 32 + i * 32);
     if (off === null) return null;
@@ -64,12 +81,24 @@ export function decodeResults(hex: unknown): CallResult[] | null {
     const dataOff = at(s + 32);
     if (success === null || dataOff === null) return null;
     const len = at(s + Number(dataOff));
-    if (len === null) return null;
-    const value = len >= 32n ? at(s + Number(dataOff) + 32) : 0n;
-    if (value === null) return null;
-    out.push({ ok: success === 1n, value: success === 1n ? value : 0n });
+    if (len === null || len > 1_000_000n) return null;
+    const from = (s + Number(dataOff) + 32) * 2;
+    const data = body.slice(from, from + Number(len) * 2);
+    if (data.length !== Number(len) * 2) return null;
+    out.push({ ok: success === 1n, data: success === 1n ? data : '' });
   }
   return out;
+}
+
+export interface CallResult {
+  ok: boolean;
+  /** The first 32-byte word of the answer, or 0 when there was none. */
+  value: bigint;
+}
+
+/** Reads an answer made of single numbers (balances). Null when it is not a well-formed answer. Pure. */
+export function decodeResults(hex: unknown): CallResult[] | null {
+  return decodeAggregate3(hex)?.map((r) => ({ ok: r.ok, value: r.ok && r.data.length >= 64 ? BigInt('0x' + r.data.slice(0, 64)) : 0n })) ?? null;
 }
 
 const lists = new Map<ChainId, { at: number; addresses: string[] }>();

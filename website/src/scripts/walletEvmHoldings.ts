@@ -9,6 +9,7 @@ import { HUB_TOKENS } from '../swings/dex/hubs.js';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { decodeAbiString, publicRead, readBalance, type EvmRead } from '../swings/chains/evmSession.js';
 import { cleanText } from '../swings/tokens/safeText.js';
+import { decodeAggregate3, encodeAggregate3, MULTICALL3 } from './walletHoldingsScan';
 
 export interface EvmHolding {
   chain: ChainId;
@@ -122,6 +123,70 @@ async function readFacts(read: EvmRead, address: string): Promise<{ symbol: stri
   }
 }
 
+/** Networks where Multicall3 is deployed, so a batch of tokens can be read in one call. */
+const MULTICALL_CHAINS: readonly ChainId[] = ['ethereum', 'bnb', 'polygon', 'base'];
+/** Tokens per batch: four reads each, so 240 inside one call. */
+const BATCH = 60;
+
+type Held = { t: EvmTarget; raw: bigint };
+
+const toHeld = (e: ExtraToken, raw: bigint, f: { symbol: string; name: string; decimals: number }): Held => ({ t: { chain: e.chain, address: e.address, symbol: f.symbol, name: f.name || f.symbol, decimals: f.decimals, native: false }, raw });
+
+/** One token, one read at a time: the way for a network without Multicall3, and for a batch the node would not answer. */
+async function readOne(read: EvmRead, account: string, e: ExtraToken): Promise<Held | null> {
+  const raw = await readBalance(read, account, e.address);
+  if (raw <= 0n) return null;
+  const facts = await readFacts(read, e.address);
+  return facts ? toHeld(e, raw, facts) : null;
+}
+
+/** A batch of tokens in a single Multicall3 read: balance, decimals, symbol and name of each. Throws when the answer is not usable. */
+async function readBatch(read: EvmRead, account: string, tokens: readonly ExtraToken[]): Promise<Held[]> {
+  const holder = account.toLowerCase().replace(/^0x/, '').padStart(64, '0');
+  const calls = tokens.flatMap((e) => ['70a08231' + holder, '313ce567', '95d89b41', '06fdde03'].map((data) => ({ target: e.address, data })));
+  const out = decodeAggregate3(await read('eth_call', [{ to: MULTICALL3, data: encodeAggregate3(calls) }, 'latest']));
+  if (!out || out.length !== calls.length) throw new Error('The batch was not answered.');
+  const held: Held[] = [];
+  tokens.forEach((e, i) => {
+    const [bal, dec, sym, nam] = [out[i * 4]!, out[i * 4 + 1]!, out[i * 4 + 2]!, out[i * 4 + 3]!];
+    if (!bal.ok || bal.data.length < 64) return;
+    const raw = BigInt('0x' + bal.data.slice(0, 64));
+    if (raw <= 0n) return;
+    const places = dec.ok && dec.data.length >= 64 ? BigInt('0x' + dec.data.slice(0, 64)) : -1n;
+    if (places < 0n || places > 36n) return;
+    const decimals = Number(places);
+    const symbol = sym.ok ? (decodeAbiString('0x' + sym.data) ?? '') : '';
+    const name = nam.ok ? (decodeAbiString('0x' + nam.data) ?? '') : '';
+    // Token text is untrusted: control and look-alike characters are removed before it is shown.
+    held.push(toHeld(e, raw, { symbol: cleanText(symbol, 20) || `${e.address.slice(0, 6)}…`, name: cleanText(name, 60), decimals }));
+  });
+  return held;
+}
+
+/** The balances above zero among the named tokens, with their names and decimals. A token or batch that cannot be read is left out. */
+async function readExtras(read: (chain: ChainId) => EvmRead, account: string, extras: readonly ExtraToken[]): Promise<Held[]> {
+  const chains = [...new Set(extras.map((e) => e.chain))];
+  const perChain = await Promise.allSettled(
+    chains.map(async (chain) => {
+      const mine = extras.filter((e) => e.chain === chain);
+      const node = read(chain);
+      const found: Held[] = [];
+      for (let i = 0; i < mine.length; i += BATCH) {
+        const part = mine.slice(i, i + BATCH);
+        try {
+          if (!MULTICALL_CHAINS.includes(chain)) throw new Error('No Multicall3 here.');
+          found.push(...(await readBatch(node, account, part)));
+        } catch {
+          const each = await Promise.allSettled(part.map((e) => readOne(node, account, e)));
+          for (const r of each) if (r.status === 'fulfilled' && r.value) found.push(r.value);
+        }
+      }
+      return found;
+    }),
+  );
+  return perChain.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+}
+
 const defaultPairs = async (slug: string, addresses: string[]): Promise<DexPair[]> => {
   const res = await fetch(`https://api.dexscreener.com/tokens/v1/${slug}/${addresses.join(',')}`);
   if (!res.ok) throw new Error(`DexScreener answered ${res.status}`);
@@ -140,16 +205,8 @@ export async function loadEvmHoldings(account: string, chains: readonly ChainId[
     }),
   );
   const held = reads.flatMap((r) => (r.status === 'fulfilled' && r.value.raw > 0n ? [r.value] : []));
-  // Tokens named by the caller: the balance first, and the name and decimals only for one that is actually held.
-  const more = await Promise.allSettled(
-    extraTargets(deps.extra ?? [], chains, targets).map(async (e) => {
-      const raw = await readBalance(read(e.chain), account, e.address);
-      if (raw <= 0n) return null;
-      const facts = await readFacts(read(e.chain), e.address);
-      return facts ? { t: { chain: e.chain, address: e.address, symbol: facts.symbol, name: facts.name || facts.symbol, decimals: facts.decimals, native: false } as EvmTarget, raw } : null;
-    }),
-  );
-  for (const m of more) if (m.status === 'fulfilled' && m.value) held.push(m.value);
+  // Tokens named by the caller: their balances, and the name and decimals of the ones that are held.
+  held.push(...(await readExtras(read, account, extraTargets(deps.extra ?? [], chains, targets))));
   const prices = new Map<string, number>(); // `${chain}:${address}`
   await Promise.allSettled(
     [...new Set(held.map((h) => h.t.chain))].map(async (chain) => {

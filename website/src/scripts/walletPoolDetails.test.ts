@@ -14,7 +14,8 @@ describe('where the pool details and the docked panel show', () => {
   it('the token page that opens on a click carries the pool details', () => {
     expect(read('./walletTokenPage.ts')).toContain('poolDetailsGroup({ chain: o.chain, address: o.address, pool,');
   });
-  it('the docked panel shows only while Bullish only is on, and never over a token page', () => {
-    expect(read('./walletSwings.ts')).toContain('panel.element.hidden = page || !f.bullish;');
+  it('the docked side panel is never shown beside the Markets lists', () => {
+    expect(read('./walletSwings.ts')).toContain('panel.element.hidden = true;');
   });
+
 });

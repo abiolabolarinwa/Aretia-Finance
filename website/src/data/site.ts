@@ -17,7 +17,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 
 export interface Product {
-  slug: 'wallet' | 'pay' | 'shield' | 'safesend';
+  slug: 'wallet' | 'pay' | 'shield';
   name: string;
   role: string;
   status: Status;
@@ -56,20 +56,6 @@ export const PRODUCTS: Product[] = [
       'Names are resolved to an address and shown to you before anything is signed',
     ],
     roadmap: ['Merchant payment flows'],
-  },
-  {
-    slug: 'safesend',
-    name: 'Aretia SafeSend',
-    role: 'Protected transfers',
-    status: 'testnet',
-    statusNote: 'Live on testnet: Ethereum Sepolia and Solana devnet. Contracts deployed on BNB Chain and Polygon mainnet, owned by a 2-of-3 Safe; not yet in the wallet, and not yet audited.',
-    summary: 'Lock a transfer on-chain for a short protection period, and cancel it if something looks wrong before it reaches the recipient.',
-    today: [
-      'Funds wait in an on-chain vault for the protection period; only you can cancel before it ends',
-      'The blockchain enforces the delay: nobody else, Aretia included, can move, redirect or hold the funds',
-      'New recipients and high-value transfers get longer protection, and the wallet says why',
-    ],
-    roadmap: ['Security audit', 'Mainnet in the wallet', 'Base'],
   },
   {
     slug: 'shield',

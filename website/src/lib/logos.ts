@@ -1,10 +1,9 @@
-export type ProductKey = 'wallet' | 'swap' | 'pay' | 'safesend' | 'market' | 'carbon' | 'marketplace' | 'shield' | 'radar';
+export type ProductKey = 'wallet' | 'swap' | 'pay' | 'market' | 'carbon' | 'marketplace' | 'shield' | 'radar';
 
 export const PRODUCT_NAMES: Record<ProductKey, string> = {
   wallet: 'Aretia Wallet',
   swap: 'Aretia Swap',
   pay: 'Aretia Pay',
-  safesend: 'Aretia SafeSend',
   market: 'Aretia Market',
   carbon: 'Aretia Carbon Credit',
   marketplace: 'Aretia Marketplace',
@@ -33,7 +32,6 @@ export const GLYPHS: Record<ProductKey, string> = {
   // The Aretia chevron, doubled: value on its way.
   pay: s('M17 17l15 15-15 15') + s('M33 17l15 15-15 15', ACCENT),
   // A shield with a check: held and checked before it moves.
-  safesend: s('M32 11l17 6v14c0 11-7.5 18-17 22-9.5-4-17-11-17-22V17Z') + s('M24 32.5l6 6 10-12', ACCENT),
   // Three sticks rising: a market.
   market: s('M18 48V37') + s('M32 48V25', ACCENT) + s('M46 48V14'),
   // Two leaves, the larger with a vein, the smaller tucked in front of it: carbon credits.
@@ -65,7 +63,6 @@ export const BARE: Record<ProductKey, { main: string; accent: string }> = {
   wallet: { main: '#111114', accent: '#4f46e5' },
   swap: { main: '#111114', accent: '#4f46e5' },
   pay: { main: '#111114', accent: '#4f46e5' },
-  safesend: { main: '#0f9d58', accent: '#4f46e5' },
   market: { main: '#111114', accent: '#4f46e5' },
   carbon: { main: '#16a34a', accent: '#65a30d' },
   marketplace: { main: '#111114', accent: '#4f46e5' },

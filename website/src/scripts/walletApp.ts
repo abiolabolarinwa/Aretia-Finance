@@ -339,9 +339,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'launchbox' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'safesend' | 'referrals';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'safesend', 'referrals'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', launchbox: 'Launch Box', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', safesend: 'SafeSend', referrals: 'Referrals' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'launchbox' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'referrals';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'referrals'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', launchbox: 'Launch Box', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', referrals: 'Referrals' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one

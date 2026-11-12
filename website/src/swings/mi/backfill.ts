@@ -68,7 +68,7 @@ export function sideOf(chain: MiChainConfig, t0: string, t1: string): { quote: s
 }
 
 /** Average seconds per block over the last `span` blocks, from two block times. */
-async function secondsPerBlock(read: Read, head: number): Promise<number> {
+export async function secondsPerBlock(read: Read, head: number): Promise<number> {
   const span = Math.min(50_000, Math.max(1, head - 1));
   const [a, b] = await Promise.all([getBlock(read, head), getBlock(read, head - span)]);
   if (!a || !b || a.time <= b.time) throw new RpcError('block times could not be read', 'transport');

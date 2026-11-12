@@ -3,7 +3,8 @@ import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
 import { routeHash } from './tokenPageCore';
 import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
-import { isEvmNativeMint, loadEvmHoldings, type EvmHolding } from './walletEvmHoldings';
+import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
+import { browserStorage, SwapHistory } from '../swings/history.js';
 import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
@@ -516,7 +517,13 @@ export function initWalletApp(): void {
       return renderDashboard();
     }
     try {
-      const rows = await loadEvmHoldings(account, CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm'));
+      // The tokens this wallet has swapped through Aretia are looked for too, so one just bought shows here.
+      const extra: ExtraToken[] = [];
+      for (const h of new SwapHistory(browserStorage()).list(account)) {
+        if (h.status !== 'confirmed' && h.status !== 'submitted') continue;
+        for (const address of [h.toAddress, h.fromAddress]) if (address && isChainId(h.chain)) extra.push({ chain: h.chain, address });
+      }
+      const rows = await loadEvmHoldings(account, CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm'), { extra });
       if (mine !== evmToken) return;
       evmHoldings = rows;
     } catch {

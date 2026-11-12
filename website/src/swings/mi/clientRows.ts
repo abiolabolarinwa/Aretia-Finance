@@ -2,6 +2,7 @@
  * Turns the Market Indexer's API answers into the rows and trades the wallet's existing tables already draw. Pure. Nothing is
  * invented: a number the index does not state stays null and is drawn as a dash.
  */
+import { isBeyondCredible } from '../market/credible.js';
 import type { MarketRow } from '../market/types.js';
 import type { Trade } from '../charts/trades.js';
 import type { ChainId } from '../core/types.js';
@@ -214,7 +215,7 @@ export function rankIndexRows(kind: 'trending' | 'top' | 'gainers' | 'new', wind
   switch (kind) {
     case 'new': return by((r) => r.ageMs, 1);
     case 'top': return by((r) => r.volume24hUsd, -1);
-    case 'gainers': return by((r) => r.change[window], -1).filter((r) => (r.liquidityUsd ?? 0) >= 1_000);
+    case 'gainers': return by((r) => r.change[window], -1).filter((r) => (r.liquidityUsd ?? 0) >= 1_000 && !isBeyondCredible(r.change[window]));
     default: return by((r) => r.txns24h, -1);
   }
 }

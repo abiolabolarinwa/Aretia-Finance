@@ -10,6 +10,7 @@
  * The floors are plain numbers so they can be tuned in one place. A token the source gives no figure for in a window is
  * left out of that window rather than guessed at.
  */
+import { isBeyondCredible } from './credible.js';
 import type { MarketRow } from './types.js';
 
 export type ModeKind = 'trending' | 'top' | 'gainers' | 'rising';
@@ -80,7 +81,7 @@ export function modeRows(kind: ModeKind, w: ModeWindow, rows: readonly MarketRow
     if (!highDemand(r, w)) return false;
     if (kind === 'trending') return true;
     if (kind === 'top') return (r.change[w] ?? -Infinity) >= TOP_GAIN[w];
-    return WINDOWS.every((x) => (r.change[x] ?? -Infinity) >= GAINER_FLOOR[x]);
+    return WINDOWS.every((x) => (r.change[x] ?? -Infinity) >= GAINER_FLOOR[x]) && !isBeyondCredible(r.change[w]);
   };
   const byMerit = (a: MarketRow, b: MarketRow): number => merit(b) - merit(a);
   const passing = rows.filter(clears).sort(byMerit);

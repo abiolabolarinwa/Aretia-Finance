@@ -101,8 +101,9 @@ export function compactCount(n: number | null): string {
 export function formatChange(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return '–';
   const abs = Math.abs(n);
-  const body = abs >= 100_000 ? `${Math.round(abs / 1000).toLocaleString('en-US')}K` : abs >= 1000 ? Math.round(abs).toLocaleString('en-US') : abs.toFixed(2);
-  return `${n < 0 ? '-' : ''}${body}%`;
+  // Beyond 1,000% the exact figure is not trustworthy (see credible.ts), so it is not printed to the digit.
+  if (abs > 1000) return `${n < 0 ? '<-' : '>'}1,000%`;
+  return `${n < 0 ? '-' : ''}${abs.toFixed(2)}%`;
 }
 
 /** Pool age: 12m, 3h, 11d, 2y. */

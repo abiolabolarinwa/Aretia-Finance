@@ -76,6 +76,7 @@ export async function handleRead(store: MiStore, req: ApiRequest): Promise<ApiRe
     const ref = parseRef(b, c);
     return 'error' in ref ? ref.error : tokenDetail(store, req, ref);
   }
+  if (a === 'tokens' && b !== undefined && c === undefined) return tokenUniverse(store, req, b);
   return err(404, 'not-found', 'No such endpoint. GET /api/v1 lists them.');
 }
 
@@ -104,12 +105,26 @@ function indexResponse(now: number): ApiResponse {
         'GET /api/v1/pools/{chain}/{address}/trades',
         'GET /api/v1/pools/{chain}/{address}/candles',
         'GET /api/v1/tokens/{chain}/{address}',
+        'GET /api/v1/tokens/{chain}?limit=: the addresses of the chain\'s tradable tokens, deepest liquidity first',
       ],
       docs: '/docs/market-indexer-api',
     },
     now,
     300,
   );
+}
+
+/**
+ * The tokens of one chain that can be traded, as bare addresses, deepest liquidity first. A wallet is checked against this list on the
+ * chain itself (see walletHoldingsScan.ts), so the list is public, shared and kept for a quarter of an hour.
+ */
+async function tokenUniverse(store: MiStore, req: ApiRequest, chain: string): Promise<ApiResponse> {
+  if (!isMiChain(chain)) return err(400, 'bad-chain', `chain must be one of: ${MI_CHAINS.join(', ')}.`);
+  if (chain === 'solana') return err(400, 'bad-chain', 'Solana wallets are read from their token accounts; this list is for Ethereum-style chains.');
+  const limit = intParam(req.query.limit, 2000, 1, 3000);
+  if (limit === null) return err(400, 'bad-limit', 'limit must be a whole number from 1 to 3000.');
+  const addresses = await store.tokenUniverse(chain, limit);
+  return ok({ chain, count: addresses.length, addresses }, req.now, 900);
 }
 
 /** An error message that is safe to show: links and long tokens (a node URL, an API key) are replaced, and it is cut short. */

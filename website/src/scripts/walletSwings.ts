@@ -2001,16 +2001,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       host.append(cell('24H TXNS', s ? `${s.txns24h.toLocaleString('en-US')}${s.cappedPools > 0 ? '+' : ''}` : '–', `Buys plus sells in the last 24 hours ${scope}`));
       const now = Date.now();
       const first = blocks[0];
-      const value = blocks.length === 0 ? '–' : m.chain === '' ? blocks.slice(0, 6).map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')}`).join(' · ') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();
+      const value = blocks.length === 0 ? '–' : m.chain === '' ? blocks.reduce((sum, b) => sum + b.block, 0).toLocaleString('en-US') : `${blocks[0]!.block.toLocaleString('en-US')} ${agoText(blocks[0]!.seenAt, now)}`.trim();
       const title = blocks.length === 0 ? 'The index has not seen a block on this network yet.' : `The newest block (Solana: slot) Aretia's index has seen: ${blocks.map((b) => `${CHAIN_SHORT[b.chain] ?? b.chain} ${b.block.toLocaleString('en-US')} ${agoText(b.seenAt, now)}`.trim()).join('; ')}.`;
-      const blockCell = cell('LATEST BLOCK', first ? value : '–', title);
-      // On all networks the blocks are small chips in a row, not one long sentence that wraps into a tall block.
-      if (first && m.chain === '') {
-        const chips = el('span', { class: 'wapp-mt__chips' }, blocks.slice(0, 6).map((b) => el('span', { class: 'wapp-mt__chip' }, [el('small', { text: CHAIN_SHORT[b.chain] ?? b.chain }), el('b', { text: b.block.toLocaleString('en-US') })])));
-        blockCell.querySelector('strong')?.replaceWith(chips);
-        blockCell.classList.add('wapp-mt__stat--wide');
-      }
-      host.append(blockCell);
+      host.append(cell(m.chain === '' ? 'LATEST BLOCK (all networks, total)' : 'LATEST BLOCK', first ? value : '–', title));
     }
     async function loadStats(): Promise<void> {
       const got = await fetchMarketStats();

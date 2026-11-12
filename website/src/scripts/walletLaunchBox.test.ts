@@ -83,9 +83,11 @@ describe('the chart beside the list', () => {
     const none = chartPlan({ pool: null, curve: null });
     expect(none.kind === 'none' && none.why).toContain('no trading pool');
   });
-  it('lays the page out in two parts that stack on a narrow screen', () => {
+  it('lays the list out full width with the chart of the chosen token under it', () => {
     const page = readFileSync(new URL('../pages/wallet/index.astro', import.meta.url), 'utf8');
     expect(page).toContain('.wapp-lb__split');
-    expect(page).toMatch(/@media \(min-width: 1100px\) \{\s*\.wapp-lb__split \{ grid-template-columns/);
+    expect(page).toMatch(/\.wapp-lb__split \{ display: grid; grid-template-columns: minmax\(0, 1fr\)/);
+    expect(page).not.toMatch(/\.wapp-lb__split \{ grid-template-columns: minmax\(0, 1\.15fr\)/);
   });
+
 });

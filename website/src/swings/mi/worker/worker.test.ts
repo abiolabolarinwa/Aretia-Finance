@@ -150,6 +150,14 @@ describe('tasks from configuration', () => {
     expect(ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_BACKFILL_DAYS: '7', MI_BACKFILL_ADAPTERS: 'apeswap-v2-bnb' }).filter((i) => i.endsWith(':backfill'))).toEqual(['apeswap-v2-bnb:backfill']);
   });
 
+  it('adds a swap-history task only when MI_SWAP_BACKFILL_DAYS is set, only for V2/V3 adapters of chains in MI_SWAP_SCAN', () => {
+    const swaps = (env: Record<string, string>) => ids({ MI_ADAPTERS: 'pancakeswap-v2-bnb,uniswap-v3-ethereum,uniswap-v2-ethereum', ...env }).filter((i) => i.endsWith(':swaps'));
+    expect(swaps({ MI_SWAP_SCAN: 'ethereum' })).toEqual([]); // off unless asked
+    expect(swaps({ MI_SWAP_BACKFILL_DAYS: '14' })).toEqual([]); // no chain is scanned, so nothing to backfill
+    expect(swaps({ MI_SWAP_BACKFILL_DAYS: '14', MI_SWAP_SCAN: 'ethereum' }).sort()).toEqual(['uniswap-v2-ethereum:swaps', 'uniswap-v3-ethereum:swaps']);
+    expect(swaps({ MI_SWAP_BACKFILL_DAYS: '14', MI_SWAP_SCAN: 'ethereum', MI_SWAP_BACKFILL_ADAPTERS: 'uniswap-v3-ethereum' })).toEqual(['uniswap-v3-ethereum:swaps']);
+  });
+
   it('adds one supply task per chain, and a Solana one when Solana adapters run, unless MI_SUPPLY=0', () => {
     const sup = (env: Record<string, string>) => ids(env).filter((i) => i.endsWith(':supply'));
     expect(sup({ MI_ADAPTERS: 'pancakeswap-v2-bnb,pancakeswap-v3-bnb,uniswap-v2-ethereum' }).sort()).toEqual(['bnb:supply', 'ethereum:supply']);

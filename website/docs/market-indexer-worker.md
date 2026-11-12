@@ -53,6 +53,16 @@ range replaces hundreds, and every registered pool gets real trades (price, chan
 - With the scan on for a chain, `MI_FOLLOW_NEWEST` / `MI_FOLLOW_RECENT` no longer matter for its V2/V3 adapters.
 - **Not yet run against a live node.** Tested with the fake chain only (`swapScan.test.ts`).
 
+## Swap-history backfill (`<adapter>:swaps`)
+
+The index only stores swaps from the moment it follows a pool, so a pool that was quiet since then has no 24-hour volume, transactions, traders or price change. `MI_SWAP_BACKFILL_DAYS=14` adds one task per V2/V3 adapter of a chain in `MI_SWAP_SCAN` (optionally limited by `MI_SWAP_BACKFILL_ADAPTERS`) that reads the chain's swaps for that many days back with the same chain-wide scan, keeps those of registered pools, and stores them as trades (`src/swings/mi/swapBackfill.ts`).
+
+- It walks forward from N days ago to the block where the live adapter began, saves its place in a checkpoint `<adapter>:swaps:<days>d` (a restart resumes), and is idempotent: reading a range twice stores nothing twice. A finished walk is not repeated.
+- It does not re-read each pool's reserves per range. It records each pool's first and last trade time; the reserves refresher then recomputes the pool's statistics from the stored trades on its next pass (give it a few passes, 1,500 pools each).
+- The time of a swap is interpolated between the block times at the two ends of its range, not read per swap: a few seconds of error at most on a 12-second chain, finer than every window or candle shown.
+- **Capped by retention.** Trades older than `MI_TRADE_RETENTION_DAYS` (default 14) are pruned, and migration 0021's hourly `aretia_housekeeping` also keeps 14 days, so the days are capped to the retention setting and 14 is the useful maximum until both are raised (and the disk checked).
+- Cost: Ethereum reads 500 blocks per request, so 14 days is about 200 requests per adapter (V2 adapters share one event, so each fetches it again). Polygon, Base and BNB need a node that serves large `eth_getLogs` results; the free nodes may refuse. **Not run against a live node yet** (fake chain only: `swapBackfill.test.ts`).
+
 ## Token supply (`<chain>:supply`)
 
 One task per chain, on unless `MI_SUPPLY=0`: reads the total supply of tokens the index knows (EVM: `totalSupply()` for 150 tokens per Multicall3 request; Solana: the mint account, 100 per request), never-tried tokens first, then the ones read longest ago (a supply that changes is read again after 24 hours). A token with no readable supply (and the chain's own coin) is recorded as unreadable with the time, so it is not asked again every pass. The Markets list uses it for the fully diluted value (see markets-from-index.md). It needs migration 0022 (`total_supply`, `supply_at` on `mi_tokens`), applied on the server with `docker compose run --rm migrate` (run it after `git pull`, before rebuilding the worker; `up -d worker` does not re-run it). About 3,000 Ethereum tokens are read in a few minutes (20 requests).

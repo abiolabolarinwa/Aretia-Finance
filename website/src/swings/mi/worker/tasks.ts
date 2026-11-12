@@ -2,6 +2,7 @@
  * Turns configuration into the worker's tasks:
  *   <adapter>            the live run of an adapter (the same `runAll` the HTTP route uses, limited to that one adapter and given a longer slice)
  *   <adapter>:refresh    the reserves refresher (EVM V2/V3 on chains with Multicall3), on unless MI_REFRESH=0
+ *   <adapter>:swaps      the swap-history backfill (MI_SWAP_BACKFILL_DAYS > 0): past swaps of the registered pools of chains in MI_SWAP_SCAN
  *   <adapter>:backfill   the creation backfill, only when MI_BACKFILL_DAYS > 0; default adapters: the V2/V3 adapters of BNB Chain
  *   <solana adapter>:discover / :refresh   discovery of existing Solana pools and their liquidity refresher, only when MI_SOLANA_DISCOVERY is set
  *   <chain>:supply       the token supply refresher (for the Markets list's fully diluted value), one per chain, on unless MI_SUPPLY=0
@@ -9,6 +10,9 @@
 import { chainConfig, type MiChainConfig } from '../chains.js';
 import { allSpecs, type DexAdapterSpec } from '../dexes.js';
 import { backfillCreations } from '../backfill.js';
+import { backfillSwaps } from '../swapBackfill.js';
+import { swapScanChains } from '../swapScan.js';
+import { DEFAULT_RETENTION_DAYS } from '../track.js';
 import type { LaunchLookup } from '../engine.js';
 import { nativeUsdReader } from '../reference.js';
 import { refreshReserves } from '../refresher.js';
@@ -159,6 +163,26 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         run: async (budgetMs) => {
           const r = readerFor(spec);
           const rep = await backfillCreations({ spec, chain: r.chain, read: r.read, store: d.store, rules, now: d.now, nativeUsd: r.nativeUsd, launch: d.launch ?? null, budgetMs, days, minLiquidityUsd: d.env.MI_BACKFILL_MIN_LIQUIDITY_USD ? Number(d.env.MI_BACKFILL_MIN_LIQUIDITY_USD) : undefined });
+          return { ok: rep.ok, error: rep.error, caughtUp: rep.state !== 'walking' };
+        },
+      });
+    }
+  }
+
+  // Past swaps of the pools already held, so quiet pools have their 24-hour figures. Never reaches back further than the store keeps trades.
+  const swapDays = Math.min(int(d.env.MI_SWAP_BACKFILL_DAYS, 0, 0, 365), int(d.env.MI_TRADE_RETENTION_DAYS, DEFAULT_RETENTION_DAYS, 2, 365));
+  if (int(d.env.MI_SWAP_BACKFILL_DAYS, 0, 0, 365) > 0) {
+    const scanned = swapScanChains(d.env.MI_SWAP_SCAN);
+    const wanted = (d.env.MI_SWAP_BACKFILL_ADAPTERS ?? '').split(/[\s,;]+/).filter(Boolean);
+    for (const spec of enabledSpecs(d.env)) {
+      if ((spec.kind !== 'v2' && spec.kind !== 'v3') || !scanned.has(spec.chain) || (wanted.length > 0 && !wanted.includes(spec.id))) continue;
+      tasks.push({
+        id: `${spec.id}:swaps`,
+        chain: spec.chain,
+        idleMs: 3_600_000,
+        run: async (budgetMs) => {
+          const r = readerFor(spec);
+          const rep = await backfillSwaps({ spec, chain: r.chain, read: r.read, store: d.store, rules, now: d.now, budgetMs, days: swapDays });
           return { ok: rep.ok, error: rep.error, caughtUp: rep.state !== 'walking' };
         },
       });

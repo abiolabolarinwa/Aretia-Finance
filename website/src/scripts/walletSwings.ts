@@ -16,6 +16,7 @@ import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
+import { SWAP_TOKEN_EVENT, type SwapTokenRequest } from './walletHoldingActions';
 import { lookupAddress } from './walletAddressLookup.js';
 import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenPath } from './tokenPageCore.js';
 
@@ -2098,8 +2099,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     function draw(): void {
       // The docked panel steps aside while a full token page is open.
-      // The docked panel is for actively traded, bullish tokens: it shows only while "Bullish only" is on. Any other click opens the token page, which carries the pool details.
-      panel.element.hidden = page || !f.bullish;
+      panel.element.hidden = page;
       if (page) {
         // Taking a chart frame out of the page and putting it back reloads it, so an open token page is left exactly as it is.
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
@@ -2627,6 +2627,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         await new Promise<void>((r) => setTimeout(r, 0));
       }
       await markets.showToken(t);
+    })();
+  });
+  // "Buy" or "Sell" on a dashboard holding: the swap opens with that token to receive (Buy) or to pay with (Sell).
+  window.addEventListener(SWAP_TOKEN_EVENT, (e) => {
+    const t = (e as CustomEvent<SwapTokenRequest>).detail;
+    void (async () => {
+      if (tokenOpenMode(hashNow()) !== 'swap-page') {
+        location.hash = '#/swap';
+        await new Promise<void>((r) => window.addEventListener('hashchange', () => r(), { once: true }));
+      }
+      selectChain(t.chain);
+      showTab('swap');
+      const side = t.side === 'sell' ? 'from' : 'to';
+      // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
+      await pick(side, { mint: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals ?? 0, icon: t.icon, verified: null }, t.chain);
     })();
   });
   window.addEventListener(OPEN_TOKEN_EVENT, (e) => {

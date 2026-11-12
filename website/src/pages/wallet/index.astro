@@ -1905,6 +1905,12 @@ const sendTips = [
   .wapp-table th { padding: 0 10px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
   .wapp-table td { padding: 12px 10px; border-top: 1px solid var(--color-border); vertical-align: middle; }
   .wapp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  /* Buy more / Sell on each holding. */
+  .wapp-table .wapp-row-actions { width: 1%; padding-right: 4px; text-align: right; white-space: nowrap; }
+  .wapp-row-btn { margin-left: 6px; padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 650; color: var(--color-strong); cursor: pointer; background: var(--color-bg-alt); border: 1px solid var(--color-border-strong); border-radius: 999px; }
+  .wapp-row-btn:hover, .wapp-row-btn:focus-visible { border-color: var(--color-brand); outline: none; }
+  .wapp-row-btn.is-buy { color: var(--color-bg); background: var(--color-strong); border-color: var(--color-strong); }
+  .wapp-row-btn.is-buy:hover, .wapp-row-btn.is-buy:focus-visible { opacity: 0.88; }
   .wapp-asset { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .wapp-asset > div { display: grid; min-width: 0; }
   .wapp-asset strong { color: var(--color-strong); }

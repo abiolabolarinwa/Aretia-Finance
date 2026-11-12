@@ -93,70 +93,6 @@ function picture(r: MarketRow): HTMLElement {
   return img;
 }
 
-function copyButton(text: string, what: string): HTMLButtonElement {
-  const b = el('button', 'wapp-mp__icon');
-  b.type = 'button';
-  b.innerHTML = COPY_ICON;
-  b.title = `Copy the ${what}`;
-  b.setAttribute('aria-label', `Copy the ${what}`);
-  b.addEventListener('click', () => {
-    const done = (): void => {
-      b.innerHTML = CHECK_ICON;
-      b.title = 'Copied';
-      setTimeout(() => {
-        b.innerHTML = COPY_ICON;
-        b.title = `Copy the ${what}`;
-      }, 1500);
-    };
-    if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(text).then(done, () => undefined);
-  });
-  return b;
-}
-
-function addressRow(label: string, address: string, chain: ChainId): HTMLElement {
-  const r = el('div', 'wapp-mp__line');
-  r.append(el('span', 'wapp-mp__lk', label));
-  const right = el('span', 'wapp-mp__lv');
-  const what = label.toLowerCase();
-  right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, what));
-  // A Uniswap V4 pool is named by a 32-byte id, which is not an address: a block explorer has no page for it.
-  if (chain === 'solana' || address.length <= 42) {
-    const a = el('a', 'wapp-mp__icon');
-    a.innerHTML = OPEN_ICON;
-    a.href = ADDRESS_URL[chain] + encodeURIComponent(address);
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.title = `View the ${what} on the block explorer`;
-    a.setAttribute('aria-label', `View the ${what} on the block explorer`);
-    right.append(a);
-  }
-  r.append(right);
-  return r;
-}
-
-
-/**
- * The "Pool details" group: when the pool opened, what is in it, the pool's and the token's addresses to copy or open on the explorer.
- * Used by the docked panel and by the token page that opens on a click, so both say the same thing.
- */
-export function poolDetailsGroup(x: { chain: ChainId; address: string; pool: string; ageMs: number | null }, d: PairDetail | null): HTMLElement {
-  const info = el('div', 'wapp-mp__group');
-  info.append(heading(x.pool ? 'Pool details' : 'Token details'));
-  const line = (k: string, v: string): HTMLElement => {
-    const l = el('div', 'wapp-mp__line');
-    l.append(el('span', 'wapp-mp__lk', k), el('strong', 'wapp-mp__lv', v));
-    return l;
-  };
-  if (x.pool) {
-    info.append(line('Pool opened', agoLong(d?.ageMs ?? x.ageMs)));
-    if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
-    const pair = d?.pair ?? x.pool;
-    info.append(addressRow(pair.length > 42 && x.chain !== 'solana' ? 'Pool ID' : 'Pool address', pair, x.chain));
-  }
-  info.append(addressRow('Token address', x.address, x.chain));
-  return info;
-}
-
 export function createMarketPanel(o: MarketPanelOptions) {
   const root = el('aside', 'wapp-mp');
   root.setAttribute('aria-label', 'Selected token');
@@ -174,6 +110,47 @@ export function createMarketPanel(o: MarketPanelOptions) {
   /** Kept across redraws: the swap card lives inside it. */
   const swapHost = el('div', 'wapp-mp__swap');
   let swapKey = '';
+
+  function copyButton(text: string, what: string): HTMLButtonElement {
+    const b = el('button', 'wapp-mp__icon');
+    b.type = 'button';
+    b.innerHTML = COPY_ICON;
+    b.title = `Copy the ${what}`;
+    b.setAttribute('aria-label', `Copy the ${what}`);
+    b.addEventListener('click', () => {
+      const done = (): void => {
+        b.innerHTML = CHECK_ICON;
+        b.title = 'Copied';
+        setTimeout(() => {
+          b.innerHTML = COPY_ICON;
+          b.title = `Copy the ${what}`;
+        }, 1500);
+      };
+      if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(text).then(done, () => undefined);
+    });
+    return b;
+  }
+
+  function addressRow(label: string, address: string, chain: ChainId): HTMLElement {
+    const r = el('div', 'wapp-mp__line');
+    r.append(el('span', 'wapp-mp__lk', label));
+    const right = el('span', 'wapp-mp__lv');
+    const what = label.toLowerCase();
+    right.append(el('code', 'wapp-mp__addr', short(address)), copyButton(address, what));
+    // A Uniswap V4 pool is named by a 32-byte id, which is not an address: a block explorer has no page for it.
+    if (chain === 'solana' || address.length <= 42) {
+      const a = el('a', 'wapp-mp__icon');
+      a.innerHTML = OPEN_ICON;
+      a.href = ADDRESS_URL[chain] + encodeURIComponent(address);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = `View the ${what} on the block explorer`;
+      a.setAttribute('aria-label', `View the ${what} on the block explorer`);
+      right.append(a);
+    }
+    r.append(right);
+    return r;
+  }
 
   // The "Aretia check" card (rating, findings, "Watch for changes", "Full Shield report") was removed from this panel.
 
@@ -268,7 +245,20 @@ export function createMarketPanel(o: MarketPanelOptions) {
     act.append(buy);
     if (!embedded) root.append(act);
 
-    root.append(poolDetailsGroup({ chain: r.chain, address: r.address, pool: r.pool, ageMs: r.ageMs }, d));
+    const info = el('div', 'wapp-mp__group');
+    info.append(heading(r.pool ? 'Pool details' : 'Token details'));
+    const line = (k: string, v: string): HTMLElement => {
+      const l = el('div', 'wapp-mp__line');
+      l.append(el('span', 'wapp-mp__lk', k), el('strong', 'wapp-mp__lv', v));
+      return l;
+    };
+    if (r.pool) {
+      info.append(line('Pool opened', agoLong(d?.ageMs ?? r.ageMs)));
+      if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
+      info.append(addressRow((d?.pair ?? r.pool).length > 42 && r.chain !== 'solana' ? 'Pool ID' : 'Pool address', d?.pair ?? r.pool, r.chain));
+    }
+    info.append(addressRow('Token address', r.address, r.chain));
+    root.append(info);
     if (d && d.links.length > 0) {
       const g = el('div', 'wapp-mp__group');
       g.append(heading('Links from the project'));

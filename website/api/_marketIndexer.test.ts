@@ -131,6 +131,19 @@ describe('GET /api/v1 (public read API)', () => {
     expect((await get(store, now, `tokens/bnb/0x${'9'.repeat(40)}`)).status).toBe(404);
   });
 
+  it('lists the tradable tokens of a chain as bare addresses, for a wallet to be checked against on-chain, and validates the request', async () => {
+    const { store, now } = await seeded();
+    const res = await get(store, now, 'tokens/bnb');
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toContain('s-maxage=900');
+    expect(body(res).data).toEqual({ chain: 'bnb', count: 1, addresses: [TOKEN] });
+    expect(body(await get(store, now, 'tokens/ethereum')).data.addresses).toEqual([]);
+    expect((await get(store, now, 'tokens/bnb', { limit: '0' })).status).toBe(400);
+    expect((await get(store, now, 'tokens/bnb', { limit: '9999' })).status).toBe(400);
+    expect((await get(store, now, 'tokens/mars')).status).toBe(400);
+    expect((await get(store, now, 'tokens/solana')).status).toBe(400);
+  });
+
   it('rejects malformed paths, honestly refuses Solana, and answers CORS preflight', async () => {
     const { store, now } = await seeded();
     expect((await get(store, now, 'pools/bnb/0x123')).status).toBe(400);

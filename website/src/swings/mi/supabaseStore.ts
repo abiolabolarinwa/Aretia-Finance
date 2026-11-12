@@ -149,6 +149,16 @@ export class SupabaseMiStore implements MiStore {
     }
     return [...out.values()].slice(0, max);
   }
+  async tokenUniverse(chain: MiChain, limit: number): Promise<string[]> {
+    const max = clampLimit(limit, 3000);
+    const seen = new Set<string>();
+    for (let offset = 0; offset < 5_000 && seen.size < max; offset += 1_000) {
+      const pools = await this.rows(`mi_pools?chain=eq.${plain(chain)}&state=eq.active&select=base&order=liquidity_usd.desc.nullslast,key.asc&limit=1000&offset=${offset}`);
+      for (const r of pools) seen.add(String(r.base));
+      if (pools.length < 1_000) break;
+    }
+    return [...seen].slice(0, max);
+  }
   async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
     await this.call(`mi_tokens?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ total_supply: supply, supply_at: at }) });
   }

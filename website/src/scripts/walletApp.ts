@@ -7,6 +7,7 @@ import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } fr
 import { browserStorage, SwapHistory } from '../swings/history.js';
 import { requestSwap, swapRequestFor } from './walletHoldingActions';
 import { discoverEvmTokens } from './walletTokenDiscovery';
+import { scanKnownTokens } from './walletHoldingsScan';
 import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
@@ -527,18 +528,27 @@ export function initWalletApp(): void {
         for (const address of [h.toAddress, h.fromAddress]) if (address && isChainId(h.chain)) extra.push({ chain: h.chain, address });
       }
       const evmChains = CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm');
-      // What is already known is drawn at once; the search for every other token the wallet holds follows and fills the rest in.
-      const rows = await loadEvmHoldings(account, evmChains, { extra });
-      if (mine !== evmToken) return;
-      evmHoldings = rows;
-      drawn = true;
-      renderDashboard();
-      renderSendAssets();
-      const found = await discoverEvmTokens(account, evmChains).catch(() => []);
-      if (mine !== evmToken || found.length === 0) return;
-      const all = await loadEvmHoldings(account, evmChains, { extra: [...extra, ...found] });
-      if (mine !== evmToken) return;
-      evmHoldings = all;
+      // The two searches for the wallet's other tokens start now and run while the first, quick read is drawn:
+      // Aretia's own (the wallet checked on-chain against every token of Aretia's index) and an outside list, which covers tokens the index does not know.
+      const own = scanKnownTokens(account, evmChains).catch((): ExtraToken[] => []);
+      const outside = discoverEvmTokens(account, evmChains).catch((): ExtraToken[] => []);
+      const draw = async (more: ExtraToken[]): Promise<boolean> => {
+        const rows = await loadEvmHoldings(account, evmChains, { extra: more });
+        if (mine !== evmToken) return false;
+        evmHoldings = rows;
+        drawn = true;
+        renderDashboard();
+        renderSendAssets();
+        return true;
+      };
+      // What is already known is drawn at once; each search then fills in what it finds.
+      if (!(await draw(extra))) return;
+      const owned = await own;
+      const known = new Set([...extra, ...owned].map((t) => `${t.chain}:${t.address.toLowerCase()}`));
+      if (owned.length > 0 && !(await draw([...extra, ...owned]))) return;
+      const added = (await outside).filter((t) => !known.has(`${t.chain}:${t.address.toLowerCase()}`));
+      if (mine !== evmToken || added.length === 0) return;
+      await draw([...extra, ...owned, ...added]);
     } catch {
       if (mine !== evmToken) return;
       // A failed second step keeps what the first one found; a failed first step shows no Ethereum-style tokens rather than another account's.

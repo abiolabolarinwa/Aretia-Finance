@@ -6,7 +6,6 @@
 import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { DexScreenerPoolFinder } from '../swings/charts/dexscreener.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
-import { poolDetailsGroup } from './walletMarketPanel.js';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
 import { mountTvChart, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
@@ -189,8 +188,6 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
         side.append(links);
       }
     }
-    // Pool details sit with the chart that was opened: when the pool opened, what is in it, and the addresses.
-    side.append(poolDetailsGroup({ chain: o.chain, address: o.address, pool, ageMs: d?.ageMs ?? null }, d));
     if (o.riskNote) side.append(el('p', 'wapp-tp__risk', o.riskNote));
     side.append(el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
   }

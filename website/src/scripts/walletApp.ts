@@ -5,6 +5,7 @@ import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
 import { browserStorage, SwapHistory } from '../swings/history.js';
+import { requestSwap, swapRequestFor } from './walletHoldingActions';
 import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
@@ -610,6 +611,19 @@ export function initWalletApp(): void {
 
   /** True between the balances arriving and their prices arriving. */
   let pricing = false;
+  /** Buy more of a holding, or sell it: the swap opens with the token already chosen on the right side. */
+  function holdingActions(h: Holding): HTMLElement {
+    const td = el('td', { class: 'wapp-row-actions' });
+    for (const side of ['buy', 'sell'] as const) {
+      const req = swapRequestFor(h, side);
+      if (!req) continue;
+      const b = el('button', { class: `wapp-row-btn${side === 'buy' ? ' is-buy' : ''}`, text: side === 'buy' ? 'Buy' : 'Sell', attrs: { type: 'button', 'aria-label': `${side === 'buy' ? 'Buy more' : 'Sell'} ${h.symbol}`, title: side === 'buy' ? `Buy more ${h.symbol}` : `Sell ${h.symbol}` } });
+      b.addEventListener('click', () => requestSwap(req));
+      td.append(b);
+    }
+    return td;
+  }
+
   function renderDashboard(error?: string): void {
     renderTopAssets();
     const total = $('[data-total]');
@@ -648,7 +662,7 @@ export function initWalletApp(): void {
     const mask = (t: string) => (amountsHidden ? '••••' : t);
     const table = el('table', { class: 'wapp-table' });
     table.append(
-      el('thead', {}, [el('tr', {}, ['Asset', 'Balance', 'Price', 'Value', 'Weight'].map((t, i) => el('th', { text: t, class: i > 0 && i < 4 ? 'num' : '' })))]),
+      el('thead', {}, [el('tr', {}, [...['Asset', 'Balance', 'Price', 'Value', 'Weight'].map((t, i) => el('th', { text: t, class: i > 0 && i < 4 ? 'num' : '' })), el('th', { class: 'wapp-row-actions-head', attrs: { 'aria-label': 'Buy or sell' } })])]),
     );
     const tbody = el('tbody');
     for (const h of shown) {
@@ -666,6 +680,7 @@ export function initWalletApp(): void {
           priceCell,
           el('td', { class: 'num', text: h.value === null ? '—' : mask(formatUsd(h.value)) }),
           el('td', {}, [weight === null ? el('span', { text: '—' }) : el('span', { class: 'wapp-weight' }, [bar, el('span', { text: `${weight < 1 ? '<1' : Math.round(weight)}%` })])]),
+          holdingActions(h),
         ]),
       );
     }

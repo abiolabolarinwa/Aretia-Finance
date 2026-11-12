@@ -392,6 +392,13 @@ export class RpcPool {
     }
     // No node would take the range: hand back the refusal, so the caller halves the range (it is the same message a single node gives).
     if (rangeRefusal) return rangeRefusal;
+    // No node was even tried because every one that serves this method has learned a narrower log range than this request: that is a range
+    // refusal too, so the caller halves the range instead of failing (otherwise a walk stalls for as long as the nodes remember their limit).
+    if (last === null && method === 'eth_getLogs' && range > 1) {
+      const t = this.now();
+      const narrow = this.eps.filter((e) => (e.blocked.get(method) ?? 0) <= t && e.logRangeMax < range);
+      if (narrow.length > 0) return { error: { code: -32602, message: `block range too wide: the nodes available take up to ${Math.max(...narrow.map((e) => e.logRangeMax))} blocks` } } as RpcBody;
+    }
     throw new RpcError(last instanceof Error ? `all nodes failed: ${last.message}` : 'all nodes failed', 'transport');
   }
 }

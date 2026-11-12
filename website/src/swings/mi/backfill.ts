@@ -56,6 +56,14 @@ export interface BackfillReport {
 }
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
+/**
+ * Blocks per request for the creation walk, where a chain allows far more than the live adapter's range. The read is filtered to the
+ * factory's address, which Robinhood's node takes over 10,000,000 blocks at a time (checked live), and the factory made about 1,000 pools
+ * in 5 million blocks, so a block every 0.13 s would otherwise need tens of thousands of requests for a year. Other chains use their own range.
+ */
+export const CREATION_BACKFILL_RANGE: Readonly<Record<string, number>> = { robinhood: 200_000 };
+export const creationBackfillRangeOf = (chain: Pick<MiChainConfig, 'id' | 'maxRange'>): number => Math.max(1, CREATION_BACKFILL_RANGE[chain.id] ?? chain.maxRange);
+
 export const backfillKey = (adapterId: string, days: number): string => `${adapterId}:backfill:${days}d`;
 
 /** Which side of a pair is the quote: the recognised token, a dollar stablecoin winning over the wrapped coin (same rule as the engine). */
@@ -107,7 +115,7 @@ export async function backfillCreations(d: BackfillDeps): Promise<BackfillReport
     };
 
     while (from <= safe && d.now() < deadline) {
-      const to = Math.min(from + d.chain.maxRange - 1, safe);
+      const to = Math.min(from + creationBackfillRangeOf(d.chain) - 1, safe);
       const logs = await getLogsHalving(d.read, { address: d.spec.factory, topics: [d.spec.creationTopic] }, from, to);
       const creations: Creation[] = [];
       for (const raw of logs) {

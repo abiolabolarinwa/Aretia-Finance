@@ -4,6 +4,7 @@ import { specById } from './dexes.js';
 import { runAdapter, type EngineDeps } from './engine.js';
 import { DEFAULT_RULES } from './lifecycle.js';
 import { InMemoryMiStore } from './store.js';
+import { creationBackfillRangeOf } from './backfill.js';
 import { backfillSwaps, interpolateTime, swapBackfillKey, swapBackfillRangeOf } from './swapBackfill.js';
 import { FakeChain, pairCreatedLog, v2SwapLog } from './testkit.js';
 
@@ -105,6 +106,13 @@ describe('blocks per request for the walk', () => {
     expect(swapBackfillRangeOf(chainConfig('ethereum'))).toBe(500);
     expect(swapBackfillRangeOf(chainConfig('bnb'))).toBe(1000);
     expect(swapBackfillRangeOf(chainConfig('robinhood'))).toBe(25_000);
+  });
+});
+
+describe('blocks per request for the creation walk', () => {
+  it('uses the own range of each chain, except Robinhood, where the factory-filtered read takes far more', () => {
+    expect(creationBackfillRangeOf(chainConfig('ethereum'))).toBe(500);
+    expect(creationBackfillRangeOf(chainConfig('robinhood'))).toBe(200_000);
   });
 });
 

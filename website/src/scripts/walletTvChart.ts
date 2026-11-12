@@ -6,6 +6,7 @@
  * scripts/fetch-charting-library.ts) and are served from this site's own /charting_library/. When they are missing, or
  * fail to start, `onUnavailable` is called so the screen can show its fallback chart instead of an empty box.
  */
+import { formatAxisPrice } from '../swings/market/types.js';
 import type { ChainId } from '../swings/core/types.js';
 import { holdLowPriority } from '../swings/charts/geckoGate.js';
 import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
@@ -33,6 +34,8 @@ export interface TvChartOptions {
   quoteSymbol?: string;
   /** Which token of the pool is priced: the first ("base", the default) or the second ("quote"). */
   token?: 'base' | 'quote';
+  /** The address of the token that is priced, so a source that orders the pool's tokens the other way round is still charted right. */
+  target?: string;
   /** A recent price in US dollars, used only to choose how many decimals the price scale shows. */
   priceHint?: number | null;
   exchange?: string | null;
@@ -109,7 +112,7 @@ export function mountTvChart(
   o: TvChartOptions,
   makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean, onStatus?: (s: ChartStatus) => void) => TvDatafeed = (currency, label, onLoadFailed, cancelled, onStatus) =>
     createPoolDatafeed(
-      { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}), ...(o.source ? { source: o.source } : {}) },
+      { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(o.target ? { target: o.target } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}), ...(o.source ? { source: o.source } : {}) },
       { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled, ...(onStatus ? { onStatus } : {}) },
     ),
 ): TvChart {
@@ -326,6 +329,8 @@ export function mountTvChart(
           theme: 'light',
           autosize: true,
           loading_screen: { backgroundColor: '#ffffff', foregroundColor: '#0e5c45' },
+          // Prices on the axis and in the legend: a tiny one is 0.0₅3264, not 3.264e-6.
+          custom_formatters: { priceFormatterFactory: (info: { format?: string } | null) => (info?.format === 'price' || !info ? { format: (price: number) => formatAxisPrice(price) } : null) },
           disabled_features: [...DISABLED, ...(o.toolbar ? [] : ['left_toolbar'])],
           overrides: { 'paneProperties.background': '#ffffff', 'paneProperties.backgroundType': 'solid', 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });

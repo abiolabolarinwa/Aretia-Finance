@@ -1702,6 +1702,9 @@ const sendTips = [
   .wapp-tp__swap .wapp__grid.wapp__grid--trade { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
   .wapp-tp__swap .wapp__trade-side { display: none; }
   .wapp-tp__swap .wapp__swap { width: 100%; box-shadow: none; }
+  /* Beside the chart the swap card is compact, so the numbers and pool details under it stay in view. */
+  .wapp-tp__swap .wapp__swap { gap: 6px; padding: 12px; border-radius: 16px; }
+  .wapp-tp__swap .wapp__swap-box { gap: 4px; padding: 10px 12px; border-radius: 14px; }
   @media (max-width: 1000px) {
     .wapp-tp__grid { grid-template-columns: 1fr; --tp-gap: 14px; }
     .wapp-tp__side { position: static; max-height: none; }

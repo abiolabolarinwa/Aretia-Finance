@@ -81,6 +81,23 @@ export function formatPrice(n: number | null): string {
   return `$0.0${count}${digits}`;
 }
 
+/**
+ * A price for a chart axis or legend, with no currency sign: a tiny price is written with a subscript count of zeros (0.0₅3264) instead of
+ * the scientific form (3.264e-6) the chart library falls back to. Pure.
+ */
+export function formatAxisPrice(n: number): string {
+  if (!Number.isFinite(n)) return '–';
+  if (n === 0) return '0';
+  const sign = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  if (a >= 1000) return `${sign}${a.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  if (a >= 1) return `${sign}${a.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
+  if (a >= 0.0001) return `${sign}${a.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+  const zeros = Math.ceil(-Math.log10(a)) - 1;
+  const digits = Math.round(a * 10 ** (zeros + 5)).toString().slice(0, 4).replace(/0+$/, '') || '0';
+  return `${sign}0.0${String(zeros).split('').map((d) => SUBSCRIPT[Number(d)]).join('')}${digits}`;
+}
+
 /** Big money, short: $4.3M, $161K, $74. */
 export function compactUsd(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return '–';

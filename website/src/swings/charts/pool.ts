@@ -29,6 +29,9 @@ export interface PoolInfo {
   /** First token of the drawn pair (the chart prices this one) and the second. Set when the pool is chosen from DexScreener's list. */
   baseSymbol?: string;
   quoteSymbol?: string;
+  /** Addresses of the first and second token, as the source names them. */
+  baseAddress?: string;
+  quoteAddress?: string;
   /** True when the token being looked at is the pair's first token, so the chart shows the token itself. */
   targetIsBase?: boolean;
   /** The first token's picture. */

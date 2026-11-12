@@ -91,6 +91,8 @@ export function pickDexPair(chain: ChainId, address: string, pairs: unknown): Po
     trades24h: typeof buys === 'number' && typeof sells === 'number' ? buys + sells : null,
     baseSymbol,
     quoteSymbol,
+    ...(typeof p.baseToken!.address === 'string' ? { baseAddress: p.baseToken!.address } : {}),
+    ...(typeof p.quoteToken!.address === 'string' ? { quoteAddress: p.quoteToken!.address } : {}),
     targetIsBase: isBase,
     icon: typeof image === 'string' && /^https:\/\//.test(image) ? image : null,
   };

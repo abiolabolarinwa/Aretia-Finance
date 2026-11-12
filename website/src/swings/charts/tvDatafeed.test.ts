@@ -81,6 +81,22 @@ describe('the datafeed', () => {
     expect(url.searchParams.get('limit')).toBe('300');
   });
 
+  it('asks again for the other side when GeckoTerminal orders the pool the other way round from the source that named the token', async () => {
+    const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
+    const USDT = '0x55d398326f99059ff775485246999027b3197955';
+    // GeckoTerminal: USDT is the first token, WBNB the second. The chart wants WBNB, which the caller called "base".
+    const f = vi.fn(async (input: unknown) => {
+      const side = new URL(String(input)).searchParams.get('token');
+      const wanted = side === 'quote';
+      return new Response(JSON.stringify({ ...(body(wanted ? [[1_700_001_800, 650, 655, 649, 654, 30]] : [[1_700_001_800, 1, 1, 1, 1, 30]]) as object), meta: { base: { address: USDT }, quote: { address: WBNB } } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const feed = createPoolDatafeed({ chain: 'bnb', pool: '0x16b9a82891338f9ba80e2d6970fdda79d1eb0dae', label: 'BNB / USD', token: 'base', target: WBNB }, { fetchImpl: f });
+    const r = await getBars(feed, '15', { from: 0, to: 1_700_002_000, countBack: 300, firstDataRequest: true });
+    const sides = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => new URL(String(c[0])).searchParams.get('token'));
+    expect(sides).toEqual(['base', 'quote']);
+    expect('bars' in r && r.bars[0]!.close).toBe(654);
+  });
+
   it('never asks for more than the service allows, and for at least a screenful', async () => {
     const f = reply(body(LIST));
     const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: f });

@@ -144,7 +144,7 @@ export function createChartPanel(finder: PoolFinder = new DexScreenerPoolFinder(
     // Aretia's own TradingView chart. It prices the pool's second token only when that is the token being looked at.
     // When the token looked at is the pool's second token, the chart prices that one, and "the other token" is the first.
     const otherSide = info.targetIsBase === false ? info.baseSymbol : info.quoteSymbol;
-    tv = mountTvChart(host, { chain: current.chain, pool, symbol: info.targetIsBase === false ? (info.quoteSymbol ?? current.symbol) : current.symbol, ...(otherSide ? { quoteSymbol: otherSide } : {}), token: info.targetIsBase === false ? 'quote' : 'base', priceHint: info.priceUsd, toolbar: false, fallbackUrl: embedUrl({ network: GECKO_NETWORK[current.chain], pool }), title: `${current.symbol} live price chart and trades` });
+    tv = mountTvChart(host, { chain: current.chain, pool, symbol: info.targetIsBase === false ? (info.quoteSymbol ?? current.symbol) : current.symbol, ...(otherSide ? { quoteSymbol: otherSide } : {}), token: info.targetIsBase === false ? 'quote' : 'base', ...((info.targetIsBase === false ? info.quoteAddress : info.baseAddress) ? { target: (info.targetIsBase === false ? info.quoteAddress : info.baseAddress)! } : {}), priceHint: info.priceUsd, toolbar: false, fallbackUrl: embedUrl({ network: GECKO_NETWORK[current.chain], pool }), title: `${current.symbol} live price chart and trades` });
     framedPool = pool;
     framedKind = 'embed';
   }

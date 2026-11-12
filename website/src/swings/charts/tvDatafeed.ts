@@ -79,6 +79,12 @@ export interface PoolChartOptions {
   pool: string;
   /** Which token of the pool the chart prices: the first ("base") or the second ("quote"). */
   token?: 'base' | 'quote';
+  /**
+   * The address of the token the chart prices. Two sources can order a pool's tokens differently (DexScreener may call WBNB the first
+   * token where GeckoTerminal calls USDT the first), so "base" is checked against the candle answer's own token list and the other side is
+   * asked for when it is the one that matches. Without it the side is taken as given.
+   */
+  target?: string;
   /** The name shown on the chart, such as "DOPE / USD". */
   label: string;
   /** Prices in US dollars (the default), or in the other token of the pool. */
@@ -163,6 +169,23 @@ export function parseBars(body: unknown): TvBar[] {
  * candles converted with the quote coin's price at the time of each candle; the note names the reference pool and the time of its newest
  * trade. Texts come from the server and are only ever shown as plain text. Pure.
  */
+/**
+ * The side ("base" or "quote") of GeckoTerminal's pool that holds the target token, read from the `meta` of a candle answer.
+ * The side asked for is kept when the answer does not say, or when it already holds the target. Pure.
+ */
+export function sideFromMeta(body: unknown, target: string | undefined, asked: 'base' | 'quote'): 'base' | 'quote' {
+  if (!target) return asked;
+  const m = (body as { meta?: { base?: { address?: unknown }; quote?: { address?: unknown } } } | null)?.meta;
+  const norm = (v: unknown): string => (typeof v === 'string' ? v.toLowerCase() : '');
+  const t = target.toLowerCase();
+  const base = norm(m?.base?.address);
+  const quote = norm(m?.quote?.address);
+  const asking = asked === 'base' ? base : quote;
+  const other = asked === 'base' ? quote : base;
+  if (!asking || asking === t) return asked;
+  return other === t ? (asked === 'base' ? 'quote' : 'base') : asked;
+}
+
 export function metaFromBody(body: unknown, fallback: CandleSource): CandleMeta {
   const b = body as { source?: unknown; unit?: unknown; reference?: { label?: unknown; price?: unknown; at?: unknown } } | null;
   const source: CandleSource = b?.source === 'aretia-index' || b?.source === 'geckoterminal' || b?.source === 'geckoterminal-stale' ? b.source : fallback;
@@ -348,6 +371,8 @@ export function createPoolDatafeed(
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const network = GECKO_NETWORK[o.chain];
   const side = o.token ?? 'base';
+  /** The side GeckoTerminal's own answer says holds the target token (see `target`); starts as the side asked for. */
+  let geckoSide: 'base' | 'quote' = side;
   const currency = o.currency ?? 'usd';
   /** Shown beside the symbol in the chart's legend, like "DOPE / USD · 15 · aretiafinance.org". */
   const exchange = o.exchange ?? 'aretiafinance.org';
@@ -412,20 +437,26 @@ export function createPoolDatafeed(
    * index when GeckoTerminal has nothing or refuses), so a visitor's own allowance is not spent. Null on any failure (not deployed,
    * refused, unreadable) so the caller can go direct.
    */
-  async function fromServer(res: Resolution, beforeSec: number, limit: number, outside = false): Promise<Read | null> {
+  async function fromServer(res: Resolution, beforeSec: number, limit: number, outside = false, flips = 0): Promise<Read | null> {
     if (!deps.viaServer) return null;
     // `outside`: an indexed pool whose index has no candles asks the shared GeckoTerminal route, like any other pool.
     const own = o.source === 'aretia' && !outside;
     // A route that failed in the last minute is skipped, so each load does not wait on a refusal before going direct.
     const route = own ? `${CANDLES_ROUTE}-aretia` : CANDLES_ROUTE;
     if (routeIsDown(route, now())) return null;
-    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: side, currency });
+    const q = new URLSearchParams({ chain: o.chain, pool: o.pool, tf: res.tf, agg: String(res.aggregate), before: String(Math.floor(beforeSec)), limit: String(limit), token: own ? side : geckoSide, currency });
     if (own) q.set('source', 'aretia');
     try {
       const response = await fetchImpl(`${deps.viaServer}?${q}`, { headers: { accept: 'application/json' } });
       if (response.ok) {
         markRouteUp(route);
         const json: unknown = await response.json();
+        // GeckoTerminal may order the pool's tokens the other way round from DexScreener: ask again for the side that holds the target.
+        const want = own || flips > 0 ? geckoSide : sideFromMeta(json, o.target, geckoSide);
+        if (want !== geckoSide) {
+          geckoSide = want;
+          return fromServer(res, beforeSec, limit, outside, flips + 1);
+        }
         return { bars: parseBars(json), meta: metaFromBody(json, own ? 'aretia-index' : 'geckoterminal') };
       }
     } catch {
@@ -570,8 +601,8 @@ export function createPoolDatafeed(
   }
 
   /** Reads GeckoTerminal itself: spaced out, retried a little, and read into bars. */
-  async function readDirect(res: Resolution, beforeSec: number, limit: number, attempts: number): Promise<Read> {
-    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: side });
+  async function readDirect(res: Resolution, beforeSec: number, limit: number, attempts: number, flips = 0): Promise<Read> {
+    const q = new URLSearchParams({ aggregate: String(res.aggregate), before_timestamp: String(beforeSec), limit: String(limit), currency, token: geckoSide });
     const url = `${base}/networks/${network}/pools/${encodeURIComponent(o.pool)}/ohlcv/${res.tf}?${q}`;
     let response: Response | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -596,6 +627,11 @@ export function createPoolDatafeed(
       body = await response.json();
     } catch {
       throw new Error('The price service returned something unreadable.');
+    }
+    const want = flips > 0 ? geckoSide : sideFromMeta(body, o.target, geckoSide);
+    if (want !== geckoSide) {
+      geckoSide = want;
+      return readDirect(res, beforeSec, limit, attempts, flips + 1);
     }
     return { bars: parseBars(body), meta: { source: 'geckoterminal' } };
   }

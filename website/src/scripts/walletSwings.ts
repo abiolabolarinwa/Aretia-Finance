@@ -1693,6 +1693,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let ixSort: { kind: Kind; sort: IndexSort; dir: 'asc' | 'desc'; window?: IndexWindow } | null = null;
     let error: string | null = null;
     let loading = false;
+    /** True while a list chosen by the person is still gathering all its tokens: the list is not drawn half full, a loading state with a count is. */
+    let gathering = false;
+    let gatherCount = 0;
+    let gatherDrawnAt = 0;
     /** When the list on screen was loaded, if it is the last saved one because the market service could not be reached. */
     let staleAt: number | null = null;
     /** The list on screen is Aretia's own market index, because the outside market service has nothing right now. */
@@ -1795,6 +1799,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       if (!silent) {
         failures = 0;
         loading = true;
+        gathering = isRanked(m.kind);
+        gatherCount = 0;
         error = null;
         draw();
       }
@@ -1894,7 +1900,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           rows = rateRows(rated);
           feedRows = rows;
           layDeeper();
-          void addIndexRows(mine);
+          // A list the person chose is shown whole: every token the sources can give within a short wait is gathered first, behind a loading
+          // state with a count. What is still coming carries on quietly and joins at the next refresh, never by growing the table on screen.
+          if (!silent && isRanked(m.kind)) await gatherAll(mine);
+          else void addIndexRows(mine, true);
+          if (mine !== seq) return;
         }
         error = null;
       } catch (e) {
@@ -1903,6 +1913,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (!silent || rows === null) error = e instanceof Error ? e.message : 'The list is unavailable right now.';
       }
       loading = false;
+      gathering = false;
       // A refresh never redraws over an open token page: moving its chart frame would reload the chart.
       if (silent && page) return;
       draw();
@@ -1916,11 +1927,41 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
      * thousand tokens across networks, older and newer together), then Aretia's own index (up to 3000). The deep walk takes a
      * minute or two and carries on across list refreshes; each refresh lays what it has read so far under the fresh feed list.
      */
+    /** How long a chosen list waits for all its tokens before it is shown with what has come in. */
+    const GATHER_BUDGET_MS = 12_000;
+    /** Gathers the feed's, the deep walk's and Aretia's index's tokens for this list together, counting them on the loading state. */
+    async function gatherAll(mine: number): Promise<void> {
+      const chain = m.chain;
+      const progress = (): void => {
+        if (mine !== seq || m.chain !== chain) return;
+        layDeeper();
+        gatherCount = rows?.length ?? gatherCount;
+        // The loading state shows the count; it is redrawn a few times a second, not for every page.
+        if (gathering && !page && Date.now() - gatherDrawnAt > 400) {
+          gatherDrawnAt = Date.now();
+          draw();
+        }
+      };
+      const work = Promise.allSettled([
+        fetchIndexedPages(chain, Date.now()).then((got) => {
+          indexRows = got;
+          progress();
+        }),
+        fetchDeepRows(chain, Date.now(), { onProgress: progress }),
+      ]);
+      await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, GATHER_BUDGET_MS))]);
+      if (mine !== seq) return;
+      layDeeper();
+      // The walk carries on after the wait: its rows are laid under the list when it finishes and show at the next refresh.
+      void work.then(() => {
+        if (mine === seq && m.chain === chain) layDeeper();
+      });
+    }
     function layDeeper(): void {
       if (feedRows === null || !isRanked(m.kind)) return;
       rows = rateRows(mergeIndexRows(mergeIndexRows(feedRows, deepSnapshot(m.chain)), indexRows));
     }
-    async function addIndexRows(mine: number): Promise<void> {
+    async function addIndexRows(mine: number, quiet = false): Promise<void> {
       if (!isRanked(m.kind)) return;
       const chain = m.chain;
       let shown = rows?.length ?? 0;
@@ -1928,7 +1969,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (mine !== seq || m.chain !== chain) return;
         layDeeper();
         shown = rows?.length ?? shown;
-        if (!page) draw();
+        // Quiet: the rows join the list but nothing is redrawn under the reader; the next refresh shows them.
+        if (!quiet && !page) draw();
       };
       try {
         void fetchIndexedPages(chain, Date.now())
@@ -2209,7 +2251,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         again.addEventListener('click', () => void load());
         card.append(again);
       }
-      else if (rows === null || (loading && rows === null)) card.append(loadingBlock('Loading the list…'));
+      else if (rows === null || gathering) card.append(loadingBlock(gathering && gatherCount > 0 ? `Loading all tokens… ${gatherCount.toLocaleString('en-US')} so far` : 'Loading the list…'));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
         card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));
@@ -2375,7 +2417,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (m.chain === id) return;
         m.chain = id;
         pageNo = 1;
-        if (rows !== null || loading) void load();
+        const wasOpen = rows !== null || loading;
+        // The network just chosen starts from nothing: the loading state, not the last network's tokens.
+        rows = null;
+        feedRows = null;
+        indexRows = [];
+        if (wasOpen) void load();
         else draw();
       },
       /** The network the lists are filtered to: a chain, or '' for every network. */

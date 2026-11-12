@@ -30,6 +30,15 @@ import type { MiStore } from './store.js';
 import { scanCacheFor, scanSwaps } from './swapScan.js';
 import { poolKeyOf, tokenKeyOf, type MiTrade } from './types.js';
 
+/**
+ * Blocks per request for this walk, where a chain allows far more than the live adapter's range. Robinhood Chain makes a block about every
+ * 0.13 s (10 million blocks in 14 days) and its node takes 30,000 blocks per topic-only request, so the live range of 4,000 would need
+ * 2,500 requests; 25,000 needs 400. Its block times stay within seconds of a straight line over such a range (checked on the live chain),
+ * so the interpolation below stays accurate. Other chains use the chain's own range.
+ */
+export const SWAP_BACKFILL_RANGE: Readonly<Record<string, number>> = { robinhood: 25_000 };
+export const swapBackfillRangeOf = (chain: Pick<MiChainConfig, 'id' | 'maxRange'>): number => Math.max(1, SWAP_BACKFILL_RANGE[chain.id] ?? chain.maxRange);
+
 export const swapBackfillKey = (adapterId: string, days: number): string => `${adapterId}:swaps:${days}d`;
 
 export interface SwapBackfillDeps {
@@ -97,7 +106,7 @@ export async function backfillSwaps(d: SwapBackfillDeps): Promise<SwapBackfillRe
     };
     let anchor = from <= end ? await blockTime(from) : null;
     while (from <= end && d.now() < deadline) {
-      const to = Math.min(from + d.chain.maxRange - 1, end);
+      const to = Math.min(from + swapBackfillRangeOf(d.chain) - 1, end);
       const tip = to === anchor!.block ? anchor! : await blockTime(to);
       const hits = await scanSwaps(engine, from, to, cache);
       const trades: MiTrade[] = [];

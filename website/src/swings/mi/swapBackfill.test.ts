@@ -4,7 +4,7 @@ import { specById } from './dexes.js';
 import { runAdapter, type EngineDeps } from './engine.js';
 import { DEFAULT_RULES } from './lifecycle.js';
 import { InMemoryMiStore } from './store.js';
-import { backfillSwaps, interpolateTime, swapBackfillKey } from './swapBackfill.js';
+import { backfillSwaps, interpolateTime, swapBackfillKey, swapBackfillRangeOf } from './swapBackfill.js';
 import { FakeChain, pairCreatedLog, v2SwapLog } from './testkit.js';
 
 const spec = specById('pancakeswap-v2-bnb')!;
@@ -97,6 +97,14 @@ describe('swap-history backfill', () => {
     await w.store.updatePool(a.key, { lastTradeAt: newer });
     await backfillSwaps(deps(w));
     expect([...w.store.pools.values()].find((p) => p.address === POOL_A)!.lastTradeAt).toBe(newer);
+  });
+});
+
+describe('blocks per request for the walk', () => {
+  it('uses the own range of each chain, except Robinhood, whose node takes far more and whose blocks are very fast', () => {
+    expect(swapBackfillRangeOf(chainConfig('ethereum'))).toBe(500);
+    expect(swapBackfillRangeOf(chainConfig('bnb'))).toBe(1000);
+    expect(swapBackfillRangeOf(chainConfig('robinhood'))).toBe(25_000);
   });
 });
 

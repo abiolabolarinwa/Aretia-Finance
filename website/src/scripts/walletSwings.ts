@@ -2102,7 +2102,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     function draw(): void {
       // The docked panel steps aside while a full token page is open.
-      panel.element.hidden = page;
+      // The docked panel is for actively traded, bullish tokens: it shows only while "Bullish only" is on. Any other click opens the token page, which carries the pool details.
+      panel.element.hidden = page || !f.bullish;
       if (page) {
         // Taking a chart frame out of the page and putting it back reloads it, so an open token page is left exactly as it is.
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);

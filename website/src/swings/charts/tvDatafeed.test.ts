@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyLivePrice, barsFromTrades, createPoolDatafeed, hasWideRange, metaFromBody, livePriceFrom, parseBars, priceScaleFor, resetCandleStore, RESOLUTIONS, type TvBar } from './tvDatafeed.js';
+import { applyLivePrice, barsFromTrades, createPoolDatafeed, hasWideRange, metaFromBody, livePriceFrom, parseBars, priceScaleFor, resetCandleStore, RESOLUTIONS, type TvBar, recentStart } from './tvDatafeed.js';
 import { setGeckoGap } from './geckoGate.js';
 import { resetUpstreamHealth } from './upstreamHealth.js';
 
@@ -709,5 +709,24 @@ describe('barsFromTrades, metaFromBody, hasWideRange', () => {
     // A $0.00000000000017 token shows its digits: the old cap of 12 decimals showed it as 0.
     expect(priceScaleFor(1.7e-13)).toBe(1e15);
     expect(priceScaleFor(2.7e-13) * 2.7e-13).toBeGreaterThanOrEqual(100);
+  });
+});
+
+describe('recentStart', () => {
+  const bar = (i: number, price: number) => ({ time: i * 900_000, open: price, high: price * 1.02, low: price * 0.98, close: price, volume: 1 });
+  it('starts the recent prices after a move of more than tenfold, such as a pool that rugged', () => {
+    const bars = [...Array.from({ length: 20 }, (_, i) => bar(i, 0.54)), ...Array.from({ length: 6 }, (_, i) => bar(20 + i, 0.0000016))];
+    expect(recentStart(bars)).toBe(20 * 900_000);
+  });
+  it('has nothing to zoom to when the whole history is one run of prices', () => {
+    expect(recentStart(Array.from({ length: 30 }, (_, i) => bar(i, 1 + (i % 3) * 0.1)))).toBeNull();
+  });
+  it('has nothing to zoom to when the recent run is only a candle or two, or there are no candles', () => {
+    expect(recentStart([bar(0, 1), bar(1, 1), bar(2, 0.0001)])).toBeNull();
+    expect(recentStart([])).toBeNull();
+  });
+  it('treats a spike above the newest price like a drop below it', () => {
+    const bars = [...Array.from({ length: 5 }, (_, i) => bar(i, 0.001)), ...Array.from({ length: 5 }, (_, i) => bar(5 + i, 5))];
+    expect(recentStart(bars)).toBe(5 * 900_000);
   });
 });

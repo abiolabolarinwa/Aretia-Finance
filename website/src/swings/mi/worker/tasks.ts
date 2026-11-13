@@ -26,6 +26,7 @@ import { followWatchedPools } from '../solana/engine.js';
 import { refreshSupplies, SUPPLY_LIMIT } from '../supply.js';
 import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
+import type { MiPool } from '../types.js';
 import type { WorkerTask } from './loop.js';
 
 export interface TaskDeps {
@@ -38,6 +39,8 @@ export interface TaskDeps {
   readFor?: (chain: MiChainConfig) => Read;
   /** The pools open Markets pages are showing now (the stream service's answer); absent when the stream is off. */
   watched?: (() => Promise<string[]>) | null;
+  /** Where the watched-pools task says what it did (at most one line a minute, and only while somebody is watching). */
+  log?: (line: string) => void;
 }
 
 const int = (v: string | undefined, fallback: number, min: number, max: number): number => {
@@ -60,11 +63,31 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
   };
   const rules = rulesFrom(d.env);
 
+  // The pools open Markets pages are showing now, grouped by adapter. One answer is reused for two seconds by every task that needs it.
+  const watchEvery = int(d.env.MI_WATCH_EVERY_SECONDS, 2, 1, 600) * 1000;
+  const watch = { at: 0, byAdapter: new Map<string, MiPool[]>() };
+  const refreshWatch = async (): Promise<void> => {
+    if (!d.watched || d.now() - watch.at < 2_000) return;
+    watch.at = d.now();
+    try {
+      const keys = await d.watched();
+      const found = keys.length > 0 ? [...(await d.store.getPools(keys.slice(0, 300))).values()] : [];
+      const by = new Map<string, MiPool[]>();
+      for (const p of found) by.set(p.adapterId, [...(by.get(p.adapterId) ?? []), p]);
+      watch.byAdapter = by;
+    } catch {
+      watch.byAdapter = new Map();
+    }
+  };
+
   const live = (id: string, chain: DexAdapterSpec['chain'] | 'solana'): WorkerTask => ({
     id,
     chain,
+    // While somebody is watching one of this adapter's pools, it runs every MI_WATCH_EVERY_SECONDS instead of every 15 seconds (EVM; Solana has its own task).
+    idleMs: d.watched && chain !== 'solana' ? () => (watch.byAdapter.has(id) ? watchEvery : undefined) : undefined,
     run: async (budgetMs) => {
-      const report = await runAll({ env: { ...d.env, MI_ADAPTERS: id }, store: d.store, fetchImpl: d.fetchImpl, now: d.now, budgetMs, launch: d.launch ?? null });
+      await refreshWatch();
+      const report = await runAll({ env: { ...d.env, MI_ADAPTERS: id }, store: d.store, fetchImpl: d.fetchImpl, now: d.now, budgetMs, launch: d.launch ?? null, extraPools: d.watched && chain !== 'solana' ? async (aid) => watch.byAdapter.get(aid) ?? [] : undefined });
       const a = report.adapters[0];
       if (!a) return { ok: true, caughtUp: true };
       const maxRange = chain === 'solana' ? 0 : chainConfig(chain, d.env).maxRange;
@@ -80,28 +103,44 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
     // known costs the same whichever venue it is on, and the trending pools are mostly on venues the server does not scan.
     const specs = new Map(SOLANA_SPECS.map((s) => [s.id, s]));
     const maxPools = int(d.env.MI_WATCH_MAX, 30, 1, 200);
+    // `confirmed` is 1 to 2 seconds behind the chain; `finalized` (the normal reading) about 13. A confirmed swap that the chain later dropped is
+    // vanishingly rare, and this reading only adds trades the normal reading would add a few seconds later.
+    const commitment = d.env.MI_WATCH_COMMITMENT === 'finalized' ? 'finalized' : 'confirmed';
+    const lastPolled = new Map<string, number>();
+    const sum = { passes: 0, watched: 0, eligible: 0, polled: 0, traded: 0 };
+    let loggedAt = 0;
     tasks.push({
       id: 'solana:watched',
       chain: 'solana',
       lane: 'solana-watched',
-      idleMs: int(d.env.MI_WATCH_EVERY_SECONDS, 8, 2, 600) * 1000,
+      idleMs: watchEvery,
       run: async (budgetMs) => {
-        const keys = (await d.watched!()).filter((k) => k.startsWith('solana:'));
-        if (keys.length === 0) return { ok: true, caughtUp: true };
+        watch.at = 0;
+        await refreshWatch();
+        const groups = [...specs].map(([id, spec]) => ({ spec, pools: watch.byAdapter.get(id) ?? [] })).filter((g) => g.pools.length > 0);
+        if (groups.length === 0) return { ok: true, caughtUp: true };
         const chain = chainConfig('solana', d.env);
         const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
         const nativeUsd = solUsdReader(rpc, d.now);
-        const pools = [...(await d.store.getPools(keys.slice(0, maxPools * 3))).values()];
+        sum.passes++;
+        sum.watched = Math.max(sum.watched, groups.reduce((n, g) => n + g.pools.length, 0));
         let failed: string | null = null;
         const off = await d.store.disabledAdapters();
-        for (const [id, spec] of specs) {
-          const group = pools.filter((p) => p.adapterId === id);
-          if (group.length === 0 || off.has(id)) continue;
+        for (const { spec, pools } of groups) {
+          if (off.has(spec.id)) continue;
           try {
-            await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd }, group, { budgetMs: Math.min(budgetMs, 20_000), maxPools });
+            const got = await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd, commitment }, pools, { budgetMs: Math.min(budgetMs, 20_000), maxPools, fastMs: watchEvery, lastPolled });
+            sum.eligible += got.eligible;
+            sum.polled += got.polled;
+            sum.traded += got.traded;
           } catch (e) {
             failed = e instanceof Error ? e.message : 'the watched pools could not be read';
           }
+        }
+        if (d.log && d.now() - loggedAt >= 60_000) {
+          loggedAt = d.now();
+          d.log(`watched: ${sum.passes} pass(es) this minute, ${sum.watched} Solana pool(s) on screen (in the index), ${sum.eligible} followable, ${sum.polled} read, ${sum.traded} with new trades`);
+          Object.assign(sum, { passes: 0, watched: 0, eligible: 0, polled: 0, traded: 0 });
         }
         return { ok: failed === null, error: failed, caughtUp: true };
       },

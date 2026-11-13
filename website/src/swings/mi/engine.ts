@@ -55,6 +55,8 @@ export interface EngineDeps {
    */
   swapScan?: boolean;
   scanCache?: ScanCache;
+  /** Pools of this adapter to follow in every run besides the newest and the most recently traded: the ones open Markets pages are showing. */
+  extraPools?: () => Promise<MiPool[]>;
 }
 
 export const MAINTAIN_EVERY_MS = 600_000;
@@ -179,6 +181,8 @@ async function followedPools(d: EngineDeps): Promise<Follow> {
   const recent = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followRecent ?? 100, 'recent-trade');
   const pools = new Map<string, MiPool>();
   for (const p of [...newest, ...recent]) pools.set(p.address, p);
+  // Watched pools are followed whatever their age or last trade, as long as they are live and not paused.
+  for (const p of (await d.extraPools?.().catch(() => [])) ?? []) if (!p.paused && (FOLLOWED_STATES as readonly string[]).includes(p.state)) pools.set(p.address, p);
   return { pools };
 }
 

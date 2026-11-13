@@ -1,0 +1,35 @@
+# Aretia Finance
+
+> Aretia Finance (aretiafinance.org) is a multichain wallet and live token markets for Solana, Ethereum, BNB Chain, Base, Polygon and Robinhood Chain. It builds its markets from on-chain pool events with its own indexer and states where its data is thin. Aretia's own token funds a catalyst fund for early-stage climate projects. Aretia is not a bank, broker or financial adviser and does not rate tokens as investments.
+
+## What it is, in facts you can check
+
+- Markets page: https://aretiafinance.org/wallet (no account needed to browse). Shows price, 24-hour volume, transactions, traders, liquidity and age per pool.
+- Networks covered by Markets: Solana, Ethereum, BNB Chain, Base, Polygon, Robinhood Chain.
+- Data comes from Aretia's own indexer reading decentralised-exchange events from each chain. Pools below about $100 of liquidity are hidden by default; a dash means "not available", never zero.
+- Self-custody: the wallet does not hold user funds. The browser-extension wallet is in development and is not yet published to the Chrome Web Store.
+- Aretia charges a fee on swaps, shown on the review screen before confirmation.
+- Some contracts are unaudited and are labelled as such.
+
+## Guides (plain-language, written to be checked)
+
+- [How Aretia Markets works](https://aretiafinance.org/learn/how-aretia-markets-works): where the numbers come from, the rules applied, and what is incomplete.
+- [How to check a token before you swap it](https://aretiafinance.org/learn/how-to-check-a-token-before-you-swap)
+- [What liquidity means in a token pool](https://aretiafinance.org/learn/what-is-liquidity-in-a-token-pool)
+- [How to choose a crypto trading app](https://aretiafinance.org/learn/how-to-choose-a-crypto-trading-app)
+- [Self-custody wallet or exchange account](https://aretiafinance.org/learn/self-custody-wallet-vs-exchange)
+
+## Pages
+
+- [Features](https://aretiafinance.org/features): what is built, what is on testnet, what is roadmap.
+- [About](https://aretiafinance.org/about)
+- [FAQ](https://aretiafinance.org/faq)
+- [Verified by Aretia](https://aretiafinance.org/verified): what the badge means and does not mean. It is not an audit or an endorsement.
+- [Featured](https://aretiafinance.org/featured): a labelled placement, not a rating.
+- [Blog](https://aretiafinance.org/blog)
+- [Terms and risk disclosure](https://aretiafinance.org/terms)
+
+## Optional
+
+- Source code: https://github.com/abiolabolarinwa/Aretia-Finance
+- Sitemap: https://aretiafinance.org/sitemap.xml

@@ -25,4 +25,16 @@ const blog = defineCollection({
   }),
 });
 
-export const collections = { blog };
+/** Plain-language guides at /learn: what a reader needs to judge a token or a trading app, with Aretia's own limits stated where it matters. */
+const guides = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/guides' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    date: z.coerce.date(),
+    updated: z.coerce.date().optional(),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = { blog, guides };

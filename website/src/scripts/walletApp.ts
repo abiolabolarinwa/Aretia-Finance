@@ -4,6 +4,7 @@ import { routeHash } from './tokenPageCore';
 import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
+import { mountAddressBook } from './walletAddressBook';
 import { browserStorage, SwapHistory } from '../swings/history.js';
 import { airdropExplanation, airdropReasons, isMine, loadMine, markMine, looksLikeAirdrop } from './walletAirdrop';
 import { requestSwap, swapRequestFor } from './walletHoldingActions';
@@ -962,6 +963,8 @@ export function initWalletApp(): void {
     sendEls().out?.replaceChildren();
     renderSendAssets();
   });
+  // Saved recipients, kept in this browser only; choosing one fills the recipient box and nothing else.
+  mountAddressBook(browserStorage());
 
   /** The wallet that signs for the Ethereum-style account: the one already allowed on this page, or the sidebar's wallet asked now. */
   async function ensureEvmWallet(): Promise<NonNullable<EvmSession['adapter']>> {

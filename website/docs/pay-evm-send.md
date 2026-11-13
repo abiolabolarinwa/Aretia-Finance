@@ -1,6 +1,8 @@
 # Pay: send from an Ethereum-style account
 
-Off by default. Build the site with `PUBLIC_PAY_EVM_SEND=1` (Vercel build environment, then redeploy) to add a **Network** box to Pay > Send. Without it the page is exactly the Solana-only Send.
+On by default since 2026-11-13: Pay > Send has a **Network** box (Solana plus every Ethereum-style network). To take it out again, build the site with `PUBLIC_PAY_EVM_SEND=0` (Cloudflare Pages build environment, then redeploy); without the box the page is exactly the Solana-only Send.
+
+**No real transfer has been made with it yet.** It was switched on at the owner's request. Do the checks under "Before you switch it on for others" with small amounts as soon as you can, and set `PUBLIC_PAY_EVM_SEND=0` if anything looks wrong.
 
 ## What it does
 - Sends a native coin (ETH, BNB, POL) or a token from the known list (USDC, USDT, DAI, USDG, wrapped coins) from the account the wallet shares, on Ethereum, BNB Chain, Polygon, Base or Robinhood Chain.
@@ -12,7 +14,7 @@ Off by default. Build the site with `PUBLIC_PAY_EVM_SEND=1` (Vercel build enviro
 ## Not included
 ENS and other names, tokens outside the known list (pasted contract addresses), batch sends, address book, gas sponsorship, Solana to Ethereum-style transfers (that is Move USDC).
 
-## Before you switch it on for others
+## Checks to do now (it is already on)
 No real transfer has been made with it. Do one yourself first, small, to an address you own:
 1. Native coin on a cheap network (for example a few cents of BNB on BNB Chain): review shows the fee, the wallet asks, the page reports confirmed, the dashboard balance drops.
 2. A stablecoin (for example 1 USDT): the review names the network and the full recipient address; confirm the token arrives.

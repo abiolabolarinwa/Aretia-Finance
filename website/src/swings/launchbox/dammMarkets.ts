@@ -65,7 +65,7 @@ async function findPool(rpc: Rpc, web3: typeof Web3, mint: string): Promise<stri
   if (known) return known;
   const sigs = ((await rpc('getSignaturesForAddress', [mint, { limit: SEARCH_SIGNATURES, commitment: 'confirmed' }])) as { signature: string; err: unknown }[]).filter((s) => !s.err);
   for (const s of sigs) {
-    const tx = (await rpc('getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }])) as { transaction?: { message?: { instructions?: { programId?: string; accounts?: unknown }[] } } } | null;
+    const tx = (await rpc('getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }])) as { transaction?: { message?: { instructions?: { programId?: string; accounts?: unknown }[] } } } | null;
     const candidates = new Set<string>();
     for (const ix of tx?.transaction?.message?.instructions ?? []) {
       if (ix.programId === METEORA_DAMM_V2_PROGRAM && Array.isArray(ix.accounts)) for (const a of ix.accounts) if (typeof a === 'string') candidates.add(a);

@@ -27,6 +27,8 @@ export interface EvmHolding {
   value: number | null;
   /** The only pool behind the price holds under $10,000, so the dollar value is only indicative and is not added to the total. */
   thin: boolean;
+  /** Found from a list of named tokens (the scan, the outside list, the swap history), not one of the network's own coin and well-known tokens. */
+  named: boolean;
 }
 
 export const isEvmNativeMint = (mint: string): boolean => mint.endsWith(':native');
@@ -136,9 +138,9 @@ const MULTICALL_CHAINS: readonly ChainId[] = ['ethereum', 'bnb', 'polygon', 'bas
 /** Tokens per batch: four reads each, so 240 inside one call. */
 const BATCH = 60;
 
-type Held = { t: EvmTarget; raw: bigint };
+type Held = { t: EvmTarget; raw: bigint; named?: boolean };
 
-const toHeld = (e: ExtraToken, raw: bigint, f: { symbol: string; name: string; decimals: number }): Held => ({ t: { chain: e.chain, address: e.address, symbol: f.symbol, name: f.name || f.symbol, decimals: f.decimals, native: false }, raw });
+const toHeld = (e: ExtraToken, raw: bigint, f: { symbol: string; name: string; decimals: number }): Held => ({ t: { chain: e.chain, address: e.address, symbol: f.symbol, name: f.name || f.symbol, decimals: f.decimals, native: false }, raw, named: true });
 
 /** One token, one read at a time: the way for a network without Multicall3, and for a batch the node would not answer. */
 async function readOne(read: EvmRead, account: string, e: ExtraToken): Promise<Held | null> {
@@ -215,7 +217,7 @@ export async function loadEvmHoldings(account: string, chains: readonly ChainId[
       return { t, raw };
     }),
   );
-  const held = reads.flatMap((r) => (r.status === 'fulfilled' && r.value.raw > 0n ? [r.value] : []));
+  const held: Held[] = reads.flatMap((r) => (r.status === 'fulfilled' && r.value.raw > 0n ? [r.value] : []));
   // Tokens named by the caller: their balances, and the name and decimals of the ones that are held.
   held.push(...(await readExtras(read, account, extraTargets(deps.extra ?? [], chains, targets))));
   const prices = new Map<string, { price: number; liq: number }>(); // `${chain}:${address}`
@@ -237,12 +239,12 @@ export async function loadEvmHoldings(account: string, chains: readonly ChainId[
     }),
   );
   return held
-    .map(({ t, raw }): EvmHolding => {
+    .map(({ t, raw, named }): EvmHolding => {
       const key = t.native ? WRAPPED_NATIVE[t.chain as keyof typeof WRAPPED_NATIVE].toLowerCase() : t.address;
       const found = prices.get(`${t.chain}:${key}`) ?? null;
       const price = found?.price ?? null;
       const amount = unitsToNumber(raw, t.decimals);
-      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, raw: raw.toString(), decimals: t.decimals, price, value: price === null ? null : amount * price, thin: found !== null && found.liq < THIN_LIQUIDITY_USD };
+      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, raw: raw.toString(), decimals: t.decimals, price, value: price === null ? null : amount * price, thin: found !== null && found.liq < THIN_LIQUIDITY_USD, named: named === true };
     })
     .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
 }

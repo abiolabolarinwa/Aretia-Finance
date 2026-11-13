@@ -157,3 +157,11 @@ describe('the portfolio total leaves thin prices out (re-audit L-29)', () => {
     expect(portfolioTotal([{ value: 1_000 * p.price, thin: p.thin }]).sum).toBe(0);
   });
 });
+
+describe('suspected airdrops', () => {
+  it('are never added to the total, whatever their price', () => {
+    const rows = [{ value: 100, thin: false }, { value: 4781, thin: false, suspect: 'sent' }];
+    expect(portfolioTotal(rows).sum).toBe(100);
+    expect(countsTowardTotal(rows[1]!)).toBe(false);
+  });
+});

@@ -93,10 +93,10 @@ export function splitByPrice<T extends { mint: string; value: number | null }>(
  * unknown depth, or a pool not paired with a major token) is shown on its row, marked "thin", but never added: one
  * airdropped token with a made-up price could otherwise turn the total into any number its creator likes.
  */
-export const countsTowardTotal = (h: { value: number | null; thin?: boolean }): boolean => h.value !== null && Number.isFinite(h.value) && h.thin !== true;
+export const countsTowardTotal = (h: { value: number | null; thin?: boolean; suspect?: unknown }): boolean => h.value !== null && Number.isFinite(h.value) && h.thin !== true && !h.suspect;
 
 /** The portfolio total from the holdings whose value counts, and how many priced holdings were left out as thin. */
-export function portfolioTotal(holdings: readonly { value: number | null; thin?: boolean }[]): { sum: number; counted: number; thinLeftOut: number } {
+export function portfolioTotal(holdings: readonly { value: number | null; thin?: boolean; suspect?: unknown }[]): { sum: number; counted: number; thinLeftOut: number } {
   let sum = 0;
   let counted = 0;
   let thinLeftOut = 0;

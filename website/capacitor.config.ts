@@ -20,6 +20,8 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: false,
+    // Android 15 draws apps edge to edge; without this the page would sit under the status bar and the navigation buttons.
+    adjustMarginsForEdgeToEdge: 'auto',
     webContentsDebuggingEnabled: false,
   },
   ios: {

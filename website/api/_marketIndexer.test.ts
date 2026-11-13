@@ -139,7 +139,8 @@ describe('GET /api/v1 (public read API)', () => {
     expect(body(res).data).toEqual({ chain: 'bnb', count: 1, addresses: [TOKEN] });
     expect(body(await get(store, now, 'tokens/ethereum')).data.addresses).toEqual([]);
     expect((await get(store, now, 'tokens/bnb', { limit: '0' })).status).toBe(400);
-    expect((await get(store, now, 'tokens/bnb', { limit: '9999' })).status).toBe(400);
+    expect((await get(store, now, 'tokens/bnb', { limit: '5001' })).status).toBe(400);
+    expect((await get(store, now, 'tokens/bnb', { limit: '5000' })).status).toBe(200);
     expect((await get(store, now, 'tokens/mars')).status).toBe(400);
     expect((await get(store, now, 'tokens/solana')).status).toBe(400);
   });

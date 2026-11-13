@@ -45,7 +45,7 @@ export interface MiStore {
   searchTokens(text: string, limit: number): Promise<MiToken[]>;
   /**
    * The addresses of the base tokens of one chain's active pools, deepest liquidity first, each once: the tokens people can trade, in the
-   * order a wallet is most likely to hold them. At most `limit` (up to 3,000).
+   * order a wallet is most likely to hold them. At most `limit` (up to 5,000).
    */
   tokenUniverse(chain: MiChain, limit: number): Promise<string[]>;
 
@@ -195,7 +195,7 @@ export class InMemoryMiStore implements MiStore {
   async tokenUniverse(chain: MiChain, limit: number): Promise<string[]> {
     const depth = (p: MiPool): number => p.stats?.liquidityUsd ?? p.stats?.liquidityQuote ?? -1;
     const pools = [...this.pools.values()].filter((p) => p.chain === chain && p.state === 'active').sort((a, b) => depth(b) - depth(a) || (a.key < b.key ? -1 : 1));
-    return [...new Set(pools.map((p) => p.base))].slice(0, Math.max(1, Math.min(3000, Math.floor(limit))));
+    return [...new Set(pools.map((p) => p.base))].slice(0, Math.max(1, Math.min(5000, Math.floor(limit))));
   }
 
   async insertPool(p: MiPool): Promise<boolean> {

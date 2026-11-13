@@ -121,8 +121,8 @@ function indexResponse(now: number): ApiResponse {
 async function tokenUniverse(store: MiStore, req: ApiRequest, chain: string): Promise<ApiResponse> {
   if (!isMiChain(chain)) return err(400, 'bad-chain', `chain must be one of: ${MI_CHAINS.join(', ')}.`);
   if (chain === 'solana') return err(400, 'bad-chain', 'Solana wallets are read from their token accounts; this list is for Ethereum-style chains.');
-  const limit = intParam(req.query.limit, 2000, 1, 3000);
-  if (limit === null) return err(400, 'bad-limit', 'limit must be a whole number from 1 to 3000.');
+  const limit = intParam(req.query.limit, 2000, 1, 5000);
+  if (limit === null) return err(400, 'bad-limit', 'limit must be a whole number from 1 to 5000.');
   const addresses = await store.tokenUniverse(chain, limit);
   return ok({ chain, count: addresses.length, addresses }, req.now, 900);
 }

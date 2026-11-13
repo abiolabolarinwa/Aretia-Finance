@@ -20,7 +20,7 @@ const BALANCE_OF = '70a08231';
 export const SCAN_CHAINS: readonly ChainId[] = ['ethereum', 'bnb', 'polygon', 'base'];
 /** Tokens per read: about a million gas, far inside what a node allows for a read, and a response of about 20 KB. */
 export const CHUNK = 300;
-const LIST_SIZE = 2_500;
+const LIST_SIZE = 5_000;
 const LIST_KEPT_MS = 10 * 60_000;
 const PARALLEL = 3;
 

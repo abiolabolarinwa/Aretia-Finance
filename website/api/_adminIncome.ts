@@ -103,7 +103,7 @@ async function solanaIncome(fetchImpl: typeof fetch, cfg: IncomeConfig, since: n
     const effects: { lamports: bigint; usdc: bigint }[] = [];
     await pool(wanted, 6, async (s) => {
       try {
-        const tx = (await rpc(fetchImpl, cfg.solanaRpc, 'getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }])) as SolTx;
+        const tx = (await rpc(fetchImpl, cfg.solanaRpc, 'getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }])) as SolTx;
         const e = solanaEffect(tx, cfg.solanaWallet, cfg.usdcMint);
         if (e) effects.push(e);
       } catch {

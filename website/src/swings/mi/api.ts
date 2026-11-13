@@ -50,7 +50,8 @@ const ok = (data: unknown, now: number, cacheSeconds: number, extra: Record<stri
 
 function intParam(v: string | undefined, def: number, min: number, max: number): number | null {
   if (v === undefined || v === '') return def;
-  if (!/^\d{1,9}$/.test(v)) return null;
+  // Up to ten digits: a unix time in seconds (the `before` of trades and candles) has ten.
+  if (!/^\d{1,10}$/.test(v)) return null;
   const n = Number(v);
   return n >= min && n <= max ? n : null;
 }

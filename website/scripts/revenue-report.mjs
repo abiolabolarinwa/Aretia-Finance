@@ -90,7 +90,7 @@ async function readSolana() {
   log(`Solana: ${sigs.length} transactions in the window`);
   const txs = [];
   for (let i = 0; i < sigs.length; i += 4) {
-    const batch = await Promise.all(sigs.slice(i, i + 4).map((s) => rpc(SOL_RPC, 'getTransaction', [s, { encoding: 'json', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]).catch(() => null)));
+    const batch = await Promise.all(sigs.slice(i, i + 4).map((s) => rpc(SOL_RPC, 'getTransaction', [s, { encoding: 'json', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }]).catch(() => null)));
     for (const tx of batch) {
       if (!tx?.meta) continue;
       const keys = [...tx.transaction.message.accountKeys, ...(tx.meta.loadedAddresses?.writable ?? []), ...(tx.meta.loadedAddresses?.readonly ?? [])];

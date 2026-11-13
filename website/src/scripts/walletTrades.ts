@@ -125,7 +125,7 @@ export async function loadTrades(wallet: string, items: readonly SignatureInfo[]
     // A public node sometimes refuses a read while the page is busy; one more try after a pause is usually enough.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const tx = await rpcCall<RawTx | null>('getTransaction', [it.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]);
+        const tx = await rpcCall<RawTx | null>('getTransaction', [it.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }]);
         const p = parseSolanaTx(it.signature, tx, wallet);
         if (p) {
           parsed.set(it.signature, p);

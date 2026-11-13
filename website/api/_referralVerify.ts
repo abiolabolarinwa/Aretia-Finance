@@ -168,7 +168,7 @@ export async function verifySolanaFee(input: { signature: string; trader: string
   if (!/^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(input.signature)) return { ok: false, reason: 'unreadable' };
   const url = input.env.SOLANA_RPC_URL?.trim() || 'https://solana-rpc.publicnode.com';
   try {
-    const tx = (await rpc(input.fetchImpl, url, 'getTransaction', [input.signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }])) as SolTx | null;
+    const tx = (await rpc(input.fetchImpl, url, 'getTransaction', [input.signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 1 }])) as SolTx | null;
     if (!tx || !tx.meta) return { ok: false, reason: 'pending' };
     if (tx.meta.err) return { ok: false, reason: 'failed' };
     const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) => (typeof k === 'string' ? { pubkey: k, signer: false } : { pubkey: k.pubkey ?? '', signer: k.signer === true }));

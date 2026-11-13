@@ -110,6 +110,11 @@ describe('GET /api/v1 (public read API)', () => {
     expect(trades.data).toHaveLength(5);
     expect(trades.data[0].unix).toBeGreaterThanOrEqual(trades.data[4].unix);
     expect(trades.data[0].price).toMatch(/^\d/);
+    // `before` is a unix time in seconds, which has ten digits: the page before the oldest trade just read must be accepted.
+    const older = await get(store, now, `pools/bnb/${POOL}/trades`, { limit: '5', before: String(trades.data[4].unix) });
+    expect(older.status).toBe(200);
+    expect(body(older).data.every((x: { unix: number }) => x.unix < trades.data[4].unix)).toBe(true);
+    expect((await get(store, now, `pools/bnb/${POOL}/trades`, { before: '12345678901' })).status).toBe(400);
     const candles = body(await get(store, now, `pools/bnb/${POOL}/candles`, { tf: '5m' }));
     expect(candles.meta.unit).toBe('usd');
     expect(candles.data.length).toBeGreaterThan(0);

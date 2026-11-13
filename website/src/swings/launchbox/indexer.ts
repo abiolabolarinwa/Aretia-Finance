@@ -437,7 +437,7 @@ export async function indexSolana(d: IndexerDeps, deadline: number, recheckMs = 
     for (let i = 0; i < ok.length; i += 4) {
       const batch = await Promise.all(
         ok.slice(i, i + 4).map(async (s) => {
-          const tx = (await rpc.call('getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }])) as ParsedTx | null;
+          const tx = (await rpc.call('getTransaction', [s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }])) as ParsedTx | null;
           if (tx === null) {
             // Not available from this node. Very recent: try again next run (stop here). Old: count it, so the page can say some were unreadable.
             if (s.blockTime && d.now() / 1000 - s.blockTime < 600) throw new Error('A recent transaction is not available from the node yet.');

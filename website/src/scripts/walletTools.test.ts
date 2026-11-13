@@ -12,6 +12,17 @@ describe('explainProgramError', () => {
   });
 });
 
+describe('explainProgramError for Meteora DAMM v2', () => {
+  it('says why a sale into a pool at its floor is refused (error 6015), and names other known errors', async () => {
+    const { explainProgramError } = await import('./walletTools.js');
+    const damm = (hex: string) => `Program cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG failed: custom program error: 0x${hex}`;
+    expect(explainProgramError(damm('177f'))).toMatch(/holds almost none of the token you want to receive/);
+    expect(explainProgramError(damm('177f'))).not.toMatch(/0x177f/);
+    expect(explainProgramError(damm('1772'))).toMatch(/slippage limit \(its error 6002\)/);
+    expect(explainProgramError(damm('1'))).toMatch(/its error 1\)/);
+  });
+});
+
 describe('isClosedAccount', () => {
   it('treats a missing account as closed', async () => {
     const { isClosedAccount } = await import('./walletTools.js');

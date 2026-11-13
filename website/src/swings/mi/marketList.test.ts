@@ -46,6 +46,15 @@ function fake(records: PoolRecord[], total: number | null = records.length): { r
   return { reader, paths };
 }
 
+describe('the plausibility ceiling on liquidity', () => {
+  it('is asked of the database in every list, so no pool of an estimate gone wrong is listed', () => {
+    for (const kind of ['top', 'liquidity', 'new', 'gainers'] as const) {
+      expect(sqlPath(q({ kind }), NOW)).toContain('liquidity_usd=lte.100000000');
+      expect(candidatePath(q({ kind }), NOW)).toContain('liquidity_usd=lte.100000000');
+    }
+  });
+});
+
 describe('paths', () => {
   it('reads narrow columns, never the whole row, and filters in the database', () => {
     const p = sqlPath(q(), NOW);

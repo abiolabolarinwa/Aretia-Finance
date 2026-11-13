@@ -39,6 +39,14 @@ export const PAGE_SIZES: readonly number[] = [50, 100];
 export const MAX_RESULT = 10_000;
 /** Pools below this liquidity are never listed: nobody can trade them in a meaningful size. */
 export const DUST_LIQUIDITY_USD = 50;
+
+/**
+ * A pool claiming more liquidity than this is left out of every list and total. No genuine pool on the networks Aretia indexes holds
+ * $100 million, and the figure is only an estimate for Uniswap V4 pools (their tokens sit in one shared contract, so there is no per-pool
+ * balance to read: the index estimates depth from the pool's liquidity setting, which a pool of a worthless token can inflate to billions).
+ * Seen on Robinhood Chain: pools of $400 million to $2.2 billion with two traders and about twenty trades.
+ */
+export const MAX_PLAUSIBLE_LIQUIDITY_USD = 100_000_000;
 /** Candidate ranking reads this many of the busiest pools. */
 export const CANDIDATE_CAP = 600;
 /** Honeypot pattern: this many buys in 24 hours and no sell at all. */
@@ -116,6 +124,7 @@ function baseFilters(q: ListQuery, now: number): string[] {
   const f = ['state=eq.active', 'paused=is.false'];
   if (q.chain) f.push(`chain=eq.${q.chain}`);
   f.push(`liquidity_usd=gte.${Math.max(q.minLiquidityUsd, DUST_LIQUIDITY_USD)}`);
+  f.push(`liquidity_usd=lte.${MAX_PLAUSIBLE_LIQUIDITY_USD}`);
   if (q.maxAgeHours > 0) f.push(`created_at=gte.${Math.floor(now - q.maxAgeHours * 3_600_000)}`);
   // Lists ranked by what traded in the last day hold only pools that did trade in it: a pool's stored 24-hour figures stay as they were
   // computed until it is next refreshed, so a pool that went quiet days ago would otherwise keep its old volume and sit at the top.

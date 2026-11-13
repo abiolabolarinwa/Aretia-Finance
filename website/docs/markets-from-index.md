@@ -59,6 +59,8 @@ A three-cell bar sits above the Markets lists, for the chosen network or, with a
 
 ### What the bar leaves out, and what it can undercount
 
+- **Implausible liquidity.** A pool claiming more than $100 million of liquidity is left out of every list and of these totals (`MAX_PLAUSIBLE_LIQUIDITY_USD`). Uniswap V4 keeps every pool's tokens in one shared contract, so there is no per-pool balance to read and the index estimates depth from the pool's liquidity setting; a pool of a worthless token can inflate that to billions. Seen on Robinhood Chain: seven pools of $400 million to $2.2 billion, each with two traders, about twenty trades and $50 million of volume, which alone made Robinhood's volume look nine times Solana's.
+
 - **Outlier pools are left out.** A pool whose 24-hour volume is more than 100 times its own liquidity is wash trading or a broken price, and one such pool can outweigh a whole network, so it is not summed. The hover text says how many pools were left out and the volume they claimed.
 - **A pool's day is read in full, newest trades first.** A pool's 24-hour figures are computed over its newest 5,000 trades of the day (`RECENT_TRADE_LIMIT`), read a page of 1,000 at a time because the database never answers more than 1,000 rows. A pool with more than 5,000 trades is marked `windowCapped`: its transactions show as "5,000+" and the bar's hover text says the totals are a floor. Before this, only the oldest 1,000 trades of the day were read, which left busy pools with a stale price and undercounted volume. Pools refresh as they next trade or are refreshed by the worker.
 

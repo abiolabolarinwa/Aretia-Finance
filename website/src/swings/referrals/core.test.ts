@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { ARETIA_FEE_BPS } from '../core/fee.js';
-import { REFERRAL_CONFIG, captureFromSearch, decideCredit, impliedVolume, inWindow, isMutual, isSelf, parseReferrer, readStoredRef, referralLink, referrerPercentOfVolume, shareOf, totalsByChainAsset, windowMs, type PriorCredit, type ReferralConfig } from './core.js';
+import { REFERRAL_CONFIG, captureFromSearch, decideCredit, impliedVolume, inWindow, isMutual, isSelf, parseReferrer, readStoredRef, referralLink, referralShare, referrerPercentOfVolume, shareOf, totalsByChainAsset, windowMs, type PriorCredit, type ReferralConfig } from './core.js';
 
 const NOW = 1_800_000_000_000;
 const EVM_A = '0x' + 'a'.repeat(40);
 const EVM_B = '0x' + 'b'.repeat(40);
 const SOL = '2tcBrd1JQjL8VHNFRYB1EurbyLiVAKZTYTYk94aVoZX2';
 const cfg: ReferralConfig = { ...REFERRAL_CONFIG };
+
+describe('the referral share', () => {
+  it('carries the link, says what Aretia is, and makes no claim about earnings or returns', () => {
+    const s = referralShare(referralLink('0xabc'));
+    expect(s.url).toBe('https://aretiafinance.org/?ref=0xabc');
+    expect(s.text).toMatch(/Markets and a wallet/);
+    expect(s.text).not.toMatch(/earn|profit|return|gain|free|guarantee|passive|income|%/i);
+  });
+});
 
 describe('the share', () => {
   it('is 20% of the fee, so about 0.116% of the swap, and traders still pay the same 0.58%', () => {

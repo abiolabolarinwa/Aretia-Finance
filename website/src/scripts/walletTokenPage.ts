@@ -12,6 +12,8 @@ import { mountTvChart, type TvChart } from './walletTvChart';
 import { mountTrades, type TradesTable } from './walletTxTable';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
+import { tokenShare } from './tokenPageCore';
+import { shareButton } from './walletShareButton';
 
 export interface TokenPageOptions {
   chain: ChainId;
@@ -98,7 +100,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     // The numbers that matter (prices, liquidity, value, trades) sit in this row, beside the name and price.
     const stats = el('div', 'wapp-tp__stats');
     stats.dataset.tpStats = '';
-    bar.append(back, title, headline, stats);
+    bar.append(back, title, headline, stats, shareButton(tokenShare(o.chain, o.address, o.symbol)));
     const grid = el('div', 'wapp-tp__grid');
     const chart = el('div', 'wapp-tp__chart');
     const side = el('aside', 'wapp-tp__side');

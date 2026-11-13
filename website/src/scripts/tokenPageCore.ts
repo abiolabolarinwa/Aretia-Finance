@@ -84,6 +84,14 @@ export function routeHash(pathname: string, hash: string): string {
 
 export const shortAddress = (a: string): string => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
+/**
+ * The link and words the token page's Share button sends: the clean address that opens this token in Markets on any of the six networks.
+ * The words say only what the page shows (price, supply and facts read from the chain), never a prediction or a call to buy.
+ */
+export function tokenShare(chain: ChainId, address: string, symbol: string, origin: string = TOKEN_PAGE_ORIGIN): { title: string; text: string; url: string } {
+  return { title: `${symbol} on Aretia`, text: shareText(symbol, chain), url: `${origin}${walletTokenPath(chain, address)}` };
+}
+
 /** What the Share button sends. */
 export function shareText(symbol: string, chain: ChainId): string {
   return `${symbol} on ${CHAINS[chain].name}: price, supply and the facts that can be read from the chain, on Aretia.`;

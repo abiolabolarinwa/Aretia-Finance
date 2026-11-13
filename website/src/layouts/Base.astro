@@ -14,12 +14,20 @@ interface Props {
   footer?: boolean;
   /** Show the Solana wallet connect button in the nav (pages that load wallet.js). */
   walletConnect?: boolean;
+  /** The picture a shared link shows (a path under the site, 1200x630). Defaults to the Aretia card. */
+  image?: string;
 }
 
-const { title, description, ctaBands = true, footer = true, walletConnect = false } = Astro.props;
+const { title, description, ctaBands = true, footer = true, walletConnect = false, image = '/assets/og-aretia.png' } = Astro.props;
 const fullTitle = title === 'Aretia Finance' ? title : `${title} · Aretia Finance`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const apiShim = apiShimScript(import.meta.env.PUBLIC_API_BASE);
+const imageUrl = new URL(image, Astro.site);
+// What search engines read about the site: who publishes it and where it lives. Nothing here claims more than the pages themselves say.
+const structured = JSON.stringify([
+  { '@context': 'https://schema.org', '@type': 'Organization', name: 'Aretia Finance', url: 'https://aretiafinance.org', logo: 'https://aretiafinance.org/assets/icons/icon-512.png' },
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Aretia Finance', url: 'https://aretiafinance.org' },
+]).replace(/</g, '\\u003c');
 ---
 
 <!doctype html>
@@ -43,7 +51,16 @@ const apiShim = apiShimScript(import.meta.env.PUBLIC_API_BASE);
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="Aretia Finance" />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Aretia Finance: live markets on six chains, one wallet, and a token that funds early-stage climate projects." />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    <script type="application/ld+json" is:inline set:html={structured} />
     <!-- Hide [data-reveal] content only once we know motion will run; if the
          motion script never initialises, show everything after 2.5s. -->
     <script is:inline>

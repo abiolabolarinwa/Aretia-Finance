@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buyRoute, evmCurveView, evmTokenFacts, parseSwapHash, parseTokenPageHash, shortAddress, solanaCurveView, solanaMintFacts, swapHash, swapPath, tokenPageHash, tokenPageUrl, trimPrice, type CurveView } from './tokenPageCore';
+import { tokenShare, buyRoute, evmCurveView, evmTokenFacts, parseSwapHash, parseTokenPageHash, shortAddress, solanaCurveView, solanaMintFacts, swapHash, swapPath, tokenPageHash, tokenPageUrl, trimPrice, type CurveView } from './tokenPageCore';
 import { addressCandidates, solanaHitFromMint } from './walletAddressLookup';
 import { tokenOpenMode } from './walletNav';
 import type { MintFacts } from './walletLaunchChain';
@@ -8,6 +8,18 @@ import type { EvmCurveState } from './walletCurveEvmCore';
 
 const MINT = 'So11111111111111111111111111111111111111112';
 const EVM = '0x4e85bc5bd6f08fa87ceb749372e34226556837e8';
+
+describe('the token share', () => {
+  it('is the clean link that opens the token in Markets, on every network, with words that only describe the page', () => {
+    const evm = tokenShare('bnb', '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01', 'MEME');
+    expect(evm.url).toBe('https://aretiafinance.org/wallet/bnb/0xabcdef0123456789abcdef0123456789abcdef01');
+    expect(tokenShare('solana', 'So11111111111111111111111111111111111111112', 'SOL').url).toBe('https://aretiafinance.org/wallet/solana/So11111111111111111111111111111111111111112');
+    expect(tokenShare('robinhood', '0x' + 'ab'.repeat(20), 'HOOD').url).toContain('/wallet/robinhood/0x');
+    expect(evm.title).toBe('MEME on Aretia');
+    expect(evm.text).toMatch(/price, supply and the facts/);
+    expect(evm.text).not.toMatch(/buy|moon|guarantee|profit|gain/i);
+  });
+});
 
 describe('token page address scheme', () => {
   it('parses solana and evm addresses, lower-casing evm', () => {

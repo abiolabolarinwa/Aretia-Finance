@@ -68,6 +68,11 @@ describe('paths', () => {
     expect(sqlPath(q({ kind: 'new' }), NOW)).toContain('order=created_at.desc');
     expect(sqlPath(q({ kind: 'liquidity' }), NOW)).toContain('order=liquidity_usd.desc');
   });
+  it('ranked lists hold only pools that traded in the last 24 hours', () => {
+    expect(sqlPath(q({ kind: 'trending' }), NOW)).toContain(`last_trade_at=gte.${NOW - 86_400_000}`);
+    expect(candidatePath(q({ kind: 'gainers' }), NOW)).toContain(`last_trade_at=gte.${NOW - 86_400_000}`);
+    expect(sqlPath(q({ kind: 'new' }), NOW)).not.toContain('last_trade_at=gte');
+  });
   it('an age limit becomes a created_at bound', () => {
     expect(sqlPath(q({ kind: 'new', maxAgeHours: 24 }), NOW)).toContain(`created_at=gte.${NOW - 86_400_000}`);
   });
@@ -93,6 +98,22 @@ describe('rowFromRecord', () => {
     expect(r.source).toBe('index');
     expect(sourceLabel(r)).toBe('Aretia index');
     expect(r.venue).toBe('PancakeSwap V2');
+  });
+  it('a window that closed after the last trade is empty, whatever the stored figures say', () => {
+    // Stored figures from when the pool last traded: 110 trades and a 10% change. It last traded 7 hours ago.
+    const r = rowFromRecord(rec(1, { last_trade_at: NOW - 7 * 3_600_000 }), tokens, NOW)!;
+    expect(r.txns?.m5).toBe(0);
+    expect(r.txns?.h1).toBe(0);
+    expect(r.txns?.h6).toBe(0);
+    expect(r.txns?.h24).toBe(110);
+    expect(r.change.h6).toBeNull();
+    expect(r.change.h24).toBe(10);
+    expect(r.volumeUsd?.h1).toBe(0);
+    const dead = rowFromRecord(rec(1, { last_trade_at: NOW - 4 * 86_400_000 }), tokens, NOW)!;
+    expect(dead.txns24h).toBe(0);
+    expect(dead.volume24hUsd).toBe(0);
+    expect(dead.change.h24).toBeNull();
+    expect(dead.traders24h).toBeNull();
   });
   it('a pool with liquidity only has dashes (null), never zero', () => {
     const r = rowFromRecord(rec(1, { ro: true, vol24_usd: null, p_usd: null, chg: { m5: null, h1: null, h6: null, h24: null }, buys: { m5: 0, h1: 0, h6: 0, h24: 0 }, sells: { m5: 0, h1: 0, h6: 0, h24: 0 }, vol: null }), tokens, NOW)!;

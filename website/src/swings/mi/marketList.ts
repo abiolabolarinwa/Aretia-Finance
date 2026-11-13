@@ -74,6 +74,8 @@ export interface PoolRecord {
   quote: string;
   base_decimals: number | null;
   created_at: number | null;
+  /** When the pool last traded (ms). The stored 24-hour figures are only as fresh as the last time they were computed, so this decides which windows are really empty. */
+  last_trade_at?: number | null;
   liquidity_usd: number | null;
   vol24_usd: number | null;
   p_usd: number | null;
@@ -94,8 +96,11 @@ interface Window4 {
   h24: number;
 }
 
+/** How long each statistics window is, in ms. */
+const WINDOW_MS: Record<ListWindow, number> = { m5: 300_000, h1: 3_600_000, h6: 21_600_000, h24: 86_400_000 };
+
 /** Columns read from mi_pools and nothing else: the stats document is picked apart in the database, never sent whole. */
-export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly,mk:stats->makers24h,cp:stats->windowCapped';
+export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,last_trade_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly,mk:stats->makers24h,cp:stats->windowCapped';
 
 const reservePrice = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -116,7 +121,9 @@ function baseFilters(q: ListQuery, now: number): string[] {
   if (q.chain) f.push(`chain=eq.${q.chain}`);
   f.push(`liquidity_usd=gte.${Math.max(q.minLiquidityUsd, DUST_LIQUIDITY_USD)}`);
   if (q.maxAgeHours > 0) f.push(`created_at=gte.${Math.floor(now - q.maxAgeHours * 3_600_000)}`);
-  if (q.kind === 'trending' || q.kind === 'top' || q.kind === 'gainers' || usesCandidates(q)) f.push('vol24_usd=gt.0');
+  // Lists ranked by what traded in the last day hold only pools that did trade in it: a pool's stored 24-hour figures stay as they were
+  // computed until it is next refreshed, so a pool that went quiet days ago would otherwise keep its old volume and sit at the top.
+  if (q.kind === 'trending' || q.kind === 'top' || q.kind === 'gainers' || usesCandidates(q)) f.push('vol24_usd=gt.0', `last_trade_at=gte.${Math.floor(now - WINDOW_MS.h24)}`);
   return f;
 }
 
@@ -163,7 +170,10 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenIn
   // A name the safe-text rules hide is hidden from every list.
   if (base && baseDto.symbol === '' && baseDto.name === '') return null;
   const traded = p.ro !== true && p.chg !== null && p.buys !== null && p.sells !== null;
-  const sum = (w: ListWindow): number | null => (traded ? p.buys![w] + p.sells![w] : null);
+  // A window that closed after the pool's last trade holds no trade, whatever the stored figures (computed earlier) still say.
+  const last = num(p.last_trade_at);
+  const quiet = (w: ListWindow): boolean => traded && last !== null && now - last >= WINDOW_MS[w];
+  const sum = (w: ListWindow): number | null => (traded ? (quiet(w) ? 0 : p.buys![w] + p.sells![w]) : null);
   const win = (pick: (w: ListWindow) => number | null): { m5: number | null; h1: number | null; h6: number | null; h24: number | null } => ({ m5: pick('m5'), h1: pick('h1'), h6: pick('h6'), h24: pick('h24') });
   const quoteUsdRole = cfg.quoteTokens.some((q) => q.address === p.quote && q.role === 'usd');
   const created = num(p.created_at);
@@ -186,11 +196,11 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenIn
     ageMs: created !== null && created > 0 ? Math.max(0, now - created) : null,
     txns24h: sum('h24'),
     ...(p.cp === true ? { txnsCapped: true } : {}),
-    volume24hUsd: traded ? num(p.vol?.h24) : null,
-    traders24h: traded ? num(p.mk) : null,
-    volumeUsd: win((w) => (traded ? num(p.vol?.[w]) : null)),
+    volume24hUsd: traded ? (quiet('h24') ? 0 : num(p.vol?.h24)) : null,
+    traders24h: traded && !quiet('h24') ? num(p.mk) : null,
+    volumeUsd: win((w) => (traded ? (quiet(w) ? 0 : num(p.vol?.[w])) : null)),
     txns: win(sum),
-    change: win((w) => (traded ? pct(p.chg?.[w]) : null)),
+    change: win((w) => (traded && !quiet(w) ? pct(p.chg?.[w]) : null)),
     liquidityUsd: num(p.liquidity_usd),
     risk: null,
     fresh: false,

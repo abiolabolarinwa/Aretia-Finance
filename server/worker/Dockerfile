@@ -15,10 +15,17 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /src
 RUN npm init -y >/dev/null && npm install --no-audit --no-fund esbuild@0.28.2
 COPY website/src website/src
-RUN npx esbuild website/src/swings/mi/worker/main.ts --bundle --platform=node --format=esm --target=node24 --outfile=/out/worker.mjs
+RUN npx esbuild website/src/swings/mi/worker/main.ts --bundle --platform=node --format=esm --target=node24 --outfile=/out/worker.mjs \n && npx esbuild website/src/swings/mi/stream/main.ts --bundle --platform=node --format=esm --target=node24 --outfile=/out/stream.mjs
 
 FROM node:24-bookworm-slim AS worker
 WORKDIR /app
 COPY --from=build /out/worker.mjs worker.mjs
 USER node
 CMD ["node", "worker.mjs"]
+
+# The live market stream: pushes pool updates from the worker to the Markets pages that are open (website/docs/market-stream.md).
+FROM node:24-bookworm-slim AS stream
+WORKDIR /app
+COPY --from=build /out/stream.mjs stream.mjs
+USER node
+CMD ["node", "stream.mjs"]

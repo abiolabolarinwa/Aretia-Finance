@@ -9,6 +9,7 @@
 import { formatAxisPrice } from '../swings/market/types.js';
 import type { ChainId } from '../swings/core/types.js';
 import { holdLowPriority } from '../swings/charts/geckoGate.js';
+import { createLiveStream } from './walletLiveStream.js';
 import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
 
 const LIBRARY_PATH = '/charting_library/';
@@ -113,7 +114,24 @@ export function mountTvChart(
   makeFeed: (currency: 'usd' | 'token', label: string, onLoadFailed: () => void, cancelled: () => boolean, onStatus?: (s: ChartStatus) => void) => TvDatafeed = (currency, label, onLoadFailed, cancelled, onStatus) =>
     createPoolDatafeed(
       { chain: o.chain, pool: o.pool, label, currency, ...(o.token ? { token: o.token } : {}), ...(o.target ? { target: o.target } : {}), ...(currency === 'usd' && o.priceHint !== undefined ? { priceHint: o.priceHint } : {}), ...(o.exchange !== undefined ? { exchange: o.exchange } : {}), ...(o.source ? { source: o.source } : {}) },
-      { viaServer: '/api/swings-ohlcv', onLoadFailed, cancelled, ...(onStatus ? { onStatus } : {}) },
+      {
+        viaServer: '/api/swings-ohlcv',
+        onLoadFailed,
+        cancelled,
+        ...(onStatus ? { onStatus } : {}),
+        // The index's live stream pushes this pool's new price as it is written (at most once a second), so the last candle moves without waiting for a poll.
+        liveSource: (onPrice) => {
+          const key = `${o.chain}:${o.chain === 'solana' ? o.pool : o.pool.toLowerCase()}`;
+          const stream = createLiveStream({
+            url: String(import.meta.env.PUBLIC_MARKET_STREAM_URL ?? 'https://data.aretiafinance.org/stream'),
+            onUpdates: (list) => {
+              for (const u of list) if (u.key === key && typeof u.p_usd === 'number' && u.p_usd > 0) onPrice(u.p_usd);
+            },
+          });
+          stream.setKeys([key]);
+          return () => stream.stop();
+        },
+      },
     ),
 ): TvChart {
   let widget: TvWidget | null = null;
@@ -336,6 +354,16 @@ export function mountTvChart(
         });
         widget = w;
         currentFeed = feed;
+        // TradingView's licence asks for a visible credit linking to tradingview.com. It is a separate element, so nothing shown over the chart removes it.
+        const credit = host.ownerDocument.createElement('a');
+        credit.href = 'https://www.tradingview.com/';
+        credit.target = '_blank';
+        credit.rel = 'noopener noreferrer';
+        credit.textContent = 'Charts by TradingView';
+        credit.className = 'wapp-tv-credit';
+        credit.style.cssText = 'position:absolute;left:44px;bottom:34px;z-index:6;font:10px/1.2 system-ui,sans-serif;color:#64748b;text-decoration:none;background:rgba(255,255,255,.8);padding:1px 5px;border-radius:4px';
+        if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+        host.append(credit);
         // Remember the timeframe the reader picks, but only one the datafeed can serve.
         w.onChartReady(() => {
           chartReady = true;

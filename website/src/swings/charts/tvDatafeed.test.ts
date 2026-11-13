@@ -746,3 +746,31 @@ describe('recentStart', () => {
     expect(recentStart(bars)).toBe(5 * 900_000);
   });
 });
+
+describe('live price pushed by the stream', () => {
+  it('moves the last candle at once, keeps the poll quiet while the stream delivers, and stops with the chart', async () => {
+    vi.useFakeTimers();
+    try {
+      let push: (p: number) => void = () => undefined;
+      const stopped = vi.fn();
+      let t = 1_700_001_800_000;
+      const dex = vi.fn(async () => new Response(JSON.stringify({ pairs: [{ priceUsd: '9', priceNative: '1' }] }))) as unknown as typeof fetch;
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: dex, now: () => t, pollMs: 1e9, livePriceMs: 1000, liveSource: (cb) => { push = cb; return stopped; } });
+      const ticks: TvBar[] = [];
+      feed.subscribeBars({} as never, '15', (b) => ticks.push(b), 'u1');
+      push(2);
+      expect(ticks).toHaveLength(1);
+      expect(ticks[0]!.close).toBe(2);
+      t += 1000;
+      push(2.1);
+      expect(ticks[1]!.close).toBe(2.1);
+      // The stream spoke a second ago: the DexScreener poll does not run.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(dex).not.toHaveBeenCalled();
+      feed.unsubscribeBars('u1');
+      expect(stopped).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

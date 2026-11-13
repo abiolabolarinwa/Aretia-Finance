@@ -31,3 +31,14 @@ Approximation to know about: a candle's open, high, low and close share one refe
 | GeckoTerminal 429, nothing else | Candles from trades if there are any, else "No price service answered" and Try again |
 | New pool, no source has trades yet | "No candles yet for this market" |
 | Pool followed by the index, index unreachable | "No price service answered" and Try again (no outside source is asked) |
+
+## Live updates (about once a second)
+
+- The chart opens a stream connection for its pool (`liveSource` in the datafeed, `data.aretiafinance.org/stream`, the same stream the Markets rows use). Each price the index writes moves the last candle at once, at most once a second per pool. It carries the pool's dollar price, so it applies to the dollar view of the first token only.
+- While the stream delivers, the one-second price poll of DexScreener stays quiet. When the stream is silent for three seconds (switched off, or the pool has not traded), the poll takes over, for index-served pools too, so the last candle still moves.
+- A pool's candles (volume, corrections) are re-read every 5 seconds when the index serves them, and every 20 seconds for GeckoTerminal-served pools (its allowance is small).
+- Nothing here is faster than the chain: a new price exists only once the worker has read the block with the swap (see market-stream.md).
+
+## Attribution
+
+The chart is TradingView's Advanced Charts library. A visible "Charts by TradingView" link to https://www.tradingview.com/ sits on every chart (`walletTvChart.ts`), beside the library's own logo.

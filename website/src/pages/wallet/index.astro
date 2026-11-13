@@ -75,6 +75,9 @@ const sendTips = [
           <img src="/assets/logo-mark.png" width="28" height="28" alt="" />
           <span>Aretia</span>
         </a>
+        <button type="button" class="wapp__pin" data-side-pin aria-pressed="false" title="Pin the sidebar open" aria-label="Pin the sidebar open">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 17v5" /><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z" /></svg>
+        </button>
       </div>
       <div class="wapp__account" data-account aria-live="polite"></div>
       <nav class="wapp__nav" id="wapp-nav" aria-label="Wallet sections">
@@ -498,6 +501,13 @@ const sendTips = [
   .wapp__side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .wapp__collapse { flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; color: rgba(255, 255, 255, 0.82); background: rgba(255, 255, 255, 0.1); border: 0; border-radius: 10px; cursor: pointer; }
   .wapp__collapse svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 200ms ease; }
+  .wapp__pin { flex: none; display: none; place-items: center; width: 26px; height: 26px; padding: 0; color: rgba(255, 255, 255, 0.82); background: rgba(255, 255, 255, 0.1); border: 0; border-radius: 10px; cursor: pointer; }
+  .wapp__pin svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 200ms ease; }
+  .wapp__pin:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
+  .wapp__pin[aria-pressed='true'] { color: #0f0f12; background: #fff; }
+  .wapp__pin[aria-pressed='true'] svg { fill: currentColor; transform: rotate(-35deg); }
+  .wapp__pin:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  @media (min-width: 961px) { .wapp__pin { display: grid; } html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__pin { display: none; } }
   .wapp__collapse:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
   .wapp__collapse:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .wapp__side { position: sticky; top: 0; z-index: 60; align-self: start; display: flex; flex-direction: column; gap: 12px; height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 14px 8px; background: #0f0f12; border-right: 0; }

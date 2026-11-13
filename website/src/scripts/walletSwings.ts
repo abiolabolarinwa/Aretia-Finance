@@ -22,7 +22,9 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
-import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateRatingCells, type TableState } from './walletMarketTable.js';
+import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
+import { createLiveStream } from './walletLiveStream.js';
+import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
 import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
@@ -1711,6 +1713,37 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
     let tableEl: HTMLElement | null = null;
+    // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
+    // off or unreachable nothing changes: the list's own refresh below keeps it current.
+    let liveRows = new Map<string, MarketRow>();
+    const live = createLiveStream({
+      url: String(import.meta.env.PUBLIC_MARKET_STREAM_URL ?? 'https://data.aretiafinance.org/stream'),
+      onUpdates: (list: LiveUpdate[]) => {
+        const now = Date.now();
+        const changed: MarketRow[] = [];
+        const before = new Map<string, MarketRow>();
+        for (const u of list) {
+          const r = liveRows.get(u.key);
+          if (!r) continue;
+          before.set(tableRowKey(r), { ...r });
+          const next = applyLive(r, u, now);
+          for (const k of Object.keys(r)) if (!(k in next)) delete (r as unknown as Record<string, unknown>)[k];
+          Object.assign(r, next);
+          changed.push(r);
+        }
+        if (changed.length > 0 && tableEl?.isConnected) updateLiveCells(tableEl, changed, before);
+      },
+    });
+    document.addEventListener('visibilitychange', () => live.visibility());
+    /** Names the rows of the table just drawn to the stream. Only rows read from Aretia's index have live numbers. */
+    const watchRows = (shown: readonly MarketRow[]): void => {
+      liveRows = new Map(shown.filter((r) => r.source === 'index' && r.pool).map((r) => [`${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`, r]));
+      live.setKeys([...liveRows.keys()]);
+    };
+    // When this page is not the one on screen, the stream is not needed.
+    setInterval(() => {
+      if (target.hidden || !target.isConnected || page) live.setKeys([]);
+    }, 5_000);
     /** True while the sidebar's Favourites page is showing this list. */
     let favPage = false;
     alertsChanged = () => {
@@ -2267,6 +2300,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
         tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick });
+        watchRows(shown);
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
         inMain = main;

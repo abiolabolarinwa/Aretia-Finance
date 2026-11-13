@@ -32,6 +32,7 @@ The worker normally follows the newest 40 pools and the 40 most recently traded 
 
 - A pool is read only while somebody has it on screen, and only if it traded in the last 24 hours, so a quiet site costs no node calls.
 - Each pool read is one `getSignaturesForAddress` call (plus a `getTransaction` per new swap). With 30 pools every 8 seconds that is about 4 calls a second while the page is open. Raise `MI_WATCH_EVERY_SECONDS` or lower `MI_WATCH_MAX` to spend less.
+- Any Solana venue is followed, not only the ones `MI_ADAPTERS` scans for new pools (a pool already in the index costs the same to read whichever venue it is on). A venue an administrator disabled is skipped.
 - Solana only. EVM pools are rewritten by the chain's own run each time it reads new blocks (every 15 seconds or so when caught up).
 
 ## What it does not do

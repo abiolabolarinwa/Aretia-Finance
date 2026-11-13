@@ -9,6 +9,7 @@ import { refreshSupplies } from '../supply.js';
 import { MULTICALL3 } from '../reserves.js';
 import type { Read } from '../rpc.js';
 import { InMemoryMiStore } from '../store.js';
+import type { MiPool } from '../types.js';
 import { aeroPoolCreatedLog, FakeChain, pairCreatedLog, slipstreamPoolCreatedLog } from '../testkit.js';
 import { backoffMs, DEFAULT_LOOP, failureType, FailureLog, runWorker, type WorkerTask } from './loop.js';
 import { buildTasks } from './tasks.js';
@@ -191,6 +192,20 @@ describe('the watched-pools task', () => {
     const t = build({ MI_ADAPTERS: 'pumpswap-solana' }, async () => (asked++, ['bnb:0xabc']))!.find((x) => x.id === 'solana:watched')!;
     expect(await t.run(1000)).toEqual({ ok: true, caughtUp: true });
     expect(asked).toBe(1);
+  });
+});
+
+describe('the watched-pools task on venues the server does not scan', () => {
+  it('still reads a watched pool of another Solana venue', async () => {
+    const NOW = Date.now();
+    const pump = { key: 'solana:PumpPool1111111111111111', chain: 'solana', address: 'PumpPool1111111111111111', adapterId: 'pumpswap-solana', state: 'active', paused: false, quoteVault: 'QuoteVault111', baseVault: 'BaseVault1111', lastTradeAt: NOW - 60_000, base: 'B', quote: 'Q', baseDecimals: 6, quoteDecimals: 9 } as unknown as MiPool;
+    const calls: string[] = [];
+    const rpc = (async (method: string) => (calls.push(method), method === 'getSignaturesForAddress' ? [] : null)) as unknown as Read;
+    const store = new InMemoryMiStore();
+    await store.insertPool(pump);
+    const task = buildTasks({ env: { MI_ADAPTERS: 'meteora-dlmm-solana' }, store, now: Date.now, watched: async () => [pump.key], readFor: () => rpc }).find((x) => x.id === 'solana:watched')!;
+    expect(await task.run(5000)).toMatchObject({ ok: true, caughtUp: true });
+    expect(calls).toContain('getSignaturesForAddress');
   });
 });
 

@@ -76,7 +76,9 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
 
   // The Solana pools people are looking at get their trades read often, on a lane of their own so the slow rotation never makes them wait.
   if (d.watched && enabledSolana(d.env).length > 0) {
-    const specs = new Map(enabledSolana(d.env).map((s) => [s.id, s]));
+    // Any Solana venue whose pools people are watching, not only the ones MI_ADAPTERS scans for new pools: following a pool that is already
+    // known costs the same whichever venue it is on, and the trending pools are mostly on venues the server does not scan.
+    const specs = new Map(SOLANA_SPECS.map((s) => [s.id, s]));
     const maxPools = int(d.env.MI_WATCH_MAX, 30, 1, 200);
     tasks.push({
       id: 'solana:watched',
@@ -91,9 +93,10 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         const nativeUsd = solUsdReader(rpc, d.now);
         const pools = [...(await d.store.getPools(keys.slice(0, maxPools * 3))).values()];
         let failed: string | null = null;
+        const off = await d.store.disabledAdapters();
         for (const [id, spec] of specs) {
           const group = pools.filter((p) => p.adapterId === id);
-          if (group.length === 0) continue;
+          if (group.length === 0 || off.has(id)) continue;
           try {
             await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd }, group, { budgetMs: Math.min(budgetMs, 20_000), maxPools });
           } catch (e) {

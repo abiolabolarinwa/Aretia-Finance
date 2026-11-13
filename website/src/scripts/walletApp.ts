@@ -366,10 +366,29 @@ function initSidebar(): void {
 
   // The sidebar always rests as an icon rail; it opens over the page while the pointer is on it
   // or keyboard focus is inside it, and closes when both leave.
-  root.dataset.wappSidebar = 'collapsed';
+  // A pin keeps it open instead; the choice is remembered on this device.
+  const PIN_KEY = 'aretia.wallet.sidebarPinned';
+  const pin = document.querySelector<HTMLButtonElement>('[data-side-pin]');
+  const readPinned = (): boolean => {
+    try {
+      return localStorage.getItem(PIN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+  let pinned = readPinned();
+  const applyPin = (): void => {
+    root.dataset.wappSidebar = pinned ? 'open' : 'collapsed';
+    if (pinned) delete root.dataset.wappPeek;
+    pin?.setAttribute('aria-pressed', String(pinned));
+    const label = pinned ? 'Unpin the sidebar' : 'Pin the sidebar open';
+    pin?.setAttribute('title', label);
+    pin?.setAttribute('aria-label', label);
+  };
   let hover = false;
   let focus = false;
   const sync = (): void => {
+    if (pinned) return void delete root.dataset.wappPeek;
     if (hover || focus || 'wappHold' in root.dataset) root.dataset.wappPeek = '';
     else delete root.dataset.wappPeek;
   };
@@ -379,6 +398,17 @@ function initSidebar(): void {
   side.addEventListener('mouseleave', () => { hover = false; sync(); });
   side.addEventListener('focusin', (e) => { focus = (e.target as HTMLElement).matches(':focus-visible'); sync(); });
   side.addEventListener('focusout', () => { focus = false; sync(); });
+  applyPin();
+  pin?.addEventListener('click', () => {
+    pinned = !pinned;
+    try {
+      localStorage.setItem(PIN_KEY, pinned ? '1' : '0');
+    } catch {
+      // Not remembered; the choice lasts until the page is closed.
+    }
+    applyPin();
+    sync();
+  });
   // Turn the width animation on only after the first paint, so a remembered state does not slide in on load.
   requestAnimationFrame(() => requestAnimationFrame(() => wapp.classList.add('wapp--ready')));
 }

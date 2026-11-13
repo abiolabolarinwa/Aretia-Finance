@@ -8,8 +8,9 @@ import { browserStorage } from '../swings/history.js';
 import { CHAINS, EVM_NATIVE_ADDRESS, isChainId, type ChainId } from '../swings/core/types.js';
 import { HUB_TOKENS } from '../swings/dex/hubs.js';
 import { KNOWN_TOKENS } from './walletTools.js';
-import { REFERRAL_CONFIG, captureFromSearch, dropCapture, readStoredRef, referralLink, referrerPercentOfVolume, storeCapture, type KeyValue } from '../swings/referrals/core.js';
+import { REFERRAL_CONFIG, referralShare, captureFromSearch, dropCapture, readStoredRef, referralLink, referrerPercentOfVolume, storeCapture, type KeyValue } from '../swings/referrals/core.js';
 import { takeFeeTxs } from '../swings/referrals/feeTxLog.js';
+import { shareButton } from './walletShareButton';
 
 const QUEUE_KEY = 'aretia-referral-queue-v1';
 const API = '/api/swings-referrals';
@@ -218,7 +219,7 @@ export function initReferrals(root: HTMLElement): { onShow(): void } {
       copy.addEventListener('click', () => {
         void navigator.clipboard?.writeText(link).then(() => (copy.textContent = 'Copied'), () => input.select());
       });
-      row.append(input, copy);
+      row.append(input, copy, shareButton(referralShare(link)));
       card.append(row);
       card.append(el('p', 'wapp__fine', 'The link holds only your wallet address. Anyone can see it, so nothing private is in it.'));
 

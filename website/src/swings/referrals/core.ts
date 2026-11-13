@@ -217,4 +217,14 @@ export function dropCapture(store: KeyValue | null, now: number): void {
 }
 
 /** The link a referrer shares. */
+/**
+ * What the referral page's Share button sends: the link and words that say what Aretia is. It says nothing about earnings or returns
+ * (neither the sender's nor the receiver's), and nothing about any token's price going anywhere.
+ */
+export const referralShare = (link: string): { title: string; text: string; url: string } => ({
+  title: 'Aretia Finance',
+  text: 'Markets and a wallet for Solana, Ethereum, BNB, Base, Polygon and Robinhood Chain in one place.',
+  url: link,
+});
+
 export const referralLink = (address: string, origin = 'https://aretiafinance.org'): string => `${origin}/?ref=${encodeURIComponent(address)}`;

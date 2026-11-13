@@ -102,6 +102,8 @@ export interface Holding {
   thin: boolean;
   /** Why this looks like a token sent to the wallet rather than chosen (an explanation), or undefined. Such a token is kept out of the total. */
   suspect?: string;
+  /** The label on a kept-aside token: sent to the wallet, a small market, or no market price. */
+  suspectTag?: string;
   /** Network and address, for the Ethereum-style tokens (used by "it is mine"). */
   evm?: { chain: string; address: string };
 }
@@ -521,7 +523,16 @@ export function initWalletApp(): void {
       const key = `${e.chain}:${e.address.toLowerCase()}`;
       if (e.named && !tradedHere.has(key) && !isMine(mineTokens, e.chain, e.address)) {
         const check = { chain: e.chain, address: e.address, symbol: e.symbol, name: e.name, amount: e.amount, raw: e.raw, decimals: e.decimals, thin: e.thin || e.price === null };
-        if (looksLikeAirdrop(check)) row.suspect = airdropExplanation(airdropReasons(check));
+        if (looksLikeAirdrop(check)) {
+          row.suspect = airdropExplanation(airdropReasons(check));
+          row.suspectTag = 'Possible airdrop';
+        } else if (e.price === null) {
+          row.suspect = 'No market price was found for this token, so it cannot be valued.';
+          row.suspectTag = 'No market price';
+        } else if (e.thin) {
+          row.suspect = 'The only pool behind its price holds under $10,000, so the price is only indicative.';
+          row.suspectTag = 'Small market';
+        }
       }
       return row;
     });
@@ -676,7 +687,7 @@ export function initWalletApp(): void {
   /** The tokens that look sent to the wallet, not chosen: behind a toggle, out of the total, with no Buy or Sell until the person says they are theirs. */
   function renderSuspects(body: HTMLElement, suspects: Holding[], mask: (t: string) => string): void {
     const n = suspects.length;
-    const noun = `suspected airdrop${n === 1 ? '' : 's'}`;
+    const noun = `other token${n === 1 ? '' : 's'}`;
     const toggle = el('button', {
       class: 'wapp__btn wapp__btn--ghost wapp-unpriced-toggle',
       text: showSuspects ? `Hide ${n} ${noun}` : `Show ${n} ${noun}`,
@@ -686,7 +697,7 @@ export function initWalletApp(): void {
       showSuspects = !showSuspects;
       renderDashboard();
     });
-    body.append(toggle, el('p', { class: 'wapp-sub', text: 'Tokens that look sent to this wallet rather than chosen (anyone can send any token). They are not counted in your total. If one is yours, mark it.' }));
+    body.append(toggle, el('p', { class: 'wapp-sub', text: 'Tokens with no real market behind them (no price, a pool under $10,000, or sent to this wallet by someone else) are kept here and not counted in your total. If one is yours, mark it.' }));
     if (!showSuspects) return;
     const table = el('table', { class: 'wapp-table wapp-table--suspect' });
     const tbody = el('tbody');
@@ -701,7 +712,7 @@ export function initWalletApp(): void {
         el('tr', {}, [
           el('td', {}, [el('div', { class: 'wapp-asset' }, [avatar(h), el('div', {}, [el('strong', { text: h.symbol }), el('span', { class: 'wapp-sub', text: h.name })])])]),
           el('td', { class: 'num', text: mask(formatAmount(h.amount)) }),
-          el('td', {}, [el('span', { class: 'wapp-flag wapp-flag--airdrop', text: 'Possible airdrop', attrs: { title: h.suspect ?? '' } })]),
+          el('td', {}, [el('span', { class: 'wapp-flag wapp-flag--airdrop', text: h.suspectTag ?? 'Other', attrs: { title: h.suspect ?? '' } })]),
           el('td', { class: 'wapp-row-actions' }, [mine]),
         ]),
       );

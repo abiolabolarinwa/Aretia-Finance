@@ -20,6 +20,7 @@
 import { isBeyondCredible } from '../market/credible.js';
 import type { MarketRow } from '../market/types.js';
 import { isDeadMarket } from '../market/dead.js';
+import { liveFieldsOf } from '../market/liveFields.js';
 import { BULLISH_TEXT, isBullish } from '../market/bullish.js';
 import { chainConfig, isMiChain, type MiChain } from './chains.js';
 import { adapterById } from './dexes.js';
@@ -102,12 +103,7 @@ const WINDOW_MS: Record<ListWindow, number> = { m5: 300_000, h1: 3_600_000, h6: 
 /** Columns read from mi_pools and nothing else: the stats document is picked apart in the database, never sent whole. */
 export const POOL_SELECT = 'key,chain,address,adapter_id,dex,base,quote,base_decimals,created_at,last_trade_at,liquidity_usd,vol24_usd,p_usd:stats->priceUsd,rp:stats->reservePriceUsd,chg:stats->change,buys:stats->buys,sells:stats->sells,vol:stats->volumeUsd,ro:stats->reservesOnly,mk:stats->makers24h,cp:stats->windowCapped';
 
-const reservePrice = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const pct = (bps: unknown): number | null => {
-  const n = num(bps);
-  return n === null ? null : n / 100;
-};
 
 /** True when the list ranks by something only the stats document holds, so it is built from the candidates. */
 export function usesCandidates(q: ListQuery): boolean {
@@ -169,15 +165,11 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenIn
   const baseDto = tokenDto(base ? { key: `${chain}:${p.base}`, chain, address: p.base, symbol: base.symbol, name: base.name, decimals: base.decimals, firstSeenAt: 0, firstTradeAt: null, launchboxKey: null } : undefined, p.base, p.base_decimals ?? 0);
   // A name the safe-text rules hide is hidden from every list.
   if (base && baseDto.symbol === '' && baseDto.name === '') return null;
-  const traded = p.ro !== true && p.chg !== null && p.buys !== null && p.sells !== null;
-  // A window that closed after the pool's last trade holds no trade, whatever the stored figures (computed earlier) still say.
-  const last = num(p.last_trade_at);
-  const quiet = (w: ListWindow): boolean => traded && last !== null && now - last >= WINDOW_MS[w];
-  const sum = (w: ListWindow): number | null => (traded ? (quiet(w) ? 0 : p.buys![w] + p.sells![w]) : null);
-  const win = (pick: (w: ListWindow) => number | null): { m5: number | null; h1: number | null; h6: number | null; h24: number | null } => ({ m5: pick('m5'), h1: pick('h1'), h6: pick('h6'), h24: pick('h24') });
+  // The numbers that move with trades come from one function, shared with the page's live updates (market/liveFields.ts).
+  const live = liveFieldsOf(p, now);
   const quoteUsdRole = cfg.quoteTokens.some((q) => q.address === p.quote && q.role === 'usd');
   const created = num(p.created_at);
-  const priceUsd = traded ? num(p.p_usd) : reservePrice(p.rp);
+  const priceUsd = live.priceUsd;
   const fdv = fdvOf(priceUsd, base?.total_supply, p.base_decimals ?? base?.decimals ?? null);
   return {
     chain,
@@ -190,18 +182,18 @@ export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenIn
     pool: p.address,
     // A pool with no stored trade shows the price read from its reserves, marked as such; a traded price is never replaced by it.
     priceUsd,
-    ...(!traded && reservePrice(p.rp) !== null ? { priceFromReserves: true } : {}),
+    ...(live.priceFromReserves ? { priceFromReserves: true } : {}),
     capUsd: fdv,
     ...(fdv !== null ? { capIsFdv: true } : {}),
     ageMs: created !== null && created > 0 ? Math.max(0, now - created) : null,
-    txns24h: sum('h24'),
-    ...(p.cp === true ? { txnsCapped: true } : {}),
-    volume24hUsd: traded ? (quiet('h24') ? 0 : num(p.vol?.h24)) : null,
-    traders24h: traded && !quiet('h24') ? num(p.mk) : null,
-    volumeUsd: win((w) => (traded ? (quiet(w) ? 0 : num(p.vol?.[w])) : null)),
-    txns: win(sum),
-    change: win((w) => (traded && !quiet(w) ? pct(p.chg?.[w]) : null)),
-    liquidityUsd: num(p.liquidity_usd),
+    txns24h: live.txns24h,
+    ...(live.txnsCapped ? { txnsCapped: true } : {}),
+    volume24hUsd: live.volume24hUsd,
+    traders24h: live.traders24h,
+    volumeUsd: live.volumeUsd,
+    txns: live.txns,
+    change: live.change,
+    liquidityUsd: live.liquidityUsd,
     risk: null,
     fresh: false,
     indexed: { quoteIsDollar: quoteUsdRole, evidence: adapterById(p.adapter_id)?.evidence ?? 'planned' },

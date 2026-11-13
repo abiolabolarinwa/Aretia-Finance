@@ -3,6 +3,7 @@
 #
 # What is reachable from the internet:
 #   GET  /healthz                          "ok" while PostgREST and the database answer (for the uptime pinger)
+#   GET  /stream?keys=...                  live market updates (Server-Sent Events from the `stream` service; public, read-only, at most 100 pools)
 #   *    /rest/v1/<table or view>          only the names in @data below (a test keeps this list equal to the migrations)
 #   POST /rest/v1/rpc/<function>           only the names in @rpc below
 # Everything else, including /rest/v1/ itself (PostgREST's schema listing), the storage paths and the admin port, answers 404.
@@ -49,6 +50,13 @@
 			key {remote_host}
 			events {$RATE_PER_MINUTE}
 			window 1m
+		}
+	}
+
+	# Live market updates. The stream service sends each update as it is written, so nothing may hold the response back.
+	handle /stream {
+		reverse_proxy stream:8090 {
+			flush_interval -1
 		}
 	}
 

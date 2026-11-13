@@ -7,6 +7,7 @@
 import { chainConfig, isMiChain } from '../chains.js';
 import { launchLookup } from '../launchLink.js';
 import { makeRead } from '../rpc.js';
+import { StreamPublisher, publishing } from '../stream/publisher.js';
 import { SupabaseMiStore } from '../supabaseStore.js';
 import { DEFAULT_LOOP, runWorker, type LoopOptions } from './loop.js';
 import { buildTasks } from './tasks.js';
@@ -43,7 +44,13 @@ const sleep = (ms: number): Promise<void> =>
     sleepers.add(done);
   });
 
-const store = new SupabaseMiStore(url, key, fetch, Date.now);
+const database = new SupabaseMiStore(url, key, fetch, Date.now);
+// Live market stream: when MI_STREAM_URL names the stream service, every pool statistics write is also announced to it (never blocks or fails indexing).
+const streamUrl = (env.MI_STREAM_URL ?? '').trim();
+const streamSecret = (env.STREAM_SECRET ?? '').trim();
+const publisher = streamUrl && streamSecret ? new StreamPublisher({ url: streamUrl, secret: streamSecret }) : null;
+const store = publisher ? publishing(database, publisher) : database;
+if (publisher) setInterval(() => log(`stream: ${publisher.published} sent, ${publisher.dropped} dropped, ${publisher.failures} failed request(s)`), 10 * 60_000).unref();
 const launch = launchLookup({ supabaseUrl: url, serviceKey: key, fetchImpl: fetch, readFor: (chain) => (isMiChain(chain) && chain !== 'solana' ? makeRead(chainConfig(chain, env).rpcUrls) : null) });
 const tasks = buildTasks({ env, store, now: Date.now, launch });
 log(`worker starting: ${tasks.length} task(s): ${tasks.map((t) => t.id).join(', ') || 'none (check MI_ADAPTERS)'}`);

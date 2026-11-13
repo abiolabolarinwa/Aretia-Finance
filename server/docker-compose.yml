@@ -147,6 +147,26 @@ services:
       MI_SOLANA_DISCOVERY: ${MI_SOLANA_DISCOVERY:-}
       MI_SOLANA_DISCOVERY_MAX: ${MI_SOLANA_DISCOVERY_MAX:-}
       MI_TRADE_RETENTION_DAYS: ${MI_TRADE_RETENTION_DAYS:-}
+      # Live market stream: announce every pool statistics write to the stream service (empty = off).
+      MI_STREAM_URL: ${MI_STREAM_URL:-}
+      STREAM_SECRET: ${STREAM_SECRET:-}
+    logging: *logs
+
+  # Pushes the worker's pool updates to the Markets pages that are open (Server-Sent Events, through Caddy's /stream). It holds nothing and reads
+  # no database. Start it with:  docker compose --profile worker up -d --build worker stream   (set STREAM_SECRET and MI_STREAM_URL=http://stream:8090 in .env)
+  stream:
+    profiles: ["worker"]
+    build:
+      context: ..
+      dockerfile: server/worker/Dockerfile
+      target: stream
+    restart: unless-stopped
+    environment:
+      STREAM_SECRET: ${STREAM_SECRET:?set STREAM_SECRET in .env (a random string of 16 or more characters)}
+      STREAM_ORIGINS: ${STREAM_ORIGINS:-}
+      STREAM_MAX_CLIENTS: ${STREAM_MAX_CLIENTS:-}
+      STREAM_MAX_PER_IP: ${STREAM_MAX_PER_IP:-}
+    mem_limit: 256m
     logging: *logs
 
 volumes:

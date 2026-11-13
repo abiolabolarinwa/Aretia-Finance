@@ -45,6 +45,18 @@ describe('server/docker-compose.yml', () => {
     const ports = [...compose.matchAll(/^\s+- "([^"]+:\d+:\d+|\d+:\d+)"/gm)].map((m) => m[1]);
     expect(ports.sort()).toEqual(['127.0.0.1:5432:5432', '443:443', '80:80']);
   });
+  it('runs the live stream as a private service: no published port, a secret it cannot start without, reached only through the Caddy /stream route', () => {
+    const start = compose.indexOf('\n  stream:\n');
+    expect(start).toBeGreaterThan(-1);
+    const rest = compose.slice(start + 1).split('\n').slice(1);
+    const end = rest.findIndex((l) => /^ {0,2}[a-z]/.test(l)); // the next service or top-level key
+    const text = rest.slice(0, end === -1 ? undefined : end).join('\n');
+    expect(text).toContain('target: stream');
+    expect(text).not.toContain('ports:');
+    expect(text).toMatch(/STREAM_SECRET: \$\{STREAM_SECRET:\?/);
+    expect(caddy).toMatch(/handle \/stream \{\s*reverse_proxy stream:8090 \{\s*flush_interval -1/);
+    expect(caddy).not.toMatch(/\/publish/); // the worker's way in is never routed from the internet
+  });
   it('has no secrets in it: every credential is read from the environment', () => {
     for (const k of ['POSTGRES_PASSWORD', 'AUTHENTICATOR_PASSWORD', 'JWT_SECRET']) expect(compose).toMatch(new RegExp(`${k}[^\\n]*\\$\\{${k}`));
     expect(compose).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/);

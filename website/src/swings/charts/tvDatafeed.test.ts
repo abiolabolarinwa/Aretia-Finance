@@ -774,3 +774,23 @@ describe('live price pushed by the stream', () => {
     }
   });
 });
+
+describe('a chart nobody can see', () => {
+  it('makes no live price reads while its panel is not showing, and resumes when it is', async () => {
+    vi.useFakeTimers();
+    try {
+      let shown = false;
+      const dex = vi.fn(async () => new Response(JSON.stringify({ pairs: [{ priceUsd: '9', priceNative: '1' }] }))) as unknown as typeof fetch;
+      const feed = createPoolDatafeed({ chain: 'solana', pool: POOL, label: 'X / USD' }, { fetchImpl: dex, now: () => 1_700_001_800_000, pollMs: 1e9, livePriceMs: 1000, visible: () => shown });
+      feed.subscribeBars({} as never, '15', () => undefined, 'u2');
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(dex).not.toHaveBeenCalled();
+      shown = true;
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(dex).toHaveBeenCalled();
+      feed.unsubscribeBars('u2');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

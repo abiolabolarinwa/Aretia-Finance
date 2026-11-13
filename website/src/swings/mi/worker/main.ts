@@ -8,6 +8,7 @@ import { chainConfig, isMiChain } from '../chains.js';
 import { launchLookup } from '../launchLink.js';
 import { makeRead } from '../rpc.js';
 import { StreamPublisher, publishing } from '../stream/publisher.js';
+import { watchedReader } from '../stream/watched.js';
 import { SupabaseMiStore } from '../supabaseStore.js';
 import { DEFAULT_LOOP, runWorker, type LoopOptions } from './loop.js';
 import { buildTasks } from './tasks.js';
@@ -52,7 +53,7 @@ const publisher = streamUrl && streamSecret ? new StreamPublisher({ url: streamU
 const store = publisher ? publishing(database, publisher) : database;
 if (publisher) setInterval(() => log(`stream: ${publisher.published} sent, ${publisher.dropped} dropped, ${publisher.failures} failed request(s)`), 10 * 60_000).unref();
 const launch = launchLookup({ supabaseUrl: url, serviceKey: key, fetchImpl: fetch, readFor: (chain) => (isMiChain(chain) && chain !== 'solana' ? makeRead(chainConfig(chain, env).rpcUrls) : null) });
-const tasks = buildTasks({ env, store, now: Date.now, launch });
+const tasks = buildTasks({ env, store, now: Date.now, launch, watched: publisher ? watchedReader({ url: streamUrl, secret: streamSecret }) : null });
 log(`worker starting: ${tasks.length} task(s): ${tasks.map((t) => t.id).join(', ') || 'none (check MI_ADAPTERS)'}`);
 
 const stop = (signal: string): void => {

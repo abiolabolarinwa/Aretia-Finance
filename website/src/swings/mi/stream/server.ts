@@ -133,6 +133,13 @@ export function createStreamServer(o: StreamServerOptions): http.Server {
     });
   };
 
+  /** The pools being watched now, for the worker (private network only, same secret as /publish). */
+  const watched = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    if (!sameSecret(req.headers['x-stream-secret'] as string | undefined, o.secret)) return text(res, 401, 'no');
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ keys: o.hub.watchedKeys(500), viewers: o.hub.clientCount }));
+  };
+
   const publish = (req: http.IncomingMessage, res: http.ServerResponse): void => {
     if (!sameSecret(req.headers['x-stream-secret'] as string | undefined, o.secret)) return text(res, 401, 'no');
     const chunks: Buffer[] = [];
@@ -164,6 +171,7 @@ export function createStreamServer(o: StreamServerOptions): http.Server {
     const url = new URL(req.url ?? '/', 'http://stream');
     if (req.method === 'GET' && url.pathname === '/stream') return stream(req, res, url);
     if (req.method === 'POST' && url.pathname === '/publish') return publish(req, res);
+    if (req.method === 'GET' && url.pathname === '/watched') return watched(req, res);
     if (req.method === 'GET' && url.pathname === '/health') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ ok: true, clients: o.hub.clientCount, received: o.hub.received, sent: o.hub.sent }));

@@ -28,6 +28,20 @@ function clock() {
   return { now: () => t, advance: (ms: number) => void (t += ms) };
 }
 
+describe('the pools being watched', () => {
+  it('lists the pools somebody watches, the most watched first, and forgets a pool when its last viewer leaves', () => {
+    const hub = new StreamHub({ now: clock().now });
+    const a = hub.subscribe(['bnb:0xaa', 'bnb:0xbb'], sink().s);
+    hub.subscribe(['bnb:0xbb', 'bnb:0xcc'], sink().s);
+    expect(hub.watchedKeys(10)[0]).toBe('bnb:0xbb');
+    expect(hub.watchedKeys(10).sort()).toEqual(['bnb:0xaa', 'bnb:0xbb', 'bnb:0xcc']);
+    expect(hub.watchedKeys(2)).toHaveLength(2);
+    expect(hub.watchedKeys(0)).toEqual([]);
+    if (a.ok) hub.unsubscribe(a.id);
+    expect(hub.watchedKeys(10).sort()).toEqual(['bnb:0xbb', 'bnb:0xcc']);
+  });
+});
+
 describe('live stream hub', () => {
   it('sends a viewer the updates of its own pools only', () => {
     const c = clock();

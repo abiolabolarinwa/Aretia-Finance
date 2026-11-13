@@ -5,6 +5,7 @@ import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
 import { browserStorage, SwapHistory } from '../swings/history.js';
+import { airdropExplanation, airdropReasons, isMine, loadMine, markMine, looksLikeAirdrop } from './walletAirdrop';
 import { requestSwap, swapRequestFor } from './walletHoldingActions';
 import { discoverEvmTokens } from './walletTokenDiscovery';
 import { scanKnownTokens } from './walletHoldingsScan';
@@ -99,6 +100,10 @@ export interface Holding {
   value: number | null;
   /** The only pool behind the price holds under $10,000, so the dollar value is only indicative. */
   thin: boolean;
+  /** Why this looks like a token sent to the wallet rather than chosen (an explanation), or undefined. Such a token is kept out of the total. */
+  suspect?: string;
+  /** Network and address, for the Ethereum-style tokens (used by "it is mine"). */
+  evm?: { chain: string; address: string };
 }
 
 // ---------------------------------------------------------------- formatting
@@ -397,6 +402,10 @@ export function initWalletApp(): void {
   // The Ethereum-style account (MetaMask's other account) and what it holds. Solana's `holdings` stays Solana-only: Send and the swap read it.
   let evmAccount: string | null = null;
   let evmHoldings: EvmHolding[] = [];
+  /** Tokens this wallet swapped through Aretia, and those the person said are theirs: never tagged as probably sent. */
+  let tradedHere = new Set<string>();
+  let mineTokens = loadMine(browserStorage());
+  let showSuspects = false;
   let evmToken = 0;
   const evmSession = new EvmSession();
   let activity: ActivityItem[] | null = null;
@@ -504,7 +513,18 @@ export function initWalletApp(): void {
   /** Solana holdings plus the Ethereum-style account's, best value first, for the dashboard only. */
   function dashboardHoldings(): Holding[] | null {
     if (holdings === null) return null;
-    const evmRows = evmHoldings.map((e): Holding => ({ mint: e.mint, symbol: e.symbol, name: e.name, icon: null, amount: e.amount, raw: null, decimals: e.decimals, price: e.price, priceSource: e.price === null ? null : 'DexScreener', value: e.value, thin: e.thin }));
+    const evmRows = evmHoldings.map((e): Holding => {
+      const row: Holding = { mint: e.mint, symbol: e.symbol, name: e.name, icon: null, amount: e.amount, raw: null, decimals: e.decimals, price: e.price, priceSource: e.price === null ? null : 'DexScreener', value: e.value, thin: e.thin };
+      if (isEvmNativeMint(e.mint)) return row;
+      row.evm = { chain: e.chain, address: e.address };
+      // Only tokens found from a list of names can be sent without being chosen; those swapped through Aretia, or claimed by the person, never are.
+      const key = `${e.chain}:${e.address.toLowerCase()}`;
+      if (e.named && !tradedHere.has(key) && !isMine(mineTokens, e.chain, e.address)) {
+        const check = { chain: e.chain, address: e.address, symbol: e.symbol, name: e.name, amount: e.amount, raw: e.raw, decimals: e.decimals, thin: e.thin || e.price === null };
+        if (looksLikeAirdrop(check)) row.suspect = airdropExplanation(airdropReasons(check));
+      }
+      return row;
+    });
     if (evmRows.length === 0) return holdings;
     return [...holdings, ...evmRows].sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
   }
@@ -523,9 +543,15 @@ export function initWalletApp(): void {
     try {
       // The tokens this wallet has swapped through Aretia are looked for too, so one just bought shows here.
       const extra: ExtraToken[] = [];
+      tradedHere = new Set();
       for (const h of new SwapHistory(browserStorage()).list(account)) {
         if (h.status !== 'confirmed' && h.status !== 'submitted') continue;
-        for (const address of [h.toAddress, h.fromAddress]) if (address && isChainId(h.chain)) extra.push({ chain: h.chain, address });
+        for (const address of [h.toAddress, h.fromAddress]) {
+          if (address && isChainId(h.chain)) {
+            extra.push({ chain: h.chain, address });
+            tradedHere.add(`${h.chain}:${address.toLowerCase()}`);
+          }
+        }
       }
       const evmChains = CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm');
       // The two searches for the wallet's other tokens start now and run while the first, quick read is drawn:
@@ -570,7 +596,7 @@ export function initWalletApp(): void {
       address && holdings
         ? [
             ...holdings.map((h) => ({ symbol: h.symbol, name: h.name, network: 'Solana', amount: h.amount })),
-            ...evmHoldings.map((e) => ({ symbol: e.symbol, name: e.name, network: CHAINS[e.chain].name, amount: e.amount })),
+            ...(dashboardHoldings() ?? []).filter((h) => h.evm && !h.suspect).map((h) => ({ symbol: h.symbol, name: h.name, network: CHAINS[h.evm!.chain as ChainId].name, amount: h.amount })),
           ]
         : null,
     );
@@ -578,7 +604,7 @@ export function initWalletApp(): void {
     const count = $('[data-token-count]');
     const evmLine = $('[data-evm-line]');
     if (name) name.textContent = address ? (walletName ?? 'Wallet') : '—';
-    const all = dashboardHoldings();
+    const all = dashboardHoldings()?.filter((h) => !h.suspect) ?? null;
     if (count) count.textContent = all ? `${all.length} token${all.length === 1 ? '' : 's'}` : '';
     if (evmLine) {
       evmLine.hidden = !(address && evmAccount);
@@ -647,6 +673,43 @@ export function initWalletApp(): void {
     return td;
   }
 
+  /** The tokens that look sent to the wallet, not chosen: behind a toggle, out of the total, with no Buy or Sell until the person says they are theirs. */
+  function renderSuspects(body: HTMLElement, suspects: Holding[], mask: (t: string) => string): void {
+    const n = suspects.length;
+    const noun = `suspected airdrop${n === 1 ? '' : 's'}`;
+    const toggle = el('button', {
+      class: 'wapp__btn wapp__btn--ghost wapp-unpriced-toggle',
+      text: showSuspects ? `Hide ${n} ${noun}` : `Show ${n} ${noun}`,
+      attrs: { type: 'button', 'aria-pressed': String(showSuspects), 'data-suspects-toggle': '' },
+    });
+    toggle.addEventListener('click', () => {
+      showSuspects = !showSuspects;
+      renderDashboard();
+    });
+    body.append(toggle, el('p', { class: 'wapp-sub', text: 'Tokens that look sent to this wallet rather than chosen (anyone can send any token). They are not counted in your total. If one is yours, mark it.' }));
+    if (!showSuspects) return;
+    const table = el('table', { class: 'wapp-table wapp-table--suspect' });
+    const tbody = el('tbody');
+    for (const h of suspects) {
+      const mine = el('button', { class: 'wapp-row-btn', text: "It is mine", attrs: { type: 'button', 'aria-label': `${h.symbol} is mine` } });
+      mine.addEventListener('click', () => {
+        if (!h.evm) return;
+        mineTokens = markMine(browserStorage(), h.evm.chain, h.evm.address);
+        renderDashboard();
+      });
+      tbody.append(
+        el('tr', {}, [
+          el('td', {}, [el('div', { class: 'wapp-asset' }, [avatar(h), el('div', {}, [el('strong', { text: h.symbol }), el('span', { class: 'wapp-sub', text: h.name })])])]),
+          el('td', { class: 'num', text: mask(formatAmount(h.amount)) }),
+          el('td', {}, [el('span', { class: 'wapp-flag wapp-flag--airdrop', text: 'Possible airdrop', attrs: { title: h.suspect ?? '' } })]),
+          el('td', { class: 'wapp-row-actions' }, [mine]),
+        ]),
+      );
+    }
+    table.append(tbody);
+    body.append(table);
+  }
+
   function renderDashboard(error?: string): void {
     renderTopAssets();
     const total = $('[data-total]');
@@ -662,7 +725,9 @@ export function initWalletApp(): void {
       body.append(el('p', { class: 'wapp-error', text: `Couldn't load balances: ${error}` }));
       return;
     }
-    const all = dashboardHoldings();
+    const everything = dashboardHoldings();
+    const all = everything === null ? null : everything.filter((h) => !h.suspect);
+    const suspects = everything === null ? [] : everything.filter((h) => h.suspect);
     if (all === null) {
       total.textContent = '…';
       sub.textContent = 'Loading balances';
@@ -680,7 +745,7 @@ export function initWalletApp(): void {
     total.textContent = pricing ? '…' : counted > 0 ? (amountsHidden ? '••••' : formatUsd(sum)) : '—';
     renderAllocation(pricing ? null : all, sum);
     sub.textContent = pricing ? `${all.length} token${all.length === 1 ? '' : 's'}; loading prices` : all.length === 0 ? 'This wallet holds no tokens yet.' : `${priced.length} of ${all.length} token${all.length === 1 ? '' : 's'} priced${thinLeftOut > 0 ? `; ${thinLeftOut} with a thin price not counted in the total` : ''}`;
-    if (all.length === 0) return;
+    if (all.length === 0 && suspects.length === 0) return;
 
     const mask = (t: string) => (amountsHidden ? '••••' : t);
     const table = el('table', { class: 'wapp-table' });
@@ -708,7 +773,9 @@ export function initWalletApp(): void {
       );
     }
     table.append(tbody);
-    body.append(table);
+    if (all.length > 0) body.append(table);
+
+    if (suspects.length > 0 && !pricing) renderSuspects(body, suspects, mask);
 
     if (unpricedCount > 0) {
       const noun = `unpriced token${unpricedCount === 1 ? '' : 's'}`;

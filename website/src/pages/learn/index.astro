@@ -1,0 +1,38 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/typography/PageHero.astro';
+import { getGuides } from '../../lib/guides';
+import { CHAIN_IDS, CHAINS } from '../../swings/core/types';
+
+const guides = await getGuides();
+---
+
+<Base title="Learn" description="Plain-language guides to checking a token, understanding liquidity, choosing a crypto trading app and how Aretia Markets builds its numbers.">
+  <PageHero eyebrow="Learn" title="Read it before you trade it." lead="Short guides on judging a token and a trading app, written to be checked, with Aretia's own limits stated." />
+  <div class="container list">
+    <ul class="guides">
+      {
+        guides.map((g) => (
+          <li>
+            <a href={`/learn/${g.id}`}>{g.data.title}</a>
+            <p>{g.data.description}</p>
+          </li>
+        ))
+      }
+    </ul>
+    <h2 class="chains-title">Token markets by network</h2>
+    <ul class="chains">
+      {CHAIN_IDS.map((id) => <li><a href={`/chains/${id}`}>{CHAINS[id].name}</a></li>)}
+    </ul>
+  </div>
+</Base>
+
+<style>
+  .list { max-width: 50rem; padding-bottom: var(--space-2xl); }
+  .guides { list-style: none; padding: 0; margin: 0 0 var(--space-xl); display: grid; gap: var(--space-lg); }
+  .guides a { font-family: var(--font-display); font-size: var(--text-subheading); font-weight: 600; letter-spacing: -0.03em; color: var(--color-strong); }
+  .guides p { margin: 0.4rem 0 0; color: var(--color-muted); line-height: 1.6; }
+  .chains-title { font-size: 1.5rem; margin: 0 0 1rem; }
+  .chains { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .chains a { display: inline-block; padding: 0.45rem 0.9rem; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-strong); }
+</style>

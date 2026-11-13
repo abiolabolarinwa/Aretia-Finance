@@ -1,0 +1,59 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { getGuides } from '../../lib/guides';
+import { guideJsonLd } from '../../lib/guideSeo';
+
+export async function getStaticPaths() {
+  const guides = await getGuides();
+  return guides.map((guide) => ({ params: { slug: guide.id }, props: { guide, others: guides.filter((g) => g.id !== guide.id) } }));
+}
+
+const { guide, others } = Astro.props;
+const { Content } = await render(guide);
+const date = (guide.data.updated ?? guide.data.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+const jsonLd = guideJsonLd({ id: guide.id, title: guide.data.title, description: guide.data.description, date: guide.data.date, updated: guide.data.updated });
+---
+
+<Base title={guide.data.title} description={guide.data.description}>
+  <script slot="head" type="application/ld+json" is:inline set:html={jsonLd} />
+  <article>
+    <header class="gh">
+      <div class="container gh__inner">
+        <a href="/learn" class="gh__crumb">Learn</a>
+        <h1 class="gh__title">{guide.data.title}</h1>
+        <p class="lead">{guide.data.description}</p>
+        <p class="gh__date">Updated <time datetime={(guide.data.updated ?? guide.data.date).toISOString()}>{date}</time> · Aretia Finance</p>
+      </div>
+    </header>
+    <div class="container">
+      <div class="prose"><Content /></div>
+    </div>
+  </article>
+  {
+    others.length > 0 && (
+      <aside class="container more" aria-label="More guides">
+        <h2>More guides</h2>
+        <ul>{others.map((g) => <li><a href={`/learn/${g.id}`}>{g.data.title}</a></li>)}</ul>
+      </aside>
+    )
+  }
+</Base>
+
+<style>
+  .gh { padding-top: calc(var(--nav-height) + clamp(3rem, 8vw, 6rem)); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--color-border); }
+  .gh__inner { display: grid; gap: var(--space-md); max-width: 46rem; }
+  .gh__crumb { font-size: var(--text-small); color: var(--color-faint); }
+  .gh__title { font-family: var(--font-topical); font-size: clamp(2.2rem, 5vw, 4rem); line-height: 1.05; }
+  .gh__date { font-size: var(--text-small); color: var(--color-faint); margin: 0; }
+  .prose { max-width: 42rem; margin-inline: auto; padding: var(--space-xl) 0 var(--space-2xl); font-size: 1.0625rem; line-height: 1.75; color: var(--color-text); }
+  .prose :global(h2) { font-size: 1.6rem; letter-spacing: -0.025em; margin: 2.25rem 0 1rem; }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(ul), .prose :global(ol) { margin: 0 0 1.25rem; padding-left: 1.3rem; }
+  .prose :global(li) { margin-bottom: 0.5rem; }
+  .prose :global(strong) { color: var(--color-strong); }
+  .prose :global(a) { color: var(--color-gold-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .more { max-width: 46rem; padding-bottom: var(--space-2xl); }
+  .more h2 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+  .more ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.4rem; }
+</style>

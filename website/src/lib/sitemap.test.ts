@@ -12,6 +12,13 @@ describe('sitemap', () => {
     expect(xml.startsWith('<?xml')).toBe(true);
   });
 
+  it('lists the guides and one page per network', () => {
+    const xml = buildSitemap([], undefined, [{ id: 'what-is-liquidity-in-a-token-pool', date: new Date('2026-11-13') }]);
+    expect(xml).toContain(`<loc>${SITE}/learn/what-is-liquidity-in-a-token-pool</loc><lastmod>2026-11-13</lastmod>`);
+    for (const c of ['solana', 'ethereum', 'bnb', 'base', 'polygon', 'robinhood']) expect(xml).toContain(`<loc>${SITE}/chains/${c}</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/learn</loc>`);
+  });
+
   it('escapes what XML does not allow in an address', () => {
     expect(buildSitemap([{ id: 'a&b<c', date: new Date('2026-01-01') }], [])).toContain('/blog/a&amp;b&lt;c');
   });
@@ -20,6 +27,7 @@ describe('sitemap', () => {
     const pagesDir = resolve(__dirname, '../pages');
     for (const p of PUBLIC_PAGES) {
       const base = p.replace(/^\//, '');
+      if (base.startsWith('chains/')) continue; // one template page for every network (chains/[chain].astro)
       const found = [`${base}.astro`, `${base}/index.astro`].some((f) => existsSync(resolve(pagesDir, f)));
       expect(found, p).toBe(true);
     }

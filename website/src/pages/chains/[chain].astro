@@ -1,0 +1,56 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/typography/PageHero.astro';
+import { chainFacts } from '../../lib/chainFacts';
+import { CHAIN_IDS } from '../../swings/core/types';
+
+export function getStaticPaths() {
+  return CHAIN_IDS.map((chain) => ({ params: { chain } }));
+}
+
+const { chain } = Astro.params;
+const f = chainFacts(chain as (typeof CHAIN_IDS)[number]);
+const description = `Live ${f.name} token markets on Aretia: price, 24-hour volume, transactions, traders and liquidity for pools on ${f.venues.slice(0, 3).join(', ')} and more, with gaps shown as gaps.`;
+---
+
+<Base title={`${f.name} token markets`} description={description}>
+  <PageHero eyebrow={f.name} title={`${f.name} token markets`} lead="Price, volume, transactions, traders and liquidity for tokens trading on decentralised exchanges, built from the chain itself." />
+  <div class="container body">
+    <p><a class="open" href="/wallet#/swings">Open Aretia Markets</a>, then choose {f.name} in the network chips.</p>
+
+    <h2>What the {f.name} page shows</h2>
+    <ul>
+      <li>Price, 24-hour volume, number of transactions, distinct traders and liquidity for each pool.</li>
+      <li>Age of the pool, and changes over 5 minutes, 1 hour, 6 hours and 24 hours.</li>
+      <li>Where there is no data, a dash. Where there is no trade data for a window, a grey 0.00%. Never a made-up number.</li>
+    </ul>
+
+    <h2>Venues Aretia's indexer supports on {f.name}</h2>
+    <p>{f.venues.join(', ')}.</p>
+    <p>Support is not the same as depth. How much history Aretia holds on a network depends on the nodes it can read from. See <a href="/learn/how-aretia-markets-works">how Aretia Markets works</a> for what is thin and why.</p>
+
+    <h2>Facts about the network</h2>
+    <ul>
+      <li>Native coin: {f.nativeSymbol}</li>
+      {f.evmChainId !== null && <li>Chain ID: {f.evmChainId}</li>}
+    </ul>
+
+    <h2>Before you trade a token here</h2>
+    <p>Read <a href="/learn/how-to-check-a-token-before-you-swap">how to check a token before you swap it</a> and <a href="/learn/what-is-liquidity-in-a-token-pool">what liquidity means</a>. Aretia does not rate tokens or give financial advice.</p>
+
+    <h2>Other networks</h2>
+    <ul class="others">
+      {CHAIN_IDS.filter((c) => c !== f.id).map((c) => <li><a href={`/chains/${c}`}>{chainFacts(c).name}</a></li>)}
+    </ul>
+  </div>
+</Base>
+
+<style>
+  .body { max-width: 46rem; padding-bottom: var(--space-2xl); font-size: 1.0625rem; line-height: 1.75; }
+  .body h2 { font-size: 1.5rem; letter-spacing: -0.025em; margin: 2.25rem 0 0.75rem; }
+  .body p, .body ul { margin: 0 0 1.1rem; }
+  .body ul { padding-left: 1.3rem; }
+  .body a { color: var(--color-gold-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .others { list-style: none; padding: 0 !important; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .others a { display: inline-block; padding: 0.4rem 0.85rem; border: 1px solid var(--color-border); border-radius: 999px; text-decoration: none; color: var(--color-strong); }
+</style>

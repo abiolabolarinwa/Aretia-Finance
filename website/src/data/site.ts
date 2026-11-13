@@ -201,6 +201,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: 'About', href: '/about', description: 'Why Aretia exists' },
       { label: 'Blog', href: '/blog', description: 'Notes from the team' },
+      { label: 'Learn', href: '/learn', description: 'Guides to checking tokens and apps' },
       { label: 'Support', href: '/support', description: 'Answers and guides' },
       { label: 'Contact', href: '/contact', description: 'Get in touch' },
     ],

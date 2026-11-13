@@ -257,6 +257,10 @@ export function hasWideRange(bars: readonly TvBar[]): boolean {
 
 /** The last candle's price follows the pool's live price this often: 60 reads a minute, against the 300 a minute DexScreener allows a visitor. */
 const LIVE_PRICE_MS = 1_000;
+/** The one-second price poll waits while the live stream has delivered a price this recently. */
+const STREAM_QUIET_MS = 3_000;
+/** How often an index-served pool's candles are re-read. */
+const INDEX_POLL_MS = 5_000;
 /** After a live reading, the candle data's own close is not trusted over it for this long (candle data runs a little behind). */
 const LIVE_PRICE_TRUST_MS = 12_000;
 
@@ -350,6 +354,11 @@ export function createPoolDatafeed(
     dexBase?: string;
     /** Called when the chart's first load of candles fails for good (after its own retries), so the chart can be started again. */
     onLoadFailed?: (message: string) => void;
+    /**
+     * A push source for the pool's price in dollars (Aretia's live market stream), used to move the last candle the moment the index writes a
+     * new price, at most once a second. Returns a function that stops it. Only dollar prices of the first token come from it.
+     */
+    liveSource?: (onPrice: (usd: number) => void) => () => void;
     /** Called after each first load with what the chart is showing: its source, a note, or why it has nothing. */
     onStatus?: (status: ChartStatus) => void;
     /** False turns off building candles from the trades table when every source fails. */
@@ -385,6 +394,7 @@ export function createPoolDatafeed(
   /** Per interval: the newest candle loaded, where live price readings start from. */
   const newest = new Map<string, TvBar>();
   const priceTimers = new Map<string, ReturnType<typeof setInterval>>();
+  const streamStops = new Map<string, () => void>();
   const livePriceMs = deps.livePriceMs ?? LIVE_PRICE_MS;
   const dexBase = deps.dexBase ?? 'https://api.dexscreener.com';
   /** Pools the indexer said it does not follow, and until when not to ask again. */
@@ -396,7 +406,6 @@ export function createPoolDatafeed(
 
   /** The pool's price right now, from DexScreener's pair service (it updates within seconds and allows plenty of requests). Null on any failure. */
   async function fetchLivePrice(): Promise<number | null> {
-    if (o.source === 'aretia' && indexHadBars) return null;
     try {
       const response = await fetchImpl(`${dexBase}/latest/dex/pairs/${DEXSCREENER_CHAIN[o.chain]}/${encodeURIComponent(o.pool)}`, { headers: { accept: 'application/json' } });
       return response.ok ? livePriceFrom(await response.json(), side, currency) : null;
@@ -767,7 +776,20 @@ export function createPoolDatafeed(
           })
           .catch(() => undefined);
       };
-      if (livePriceMs > 0) priceTimers.set(uid, setInterval(price, livePriceMs));
+      // A pushed price (the live stream) moves the candle at once; the one-second poll below then stays quiet while the stream is delivering.
+      let streamAt = 0;
+      const onStreamPrice = (p: number): void => {
+        if (hidden() || !(p > 0)) return;
+        const slot = Math.floor(now() / 1000 / res.seconds) * res.seconds * 1000;
+        const bar = applyLivePrice(current, p, slot);
+        if (!bar) return;
+        streamAt = now();
+        liveAt = streamAt;
+        push(bar);
+      };
+      streamStops.get(uid)?.();
+      if (deps.liveSource && currency === 'usd' && side === 'base') streamStops.set(uid, deps.liveSource(onStreamPrice));
+      if (livePriceMs > 0) priceTimers.set(uid, setInterval(() => (now() - streamAt < STREAM_QUIET_MS ? undefined : price()), livePriceMs));
 
       // Every so often: the real candles, which carry the volume and correct anything the live readings missed.
       const tick = (): void => {
@@ -789,13 +811,16 @@ export function createPoolDatafeed(
           })
           .catch(() => undefined);
       };
-      timers.set(uid, setInterval(tick, pollMs));
+      // An index-served pool's candles are cheap to re-read (the server keeps them for five seconds), so they are read faster than GeckoTerminal's.
+      timers.set(uid, setInterval(tick, deps.pollMs ?? (o.source === 'aretia' || indexHadBars ? INDEX_POLL_MS : pollMs)));
     },
     unsubscribeBars(uid) {
       clearInterval(timers.get(uid));
       timers.delete(uid);
       clearInterval(priceTimers.get(uid));
       priceTimers.delete(uid);
+      streamStops.get(uid)?.();
+      streamStops.delete(uid);
     },
   };
 }

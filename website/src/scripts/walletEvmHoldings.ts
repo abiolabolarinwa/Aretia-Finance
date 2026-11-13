@@ -10,6 +10,7 @@ import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 import { decodeAbiString, publicRead, readBalance, type EvmRead } from '../swings/chains/evmSession.js';
 import { cleanText } from '../swings/tokens/safeText.js';
 import { decodeAggregate3, encodeAggregate3, MULTICALL3 } from './walletHoldingsScan';
+import { THIN_LIQUIDITY_USD } from './walletHoldings';
 
 export interface EvmHolding {
   chain: ChainId;
@@ -24,6 +25,8 @@ export interface EvmHolding {
   decimals: number;
   price: number | null;
   value: number | null;
+  /** The only pool behind the price holds under $10,000, so the dollar value is only indicative and is not added to the total. */
+  thin: boolean;
 }
 
 export const isEvmNativeMint = (mint: string): boolean => mint.endsWith(':native');
@@ -62,8 +65,8 @@ interface DexPair {
   liquidity?: { usd?: number };
 }
 
-/** The deepest pool's price for each token address (lower-case). */
-export function bestPrices(pairs: readonly DexPair[]): Map<string, number> {
+/** The deepest pool's price, and how much that pool holds in dollars, for each token address (lower-case). */
+export function bestPools(pairs: readonly DexPair[]): Map<string, { price: number; liq: number }> {
   const best = new Map<string, { price: number; liq: number }>();
   for (const p of pairs) {
     const a = p.baseToken?.address?.toLowerCase();
@@ -72,7 +75,12 @@ export function bestPrices(pairs: readonly DexPair[]): Map<string, number> {
     const liq = p.liquidity?.usd ?? 0;
     if (!best.has(a) || liq > (best.get(a)?.liq ?? 0)) best.set(a, { price, liq });
   }
-  return new Map([...best].map(([a, v]) => [a, v.price]));
+  return best;
+}
+
+/** The deepest pool's price for each token address (lower-case). */
+export function bestPrices(pairs: readonly DexPair[]): Map<string, number> {
+  return new Map([...bestPools(pairs)].map(([a, v]) => [a, v.price]));
 }
 
 /** A token to look for besides the well-known ones: its network and contract address. */
@@ -187,6 +195,9 @@ async function readExtras(read: (chain: ChainId) => EvmRead, account: string, ex
   return perChain.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 }
 
+/** The most token addresses the market feed answers for in one request. */
+export const PRICE_GROUP = 30;
+
 const defaultPairs = async (slug: string, addresses: string[]): Promise<DexPair[]> => {
   const res = await fetch(`https://api.dexscreener.com/tokens/v1/${slug}/${addresses.join(',')}`);
   if (!res.ok) throw new Error(`DexScreener answered ${res.status}`);
@@ -207,23 +218,31 @@ export async function loadEvmHoldings(account: string, chains: readonly ChainId[
   const held = reads.flatMap((r) => (r.status === 'fulfilled' && r.value.raw > 0n ? [r.value] : []));
   // Tokens named by the caller: their balances, and the name and decimals of the ones that are held.
   held.push(...(await readExtras(read, account, extraTargets(deps.extra ?? [], chains, targets))));
-  const prices = new Map<string, number>(); // `${chain}:${address}`
+  const prices = new Map<string, { price: number; liq: number }>(); // `${chain}:${address}`
   await Promise.allSettled(
     [...new Set(held.map((h) => h.t.chain))].map(async (chain) => {
       const slug = DEX_SLUG[chain];
       if (!slug) return;
       const wanted = new Set<string>();
       for (const h of held) if (h.t.chain === chain) wanted.add(h.t.native ? WRAPPED_NATIVE[chain as keyof typeof WRAPPED_NATIVE].toLowerCase() : h.t.address);
-      const found = bestPrices(await fetchPairs(slug, [...wanted]));
-      for (const [a, p] of found) prices.set(`${chain}:${a}`, p);
+      // The market feed takes at most 30 addresses in a request and ignores the rest, so a wallet with many tokens is priced 30 at a time.
+      const list = [...wanted];
+      const groups: string[][] = [];
+      for (let i = 0; i < list.length; i += PRICE_GROUP) groups.push(list.slice(i, i + PRICE_GROUP));
+      await Promise.allSettled(
+        groups.map(async (group) => {
+          for (const [a, p] of bestPools(await fetchPairs(slug, group))) prices.set(`${chain}:${a}`, p);
+        }),
+      );
     }),
   );
   return held
     .map(({ t, raw }): EvmHolding => {
       const key = t.native ? WRAPPED_NATIVE[t.chain as keyof typeof WRAPPED_NATIVE].toLowerCase() : t.address;
-      const price = prices.get(`${t.chain}:${key}`) ?? null;
+      const found = prices.get(`${t.chain}:${key}`) ?? null;
+      const price = found?.price ?? null;
       const amount = unitsToNumber(raw, t.decimals);
-      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, raw: raw.toString(), decimals: t.decimals, price, value: price === null ? null : amount * price };
+      return { chain: t.chain, mint: t.native ? `${t.chain}:native` : `${t.chain}:${t.address}`, address: t.address, symbol: t.symbol, name: t.name, amount, raw: raw.toString(), decimals: t.decimals, price, value: price === null ? null : amount * price, thin: found !== null && found.liq < THIN_LIQUIDITY_USD };
     })
     .sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
 }

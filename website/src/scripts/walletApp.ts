@@ -504,7 +504,7 @@ export function initWalletApp(): void {
   /** Solana holdings plus the Ethereum-style account's, best value first, for the dashboard only. */
   function dashboardHoldings(): Holding[] | null {
     if (holdings === null) return null;
-    const evmRows = evmHoldings.map((e): Holding => ({ mint: e.mint, symbol: e.symbol, name: e.name, icon: null, amount: e.amount, raw: null, decimals: e.decimals, price: e.price, priceSource: e.price === null ? null : 'DexScreener', value: e.value, thin: false }));
+    const evmRows = evmHoldings.map((e): Holding => ({ mint: e.mint, symbol: e.symbol, name: e.name, icon: null, amount: e.amount, raw: null, decimals: e.decimals, price: e.price, priceSource: e.price === null ? null : 'DexScreener', value: e.value, thin: e.thin }));
     if (evmRows.length === 0) return holdings;
     return [...holdings, ...evmRows].sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.amount - a.amount);
   }

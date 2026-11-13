@@ -26,10 +26,18 @@ describe('the guides', () => {
     }
   });
 
-  it('makes no promise of returns, and no call to buy, anywhere', () => {
+  it('never promises returns or tells the reader to buy: such words appear only in a line that warns against them', () => {
+    // A guide may name these claims in order to warn against them ("ignore anyone promising guaranteed returns"); the same words in a
+    // line with no warning in it would be Aretia making the promise, and fail.
+    const promises = ['guaranteed return', 'you will earn', 'sure thing', 'to the moon', 'risk-free', "can't lose", 'buy now', 'safest', 'best crypto'];
+    const warns = ['never', 'ignore', 'scam', 'claim', 'promis', 'anyone', 'impersonat', 'not '];
     for (const f of files) {
-      const text = readFileSync(resolve(dir, f), 'utf8').toLowerCase();
-      for (const phrase of ['guaranteed return', 'you will earn', 'sure thing', 'to the moon', 'risk-free', 'can\'t lose', 'buy now']) expect(text.includes(phrase), `${f}: "${phrase}"`).toBe(false);
+      const lines = readFileSync(resolve(dir, f), 'utf8').toLowerCase().split('\n');
+      for (const line of lines) {
+        for (const phrase of promises) {
+          if (line.includes(phrase)) expect(warns.some((w) => line.includes(w)), `${f}: "${phrase}" in: ${line.slice(0, 90)}`).toBe(true);
+        }
+      }
     }
   });
 });

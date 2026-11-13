@@ -47,7 +47,7 @@ const evmSendOn = import.meta.env.PUBLIC_PAY_EVM_SEND !== '0';
 const evmSendNetworks = (Object.values(CHAINS) as { id: string; name: string; kind: string }[]).filter((c) => c.kind === 'evm');
 const sendTips = [
   'Transfers cannot be reversed. Check the full address on the review screen.',
-  'On an Ethereum-style network the page checks the address spelling (its capital letters), refuses your own address and a token's own contract, and flags a recipient that is a smart contract.',
+  'On an Ethereum-style network the page checks the address spelling (its capital letters), refuses your own address and the token contract itself, and flags a recipient that is a smart contract.',
   'Aretia never holds your keys. Your wallet shows the transaction and signs it; this page then submits it.',
   'Before it asks your wallet, the page simulates the transaction on a public RPC. A failed simulation blocks the send.',
   'The addresses and amounts involved, and any .sns name you type, are sent to a public Solana RPC.',

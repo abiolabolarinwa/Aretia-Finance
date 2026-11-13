@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestPrices, evmTargets, extraTargets, loadEvmHoldings, unitsToNumber } from './walletEvmHoldings';
+import { bestPools, bestPrices, evmTargets, extraTargets, loadEvmHoldings, PRICE_GROUP, unitsToNumber } from './walletEvmHoldings';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
 
 const ACCOUNT = '0xd366000000000000000000000000000000007ec2';
@@ -219,5 +219,84 @@ describe('named tokens are read in batches through Multicall3', () => {
     };
     const rows = await loadEvmHoldings(ACCOUNT, ['bnb'], { read: (() => node) as never, extra: [{ chain: 'bnb', address: addr(7) }], fetchPairs: async () => [] });
     expect(rows.some((r) => r.address === addr(7))).toBe(false);
+  });
+});
+
+describe('pricing a wallet with many tokens', () => {
+  const word = (n: bigint | number): string => BigInt(n).toString(16).padStart(64, '0');
+  const abiString = (text: string): string => {
+    const hex = [...new TextEncoder().encode(text)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return word(32) + word(text.length) + hex.padEnd(Math.ceil(hex.length / 64) * 64, '0');
+  };
+  const addr = (n: number): string => `0x${n.toString(16).padStart(40, '0')}`;
+  const many = Array.from({ length: 75 }, (_, i) => ({ chain: 'bnb' as const, address: addr(i + 1) }));
+
+  it('asks the market feed for no more than 30 addresses at a time and prices every token, including the last ones', async () => {
+    // Every named token is held; the batch read answers for each of them.
+    const node = async (method: string, params: unknown[]): Promise<string> => {
+      if (method === 'eth_getBalance') return '0x0';
+      const { to, data } = params[0] as { to: string; data: string };
+      if (to.toLowerCase() !== '0xca11bde05977b3631167028862be2a173976ca11') return '0x0';
+      const body = data.slice(10);
+      const n = Number(BigInt('0x' + body.slice(64, 128)));
+      const results: string[] = [];
+      for (let i = 0; i < n; i++) {
+        const s = 128 + Number(BigInt('0x' + body.slice(128 + i * 64, 192 + i * 64))) * 2;
+        const len = Number(BigInt('0x' + body.slice(s + 192, s + 256)));
+        const call = body.slice(s + 256, s + 256 + len * 2);
+        const r = call.startsWith('70a08231') ? word(10n ** 18n) : call === '313ce567' ? word(18) : abiString('T');
+        results.push(word(1) + word(0x40) + word(r.length / 2) + r);
+      }
+      let off = n * 32;
+      const offsets = results.map((x) => {
+        const o = off;
+        off += x.length / 2;
+        return word(o);
+      });
+      return '0x' + word(0x20) + word(n) + offsets.join('') + results.join('');
+    };
+    const asked: number[] = [];
+    const fetchPairs = async (_slug: string, addresses: string[]) => {
+      asked.push(addresses.length);
+      return addresses.map((a) => ({ baseToken: { address: a }, priceUsd: '2', liquidity: { usd: 1e5 } }));
+    };
+    const rows = await loadEvmHoldings(ACCOUNT, ['bnb'], { read: (() => node) as never, extra: many, fetchPairs });
+    expect(Math.max(...asked)).toBeLessThanOrEqual(PRICE_GROUP);
+    expect(asked.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(75);
+    const named = rows.filter((r) => many.some((m) => m.address === r.address));
+    expect(named).toHaveLength(75);
+    expect(named.every((r) => r.price === 2 && r.value === 2)).toBe(true);
+  });
+});
+
+describe('a price from a shallow pool', () => {
+  it('is marked thin so it is shown on its row but never added to the total', async () => {
+    const SHALLOW = '0x4444444444444444444444444444444444444444';
+    const word = (n: bigint | number): string => BigInt(n).toString(16).padStart(64, '0');
+    const read = (() => async (method: string, params: unknown[]) => {
+      if (method === 'eth_getBalance') return '0x' + (10n ** 18n).toString(16);
+      const call = params[0] as { to: string; data: string };
+      if (call.to.toLowerCase() === '0xca11bde05977b3631167028862be2a173976ca11') return '0x';
+      if (call.data.startsWith('0x70a08231')) return call.to === SHALLOW ? '0x' + word(1000n * 10n ** 18n) : '0x0';
+      if (call.data === '0x313ce567') return '0x' + word(18);
+      return '0x';
+    }) as never;
+    const fetchPairs = async (_s: string, addresses: string[]) => [
+      { baseToken: { address: WRAPPED_NATIVE.bnb }, priceUsd: '600', liquidity: { usd: 5e7 } },
+      ...(addresses.includes(SHALLOW) ? [{ baseToken: { address: SHALLOW }, priceUsd: '5', liquidity: { usd: 800 } }] : []),
+    ];
+    const rows = await loadEvmHoldings(ACCOUNT, ['bnb'], { read, extra: [{ chain: 'bnb', address: SHALLOW }], fetchPairs });
+    const bnb = rows.find((r) => r.mint === 'bnb:native')!;
+    const odd = rows.find((r) => r.address === SHALLOW)!;
+    expect(bnb).toMatchObject({ price: 600, thin: false });
+    expect(odd).toMatchObject({ price: 5, thin: true });
+    expect(odd.value).toBe(5000);
+  });
+  it('keeps the depth of each pool beside its price', () => {
+    const m = bestPools([
+      { baseToken: { address: '0xAA' }, priceUsd: '1', liquidity: { usd: 10 } },
+      { baseToken: { address: '0xaa' }, priceUsd: '2', liquidity: { usd: 99 } },
+    ]);
+    expect(m.get('0xaa')).toEqual({ price: 2, liq: 99 });
   });
 });

@@ -387,6 +387,14 @@ describe('trades for the chart table, from the index', () => {
     expect(rows![0]!.quoteAmount).toBeGreaterThan(0);
   });
 
+  it('answers null when its indexer has stopped or fallen behind, so the table is not days older than the chart', async () => {
+    const { store, now } = await seeded();
+    const fresh = await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now }, store);
+    expect(fresh).not.toBeNull();
+    expect(await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now: now + 16 * 60_000 }, store)).toBeNull();
+    expect(await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env, fetchImpl: nofetch, now: now + 10 * 60_000 }, store)).not.toBeNull();
+  });
+
   it('answers null for a pool it does not follow, a chain it does not index, or no storage, so the usual source is read', async () => {
     const { store, now } = await seeded();
     expect(await miTrades({ chain: 'bnb', pool: '0x' + '9'.repeat(40), token: 'base', env, fetchImpl: nofetch, now }, store)).toBeNull();

@@ -58,6 +58,8 @@ const JSON_TYPE = { 'content-type': 'application/json' };
 const json = (status: number, data: unknown, headers: Record<string, string> = {}): MiOutput => ({ status, body: JSON.stringify(data), headers: { ...JSON_TYPE, 'cache-control': 'no-store', ...headers } });
 
 export const RATE = { perMinute: 120 };
+/** The trades table is answered from the index only if the pool's indexer last ran successfully within this long. */
+export const INDEX_FRESH_MS = 15 * 60_000;
 const CACHE_TTL_MS = 8_000;
 const cache = new Map<string, { at: number; out: MiOutput }>();
 export function resetMiCache(): void {
@@ -318,6 +320,10 @@ export async function miTrades(input: { chain: string; pool: string; token: 'bas
     const chain = input.chain as MiChain;
     const p = (await store.getPools([`${chain}:${pool}`])).get(`${chain}:${pool}`);
     if (!p || p.paused) return null;
+    // The index answers only while its indexer is keeping up: an indexer that is stopped or behind would show a table that stops days
+    // before the chart does. Past this age the usual source is read instead.
+    const health = await store.getHealth(p.adapterId);
+    if (!health || health.lastSuccessAt === null || input.now - health.lastSuccessAt > INDEX_FRESH_MS) return null;
     const quote = chainConfig(chain).quoteTokens.find((x) => x.address === p.quote);
     // A dollar-quoted pool gives a dollar value and price. A pool quoted in the chain's own coin has no dollar value that was true at the time of
     // each trade, so those columns are left empty (null) rather than converted at today's rate.

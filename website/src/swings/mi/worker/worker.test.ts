@@ -182,7 +182,7 @@ describe('the watched-pools task', () => {
   it('exists only when the stream is on and a Solana adapter runs, on a lane of its own', () => {
     const t = build({ MI_ADAPTERS: 'pumpswap-solana' }, async () => []).find((x) => x.id === 'solana:watched');
     expect(t?.lane).toBe('solana-watched');
-    expect(t?.idleMs).toBe(8_000);
+    expect(t?.idleMs).toBe(2_000);
     expect(build({ MI_ADAPTERS: 'pumpswap-solana' }, null).some((x) => x.id === 'solana:watched')).toBe(false);
     expect(build({ MI_ADAPTERS: 'pancakeswap-v2-bnb' }, async () => []).some((x) => x.id === 'solana:watched')).toBe(false);
     expect(build({ MI_ADAPTERS: 'pumpswap-solana', MI_WATCH_EVERY_SECONDS: '20' }, async () => []).find((x) => x.id === 'solana:watched')?.idleMs).toBe(20_000);
@@ -206,6 +206,25 @@ describe('the watched-pools task on venues the server does not scan', () => {
     const task = buildTasks({ env: { MI_ADAPTERS: 'meteora-dlmm-solana' }, store, now: Date.now, watched: async () => [pump.key], readFor: () => rpc }).find((x) => x.id === 'solana:watched')!;
     expect(await task.run(5000)).toMatchObject({ ok: true, caughtUp: true });
     expect(calls).toContain('getSignaturesForAddress');
+  });
+});
+
+describe('watched pools on EVM chains', () => {
+  it('runs the adapter of a watched pool every MI_WATCH_EVERY_SECONDS, and the others at the normal pace', async () => {
+    const pool = { key: 'bnb:0x' + 'ab'.repeat(20), chain: 'bnb', address: '0x' + 'ab'.repeat(20), adapterId: 'pancakeswap-v2-bnb', state: 'active', paused: false } as unknown as MiPool;
+    const store = new InMemoryMiStore();
+    await store.insertPool(pool);
+    const tasks = buildTasks({ env: { MI_ADAPTERS: 'pancakeswap-v2-bnb,pancakeswap-v3-bnb' }, store, now: Date.now, watched: async () => [pool.key], readFor: () => (async () => null) as unknown as Read });
+    const v2 = tasks.find((x) => x.id === 'pancakeswap-v2-bnb')!;
+    const v3 = tasks.find((x) => x.id === 'pancakeswap-v3-bnb')!;
+    expect(typeof v2.idleMs).toBe('function');
+    await v2.run(1000).catch(() => undefined);
+    expect((v2.idleMs as () => number | undefined)()).toBe(2_000);
+    expect((v3.idleMs as () => number | undefined)()).toBeUndefined();
+  });
+  it('keeps a fixed idle time for every adapter when the stream is off', () => {
+    const t = buildTasks({ env: { MI_ADAPTERS: 'pancakeswap-v2-bnb' }, store: new InMemoryMiStore(), now: Date.now, readFor: () => (async () => null) as unknown as Read }).find((x) => x.id === 'pancakeswap-v2-bnb')!;
+    expect(t.idleMs).toBeUndefined();
   });
 });
 

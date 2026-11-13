@@ -4,7 +4,7 @@ import { SOLANA_SPECS } from '../dexes.js';
 import { DEFAULT_RULES } from '../lifecycle.js';
 import { InMemoryMiStore } from '../store.js';
 import type { MiPool } from '../types.js';
-import { followWatchedPools, type SolDeps } from './engine.js';
+import { followWatchedPools, pollIntervalMs, type SolDeps } from './engine.js';
 
 const NOW = 1_800_000_000_000;
 const spec = SOLANA_SPECS.find((s) => s.id === 'pumpswap-solana')!;
@@ -47,5 +47,21 @@ describe('following the pools people are watching', () => {
     const r = await followWatchedPools(deps(calls), pools, { budgetMs: 10_000, maxPools: 3 });
     expect(r.polled).toBe(3);
     expect(calls).toHaveLength(3);
+  });
+  it('reads a lively pool often and a quiet one rarely, remembering when each was read', async () => {
+    expect(pollIntervalMs(NOW - 60_000, NOW, 2_000)).toBe(2_000); // traded in the last 5 minutes
+    expect(pollIntervalMs(NOW - 20 * 60_000, NOW, 2_000)).toBe(10_000); // in the last hour
+    expect(pollIntervalMs(NOW - 5 * 3_600_000, NOW, 2_000)).toBe(30_000); // today
+    expect(pollIntervalMs(NOW - 5 * 3_600_000, NOW, 500)).toBe(15_000); // never faster than the floor of 15 s
+    expect(pollIntervalMs(null, NOW, 2_000)).toBe(30_000);
+    const calls: string[] = [];
+    const lastPolled = new Map<string, number>();
+    const pools = [pool({ address: '1', lastTradeAt: NOW - 30_000 }), pool({ address: '2', lastTradeAt: NOW - 4 * 3_600_000 })];
+    const first = await followWatchedPools(deps(calls), pools, { budgetMs: 10_000, maxPools: 10, fastMs: 2_000, lastPolled });
+    expect(first.polled).toBe(2);
+    // Nothing is due straight away; the clock here does not move, so a second pass reads nothing.
+    const second = await followWatchedPools(deps(calls), pools, { budgetMs: 10_000, maxPools: 10, fastMs: 2_000, lastPolled });
+    expect(second.polled).toBe(0);
+    expect(calls).toHaveLength(2);
   });
 });

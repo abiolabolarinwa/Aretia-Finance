@@ -13,7 +13,7 @@ import { nativeUsdReader } from './reference.js';
 import { makeRead } from './rpc.js';
 import { scanCacheFor, swapScanChains } from './swapScan.js';
 import type { MiStore } from './store.js';
-import type { BackfillJob } from './types.js';
+import type { BackfillJob, MiPool } from './types.js';
 
 export interface RunnerEnv {
   /** Comma list of adapter ids, or `*` for every catalogued adapter. Default: the first network only (pancakeswap-v2-bnb). */
@@ -71,6 +71,8 @@ export interface RunAllDeps {
   now: () => number;
   budgetMs: number;
   launch?: LaunchLookup | null;
+  /** The pools of an adapter that open Markets pages are showing now, followed in every run of it (EVM adapters). */
+  extraPools?: (adapterId: string) => Promise<MiPool[]>;
   /** Test hook: replaces the JSON-RPC reader for a chain. */
   readFor?: (spec: DexAdapterSpec | SolanaAdapterSpec) => EngineDeps['read'];
 }
@@ -115,7 +117,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
   const engineFor = (spec: DexAdapterSpec, budgetMs: number): EngineDeps => {
     const chain = chainConfig(spec.chain, d.env);
     const read = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl });
-    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), ...(swapScan(spec) ? { swapScan: true, scanCache: scanCacheFor(spec.id) } : {}) };
+    return { spec, chain, read, store: d.store, rules, now: d.now, launch: d.launch ?? null, extraPools: d.extraPools ? () => d.extraPools!(spec.id) : undefined, nativeUsd: nativeUsdReader(chain, read, d.now), budgetMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), ...(swapScan(spec) ? { swapScan: true, scanCache: scanCacheFor(spec.id) } : {}) };
   };
 
   // A backfill requested by an administrator runs first, in its own slice of the budget.

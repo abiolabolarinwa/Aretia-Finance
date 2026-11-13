@@ -153,6 +153,7 @@ services:
       # Watched Solana pools (the pools open Markets pages show) are read this often, at most this many per pass.
       MI_WATCH_EVERY_SECONDS: ${MI_WATCH_EVERY_SECONDS:-}
       MI_WATCH_MAX: ${MI_WATCH_MAX:-}
+      MI_WATCH_COMMITMENT: ${MI_WATCH_COMMITMENT:-}
     logging: *logs
 
   # Pushes the worker's pool updates to the Markets pages that are open (Server-Sent Events, through Caddy's /stream). It holds nothing and reads

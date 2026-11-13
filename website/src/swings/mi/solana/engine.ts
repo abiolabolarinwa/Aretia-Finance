@@ -51,6 +51,8 @@ export interface SolDeps {
   followRecent?: number;
   /** Signatures read per pool per run. */
   swapSigs?: number;
+  /** How sure the chain must be of the swaps read for a followed pool (default `finalized`). The watched-pools task uses `confirmed` to be seconds behind, not a quarter of a minute. */
+  commitment?: Commitment;
 }
 
 interface TxJson extends ParsedTx {
@@ -66,6 +68,9 @@ export interface SigInfo {
 }
 
 const TX_OPTS = { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1, commitment: 'finalized' } as const;
+
+/** How sure the chain must be of a block before it is read: `finalized` (about 13 seconds behind) or `confirmed` (about 1 to 2 seconds). */
+export type Commitment = 'finalized' | 'confirmed';
 
 /** A node's own way of saying it does not have the transaction ("Transaction <signature> not found"). Not a failure of the run. */
 const TX_MISSING = /not found|could not be found|no transaction|missing in long-term storage|was skipped/i;
@@ -85,10 +90,11 @@ export interface SkippedTx {
  * up to TX_ATTEMPTS times; any other error (a transport failure, a rate limit with no node left) still fails the run, because that is a
  * real outage and not a missing transaction.
  */
-export async function readTx(rpc: Read, signature: string): Promise<TxJson | null> {
+export async function readTx(rpc: Read, signature: string, commitment: Commitment = 'finalized'): Promise<TxJson | null> {
+  const opts = commitment === 'finalized' ? TX_OPTS : { ...TX_OPTS, commitment };
   for (let i = 0; i < TX_ATTEMPTS; i++) {
     try {
-      const tx = (await rpc('getTransaction', [signature, TX_OPTS])) as TxJson | null;
+      const tx = (await rpc('getTransaction', [signature, opts])) as TxJson | null;
       if (tx) return tx;
     } catch (e) {
       if (!(e instanceof RpcError) || e.kind !== 'node-error' || !TX_MISSING.test(e.message)) throw e;
@@ -385,7 +391,7 @@ export async function tradesFromSignatures(d: SolDeps, pool: MiPool, sigs: reado
   const skipped: SkippedTx[] = [];
   const wanted = sigs.filter((s) => s.err === null || s.err === undefined);
   for (let i = 0; i < wanted.length; i += 4) {
-    const txs = await Promise.all(wanted.slice(i, i + 4).map(async (s) => ({ s, tx: await readTx(d.rpc, s.signature) })));
+    const txs = await Promise.all(wanted.slice(i, i + 4).map(async (s) => ({ s, tx: await readTx(d.rpc, s.signature, d.commitment) })));
     for (const { s, tx } of txs) {
       if (tx === null) {
         // Waited for while young (the pool's cursor stays); skipped and recorded once past the grace period.
@@ -412,7 +418,7 @@ export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): P
   const cp = await d.store.getCheckpoint(poolCursorKey(d.spec, pool.address));
   const until = cp?.blockHash && /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(cp.blockHash) ? cp.blockHash : undefined;
   const limit = d.swapSigs ?? 50;
-  const params: Record<string, unknown> = { limit, commitment: 'finalized' };
+  const params: Record<string, unknown> = { limit, commitment: d.commitment ?? 'finalized' };
   if (until) params.until = until;
   const sigs = (await d.rpc('getSignaturesForAddress', [pool.quoteVault!, params])) as SigInfo[];
   if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
@@ -455,12 +461,24 @@ export const emptyReport = (id: string): RunReport => ({ adapterId: id, ok: true
  * and recomputes the statistics of those that traded, which is what the live stream then pushes to the pages. A pool that has not
  * traded for 24 hours, or is not active, is left to the normal rotation: no list ranked by trading shows it, so nobody is waiting on it.
  * `maxPools` bounds the node calls per pass (one signature read per pool, plus one read per new transaction).
+ * How often a pool is read depends on how lively it is: one that traded in the last 5 minutes every `fastMs`, one that traded in the last hour
+ * every 5 times that, the rest every 15 times that (and at least 15 seconds). So the node calls go where the trades are. `lastPolled` (pool key to
+ * the time it was last read) is kept by the caller between passes; without it every pool is due.
  */
-export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o: { budgetMs: number; maxPools: number }): Promise<{ polled: number; traded: number; unavailable: number }> {
+export function pollIntervalMs(lastTradeAt: number | null, now: number, fastMs: number): number {
+  const age = lastTradeAt === null ? Infinity : now - lastTradeAt;
+  if (age <= 300_000) return fastMs;
+  if (age <= 3_600_000) return fastMs * 5;
+  return Math.max(15_000, fastMs * 15);
+}
+
+export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o: { budgetMs: number; maxPools: number; fastMs?: number; lastPolled?: Map<string, number> }): Promise<{ eligible: number; polled: number; traded: number; unavailable: number }> {
   const deadline = d.now() + o.budgetMs;
   const day = d.now() - 86_400_000;
   const eligible = pools.filter((p) => p.state === 'active' && !p.paused && p.quoteVault && p.lastTradeAt !== null && p.lastTradeAt >= day);
-  const order = (await staleness(d, eligible)).slice(0, o.maxPools);
+  const fastMs = o.fastMs ?? 2_000;
+  const due = o.lastPolled ? eligible.filter((p) => d.now() - (o.lastPolled!.get(p.key) ?? 0) >= pollIntervalMs(p.lastTradeAt, d.now(), fastMs)) : eligible;
+  const order = (await staleness(d, due)).slice(0, o.maxPools);
   const cache = new Map<string, TokenFacts | null>();
   const report = emptyReport(d.spec.id);
   let polled = 0;
@@ -469,6 +487,7 @@ export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o
   for (const pool of order) {
     if (d.now() > deadline) break;
     const got = await followPool(d, pool, report);
+    o.lastPolled?.set(pool.key, d.now());
     polled++;
     unavailable += got.unavailable;
     if (got.stored > 0) {
@@ -476,7 +495,7 @@ export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o
       await refreshPool(d, pool, cache);
     }
   }
-  return { polled, traded, unavailable };
+  return { eligible: eligible.length, polled, traded, unavailable };
 }
 
 async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number, skippedTx: readonly SkippedTx[] = [], prev: AdapterHealth | null = null, maintainedAt: number | null = null): Promise<void> {

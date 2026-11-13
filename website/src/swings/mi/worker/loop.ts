@@ -14,7 +14,7 @@ export interface WorkerTask {
   /** Tasks with the same lane take turns; a task with its own lane runs beside the others (default: the chain). */
   lane?: string;
   /** Wait after a slice that left this task caught up (default: the loop's idleMs). */
-  idleMs?: number;
+  idleMs?: number | (() => number | undefined);
   /** Runs one slice. Returns whether the task is caught up (nothing more to do right now) or failed with a message. */
   run: (budgetMs: number) => Promise<{ ok: boolean; error?: string | null; caughtUp?: boolean }>;
 }
@@ -131,7 +131,8 @@ async function chainLoop(chain: MiChain, tasks: readonly WorkerTask[], d: LoopDe
       failures.recovered(task.id, t);
       s.failures = 0;
       s.lastSuccessAt = t;
-      s.nextAt = out.caughtUp ? t + (task.idleMs ?? d.options.idleMs) : t;
+      const idle = typeof task.idleMs === 'function' ? task.idleMs() : task.idleMs;
+      s.nextAt = out.caughtUp ? t + (idle ?? d.options.idleMs) : t;
     } else {
       s.failures++;
       failures.failed(task.id, out.error ?? 'failed', t);

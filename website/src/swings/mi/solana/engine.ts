@@ -447,6 +447,38 @@ export async function refreshPool(d: SolDeps, pool: MiPool, cache: Map<string, T
   if (first !== null && first !== stored.firstTradeAt) await d.store.setTokenFirstTrade(tokenKeyOf('solana', live.base), first);
 }
 
+/** A run report with nothing counted yet, for work that reads pools outside a full adapter run. */
+export const emptyReport = (id: string): RunReport => ({ adapterId: id, ok: true, skipped: null, head: null, safeHead: null, fromBlock: null, toBlock: null, lagBlocks: null, creations: 0, poolsNew: 0, tokensNew: 0, swapsSeen: 0, tradesNew: 0, skippedLogs: 0, reorg: null, error: null, durationMs: 0 });
+
+/**
+ * Keeps the pools people are watching right now current: reads each one's newest swaps (the one read longest ago first, within `budgetMs`)
+ * and recomputes the statistics of those that traded, which is what the live stream then pushes to the pages. A pool that has not
+ * traded for 24 hours, or is not active, is left to the normal rotation: no list ranked by trading shows it, so nobody is waiting on it.
+ * `maxPools` bounds the node calls per pass (one signature read per pool, plus one read per new transaction).
+ */
+export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o: { budgetMs: number; maxPools: number }): Promise<{ polled: number; traded: number; unavailable: number }> {
+  const deadline = d.now() + o.budgetMs;
+  const day = d.now() - 86_400_000;
+  const eligible = pools.filter((p) => p.state === 'active' && !p.paused && p.quoteVault && p.lastTradeAt !== null && p.lastTradeAt >= day);
+  const order = (await staleness(d, eligible)).slice(0, o.maxPools);
+  const cache = new Map<string, TokenFacts | null>();
+  const report = emptyReport(d.spec.id);
+  let polled = 0;
+  let traded = 0;
+  let unavailable = 0;
+  for (const pool of order) {
+    if (d.now() > deadline) break;
+    const got = await followPool(d, pool, report);
+    polled++;
+    unavailable += got.unavailable;
+    if (got.stored > 0) {
+      traded++;
+      await refreshPool(d, pool, cache);
+    }
+  }
+  return { polled, traded, unavailable };
+}
+
 async function recordHealth(d: SolDeps, r: RunReport, truncated: number, unavailable: number, skippedTx: readonly SkippedTx[] = [], prev: AdapterHealth | null = null, maintainedAt: number | null = null): Promise<void> {
   const cp = await d.store.getCheckpoint(cursorKey(d.spec));
   const now = d.now();

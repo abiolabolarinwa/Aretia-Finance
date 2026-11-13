@@ -22,6 +22,7 @@ import { SOLANA_SPECS } from '../dexes.js';
 import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
 import { solUsdReader } from '../solana/engine.js';
 import { refreshSolanaReserves } from '../solana/refresher.js';
+import { followWatchedPools } from '../solana/engine.js';
 import { refreshSupplies, SUPPLY_LIMIT } from '../supply.js';
 import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
@@ -35,6 +36,8 @@ export interface TaskDeps {
   launch?: LaunchLookup | null;
   /** Test hook. */
   readFor?: (chain: MiChainConfig) => Read;
+  /** The pools open Markets pages are showing now (the stream service's answer); absent when the stream is off. */
+  watched?: (() => Promise<string[]>) | null;
 }
 
 const int = (v: string | undefined, fallback: number, min: number, max: number): number => {
@@ -70,6 +73,37 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
   });
   for (const s of enabledSpecs(d.env)) tasks.push(live(s.id, s.chain));
   for (const s of enabledSolana(d.env)) tasks.push(live(s.id, 'solana'));
+
+  // The Solana pools people are looking at get their trades read often, on a lane of their own so the slow rotation never makes them wait.
+  if (d.watched && enabledSolana(d.env).length > 0) {
+    const specs = new Map(enabledSolana(d.env).map((s) => [s.id, s]));
+    const maxPools = int(d.env.MI_WATCH_MAX, 30, 1, 200);
+    tasks.push({
+      id: 'solana:watched',
+      chain: 'solana',
+      lane: 'solana-watched',
+      idleMs: int(d.env.MI_WATCH_EVERY_SECONDS, 8, 2, 600) * 1000,
+      run: async (budgetMs) => {
+        const keys = (await d.watched!()).filter((k) => k.startsWith('solana:'));
+        if (keys.length === 0) return { ok: true, caughtUp: true };
+        const chain = chainConfig('solana', d.env);
+        const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+        const nativeUsd = solUsdReader(rpc, d.now);
+        const pools = [...(await d.store.getPools(keys.slice(0, maxPools * 3))).values()];
+        let failed: string | null = null;
+        for (const [id, spec] of specs) {
+          const group = pools.filter((p) => p.adapterId === id);
+          if (group.length === 0) continue;
+          try {
+            await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd }, group, { budgetMs: Math.min(budgetMs, 20_000), maxPools });
+          } catch (e) {
+            failed = e instanceof Error ? e.message : 'the watched pools could not be read';
+          }
+        }
+        return { ok: failed === null, error: failed, caughtUp: true };
+      },
+    });
+  }
 
   const evm = enabledSpecs(d.env).filter((s) => s.kind === 'v2' || s.kind === 'v3');
   if (d.env.MI_REFRESH !== '0') {

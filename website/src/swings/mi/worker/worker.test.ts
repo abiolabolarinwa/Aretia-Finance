@@ -175,7 +175,43 @@ describe('tasks from configuration', () => {
   });
 });
 
+describe('the watched-pools task', () => {
+  const store = new InMemoryMiStore();
+  const build = (env: Record<string, string>, watched: (() => Promise<string[]>) | null) => buildTasks({ env, store, now: Date.now, watched, readFor: () => (async () => null) as unknown as Read });
+  it('exists only when the stream is on and a Solana adapter runs, on a lane of its own', () => {
+    const t = build({ MI_ADAPTERS: 'pumpswap-solana' }, async () => []).find((x) => x.id === 'solana:watched');
+    expect(t?.lane).toBe('solana-watched');
+    expect(t?.idleMs).toBe(8_000);
+    expect(build({ MI_ADAPTERS: 'pumpswap-solana' }, null).some((x) => x.id === 'solana:watched')).toBe(false);
+    expect(build({ MI_ADAPTERS: 'pancakeswap-v2-bnb' }, async () => []).some((x) => x.id === 'solana:watched')).toBe(false);
+    expect(build({ MI_ADAPTERS: 'pumpswap-solana', MI_WATCH_EVERY_SECONDS: '20' }, async () => []).find((x) => x.id === 'solana:watched')?.idleMs).toBe(20_000);
+  });
+  it('does nothing, and asks no node, while nobody watches a Solana pool', async () => {
+    let asked = 0;
+    const t = build({ MI_ADAPTERS: 'pumpswap-solana' }, async () => (asked++, ['bnb:0xabc']))!.find((x) => x.id === 'solana:watched')!;
+    expect(await t.run(1000)).toEqual({ ok: true, caughtUp: true });
+    expect(asked).toBe(1);
+  });
+});
+
 describe('worker loop', () => {
+  it('runs a task with its own lane beside the others of its chain', async () => {
+    let t = 0;
+    const lines: string[] = [];
+    const run = async () => ({ ok: true, caughtUp: true });
+    await runWorker({
+      tasks: [{ id: 'a', chain: 'solana', run }, { id: 'w', chain: 'solana', lane: 'solana-watched', run }],
+      options: { ...DEFAULT_LOOP, sliceMs: 1000, idleMs: 10_000 },
+      now: () => t,
+      sleep: async (ms) => void (t += ms),
+      stopping: () => t >= 30_000,
+      log: (l) => lines.push(l),
+      random: () => 0.5,
+    });
+    expect(lines.some((l) => l.includes('[solana] loop stopped'))).toBe(true);
+    expect(lines.some((l) => l.includes('[solana-watched] loop stopped'))).toBe(true);
+  });
+
   /** A fake clock: sleeping advances time; the loop stops after `until` ms of it. */
   function harness(until: number) {
     let t = 0;

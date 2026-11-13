@@ -178,6 +178,19 @@ describe('the stream server', () => {
     expect('evil' in (cleanUpdate({ key: KEY, at: 1, evil: 1 }) as object)).toBe(false);
   });
 
+  it('tells the worker which pools are watched, only with the secret', async () => {
+    const s = await start();
+    expect((await fetch(`${s.base}/watched`)).status).toBe(401);
+    expect((await fetch(`${s.base}/watched`, { headers: { 'x-stream-secret': 'wrong-secret-of-the-same!' } })).status).toBe(401);
+    const none = await fetch(`${s.base}/watched`, { headers: { 'x-stream-secret': SECRET } });
+    expect(await none.json()).toEqual({ keys: [], viewers: 0 });
+    const res = await fetch(`${s.base}/stream?keys=${KEY}`, { headers: { origin: 'https://aretiafinance.org' } });
+    expect(res.status).toBe(200);
+    const some = await fetch(`${s.base}/watched`, { headers: { 'x-stream-secret': SECRET } });
+    expect(await some.json()).toEqual({ keys: [KEY], viewers: 1 });
+    void res.body?.cancel();
+  });
+
   it('answers a health check and nothing else', async () => {
     const s = await start();
     const h = await fetch(`${s.base}/health`);

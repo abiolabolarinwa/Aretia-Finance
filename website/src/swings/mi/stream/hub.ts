@@ -87,6 +87,14 @@ export class StreamHub {
     return { ok: true, id: c.id };
   }
 
+  /** The pools somebody is watching right now, the most watched first, at most `max`. The worker keeps these current ahead of the rest. */
+  watchedKeys(max: number): string[] {
+    return [...this.byKey.entries()]
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, Math.max(0, max))
+      .map(([k]) => k);
+  }
+
   unsubscribe(id: number): void {
     const c = this.clients.get(id);
     if (!c) return;

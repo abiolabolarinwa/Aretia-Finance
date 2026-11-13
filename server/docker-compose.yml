@@ -150,6 +150,9 @@ services:
       # Live market stream: announce every pool statistics write to the stream service (empty = off).
       MI_STREAM_URL: ${MI_STREAM_URL:-}
       STREAM_SECRET: ${STREAM_SECRET:-}
+      # Watched Solana pools (the pools open Markets pages show) are read this often, at most this many per pass.
+      MI_WATCH_EVERY_SECONDS: ${MI_WATCH_EVERY_SECONDS:-}
+      MI_WATCH_MAX: ${MI_WATCH_MAX:-}
     logging: *logs
 
   # Pushes the worker's pool updates to the Markets pages that are open (Server-Sent Events, through Caddy's /stream). It holds nothing and reads

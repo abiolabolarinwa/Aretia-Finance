@@ -11,6 +11,8 @@ export interface WorkerTask {
   /** Stable name, used for logs and checkpoints (an adapter id, or `<adapter>:refresh` / `<adapter>:backfill`). */
   id: string;
   chain: MiChain;
+  /** Tasks with the same lane take turns; a task with its own lane runs beside the others (default: the chain). */
+  lane?: string;
   /** Wait after a slice that left this task caught up (default: the loop's idleMs). */
   idleMs?: number;
   /** Runs one slice. Returns whether the task is caught up (nothing more to do right now) or failed with a message. */
@@ -100,8 +102,9 @@ interface TaskState {
 /** One loop per chain, all running side by side until `stopping()` turns true. Resolves when every loop has finished its current slice. */
 export async function runWorker(d: LoopDeps): Promise<void> {
   const failures = new FailureLog(d.log);
-  const chains = [...new Set(d.tasks.map((t) => t.chain))];
-  await Promise.all(chains.map((chain) => chainLoop(chain, d.tasks.filter((t) => t.chain === chain), d, failures)));
+  const laneOf = (t: WorkerTask): string => t.lane ?? t.chain;
+  const lanes = [...new Set(d.tasks.map(laneOf))];
+  await Promise.all(lanes.map((lane) => chainLoop(lane as MiChain, d.tasks.filter((t) => laneOf(t) === lane), d, failures)));
 }
 
 async function chainLoop(chain: MiChain, tasks: readonly WorkerTask[], d: LoopDeps, failures: FailureLog): Promise<void> {

@@ -26,6 +26,14 @@ then `docker compose --profile worker up -d --build worker stream` and `docker c
 
 `src/scripts/walletLiveStream.ts` opens one connection for the pools on the Markets table (at most 100), applies each update to its row in place (`updateLiveCells` in `walletMarketTable.ts`: only a cell whose text changed is replaced, and a price that moved flashes green or red), closes while the tab is hidden, and waits longer after each failed connection (3, 6, 12, 30 seconds, then ten minutes after five failures in a row). If the stream is not running the page does nothing different: the list still refreshes every 30 seconds. The address is `https://data.aretiafinance.org/stream`; set `PUBLIC_MARKET_STREAM_URL` at build time to change it. The site's security policy (`vercel.json`, `connect-src`) allows that host.
 
+## Watched pools get priority
+
+The worker normally follows the newest 40 pools and the 40 most recently traded ones of each adapter, and the rest in a slow rotation. So a pool on a Markets page might not be read for hours. To make the rows people are looking at actually move, the worker asks the stream service (`GET /watched` on the private network, with the secret) which pools are on screen, and a task of its own (`solana:watched`, a separate lane so the slow rotation never makes it wait) reads those pools' newest swaps every `MI_WATCH_EVERY_SECONDS` (default 8) seconds, at most `MI_WATCH_MAX` (default 30) per pass, and recomputes the statistics of the ones that traded. The stream then pushes them to the pages.
+
+- A pool is read only while somebody has it on screen, and only if it traded in the last 24 hours, so a quiet site costs no node calls.
+- Each pool read is one `getSignaturesForAddress` call (plus a `getTransaction` per new swap). With 30 pools every 8 seconds that is about 4 calls a second while the page is open. Raise `MI_WATCH_EVERY_SECONDS` or lower `MI_WATCH_MAX` to spend less.
+- Solana only. EVM pools are rewritten by the chain's own run each time it reads new blocks (every 15 seconds or so when caught up).
+
 ## What it does not do
 
 - It is not faster than the chain: a pool changes when a block with its swap is read (Ethereum about every 12 seconds, BNB 3, Polygon and Base 2, Solana under 1, Robinhood about 0.13 s), and the worker writes in slices, so a row moves when the worker next writes it, not at a fixed one-second beat.

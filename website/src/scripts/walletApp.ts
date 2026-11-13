@@ -18,7 +18,8 @@ import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
 import { initReferrals } from './walletReferrals';
-import { initShield } from './walletShield';
+import type { initShield } from './walletShield';
+import { AddressBook } from '../swings/shield/addressBook.js';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
 import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
@@ -415,12 +416,16 @@ function initSidebar(): void {
 }
 
 /** A module loaded on first need or when idle; `run` waits for it, `get` is null until it has arrived. */
-function lazyApi<A>(load: () => Promise<A>): { get(): A | null; run<R>(fn: (api: A) => R | Promise<R>): Promise<R> } {
+/**
+ * A part of the wallet that is downloaded when first needed. With `eager` (the default) it is also started right after the first screen is
+ * drawn, so it is ready before anyone asks; without it, it waits for the first use or for `warm()` (hovering the button that leads to it).
+ */
+function lazyApi<A>(load: () => Promise<A>, eager = true): { get(): A | null; run<R>(fn: (api: A) => R | Promise<R>): Promise<R>; warm(): void } {
   let api: A | null = null;
   let loading: Promise<A> | null = null;
   const ready = (): Promise<A> => (loading ??= load().then((a) => (api = a)));
-  lazyStarters.push(() => void ready().catch(() => undefined));
-  return { get: () => api, run: async (fn) => fn(await ready()) };
+  if (eager) lazyStarters.push(() => void ready().catch(() => undefined));
+  return { get: () => api, run: async (fn) => fn(await ready()), warm: () => void ready().catch(() => undefined) };
 }
 const lazyStarters: (() => void)[] = [];
 
@@ -484,19 +489,37 @@ export function initWalletApp(): void {
     });
     if (address) cluster.onWalletChange();
     return cluster;
-  });
+  }, false);
+  // The launch tools are the largest part of the wallet and most visitors never open them, so they are not downloaded with the first screen.
+  // Pointing at (or tabbing to) either Launch entry starts the download, so by the time it is clicked it is usually there.
+  for (const b of document.querySelectorAll<HTMLElement>('[data-nav="launch"], [data-nav="launchbox"]')) {
+    b.addEventListener('pointerenter', () => launchLoad.warm(), { once: true });
+    b.addEventListener('focus', () => launchLoad.warm(), { once: true });
+    b.addEventListener('touchstart', () => launchLoad.warm(), { once: true, passive: true });
+  }
   const launchTools = {
     onShowLaunch: () => void launchLoad.run((c) => c.onShowLaunch()),
     onShowLaunchBox: () => void launchLoad.run((c) => c.onShowLaunchBox()),
     onWalletChange: () => launchLoad.get()?.onWalletChange(),
   };
-  const shield = initShield({
-    getAddress: () => address,
-    getHoldings: () => (holdings ?? []).map((x) => ({ mint: x.mint, symbol: x.symbol, value: x.value, amount: x.amount })),
-    evmAccount: () => swings.evmAccount(),
-    revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
-    refreshWallet: () => void refresh(),
+  // Shield pulls in the whole swap engine (it checks tokens through it), so like the swap page it is downloaded right after the first screen is
+  // drawn, not with the first script. Its watcher then starts as before. The address book it uses is small and read here directly.
+  const shieldLoad = lazyApi<ReturnType<typeof initShield>>(async () => {
+    const api = (await import('./walletShield')).initShield({
+      getAddress: () => address,
+      getHoldings: () => (holdings ?? []).map((x) => ({ mint: x.mint, symbol: x.symbol, value: x.value, amount: x.amount })),
+      evmAccount: () => swings.evmAccount(),
+      revokeEvm: (chain, token, spender) => swings.revokeEvm(chain, token, spender),
+      refreshWallet: () => void refresh(),
+    });
+    api.onWalletChange();
+    return api;
   });
+  const shield = {
+    onShow: (hash: string) => void shieldLoad.run((s) => s.onShow(hash)),
+    onWalletChange: () => shieldLoad.get()?.onWalletChange(),
+    book: (): AddressBook => new AddressBook(browserStorage(), address ?? swings.evmAccount()),
+  };
 
   const currentView = (): View => {
     // "#/shield/<what to check>" is a shareable check: the first part names the page.

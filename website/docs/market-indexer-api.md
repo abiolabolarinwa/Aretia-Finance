@@ -34,7 +34,7 @@ on-chain fact.
 | `GET /pools/{chain}/{address}/trades` | recent trades. `limit` (1 to 200), `before` (unix seconds) |
 | `GET /pools/{chain}/{address}/candles` | OHLCV. `tf` = `1m 5m 15m 1h 4h 1d`, `limit` (1 to 1000), `before` |
 | `GET /tokens/{chain}/{address}` | a token and every market it is in (several pools link to one token record) |
-| `GET /tokens/{chain}?limit=` | the addresses of the chain's tradable tokens (base tokens of active pools), deepest liquidity first, up to 3,000; Ethereum-style chains only. The wallet's dashboard checks a connected wallet against this list on-chain (Multicall3) to find the tokens it holds. Kept 15 minutes |
+| `GET /tokens/{chain}?limit=` | the addresses of the chain's tradable tokens (base tokens of active pools), deepest liquidity first, up to 5,000; Ethereum-style chains only. The wallet's dashboard checks a connected wallet against this list on-chain (Multicall3) to find the tokens it holds. Kept 15 minutes |
 
 `chain` is one of `solana, ethereum, base, bnb, polygon, robinhood`. EVM addresses are matched case-insensitively;
 Solana addresses are base58 and case-sensitive. A paused market answers 404 and is not listed. `GET /status` lists, per chain and

@@ -150,7 +150,7 @@ export class SupabaseMiStore implements MiStore {
     return [...out.values()].slice(0, max);
   }
   async tokenUniverse(chain: MiChain, limit: number): Promise<string[]> {
-    const max = clampLimit(limit, 3000);
+    const max = clampLimit(limit, 5000);
     const seen = new Set<string>();
     for (let offset = 0; offset < 5_000 && seen.size < max; offset += 1_000) {
       const pools = await this.rows(`mi_pools?chain=eq.${plain(chain)}&state=eq.active&select=base&order=liquidity_usd.desc.nullslast,key.asc&limit=1000&offset=${offset}`);

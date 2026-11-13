@@ -25,7 +25,10 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - run: npm ci
       - run: npm test
+      # astro check sits close to the default 4 GB Node heap on the CI runner; give this step room so it does not fail with out-of-memory.
       - run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
       - run: npm run typecheck:api
       - run: npm run lint
       - run: npm run build

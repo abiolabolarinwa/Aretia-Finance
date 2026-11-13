@@ -310,6 +310,15 @@ export interface SwapVerdict {
  * Pump.fun's AMM program (PumpSwap) and what its error numbers mean, from its published interface (idl/pump_amm.json in
  * pump-fun/pump-public-docs). These are faults in the accounts a swap sends, not in the person's balance, so they are said that way.
  */
+const METEORA_DAMM_PROGRAM = 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG';
+/** Meteora DAMM v2 (cp-amm) error numbers a swap can meet, read from the program's own error list. */
+const METEORA_DAMM_ERRORS: Record<number, string> = {
+  6002: "the price moved past your slippage limit",
+  6003: 'this pool is switched off',
+  6006: 'the amount is zero',
+  6014: 'the swap would push the price outside the range this pool trades in',
+  6015: 'the swap would push the price outside the range this pool trades in',
+};
 const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 const PUMP_AMM_ERRORS: Record<number, string> = {
   6044: 'not enough extra accounts were sent',
@@ -343,6 +352,12 @@ export function explainTrialError(error: string | null | undefined): string {
 /** The program's own error text in plain words where it is known; otherwise the text as it came. */
 export function explainProgramError(error: string): string {
   const m = /Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)/.exec(error);
+  if (m && m[1] === METEORA_DAMM_PROGRAM) {
+    const code = parseInt(m[2]!, 16);
+    const what = METEORA_DAMM_ERRORS[code];
+    if (code === 6014 || code === 6015) return "This pool cannot take that much. It trades inside a fixed price range, and a pool opened at its floor holds almost none of the token you want to receive, so a sale would push its price below the floor. Try a smaller amount, or wait until buyers have put more in. Nothing was sent.";
+    return what ? `This pool turned the swap down because ${what} (its error ${code}). Nothing was sent.` : `This pool turned the swap down (its error ${code}). Nothing was sent.`;
+  }
   if (!m || m[1] !== PUMP_AMM_PROGRAM) return error;
   const code = parseInt(m[2]!, 16);
   const what = PUMP_AMM_ERRORS[code];

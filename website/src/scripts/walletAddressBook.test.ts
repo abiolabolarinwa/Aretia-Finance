@@ -4,7 +4,12 @@ import { BOOK_KEY, cleanLabel, loadBook, MAX_SAVED, recipientKind, removeRecipie
 
 const mem = (): StorageLike & { data: Map<string, string> } => {
   const data = new Map<string, string>();
-  return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) } as never;
+  return {
+    data,
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
+  } as unknown as StorageLike & { data: Map<string, string> };
 };
 const SOL = '8s2TyD4Zr2kGdm3u1fCgZ7vJ3mB6Z4Cw6bX3pYv9DRHz';
 const EVM = '0x1234567890abcdef1234567890abcdef12345678';

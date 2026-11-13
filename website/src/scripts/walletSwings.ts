@@ -27,6 +27,7 @@ import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
 import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { rpcCall } from './walletSend';
+import { initReceive } from './walletReceive';
 import { createMarketPanel } from './walletMarketPanel.js';
 import { PriceOrderStore, evaluateOrders, parseTarget, type OrderSide } from '../swings/account/priceOrders.js';
 import { notify, SHOW_MARKET_EVENT } from './walletNotifications.js';
@@ -2533,6 +2534,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   };
   const PAY_INTRO: Record<string, string> = {
     send: '',
+    receive: '',
     ramp: 'Turn USDC into cash, or buy USDC with a bank card or transfer, through a licensed provider. Aretia never touches your money.',
     transfer: 'Send USDC from one network to another, or buy USDC with cash and have it end up where you want it. Your wallet approves each step.',
   };
@@ -2548,7 +2550,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   }
   document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : 'move')));
 
-  // Pay: Send, Cash out or top up, and Move USDC are one page with three cards.
+  // Pay: Send, Receive, Cash out or top up, and Move USDC are one page with four cards.
+  const receive = initReceive(document.querySelector<HTMLElement>('[data-pay-panel="receive"]') ?? el('div'), { solana: () => host.getAddress(), evm: () => evm.account });
   let payTab = 'send';
   function showPayTab(name: string): void {
     payTab = name;
@@ -2556,6 +2559,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     document.querySelectorAll<HTMLElement>('[data-pay-panel]').forEach((p) => (p.hidden = p.dataset.payPanel !== name));
     const intro = document.querySelector<HTMLElement>('[data-pay-intro]');
     if (intro) intro.textContent = PAY_INTRO[name] ?? '';
+    if (name === 'receive') receive.draw();
     if (name === 'ramp') ramp.draw();
     if (name === 'transfer') showTransferMode(transferMode);
   }

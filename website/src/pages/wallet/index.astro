@@ -239,6 +239,10 @@ const sendTips = [
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
               <span class="wapp-pay__text"><strong>Send</strong><span>Send a coin or token to any address, on any network.</span></span>
             </button>
+            <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="receive" aria-selected="false">
+              <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M17 7L7 17M15 17H7V9" /></svg></span>
+              <span class="wapp-pay__text"><strong>Receive</strong><span>Show your address and a QR code to be paid.</span></span>
+            </button>
             <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="ramp" aria-selected="false">
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6.5 9.5v.01M17.5 14.5v.01" /></svg></span>
               <span class="wapp-pay__text"><strong>Cash out or top up</strong><span>Turn USDC into cash, or buy USDC with a card or bank transfer.</span></span>
@@ -287,6 +291,7 @@ const sendTips = [
             </div>
         </div>
           </div>
+          <div data-pay-panel="receive" class="wapp__stack" hidden></div>
           <div data-pay-panel="ramp" class="wapp__stack" hidden></div>
           <div data-pay-panel="transfer" class="wapp__stack" hidden>
             <div class="wapp__seg wapp__seg--sub" role="tablist" aria-label="USDC Transfer" data-transfer-modes>
@@ -1584,7 +1589,8 @@ const sendTips = [
   .wapp[data-view='swap'] [data-sw-tabs], .wapp[data-view='swap'] [data-sw-intro] { display: none; }
 
   /* ---- Pay: three ways to move money, as cards ---- */
-  .wapp-pay__hub { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .wapp-pay__hub { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 1240px) { .wapp-pay__hub { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .wapp-pay__card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; font: inherit; text-align: left; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft); cursor: pointer; transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
   .wapp-pay__card:hover { transform: translateY(-1px); border-color: var(--color-border-strong); }
   .wapp-pay__card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -1823,6 +1829,11 @@ const sendTips = [
   .wapp-lb__row td { padding: 14px 12px; border-top: 1px solid var(--color-border); }
   .wapp-lb__row:hover td { background: var(--color-brand-soft); }
   /* The list on one side and the chart of the chosen token on the other; on a narrow screen the chart sits under the list. */
+  /* Pay > Receive */
+  .wapp-rx { display: grid; gap: 10px; max-width: 460px; justify-items: start; }
+  .wapp-rx__qr { width: 220px; height: 220px; padding: 8px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; }
+  .wapp-rx__addr { max-width: 100%; padding: 8px 10px; font-size: 12.5px; word-break: break-all; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 10px; }
+  .wapp-rx__note { margin: 0; }
   /* Pay > Send: the saved-recipients row under the recipient box. */
   .wapp-book { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: -2px; }
   .wapp-book__pick { flex: 1 1 200px; min-width: 0; font-size: 13px; }

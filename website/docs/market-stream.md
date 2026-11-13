@@ -22,6 +22,10 @@ MI_STREAM_URL=http://stream:8090
 
 then `docker compose --profile worker up -d --build worker stream` and `docker compose up -d --force-recreate caddy` (to load the new route). Check `curl https://<data host>/stream?keys=bnb:0x<a pool>` streams (press Ctrl-C), and `docker compose logs stream` shows viewers and updates counted.
 
+## The page
+
+`src/scripts/walletLiveStream.ts` opens one connection for the pools on the Markets table (at most 100), applies each update to its row in place (`updateLiveCells` in `walletMarketTable.ts`: only a cell whose text changed is replaced, and a price that moved flashes green or red), closes while the tab is hidden, and waits longer after each failed connection (3, 6, 12, 30 seconds, then ten minutes after five failures in a row). If the stream is not running the page does nothing different: the list still refreshes every 30 seconds. The address is `https://data.aretiafinance.org/stream`; set `PUBLIC_MARKET_STREAM_URL` at build time to change it. The site's security policy (`vercel.json`, `connect-src`) allows that host.
+
 ## What it does not do
 
 - It is not faster than the chain: a pool changes when a block with its swap is read (Ethereum about every 12 seconds, BNB 3, Polygon and Base 2, Solana under 1, Robinhood about 0.13 s), and the worker writes in slices, so a row moves when the worker next writes it, not at a fixed one-second beat.

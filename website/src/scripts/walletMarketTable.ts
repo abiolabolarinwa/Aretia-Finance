@@ -136,6 +136,37 @@ export function updateRatingCells(table: ParentNode, rows: readonly MarketRow[],
   }
 }
 
+/** The cells whose numbers move with trades, in column order: value, price, transactions, volume, traders, the four changes, liquidity. Each carries its place in `data-live`. */
+function liveCells(r: MarketRow): HTMLElement[] {
+  const txns = el('td', 'wapp-mt__num', r.txnsCapped && r.txns24h !== null ? `${compactCount(r.txns24h)}+` : compactCount(r.txns24h));
+  if (r.txnsCapped) txns.title = 'This pool traded more than 5,000 times today. Aretia counts its newest 5,000, so the real number of transactions and the volume are higher.';
+  const cells = [capCell(r), priceCell(r), txns, el('td', 'wapp-mt__num', compactUsd(r.volume24hUsd)), el('td', 'wapp-mt__num', compactCount(r.traders24h)), changeCell(r.change.m5), changeCell(r.change.h1), changeCell(r.change.h6), changeCell(r.change.h24), liquidityCell(r)];
+  cells.forEach((c, i) => {
+    c.dataset.live = String(i);
+  });
+  return cells;
+}
+
+/**
+ * Redraws the moving numbers of the given rows in place (a live update), without redrawing the table. Only a cell whose text changed is
+ * replaced, and a price or change that moved up or down flashes briefly, so the eye finds what just happened.
+ */
+export function updateLiveCells(table: ParentNode, rows: readonly MarketRow[], before?: ReadonlyMap<string, MarketRow>): void {
+  for (const r of rows) {
+    const k = tableRowKey(r);
+    const tr = table.querySelector<HTMLElement>(`.wapp-mt__row[data-k="${CSS.escape(k)}"]`);
+    if (!tr) continue;
+    const prev = before?.get(k);
+    liveCells(r).forEach((fresh, i) => {
+      const old = tr.querySelector<HTMLElement>(`[data-live="${i}"]`);
+      if (!old || (old.textContent === fresh.textContent && old.className === fresh.className)) return;
+      const dir = i === 1 && prev && prev.priceUsd !== null && r.priceUsd !== null && r.priceUsd !== prev.priceUsd ? (r.priceUsd > prev.priceUsd ? 'up' : 'down') : null;
+      if (dir) fresh.classList.add(`is-tick-${dir}`);
+      old.replaceWith(fresh);
+    });
+  }
+}
+
 /** The key a row carries, so a selection can be found again after the table is redrawn. */
 export const tableRowKey = (r: MarketRow): string => `${r.chain}:${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`;
 
@@ -253,19 +284,8 @@ export function marketTable(o: TableOptions): HTMLElement {
     if (o.showRisk) {
       tr.append(ratingCell(r, o.ratingState?.(r)));
     }
-    tr.append(
-      capCell(r),
-      priceCell(r),
-      el('td', 'wapp-mt__num', formatAge(r.ageMs)),
-      (() => { const td = el('td', 'wapp-mt__num', r.txnsCapped && r.txns24h !== null ? `${compactCount(r.txns24h)}+` : compactCount(r.txns24h)); if (r.txnsCapped) td.title = 'This pool traded more than 5,000 times today. Aretia counts its newest 5,000, so the real number of transactions and the volume are higher.'; return td; })(),
-      el('td', 'wapp-mt__num', compactUsd(r.volume24hUsd)),
-      el('td', 'wapp-mt__num', compactCount(r.traders24h)),
-      changeCell(r.change.m5),
-      changeCell(r.change.h1),
-      changeCell(r.change.h6),
-      changeCell(r.change.h24),
-      liquidityCell(r),
-    );
+    const live = liveCells(r);
+    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2));
     body.append(tr);
   });
   table.append(head, body);

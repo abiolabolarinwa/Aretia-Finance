@@ -1742,6 +1742,12 @@ const sendTips = [
   .wapp-mt__num.is-up { color: #1b8a4b; }
   .wapp-mt__num.is-down { color: #b3261e; }
   .wapp-mt__num.is-pending { color: #8a8f98; }
+  /* A price that just moved (a live update) flashes for a moment, green for up and red for down. */
+  .wapp-mt__num.is-tick-up { animation: wapp-tick-up 1.2s ease-out; }
+  .wapp-mt__num.is-tick-down { animation: wapp-tick-down 1.2s ease-out; }
+  @keyframes wapp-tick-up { from { background-color: rgba(27, 138, 75, .3); } to { background-color: transparent; } }
+  @keyframes wapp-tick-down { from { background-color: rgba(179, 38, 30, .3); } to { background-color: transparent; } }
+  @media (prefers-reduced-motion: reduce) { .wapp-mt__num.is-tick-up, .wapp-mt__num.is-tick-down { animation: none; } }
   /* ---- Markets, compact: one dense toolbar, short rows and a tight side panel, in the manner of a trading list ---- */
   .wapp__card.wapp-mt__card { padding: 8px 10px 10px; gap: 6px; }
   .wapp-mt__bar { gap: 6px; }

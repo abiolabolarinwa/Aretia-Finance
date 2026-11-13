@@ -119,3 +119,10 @@ describe.skipIf(bash.status !== 0)('server/bin/backup.sh (with stand-ins for doc
     expect(readdirSync(join(root, 'local')).filter((f) => f.startsWith('.aretia-'))).toEqual([]); // no unencrypted dump is left behind
   });
 });
+
+describe('the worker and stream Dockerfile', () => {
+  it('has no literal backslash-n where a line break was meant (a build step that Docker rejects)', () => {
+    const text = readFileSync(join(server, 'worker/Dockerfile'), 'utf8');
+    expect(text.includes('\\n && ')).toBe(false);
+  });
+});

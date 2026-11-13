@@ -119,6 +119,8 @@ export function mountTvChart(
         onLoadFailed,
         cancelled,
         ...(onStatus ? { onStatus } : {}),
+        // A chart in a panel that is not showing (zero size) makes no live reads.
+        visible: () => host.getClientRects().length > 0,
         // The index's live stream pushes this pool's new price as it is written (at most once a second), so the last candle moves without waiting for a poll.
         liveSource: (onPrice) => {
           const key = `${o.chain}:${o.chain === 'solana' ? o.pool : o.pool.toLowerCase()}`;

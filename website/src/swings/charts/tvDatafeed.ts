@@ -359,6 +359,8 @@ export function createPoolDatafeed(
      * new price, at most once a second. Returns a function that stops it. Only dollar prices of the first token come from it.
      */
     liveSource?: (onPrice: (usd: number) => void) => () => void;
+    /** False while the chart is on a part of the page nobody can see (a collapsed panel): live reads then pause, as they do for a hidden tab. */
+    visible?: () => boolean;
     /** Called after each first load with what the chart is showing: its source, a note, or why it has nothing. */
     onStatus?: (status: ChartStatus) => void;
     /** False turns off building candles from the trades table when every source fails. */
@@ -760,7 +762,7 @@ export function createPoolDatafeed(
         current = b;
         onTick(b);
       };
-      const hidden = (): boolean => typeof document !== 'undefined' && document.hidden;
+      const hidden = (): boolean => (typeof document !== 'undefined' && document.hidden) || (deps.visible ? !deps.visible() : false);
 
       // Every few seconds: the pool's price right now moves the last candle's close (and its high or low).
       const price = (): void => {

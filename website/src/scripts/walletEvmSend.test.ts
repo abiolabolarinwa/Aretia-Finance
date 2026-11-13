@@ -165,12 +165,12 @@ describe('sendEvmTransfer', () => {
 });
 
 describe('the build flag', () => {
-  it('shows the network box only on builds with PUBLIC_PAY_EVM_SEND=1', async () => {
+  it('shows the network box unless the build sets PUBLIC_PAY_EVM_SEND=0 (a kill switch)', async () => {
     const { readFileSync } = await import('node:fs');
     const page = readFileSync(new URL('../pages/wallet/index.astro', import.meta.url), 'utf8');
     const at = page.indexOf('data-send-network');
     expect(at).toBeGreaterThan(-1);
     expect(page.slice(page.lastIndexOf('{evmSendOn', at), at)).toContain('{evmSendOn && (');
-    expect(page).toContain("import.meta.env.PUBLIC_PAY_EVM_SEND === '1'");
+    expect(page).toContain("import.meta.env.PUBLIC_PAY_EVM_SEND !== '0'");
   });
 });

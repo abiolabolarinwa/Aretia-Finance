@@ -12,7 +12,7 @@ import { cityById, parseCity } from '../src/game/cities.js';
 import { dropCatalogue, publicCity } from './_gameCatalogue.js';
 import { placementProblem } from '../src/game/exclusions.js';
 import { canPlace, DIFFICULTIES, TREASURE_CLASSES, type PlacedTreasure } from '../src/game/rarity.js';
-import { answerHash } from './_gameMissions.js';
+import { answerHash } from './_gameAnswers.js';
 import type { Rest } from './_swingsAccount.js';
 
 export interface AdminCtx {
@@ -34,7 +34,7 @@ const ok = (data: Record<string, unknown> = { ok: true }): AdminOut => ({ status
 
 const ID = /^[a-z0-9][a-z0-9-]{2,60}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const KINDS = ['daily', 'weekly', 'long', 'event'];
+const KINDS = ['daily', 'weekly', 'long', 'event', 'team'];
 const MISSION_STATUS = ['draft', 'active', 'closed'];
 const CLUE_TYPES = ['riddle', 'historical', 'geographical', 'architectural', 'numerical', 'cryptographic', 'visual', 'pattern', 'observation', 'trail', 'mystery'];
 const CITY_STATUS = ['active', 'inactive', 'coming_soon'];

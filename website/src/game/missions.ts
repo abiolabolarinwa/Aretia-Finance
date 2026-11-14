@@ -10,6 +10,7 @@ export interface MissionSummary {
   description: string;
   difficulty: string;
   kind: string;
+  needsTeam?: boolean;
   closesAt: number | null;
   xpReward: number;
   treasure: { coin: string; usd: number } | null;
@@ -93,12 +94,13 @@ export function mountMissions(host: HTMLElement, city: City, api: MissionsApi, o
   function missionCard(m: MissionSummary): HTMLElement {
     const card = el('div', 'wapp__card');
     const done = m.progress?.status === 'completed';
-    card.append(el('h3', 'wapp__h2', m.title), el('span', 'wapp__eyebrow', `${cap(m.difficulty)} · ${m.kind} · ${m.totalStages} step${m.totalStages === 1 ? '' : 's'} · ${m.xpReward} XP`));
+    card.append(el('h3', 'wapp__h2', m.title), el('span', 'wapp__eyebrow', `${cap(m.difficulty)} · ${m.kind === 'team' ? 'team hunt' : m.kind} · ${m.totalStages} step${m.totalStages === 1 ? '' : 's'} · ${m.xpReward} XP`));
     if (m.description) card.append(el('p', '', m.description));
     if (m.treasure) card.append(el('p', 'wapp__fine', `Prize hidden at the end of the trail: ${m.treasure.coin} (game value ${usd(m.treasure.usd)}). Game values are not cash.`));
+    if (m.kind === 'team') card.append(el('p', 'wapp__fine', m.needsTeam ? 'A team hunt is solved together. Make or join a team (under Team, below) with at least one other player.' : 'Your whole team shares the clues, hints and progress, and everyone gets the XP, with a fifth extra.'));
     if (m.closesAt) card.append(el('p', 'wapp__fine', `Closes ${new Date(m.closesAt).toLocaleString()}.`));
     const label = done ? 'Completed' : m.progress?.status === 'active' ? `Continue (step ${m.progress.stage})` : 'Start';
-    card.append(button(label, done ? 'wapp__btn wapp__btn--ghost' : 'wapp__btn wapp__btn--primary', () => void run(() => (m.progress?.status === 'active' ? api.clue(m.id) : api.start(m.id)), (v) => (open = v)), done || busy));
+    card.append(button(label, done ? 'wapp__btn wapp__btn--ghost' : 'wapp__btn wapp__btn--primary', () => void run(() => (m.progress?.status === 'active' ? api.clue(m.id) : api.start(m.id)), (v) => (open = v)), done || busy || m.needsTeam === true));
     return card;
   }
 

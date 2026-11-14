@@ -29,13 +29,14 @@ async function count(db: Rest, path: string): Promise<number> {
 }
 
 async function snapshot(c: ProgressCtx): Promise<Snapshot> {
-  const [p, cities, flights, hintFree] = await Promise.all([
+  const [p, cities, flights, hintFree, teamHunts] = await Promise.all([
     profile(c.db, c.playerId),
     c.db.call(`game_player_cities?player_id=eq.${c.playerId}&select=city_id&limit=100`) as Promise<unknown[] | null>,
     count(c.db, `game_player_activities?player_id=eq.${c.playerId}&activity_type=eq.flight_landed`),
     count(c.db, `game_player_missions?player_id=eq.${c.playerId}&status=eq.completed&hints_total=eq.0`),
+    count(c.db, `game_player_activities?player_id=eq.${c.playerId}&activity_type=eq.team_hunt_completed`),
   ]);
-  return { citiesVisited: cities?.length ?? 0, missionsCompleted: p?.missions_completed ?? 0, discoveries: p?.total_discoveries ?? 0, flightsLanded: flights, hintFreeCompletions: hintFree, explorerLevel: p?.explorer_level ?? 1 };
+  return { citiesVisited: cities?.length ?? 0, missionsCompleted: p?.missions_completed ?? 0, discoveries: p?.total_discoveries ?? 0, flightsLanded: flights, hintFreeCompletions: hintFree, explorerLevel: p?.explorer_level ?? 1, teamHunts };
 }
 
 /** Unlocks every achievement the player has now earned and does not yet hold, paying each one's XP once. */

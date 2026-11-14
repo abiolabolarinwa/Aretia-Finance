@@ -9,6 +9,7 @@ export interface Snapshot {
   flightsLanded: number;
   hintFreeCompletions: number;
   explorerLevel: number;
+  teamHunts: number;
 }
 
 export interface Achievement {
@@ -29,6 +30,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'seasoned-sleuth', title: 'Seasoned sleuth', description: 'Complete ten missions.', xp: 200, earned: (s) => s.missionsCompleted >= 10 },
   { id: 'master-detective', title: 'Master detective', description: 'Complete fifty missions.', xp: 1000, earned: (s) => s.missionsCompleted >= 50 },
   { id: 'sharp-mind', title: 'Sharp mind', description: 'Complete a mission without using a hint.', xp: 50, earned: (s) => s.hintFreeCompletions >= 1 },
+  { id: 'team-player', title: 'Team player', description: 'Finish a team hunt with your team.', xp: 100, earned: (s) => s.teamHunts >= 1 },
   { id: 'first-find', title: 'First find', description: 'Collect your first treasure.', xp: 100, earned: (s) => s.discoveries >= 1 },
   { id: 'treasure-hunter', title: 'Treasure hunter', description: 'Collect ten treasures.', xp: 500, earned: (s) => s.discoveries >= 10 },
   { id: 'level-5', title: 'Rising explorer', description: 'Reach explorer level 5.', xp: 100, earned: (s) => s.explorerLevel >= 5 },

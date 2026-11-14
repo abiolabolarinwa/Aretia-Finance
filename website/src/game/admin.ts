@@ -13,7 +13,7 @@ type Tab = 'overview' | 'cities' | 'missions' | 'treasures' | 'claims' | 'report
 
 const TABS: [Tab, string][] = [['overview', 'Overview'], ['cities', 'Cities'], ['missions', 'Missions'], ['treasures', 'Treasures'], ['claims', 'Claims'], ['reports', 'Reports'], ['announce', 'Announcements'], ['audit', 'Audit log']];
 const CLUE_TYPES = ['riddle', 'historical', 'geographical', 'architectural', 'numerical', 'cryptographic', 'visual', 'pattern', 'observation', 'trail', 'mystery'];
-const KINDS = ['long', 'daily', 'weekly', 'event'];
+const KINDS = ['long', 'daily', 'weekly', 'event', 'team'];
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);

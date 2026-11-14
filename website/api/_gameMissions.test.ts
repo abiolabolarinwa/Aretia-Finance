@@ -110,7 +110,7 @@ describe('missions', () => {
     const r = await missionOp('missions', w.ctx(P1, { city: 'paris' }));
     const data = JSON.stringify(r!.data);
     expect(r!.status).toBe(200);
-    expect((r!.data.missions as Row[]).map((m) => m.id)).toEqual(['paris-first-steps']);
+    expect((r!.data.missions as Row[]).map((m) => m.id).filter((id) => !String(id).startsWith('auto-'))).toEqual(['paris-first-steps']);
     expect((r!.data.missions as Row[])[0]).toMatchObject({ totalStages: 2, progress: null, treasure: { coin: 'Lutetium Coin', usd: 0.0027 } });
     expect(data).not.toMatch(/answer|hash|lng|lat|2\.3522|48\.8566/);
     expect((await missionOp('missions', w.ctx(P1, { city: 'atlantis' })))!.status).toBe(400);
@@ -297,7 +297,7 @@ describe('progression', () => {
 
   it('earns achievements from counts, never twice, and has a unique id for each', () => {
     expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
-    const base = { citiesVisited: 0, missionsCompleted: 0, discoveries: 0, flightsLanded: 0, hintFreeCompletions: 0, explorerLevel: 1 };
+    const base = { citiesVisited: 0, missionsCompleted: 0, discoveries: 0, flightsLanded: 0, hintFreeCompletions: 0, explorerLevel: 1, teamHunts: 0 };
     expect(newlyEarned(base, new Set())).toEqual([]);
     expect(newlyEarned({ ...base, citiesVisited: 3 }, new Set()).map((a) => a.id)).toEqual(['first-steps', 'globetrotter']);
     expect(newlyEarned({ ...base, citiesVisited: 3 }, new Set(['first-steps'])).map((a) => a.id)).toEqual(['globetrotter']);

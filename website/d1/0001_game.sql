@@ -214,6 +214,22 @@ create table if not exists game_player_missions (
   unique (player_id, mission_id)
 );
 
+-- A team hunt (a mission of kind "team") is solved together: one shared row per team and hunt, whoever answers moves everyone on.
+create table if not exists game_team_missions (
+  id           text    primary key default (lower(hex(randomblob(16)))),
+  team_id      text    not null references game_teams (id) on delete cascade,
+  mission_id   text    not null references game_missions (id),
+  status       text    not null default 'active' check (status in ('active','completed','abandoned')),
+  stage        integer not null default 1 check (stage >= 1),
+  hints_used   integer not null default 0 check (hints_used >= 0),
+  hints_total  integer not null default 0 check (hints_total >= 0),
+  score        integer not null default 0 check (score >= 0),
+  started_by   text    references game_players (id),
+  started_at   integer not null,
+  completed_at integer,
+  unique (team_id, mission_id)
+);
+
 create table if not exists game_attempts (
   id         text    primary key default (lower(hex(randomblob(16)))),
   player_id  text    not null references game_players (id),

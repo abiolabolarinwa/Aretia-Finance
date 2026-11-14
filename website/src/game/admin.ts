@@ -14,6 +14,7 @@ type Tab = 'overview' | 'cities' | 'missions' | 'treasures' | 'claims' | 'report
 const TABS: [Tab, string][] = [['overview', 'Overview'], ['cities', 'Cities'], ['missions', 'Missions'], ['treasures', 'Treasures'], ['claims', 'Claims'], ['reports', 'Reports'], ['announce', 'Announcements'], ['audit', 'Audit log']];
 const CLUE_TYPES = ['riddle', 'historical', 'geographical', 'architectural', 'numerical', 'cryptographic', 'visual', 'pattern', 'observation', 'trail', 'mystery'];
 const KINDS = ['long', 'daily', 'weekly', 'event', 'team'];
+const ENVIRONMENTS = ['none', 'underwater', 'underground', 'vault'];
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -202,6 +203,7 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
       description: area(2),
       difficulty: select(DIFFICULTIES, String(m.difficulty ?? 'beginner')),
       kind: select(KINDS, String(m.kind ?? 'long')),
+      environment: select(ENVIRONMENTS, String(m.environment ?? 'none')),
       status: select(['draft', 'active', 'closed'], String(m.status ?? 'draft')),
       xp: text(String(m.xp_reward ?? 100)),
       opens: text(m.opens_at ? new Date(Number(m.opens_at)).toISOString() : '', 'ISO time, or blank'),
@@ -211,8 +213,8 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
     f.description.value = String(m.description ?? '');
     const time = (v: string): number | null => (v.trim() ? Date.parse(v) : null);
     const form = el('div', 'wapp__card');
-    form.append(el('h3', 'wapp__h2', state.mission ? `Edit ${state.mission}` : 'New mission'), grid(field('Id', f.id), field('Title', f.title), field('Difficulty', f.difficulty), field('Kind', f.kind), field('Status', f.status), field('XP reward', f.xp), field('Opens', f.opens), field('Closes', f.closes), field('Treasure id', f.treasure)), field('Description', f.description));
-    form.append(btn('Save mission', 'wapp__btn wapp__btn--primary', () => void act(() => call({ op: 'admin-mission-save', id: f.id.value, city: state.city, title: f.title.value, description: f.description.value, difficulty: f.difficulty.value, kind: f.kind.value, status: f.status.value, xpReward: Number(f.xp.value), opensAt: time(f.opens.value), closesAt: time(f.closes.value), treasureId: f.treasure.value.trim() || null }), 'Mission saved.')));
+    form.append(el('h3', 'wapp__h2', state.mission ? `Edit ${state.mission}` : 'New mission'), grid(field('Id', f.id), field('Title', f.title), field('Difficulty', f.difficulty), field('Kind', f.kind), field('Setting (a 3D scene to read the clue in)', f.environment), field('Status', f.status), field('XP reward', f.xp), field('Opens', f.opens), field('Closes', f.closes), field('Treasure id', f.treasure)), field('Description', f.description));
+    form.append(btn('Save mission', 'wapp__btn wapp__btn--primary', () => void act(() => call({ op: 'admin-mission-save', id: f.id.value, city: state.city, title: f.title.value, description: f.description.value, difficulty: f.difficulty.value, kind: f.kind.value, environment: f.environment.value, status: f.status.value, xpReward: Number(f.xp.value), opensAt: time(f.opens.value), closesAt: time(f.closes.value), treasureId: f.treasure.value.trim() || null }), 'Mission saved.')));
     pane.append(c, form);
     if (state.mission) await clues(pane);
   }

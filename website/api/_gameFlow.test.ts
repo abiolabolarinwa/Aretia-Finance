@@ -414,3 +414,26 @@ describe('team hunts', () => {
     expect((await w.call(a, { op: 'mission-start', mission: 'london-team' })).data).toMatchObject({ stage: 1 });
   });
 });
+
+describe('mission settings', () => {
+  beforeEach(() => resetRateLimit());
+
+  it('carry a simulated setting for the clue, through the list and the clue itself, and refuse an unknown one', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const t = await w.signInSolana();
+    const save = (over: J) => w.call(boss, { op: 'admin-mission-save', id: 'miami-dive', city: 'miami', title: 'The dive', difficulty: 'advanced', status: 'draft', ...over });
+    expect((await save({ environment: 'moon' })).status).toBe(400);
+    expect((await save({ environment: 'underwater' })).status).toBe(200);
+    expect((await w.call(boss, { op: 'admin-clue-save', mission: 'miami-dive', seq: 1, type: 'visual', content: 'Count the shells.', answer: '7' })).status).toBe(200);
+    expect((await save({ environment: 'underwater', status: 'active' })).status).toBe(200);
+    await w.call(t, { op: 'select-city', city: 'miami' });
+    const listed = (await w.call(t, { op: 'missions', city: 'miami' })).data.missions.find((m: J) => m.id === 'miami-dive');
+    expect(listed.environment).toBe('underwater');
+    expect((await w.call(t, { op: 'mission-start', mission: 'miami-dive' })).data.mission).toMatchObject({ id: 'miami-dive', environment: 'underwater' });
+    // A mission saved without a setting has none.
+    expect((await save({ id: 'miami-plain', environment: undefined })).status).toBe(200);
+    expect(w.raw.prepare("select environment from game_missions where id = 'miami-plain'").get()).toEqual({ environment: 'none' });
+    expect(((await w.call(boss, { op: 'admin-mission-list', city: 'miami' })).data.missions as J[]).find((m) => m.id === 'miami-dive')!.environment).toBe('underwater');
+  });
+});

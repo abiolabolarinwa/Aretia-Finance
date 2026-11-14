@@ -38,13 +38,13 @@ const fail = (status: number, message: string): MissionOut => ({ status, data: {
 const ok = (data: Record<string, unknown>): MissionOut => ({ status: 200, data });
 const classOf = (id: string): (typeof TREASURE_CLASSES)[number] | undefined => TREASURE_CLASSES.find((c) => c.id === id);
 
-interface MissionRow { id: string; city_id: string; title: string; description: string; difficulty: string; kind: string; status: string; opens_at: number | null; closes_at: number | null; xp_reward: number; treasure_id: string | null }
+interface MissionRow { id: string; city_id: string; title: string; description: string; difficulty: string; kind: string; status: string; opens_at: number | null; closes_at: number | null; xp_reward: number; treasure_id: string | null; environment: string }
 interface ClueRow { id: string; seq: number; clue_type: string; content: string; answer_hash: string; hints: unknown }
 interface PlayerMissionRow { id: string; mission_id: string; status: string; stage: number; hints_used: number; hints_total: number }
 interface TreasureRow { id: string; city_id: string; class_id: string; status: string; found_by: string | null }
 interface PlayerTreasureRow { treasure_id: string; discovery_status: string; verification_status: string; claim_status: string; unlocked_at: number; discovered_at: number | null }
 
-const MISSION_COLS = 'id,city_id,title,description,difficulty,kind,status,opens_at,closes_at,xp_reward,treasure_id';
+const MISSION_COLS = 'id,city_id,title,description,difficulty,kind,status,opens_at,closes_at,xp_reward,treasure_id,environment';
 const isOpen = (m: MissionRow, now: number): boolean => m.status === 'active' && (m.opens_at === null || Number(m.opens_at) <= now) && (m.closes_at === null || Number(m.closes_at) > now);
 const hintList = (c: ClueRow): string[] => (Array.isArray(c.hints) ? c.hints.filter((h): h is string => typeof h === 'string') : []);
 
@@ -91,7 +91,7 @@ async function clueView(c: MissionCtx, m: MissionRow, pm: PlayerMissionRow): Pro
   const all = await clues(c, m.id);
   const clue = all.find((x) => x.seq === pm.stage);
   const hints = clue ? hintList(clue) : [];
-  return { mission: { id: m.id, title: m.title, difficulty: m.difficulty, cityId: m.city_id }, status: pm.status, stage: pm.stage, totalStages: all.length, clue: clue ? { type: clue.clue_type, content: clue.content } : null, hintsUsed: pm.hints_used, hintsAvailable: hints.length, hints: hints.slice(0, pm.hints_used) };
+  return { mission: { id: m.id, title: m.title, difficulty: m.difficulty, cityId: m.city_id, environment: m.environment ?? 'none' }, status: pm.status, stage: pm.stage, totalStages: all.length, clue: clue ? { type: clue.clue_type, content: clue.content } : null, hintsUsed: pm.hints_used, hintsAvailable: hints.length, hints: hints.slice(0, pm.hints_used) };
 }
 
 async function zoneFor(c: MissionCtx, treasureId: string): Promise<Record<string, unknown> | null> {
@@ -142,6 +142,7 @@ async function listMissions(c: MissionCtx): Promise<MissionOut> {
         description: m.description,
         difficulty: m.difficulty,
         kind: m.kind,
+        environment: m.environment ?? 'none',
         needsTeam: m.kind === 'team' && !team,
         closesAt: m.closes_at === null ? null : Number(m.closes_at),
         xpReward: m.xp_reward,

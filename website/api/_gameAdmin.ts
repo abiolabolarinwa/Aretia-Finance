@@ -38,6 +38,7 @@ const KINDS = ['daily', 'weekly', 'long', 'event', 'team'];
 const MISSION_STATUS = ['draft', 'active', 'closed'];
 const CLUE_TYPES = ['riddle', 'historical', 'geographical', 'architectural', 'numerical', 'cryptographic', 'visual', 'pattern', 'observation', 'trail', 'mystery'];
 const CITY_STATUS = ['active', 'inactive', 'coming_soon'];
+const ENVIRONMENTS = ['none', 'underwater', 'underground', 'vault'];
 /** Coins worth at least this much (Samarium and up) can be claimed as a prize; smaller ones are collectibles. */
 export const CASH_ELIGIBLE_USD = 1;
 
@@ -150,7 +151,7 @@ async function citySave(c: AdminCtx): Promise<AdminOut> {
 
 async function missionList(c: AdminCtx): Promise<AdminOut> {
   const filter = typeof c.body.city === 'string' && cityById(c.body.city) ? `&city_id=eq.${c.body.city}` : '';
-  const rows = (await c.db.call(`game_missions?select=id,city_id,title,description,difficulty,kind,status,opens_at,closes_at,xp_reward,treasure_id${filter}&order=city_id.asc`)) as Record<string, unknown>[] | null;
+  const rows = (await c.db.call(`game_missions?select=id,city_id,title,description,difficulty,kind,status,opens_at,closes_at,xp_reward,treasure_id,environment${filter}&order=city_id.asc`)) as Record<string, unknown>[] | null;
   return ok({ missions: rows ?? [] });
 }
 
@@ -181,7 +182,9 @@ async function missionSave(c: AdminCtx): Promise<AdminOut> {
     const clues = (await c.db.call(`game_clues?mission_id=eq.${id}&select=id&limit=1`)) as unknown[] | null;
     if (!clues?.length) return fail(409, 'Add at least one clue before a mission goes live.');
   }
-  const row = { id, city_id: city.id, title, description: typeof b.description === 'string' ? b.description.slice(0, 2000) : '', difficulty: b.difficulty, kind, status, opens_at: opens, closes_at: closes, xp_reward: xp, treasure_id: treasure };
+  const environment = b.environment === undefined ? 'none' : b.environment;
+  if (typeof environment !== 'string' || !ENVIRONMENTS.includes(environment)) return fail(400, 'The setting must be none, underwater, underground or vault.');
+  const row = { id, environment, city_id: city.id, title, description: typeof b.description === 'string' ? b.description.slice(0, 2000) : '', difficulty: b.difficulty, kind, status, opens_at: opens, closes_at: closes, xp_reward: xp, treasure_id: treasure };
   await c.db.call('game_missions?on_conflict=id', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
   await audit(c, 'mission_save', id, { city: city.id, status, difficulty: b.difficulty, treasure });
   return ok();

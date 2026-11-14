@@ -10,6 +10,7 @@ export interface MissionSummary {
   description: string;
   difficulty: string;
   kind: string;
+  environment?: string;
   needsTeam?: boolean;
   closesAt: number | null;
   xpReward: number;
@@ -18,7 +19,7 @@ export interface MissionSummary {
   progress: { status: string; stage: number } | null;
 }
 export interface ClueView {
-  mission: { id: string; title: string; difficulty: string; cityId: string };
+  mission: { id: string; title: string; difficulty: string; cityId: string; environment?: string };
   status: string;
   stage: number;
   totalStages: number;
@@ -108,6 +109,33 @@ export function mountMissions(host: HTMLElement, city: City, api: MissionsApi, o
     const card = el('div', 'wapp__card');
     card.append(el('h2', 'wapp__h2', c.mission.title), el('span', 'wapp__eyebrow', `Step ${c.stage} of ${c.totalStages} · ${cap(c.clue?.type ?? '')}`));
     card.append(el('p', '', c.clue?.content ?? ''));
+    const env = c.mission.environment ?? 'none';
+    if (env !== 'none') {
+      const holder = el('div');
+      let chamber: { destroy(): void } | null = null;
+      const toggle = button('Enter the ' + (env === 'underwater' ? 'dive' : env === 'underground' ? 'mine' : 'vault'), 'wapp__btn wapp__btn--ghost', () => {
+        if (chamber) {
+          chamber.destroy();
+          chamber = null;
+          holder.replaceChildren();
+          toggle.textContent = 'Enter again';
+          return;
+        }
+        toggle.textContent = 'Leave';
+        void Promise.all([import('./scene.js'), import('./sceneModel.js')]).then(async ([sc, sm]) => {
+          if (!sm.isChamber(env)) return;
+          const h = await sc.mountChamber(holder, env, c.mission.id);
+          if (!h) holder.textContent = '3D cannot be drawn on this device.';
+          else {
+            chamber = h;
+            holder.prepend(el('p', 'wapp__fine', h.model.caption));
+          }
+        }).catch(() => {
+          holder.textContent = '3D could not be loaded. Try again.';
+        });
+      });
+      card.append(toggle, holder);
+    }
     for (const h of c.hints) card.append(el('p', 'wapp__fine', `Hint: ${h}`));
     const input = el('input');
     input.type = 'text';

@@ -184,7 +184,9 @@ create table if not exists game_missions (
   xp_reward   integer not null default 100 check (xp_reward >= 0),
   treasure_id text    references game_treasures (id),
   template_id text,
-  window_key  text
+  window_key  text,
+  -- A simulated place the clue is read in: a dive, a mine or a vault. Only a picture; nobody goes anywhere.
+  environment text    not null default 'none' check (environment in ('none','underwater','underground','vault'))
 );
 create index if not exists game_missions_city on game_missions (city_id, status);
 create unique index if not exists game_missions_window on game_missions (template_id, city_id, window_key) where template_id is not null;

@@ -1648,6 +1648,14 @@ const sendTips = [
   .wapp-mt__star:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
   .wapp-acct { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .wapp-mt__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }
+  .wapp-mt__lockhead, .wapp-mt__lockcol { text-align: left; }
+  .wapp-mt__lockchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; border-radius: 99px; cursor: help; color: var(--color-muted); background: var(--color-bg-alt); }
+  .wapp-mt__lockicon { display: inline-flex; }
+  .wapp-mt__lockchip.is-locked { color: #166534; background: rgba(27, 138, 75, 0.12); }
+  .wapp-mt__lockchip.is-timed { color: #3730a3; background: rgba(79, 70, 229, 0.12); }
+  .wapp-mt__lockchip.is-guarded { color: #92400e; background: rgba(245, 165, 36, 0.18); }
+  .wapp-mt__lockchip.is-open { color: #9a3412; background: rgba(229, 72, 77, 0.12); }
+  .wapp-mt__lockchip.is-checking { font-style: italic; opacity: 0.7; }
   .wapp-mt__pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
   .wapp-mt__pager .wapp-mt__pageno { width: 64px; min-width: 0; text-align: center; }
   .wapp-mt__pagerbox { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -1705,14 +1713,14 @@ const sendTips = [
   .wapp-ov__full { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wapp-ov__price, .wapp-ov__prow .wapp-ov__chg { text-align: right; }
   @media (max-width: 960px) { .wapp-ov__cards, .wapp-ov__lists { grid-template-columns: 1fr; } }
-  .wapp-mt__table.has-spark { min-width: 1260px; }
+  .wapp-mt__table.has-spark { min-width: 1380px; }
   .wapp-mt__sparkhead, .wapp-mt__spark { text-align: center; }
   .wapp-mt__spark svg { display: block; margin: 0 auto; }
   .wapp-mt__tradecell { padding-left: 4px; }
   .wapp-mt__trade { padding: 5px 14px; font: inherit; font-size: 12px; font-weight: 700; color: #fff; background: var(--color-brand); border: 0; border-radius: 8px; cursor: pointer; }
   .wapp-mt__trade:hover, .wapp-mt__trade:focus-visible { filter: brightness(1.1); outline: 2px solid var(--color-brand-soft); }
   .wapp-mt { overflow-x: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
-  .wapp-mt__table { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-mt__table { width: 100%; min-width: 1200px; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
   .wapp-mt__table th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-align: right; text-transform: uppercase; white-space: nowrap; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
   .wapp-mt__table th.wapp-mt__rank, .wapp-mt__table th.wapp-mt__tokenhead { text-align: left; }
   .wapp-mt__sort { padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; cursor: pointer; }

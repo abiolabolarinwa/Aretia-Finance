@@ -49,6 +49,8 @@ export function marketRowsFromPools(list: unknown, now: number): MarketRow[] {
       risk: null,
       fresh: true,
       indexed: { quoteIsDollar: p.quoteIsDollar === true, evidence: p.evidence },
+      // The exchange the pool trades on, as the index names it (Uniswap V3, PumpSwap...).
+      ...(typeof (p as { dexName?: unknown }).dexName === 'string' && (p as { dexName: string }).dexName ? { venue: (p as { dexName: string }).dexName } : {}),
     });
   }
   return rows;

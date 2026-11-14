@@ -2268,7 +2268,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
       // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
       if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
-        const band = overviewBand(shownRows, { onOpen: userPick, biased: m.kind === 'gainers' || m.kind === 'rising' });
+        // The three cards are worked out from the busiest tokens the walk has read (not the list's own rows: Gainers holds only risers, which would make the
+        // mood read 100 whatever the market did). With too few of those read yet, the list's own rows are used.
+        const live = (r: MarketRow): boolean => !isDeadMarket(r) && clearsMinLiquidity(r.liquidityUsd, f.liquidity);
+        const busiest = mergeIndexRows(deepSnapshot(m.chain), indexRows).filter(live);
+        const seenPools = new Set<string>();
+        const union = [...shownRows, ...busiest].filter((r) => {
+          const k = tableRowKey(r);
+          return !seenPools.has(k) && (seenPools.add(k), true);
+        });
+        const band = overviewBand(union, { onOpen: userPick, ...(busiest.length >= 30 ? { sample: busiest } : {}) });
         if (band) card.insertBefore(band, bar);
       }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {

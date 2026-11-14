@@ -58,6 +58,34 @@ describe('the D1 schema', () => {
   });
 });
 
+describe('the city photographs', () => {
+  it('give every launch city a real, credited, reusable photograph', async () => {
+    const d = db();
+    const cities = await d.get('game_cities?select=id,image_url,image_credit&order=sort_order.asc');
+    expect(cities).toHaveLength(9);
+    for (const c of cities) {
+      expect(String(c.image_url), String(c.id)).toMatch(/^https:\/\/thumb\.wikimedia\.org\/wikipedia\/commons\/thumb\/.+\.(jpg|jpeg|png)$/i);
+      // The credit names the author and a licence that allows reuse with credit, and says where it came from.
+      expect(String(c.image_credit), String(c.id)).toMatch(/^Photo: .{2,}, (CC BY(-SA)? \d\.\d|CC0|Public domain), via Wikimedia Commons$/);
+      expect(String(c.image_credit)).not.toMatch(/\bN[CD]\b/);
+    }
+    expect(new Set(cities.map((c) => c.image_url)).size).toBe(9);
+  });
+
+  it('are shown by the public catalogue with their credit, and the same file can be run twice', async () => {
+    const d = db();
+    const { readFileSync } = await import('node:fs');
+    d.raw.exec(readFileSync('d1/0002_city_photos.sql', 'utf8'));
+    const { parseCity } = await import('../src/game/cities.js');
+    const rows = await d.get('game_cities?select=*');
+    for (const r of rows) {
+      const c = parseCity(r);
+      expect(c?.imageUrl, String(r.id)).toBeTruthy();
+      expect(c?.imageCredit, String(r.id)).toMatch(/via Wikimedia Commons$/);
+    }
+  });
+});
+
 describe('the data interface', () => {
   it('filters, orders, limits and selects', async () => {
     const d = db();

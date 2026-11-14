@@ -1,0 +1,101 @@
+/**
+ * The look of the air: a late-afternoon sky with a low sun and a warm haze at the horizon, the fog that matches it, and a reflection
+ * map made from the same sky so paint and glass pick up the sky and sun. Shared by everything so the light is of one place and time.
+ */
+import type * as T from 'three';
+
+type Three = typeof import('three');
+
+/** Where the sun is, as a direction from the player: low in the west-north-west, about 25 degrees up. */
+export const SUN_DIRECTION: [number, number, number] = (() => {
+  const x = -0.62;
+  const y = 0.42;
+  const z = -0.66;
+  const l = Math.hypot(x, y, z);
+  return [x / l, y / l, z / l];
+})();
+
+export const HAZE = '#dcc7ab';
+export const SKY_ZENITH = '#4a7fc4';
+export const SKY_MID = '#9bbbe0';
+export const SUN_COLOUR = '#ffd9a6';
+
+const vertex = /* glsl */ `
+varying vec3 vDir;
+void main() {
+  vDir = normalize(position);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const fragment = /* glsl */ `
+uniform vec3 uZenith;
+uniform vec3 uMid;
+uniform vec3 uHaze;
+uniform vec3 uSun;
+uniform vec3 uSunDir;
+varying vec3 vDir;
+void main() {
+  vec3 d = normalize(vDir);
+  float h = clamp(d.y, 0.0, 1.0);
+  vec3 col = mix(uHaze, uMid, smoothstep(0.0, 0.22, h));
+  col = mix(col, uZenith, smoothstep(0.18, 0.85, h));
+  float s = max(dot(d, uSunDir), 0.0);
+  // A wide warm glow, a tighter one, and the disc itself.
+  col += uSun * (0.18 * pow(s, 3.0) + 0.45 * pow(s, 24.0) + 2.4 * pow(s, 700.0));
+  // Haze thickens towards the horizon, and everything below it is haze.
+  col = mix(col, uHaze, (1.0 - smoothstep(0.0, 0.12, h)) * 0.55);
+  if (d.y < 0.0) col = uHaze;
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+export function skyMaterial(three: Three): T.ShaderMaterial {
+  return new three.ShaderMaterial({
+    vertexShader: vertex,
+    fragmentShader: fragment,
+    side: three.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      uZenith: { value: new three.Color(SKY_ZENITH) },
+      uMid: { value: new three.Color(SKY_MID) },
+      uHaze: { value: new three.Color(HAZE) },
+      uSun: { value: new three.Color(SUN_COLOUR) },
+      uSunDir: { value: new three.Vector3(...SUN_DIRECTION) },
+    },
+  });
+}
+
+export interface Atmosphere {
+  /** The dome to add to the scene; keep it centred on the camera. */
+  dome: T.Mesh;
+  /** A reflection map of this sky, for scene.environment. */
+  environment: T.Texture;
+  dispose(): void;
+}
+
+export function makeAtmosphere(three: Three, renderer: T.WebGLRenderer): Atmosphere {
+  const material = skyMaterial(three);
+  const dome = new three.Mesh(new three.SphereGeometry(1000, 32, 16), material);
+  dome.frustumCulled = false;
+  dome.renderOrder = -10;
+  // The reflection map is rendered from a copy of the sky on its own, at a smaller size.
+  const only = new three.Scene();
+  const copy = new three.Mesh(new three.SphereGeometry(50, 32, 16), skyMaterial(three));
+  only.add(copy);
+  const pmrem = new three.PMREMGenerator(renderer);
+  const target = pmrem.fromScene(only, 0.02);
+  pmrem.dispose();
+  return {
+    dome,
+    environment: target.texture,
+    dispose() {
+      dome.geometry.dispose();
+      material.dispose();
+      copy.geometry.dispose();
+      (copy.material as T.Material).dispose();
+      target.dispose();
+    },
+  };
+}

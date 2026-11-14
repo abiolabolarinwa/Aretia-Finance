@@ -13,14 +13,16 @@
  */
 import type * as T from 'three';
 import type { City } from '../cities.js';
-import { buildCityModel } from '../sceneModel.js';
 import type { RoamMode } from '../roamRules.js';
 import { decodeTile } from './mvt.js';
 import { buildTileWorld, fromLocal, tileOf, tilePoint, tileUrl, toLocal, TILE_ZOOM, type Named, type Origin, type TileWorld } from './worldData.js';
 import { Colliders, TileColliders, nearestOnSegment } from './colliders.js';
 import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roamBuild.js';
 import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
-import { makeHuman } from './human.js';
+import { makeHuman, type Human, type Look } from './human.js';
+import { HAZE, makeAtmosphere, SUN_COLOUR, SUN_DIRECTION } from './atmosphere.js';
+import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
+import { pickNext, startAgent, stepAgent, type Agent, type Seg } from './agents.js';
 import type { Pt } from './mvt.js';
 import { BOAT, CAR, RUN_SPEED, WALK_SPEED, stepFoot, stepVehicle, type Foot, type Vehicle, type VehicleSpec } from './physics.js';
 
@@ -73,6 +75,7 @@ interface Rig {
   state: Vehicle;
   mesh: T.Group;
   name: string;
+  parts?: CarParts;
 }
 
 const KEY_NAMES = ['w', 'a', 's', 'd', 'shift', ' ', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
@@ -80,7 +83,6 @@ const KEY_NAMES = ['w', 'a', 's', 'd', 'shift', ' ', 'arrowleft', 'arrowright', 
 export async function mountRoam(host: HTMLElement, city: City, startAt: [number, number], api: RoamApi): Promise<RoamHandle | null> {
   const three = await import('three');
   const origin: Origin = { lng: city.center[0], lat: city.center[1] };
-  const model = buildCityModel(city);
 
   // ------------------------------------------------------------ the page: a canvas with a heads-up display over it
   const wrap = document.createElement('div');
@@ -131,17 +133,43 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute('aria-label', 'The city. Use W A S D to move.');
   canvasHolder.append(renderer.domElement);
+  // Film-like light: a warm low sun, soft shadows, a hazy horizon, and a tone curve so bright things glow instead of clipping.
+  renderer.toneMapping = three.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = three.PCFSoftShadowMap;
   const scene = new three.Scene();
-  scene.background = new three.Color(model.sky);
-  scene.fog = new three.Fog(model.sky, 220, 820);
-  const camera = new three.PerspectiveCamera(62, 1, 0.3, 1400);
-  scene.add(new three.HemisphereLight('#ffffff', '#6b7a66', 1.15));
-  const sun = new three.DirectionalLight('#fff3dd', 1.5);
-  sun.position.set(-120, 220, 90);
-  scene.add(sun);
+  scene.background = new three.Color(HAZE);
+  scene.fog = new three.Fog(HAZE, 140, 950);
+  const camera = new three.PerspectiveCamera(60, 1, 0.3, 1500);
+  const air = makeAtmosphere(three, renderer);
+  scene.add(air.dome);
+  scene.environment = air.environment;
+  scene.environmentIntensity = 0.85;
+  scene.add(new three.HemisphereLight('#cfe0ff', '#85715a', 0.7));
+  const sun = new three.DirectionalLight(SUN_COLOUR, 2.6);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  const SH = 120;
+  Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 520 });
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.6;
+  scene.add(sun, sun.target);
+  const sunAt = new three.Vector3(...SUN_DIRECTION).multiplyScalar(260);
+  /** Marks a thing as casting and receiving the sun's shadows. */
+  const shadowed = (o: T.Object3D, cast = true, receive = true): void => {
+    o.traverse((c) => {
+      const m = c as T.Mesh;
+      if (m.isMesh) {
+        m.castShadow = cast;
+        m.receiveShadow = receive;
+      }
+    });
+  };
   // The plain ground under everything the map paints: dusty pavement colour, as most of a city is.
   const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), new three.MeshLambertMaterial({ color: '#a29f94' }));
   ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
   scene.add(ground);
 
   // Walls take a window picture (one bay wide, one storey tall) multiplied by each building's tint; roofs are plain.
@@ -196,19 +224,10 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   };
   const human = makeHuman(three);
   const person = human.group;
+  shadowed(person, true, false);
   scene.add(person);
 
-  const carMesh = (colour: string): T.Group => {
-    const g = new three.Group();
-    g.add(box(2.0, 0.75, 4.3, colour, 0, 0.7, 0), box(1.7, 0.7, 2.1, '#1b2430', 0, 1.4, -0.2), box(0.3, 0.18, 0.05, '#fff6c8', -0.65, 0.8, -2.16), box(0.3, 0.18, 0.05, '#fff6c8', 0.65, 0.8, -2.16));
-    for (const [x, z] of [[-0.95, -1.4], [0.95, -1.4], [-0.95, 1.4], [0.95, 1.4]] as const) {
-      const w = new three.Mesh(new three.CylinderGeometry(0.4, 0.4, 0.3, 14), new three.MeshLambertMaterial({ color: '#111111' }));
-      w.rotation.z = Math.PI / 2;
-      w.position.set(x, 0.4, z);
-      g.add(w);
-    }
-    return g;
-  };
+  const carMesh = (colour: string, kind: CarKind = 'sedan'): CarParts => makeCar(three, colour, kind);
   const boatMesh = (): T.Group => {
     const g = new three.Group();
     const bow = new three.Mesh(new three.ConeGeometry(1.1, 2.2, 4), new three.MeshLambertMaterial({ color: '#f2f2f2' }));
@@ -467,6 +486,12 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         g.add(im);
       }
     }
+    // Everything but the painted ground and lamp heads throws shadows; everything but lamps catches them.
+    for (const c of g.children) {
+      const m = c as T.Mesh;
+      m.castShadow = !m.userData.ownMap;
+      m.receiveShadow = true;
+    }
     return g;
   }
   const hashAngle = (x: number, z: number): number => Math.floor(Math.abs(Math.sin(x * 0.37 + z * 0.91) * 4)) * (Math.PI / 2);
@@ -491,18 +516,27 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     return best;
   }
 
-  const CAR_COLOURS: [string, string][] = [['#f2c200', 'Taxi'], ['#1d1d1f', 'Car'], ['#c0392b', 'Car'], ['#e8e8e8', 'Car'], ['#2e6fb7', 'Car']];
+  const CAR_KINDS: { colour: string; kind: CarKind; name: string }[] = [
+    { colour: '#f1b900', kind: 'taxi', name: 'Taxi' },
+    { colour: '#1c1c20', kind: 'suv', name: 'SUV' },
+    { colour: '#9b1c1c', kind: 'sedan', name: 'Car' },
+    { colour: '#e6e6ea', kind: 'sedan', name: 'Car' },
+    { colour: '#27456e', kind: 'suv', name: 'SUV' },
+  ];
   let spawned = 0;
   function spawnCar(x: number, z: number, heading: number): Rig {
-    const [colour, name] = CAR_COLOURS[spawned++ % CAR_COLOURS.length]!;
-    const mesh = carMesh(colour);
+    const spec = CAR_KINDS[spawned++ % CAR_KINDS.length]!;
+    const parts = carMesh(spec.colour, spec.kind);
+    const mesh = parts.group;
+    shadowed(mesh);
     scene.add(mesh);
-    const rig: Rig = { spec: CAR, kind: 'car', state: { x, z, heading, speed: 0 }, mesh, name };
+    const rig: Rig = { spec: CAR, kind: 'car', state: { x, z, heading, speed: 0 }, mesh, name: spec.name, parts };
     rigs.push(rig);
     return rig;
   }
   function spawnBoat(x: number, z: number, heading: number): Rig {
     const mesh = boatMesh();
+    shadowed(mesh);
     scene.add(mesh);
     const rig: Rig = { spec: BOAT, kind: 'boat', state: { x, z, heading, speed: 0 }, mesh, name: 'Boat' };
     rigs.push(rig);
@@ -547,9 +581,116 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       const r = rigs[i]!;
       if (r !== driving && Math.hypot(r.state.x - x, r.state.z - z) > 900) {
         scene.remove(r.mesh);
-        disposeGroup(r.mesh);
+        if (r.parts) r.parts.dispose();
+        else disposeGroup(r.mesh);
         rigs.splice(i, 1);
       }
+    }
+  }
+
+  // ------------------------------------------------------------ everyday life: traffic that drives the streets, and people on the pavements
+  interface Npc {
+    agent: Agent;
+    mesh: T.Group;
+    kind: 'car' | 'walker';
+    cruise: number;
+    human?: Human;
+    car?: CarParts;
+  }
+  const npcs: Npc[] = [];
+  const segsNear = (x: number, z: number, r: number, accept: (s: Seg) => boolean): Seg[] => {
+    const out: Seg[] = [];
+    for (const t of tiles.values()) {
+      if (distToBox(t.box, x, z) > r) continue;
+      for (const [key, cell] of t.cells) {
+        const [cx, cz] = cellCentre(key);
+        if (Math.hypot(cx - x, cz - z) > r + 150) continue;
+        for (const rd of cell.roads) {
+          const s: Seg = { a: rd.pts[0]!, b: rd.pts[1]!, width: rd.width, cls: rd.cls };
+          if (accept(s)) out.push(s);
+        }
+      }
+    }
+    return out;
+  };
+  const drivable = (s: Seg): boolean => s.cls !== 'path' && s.cls !== 'track' && s.cls !== 'pier' && s.cls !== 'service' && Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) > 0.5;
+  const walkable = (s: Seg): boolean => s.cls !== 'motorway' && s.cls !== 'trunk' && s.cls !== 'pier' && Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) > 0.5;
+  const laneFor = (kind: Npc['kind'], s: Seg): number => (kind === 'car' ? Math.max(1.4, s.width / 4) : s.cls === 'path' || s.cls === 'track' ? 0 : s.width / 2 + 1.4);
+  const LOOKS: Look[] = [
+    { skin: '#7a4a2f', hair: '#120e0b', top: '#b33a3a', trousers: '#2b3350', shoes: '#e8e8e8' },
+    { skin: '#c28a62', hair: '#2a1b12', top: '#e0e0dc', trousers: '#3a3f4a', shoes: '#222222' },
+    { skin: '#5a3724', hair: '#0d0a08', top: '#2f6b4f', trousers: '#4a4237', shoes: '#f0f0f0' },
+    { skin: '#e0b48f', hair: '#5a3b22', top: '#d9a521', trousers: '#2a2e38', shoes: '#4a3b2e' },
+    { skin: '#8d5a3b', hair: '#161210', top: '#3b5b92', trousers: '#c9c2b2', shoes: '#f0f0f0' },
+  ];
+
+  function spawnNpc(kind: Npc['kind']): void {
+    const p = here();
+    const segs = segsNear(p.x, p.z, 260, kind === 'car' ? drivable : walkable).filter((s) => Math.hypot((s.a[0] + s.b[0]) / 2 - p.x, (s.a[1] + s.b[1]) / 2 - p.z) > 40);
+    if (!segs.length) return;
+    const seg = segs[Math.floor(Math.random() * segs.length)]!;
+    const len = Math.hypot(seg.b[0] - seg.a[0], seg.b[1] - seg.a[1]);
+    const lane = laneFor(kind, seg);
+    const along = Math.random() * len;
+    if (kind === 'car') {
+      const spec = CAR_KINDS[Math.floor(Math.random() * CAR_KINDS.length)]!;
+      const colour = spec.kind === 'taxi' ? spec.colour : TRAFFIC_COLOURS[Math.floor(Math.random() * TRAFFIC_COLOURS.length)]!;
+      const car = makeCar(three, colour, spec.kind);
+      shadowed(car.group);
+      scene.add(car.group);
+      const cruise = 7 + Math.random() * 6;
+      npcs.push({ agent: startAgent(seg, along, cruise, lane), mesh: car.group, kind, cruise, car });
+    } else {
+      const h = makeHuman(three, LOOKS[Math.floor(Math.random() * LOOKS.length)]!);
+      shadowed(h.group, true, false);
+      scene.add(h.group);
+      const cruise = 1.1 + Math.random() * 0.5;
+      npcs.push({ agent: startAgent(seg, along, cruise, lane), mesh: h.group, kind, cruise, human: h });
+    }
+  }
+
+  function dropNpc(i: number): void {
+    const n = npcs[i]!;
+    scene.remove(n.mesh);
+    n.car?.dispose();
+    n.human?.dispose();
+    npcs.splice(i, 1);
+  }
+
+  let lastNpcSpawn = 0;
+  function manageNpcs(now: number, dt: number): void {
+    const p = here();
+    if (now - lastNpcSpawn > 900) {
+      lastNpcSpawn = now;
+      if (npcs.filter((n) => n.kind === 'car').length < 9) spawnNpc('car');
+      if (npcs.filter((n) => n.kind === 'walker').length < 9) spawnNpc('walker');
+    }
+    for (let i = npcs.length - 1; i >= 0; i--) {
+      const n = npcs[i]!;
+      const ag = n.agent;
+      if (Math.hypot(ag.x - p.x, ag.z - p.z) > 400) {
+        dropNpc(i);
+        continue;
+      }
+      let target = n.cruise;
+      if (n.kind === 'car') {
+        // Brake for anything in the way: the player, on foot or in a vehicle, ahead of the car.
+        const dx = p.x - ag.x;
+        const dz = p.z - ag.z;
+        const d = Math.hypot(dx, dz);
+        const ahead = d > 0.1 ? (dx * Math.sin(ag.heading) - dz * Math.cos(ag.heading)) / d : 0;
+        if (d < 16 && ahead > 0.65) target = 0;
+      }
+      ag.speed += (target - ag.speed) * Math.min(1, dt * 3);
+      const before = ag.seg;
+      stepAgent(ag, dt, (end, from) => {
+        const near = segsNear(end[0], end[1], 12, n.kind === 'car' ? drivable : walkable);
+        return pickNext(near, end, from, Math.random);
+      });
+      if (ag.seg !== before) ag.lane = laneFor(n.kind, ag.seg);
+      n.mesh.position.set(ag.x, 0, ag.z);
+      n.mesh.rotation.y = -ag.heading;
+      n.human?.update(dt, ag.speed, false);
     }
   }
 
@@ -1044,6 +1185,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     camLook.set(target.x, driving ? 1.2 : 1.5, target.z);
     camera.lookAt(camLook);
     ground.position.set(target.x, 0, target.z);
+    // The sun, its shadows and the sky stay with the player. The shadow box moves in whole metres so shadows do not shimmer.
+    const gx = Math.round(target.x);
+    const gz = Math.round(target.z);
+    sun.position.set(gx + sunAt.x, sunAt.y, gz + sunAt.z);
+    sun.target.position.set(gx, 0, gz);
+    air.dome.position.copy(camera.position);
+    manageNpcs(now, dt);
     started = true;
 
     // Make sure the beacon pillars pulse, and keep the world loading and the server told.
@@ -1096,6 +1244,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       window.removeEventListener('keyup', keyUp);
       window.removeEventListener('keydown', onEsc);
       window.removeEventListener('blur', blur);
+      for (let i = npcs.length - 1; i >= 0; i--) dropNpc(i);
+      air.dispose();
       document.removeEventListener('fullscreenchange', onFullChange);
       if (document.fullscreenElement === wrap) void document.exitFullscreen().catch(() => undefined);
       void sync(true);

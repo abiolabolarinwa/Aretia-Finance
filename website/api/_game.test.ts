@@ -7,6 +7,7 @@ import { keccak256 } from '../src/swings/core/keccak.js';
 import { loginMessage, parseLoginMessage, type LoginPurpose } from '../src/swings/account/loginMessage.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { handleAccount, resetAccountState } from './_swingsAccount.js';
+import { sqliteRest } from './_gameSqlite.js';
 import { handleGame, readGameSession, walletIdentity, type GameInput } from './_game.js';
 import { verifyLogin } from './_swingsAuth.js';
 import { CITIES } from '../src/game/cities.js';
@@ -49,17 +50,14 @@ function evm(nonce: string, purpose: LoginPurpose = 'game', priv = secp256k1.uti
   return { address, message, signature: '0x' + sig.toCompactHex() + (27 + sig.recovery).toString(16) };
 }
 
-function setup() {
+const SECRET = 'game-test-session-secret';
+const ENV = { SWINGS_SESSION_SECRET: SECRET };
+
+/** The wallet's own sign-in endpoint still talks to Supabase; a small stand-in is enough to prove the two kinds of token stay apart. */
+function walletFake() {
   const nonces = new Map<string, { expires_at: number; used_at: number | null }>();
   const versions = new Map<string, number>();
-  const players: { id: string }[] = [];
-  const wallets: { player_id: string; network: string; address_norm: string }[] = [];
-  const profiles = new Map<string, Record<string, unknown>>();
-  const activities: { player_id: string; activity_type: string; network: string; wallet_address: string }[] = [];
-  const cityStatus = new Map<string, string>(['lagos','new-york','nairobi','hong-kong','london','dubai','paris','miami','nicosia'].map((c) => [c, 'active']));
-  const playerCities: Record<string, unknown>[] = [];
-  let seq = 0;
-  const fetchImpl = (async (url: string, init?: RequestInit) => {
+  return (async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     const params = new URLSearchParams(url.split('?')[1] ?? '');
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
@@ -69,81 +67,32 @@ function setup() {
         return new Response('', { status: 201 });
       }
       const n = nonces.get(params.get('nonce')!.slice(3));
-      if (!n || n.used_at !== null || n.expires_at <= Number(params.get('expires_at')!.slice(3))) return new Response('[]');
+      if (!n || n.used_at !== null) return new Response('[]');
       n.used_at = Number(body.used_at);
       return new Response(JSON.stringify([n]));
     }
-    if (url.includes('/rest/v1/account_sessions')) {
-      if (method === 'POST') {
-        versions.set(String(body.owner), Number(body.version));
-        return new Response('', { status: 201 });
-      }
-      const v = versions.get(decodeURIComponent(params.get('owner')!.slice(3)));
-      return new Response(JSON.stringify(v === undefined ? [] : [{ version: v }]));
-    }
-    if (url.includes('/rest/v1/game_journeys')) return new Response('', { status: 201 });
-    if (url.includes('/rest/v1/game_cities')) {
-      if (params.has('id')) {
-        const id = params.get('id')!.slice(3);
-        return new Response(JSON.stringify(cityStatus.has(id) ? [{ id, status: cityStatus.get(id) }] : []));
-      }
-      return new Response(JSON.stringify([...cityStatus].map(([id, status]) => ({ id, status }))));
-    }
-    if (url.includes('/rest/v1/game_player_cities')) {
-      const pid = params.get('player_id')?.slice(3);
-      const cid = params.get('city_id')?.slice(3);
-      if (method === 'POST') {
-        if (!playerCities.some((r) => r.player_id === body.player_id && r.city_id === body.city_id)) playerCities.push({ city_xp: 0, discoveries: 0, completed_missions: 0, exploration_status: 'exploring', ...body });
-        return new Response('', { status: 201 });
-      }
-      if (method === 'PATCH') {
-        Object.assign(playerCities.find((r) => r.player_id === pid && r.city_id === cid)!, body);
-        return new Response('');
-      }
-      return new Response(JSON.stringify(playerCities.filter((r) => r.player_id === pid && (!cid || r.city_id === cid))));
-    }
-    if (url.includes('/rest/v1/game_player_wallets')) {
-      if (method === 'POST') {
-        if (wallets.some((w) => w.network === body.network && w.address_norm === body.address_norm)) return new Response('{}', { status: 409 });
-        wallets.push({ player_id: String(body.player_id), network: String(body.network), address_norm: String(body.address_norm) });
-        return new Response('', { status: 201 });
-      }
-      const net = params.get('network')!.slice(3);
-      const addr = decodeURIComponent(params.get('address_norm')!.slice(3));
-      const w = wallets.find((x) => x.network === net && x.address_norm === addr);
-      return new Response(JSON.stringify(w ? [{ player_id: w.player_id }] : []));
-    }
-    if (url.includes('/rest/v1/game_players')) {
-      if (method === 'POST') {
-        const id = `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
-        players.push({ id });
-        return new Response(JSON.stringify([{ id }]), { status: 201 });
-      }
-      return new Response('');
-    }
-    if (url.includes('/rest/v1/game_player_profiles')) {
-      if (method === 'POST') {
-        profiles.set(String(body.player_id), { display_name: '', avatar: null, explorer_level: 1, total_xp: 0, total_discoveries: 0, missions_completed: 0 });
-        return new Response('', { status: 201 });
-      }
-      if (method === 'PATCH') {
-        Object.assign(profiles.get(params.get('player_id')!.slice(3))!, body);
-        return new Response('');
-      }
-      const id = params.get('player_id')!.slice(3);
-      return new Response(JSON.stringify(profiles.has(id) ? [profiles.get(id)] : []));
-    }
-    if (url.includes('/rest/v1/game_player_activities')) {
-      activities.push({ player_id: String(body.player_id), activity_type: String(body.activity_type), network: String(body.network), wallet_address: String(body.wallet_address) });
-      return new Response('', { status: 201 });
-    }
+    if (url.includes('/rest/v1/account_sessions')) return new Response(method === 'POST' ? '' : JSON.stringify(versions.size ? [] : []), { status: method === 'POST' ? 201 : 200 });
     return new Response('');
   }) as unknown as typeof fetch;
-  const base = { method: 'POST', origin: ORIGIN, authorization: null as string | null, ip: '5.5.5.5', env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test' }, fetchImpl, now: NOW };
+}
+
+function setup() {
+  const { rest, raw } = sqliteRest(() => NOW);
+  const rows = (sql: string): Record<string, unknown>[] => raw.prepare(sql).all() as Record<string, unknown>[];
+  const base = { method: 'POST', origin: ORIGIN, authorization: null as string | null, ip: '5.5.5.5', db: rest, env: { ...ENV } as GameInput['env'], now: NOW };
   const call = (body: unknown, auth: string | null = null, over: Partial<GameInput> = {}) => handleGame({ ...base, authorization: auth, body, ...over });
   const nonce = async (): Promise<string> => (JSON.parse((await call({ op: 'nonce' })).body) as { nonce: string }).nonce;
-  const walletCall = (body: unknown) => handleAccount({ ...base, body });
-  return { call, nonce, walletCall, cityStatus, playerCities, players, wallets, activities, versions, nonces };
+  const walletEnv = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test' };
+  const walletBase = { method: 'POST', origin: ORIGIN, authorization: null as string | null, ip: '5.5.5.5', env: walletEnv, fetchImpl: walletFake(), now: NOW };
+  const walletCall = (body: unknown, authorization: string | null = null) => handleAccount({ ...walletBase, authorization, body });
+  return {
+    call, nonce, walletCall, raw,
+    get players() { return rows('select * from game_players'); },
+    get wallets() { return rows('select * from game_player_wallets'); },
+    get activities() { return rows('select * from game_player_activities order by rowid'); },
+    get playerCities() { return rows('select * from game_player_cities'); },
+    get sessionOwners() { return rows('select owner from account_sessions').map((r) => String(r.owner)); },
+  };
 }
 
 describe('the game sign-in message', () => {
@@ -229,8 +178,8 @@ describe('the game endpoint', () => {
     const token = (JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string }).token;
     expect(token.startsWith('g1.')).toBe(true);
     expect((await t.call({ op: 'me' }, `Bearer ${token}`)).status).toBe(200);
-    expect((await t.walletCall({ op: 'get' }) as { status: number }).status).toBe(401);
-    expect((await handleAccount({ method: 'POST', origin: ORIGIN, authorization: `Bearer ${token}`, ip: '6.6.6.6', body: { op: 'get' }, env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test' }, fetchImpl: (async () => new Response('[]')) as unknown as typeof fetch, now: NOW })).status).toBe(401);
+    expect((await t.walletCall({ op: 'get' })).status).toBe(401);
+    expect((await t.walletCall({ op: 'get' }, `Bearer ${token}`)).status).toBe(401); // a game token is no use to the wallet
     const w = solana(await t.nonce(), 'wallet');
     const walletLogin = JSON.parse((await t.walletCall({ op: 'login', message: w.message, signature: w.signature })).body) as { token: string };
     expect((await t.call({ op: 'me' }, `Bearer ${walletLogin.token}`)).status).toBe(401);
@@ -244,7 +193,8 @@ describe('the game endpoint', () => {
     const token = (JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string }).token;
     expect((await t.call({ op: 'sign-out-all' }, `Bearer ${token}`)).status).toBe(200);
     expect((await t.call({ op: 'me' }, `Bearer ${token}`)).status).toBe(401);
-    expect([...t.versions.keys()].every((k) => k.startsWith('game:'))).toBe(true);
+    expect(t.sessionOwners.length).toBeGreaterThan(0);
+    expect(t.sessionOwners.every((k) => k.startsWith('game:'))).toBe(true);
   });
 
   it('refuses a bad origin and a wrong method, and a token past its time', async () => {
@@ -253,8 +203,8 @@ describe('the game endpoint', () => {
     expect((await t.call({}, null, { method: 'GET' })).status).toBe(405);
     const a = solana(await t.nonce());
     const token = (JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string }).token;
-    expect(readGameSession('sb_secret_test', `Bearer ${token}`, NOW)).toMatchObject({ owner: `solana:${a.address}` });
-    expect(readGameSession('sb_secret_test', `Bearer ${token}`, NOW + 8 * 86_400_000)).toBeNull();
+    expect(readGameSession(SECRET, `Bearer ${token}`, NOW)).toMatchObject({ owner: `solana:${a.address}` });
+    expect(readGameSession(SECRET, `Bearer ${token}`, NOW + 8 * 86_400_000)).toBeNull();
     expect(readGameSession('other', `Bearer ${token}`, NOW)).toBeNull();
   });
 });
@@ -284,7 +234,7 @@ describe('cities', () => {
     const auth = await signedIn(t);
     const first = JSON.parse((await t.call({ op: 'select-city', city: 'lagos' }, auth)).body) as { selected: string; first: boolean; changed: boolean };
     expect(first).toMatchObject({ selected: 'lagos', first: true, changed: false });
-    t.playerCities[0]!.city_xp = 50; // progress earned in Lagos
+    t.raw.exec("update game_player_cities set city_xp = 50 where city_id = 'lagos'"); // progress earned in Lagos
     const second = JSON.parse((await t.call({ op: 'select-city', city: 'paris' }, auth)).body) as { selected: string; first: boolean; changed: boolean; cities: { id: string; progress: { cityXp: number } | null }[] };
     expect(second).toMatchObject({ selected: 'paris', first: true, changed: true });
     const back = JSON.parse((await t.call({ op: 'select-city', city: 'lagos' }, auth)).body) as { first: boolean; cities: { id: string; progress: { cityXp: number } | null }[] };
@@ -292,7 +242,7 @@ describe('cities', () => {
     expect(back.cities.find((c) => c.id === 'lagos')!.progress!.cityXp).toBe(50);
     expect(back.cities.find((c) => c.id === 'paris')!.progress).not.toBeNull();
     expect(t.playerCities).toHaveLength(2);
-    const kinds = t.activities.filter((x) => x.activity_type.startsWith('city_')).map((x) => x.activity_type);
+    const kinds = t.activities.filter((x) => String(x.activity_type).startsWith('city_')).map((x) => x.activity_type);
     expect(kinds).toEqual(['city_selected', 'city_changed', 'city_changed']);
   });
 
@@ -301,7 +251,7 @@ describe('cities', () => {
     const auth = await signedIn(t);
     expect((await t.call({ op: 'select-city', city: 'atlantis' }, auth)).status).toBe(400);
     expect((await t.call({ op: 'select-city', city: 42 }, auth)).status).toBe(400);
-    t.cityStatus.set('miami', 'inactive');
+    t.raw.exec("update game_cities set status = 'inactive' where id = 'miami'");
     expect((await t.call({ op: 'select-city', city: 'miami' }, auth)).status).toBe(409);
     expect(t.playerCities).toHaveLength(0);
     expect(JSON.parse((await t.call({ op: 'me' }, auth)).body).profile.selectedCity).toBeNull();
@@ -353,7 +303,7 @@ describe('travel and flights', () => {
     await go({ op: 'select-city', city: 'lagos' });
     expect((await go({ op: 'fly', to: 'lagos' })).status).toBe(400);
     expect((await go({ op: 'fly', to: 'atlantis' })).status).toBe(400);
-    t.cityStatus.set('paris', 'inactive');
+    t.raw.exec("update game_cities set status = 'inactive' where id = 'paris'");
     expect((await go({ op: 'fly', to: 'paris' })).status).toBe(409);
     const up = JSON.parse((await go({ op: 'fly', to: 'london' })).body) as State;
     expect(up.flight!.to).toBe('london');
@@ -405,7 +355,7 @@ describe('the admin gate', () => {
     const t = setup();
     const priv = ed25519.utils.randomPrivateKey();
     const boss = solana(await t.nonce(), 'game', priv);
-    const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test', ADMIN_WALLETS: `solana:${boss.address}` };
+    const env = { ...ENV, ADMIN_WALLETS: `solana:${boss.address}` };
     const adminToken = (JSON.parse((await t.call({ op: 'login', message: boss.message, signature: boss.signature }, null, { env })).body) as { token: string }).token;
     const other = solana(await t.nonce());
     const userToken = (JSON.parse((await t.call({ op: 'login', message: other.message, signature: other.signature }, null, { env })).body) as { token: string }).token;

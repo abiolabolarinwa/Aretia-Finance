@@ -12,18 +12,16 @@
  * token, a fee or a transaction. The wallet is how a player proves who they are; the permanent key is the internal player id.
  * Needs the same database and migrations 0014 and 0024.
  */
-import { supabaseBase } from '../src/swings/tokens/supabaseAuth.js';
-import { isOriginAllowed, overLimit } from './_rpcProxy.js';
+import { isOriginAllowed, overLimit, type ProxyEnv } from './_rpcProxy.js';
 import { LOGIN_WINDOW_MS } from '../src/swings/account/loginMessage.js';
 import { loginDomains, openToken, SESSION_MS, sessionSecret, sessionVersion, signToken, verifyLogin } from './_swingsAuth.js';
-import { rest, type Rest } from './_swingsAccount.js';
+import type { Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
-import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
 import { missionOp } from './_gameMissions.js';
 import { boardOp } from './_gameBoards.js';
 import { adminOp, playerAdminOp } from './_gameAdmin.js';
-import { adminOwners } from './_adminStats.js';
+import { adminOwners } from './_adminOwners.js';
 import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
@@ -33,8 +31,9 @@ export interface GameInput {
   authorization: string | null;
   ip: string;
   body: unknown;
-  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string; GAME_ANSWER_SECRET?: string; GAME_PRIZES_ENABLED?: string; ADMIN_WALLETS?: string };
-  fetchImpl: typeof fetch;
+  /** The game's database (Cloudflare D1, through `d1Rest`). */
+  db: Rest;
+  env: ProxyEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string; GAME_ANSWER_SECRET?: string; GAME_PRIZES_ENABLED?: string; ADMIN_WALLETS?: string };
   now: number;
 }
 export interface GameOutput {
@@ -264,14 +263,12 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
   if (input.method === 'OPTIONS') return { status: allowed ? 204 : 403, body: '', headers };
   if (input.method !== 'POST') return json(405, { error: 'method' }, { ...headers, allow: 'POST, OPTIONS' });
   if (!allowed) return json(403, { error: 'origin' }, headers);
-  const url = supabaseBase(input.env.SUPABASE_URL);
-  const key = input.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !key) return json(503, { error: 'not-configured', message: 'The game is not set up on this server yet.' }, headers);
+  const secret = sessionSecret(input.env);
+  if (!secret) return json(503, { error: 'not-configured', message: 'The game is not set up on this server yet.' }, headers);
   if (overLimit(`game:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
-  const secret = sessionSecret(input.env) ?? key;
   const body = obj(input.body);
   const op = body.op;
-  const db = rest(url, key, input.fetchImpl);
+  const db = input.db;
 
   if (op === 'nonce') {
     if (overBudget(`gamenonce:${input.ip}`, input.now, NONCES_PER_MINUTE)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });

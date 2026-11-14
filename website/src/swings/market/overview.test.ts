@@ -9,20 +9,39 @@ const row = (o: Partial<MarketRow> & { h24?: number | null; v?: number }): Marke
 } as MarketRow);
 
 describe('market mood', () => {
-  it('is the share of traded value that sat on rising tokens, and says what it is worked out from', () => {
-    const rows = [...Array(8).fill(0).map(() => row({ h24: 5, v: 1_000 })), ...Array(4).fill(0).map(() => row({ h24: -5, v: 1_000 }))];
-    expect(marketMood(rows)).toEqual({ score: 67, label: 'Strong', basis: 12 });
+  const many = (n: number, o: Partial<MarketRow> & { h24?: number | null; v?: number }) => Array(n).fill(0).map(() => row(o));
+
+  it('is half breadth and half strength: eight up and four down by 5% is a mildly positive market, not a perfect one', () => {
+    const m = marketMood([...many(8, { h24: 5, v: 1_000 }), ...many(4, { h24: -5, v: 1_000 })])!;
+    // breadth 8 of 12 = 66.7; strength 50 + (8*5 - 4*5)/12 = 51.7; average 59.2.
+    expect(m).toEqual({ score: 59, label: 'Mixed', basis: 12 });
   });
 
-  it('weights by traded value, so many thin pools cannot outvote one big one', () => {
-    const rows = [...Array(10).fill(0).map(() => row({ h24: 50, v: 10 })), row({ h24: -2, v: 100_000 })];
-    expect(marketMood(rows)!.score).toBeLessThan(5);
+  it('cannot read 100 unless every token is up and the average is up 50%: a day where everything rose 5% is about 75', () => {
+    expect(marketMood(many(20, { h24: 5, v: 1_000 }))!.score).toBe(78);
+    expect(marketMood(many(20, { h24: 50, v: 1_000 }))!.score).toBe(100);
+    expect(marketMood(many(20, { h24: -50, v: 1_000 }))!.score).toBe(0);
+  });
+
+  it('caps one token that went up a thousandfold, so it cannot lift a falling market', () => {
+    const rows = [...many(15, { h24: -4, v: 1_000 }), row({ h24: 142_896, v: 1_000 })];
+    expect(marketMood(rows)!.score).toBeLessThan(40);
+  });
+
+  it('does not count a pegged coin as a riser or a faller', () => {
+    const rows = [...many(10, { h24: 0.02, v: 1_000 }), ...many(10, { h24: -0.03, v: 1_000 })];
+    expect(marketMood(rows)!.score).toBe(50);
+  });
+
+  it('weights by the square root of traded value, so many thin pools cannot outvote one big one', () => {
+    const rows = [...many(10, { h24: 50, v: 10 }), row({ h24: -2, v: 100_000 })];
+    expect(marketMood(rows)!.score).toBeLessThan(40);
   });
 
   it('shows nothing from too few tokens, or from tokens without a change or a volume', () => {
     expect(marketMood([row({ h24: 5 })])).toBeNull();
-    expect(marketMood(Array(20).fill(0).map(() => row({ h24: null })))).toBeNull();
-    expect(marketMood(Array(20).fill(0).map(() => row({ h24: 5, v: 0 })))).toBeNull();
+    expect(marketMood(many(20, { h24: null }))).toBeNull();
+    expect(marketMood(many(20, { h24: 5, v: 0 }))).toBeNull();
   });
 
   it('has five bands', () => {
@@ -32,8 +51,8 @@ describe('market mood', () => {
 
 describe('breadth', () => {
   it('counts rising, falling and flat, and finds the median change', () => {
-    const b = breadth([row({ h24: 10 }), row({ h24: -4 }), row({ h24: 0 }), row({ h24: 30 }), row({ h24: null })]);
-    expect(b).toEqual({ rising: 2, falling: 1, flat: 1, median: 5 });
+    const b = breadth([row({ h24: 10 }), row({ h24: -4 }), row({ h24: 0.2 }), row({ h24: 30 }), row({ h24: null })]);
+    expect(b).toEqual({ rising: 2, falling: 1, flat: 1, median: 5.1 });
     expect(breadth([]).median).toBeNull();
   });
 });

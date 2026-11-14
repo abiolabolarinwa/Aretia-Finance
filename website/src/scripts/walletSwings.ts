@@ -23,6 +23,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
 import { overviewBand } from './walletMarketOverview.js';
+import { fetchOverviewSample, overviewSampleNow } from '../swings/market/overviewSample.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -2063,6 +2064,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     /** The bar above the lists: 24-hour volume and transactions, and the latest block, read from Aretia's own index. */
     let statsData: MarketStatsDto | null = null;
+    /** When the overview cards' sample was last asked for, so a failing read is not repeated at every redraw. */
+    let sampleTriedAt = 0;
     let statsHost: HTMLElement | null = null;
     let statsTimer: ReturnType<typeof setInterval> | undefined;
     function renderStats(): void {
@@ -2268,16 +2271,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
       // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
       if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
-        // The three cards are worked out from the busiest tokens the walk has read (not the list's own rows: Gainers holds only risers, which would make the
-        // mood read 100 whatever the market did). With too few of those read yet, the list's own rows are used.
+        // The three cards are worked out from the index's busiest pools by 24-hour value (not the list's own rows: Gainers holds only risers, which would make
+        // the mood read 100 whatever the market did), and those pools also name their exchange. Read once, kept two minutes; the band redraws when they arrive.
         const live = (r: MarketRow): boolean => !isDeadMarket(r) && clearsMinLiquidity(r.liquidityUsd, f.liquidity);
-        const busiest = mergeIndexRows(deepSnapshot(m.chain), indexRows).filter(live);
-        const seenPools = new Set<string>();
-        const union = [...shownRows, ...busiest].filter((r) => {
-          const k = tableRowKey(r);
-          return !seenPools.has(k) && (seenPools.add(k), true);
-        });
-        const band = overviewBand(union, { onOpen: userPick, ...(busiest.length >= 30 ? { sample: busiest } : {}) });
+        const sample = overviewSampleNow(m.chain).filter(live);
+        const sampleChain = m.chain;
+        if (sample.length === 0 && Date.now() - sampleTriedAt > 30_000) {
+          sampleTriedAt = Date.now();
+          void fetchOverviewSample(sampleChain, Date.now()).then((got) => {
+            if (got.length > 0 && target.isConnected && !page && m.chain === sampleChain && m.kind !== 'favourites') draw();
+          });
+        }
+        const band = overviewBand(shownRows, { onOpen: userPick, sample });
         if (band) card.insertBefore(band, bar);
       }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {

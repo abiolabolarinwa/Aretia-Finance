@@ -1,14 +1,14 @@
 /**
  * The numbers behind the overview band at the top of the Markets list (market mood, rising against falling, busiest venues, and the three
- * short lists: top gainers, newly listed, trending). All of it is worked out from the rows the list already holds, so it costs no request,
- * and every figure says what it was worked out from. Pure.
+ * short lists: top gainers, newly listed, trending). The cards are worked out from a sample of the busiest pools (overviewSample.ts) and the three
+ * short lists from the list's own rows; every figure says what it was worked out from. Pure.
  */
 import type { MarketRow } from './types.js';
 
 const vol = (r: MarketRow): number => r.volumeUsd?.h24 ?? r.volume24hUsd ?? 0;
 
 export interface Mood {
-  /** 0 to 100: the share of traded value (24 hours) that sat on tokens whose price rose. */
+  /** 0 to 100, 50 being an even market (see `marketMood`). */
   score: number;
   label: string;
   /** How many tokens it was worked out from. */
@@ -17,6 +17,10 @@ export interface Mood {
 
 /** Fewer tokens than this make a "mood" too thin to show. */
 export const MOOD_MIN_ROWS = 10;
+/** A 24-hour move smaller than this counts as no move: it is a pegged coin, or noise. */
+export const MOOD_FLAT_PCT = 1;
+/** Each token's move counts at most this much either way, so one token that went up a thousandfold cannot decide the day. */
+export const MOOD_CAP_PCT = 50;
 
 export function moodLabel(score: number): string {
   if (score < 20) return 'Very weak';
@@ -26,21 +30,35 @@ export function moodLabel(score: number): string {
   return 'Very strong';
 }
 
-/** The market mood: how much of the day's traded value was on rising tokens. Null when too few tokens have both a 24-hour change and a volume. */
+/**
+ * The market mood, from 0 to 100, in two equal halves, each weighted by the square root of the token's 24-hour traded value (so a big pool counts
+ * more than a thin one without one pool deciding everything):
+ *  - breadth: the weighted share of tokens that rose (against fell) by at least 1%, so a stablecoin's 0.02% is neither;
+ *  - strength: 50 plus the weighted average move, each move capped at ±50%.
+ * 100 therefore needs every token up and the average up 50%: it cannot come from a handful of lucky tokens. Null when too few tokens have both a
+ * 24-hour change and a traded value.
+ */
 export function marketMood(rows: readonly MarketRow[]): Mood | null {
-  let up = 0;
-  let down = 0;
+  let wUp = 0;
+  let wDown = 0;
+  let wAll = 0;
+  let wMove = 0;
   let basis = 0;
   for (const r of rows) {
     const c = r.change.h24;
     const v = vol(r);
-    if (c === null || !(v > 0)) continue;
+    if (c === null || !Number.isFinite(c) || !(v > 0)) continue;
     basis++;
-    if (c > 0) up += v;
-    else if (c < 0) down += v;
+    const w = Math.sqrt(v);
+    wAll += w;
+    wMove += w * Math.max(-MOOD_CAP_PCT, Math.min(MOOD_CAP_PCT, c));
+    if (c >= MOOD_FLAT_PCT) wUp += w;
+    else if (c <= -MOOD_FLAT_PCT) wDown += w;
   }
-  if (basis < MOOD_MIN_ROWS || up + down <= 0) return null;
-  const score = Math.round((100 * up) / (up + down));
+  if (basis < MOOD_MIN_ROWS || wAll <= 0) return null;
+  const breadthScore = wUp + wDown > 0 ? (100 * wUp) / (wUp + wDown) : 50;
+  const strengthScore = Math.max(0, Math.min(100, 50 + wMove / wAll));
+  const score = Math.round((breadthScore + strengthScore) / 2);
   return { score, label: moodLabel(score), basis };
 }
 
@@ -61,8 +79,8 @@ export function breadth(rows: readonly MarketRow[]): Breadth {
     const c = r.change.h24;
     if (c === null || !Number.isFinite(c)) continue;
     changes.push(c);
-    if (c > 0) rising++;
-    else if (c < 0) falling++;
+    if (c >= MOOD_FLAT_PCT) rising++;
+    else if (c <= -MOOD_FLAT_PCT) falling++;
     else flat++;
   }
   changes.sort((a, b) => a - b);

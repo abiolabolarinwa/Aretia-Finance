@@ -146,7 +146,8 @@ export function overviewBand(rows: readonly MarketRow[], o: { onOpen(r: MarketRo
   if (rows.length < 3) return null;
   const band = h('div', 'wapp-ov');
   const cards = h('div', 'wapp-ov__cards');
-  const basis = o.sample && o.sample.length >= 3 ? o.sample : rows;
+  // The cards use their own sample when one is given (even an empty one, which shows their "not enough yet" text), never the list's rows.
+  const basis = o.sample ?? rows;
   cards.append(moodCard(basis), breadthCard(basis), venueCard(basis));
   const lists = h('div', 'wapp-ov__lists');
   lists.append(

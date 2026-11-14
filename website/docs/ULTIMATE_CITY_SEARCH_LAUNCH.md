@@ -12,8 +12,10 @@ or Vercel. The function is more specific than the site's catch-all `/api` forwar
    ```
    npx wrangler d1 create aretia-game
    npx wrangler d1 execute aretia-game --remote --file=d1/0001_game.sql
+   npx wrangler d1 execute aretia-game --remote --file=d1/0002_city_photos.sql
    ```
-   The schema file is safe to run again. It seeds the nine cities and the eight coin classes.
+   Both files are safe to run again. The first seeds the nine cities and the eight coin classes; the second sets a credited, freely
+   licensed Wikimedia Commons photograph on each city card.
 2. **Bind it to the Pages project** (Cloudflare dashboard, Workers & Pages, the site, Settings, Bindings and Variables):
    - D1 database binding, variable name `GAME_DB`, database `aretia-game`
    - Compatibility flag `nodejs_compat` (Settings, Compatibility flags), for production and preview

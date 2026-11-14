@@ -83,6 +83,15 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   };
   const me: Marker = new maplibre.Marker({ element: dot('#c9a227') }).setLngLat(state.position ?? city.center).addTo(map);
   const target: Marker = new maplibre.Marker({ element: dot('#4f46e5') });
+  const prize: Marker = new maplibre.Marker({ element: dot('#16a34a') });
+  const showZone = (e: Event): void => {
+    const z = (e as CustomEvent<{ lng: number; lat: number; radiusM: number }>).detail;
+    prize.setLngLat([z.lng, z.lat]).addTo(map);
+    map.flyTo({ center: [z.lng, z.lat], zoom: 16 });
+    note = 'The green marker is where your treasure is. Travel there, then press Collect in your treasures list.';
+    renderStatus();
+  };
+  host.addEventListener('game-zone-show', showZone);
 
   const clock = (): number => Date.now() + offset;
   const moving = (): boolean => Boolean((state.travel && state.travel.arrivesAt > clock()) || (state.flight && state.flight.arrivesAt > clock()));
@@ -203,6 +212,7 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   return {
     destroy() {
       destroyed = true;
+      host.removeEventListener('game-zone-show', showZone);
       cancelAnimationFrame(raf);
       map.remove();
     },

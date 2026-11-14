@@ -128,6 +128,11 @@ export class GameClient {
     return this.post<ExploreState>({ op: 'fly', to }, session.token);
   }
 
+  /** Any other game call under the session (missions, hints, answers, treasures). The server decides every outcome. */
+  call<T>(session: GameSession, payload: Record<string, unknown>): Promise<T> {
+    return this.post<T>(payload, session.token);
+  }
+
   async signOut(session: GameSession, everywhere = false): Promise<void> {
     await this.post({ op: everywhere ? 'sign-out-all' : 'logout' }, session.token).catch(() => undefined);
     this.forget();

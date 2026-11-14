@@ -5,6 +5,7 @@
 import { GameClient, type CityList, type GameSession } from './client.js';
 import { CITIES, cityById, type City, type Transport } from './cities.js';
 import type { ExploreState } from './explore.js';
+import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
 
@@ -48,6 +49,11 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   // The exploration view keeps its own element so the map survives the page being redrawn around it.
   const exploreHost = document.createElement('div');
   let exploring: { city: string; destroy(): void } | null = null;
+  const missionHost = document.createElement('div');
+  let missionsFor: string | null = null;
+  missionHost.addEventListener('game-zone', (e) => {
+    exploreHost.dispatchEvent(new CustomEvent('game-zone-show', { detail: (e as CustomEvent).detail }));
+  });
   exploreHost.addEventListener('game-city-changed', () => {
     const s = session;
     if (!s) return;
@@ -57,8 +63,39 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     }).catch(() => undefined);
   });
 
+  function syncMissions(want: string | null): void {
+    if (missionsFor === want) return;
+    missionsFor = want;
+    missionHost.replaceChildren();
+    const s = session;
+    const city = want ? cityById(want) : undefined;
+    if (!s || !city) return;
+    const call = <T,>(payload: Record<string, unknown>): Promise<T> => client.call<T>(s, payload);
+    void import('./missions.js').then((m) => {
+      if (missionsFor !== city.id) return;
+      m.mountMissions(missionHost, city, {
+        missions: (c) => call<{ missions: MissionSummary[] }>({ op: 'missions', city: c }),
+        start: (id) => call<ClueView>({ op: 'mission-start', mission: id }),
+        clue: (id) => call<ClueView>({ op: 'clue', mission: id }),
+        hint: (id) => call<ClueView>({ op: 'hint', mission: id }),
+        answer: (id, answer) => call<AnswerResult>({ op: 'answer', mission: id, answer }),
+        abandon: (id) => call<unknown>({ op: 'mission-abandon', mission: id }),
+        treasures: () => call<{ treasures: MyTreasure[] }>({ op: 'treasures' }),
+        collect: (id) => call<{ discovered: boolean; xp: number; treasure: TreasureCard & { verification: string } }>({ op: 'collect', treasure: id }),
+      }, () => {
+        void client.me(s).then((profile) => {
+          if (session === s) session = { ...s, profile };
+          draw();
+        }).catch(() => undefined);
+      });
+    }).catch(() => {
+      missionHost.textContent = 'Missions could not be loaded. Try again.';
+    });
+  }
+
   function syncExplore(): void {
     const want = session && list?.selected ? list.selected : null;
+    syncMissions(want);
     if (exploring && exploring.city === want) return;
     exploring?.destroy();
     exploring = null;
@@ -103,6 +140,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     exploring?.destroy();
     exploring = null;
     exploreHost.replaceChildren();
+    missionsFor = null;
+    missionHost.replaceChildren();
     draw();
   }
 
@@ -158,7 +197,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
     grid.append(...CITIES.map(cityCard));
     out.push(grid);
-    return session && list?.selected ? [head, exploreHost, grid] : out;
+    return session && list?.selected ? [head, exploreHost, missionHost, grid] : out;
   }
 
   function draw(): void {

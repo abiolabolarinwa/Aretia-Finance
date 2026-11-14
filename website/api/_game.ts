@@ -20,6 +20,7 @@ import { rest, type Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
 import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
+import { missionOp } from './_gameMissions.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
 export interface GameInput {
@@ -28,7 +29,7 @@ export interface GameInput {
   authorization: string | null;
   ip: string;
   body: unknown;
-  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string };
+  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string; GAME_ANSWER_SECRET?: string };
   fetchImpl: typeof fetch;
   now: number;
 }
@@ -315,6 +316,18 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
     if (claims.version < (await sessionVersion(db, versionKey(claims.owner)))) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
     if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm }, headers);
     if (op === 'cities' || op === 'select-city' || op === 'state' || op === 'travel' || op === 'fly') await settleFlight(db, claims, network, addressNorm, input.now);
+    const mission = await missionOp(op, {
+      db,
+      playerId: claims.playerId,
+      network,
+      addressNorm,
+      body,
+      now: input.now,
+      secret: input.env.GAME_ANSWER_SECRET?.trim() || secret,
+      selected: async () => (await flightRow(db, claims.playerId)).selected_city,
+      position: (cityId) => exploreState(db, claims.playerId, cityId, input.now),
+    });
+    if (mission) return json(mission.status, mission.data, headers);
     if (op === 'cities') return json(200, await listCities(db, claims.playerId), headers);
     if (op === 'state') return json(200, await fullState(db, claims.playerId, input.now), headers);
     if (op === 'travel' || op === 'fly') {

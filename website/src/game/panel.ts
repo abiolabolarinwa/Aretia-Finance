@@ -5,6 +5,7 @@
 import { GameClient, type CityList, type GameSession } from './client.js';
 import { CITIES, cityById, type City, type Transport } from './cities.js';
 import type { ExploreState } from './explore.js';
+import type { HistoryPage, ProgressView } from './progress.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
@@ -49,6 +50,28 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   // The exploration view keeps its own element so the map survives the page being redrawn around it.
   const exploreHost = document.createElement('div');
   let exploring: { city: string; destroy(): void } | null = null;
+  const progressHost = document.createElement('div');
+  let progressFor: GameSession | null = null;
+  let progressView: { refresh(): void } | null = null;
+
+  function syncProgress(): void {
+    const s = session;
+    if (progressFor === s) return;
+    progressFor = s;
+    progressView = null;
+    progressHost.replaceChildren();
+    if (!s) return;
+    void import('./progress.js').then((m) => {
+      if (progressFor !== s) return;
+      progressView = m.mountProgress(progressHost, {
+        progress: () => client.call<ProgressView>(s, { op: 'progress' }),
+        history: (before) => client.call<HistoryPage>(s, { op: 'history', ...(before === undefined ? {} : { before }) }),
+        setName: (name) => client.call<{ displayName: string }>(s, { op: 'set-profile', name }),
+      });
+    }).catch(() => {
+      progressHost.textContent = 'Your profile could not be loaded. Try again.';
+    });
+  }
   const missionHost = document.createElement('div');
   let missionsFor: string | null = null;
   missionHost.addEventListener('game-zone', (e) => {
@@ -83,6 +106,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
         treasures: () => call<{ treasures: MyTreasure[] }>({ op: 'treasures' }),
         collect: (id) => call<{ discovered: boolean; xp: number; treasure: TreasureCard & { verification: string } }>({ op: 'collect', treasure: id }),
       }, () => {
+        progressView?.refresh();
         void client.me(s).then((profile) => {
           if (session === s) session = { ...s, profile };
           draw();
@@ -95,6 +119,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
 
   function syncExplore(): void {
     const want = session && list?.selected ? list.selected : null;
+    syncProgress();
     syncMissions(want);
     if (exploring && exploring.city === want) return;
     exploring?.destroy();
@@ -142,6 +167,9 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     exploreHost.replaceChildren();
     missionsFor = null;
     missionHost.replaceChildren();
+    progressFor = null;
+    progressView = null;
+    progressHost.replaceChildren();
     draw();
   }
 
@@ -197,7 +225,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
     grid.append(...CITIES.map(cityCard));
     out.push(grid);
-    return session && list?.selected ? [head, exploreHost, missionHost, grid] : out;
+    return session && list?.selected ? [head, exploreHost, missionHost, progressHost, grid] : session ? [...out, progressHost] : out;
   }
 
   function draw(): void {

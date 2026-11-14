@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { answerHash, missionOp, type MissionCtx } from './_gameMissions.js';
 import { canPlace, DIAMOND_HEADLINE_TOTAL_USD, missionXp, normalizeAnswer, pickClass, TREASURE_CLASSES, treasureXp } from '../src/game/rarity.js';
 import { CITIES } from '../src/game/cities.js';
+import { ACHIEVEMENTS, levelFor, newlyEarned, xpToNext } from '../src/game/achievements.js';
+import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
 
 type Row = Record<string, unknown>;
 const NOW = 1_800_000_000_000;
@@ -11,7 +13,7 @@ const P2 = '00000000-0000-4000-8000-000000000002';
 const T1 = '11111111-1111-4111-8111-111111111111';
 const C1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 const C2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
-const UNIQUE: Record<string, string[]> = { game_player_missions: ['player_id', 'mission_id'], game_player_treasures: ['player_id', 'treasure_id'] };
+const UNIQUE: Record<string, string[]> = { game_player_missions: ['player_id', 'mission_id'], game_player_treasures: ['player_id', 'treasure_id'], game_player_achievements: ['player_id', 'achievement_id'] };
 
 /** A small in-memory stand-in for the database, understanding the filters the mission code uses (eq, gt, in). */
 function world() {
@@ -40,6 +42,7 @@ function world() {
       const val = rest.join('.');
       if (op === 'eq' && String(row[k]) !== val) return false;
       if (op === 'gt' && !(Number(row[k]) > Number(val))) return false;
+      if (op === 'lt' && !(Number(row[k]) < Number(val))) return false;
       if (op === 'in' && !val.slice(1, -1).split(',').includes(String(row[k]))) return false;
     }
     return true;
@@ -59,15 +62,22 @@ function world() {
     if (method === 'POST') {
       const keys = UNIQUE[table!];
       if (keys && rows.some((r) => keys.every((k) => r[k] === body[k]))) return new Response('', { status: prefer.includes('ignore-duplicates') ? 201 : 409 });
-      rows.push({ stage: 1, hints_used: 0, hints_total: 0, status: 'active', discovery_status: 'unlocked', verification_status: 'none', claim_status: 'none', ...body });
-      return new Response('', { status: 201 });
+      const row = { stage: 1, hints_used: 0, hints_total: 0, status: 'active', discovery_status: 'unlocked', verification_status: 'none', claim_status: 'none', ...body };
+      rows.push(row);
+      return new Response(prefer.includes('representation') ? JSON.stringify([row]) : '', { status: 201 });
     }
     const hit = rows.filter((r) => match(r, params));
     if (method === 'PATCH') {
       for (const r of hit) Object.assign(r, body);
       return new Response(prefer.includes('representation') ? JSON.stringify(hit) : '');
     }
-    return new Response(JSON.stringify(hit));
+    const order = params.get('order');
+    if (order) {
+      const [col, dir] = order.split('.');
+      hit.sort((a, b) => (Number(a[col!]) - Number(b[col!])) * (dir === 'desc' ? -1 : 1));
+    }
+    const limit = Number(params.get('limit') ?? 0);
+    return new Response(JSON.stringify(limit > 0 ? hit.slice(0, limit) : hit));
   }) as unknown as typeof fetch;
   const db = { async call(path: string, init: RequestInit = {}) {
     const res = await fetchImpl(`https://x/rest/v1/${path}`, init);
@@ -258,5 +268,79 @@ describe('the operator tool', () => {
       expect(tool.hashAnswer(SECRET, C1, a)).toBe(answerHash(SECRET, C1, a));
       expect(tool.normalize(a)).toBe(normalizeAnswer(a));
     }
+  });
+});
+
+describe('progression', () => {
+  const pctx = (w: ReturnType<typeof world>, player = P1) => ({ db: w.ctx(player, {}).db, playerId: player, network: 'solana', addressNorm: 'addr', now: NOW });
+
+  it('works out levels from XP with the same rule as the database, and what is needed for the next', () => {
+    expect([0, 99, 100, 399, 400, 10_000].map(levelFor)).toEqual([1, 1, 2, 2, 3, 11]);
+    expect(xpToNext(0)).toBe(100);
+    expect(xpToNext(100)).toBe(300);
+    expect(xpToNext(399)).toBe(1);
+  });
+
+  it('earns achievements from counts, never twice, and has a unique id for each', () => {
+    expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
+    const base = { citiesVisited: 0, missionsCompleted: 0, discoveries: 0, flightsLanded: 0, hintFreeCompletions: 0, explorerLevel: 1 };
+    expect(newlyEarned(base, new Set())).toEqual([]);
+    expect(newlyEarned({ ...base, citiesVisited: 3 }, new Set()).map((a) => a.id)).toEqual(['first-steps', 'globetrotter']);
+    expect(newlyEarned({ ...base, citiesVisited: 3 }, new Set(['first-steps'])).map((a) => a.id)).toEqual(['globetrotter']);
+    expect(newlyEarned({ ...base, citiesVisited: 9 }, new Set()).map((a) => a.id)).toContain('world-explorer');
+  });
+
+  it('unlocks what is earned once, pays its XP once, and records it', async () => {
+    const w = world();
+    w.t.game_player_cities = [{ player_id: P1, city_id: 'paris' }];
+    w.t.game_player_profiles = [{ player_id: P1, display_name: '', avatar: null, explorer_level: 1, total_xp: 0, total_discoveries: 0, missions_completed: 1 }];
+    w.t.game_player_missions = [{ player_id: P1, mission_id: 'x', status: 'completed', hints_total: 0 }];
+    const first = await evaluateAchievements(pctx(w));
+    expect(first.map((u) => u.id).sort()).toEqual(['first-mission', 'first-steps', 'sharp-mind']);
+    expect(w.t.xp!.map((x) => x.p_xp)).toEqual(expect.arrayContaining([25, 50, 50]));
+    expect(w.t.xp).toHaveLength(3);
+    expect(await evaluateAchievements(pctx(w))).toEqual([]);
+    expect(w.t.xp).toHaveLength(3);
+    expect(w.t.game_player_achievements).toHaveLength(3);
+    expect(w.t.game_player_activities!.filter((a) => a.activity_type === 'achievement_unlocked')).toHaveLength(3);
+    expect(await evaluateAchievements(pctx(w, P2))).toEqual([]);
+  });
+
+  it('reports progress with every achievement, earned or not, and no wallet details', async () => {
+    const w = world();
+    w.t.game_player_cities = [{ player_id: P1, city_id: 'paris', city_xp: 40, discoveries: 1, completed_missions: 1, first_visit_at: 1, last_visit_at: 2 }];
+    w.t.game_player_profiles = [{ player_id: P1, display_name: 'Ada', avatar: null, explorer_level: 1, total_xp: 250, total_discoveries: 1, missions_completed: 1 }];
+    const p = (await progress(pctx(w))) as { level: Record<string, number>; achievements: { id: string; unlockedAt: number | null }[]; cities: { id: string; visited: boolean; cityXp: number }[]; profile: { displayName: string } };
+    expect(p.level).toEqual({ current: 2, xp: 250, toNext: 150 });
+    expect(p.achievements).toHaveLength(ACHIEVEMENTS.length);
+    expect(p.achievements.every((a) => a.unlockedAt === null)).toBe(true);
+    expect(p.cities).toHaveLength(9);
+    expect(p.cities.find((c) => c.id === 'paris')).toMatchObject({ visited: true, cityXp: 40 });
+    expect(p.cities.find((c) => c.id === 'lagos')).toMatchObject({ visited: false, cityXp: 0 });
+    expect(p.profile.displayName).toBe('Ada');
+    expect(JSON.stringify(p)).not.toMatch(/addr|network/);
+  });
+
+  it('pages through a player history, newest first, only their own, keeping to known details', async () => {
+    const w = world();
+    for (let i = 1; i <= 55; i++) w.t.game_player_activities!.push({ id: String(i), player_id: P1, activity_type: 'login', city_id: null, metadata: { mission: 'm', secret: 'hidden' }, created_at: i });
+    w.t.game_player_activities!.push({ id: 'other', player_id: P2, activity_type: 'login', city_id: null, metadata: {}, created_at: 99 });
+    const one = (await history(pctx(w), undefined)) as { items: { id: string; at: number; details: Record<string, unknown> }[]; next: number | null };
+    expect(one.items).toHaveLength(50);
+    expect(one.items[0]!.at).toBe(55);
+    expect(one.items[0]!.details).toEqual({ mission: 'm' });
+    expect(one.next).toBe(6);
+    const two = (await history(pctx(w), one.next)) as { items: { at: number }[]; next: number | null };
+    expect(two.items.map((i) => i.at)).toEqual([5, 4, 3, 2, 1]);
+    expect(two.next).toBeNull();
+  });
+
+  it('accepts a sensible display name and refuses markup, symbols and the wrong length', async () => {
+    const w = world();
+    w.t.game_player_profiles = [{ player_id: P1, display_name: '' }];
+    expect(await setDisplayName(pctx(w), '  Ada   Lovelace ')).toEqual({ ok: true, displayName: 'Ada Lovelace' });
+    expect(w.t.game_player_profiles![0]!.display_name).toBe('Ada Lovelace');
+    for (const bad of ['', 'A', '<b>x</b>', 'x'.repeat(25), '-start', 42, null]) expect((await setDisplayName(pctx(w), bad)).ok).toBe(false);
+    expect((await setDisplayName(pctx(w), 'Zoë_9'))).toMatchObject({ ok: true });
   });
 });

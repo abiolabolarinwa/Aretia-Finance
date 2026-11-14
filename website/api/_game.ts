@@ -21,6 +21,7 @@ import { overBudget } from './_limits.js';
 import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
 import { missionOp } from './_gameMissions.js';
+import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
 export interface GameInput {
@@ -327,7 +328,21 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
       selected: async () => (await flightRow(db, claims.playerId)).selected_city,
       position: (cityId) => exploreState(db, claims.playerId, cityId, input.now),
     });
-    if (mission) return json(mission.status, mission.data, headers);
+    const pctx = { db, playerId: claims.playerId, network, addressNorm, now: input.now };
+    if (mission) {
+      // A completed mission or a collected treasure can earn an achievement; tell the page in the same answer.
+      const unlocked = mission.status === 200 && (op === 'answer' || op === 'collect') ? await evaluateAchievements(pctx) : [];
+      return json(mission.status, unlocked.length > 0 ? { ...mission.data, achievements: unlocked } : mission.data, headers);
+    }
+    if (op === 'progress') {
+      const achievements = await evaluateAchievements(pctx);
+      return json(200, { ...(await progress(pctx)), newlyUnlocked: achievements }, headers);
+    }
+    if (op === 'history') return json(200, await history(pctx, body.before), headers);
+    if (op === 'set-profile') {
+      const r = await setDisplayName(pctx, body.name);
+      return r.ok ? json(200, { displayName: r.displayName }, headers) : json(400, { error: 'profile', message: r.message }, headers);
+    }
     if (op === 'cities') return json(200, await listCities(db, claims.playerId), headers);
     if (op === 'state') return json(200, await fullState(db, claims.playerId, input.now), headers);
     if (op === 'travel' || op === 'fly') {
@@ -339,7 +354,7 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
       if ((await flightRow(db, claims.playerId)).flight_to) return json(409, { error: 'city', message: 'You are in the air. Wait for the flight to land.' }, headers);
       const r = await selectCity(db, claims, network, addressNorm, body.city, input.now);
       if (!r.ok) return json(r.status, { error: 'city', message: r.message }, headers);
-      return json(200, { ...(await listCities(db, claims.playerId)), first: r.first, changed: r.changed }, headers);
+      return json(200, { ...(await listCities(db, claims.playerId)), first: r.first, changed: r.changed, achievements: await evaluateAchievements({ db, playerId: claims.playerId, network, addressNorm, now: input.now }) }, headers);
     }
     if (op === 'logout') {
       await logActivity(db, claims.playerId, network, addressNorm, 'logout', input.now);

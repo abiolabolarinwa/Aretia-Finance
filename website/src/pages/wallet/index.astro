@@ -1735,7 +1735,8 @@ const sendTips = [
   /* The numbers that matter, in the top row beside the name and price; they wrap onto a second line on a narrow screen. */
   .wapp-tp__stats { margin-left: auto; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: flex-end; gap: 8px; min-width: 0; }
   .wapp-tp__stats .wapp-tp__stat { padding: 5px 12px; text-align: left; white-space: nowrap; }
-  .wapp-tp__stats .wapp-tp__meter { align-self: center; width: 72px; }
+  .wapp-tp__back { color: #b3261e; border-color: rgba(179, 38, 30, 0.35); }
+  .wapp-tp__back:hover { background: rgba(179, 38, 30, 0.08); border-color: #b3261e; }
   .wapp-tp__grid { --tp-panel: 390px; --tp-gap: 14px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-panel); gap: var(--tp-gap); align-items: start; }
   .wapp-tp__chart, .wapp-tp__side { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; padding: 12px; }
   .wapp-tp__side { position: sticky; top: 12px; min-width: 0; max-height: calc(100vh - 24px); overflow-y: auto; }
@@ -1751,9 +1752,6 @@ const sendTips = [
   .wapp-tp__v { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--color-strong); overflow-wrap: anywhere; }
   .wapp-tp__stat.is-up .wapp-tp__v { color: #1b8a4b; }
   .wapp-tp__stat.is-down .wapp-tp__v { color: #b3261e; }
-  .wapp-tp__trio .wapp-tp__meter { grid-column: 1 / -1; }
-  .wapp-tp__meter { height: 6px; overflow: hidden; background: #d9534f; border-radius: 3px; }
-  .wapp-tp__meter-buy { display: block; height: 100%; background: #1b8a4b; }
   .wapp-tp__links { display: flex; flex-wrap: wrap; gap: 6px; }
   .wapp-tp__risk { margin: 0; padding: 10px 12px; font-size: 12px; color: var(--color-strong); background: var(--color-brand-soft); border-radius: 10px; }
   .wapp-tp__actions { display: grid; gap: 8px; }

@@ -3,7 +3,7 @@
  * Loaded only when the page is opened. Built with textContent, never innerHTML.
  */
 import { GameClient, type CityList, type GameSession } from './client.js';
-import { CITIES, cityById, type City, type Transport } from './cities.js';
+import { allCities, cityById, type City, type Transport } from './cities.js';
 import type { ExploreState } from './explore.js';
 import type { HistoryPage, ProgressView } from './progress.js';
 import type { BoardView, TeamBoardView, TeamView } from './boards.js';
@@ -46,6 +46,8 @@ const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.sl
 
 export function initGame(root: HTMLElement): { onShow(): void } {
   const client = new GameClient(browserStorage());
+  // Anyone can see the cities; the list comes from the server so a newly added city appears without a release.
+  void client.catalogue().then(() => draw()).catch(() => undefined);
   let session: GameSession | null = client.saved();
   let message = '';
   let busy = false;
@@ -275,13 +277,29 @@ export function initGame(root: HTMLElement): { onShow(): void } {
 
   function cityCard(c: City): HTMLElement {
     const state = list?.cities.find((x) => x.id === c.id);
-    const open = !state || state.status === 'active';
+    const open = c.status === 'active' && (!state || state.status === 'active');
     const chosen = list?.selected === c.id;
     const card = el('article', { class: 'wapp__card' });
     card.style.borderTop = `4px solid ${c.tint[1]}`;
     card.style.background = `linear-gradient(135deg, ${c.tint[0]}33, transparent 60%)`;
     if (chosen) card.style.outline = `2px solid ${c.tint[1]}`;
-    card.append(el('h3', { class: 'wapp__h2', text: c.name }), el('span', { class: 'wapp__eyebrow', text: c.country }), el('p', { text: c.blurb }));
+    if (c.imageUrl) {
+      const fig = document.createElement('figure');
+      fig.style.cssText = 'margin:0 0 8px';
+      const img = document.createElement('img');
+      img.src = c.imageUrl;
+      img.alt = c.name;
+      img.loading = 'lazy';
+      img.referrerPolicy = 'no-referrer';
+      img.style.cssText = 'width:100%;height:140px;object-fit:cover;border-radius:8px;display:block';
+      const cap = document.createElement('figcaption');
+      cap.className = 'wapp__fine';
+      cap.textContent = c.imageCredit ?? '';
+      fig.append(img, cap);
+      card.append(fig);
+    }
+    card.append(el('h3', { class: 'wapp__h2', text: c.name }), el('span', { class: 'wapp__eyebrow', text: c.status === 'coming_soon' ? c.country + ' · coming soon' : c.country }), el('p', { text: c.blurb }));
+    if (c.landmarks.length > 0) card.append(el('p', { class: 'wapp__fine', text: 'Landmarks: ' + c.landmarks.slice(0, 4).map((m) => m.name).join(', ') + '.' }));
     card.append(el('p', { class: 'wapp__fine', text: `Getting around: ${c.transport.map((t) => TRANSPORT_LABEL[t]).join(', ')}.` }));
     const p = state?.progress;
     card.append(el('p', { class: 'wapp__fine', text: p ? `Your progress: ${p.cityXp} XP, ${p.discoveries} discoveries, ${p.completedMissions} missions. Last visited ${new Date(p.lastVisitAt).toLocaleDateString()}.` : session ? 'Not visited yet.' : 'Sign in to start exploring.' }));
@@ -302,7 +320,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     out.push(head);
     const grid = el('div');
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
-    grid.append(...CITIES.map(cityCard));
+    grid.append(...allCities().filter((c) => c.status !== 'inactive').map(cityCard));
     out.push(grid);
     return session && list?.selected ? [head, announceHost, exploreHost, missionHost, progressHost, boardsHost, grid, adminHost] : session ? [...out, announceHost, progressHost, boardsHost, adminHost] : out;
   }

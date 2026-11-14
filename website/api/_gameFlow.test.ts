@@ -216,3 +216,72 @@ describe('a whole game on SQLite', () => {
     expect((await w.call(b, { op: 'team' })).data.team.owner).toBe(true); // ownership passed on
   });
 });
+
+describe('cities in the database', () => {
+  beforeEach(() => resetRateLimit());
+  const accra = { id: 'accra', name: 'Accra', country: 'Ghana', bounds: [-0.4, 5.45, 0.1, 5.75], center: [-0.187, 5.603], blurb: 'A coastal capital.', transport: ['walk', 'run', 'taxi', 'car', 'bus', 'flight'], tint: ['#112233', '#ccaa22'], landmarks: [{ name: 'Independence Arch', lng: -0.1969, lat: 5.5486 }], scene: 'beach-bay' };
+
+  it('shows the nine to a visitor with no sign-in, without anything about treasures', async () => {
+    const w = world();
+    const r = await w.call(null, { op: 'catalogue' });
+    expect(r.status).toBe(200);
+    expect(r.data.cities).toHaveLength(9);
+    expect(r.data.cities[0]).toMatchObject({ id: 'lagos', name: 'Lagos', status: 'active', scene: 'lagoon' });
+    expect(r.data.cities[0].landmarks.length).toBeGreaterThan(0);
+    expect(JSON.stringify(r.data)).not.toMatch(/treasure|answer|hash/i);
+  });
+
+  it('lets an administrator add a city that then works like the others: opening it, flying to it, a mission and a coin in it', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const player = await w.signInSolana();
+    expect((await w.call(player, { op: 'admin-city-save', ...accra })).status).toBe(404); // players cannot
+    for (const bad of [{ id: 'Bad Id' }, { bounds: [0, 0, 9, 9] }, { center: [9, 9] }, { transport: ['walk'] }, { landmarks: [{ name: 'Far', lng: 40, lat: 40 }] }, { imageUrl: 'https://x.example/a.jpg' }]) {
+      expect((await w.call(boss, { op: 'admin-city-save', ...accra, ...bad })).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect((await w.call(boss, { op: 'admin-city-save', ...accra })).status).toBe(200);
+
+    // It starts hidden from players ("coming soon") and cannot be entered.
+    const seen = (await w.call(player, { op: 'catalogue' })).data.cities.find((c: J) => c.id === 'accra');
+    expect(seen).toMatchObject({ status: 'coming_soon', name: 'Accra' });
+    expect((await w.call(player, { op: 'select-city', city: 'accra' })).status).toBe(409);
+
+    // Opening it makes it playable at once.
+    expect((await w.call(boss, { op: 'admin-city-save', ...accra, status: 'active', imageUrl: 'https://upload.wikimedia.org/a.jpg', imageCredit: 'J. Doe, CC BY-SA 4.0' })).status).toBe(200);
+    const open = (await w.call(player, { op: 'catalogue' })).data.cities.find((c: J) => c.id === 'accra');
+    expect(open).toMatchObject({ status: 'active', imageUrl: 'https://upload.wikimedia.org/a.jpg', imageCredit: 'J. Doe, CC BY-SA 4.0' });
+    expect((await w.call(player, { op: 'select-city', city: 'accra' })).data).toMatchObject({ selected: 'accra', first: true });
+    const walk = await w.call(player, { op: 'travel', city: 'accra', mode: 'walk', to: [-0.19, 5.6] });
+    expect(walk.status).toBe(200);
+    expect((await w.call(player, { op: 'travel', city: 'accra', mode: 'taxi', to: [-0.2, 5.6] })).status).toBe(409); // already walking
+    w.wait(60_000);
+    expect((await w.call(player, { op: 'travel', city: 'accra', mode: 'metro', to: [-0.2, 5.6] })).status).toBe(400); // no metro there
+    expect((await w.call(player, { op: 'travel', city: 'accra', mode: 'walk', to: [3, 6] })).status).toBe(400); // outside Accra
+
+    // It can be flown to from the others, and holds missions and treasures like any city.
+    const out = await w.call(player, { op: 'fly', to: 'lagos' });
+    expect(out.status).toBe(200);
+    w.wait(120_000);
+    expect((await w.call(player, { op: 'state' })).data.selected).toBe('lagos');
+    expect((await w.call(player, { op: 'fly', to: 'accra' })).status).toBe(200);
+    expect((await w.call(boss, { op: 'admin-treasure-place', city: 'accra', class: 'lutetium', lng: -0.187, lat: 5.603, radiusM: 60, confirmSafe: true })).status).toBe(200);
+    expect((await w.call(boss, { op: 'admin-treasure-place', city: 'accra', class: 'lutetium', lng: 9, lat: 9, radiusM: 60, confirmSafe: true })).status).toBe(400); // outside Accra
+    expect((await w.call(boss, { op: 'admin-mission-save', id: 'accra-first', city: 'accra', title: 'First', difficulty: 'beginner' })).status).toBe(200);
+    expect((await w.call(player, { op: 'progress' })).data.cities.map((c: J) => c.id)).toContain('accra');
+
+    // Hiding it removes it from visitors but not from the console, and the audit log shows who did what.
+    expect((await w.call(boss, { op: 'admin-city-set', id: 'accra', status: 'inactive' })).status).toBe(200);
+    expect((await w.call(player, { op: 'catalogue' })).data.cities.map((c: J) => c.id)).not.toContain('accra');
+    expect((await w.call(boss, { op: 'admin-city-list' })).data.cities.map((c: J) => c.id)).toContain('accra');
+    const audit = (await w.call(boss, { op: 'admin-audit' })).data.entries.map((e: J) => e.action);
+    expect(audit).toEqual(expect.arrayContaining(['city_create', 'city_save', 'city_set']));
+  });
+
+  it('keeps an existing city open when its description is edited without a status', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    expect((await w.call(boss, { op: 'admin-city-save', id: 'paris', name: 'Paris', country: 'France', bounds: [2.22, 48.8, 2.47, 48.92], center: [2.3522, 48.8566], blurb: 'New text', transport: ['walk', 'metro', 'flight'], tint: ['#232a52', '#d6c58a'], landmarks: [], scene: 'boulevards' })).status).toBe(200);
+    const paris = (await w.call(boss, { op: 'catalogue' })).data.cities.find((c: J) => c.id === 'paris');
+    expect(paris).toMatchObject({ status: 'active', blurb: 'New text', transport: ['walk', 'metro', 'flight'] });
+  });
+});

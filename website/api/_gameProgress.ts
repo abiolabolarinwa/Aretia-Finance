@@ -3,7 +3,7 @@
  * achievements from counts the server holds, and serves the player's progress, statistics and history. Nothing here trusts the page.
  */
 import { ACHIEVEMENTS, levelFor, newlyEarned, xpToNext, type Snapshot } from '../src/game/achievements.js';
-import { CITIES } from '../src/game/cities.js';
+import { allCities } from '../src/game/cities.js';
 import type { Rest } from './_swingsAccount.js';
 
 export interface ProgressCtx {
@@ -77,7 +77,7 @@ export async function progress(c: ProgressCtx): Promise<Record<string, unknown>>
       return { cityId, class: cls, unlockedAt: Number(r.unlocked_at) };
     }),
     achievements: ACHIEVEMENTS.map((a) => ({ id: a.id, title: a.title, description: a.description, xp: a.xp, unlockedAt: unlocked.get(a.id) ?? null })),
-    cities: CITIES.map((city) => {
+    cities: allCities().map((city) => {
       const r = byCity.get(city.id);
       return { id: city.id, visited: Boolean(r), cityXp: Number(r?.city_xp ?? 0), discoveries: r?.discoveries ?? 0, completedMissions: r?.completed_missions ?? 0, lastVisitAt: r ? Number(r.last_visit_at) : null };
     }),

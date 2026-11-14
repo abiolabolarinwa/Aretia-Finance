@@ -2,16 +2,16 @@
  * The administrator's console, shown only to a signed-in wallet the server reports as an administrator. The server checks again on
  * every call, so showing or hiding this page protects nothing by itself. Built with textContent, never innerHTML.
  */
-import { CITIES, cityById } from './cities.js';
+import { allCities, cityById, SCENES } from './cities.js';
 import { placementProblem } from './exclusions.js';
 import { DIFFICULTIES, TREASURE_CLASSES } from './rarity.js';
 import type { Map as MlMap, Marker } from 'maplibre-gl';
 
 export type Call = <T = Record<string, unknown>>(payload: Record<string, unknown>) => Promise<T>;
 type Row = Record<string, unknown>;
-type Tab = 'overview' | 'missions' | 'treasures' | 'claims' | 'reports' | 'announce' | 'audit';
+type Tab = 'overview' | 'cities' | 'missions' | 'treasures' | 'claims' | 'reports' | 'announce' | 'audit';
 
-const TABS: [Tab, string][] = [['overview', 'Overview'], ['missions', 'Missions'], ['treasures', 'Treasures'], ['claims', 'Claims'], ['reports', 'Reports'], ['announce', 'Announcements'], ['audit', 'Audit log']];
+const TABS: [Tab, string][] = [['overview', 'Overview'], ['cities', 'Cities'], ['missions', 'Missions'], ['treasures', 'Treasures'], ['claims', 'Claims'], ['reports', 'Reports'], ['announce', 'Announcements'], ['audit', 'Audit log']];
 const CLUE_TYPES = ['riddle', 'historical', 'geographical', 'architectural', 'numerical', 'cryptographic', 'visual', 'pattern', 'observation', 'trail', 'mystery'];
 const KINDS = ['long', 'daily', 'weekly', 'event'];
 
@@ -66,7 +66,7 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
   let message = '';
   let map: MlMap | null = null;
   const markers: Marker[] = [];
-  const state: { city: string; mission: string; pick: [number, number] | null } = { city: 'paris', mission: '', pick: null };
+  const state: { city: string; mission: string; editCity: string; pick: [number, number] | null } = { city: 'paris', mission: '', editCity: '', pick: null };
 
   const body = el('div');
   const card = el('div', 'wapp__card');
@@ -102,6 +102,7 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
     if (n) pane.append(n);
     try {
       if (tab === 'overview') await overview(pane);
+      else if (tab === 'cities') await cities(pane);
       else if (tab === 'missions') await missions(pane);
       else if (tab === 'treasures') await treasures(pane);
       else if (tab === 'claims') await claims(pane);
@@ -139,8 +140,56 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
     pane.append(c, pc, sc);
   }
 
+  async function cities(pane: HTMLElement): Promise<void> {
+    const list = await call<{ cities: Row[] }>({ op: 'admin-city-list' });
+    const c = el('div', 'wapp__card');
+    c.append(el('h3', 'wapp__h2', 'Cities'), el('p', 'wapp__fine', 'A new city starts as "coming soon" and is invisible to players until you open it. It has no automatic placement exclusions (airports and the like), so check each treasure place yourself.'));
+    for (const x of list.cities) c.append(el('p', 'wapp__fine', String(x.name) + ', ' + String(x.country) + ' · ' + String(x.status) + ' · scene ' + String(x.scene) + ' · ' + (x.landmarks as unknown[]).length + ' landmarks'), btn('Edit', 'wapp__btn wapp__btn--ghost', () => { state.editCity = String(x.id); void show(); }));
+    const cur = list.cities.find((x) => x.id === state.editCity) as (Row & { bounds: number[]; center: number[]; transport: string[]; tint: string[]; landmarks: { name: string; lng: number; lat: number }[] }) | undefined;
+    const f = {
+      id: text(String(cur?.id ?? ''), 'accra'),
+      name: text(String(cur?.name ?? '')),
+      country: text(String(cur?.country ?? '')),
+      west: text(String(cur?.bounds[0] ?? '')), south: text(String(cur?.bounds[1] ?? '')), east: text(String(cur?.bounds[2] ?? '')), north: text(String(cur?.bounds[3] ?? '')),
+      lng: text(String(cur?.center[0] ?? '')), lat: text(String(cur?.center[1] ?? '')),
+      blurb: area(2),
+      tint0: text(String(cur?.tint[0] ?? '#1b1f3a')), tint1: text(String(cur?.tint[1] ?? '#c9a227')),
+      scene: select(SCENES, String(cur?.scene ?? 'skyline')),
+      status: select(['coming_soon', 'active', 'inactive'], String(cur?.status ?? 'coming_soon')),
+      image: text(String(cur?.imageUrl ?? ''), 'https address of a photograph you may use'),
+      credit: text(String(cur?.imageCredit ?? ''), 'Who made it, and the licence'),
+      landmarks: area(4),
+      order: text(String(cur?.sortOrder ?? '100')),
+    };
+    f.blurb.value = String(cur?.blurb ?? '');
+    f.landmarks.value = (cur?.landmarks ?? []).map((m) => m.name + ' | ' + m.lng + ' | ' + m.lat).join('\n');
+    const ways = ['walk', 'run', 'taxi', 'car', 'bus', 'train', 'metro', 'ferry', 'flight'];
+    const boxes = ways.map((w) => {
+      const b = el('input');
+      b.type = 'checkbox';
+      b.checked = cur ? cur.transport.includes(w) : ['walk', 'run', 'taxi', 'car', 'bus', 'flight'].includes(w);
+      const l = el('label', 'wapp__fine');
+      l.append(b, ' ' + w + ' ');
+      return { w, b, l };
+    });
+    const form = el('div', 'wapp__card');
+    form.append(el('h3', 'wapp__h2', cur ? 'Edit ' + String(cur.name) : 'New city'), grid(field('Id (lower-case letters and dashes)', f.id), field('Name', f.name), field('Country', f.country), field('West', f.west), field('South', f.south), field('East', f.east), field('North', f.north), field('Start longitude', f.lng), field('Start latitude', f.lat), field('Colour 1', f.tint0), field('Colour 2', f.tint1), field('3D scene', f.scene), field('Status', f.status), field('List order', f.order)), field('Description', f.blurb));
+    const wrap = el('div');
+    wrap.append(...boxes.map((x) => x.l));
+    form.append(el('span', 'wapp__fine', 'Ways of getting around (walking and flights are required)'), wrap, field('Landmarks, one per line: name | longitude | latitude', f.landmarks), grid(field('Photograph', f.image), field('Photograph credit and licence', f.credit)));
+    const save = (): void => void act(() => call({
+      op: 'admin-city-save', id: f.id.value.trim(), name: f.name.value, country: f.country.value,
+      bounds: [Number(f.west.value), Number(f.south.value), Number(f.east.value), Number(f.north.value)], center: [Number(f.lng.value), Number(f.lat.value)],
+      blurb: f.blurb.value, transport: boxes.filter((x) => x.b.checked).map((x) => x.w), tint: [f.tint0.value.trim(), f.tint1.value.trim()], scene: f.scene.value, status: f.status.value,
+      imageUrl: f.image.value.trim() || null, imageCredit: f.credit.value.trim() || null, sortOrder: Number(f.order.value),
+      landmarks: f.landmarks.value.split('\n').map((l) => l.split('|').map((p) => p.trim())).filter((p) => p[0]).map((p) => ({ name: p[0], lng: Number(p[1]), lat: Number(p[2]) })),
+    }), 'City saved.');
+    form.append(btn('Save city', 'wapp__btn wapp__btn--primary', save), btn('New city', 'wapp__btn wapp__btn--ghost', () => { state.editCity = ''; void show(); }));
+    pane.append(c, form);
+  }
+
   async function missions(pane: HTMLElement): Promise<void> {
-    const city = select(CITIES.map((c) => c.id), state.city);
+    const city = select(allCities().map((c) => c.id), state.city);
     city.addEventListener('change', () => { state.city = city.value; state.mission = ''; void show(); });
     const list = await call<{ missions: Row[] }>({ op: 'admin-mission-list', city: state.city });
     const c = el('div', 'wapp__card');
@@ -185,7 +234,7 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
   }
 
   async function treasures(pane: HTMLElement): Promise<void> {
-    const city = select(CITIES.map((c) => c.id), state.city);
+    const city = select(allCities().map((c) => c.id), state.city);
     city.addEventListener('change', () => { state.city = city.value; state.pick = null; void show(); });
     const list = await call<{ treasures: Row[] }>({ op: 'admin-treasure-list', city: state.city });
     const c = el('div', 'wapp__card');

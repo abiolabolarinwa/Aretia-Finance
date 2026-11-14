@@ -17,7 +17,8 @@ import { LOGIN_WINDOW_MS } from '../src/swings/account/loginMessage.js';
 import { loginDomains, openToken, SESSION_MS, sessionSecret, sessionVersion, signToken, verifyLogin } from './_swingsAuth.js';
 import type { Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
-import { CITIES, cityById } from '../src/game/cities.js';
+import { allCities, cityById } from '../src/game/cities.js';
+import { loadCatalogue, publicCity } from './_gameCatalogue.js';
 import { missionOp } from './_gameMissions.js';
 import { boardOp } from './_gameBoards.js';
 import { adminOp, playerAdminOp } from './_gameAdmin.js';
@@ -122,18 +123,16 @@ const cityProgress = (r: PlayerCityRow): Record<string, unknown> => ({ firstVisi
 
 /** Every city with its status and this player's progress in it (null when never visited), and the city last chosen. */
 async function listCities(db: Rest, playerId: string): Promise<Record<string, unknown>> {
-  const [cities, mine, profile] = await Promise.all([
-    db.call('game_cities?select=id,status') as Promise<CityRow[] | null>,
+  const [mine, profile] = await Promise.all([
     db.call(`game_player_cities?player_id=eq.${playerId}&select=city_id,first_visit_at,last_visit_at,city_xp,discoveries,completed_missions,exploration_status`) as Promise<PlayerCityRow[] | null>,
     profileOf(db, playerId),
   ]);
-  const status = new Map((cities ?? []).map((c) => [c.id, c.status]));
   const progress = new Map((mine ?? []).map((r) => [r.city_id, r]));
   return {
     selected: profile.selectedCity,
-    cities: CITIES.map((c) => {
+    cities: allCities().filter((c) => c.status !== 'inactive').map((c) => {
       const p = progress.get(c.id);
-      return { id: c.id, status: status.get(c.id) ?? 'inactive', progress: p ? cityProgress(p) : null };
+      return { ...publicCity(c), progress: p ? cityProgress(p) : null };
     }),
   };
 }
@@ -269,6 +268,13 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
   const body = obj(input.body);
   const op = body.op;
   const db = input.db;
+  try {
+    await loadCatalogue(db, input.now);
+  } catch {
+    return json(502, { error: 'database', message: 'The game could not be reached.' }, headers);
+  }
+  // The list of cities is public: a visitor can see the cards before signing in.
+  if (op === 'catalogue') return json(200, { cities: allCities().filter((c) => c.status !== 'inactive').map(publicCity) }, { ...headers, 'cache-control': 'public, max-age=30' });
 
   if (op === 'nonce') {
     if (overBudget(`gamenonce:${input.ip}`, input.now, NONCES_PER_MINUTE)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });

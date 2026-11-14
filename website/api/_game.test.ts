@@ -54,6 +54,8 @@ function setup() {
   const wallets: { player_id: string; network: string; address_norm: string }[] = [];
   const profiles = new Map<string, Record<string, unknown>>();
   const activities: { player_id: string; activity_type: string; network: string; wallet_address: string }[] = [];
+  const cityStatus = new Map<string, string>(['lagos','new-york','nairobi','hong-kong','london','dubai','paris','miami','nicosia'].map((c) => [c, 'active']));
+  const playerCities: Record<string, unknown>[] = [];
   let seq = 0;
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
@@ -76,6 +78,26 @@ function setup() {
       }
       const v = versions.get(decodeURIComponent(params.get('owner')!.slice(3)));
       return new Response(JSON.stringify(v === undefined ? [] : [{ version: v }]));
+    }
+    if (url.includes('/rest/v1/game_cities')) {
+      if (params.has('id')) {
+        const id = params.get('id')!.slice(3);
+        return new Response(JSON.stringify(cityStatus.has(id) ? [{ id, status: cityStatus.get(id) }] : []));
+      }
+      return new Response(JSON.stringify([...cityStatus].map(([id, status]) => ({ id, status }))));
+    }
+    if (url.includes('/rest/v1/game_player_cities')) {
+      const pid = params.get('player_id')?.slice(3);
+      const cid = params.get('city_id')?.slice(3);
+      if (method === 'POST') {
+        if (!playerCities.some((r) => r.player_id === body.player_id && r.city_id === body.city_id)) playerCities.push({ city_xp: 0, discoveries: 0, completed_missions: 0, exploration_status: 'exploring', ...body });
+        return new Response('', { status: 201 });
+      }
+      if (method === 'PATCH') {
+        Object.assign(playerCities.find((r) => r.player_id === pid && r.city_id === cid)!, body);
+        return new Response('');
+      }
+      return new Response(JSON.stringify(playerCities.filter((r) => r.player_id === pid && (!cid || r.city_id === cid))));
     }
     if (url.includes('/rest/v1/game_player_wallets')) {
       if (method === 'POST') {
@@ -101,7 +123,10 @@ function setup() {
         profiles.set(String(body.player_id), { display_name: '', avatar: null, explorer_level: 1, total_xp: 0, total_discoveries: 0, missions_completed: 0 });
         return new Response('', { status: 201 });
       }
-      if (method === 'PATCH') return new Response('');
+      if (method === 'PATCH') {
+        Object.assign(profiles.get(params.get('player_id')!.slice(3))!, body);
+        return new Response('');
+      }
       const id = params.get('player_id')!.slice(3);
       return new Response(JSON.stringify(profiles.has(id) ? [profiles.get(id)] : []));
     }
@@ -115,7 +140,7 @@ function setup() {
   const call = (body: unknown, auth: string | null = null, over: Partial<GameInput> = {}) => handleGame({ ...base, authorization: auth, body, ...over });
   const nonce = async (): Promise<string> => (JSON.parse((await call({ op: 'nonce' })).body) as { nonce: string }).nonce;
   const walletCall = (body: unknown) => handleAccount({ ...base, body });
-  return { call, nonce, walletCall, players, wallets, activities, versions, nonces };
+  return { call, nonce, walletCall, cityStatus, playerCities, players, wallets, activities, versions, nonces };
 }
 
 describe('the game sign-in message', () => {
@@ -228,6 +253,55 @@ describe('the game endpoint', () => {
     expect(readGameSession('sb_secret_test', `Bearer ${token}`, NOW)).toMatchObject({ owner: `solana:${a.address}` });
     expect(readGameSession('sb_secret_test', `Bearer ${token}`, NOW + 8 * 86_400_000)).toBeNull();
     expect(readGameSession('other', `Bearer ${token}`, NOW)).toBeNull();
+  });
+});
+
+describe('cities', () => {
+  beforeEach(() => {
+    resetRateLimit();
+    resetAccountState();
+  });
+  const signedIn = async (t: ReturnType<typeof setup>) => {
+    const a = solana(await t.nonce());
+    const res = JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string };
+    return `Bearer ${res.token}`;
+  };
+
+  it('lists all nine cities with no progress for a new player, and needs a session', async () => {
+    const t = setup();
+    expect((await t.call({ op: 'cities' })).status).toBe(401);
+    const r = JSON.parse((await t.call({ op: 'cities' }, await signedIn(t))).body) as { selected: string | null; cities: { id: string; status: string; progress: unknown }[] };
+    expect(r.selected).toBeNull();
+    expect(r.cities).toHaveLength(9);
+    expect(r.cities.every((c) => c.status === 'active' && c.progress === null)).toBe(true);
+  });
+
+  it("keeps each city's progress when the player switches, and records first visit, change and return", async () => {
+    const t = setup();
+    const auth = await signedIn(t);
+    const first = JSON.parse((await t.call({ op: 'select-city', city: 'lagos' }, auth)).body) as { selected: string; first: boolean; changed: boolean };
+    expect(first).toMatchObject({ selected: 'lagos', first: true, changed: false });
+    t.playerCities[0]!.city_xp = 50; // progress earned in Lagos
+    const second = JSON.parse((await t.call({ op: 'select-city', city: 'paris' }, auth)).body) as { selected: string; first: boolean; changed: boolean; cities: { id: string; progress: { cityXp: number } | null }[] };
+    expect(second).toMatchObject({ selected: 'paris', first: true, changed: true });
+    const back = JSON.parse((await t.call({ op: 'select-city', city: 'lagos' }, auth)).body) as { first: boolean; cities: { id: string; progress: { cityXp: number } | null }[] };
+    expect(back.first).toBe(false);
+    expect(back.cities.find((c) => c.id === 'lagos')!.progress!.cityXp).toBe(50);
+    expect(back.cities.find((c) => c.id === 'paris')!.progress).not.toBeNull();
+    expect(t.playerCities).toHaveLength(2);
+    const kinds = t.activities.filter((x) => x.activity_type.startsWith('city_')).map((x) => x.activity_type);
+    expect(kinds).toEqual(['city_selected', 'city_changed', 'city_changed']);
+  });
+
+  it('refuses an unknown city and a city that is not open, and does not change the selection', async () => {
+    const t = setup();
+    const auth = await signedIn(t);
+    expect((await t.call({ op: 'select-city', city: 'atlantis' }, auth)).status).toBe(400);
+    expect((await t.call({ op: 'select-city', city: 42 }, auth)).status).toBe(400);
+    t.cityStatus.set('miami', 'inactive');
+    expect((await t.call({ op: 'select-city', city: 'miami' }, auth)).status).toBe(409);
+    expect(t.playerCities).toHaveLength(0);
+    expect(JSON.parse((await t.call({ op: 'me' }, auth)).body).profile.selectedCity).toBeNull();
   });
 });
 

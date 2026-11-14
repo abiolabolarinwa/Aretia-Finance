@@ -14,6 +14,25 @@ export interface GameProfile {
   totalXp: number;
   totalDiscoveries: number;
   missionsCompleted: number;
+  selectedCity: string | null;
+}
+
+export interface CityProgress {
+  firstVisitAt: number;
+  lastVisitAt: number;
+  cityXp: number;
+  discoveries: number;
+  completedMissions: number;
+  explorationStatus: string;
+}
+export interface CityState {
+  id: string;
+  status: string;
+  progress: CityProgress | null;
+}
+export interface CityList {
+  selected: string | null;
+  cities: CityState[];
 }
 export interface GameSession {
   token: string;
@@ -25,7 +44,7 @@ export interface GameSession {
 interface Store {
   getItem(k: string): string | null;
   setItem(k: string, v: string): void;
-  removeItem(k: string): void;
+  removeItem?(k: string): void;
 }
 
 const KEY = 'aretia-game-session-v1';
@@ -52,7 +71,8 @@ export class GameClient {
 
   forget(): void {
     try {
-      this.storage?.removeItem(KEY);
+      if (this.storage?.removeItem) this.storage.removeItem(KEY);
+      else this.storage?.setItem(KEY, '');
     } catch {
       // nothing saved to remove
     }
@@ -84,6 +104,14 @@ export class GameClient {
 
   async me(session: GameSession): Promise<GameProfile> {
     return (await this.post<{ profile: GameProfile }>({ op: 'me' }, session.token)).profile;
+  }
+
+  cities(session: GameSession): Promise<CityList> {
+    return this.post<CityList>({ op: 'cities' }, session.token);
+  }
+
+  selectCity(session: GameSession, city: string): Promise<CityList & { first: boolean; changed: boolean }> {
+    return this.post({ op: 'select-city', city }, session.token);
   }
 
   async signOut(session: GameSession, everywhere = false): Promise<void> {

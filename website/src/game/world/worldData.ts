@@ -43,6 +43,8 @@ export interface Building {
   /** Height in metres, and the height of its underside for a part raised on legs. */
   h: number;
   minH: number;
+  /** The wall colour the map records for this building, when it has one, as #rrggbb. */
+  colour?: string;
 }
 export interface Road {
   pts: Pt[];
@@ -85,6 +87,17 @@ function ringArea(r: Pt[]): number {
 }
 
 /** A steady pseudo-random number for a place, so the same building is always the same height. */
+const NAMED_COLOURS: Record<string, string> = { white: '#f2f0ea', grey: '#a8a8a8', gray: '#a8a8a8', red: '#b5483c', brown: '#8a6a4f', beige: '#d9c9a8', cream: '#ece1c4', yellow: '#dcc46a', orange: '#d98a4a', pink: '#d9a3a0', green: '#8aa17c', blue: '#7f9bb8', black: '#4a4a4a', tan: '#c8b48e', sand: '#d6c49a' };
+
+/** A building's wall colour from the map's colour tag ("#d2b48c", "beige"), or undefined when it is missing or unreadable. */
+export function wallColour(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(v)) return v;
+  if (/^#[0-9a-f]{3}$/.test(v)) return `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`;
+  return NAMED_COLOURS[v];
+}
+
 function hash01(x: number, z: number): number {
   const n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
   return n - Math.floor(n);
@@ -124,7 +137,8 @@ export function buildTileWorld(layers: VLayer[], z: number, tx: number, ty: numb
           const local = polygon(rings);
           if (ringArea(local[0]!) < MIN_BUILDING_M2) continue;
           const { h, minH } = buildingHeight(f, local[0]![0]!);
-          world.buildings.push({ rings: local, h, minH });
+          const colour = wallColour(f.props.colour);
+          world.buildings.push(colour ? { rings: local, h, minH, colour } : { rings: local, h, minH });
         }
       } else if (layer.name === 'transportation' && f.kind === 'line') {
         const cls = String(f.props.class ?? '');

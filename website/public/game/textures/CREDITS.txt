@@ -1,0 +1,7 @@
+Surface textures used by the Ultimate City Search roaming view (1024 px, unmodified).
+All are CC0 (public domain) from Poly Haven, https://polyhaven.com/license. Credit is not required; it is given here anyway.
+
+asphalt.jpg   - "Asphalt 01"          by Dario Barresi (processing) and Charlotte Baglioni (photography)
+pavement.jpg  - "Concrete Pavement"   Poly Haven
+plaster.jpg   - "Plastered Wall"      Poly Haven
+concrete.jpg  - "Concrete Wall 003"   Poly Haven

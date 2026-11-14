@@ -20,6 +20,8 @@ import { Colliders, TileColliders, nearestOnSegment } from './colliders.js';
 import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roamBuild.js';
 import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
 import { makeHuman, type Human, type Look } from './human.js';
+import { applyDetail, loadDetail } from './detail.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HAZE, makeAtmosphere, SUN_COLOUR, SUN_DIRECTION } from './atmosphere.js';
 import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
 import { pickNext, startAgent, stepAgent, type Agent, type Seg } from './agents.js';
@@ -166,8 +168,14 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       }
     });
   };
+  // Real photographed surfaces (free CC0 textures) add the fine grain; the map still decides the colours and where things are.
+  const textureBase = String(import.meta.env.BASE_URL ?? '/').replace(/\/?$/, '/');
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 7000));
+  const [asphaltTex, pavementTex, plasterTex, concreteTex] = await Promise.all(['asphalt', 'pavement', 'plaster', 'concrete'].map((n) => Promise.race([loadDetail(three, `${textureBase}game/textures/${n}.jpg`, renderer), timeout])));
   // The plain ground under everything the map paints: dusty pavement colour, as most of a city is.
-  const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), new three.MeshLambertMaterial({ color: '#a29f94' }));
+  const groundMaterial = new three.MeshLambertMaterial({ color: '#a29f94' });
+  if (pavementTex) applyDetail(three, groundMaterial, { detail: pavementTex, mode: 'world', scale: 1 / 3, strength: 0.8, near: 40, far: 170 });
+  const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), groundMaterial);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
@@ -201,12 +209,24 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   windowTexture.anisotropy = 4;
   const wallMaterial = new three.MeshLambertMaterial({ vertexColors: true, map: windowTexture });
   const roofMaterial = new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide });
+  if (plasterTex) applyDetail(three, wallMaterial, { detail: plasterTex, mode: 'uv', scale: 0.5, strength: 0.75, near: 70, far: 320 });
+  if (concreteTex) applyDetail(three, roofMaterial, { detail: concreteTex, mode: 'world', scale: 1 / 3, strength: 0.8, near: 60, far: 260 });
 
   // Trees and street lamps are drawn many at a time from one shape each.
   const trunkGeo = new three.CylinderGeometry(0.14, 0.2, 2.4, 7);
   trunkGeo.translate(0, 1.2, 0);
-  const crownGeo = new three.IcosahedronGeometry(1.7, 1);
-  crownGeo.translate(0, 3.9, 0);
+  // A crown made of several overlapping blobs, so a tree has a ragged outline instead of one round ball.
+  const blob = (r: number, x: number, y: number, z: number): T.BufferGeometry => {
+    const g = new three.IcosahedronGeometry(r, 1);
+    const pos = g.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const k = 1 + (Math.sin(pos.getX(i) * 7.3 + pos.getY(i) * 5.1 + pos.getZ(i) * 3.7 + x * 11) * 0.5) * 0.18;
+      pos.setXYZ(i, pos.getX(i) * k + x, pos.getY(i) * k + y, pos.getZ(i) * k + z);
+    }
+    g.computeVertexNormals();
+    return g.toNonIndexed();
+  };
+  const crownGeo = mergeGeometries([blob(1.45, 0, 3.7, 0), blob(1.05, 1.0, 3.3, 0.3), blob(1.0, -0.9, 3.4, -0.5), blob(0.95, 0.2, 4.6, 0.6), blob(0.9, -0.3, 3.2, 1.0)])!;
   const poleGeo = new three.CylinderGeometry(0.06, 0.08, 7.2, 6);
   poleGeo.translate(0, 3.6, 0);
   const lampHeadGeo = new three.BoxGeometry(0.9, 0.12, 0.3);
@@ -439,7 +459,9 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       tex.anisotropy = 8;
       tex.generateMipmaps = true;
       tex.minFilter = three.LinearMipmapLinearFilter;
-      const plane = new three.Mesh(new three.PlaneGeometry(CELL_M, CELL_M), new three.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      const planeMaterial = new three.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      if (asphaltTex) applyDetail(three, planeMaterial, { detail: asphaltTex, mode: 'world', scale: 1 / 2.5, strength: 0.9, near: 35, far: 150 });
+      const plane = new three.Mesh(new three.PlaneGeometry(CELL_M, CELL_M), planeMaterial);
       plane.rotation.x = -Math.PI / 2;
       plane.position.set(sq.x0 + CELL_M / 2, 0.03, sq.z0 + CELL_M / 2);
       plane.renderOrder = 1;
@@ -1191,6 +1213,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     sun.position.set(gx + sunAt.x, sunAt.y, gz + sunAt.z);
     sun.target.position.set(gx, 0, gz);
     air.dome.position.copy(camera.position);
+    air.tick(now / 1000);
     manageNpcs(now, dt);
     started = true;
 

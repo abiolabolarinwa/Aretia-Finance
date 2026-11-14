@@ -149,11 +149,15 @@ export function buildingParts(three: Three, buildings: Building[], tint: string)
     const rings = ringsFor(b);
     if (rings[0]!.length < 3) continue;
     const seed = Math.abs(Math.sin(rings[0]![0]![0] * 12.9898 + rings[0]![0]![1] * 78.233) * 43758.5453) % 1;
-    const wall = new three.Color(palette[Math.floor(seed * palette.length)]!).lerp(base, 0.1 + seed * 0.1);
+    // The map's own colour when it has one (softened so a vivid tag does not glare), otherwise a varied neutral.
+    const wall = b.colour ? new three.Color(b.colour).lerp(new three.Color('#cfc9bc'), 0.25) : new three.Color(palette[Math.floor(seed * palette.length)]!).lerp(base, 0.1 + seed * 0.1);
     const roof: [number, number, number] = [wall.r * 0.62, wall.g * 0.6, wall.b * 0.58];
     const floors = Math.max(1, Math.round((b.h - b.minH) / STOREY_M));
     const v0 = b.minH / STOREY_M;
     const v1 = v0 + floors;
+    // A building of two storeys or more standing on the ground gets a darker, warmer ground floor, like shop fronts.
+    const shopFront = b.minH === 0 && floors >= 2;
+    const splitY = b.minH + STOREY_M;
     for (const ring of rings) {
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
         const a = ring[j]!;
@@ -162,8 +166,17 @@ export function buildingParts(three: Three, buildings: Building[], tint: string)
         if (len < 0.05) continue;
         const shade = 0.84 + 0.16 * Math.abs(Math.sin(Math.atan2(c[1] - a[1], c[0] - a[0])));
         const bays = Math.max(1, Math.round(len / BAY_M));
-        walls.quad([a[0], b.minH, a[1]], [c[0], b.minH, c[1]], [c[0], b.h, c[1]], [a[0], b.h, a[1]], [wall.r * shade, wall.g * shade, wall.b * shade]);
-        uv.push(0, v0, bays, v0, bays, v1, 0, v0, bays, v1, 0, v1);
+        const upper: [number, number, number] = [wall.r * shade, wall.g * shade, wall.b * shade];
+        if (shopFront) {
+          const lower: [number, number, number] = [wall.r * shade * 0.78, wall.g * shade * 0.72, wall.b * shade * 0.66];
+          walls.quad([a[0], b.minH, a[1]], [c[0], b.minH, c[1]], [c[0], splitY, c[1]], [a[0], splitY, a[1]], lower);
+          uv.push(0, v0, bays, v0, bays, v0 + 1, 0, v0, bays, v0 + 1, 0, v0 + 1);
+          walls.quad([a[0], splitY, a[1]], [c[0], splitY, c[1]], [c[0], b.h, c[1]], [a[0], b.h, a[1]], upper);
+          uv.push(0, v0 + 1, bays, v0 + 1, bays, v1, 0, v0 + 1, bays, v1, 0, v1);
+        } else {
+          walls.quad([a[0], b.minH, a[1]], [c[0], b.minH, c[1]], [c[0], b.h, c[1]], [a[0], b.h, a[1]], upper);
+          uv.push(0, v0, bays, v0, bays, v1, 0, v0, bays, v1, 0, v1);
+        }
       }
     }
     fill(three, roofs, rings, b.h, roof);

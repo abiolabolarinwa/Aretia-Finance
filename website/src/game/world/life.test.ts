@@ -3,8 +3,49 @@ import * as three from 'three';
 import { pickNext, startAgent, stepAgent, type Seg } from './agents.js';
 import { makeCar } from './vehicles.js';
 import { HAZE, SUN_DIRECTION, skyMaterial } from './atmosphere.js';
+import { applyDetail, detailShader } from './detail.js';
+import { wallColour } from './worldData.js';
 
 const seg = (ax: number, az: number, bx: number, bz: number, width = 8, cls = 'secondary'): Seg => ({ a: [ax, az], b: [bx, bz], width, cls });
+
+describe('photographed detail and wall colours', () => {
+  it('reads colour tags in hex, short hex and plain names, and ignores anything else', () => {
+    expect(wallColour('#D2B48C')).toBe('#d2b48c');
+    expect(wallColour('#abc')).toBe('#aabbcc');
+    expect(wallColour('Beige')).toBe('#d9c9a8');
+    expect(wallColour('rgb(1,2,3)')).toBeUndefined();
+    expect(wallColour('javascript:alert(1)')).toBeUndefined();
+    expect(wallColour(5)).toBeUndefined();
+    expect(wallColour(undefined)).toBeUndefined();
+  });
+
+  it('adds the detail picture to the right places in a surface shader, in the ground and wall modes', () => {
+    const ground = detailShader('world');
+    expect(ground.fragmentBody).toContain('vDetailWorld.xz * detailParams.x');
+    expect(ground.fragmentBody).toContain('cameraPosition'); // fades with distance from the camera
+    expect(ground.vertexBody).toContain('modelMatrix');
+    const wall = detailShader('uv');
+    expect(wall.fragmentBody).toContain('vMapUv * detailParams.x');
+    // It multiplies the colour, centred on the picture's own average so overall brightness is unchanged.
+    expect(wall.fragmentBody).toContain('/ detailMean');
+    expect(wall.fragmentBody).toContain('diffuseColor.rgb *=');
+  });
+
+  it('hooks the detail into a material and shares one program per mode', () => {
+    const tex = { texture: new three.Texture(), mean: [0.3, 0.3, 0.3] as [number, number, number] };
+    const a = applyDetail(three, new three.MeshLambertMaterial(), { detail: tex, mode: 'world', scale: 0.4, strength: 0.8, near: 30, far: 150 });
+    const b = applyDetail(three, new three.MeshLambertMaterial(), { detail: tex, mode: 'world', scale: 0.3, strength: 0.5, near: 30, far: 150 });
+    const w = applyDetail(three, new three.MeshLambertMaterial(), { detail: tex, mode: 'uv', scale: 0.5, strength: 0.7, near: 60, far: 300 });
+    expect(a.customProgramCacheKey!()).toBe(b.customProgramCacheKey!());
+    expect(a.customProgramCacheKey!()).not.toBe(w.customProgramCacheKey!());
+    // Running the hook rewrites the standard shader and registers the uniforms.
+    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <map_fragment>' };
+    a.onBeforeCompile(shader as never, undefined as never);
+    expect(shader.vertexShader).toContain('vDetailWorld =');
+    expect(shader.fragmentShader).toContain('uniform sampler2D detailMap;');
+    expect(Object.keys(shader.uniforms).sort()).toEqual(['detailMap', 'detailMean', 'detailParams']);
+  });
+});
 
 describe('agents on streets', () => {
   it('start on their side of the street, facing along it', () => {

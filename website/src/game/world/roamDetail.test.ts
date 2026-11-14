@@ -120,7 +120,33 @@ describe('buildings with windows', () => {
     expect(maxU).toBe(10); // 36 m of wall is 10 bays
     expect(maxV).toBe(3); // 9.6 m is 3 storeys
     expect(parts.roofs!.getAttribute('position').count).toBe(6);
-    expect(parts.walls!.getAttribute('position').count).toBe(24);
+    // Three storeys on the ground: each of the four walls is a ground-floor quad plus an upper quad (4 x 2 x 6 vertices).
+    expect(parts.walls!.getAttribute('position').count).toBe(48);
+  });
+
+  it('gives a one-storey building a single wall quad, and a ground floor of a taller one a darker tone', () => {
+    const low = buildingParts(three, [{ rings: [[[0, 0], [10, 0], [10, 10], [0, 10]]], h: 3.2, minH: 0 }], '#223355');
+    expect(low.walls!.getAttribute('position').count).toBe(24);
+    const tall = buildingParts(three, [{ rings: [[[0, 0], [10, 0], [10, 10], [0, 10]]], h: 12.8, minH: 0 }], '#223355');
+    const col = tall.walls!.getAttribute('color');
+    const pos = tall.walls!.getAttribute('position');
+    let ground = 0;
+    let upper = 0;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getY(i) === 0 && !ground) ground = col.getX(i);
+      if (pos.getY(i) > 12.7 && !upper) upper = col.getX(i);
+    }
+    expect(ground).toBeGreaterThan(0);
+    expect(ground).toBeLessThan(upper);
+  });
+
+  it('uses the colour the map records for a building, softened, instead of a random neutral', () => {
+    const red = buildingParts(three, [{ rings: [[[0, 0], [10, 0], [10, 10], [0, 10]]], h: 3.2, minH: 0, colour: '#b5483c' }], '#000000');
+    const neutral = buildingParts(three, [{ rings: [[[0, 0], [10, 0], [10, 10], [0, 10]]], h: 3.2, minH: 0 }], '#000000');
+    const c = red.walls!.getAttribute('color');
+    const n = neutral.walls!.getAttribute('color');
+    expect(c.getX(0)).toBeGreaterThan(c.getZ(0) * 1.15); // reddish: red channel well above blue
+    expect(Math.abs(n.getX(0) - n.getZ(0))).toBeLessThan(c.getX(0) - c.getZ(0));
   });
 
   it('returns nothing for no buildings', () => {

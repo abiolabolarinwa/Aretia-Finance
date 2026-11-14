@@ -1,6 +1,8 @@
 /**
- * The Ultimate City Search page inside the wallet (milestone 2: welcome, wallet sign-in and the player's profile).
- * Loaded only when the page is opened. Built with textContent, never innerHTML.
+ * The Ultimate City Search page inside the wallet, in three stages: a welcome screen with a Play button (which signs the player in
+ * with a wallet), a choice of city (five cities on one row, four on the next), and the game itself with a tab for each part (the
+ * map, missions, progress, the leaderboard and, for an administrator, the console). Loaded only when the page is opened. Built with
+ * textContent, never innerHTML.
  */
 import { GameClient, type CityList, type GameSession } from './client.js';
 import { allCities, cityById, type City, type Transport } from './cities.js';
@@ -10,36 +12,60 @@ import type { BoardView, TeamBoardView, TeamView } from './boards.js';
 import type { Period } from './periods.js';
 import type { Call } from './admin.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
-import type { Signer } from '../swings/account/client.js';
 import type { SignerOption } from './signers.js';
+import { installTheme } from './theme.js';
 import { browserStorage } from '../swings/history.js';
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string } = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
+type Props = { class?: string; text?: string; attrs?: Record<string, string> };
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (props.class) e.className = props.class;
   if (props.text !== undefined) e.textContent = props.text;
+  for (const [k, v] of Object.entries(props.attrs ?? {})) e.setAttribute(k, v);
   e.append(...kids);
   return e;
 }
 
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
+type Stage = 'welcome' | 'cities' | 'play';
+type Tab = 'explore' | 'missions' | 'progress' | 'board' | 'admin';
+
 export function initGame(root: HTMLElement): { onShow(): void } {
+  installTheme();
   const client = new GameClient(browserStorage());
   // Anyone can see the cities; the list comes from the server so a newly added city appears without a release.
   void client.catalogue().then(() => draw()).catch(() => undefined);
   let session: GameSession | null = client.saved();
   let message = '';
   let busy = false;
+  let signingId = '';
+  let openingCity = '';
   let options: SignerOption[] | null = null;
   let list: CityList | null = null;
-  // The exploration view keeps its own element so the map survives the page being redrawn around it.
+  /** True once the server has said which city the signed-in player is in, so the right stage is shown first time. */
+  let listLoaded = false;
+  /** The player pressed "Change city" and is choosing again. */
+  let picking = false;
+  let tab: Tab = 'explore';
+  let isAdmin = false;
+  let lastStage: Stage | null = null;
+
+  // Each part of the game keeps its own element, so the map and the other views survive the screen being redrawn around them.
   const exploreHost = document.createElement('div');
-  let exploring: { city: string; destroy(): void } | null = null;
-  const announceHost = document.createElement('div');
+  const missionHost = document.createElement('div');
+  const progressHost = document.createElement('div');
+  const boardsHost = document.createElement('div');
   const adminHost = document.createElement('div');
+  const announceHost = document.createElement('div');
+  let exploring: { city: string; destroy(): void } | null = null;
   let adminFor: GameSession | null = null;
   let adminView: { destroy(): void } | null = null;
+  let boardsFor: GameSession | null = null;
+  let boardsView: { refresh(): void; stop(): void } | null = null;
+  let progressFor: GameSession | null = null;
+  let progressView: { refresh(): void } | null = null;
+  let missionsFor: string | null = null;
 
   function syncAdmin(): void {
     const s = session;
@@ -47,6 +73,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     adminView?.destroy();
     adminFor = s;
     adminView = null;
+    isAdmin = false;
     adminHost.replaceChildren();
     announceHost.replaceChildren();
     if (!s) return;
@@ -70,12 +97,12 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     void client.isAdmin(s).then(async (yes) => {
       if (!yes || adminFor !== s) return;
       const m = await import('./admin.js');
-      if (adminFor === s) adminView = m.mountAdmin(adminHost, call);
+      if (adminFor !== s) return;
+      adminView = m.mountAdmin(adminHost, call);
+      isAdmin = true;
+      draw();
     }).catch(() => undefined);
   }
-  const boardsHost = document.createElement('div');
-  let boardsFor: GameSession | null = null;
-  let boardsView: { refresh(): void; stop(): void } | null = null;
 
   function syncBoards(): void {
     const s = session;
@@ -100,9 +127,6 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       boardsHost.textContent = 'The leaderboard could not be loaded. Try again.';
     });
   }
-  const progressHost = document.createElement('div');
-  let progressFor: GameSession | null = null;
-  let progressView: { refresh(): void } | null = null;
 
   function syncProgress(): void {
     const s = session;
@@ -122,10 +146,12 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       progressHost.textContent = 'Your profile could not be loaded. Try again.';
     });
   }
-  const missionHost = document.createElement('div');
-  let missionsFor: string | null = null;
+
   missionHost.addEventListener('game-zone', (e) => {
+    // A treasure zone shown from the missions tab is drawn on the map, so move to the map to see it.
     exploreHost.dispatchEvent(new CustomEvent('game-zone-show', { detail: (e as CustomEvent).detail }));
+    tab = 'explore';
+    draw();
   });
   exploreHost.addEventListener('game-city-changed', () => {
     const s = session;
@@ -197,21 +223,64 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     });
   }
 
-  async function signIn(make: () => Promise<Signer>): Promise<void> {
+  /** Loads where the signed-in player is up to, then the right stage shows. */
+  async function loadList(s: GameSession): Promise<void> {
+    try {
+      const l = await client.cities(s);
+      if (session === s) list = l;
+    } catch {
+      // the stage falls back to choosing a city
+    }
+    listLoaded = true;
+  }
+
+  /** How long to wait for a wallet that has not answered before saying so. */
+  const WALLET_WAIT_MS = 120_000;
+  let attempt = 0;
+
+  /** Says why a sign-in did not work in words a player can act on. */
+  function whyNot(e: unknown): string {
+    const m = e instanceof Error ? e.message : '';
+    if (/declin|reject|denied|cancel|refus|user closed/i.test(m)) return 'You declined the request in your wallet. Press the wallet again when you are ready.';
+    if (/lock|unlock/i.test(m)) return 'Your wallet looks locked. Unlock it and try again.';
+    return m || 'Signing in did not work. Try again.';
+  }
+
+  async function signIn(o: SignerOption): Promise<void> {
     if (busy) return;
     busy = true;
+    signingId = o.id;
     message = '';
+    const mine = ++attempt;
     draw();
     try {
-      session = await client.signIn(await make());
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Your wallet did not answer. Open it, check for a waiting request, and try again.')), WALLET_WAIT_MS));
+      const s = await Promise.race([(async () => client.signIn(await o.make()))(), timeout]);
+      if (mine !== attempt) return; // cancelled while waiting
+      session = s;
+      listLoaded = false;
+      await loadList(s);
+      picking = false;
+      options = null;
     } catch (e) {
-      message = e instanceof Error ? e.message : 'Signing in did not work. Try again.';
+      if (mine !== attempt) return;
+      message = whyNot(e);
     }
     busy = false;
+    signingId = '';
     draw();
   }
 
-  /** Looks for the wallets this browser has, only when the player asks to sign in. */
+  /** Stops waiting for a wallet, so another can be chosen. */
+  function cancelSignIn(): void {
+    attempt++;
+    busy = false;
+    signingId = '';
+    message = 'Cancelled. Choose a wallet to try again.';
+    draw();
+  }
+
+  /** Looks for the wallets this browser has, only when the player presses Play. */
   async function chooseWallet(): Promise<void> {
     if (busy) return;
     busy = true;
@@ -233,6 +302,9 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     session = null;
     options = null;
     list = null;
+    listLoaded = false;
+    picking = false;
+    tab = 'explore';
     exploring?.destroy();
     exploring = null;
     exploreHost.replaceChildren();
@@ -248,6 +320,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     adminView?.destroy();
     adminFor = null;
     adminView = null;
+    isAdmin = false;
     adminHost.replaceChildren();
     announceHost.replaceChildren();
     draw();
@@ -255,138 +328,223 @@ export function initGame(root: HTMLElement): { onShow(): void } {
 
   async function chooseCity(id: string): Promise<void> {
     if (!session || busy) return;
+    if (list?.selected === id) {
+      picking = false;
+      draw();
+      return;
+    }
     busy = true;
+    openingCity = id;
     message = '';
     draw();
     try {
       list = await client.selectCity(session, id);
       session = { ...session, profile: { ...session.profile, selectedCity: list.selected } };
+      picking = false;
+      tab = 'explore';
     } catch (e) {
       message = e instanceof Error ? e.message : 'That city could not be opened. Try again.';
     }
     busy = false;
+    openingCity = '';
     draw();
   }
 
-  function stat(label: string, value: string): HTMLElement {
-    return el('div', {}, el('dt', { text: label }), el('dd', { text: value }));
-  }
+  // ---------------------------------------------------------------- the three stages
 
-  const TRANSPORT_LABEL: Record<Transport, string> = { walk: 'Walk', run: 'Run', taxi: 'Taxi', car: 'Car', bus: 'Bus', train: 'Train', metro: 'Metro', ferry: 'Ferry', flight: 'Flights' };
+  const steps = (n: 1 | 2 | 3): HTMLElement => {
+    const row = el('div', { class: 'ucs-steps' });
+    ['1  Welcome', '2  Choose a city', '3  Play'].forEach((label, i) => {
+      const s = el('span', { class: 'ucs-step' + (i + 1 < n ? ' done' : ''), text: label });
+      if (i + 1 === n) s.setAttribute('aria-current', 'step');
+      row.append(s);
+    });
+    return row;
+  };
+
+  function welcome(): HTMLElement {
+    const hero = el('section', { class: 'ucs-dark ucs-hero' });
+    hero.append(
+      steps(1),
+      el('span', { class: 'ucs-eyebrow', text: 'Aretia Finance' }),
+      el('h1', { class: 'ucs-title' }, 'Welcome to ', el('span', { text: 'Ultimate City Search' })),
+      el('p', { class: 'ucs-sub', text: 'Choose your city where you want to find your treasure.' }),
+    );
+    if (!options) {
+      const play = el('button', { class: 'ucs-play', text: busy ? 'Looking for wallets…' : 'Play' });
+      play.type = 'button';
+      play.disabled = busy;
+      play.addEventListener('click', () => void chooseWallet());
+      hero.append(play);
+    } else {
+      const box = el('div', { class: 'ucs-wallets' }, el('h3', { text: 'Choose the wallet that will be your player' }));
+      for (const o of options) {
+        const b = el('button', { class: 'ucs-wallet', text: signingId === o.id ? 'Waiting for your wallet…' : o.label });
+        b.type = 'button';
+        b.disabled = busy;
+        b.addEventListener('click', () => void signIn(o));
+        box.append(b);
+      }
+      if (options.length === 0) box.append(el('p', { class: 'ucs-note', text: 'No wallet was found in this browser. Install one, or connect a Solana wallet in the sidebar (it can be a phone wallet through WalletConnect), then look again.' }));
+      if (signingId) {
+        box.append(el('p', { class: 'ucs-note', text: 'Look for a request from your wallet: a pop-up window, or the wallet icon in your browser toolbar. Approve the connection, then the signature. Signing is free and moves no money.' }));
+        const stop = el('button', { class: 'ucs-btn', text: 'Cancel' });
+        stop.type = 'button';
+        stop.addEventListener('click', cancelSignIn);
+        box.append(stop);
+      } else {
+        const again = el('button', { class: 'ucs-btn', text: 'Look again' });
+        again.type = 'button';
+        again.disabled = busy;
+        again.addEventListener('click', () => void chooseWallet());
+        box.append(again);
+      }
+      hero.append(box);
+    }
+    if (message) hero.append(el('p', { class: 'ucs-msg', text: message }));
+    hero.append(el('p', { class: 'ucs-note', text: 'Signing in is a free message, never a transaction or an approval. This is a separate game: it does not use ACT or any token. Coins show game values, which are not cash unless a prize is announced in the game.' }));
+    const strip = el('div', { class: 'ucs-strip' });
+    for (const c of allCities().filter((x) => x.status !== 'inactive')) {
+      const t = el('div', { class: 'ucs-thumb' });
+      if (c.imageUrl) {
+        const img = el('img', { attrs: { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' } });
+        img.src = c.imageUrl;
+        t.append(img);
+      }
+      t.append(el('span', { text: c.name }));
+      strip.append(t);
+    }
+    hero.append(strip);
+    return hero;
+  }
 
   function cityCard(c: City): HTMLElement {
     const state = list?.cities.find((x) => x.id === c.id);
     const open = c.status === 'active' && (!state || state.status === 'active');
-    const chosen = list?.selected === c.id;
-    const card = el('article', { class: 'wapp__card' });
-    card.style.borderTop = `4px solid ${c.tint[1]}`;
-    card.style.background = `linear-gradient(135deg, ${c.tint[0]}33, transparent 60%)`;
-    if (chosen) card.style.outline = `2px solid ${c.tint[1]}`;
-    if (c.imageUrl) {
-      const fig = document.createElement('figure');
-      fig.style.cssText = 'margin:0 0 8px';
-      const img = document.createElement('img');
-      img.src = c.imageUrl;
-      img.alt = c.name;
-      img.loading = 'lazy';
-      img.referrerPolicy = 'no-referrer';
-      img.style.cssText = 'width:100%;height:140px;object-fit:cover;border-radius:8px;display:block';
-      const cap = document.createElement('figcaption');
-      cap.className = 'wapp__fine';
-      cap.textContent = c.imageCredit ?? '';
-      fig.append(img, cap);
-      card.append(fig);
-    }
-    card.append(el('h3', { class: 'wapp__h2', text: c.name }), el('span', { class: 'wapp__eyebrow', text: c.status === 'coming_soon' ? c.country + ' · coming soon' : c.country }), el('p', { text: c.blurb }));
-    if (c.landmarks.length > 0) card.append(el('p', { class: 'wapp__fine', text: 'Landmarks: ' + c.landmarks.slice(0, 4).map((m) => m.name).join(', ') + '.' }));
-    card.append(el('p', { class: 'wapp__fine', text: `Getting around: ${c.transport.map((t) => TRANSPORT_LABEL[t]).join(', ')}.` }));
+    const here = list?.selected === c.id;
     const p = state?.progress;
-    card.append(el('p', { class: 'wapp__fine', text: p ? `Your progress: ${p.cityXp} XP, ${p.discoveries} discoveries, ${p.completedMissions} missions. Last visited ${new Date(p.lastVisitAt).toLocaleDateString()}.` : session ? 'Not visited yet.' : 'Sign in to start exploring.' }));
-    card.append(el('p', { class: 'wapp__fine', text: 'Missions: none open yet. Treasure events: none yet.' }));
-    const b = el('button', { class: chosen ? 'wapp__btn wapp__btn--ghost' : 'wapp__btn wapp__btn--primary', text: chosen ? 'You are here' : !open ? 'Not open yet' : p ? 'Return to ' + c.name : 'Enter ' + c.name });
-    b.type = 'button';
-    b.disabled = busy || !session || !open || chosen;
-    b.addEventListener('click', () => void chooseCity(c.id));
-    card.append(b);
+    const card = el('button', { class: 'ucs-city', attrs: { type: 'button', 'aria-current': String(here), 'aria-label': `${c.name}, ${c.country}` } });
+    card.style.setProperty('--accent', c.tint[1]);
+    card.disabled = busy || !open;
+    if (c.imageUrl) {
+      const img = el('img', { attrs: { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' } });
+      img.src = c.imageUrl;
+      card.append(img);
+    } else card.style.background = `linear-gradient(160deg, ${c.tint[0]}, #0b0b18)`;
+    card.append(el('span', { class: 'ucs-city-shade' }));
+    const label = openingCity === c.id ? 'Opening…' : here ? 'You are here' : !open ? 'Coming soon' : p ? 'Return' : 'Enter';
+    card.append(
+      el('div', { class: 'ucs-city-body' },
+        el('span', { class: 'ucs-city-country', text: c.country }),
+        el('h3', { class: 'ucs-city-name', text: c.name }),
+        el('p', { class: 'ucs-city-blurb', text: c.blurb }),
+        el('span', { class: 'ucs-city-meta', text: p ? `${p.cityXp} XP · ${p.discoveries} found · ${p.completedMissions} missions` : c.landmarks.slice(0, 2).map((m) => m.name).join(' · ') }),
+        el('span', { class: 'ucs-city-go', text: label }),
+      ),
+    );
+    if (c.imageCredit) card.append(el('div', { class: 'ucs-credit', text: c.imageCredit }));
+    card.addEventListener('click', () => void chooseCity(c.id));
     return card;
   }
 
-  function cityNodes(): HTMLElement[] {
-    const here = session && list?.selected ? cityById(list.selected) : undefined;
-    const out: HTMLElement[] = [];
-    const head = el('div', { class: 'wapp__card' }, el('h2', { class: 'wapp__h2', text: here ? `You are in ${here.name}` : 'Choose a city' }));
-    head.append(el('p', { class: 'wapp__fine', text: here ? 'You can switch city at any time. Your progress in every city is kept.' : session ? 'Pick where your search begins. You can explore all nine with the same player.' : 'These are the nine cities. You can look around without signing in; progress is only kept for a signed-in wallet.' }));
-    out.push(head);
-    const grid = el('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
-    grid.append(...allCities().filter((c) => c.status !== 'inactive').map(cityCard));
-    out.push(grid);
-    return session && list?.selected ? [head, announceHost, exploreHost, missionHost, progressHost, boardsHost, grid, adminHost] : session ? [...out, announceHost, progressHost, boardsHost, adminHost] : out;
+  function citiesStage(): HTMLElement {
+    const sec = el('section', { class: 'ucs-dark ucs-cities' });
+    const shown = allCities().filter((c) => c.status !== 'inactive');
+    sec.append(
+      steps(2),
+      el('div', { class: 'ucs-cities-head' }, el('span', { class: 'ucs-eyebrow', text: 'Step 2' }), el('h2', { text: 'Choose your city' }), el('p', { text: 'Where do you want to find your treasure?' })),
+    );
+    // Five cities on the first row, the rest (four, with the nine launch cities) on the next.
+    const first = el('div', { class: 'ucs-row five' }, ...shown.slice(0, 5).map(cityCard));
+    sec.append(first);
+    if (shown.length > 5) sec.append(el('div', { class: 'ucs-row four' }, ...shown.slice(5).map(cityCard)));
+    if (message) sec.append(el('p', { class: 'ucs-msg', text: message }));
+    const foot = el('div', { class: 'ucs-bar' });
+    foot.append(el('span', { class: 'ucs-chip', text: session ? `${short(session.address)} · Lv ${session.profile.explorerLevel} · ${session.profile.totalXp} XP` : '' }));
+    const out = el('button', { class: 'ucs-btn', text: 'Sign out' });
+    out.type = 'button';
+    out.addEventListener('click', () => void signOut(false));
+    foot.append(out);
+    sec.append(foot);
+    return sec;
+  }
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'explore', label: 'Explore' },
+    { id: 'missions', label: 'Missions' },
+    { id: 'progress', label: 'My progress' },
+    { id: 'board', label: 'Leaderboard & team' },
+  ];
+
+  function playStage(): HTMLElement[] {
+    const city = list?.selected ? cityById(list.selected) : undefined;
+    const accent = city?.tint[1] ?? '#c9a227';
+    const bar = el('section', { class: 'ucs-dark' });
+    const head = el('div', { class: 'ucs-bar' });
+    const dot = el('span', { class: 'ucs-bar-dot' });
+    dot.style.background = accent;
+    head.append(el('div', { class: 'ucs-bar-city' }, dot, el('div', {}, el('h2', { text: city?.name ?? 'Your city' }), el('small', { text: city ? `${city.country} · stage 3 of 3` : '' }))));
+    const right = el('div', { class: 'ucs-bar-right' });
+    right.append(el('span', { class: 'ucs-chip gold', text: `Lv ${session?.profile.explorerLevel ?? 1} · ${session?.profile.totalXp ?? 0} XP` }), el('span', { class: 'ucs-chip', text: session ? short(session.address) : '' }));
+    const change = el('button', { class: 'ucs-btn', text: 'Change city' });
+    change.type = 'button';
+    change.addEventListener('click', () => {
+      picking = true;
+      draw();
+    });
+    const out = el('button', { class: 'ucs-btn', text: 'Sign out' });
+    out.type = 'button';
+    out.addEventListener('click', () => void signOut(false));
+    const all = el('button', { class: 'ucs-btn', text: 'Sign out everywhere' });
+    all.type = 'button';
+    all.addEventListener('click', () => void signOut(true));
+    right.append(change, out, all);
+    head.append(right);
+    const tabs = el('div', { class: 'ucs-tabs', attrs: { role: 'tablist' } });
+    for (const t of [...TABS, ...(isAdmin ? [{ id: 'admin' as Tab, label: 'Admin' }] : [])]) {
+      const b = el('button', { class: 'ucs-tab', text: t.label, attrs: { role: 'tab', 'aria-selected': String(t.id === tab) } });
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        tab = t.id;
+        draw();
+      });
+      tabs.append(b);
+    }
+    bar.append(head, tabs);
+    const body = el('div', { class: 'ucs-play-body' });
+    const host = tab === 'explore' ? exploreHost : tab === 'missions' ? missionHost : tab === 'progress' ? progressHost : tab === 'board' ? boardsHost : adminHost;
+    body.append(announceHost, host);
+    if (message) body.prepend(el('p', { class: 'wapp__fine', text: message }));
+    return [bar, body];
+  }
+
+  function currentStage(): Stage {
+    if (!session) return 'welcome';
+    if (!listLoaded || !list?.selected || picking) return 'cities';
+    return 'play';
   }
 
   function draw(): void {
-    const intro = el('div', { class: 'wapp__card' }, el('h2', { class: 'wapp__h2', text: 'Ultimate City Search' }));
-    intro.append(
-      el('p', { text: 'A treasure hunt across nine cities: Lagos, New York, Nairobi, Hong Kong, London, Dubai, Paris, Miami and Nicosia. Follow clues, explore the map and find hidden treasures.' }),
-      el('p', { class: 'wapp__fine', text: 'The game is being built in stages. Signing in, your player profile and the nine cities are ready. Maps, clues and treasures are not open yet, and nothing here can be won today.' }),
-      el('p', { class: 'wapp__fine', text: 'It is a separate game. It does not use ACT or any token, and signing in is a free message, not a transaction or an approval.' }),
-    );
-
-    const card = el('div', { class: 'wapp__card' });
-    if (session) {
-      const p = session.profile;
-      card.append(
-        el('span', { class: 'wapp__eyebrow', text: 'Your player' }),
-        el('dl', { class: 'wapp__rows' }, stat('Wallet', `${short(session.address)} (${session.network === 'evm' ? 'Ethereum-style' : 'Solana'})`), stat('Explorer level', String(p.explorerLevel)), stat('XP', String(p.totalXp)), stat('Discoveries', String(p.totalDiscoveries)), stat('Missions completed', String(p.missionsCompleted))),
-      );
-      const out = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Sign out' });
-      out.type = 'button';
-      out.addEventListener('click', () => void signOut(false));
-      const all = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Sign out everywhere' });
-      all.type = 'button';
-      all.addEventListener('click', () => void signOut(true));
-      card.append(out, all);
-    } else {
-      card.append(el('span', { class: 'wapp__eyebrow', text: 'Sign in to play' }), el('p', { class: 'wapp__fine', text: 'Choose the wallet that will be your player. You can look around without signing in, but progress is only kept for a signed-in wallet.' }));
-      if (!options) {
-        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: busy ? 'Looking for wallets…' : 'Sign in with a wallet' });
-        go.type = 'button';
-        go.disabled = busy;
-        go.addEventListener('click', () => void chooseWallet());
-        card.append(go);
-      } else {
-        for (const o of options) {
-          const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: busy ? 'Waiting for your wallet…' : o.label });
-          b.type = 'button';
-          b.disabled = busy;
-          b.addEventListener('click', () => void signIn(o.make));
-          card.append(b);
-        }
-        if (options.length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No wallet was found in this browser. Install one, or connect a Solana wallet in the sidebar (it can be a phone wallet through WalletConnect), then try again.' }));
-        const again = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Look again' });
-        again.type = 'button';
-        again.disabled = busy;
-        again.addEventListener('click', () => void chooseWallet());
-        card.append(again);
-      }
-    }
-    if (message) card.append(el('p', { class: 'wapp__fine', text: message }));
-    root.replaceChildren(intro, card, ...cityNodes());
+    const stage = currentStage();
+    const nodes: HTMLElement[] = [];
+    if (session && !listLoaded) nodes.push(el('section', { class: 'ucs-dark' }, el('p', { class: 'ucs-loading', text: 'Loading your game…' })));
+    else if (stage === 'welcome') nodes.push(welcome());
+    else if (stage === 'cities') nodes.push(citiesStage());
+    else nodes.push(...playStage());
+    root.replaceChildren(el('div', { class: 'ucs' + (stage !== lastStage ? ' ucs-fade' : '') }, ...nodes));
+    lastStage = stage;
     syncExplore();
+    // A map that was out of sight needs to measure itself again when it comes back.
+    if (stage === 'play') requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }
 
   return {
     onShow() {
       draw();
-      // Refresh the profile from the server (it is the record; the browser only remembers the sign-in).
+      // Refresh from the server (it is the record; the browser only remembers the sign-in).
       if (session) {
         const s = session;
-        void client.cities(s).then((l) => {
-          if (session) {
-            list = l;
-            draw();
-          }
-        }).catch(() => undefined);
+        void loadList(s).then(() => draw());
         void client.me(s).then((profile) => {
           if (session === s) {
             session = { ...s, profile };
@@ -395,6 +553,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
         }).catch(() => {
           if (!client.saved()) {
             session = null;
+            list = null;
+            listLoaded = false;
             draw();
           }
         });

@@ -24,7 +24,7 @@ const TABLES = new Set([
   'auth_nonces', 'account_sessions', 'game_players', 'game_player_wallets', 'game_player_profiles', 'game_player_activities', 'game_cities',
   'game_player_cities', 'game_journeys', 'game_treasure_classes', 'game_treasures', 'game_treasure_locations', 'game_missions', 'game_clues',
   'game_player_missions', 'game_attempts', 'game_player_treasures', 'game_player_achievements', 'game_xp_events', 'game_teams',
-  'game_team_members', 'game_prize_claims', 'game_reserve_entries', 'game_announcements', 'game_abuse_reports', 'game_admin_audit',
+  'game_team_members', 'game_team_missions', 'game_prize_claims', 'game_reserve_entries', 'game_announcements', 'game_abuse_reports', 'game_admin_audit',
 ]);
 /** Columns that hold JSON text. */
 const JSON_COLS: Record<string, string[]> = {

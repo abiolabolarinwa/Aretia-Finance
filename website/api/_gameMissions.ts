@@ -4,10 +4,12 @@
  * treasure's location is sent only to the player who has solved its trail; the first player to reach a treasure takes it, in one
  * conditional update, so two players can never both win the same coin.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { cityById } from '../src/game/cities.js';
 import { distanceKm, type LngLat } from '../src/game/travel.js';
-import { missionXp, normalizeAnswer, treasureXp, TREASURE_CLASSES } from '../src/game/rarity.js';
+import { missionXp, treasureXp, TREASURE_CLASSES } from '../src/game/rarity.js';
+import { answerHash } from './_gameAnswers.js';
+import { ensureChallenges } from './_gameChallenges.js';
 import type { Rest } from './_swingsAccount.js';
 
 export interface MissionCtx {
@@ -24,10 +26,10 @@ export interface MissionCtx {
 }
 export type MissionOut = { status: number; data: Record<string, unknown> };
 
-/** The stored form of an answer: a keyed hash of the clue and the normalised answer. Operators make these with scripts/game-hash-answer.ts. */
-export function answerHash(secret: string, clueId: string, answer: string): string {
-  return createHmac('sha256', secret).update(`${clueId}:${normalizeAnswer(answer)}`).digest('hex');
-}
+export { answerHash };
+
+/** A team hunt gives each member a fifth more XP, because it takes more than one person. */
+export const TEAM_BONUS = 0.2;
 
 const WRONG_LIMIT = 5;
 const WRONG_WINDOW_MS = 10 * 60_000;
@@ -56,8 +58,27 @@ async function getMission(c: MissionCtx, id: unknown): Promise<MissionRow | null
   return rows?.[0] ?? null;
 }
 
-async function getPlayerMission(c: MissionCtx, missionId: string): Promise<PlayerMissionRow | null> {
-  const rows = (await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${missionId}&select=id,mission_id,status,stage,hints_used,hints_total&limit=1`)) as PlayerMissionRow[] | null;
+/** Where a mission's progress is kept: the player's own row, or, for a team hunt, the team's. */
+interface Scope {
+  table: 'game_player_missions' | 'game_team_missions';
+  where: string;
+  team: { id: string; role: string } | null;
+}
+
+async function teamOf(c: MissionCtx): Promise<{ id: string; role: string } | null> {
+  const rows = (await c.db.call(`game_team_members?player_id=eq.${c.playerId}&select=team_id,role&limit=1`)) as { team_id: string; role: string }[] | null;
+  return rows?.[0] ? { id: rows[0].team_id, role: rows[0].role } : null;
+}
+
+async function scopeFor(c: MissionCtx, m: MissionRow): Promise<Scope | MissionOut> {
+  if (m.kind !== 'team') return { table: 'game_player_missions', where: `player_id=eq.${c.playerId}&mission_id=eq.${m.id}`, team: null };
+  const team = await teamOf(c);
+  if (!team) return fail(409, 'A team hunt needs a team. Make or join one first.');
+  return { table: 'game_team_missions', where: `team_id=eq.${team.id}&mission_id=eq.${m.id}`, team };
+}
+
+async function getPlayerMission(c: MissionCtx, scope: Scope): Promise<PlayerMissionRow | null> {
+  const rows = (await c.db.call(`${scope.table}?${scope.where}&select=id,mission_id,status,stage,hints_used,hints_total&limit=1`)) as PlayerMissionRow[] | null;
   return rows?.[0] ?? null;
 }
 
@@ -91,27 +112,37 @@ const treasureCard = (t: TreasureRow): Record<string, unknown> => {
 async function listMissions(c: MissionCtx): Promise<MissionOut> {
   const city = typeof c.body.city === 'string' ? cityById(c.body.city) : undefined;
   if (!city) return fail(400, 'That city does not exist.');
+  // Today's and this week's challenges are made the first time anyone asks for them.
+  try {
+    await ensureChallenges(c.db, city, c.now, c.secret);
+  } catch {
+    // the rest of the list is still worth showing
+  }
   const rows = ((await c.db.call(`game_missions?city_id=eq.${city.id}&status=eq.active&select=${MISSION_COLS}`)) as MissionRow[] | null) ?? [];
   const open = rows.filter((m) => isOpen(m, c.now));
   if (open.length === 0) return ok({ missions: [] });
   const ids = open.map((m) => m.id).join(',');
-  const [mine, stages, treasures] = await Promise.all([
+  const team = open.some((m) => m.kind === 'team') ? await teamOf(c) : null;
+  const [mine, theirs, stages, treasures] = await Promise.all([
     c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=in.(${ids})&select=mission_id,status,stage`) as Promise<PlayerMissionRow[] | null>,
+    team ? (c.db.call(`game_team_missions?team_id=eq.${team.id}&mission_id=in.(${ids})&select=mission_id,status,stage`) as Promise<PlayerMissionRow[] | null>) : Promise.resolve([] as PlayerMissionRow[]),
     c.db.call(`game_clues?mission_id=in.(${ids})&select=mission_id`) as Promise<{ mission_id: string }[] | null>,
     open.some((m) => m.treasure_id) ? (c.db.call(`game_treasures?id=in.(${open.filter((m) => m.treasure_id).map((m) => m.treasure_id).join(',')})&select=id,city_id,class_id,status,found_by`) as Promise<TreasureRow[] | null>) : Promise.resolve([] as TreasureRow[]),
   ]);
   const byMission = new Map((mine ?? []).map((p) => [p.mission_id, p]));
+  const byTeam = new Map((theirs ?? []).map((p) => [p.mission_id, p]));
   const treasureById = new Map((treasures ?? []).map((t) => [t.id, t]));
   return ok({
     missions: open.map((m) => {
       const t = m.treasure_id ? treasureById.get(m.treasure_id) : undefined;
-      const p = byMission.get(m.id);
+      const p = m.kind === 'team' ? (byTeam.get(m.id) ?? byMission.get(m.id)) : byMission.get(m.id);
       return {
         id: m.id,
         title: m.title,
         description: m.description,
         difficulty: m.difficulty,
         kind: m.kind,
+        needsTeam: m.kind === 'team' && !team,
         closesAt: m.closes_at === null ? null : Number(m.closes_at),
         xpReward: m.xp_reward,
         // The prize on offer, only while it can still be won. Where it is, is never listed.
@@ -127,26 +158,38 @@ async function startMission(c: MissionCtx): Promise<MissionOut> {
   const m = await getMission(c, c.body.mission);
   if (!m || !isOpen(m, c.now)) return fail(404, 'That mission is not open.');
   if ((await clues(c, m.id)).length === 0) return fail(404, 'That mission is not open.');
-  const existing = await getPlayerMission(c, m.id);
-  if (existing?.status === 'completed') return fail(409, 'You have already completed this mission.');
-  if (!existing) {
-    await c.db.call('game_player_missions?on_conflict=player_id,mission_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: c.playerId, mission_id: m.id, started_at: c.now }) });
-    await log(c, 'mission_started', m.city_id, { mission: m.id });
-  } else if (existing.status === 'abandoned') {
-    await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${m.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ status: 'active', stage: 1, hints_used: 0, hints_total: 0, started_at: c.now }) });
-    await log(c, 'mission_started', m.city_id, { mission: m.id, restarted: true });
+  const scope = await scopeFor(c, m);
+  if (isOut(scope)) return scope;
+  if (scope.team) {
+    const size = (await c.db.call(`game_team_members?team_id=eq.${scope.team.id}&select=player_id&limit=3`)) as unknown[] | null;
+    if ((size?.length ?? 0) < 2) return fail(409, 'A team hunt needs at least two members.');
   }
-  const pm = await getPlayerMission(c, m.id);
+  const existing = await getPlayerMission(c, scope);
+  if (existing?.status === 'completed') return fail(409, scope.team ? 'Your team has already completed this hunt.' : 'You have already completed this mission.');
+  // A player who finished a team hunt with a team they have since left cannot start it again alone.
+  if (scope.team && (await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${m.id}&status=eq.completed&select=id&limit=1`) as unknown[] | null)?.length) return fail(409, 'You have already completed this hunt.');
+  const insert = scope.team ? { team_id: scope.team.id, mission_id: m.id, started_by: c.playerId, started_at: c.now } : { player_id: c.playerId, mission_id: m.id, started_at: c.now };
+  const conflict = scope.team ? 'team_id,mission_id' : 'player_id,mission_id';
+  if (!existing) {
+    await c.db.call(`${scope.table}?on_conflict=${conflict}`, { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify(insert) });
+    await log(c, scope.team ? 'team_hunt_started' : 'mission_started', m.city_id, { mission: m.id });
+  } else if (existing.status === 'abandoned') {
+    await c.db.call(`${scope.table}?${scope.where}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ status: 'active', stage: 1, hints_used: 0, hints_total: 0, started_at: c.now }) });
+    await log(c, scope.team ? 'team_hunt_started' : 'mission_started', m.city_id, { mission: m.id, restarted: true });
+  }
+  const pm = await getPlayerMission(c, scope);
   return pm ? ok(await clueView(c, m, pm)) : fail(500, 'The mission could not be started.');
 }
 
-async function activeMission(c: MissionCtx): Promise<{ m: MissionRow; pm: PlayerMissionRow } | MissionOut> {
+async function activeMission(c: MissionCtx): Promise<{ m: MissionRow; pm: PlayerMissionRow; scope: Scope } | MissionOut> {
   const m = await getMission(c, c.body.mission);
   if (!m) return fail(404, 'That mission does not exist.');
-  const pm = await getPlayerMission(c, m.id);
+  const scope = await scopeFor(c, m);
+  if (isOut(scope)) return scope;
+  const pm = await getPlayerMission(c, scope);
   if (!pm || pm.status !== 'active') return fail(409, 'Start the mission first.');
   if (!isOpen(m, c.now)) return fail(409, 'This mission has closed.');
-  return { m, pm };
+  return { m, pm, scope };
 }
 const isOut = (v: unknown): v is MissionOut => typeof (v as MissionOut).status === 'number';
 
@@ -160,10 +203,40 @@ async function takeHint(c: MissionCtx): Promise<MissionOut> {
   if (isOut(a)) return a;
   const clue = (await clues(c, a.m.id)).find((x) => x.seq === a.pm.stage);
   if (!clue || a.pm.hints_used >= hintList(clue).length) return fail(409, 'There are no more hints for this clue.');
-  const rows = (await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${a.m.id}&status=eq.active&hints_used=eq.${a.pm.hints_used}`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ hints_used: a.pm.hints_used + 1, hints_total: a.pm.hints_total + 1 }) })) as PlayerMissionRow[] | null;
+  const rows = (await c.db.call(`${a.scope.table}?${a.scope.where}&status=eq.active&hints_used=eq.${a.pm.hints_used}`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ hints_used: a.pm.hints_used + 1, hints_total: a.pm.hints_total + 1 }) })) as PlayerMissionRow[] | null;
   if (!rows || rows.length !== 1) return fail(409, 'Try again.');
   await log(c, 'hint_requested', a.m.city_id, { mission: a.m.id, stage: a.pm.stage, n: a.pm.hints_used + 1 });
   return ok(await clueView(c, a.m, rows[0]!));
+}
+
+/** Pays a finished mission to the player, or to every current member of the team, and unlocks its treasure for them. */
+async function finish(c: MissionCtx, a: { m: MissionRow; pm: PlayerMissionRow; scope: Scope }, xp: number): Promise<MissionOut> {
+  const members = a.scope.team ? (((await c.db.call(`game_team_members?team_id=eq.${a.scope.team.id}&select=player_id`)) as { player_id: string }[] | null) ?? []).map((r) => r.player_id) : [c.playerId];
+  const each = a.scope.team ? Math.round(xp * (1 + TEAM_BONUS)) : xp;
+  const t = a.m.treasure_id ? await treasureRow(c, a.m.treasure_id) : null;
+  for (const member of members) {
+    if (a.scope.team) {
+      // Every member gets the mission as completed on their own record, which is what their totals and achievements count.
+      await c.db.call('game_player_missions?on_conflict=player_id,mission_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: member, mission_id: a.m.id, status: 'completed', score: each, hints_total: a.pm.hints_total, started_at: c.now, completed_at: c.now }) });
+    }
+    await c.db.call('rpc/game_award_xp', { method: 'POST', body: JSON.stringify({ p_player: member, p_city: a.m.city_id, p_xp: each, p_discoveries: 0, p_missions: 1 }) });
+    if (t && t.status === 'hidden') await c.db.call('game_player_treasures?on_conflict=player_id,treasure_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: member, treasure_id: t.id, unlocked_at: c.now }) });
+  }
+  if (a.scope.team) {
+    // Each member's record shows the hunt, under their own wallet, which is what their achievements count.
+    const wallets = ((await c.db.call(`game_player_wallets?player_id=in.(${members.join(',')})&select=player_id,network,address_norm`)) as { player_id: string; network: string; address_norm: string }[] | null) ?? [];
+    for (const w of wallets) {
+      await c.db.call('game_player_activities', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: w.player_id, wallet_address: w.address_norm, network: w.network, activity_type: 'team_hunt_completed', city_id: a.m.city_id, metadata: { mission: a.m.id, xp: each, members: members.length }, created_at: c.now }) });
+    }
+  } else {
+    await log(c, 'mission_completed', a.m.city_id, { mission: a.m.id, xp: each, hints: a.pm.hints_total });
+  }
+  let treasure: Record<string, unknown> | null = null;
+  if (t && t.status === 'hidden') {
+    await log(c, 'treasure_unlocked', t.city_id, { treasure: t.id, class: t.class_id });
+    treasure = { ...treasureCard(t), zone: await zoneFor(c, t.id) };
+  }
+  return ok({ correct: true, completed: true, xp: each, team: Boolean(a.scope.team), treasure });
 }
 
 async function answerClue(c: MissionCtx): Promise<MissionOut> {
@@ -184,33 +257,23 @@ async function answerClue(c: MissionCtx): Promise<MissionOut> {
   if (!correct) return ok({ correct: false, attemptsLeft: Math.max(0, WRONG_LIMIT - 1 - (wrong?.length ?? 0)) });
 
   if (clue.seq < all.length) {
-    const next = (await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${a.m.id}&status=eq.active&stage=eq.${a.pm.stage}`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ stage: a.pm.stage + 1, hints_used: 0 }) })) as PlayerMissionRow[] | null;
+    const next = (await c.db.call(`${a.scope.table}?${a.scope.where}&status=eq.active&stage=eq.${a.pm.stage}`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ stage: a.pm.stage + 1, hints_used: 0 }) })) as PlayerMissionRow[] | null;
     return ok({ correct: true, completed: false, ...(next?.[0] ? { next: await clueView(c, a.m, next[0]) } : {}) });
   }
 
   // The last clue. The status change is conditional, so a repeated request cannot pay out twice.
   const xp = missionXp(a.m.xp_reward, a.pm.hints_total);
-  const done = (await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${a.m.id}&status=eq.active`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ status: 'completed', score: xp, completed_at: c.now }) })) as PlayerMissionRow[] | null;
+  const done = (await c.db.call(`${a.scope.table}?${a.scope.where}&status=eq.active`, { method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify({ status: 'completed', score: xp, completed_at: c.now }) })) as PlayerMissionRow[] | null;
   if (!done || done.length !== 1) return fail(409, 'This mission is already finished.');
-  await c.db.call('rpc/game_award_xp', { method: 'POST', body: JSON.stringify({ p_player: c.playerId, p_city: a.m.city_id, p_xp: xp, p_discoveries: 0, p_missions: 1 }) });
-  await log(c, 'mission_completed', a.m.city_id, { mission: a.m.id, xp, hints: a.pm.hints_total });
-  let treasure: Record<string, unknown> | null = null;
-  if (a.m.treasure_id) {
-    const t = await treasureRow(c, a.m.treasure_id);
-    if (t && t.status === 'hidden') {
-      await c.db.call('game_player_treasures?on_conflict=player_id,treasure_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: c.playerId, treasure_id: t.id, unlocked_at: c.now }) });
-      await log(c, 'treasure_unlocked', t.city_id, { treasure: t.id, class: t.class_id });
-      treasure = { ...treasureCard(t), zone: await zoneFor(c, t.id) };
-    }
-  }
-  return ok({ correct: true, completed: true, xp, treasure });
+  return finish(c, a, xp);
 }
 
 async function abandon(c: MissionCtx): Promise<MissionOut> {
   const a = await activeMission(c);
   if (isOut(a)) return a;
-  await c.db.call(`game_player_missions?player_id=eq.${c.playerId}&mission_id=eq.${a.m.id}&status=eq.active`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ status: 'abandoned' }) });
-  await log(c, 'mission_abandoned', a.m.city_id, { mission: a.m.id, stage: a.pm.stage });
+  if (a.scope.team && a.scope.team.role !== 'owner') return fail(403, 'Only the team owner can give up a team hunt.');
+  await c.db.call(`${a.scope.table}?${a.scope.where}&status=eq.active`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ status: 'abandoned' }) });
+  await log(c, a.scope.team ? 'team_hunt_abandoned' : 'mission_abandoned', a.m.city_id, { mission: a.m.id, stage: a.pm.stage });
   return ok({ abandoned: true });
 }
 

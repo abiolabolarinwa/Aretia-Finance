@@ -11,6 +11,9 @@ import { loginMessage } from '../src/swings/account/loginMessage.js';
 import { resetRateLimit } from './_rpcProxy.js';
 import { handleGame, type GameInput } from './_game.js';
 import { sqliteRest } from './_gameSqlite.js';
+import { CITIES } from '../src/game/cities.js';
+import { generateChallenge, windowKey } from '../src/game/challenges.js';
+import { periodStart } from '../src/game/periods.js';
 
 type J = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const NOW = 1_800_000_000_000;
@@ -283,5 +286,131 @@ describe('cities in the database', () => {
     expect((await w.call(boss, { op: 'admin-city-save', id: 'paris', name: 'Paris', country: 'France', bounds: [2.22, 48.8, 2.47, 48.92], center: [2.3522, 48.8566], blurb: 'New text', transport: ['walk', 'metro', 'flight'], tint: ['#232a52', '#d6c58a'], landmarks: [], scene: 'boulevards' })).status).toBe(200);
     const paris = (await w.call(boss, { op: 'catalogue' })).data.cities.find((c: J) => c.id === 'paris');
     expect(paris).toMatchObject({ status: 'active', blurb: 'New text', transport: ['walk', 'metro', 'flight'] });
+  });
+});
+
+describe('automatic daily and weekly challenges', () => {
+  beforeEach(() => resetRateLimit());
+
+  it('appear for a city the first time it is asked about, once per day and week, and pay XP only', async () => {
+    const w = world();
+    const t = await w.signInSolana();
+    await w.call(t, { op: 'select-city', city: 'paris' });
+    const first = (await w.call(t, { op: 'missions', city: 'paris' })).data.missions as J[];
+    const day = windowKey('daily', periodStart('day', w.now()));
+    const week = windowKey('weekly', periodStart('week', w.now()));
+    const daily = first.find((m) => m.id === `auto-daily-paris-${day.slice(2)}`)!;
+    const weekly = first.find((m) => m.id === `auto-weekly-paris-${week.slice(2)}`)!;
+    expect(daily).toMatchObject({ kind: 'daily', difficulty: 'beginner', totalStages: 3, xpReward: 40, treasure: null });
+    expect(weekly).toMatchObject({ kind: 'weekly', difficulty: 'intermediate', totalStages: 5, xpReward: 150, treasure: null });
+    expect(daily.closesAt).toBeGreaterThan(w.now());
+    expect(JSON.stringify(first)).not.toMatch(/answer|hash/i);
+
+    // Asking again, from another player, does not make more.
+    const other = await w.signInSolana();
+    expect(((await w.call(other, { op: 'missions', city: 'paris' })).data.missions as J[]).filter((m) => String(m.id).startsWith('auto-'))).toHaveLength(2);
+    expect(w.raw.prepare("select count(*) as n from game_clues where mission_id like 'auto-%'").get()).toEqual({ n: 8 });
+
+    // Solve the daily: the answers are facts the game can work out.
+    const steps = generateChallenge(CITIES.find((c) => c.id === 'paris')!, CITIES, day, 3);
+    expect((await w.call(t, { op: 'mission-start', mission: daily.id })).data).toMatchObject({ stage: 1, totalStages: 3 });
+    let last: J = {};
+    for (const step of steps) last = (await w.call(t, { op: 'answer', mission: daily.id, answer: step.answer })).data;
+    expect(last).toMatchObject({ correct: true, completed: true, xp: 40, treasure: null });
+    expect((await w.call(t, { op: 'mission-start', mission: daily.id })).status).toBe(409); // once a day
+    expect((await w.call(t, { op: 'progress' })).data.totals.missionsCompleted).toBe(1);
+
+    // Tomorrow there is a new one; the weekly stays; yesterday's has closed.
+    w.wait(86_400_000);
+    const next = (await w.call(t, { op: 'missions', city: 'paris' })).data.missions as J[];
+    const autos = next.filter((m) => String(m.id).startsWith('auto-daily-')).map((m) => m.id);
+    expect(autos).toHaveLength(1);
+    expect(autos[0]).not.toBe(daily.id);
+    expect((await w.call(t, { op: 'mission-start', mission: daily.id })).status).toBe(404);
+  });
+
+  it('are not made for a city that is closed', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const t = await w.signInSolana();
+    await w.call(boss, { op: 'admin-city-set', id: 'miami', status: 'inactive' });
+    expect(((await w.call(t, { op: 'missions', city: 'miami' })).data.missions as J[]).filter((m) => String(m.id).startsWith('auto-'))).toHaveLength(0);
+  });
+});
+
+describe('team hunts', () => {
+  beforeEach(() => resetRateLimit());
+
+  async function hunt(w: ReturnType<typeof world>, boss: string) {
+    const placed = await w.call(boss, { op: 'admin-treasure-place', city: 'london', class: 'lutetium', lng: -0.1276, lat: 51.5072, radiusM: 60, confirmSafe: true });
+    const treasure = placed.data.id as string;
+    await w.call(boss, { op: 'admin-mission-save', id: 'london-team', city: 'london', title: 'Together', difficulty: 'intermediate', kind: 'team', status: 'draft', xpReward: 100, treasureId: treasure });
+    await w.call(boss, { op: 'admin-clue-save', mission: 'london-team', seq: 1, type: 'riddle', content: 'One?', answer: 'one', hints: ['first hint', 'second hint'] });
+    await w.call(boss, { op: 'admin-clue-save', mission: 'london-team', seq: 2, type: 'riddle', content: 'Two?', answer: 'two' });
+    await w.call(boss, { op: 'admin-mission-save', id: 'london-team', city: 'london', title: 'Together', difficulty: 'intermediate', kind: 'team', status: 'active', xpReward: 100, treasureId: treasure });
+    return treasure;
+  }
+
+  it('are solved by a team together: shared progress, shared hints, XP and the coin for every member', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const [a, b, c] = [await w.signInSolana(), await w.signInSolana(), await w.signInSolana()];
+    const treasure = await hunt(w, boss);
+    for (const t of [a, b, c]) await w.call(t, { op: 'select-city', city: 'london' });
+
+    // Without a team there is nothing to start, and the list says so.
+    expect((await w.call(a, { op: 'mission-start', mission: 'london-team' })).data.message).toMatch(/needs a team/);
+    const listed = (await w.call(a, { op: 'missions', city: 'london' })).data.missions.find((m: J) => m.id === 'london-team');
+    expect(listed).toMatchObject({ kind: 'team', needsTeam: true, progress: null });
+
+    // A team of one is not enough.
+    const made = await w.call(a, { op: 'team-create', name: 'Together' });
+    expect((await w.call(a, { op: 'mission-start', mission: 'london-team' })).data.message).toMatch(/at least two/);
+    await w.call(b, { op: 'team-join', code: made.data.team.joinCode });
+
+    const started = await w.call(a, { op: 'mission-start', mission: 'london-team' });
+    expect(started.data).toMatchObject({ stage: 1, totalStages: 2 });
+    // The other member sees the same hunt, at the same step, with the same hints.
+    expect((await w.call(b, { op: 'clue', mission: 'london-team' })).data).toMatchObject({ stage: 1, hintsUsed: 0 });
+    await w.call(b, { op: 'hint', mission: 'london-team' });
+    expect((await w.call(a, { op: 'clue', mission: 'london-team' })).data.hints).toEqual(['first hint']);
+
+    // A player outside the team cannot take part.
+    expect((await w.call(c, { op: 'clue', mission: 'london-team' })).status).toBe(409);
+    expect((await w.call(c, { op: 'answer', mission: 'london-team', answer: 'one' })).status).toBe(409);
+
+    // B answers the first step; A the second. The hunt is then done for both.
+    expect((await w.call(b, { op: 'answer', mission: 'london-team', answer: 'one' })).data).toMatchObject({ correct: true, completed: false, next: { stage: 2 } });
+    expect((await w.call(a, { op: 'clue', mission: 'london-team' })).data.stage).toBe(2);
+    const done = await w.call(a, { op: 'answer', mission: 'london-team', answer: 'two' });
+    expect(done.data).toMatchObject({ correct: true, completed: true, team: true, xp: 108, treasure: { coin: 'Lutetium Coin', zone: { lng: -0.1276 } } }); // 100 less 10% for one hint, plus a fifth
+    expect((await w.call(a, { op: 'answer', mission: 'london-team', answer: 'two' })).status).toBe(409);
+    expect((await w.call(a, { op: 'mission-start', mission: 'london-team' })).status).toBe(409);
+
+    for (const t of [a, b]) {
+      const p = (await w.call(t, { op: 'progress' })).data;
+      expect(p.totals.missionsCompleted).toBe(1);
+      expect(p.achievements.find((x: J) => x.id === 'team-player').unlockedAt).not.toBeNull();
+      expect((await w.call(t, { op: 'treasures' })).data.treasures[0]).toMatchObject({ id: treasure, discovery: 'unlocked', available: true });
+    }
+    expect((await w.call(c, { op: 'treasures' })).data.treasures).toEqual([]);
+    expect((await w.call(c, { op: 'progress' })).data.totals.missionsCompleted).toBe(0);
+
+    // Only one of them can take the coin.
+    const results = await Promise.all([w.call(a, { op: 'collect', treasure }), w.call(b, { op: 'collect', treasure })]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
+
+  it('can be given up only by the team owner', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const [a, b] = [await w.signInSolana(), await w.signInSolana()];
+    await hunt(w, boss);
+    const made = await w.call(a, { op: 'team-create', name: 'Owners' });
+    await w.call(b, { op: 'team-join', code: made.data.team.joinCode });
+    await w.call(a, { op: 'mission-start', mission: 'london-team' });
+    expect((await w.call(b, { op: 'mission-abandon', mission: 'london-team' })).status).toBe(403);
+    expect((await w.call(a, { op: 'mission-abandon', mission: 'london-team' })).status).toBe(200);
+    expect((await w.call(a, { op: 'mission-start', mission: 'london-team' })).data).toMatchObject({ stage: 1 });
   });
 });

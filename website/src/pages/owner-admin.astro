@@ -4,33 +4,106 @@ import Base from '../layouts/Base.astro';
 
 <Base title="Owner" description="Private." ctaBands={false} footer={false}>
   <meta slot="head" name="robots" content="noindex, nofollow, noarchive" />
-  <div class="oa">
-    <h1>Owner</h1>
-    <p class="oa-note">Private. Sign in with the owner wallet (a free signed message, not a transaction). The server decides who may see anything here.</p>
-    <div id="owner-admin-buttons" class="oa-row"></div>
-    <p id="owner-admin-status" class="oa-note" role="status"></p>
-    <div id="owner-admin"></div>
-  </div>
+  <main class="oa">
+    <header class="oa-head">
+      <div>
+        <p class="oa-eyebrow">Private</p>
+        <h1>Owner</h1>
+      </div>
+      <div id="owner-admin-who" class="oa-who" hidden></div>
+    </header>
+
+    <section id="owner-admin-signin" class="oa-signin" aria-labelledby="oa-signin-title">
+      <h2 id="oa-signin-title">Sign in to see the numbers</h2>
+      <p class="oa-lead">Use the owner wallet. Signing is a free message, not a transaction, and nothing is spent. The server decides who may see anything here: a wallet that is not on its list sees nothing.</p>
+      <div id="owner-admin-buttons" class="oa-row"></div>
+    </section>
+
+    <p id="owner-admin-status" class="oa-status" role="status"></p>
+    <div id="owner-admin" class="oa-body"></div>
+  </main>
   <script>
     import '../scripts/ownerAdmin';
   </script>
 </Base>
 
 <style is:global>
-  .oa { max-width: 1100px; margin: 0 auto; padding: 96px 16px 64px; }
-  .oa h1 { font-size: 28px; margin: 0 0 8px; }
-  .oa h2 { font-size: 16px; margin: 0 0 4px; }
-  .oa h3 { font-size: 14px; margin: 14px 0 4px; }
-  .oa-note { opacity: 0.7; font-size: 13px; margin: 0 0 10px; }
-  .oa-warn { color: #9a5b00; font-size: 14px; }
-  .oa-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
-  .oa-btn { font: inherit; padding: 10px 14px; border-radius: 10px; border: 1px solid #d3d3d5; background: transparent; color: inherit; cursor: pointer; }
-  .oa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; }
-  .oa-card { border: 1px solid #eaeaec; border-radius: 14px; padding: 16px; overflow-x: auto; }
-  .oa-big { font-size: 32px; font-weight: 700; margin: 4px 0 8px; }
-  .oa table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  .oa td, .oa th { padding: 6px 8px; border-top: 1px solid #eaeaec; text-align: left; }
-  .oa th { font-size: 12px; opacity: 0.7; }
-  .oa .r { text-align: right; }
-  @media (prefers-color-scheme: dark) { .oa-card, .oa td, .oa th { border-color: #17171a; } .oa-btn { border-color: #1b1b1e; } }
+  .oa { max-width: 1120px; margin: 0 auto; padding: calc(var(--nav-height, 72px) + 28px) var(--gutter, 16px) 72px; color: var(--color-text); }
+  .oa-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .oa-eyebrow { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-faint); }
+  .oa h1 { margin: 0; font-size: 34px; line-height: 1.1; letter-spacing: -0.03em; color: var(--color-strong); }
+  .oa h2 { margin: 0 0 4px; font-size: 15px; font-weight: 650; color: var(--color-strong); }
+  .oa h3 { margin: 18px 0 6px; font-size: 13px; font-weight: 650; color: var(--color-strong); }
+  .oa-lead { margin: 0 0 16px; max-width: 60ch; font-size: 14px; line-height: 1.6; color: var(--color-muted); }
+  .oa-note { margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--color-faint); }
+  .oa-status { min-height: 20px; margin: 0 0 12px; font-size: 13px; color: var(--color-muted); }
+  .oa-status.is-bad { color: #b3261e; }
+
+  .oa-who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-muted); }
+  .oa-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill, 999px); font-family: var(--font-mono); font-size: 12px; background: var(--color-surface); }
+  .oa-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--color-ok); }
+
+  .oa-signin { max-width: 560px; padding: 24px; border: 1px solid var(--color-border); border-radius: var(--radius-md, 14px); background: var(--color-surface); box-shadow: var(--shadow-soft); }
+  .oa-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .oa-btn { font: inherit; font-size: 14px; font-weight: 550; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-strong); cursor: pointer; transition: background var(--duration-fast, 160ms) var(--ease-out, ease), transform var(--duration-press, 120ms) var(--ease-out, ease); }
+  .oa-btn:hover { background: var(--color-surface-2); }
+  .oa-btn:active { transform: scale(0.98); }
+  .oa-btn:focus-visible, .oa-seg button:focus-visible, .oa-nav a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  .oa-btn--primary { background: var(--color-ink); border-color: var(--color-ink); color: #fff; }
+  .oa-btn--primary:hover { background: #26262b; }
+  .oa-btn[disabled] { opacity: 0.55; cursor: progress; }
+
+  .oa-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .oa-bar-left, .oa-bar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .oa-seg { display: inline-flex; padding: 3px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-2); }
+  .oa-seg button { font: inherit; font-size: 13px; font-weight: 550; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--color-muted); cursor: pointer; }
+  .oa-seg button[aria-pressed='true'] { background: var(--color-surface); color: var(--color-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+  .oa-updated { font-size: 12.5px; color: var(--color-faint); }
+
+  .oa-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 12px; margin-bottom: 20px; }
+  .oa-kpi { padding: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md, 14px); background: var(--color-surface); }
+  .oa-kpi-label { margin: 0 0 6px; font-size: 12.5px; color: var(--color-muted); }
+  .oa-kpi-value { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--color-strong); font-variant-numeric: tabular-nums; }
+  .oa-kpi-value.is-off { font-size: 15px; font-weight: 550; letter-spacing: 0; color: var(--color-faint); }
+  .oa-kpi-sub { margin: 6px 0 0; font-size: 12px; color: var(--color-faint); }
+
+  .oa-nav { position: sticky; top: var(--nav-height, 72px); z-index: 5; display: flex; gap: 6px; padding: 8px 0; margin-bottom: 8px; background: var(--color-bg); overflow-x: auto; }
+  .oa-nav a { flex: none; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-pill, 999px); font-size: 13px; font-weight: 550; color: var(--color-muted); text-decoration: none; }
+  .oa-nav a:hover { color: var(--color-strong); background: var(--color-surface-2); }
+
+  .oa-section { margin: 0 0 8px; scroll-margin-top: calc(var(--nav-height, 72px) + 56px); }
+  .oa .oa-section-title { margin: 22px 0 10px; font-size: 19px; font-weight: 650; letter-spacing: -0.02em; color: var(--color-strong); }
+  .oa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 12px; }
+  .oa-card { padding: 18px; border: 1px solid var(--color-border); border-radius: var(--radius-md, 14px); background: var(--color-surface); overflow-x: auto; }
+  .oa-card--wide { grid-column: 1 / -1; }
+
+  .oa-days { display: flex; align-items: flex-end; gap: 3px; height: 120px; margin: 8px 0 4px; }
+  .oa-days span { flex: 1; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--color-brand-bright); opacity: 0.85; }
+  .oa-days span:hover { opacity: 1; }
+  .oa-days-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--color-faint); }
+
+  .oa-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 7px; }
+  .oa-list li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 10px; font-size: 13px; }
+  .oa-list .l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); }
+  .oa-list .t { height: 8px; border-radius: 4px; background: var(--color-surface-3); overflow: hidden; }
+  .oa-list .t i { display: block; height: 100%; border-radius: 4px; background: var(--color-ink); }
+  .oa-list .n { min-width: 2.5ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+
+  .oa table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .oa th, .oa td { padding: 8px 8px; border-top: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+  .oa th { font-size: 12px; font-weight: 600; color: var(--color-faint); border-top: 0; }
+  .oa .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .oa td.m { font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+
+  .oa-empty { margin: 8px 0 0; font-size: 13px; color: var(--color-faint); }
+  .oa-flag { display: flex; gap: 8px; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: var(--color-gold-soft); color: var(--color-warn); }
+  .oa-flag--off { background: var(--color-surface-2); color: var(--color-muted); }
+  .oa-limits { margin-top: 24px; padding: 14px 18px; border: 1px solid var(--color-border); border-radius: var(--radius-md, 14px); }
+  .oa-limits summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--color-strong); }
+  .oa-limits ul { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--color-muted); }
+
+  .oa-skel { height: 88px; border-radius: var(--radius-md, 14px); background: linear-gradient(90deg, var(--color-surface-2), var(--color-surface-3), var(--color-surface-2)); background-size: 200% 100%; animation: oa-shimmer 1.2s linear infinite; }
+  @keyframes oa-shimmer { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .oa-skel { animation: none; } .oa-btn { transition: none; } }
+  @media (max-width: 560px) { .oa h1 { font-size: 28px; } .oa-list li { grid-template-columns: minmax(0, 1fr) auto; } .oa-list .t { grid-column: 1 / -1; order: 3; } }
 </style>

@@ -54,8 +54,8 @@ function picture(symbol: string, url: string | null): HTMLElement {
   return img;
 }
 
-function stat(label: string, value: string): HTMLElement {
-  const d = el('div', 'wapp-tp__stat');
+function stat(label: string, value: string, tone?: 'is-up' | 'is-down'): HTMLElement {
+  const d = el('div', tone ? `wapp-tp__stat ${tone}` : 'wapp-tp__stat');
   d.append(el('span', 'wapp-tp__k', label), el('strong', 'wapp-tp__v', value));
   return d;
 }
@@ -91,7 +91,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     trades = null;
     root.replaceChildren();
     const bar = el('div', 'wapp-tp__top');
-    const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back', '← Back to the list');
+    const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back', 'Back to the list');
     back.type = 'button';
     back.addEventListener('click', () => o.onBack());
     const title = el('div', 'wapp-tp__title');
@@ -166,15 +166,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       const txns = buys === null || sells === null ? null : buys + sells;
       const stats = root.querySelector<HTMLElement>('[data-tp-stats]');
       if (stats) {
-        stats.replaceChildren(stat(`Price ${d.quoteSymbol}`, nativePrice(d)), stat('Liquidity', compactUsd(d.liquidityUsd)), stat('FDV', compactUsd(d.fdvUsd)), stat('Market cap', compactUsd(d.marketCapUsd)), stat('Txns 24H', compactCount(txns)), stat('Buys', compactCount(buys)), stat('Sells', compactCount(sells)));
-        if (buys !== null && sells !== null && buys + sells > 0) {
-          const meter = el('div', 'wapp-tp__meter');
-          const share = el('span', 'wapp-tp__meter-buy');
-          share.style.width = `${Math.round((buys / (buys + sells)) * 100)}%`;
-          meter.append(share);
-          meter.title = 'Share of the 24-hour trades that were buys (green) and sells (red)';
-          stats.append(meter);
-        }
+        stats.replaceChildren(stat(`Price ${d.quoteSymbol}`, nativePrice(d)), stat('Liquidity', compactUsd(d.liquidityUsd)), stat('FDV', compactUsd(d.fdvUsd)), stat('Market cap', compactUsd(d.marketCapUsd)), stat('Txns 24H', compactCount(txns)), stat('Buys', compactCount(buys), 'is-up'), stat('Sells', compactCount(sells), 'is-down'));
       }
       const vol = el('div', 'wapp-tp__duo');
       vol.append(stat('Volume 24H', compactUsd(d.volumeUsd.h24)), stat('Pool age', formatAge(d.ageMs)));

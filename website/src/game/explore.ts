@@ -7,7 +7,9 @@
  * PUBLIC_SATELLITE_ATTRIBUTION. Street-level imagery is not part of this view yet: it needs a provider account (see the plan).
  */
 import type { Map as MlMap, Marker, StyleSpecification } from 'maplibre-gl';
+import type { SceneHandle } from './scene.js';
 import { allCities, cityById, type City, type Transport } from './cities.js';
+import { coverageTiles, embedUrl, isMapillaryToken, MAPILLARY_CREDIT, nearestImage, pageUrl } from './street.js';
 import { along, distanceKm, flightDurationMs, flightKm, localDurationMs, LOCAL_MODES, type LngLat } from './travel.js';
 
 export interface Journey { mode: string; from: LngLat; to: LngLat; departedAt: number; arrivesAt: number }
@@ -28,6 +30,7 @@ export interface ExploreApi {
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const SAT_URL = (import.meta.env.PUBLIC_SATELLITE_TILES as string | undefined) ?? '';
 const SAT_ATTR = (import.meta.env.PUBLIC_SATELLITE_ATTRIBUTION as string | undefined) ?? '';
+const MLY_TOKEN = String(import.meta.env.PUBLIC_MAPILLARY_TOKEN ?? '');
 const LABEL: Record<Transport, string> = { walk: 'Walk', run: 'Run', taxi: 'Taxi', car: 'Car', bus: 'Bus', train: 'Train', metro: 'Metro', ferry: 'Ferry', flight: 'Flight' };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] {
@@ -50,6 +53,9 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   let note = '';
   let busy = false;
   let satellite = false;
+  let scene: SceneHandle | null = null;
+  let sceneOn = false;
+  let zoneNow: { lng: number; lat: number } | null = null;
   let raf = 0;
   let destroyed = false;
 
@@ -61,14 +67,22 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   go.type = 'button';
   const sat = el('button', 'wapp__btn wapp__btn--ghost', 'Satellite');
   sat.type = 'button';
+  const streetBtn = el('button', 'wapp__btn wapp__btn--ghost', 'Street view');
+  streetBtn.type = 'button';
+  const sceneBtn = el('button', 'wapp__btn wapp__btn--ghost', '3D city');
+  sceneBtn.type = 'button';
+  const sceneBox = el('div', 'wapp__card');
+  sceneBox.hidden = true;
+  const streetBox = el('div', 'wapp__card');
+  streetBox.hidden = true;
   const mapBox = el('div');
   mapBox.style.cssText = 'height:min(62vh,520px);min-height:320px;border-radius:12px;overflow:hidden';
   const flights = el('div', 'wapp__card');
   const actions = el('div');
   actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center';
-  actions.append(go, sat);
+  actions.append(go, sat, streetBtn, sceneBtn);
   bar.append(el('h2', 'wapp__h2', `Explore ${city.name}`), modes, actions, status);
-  host.replaceChildren(bar, mapBox, flights);
+  host.replaceChildren(bar, mapBox, streetBox, sceneBox, flights);
 
   const lightStyle = STYLE_URL;
   const satStyle: StyleSpecification = { version: 8, sources: { sat: { type: 'raster', tiles: [SAT_URL], tileSize: 256, attribution: SAT_ATTR } }, layers: [{ id: 'sat', type: 'raster', source: 'sat' }] };
@@ -87,6 +101,8 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   const showZone = (e: Event): void => {
     const z = (e as CustomEvent<{ lng: number; lat: number; radiusM: number }>).detail;
     prize.setLngLat([z.lng, z.lat]).addTo(map);
+    zoneNow = z;
+    scene?.setZone(z);
     map.flyTo({ center: [z.lng, z.lat], zoom: 16 });
     note = 'The green marker is where your treasure is. Travel there, then press Collect in your treasures list.';
     renderStatus();
@@ -193,19 +209,108 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
     renderStatus();
   });
 
+  // ---- street-level photographs (Mapillary, CC BY-SA), found nearest to where the player stands or the marked place
+  let streetOn = false;
+  function coverage(on: boolean): void {
+    if (on && !map.getSource('mly')) {
+      map.addSource('mly', { type: 'vector', tiles: [coverageTiles(MLY_TOKEN)], minzoom: 6, maxzoom: 14, attribution: '© Mapillary' });
+      map.addLayer({ id: 'mly-lines', type: 'line', source: 'mly', 'source-layer': 'sequence', paint: { 'line-color': '#05cb63', 'line-width': 2, 'line-opacity': 0.85 } });
+    } else if (!on && map.getSource('mly')) {
+      map.removeLayer('mly-lines');
+      map.removeSource('mly');
+    }
+  }
+  map.on('style.load', () => coverage(streetOn));
+
+  async function showStreet(at: LngLat, label: string): Promise<void> {
+    streetBox.replaceChildren(el('h3', 'wapp__h2', 'Street view'), el('p', 'wapp__fine', 'Looking for a photograph near ' + label + '…'));
+    const found = await nearestImage(MLY_TOKEN, at[0], at[1]);
+    const head = el('h3', 'wapp__h2', 'Street view');
+    const row = el('div');
+    row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px';
+    const here = el('button', 'wapp__btn wapp__btn--ghost', 'Look where I am');
+    here.type = 'button';
+    here.addEventListener('click', () => void showStreet(state.position ?? city.center, 'where you are'));
+    const marked = el('button', 'wapp__btn wapp__btn--ghost', 'Look at the marked place');
+    marked.type = 'button';
+    marked.disabled = !dest;
+    marked.addEventListener('click', () => dest && void showStreet(dest, 'the marked place'));
+    row.append(here, marked);
+    if (found.failed) streetBox.replaceChildren(head, row, el('p', 'wapp__fine', 'Street photographs could not be reached just now. Try again in a moment.'));
+    else if (!found.image) streetBox.replaceChildren(head, row, el('p', 'wapp__fine', 'There are no street photographs within about 120 metres of ' + label + '. The green lines on the map show where there are some: pick a spot on one.'));
+    else {
+      const frame = document.createElement('iframe');
+      frame.src = embedUrl(found.image.id);
+      frame.title = 'Street-level photograph near ' + label;
+      frame.loading = 'lazy';
+      frame.referrerPolicy = 'no-referrer';
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
+      frame.style.cssText = 'width:100%;height:min(55vh,420px);min-height:260px;border:0;border-radius:10px';
+      const link = document.createElement('a');
+      link.href = pageUrl(found.image.id, found.image.lng, found.image.lat);
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open on Mapillary';
+      const credit = el('p', 'wapp__fine', MAPILLARY_CREDIT + ' · ');
+      credit.append(link);
+      streetBox.replaceChildren(head, row, frame, credit);
+    }
+  }
+
+  streetBtn.addEventListener('click', () => {
+    if (!isMapillaryToken(MLY_TOKEN)) {
+      note = 'Street-level photographs need a Mapillary key, which this site has not been given yet. The map and the clues still work without it.';
+      renderStatus();
+      return;
+    }
+    streetOn = !streetOn;
+    streetBtn.textContent = streetOn ? 'Hide street view' : 'Street view';
+    streetBox.hidden = !streetOn;
+    coverage(streetOn);
+    if (streetOn) void showStreet(state.position ?? city.center, 'where you are');
+  });
+
+  // ---- the 3D city: a stylised model with the city's landmarks where they really are, the player, and any unlocked treasure zone
+  sceneBtn.addEventListener('click', () => {
+    sceneOn = !sceneOn;
+    sceneBtn.textContent = sceneOn ? 'Hide 3D city' : '3D city';
+    sceneBox.hidden = !sceneOn;
+    if (!sceneOn) {
+      scene?.destroy();
+      scene = null;
+      sceneBox.replaceChildren();
+      return;
+    }
+    const holder = el('div');
+    sceneBox.replaceChildren(el('h3', 'wapp__h2', city.name + ' in 3D'), el('p', 'wapp__fine', 'A stylised model: the landmarks stand where the real ones are (approximately); the buildings are made up to suit the kind of city. Drag to turn, scroll or pinch to zoom. The gold ball is you.'), holder);
+    void import('./scene.js').then(async (m) => {
+      const h = await m.mountCityScene(holder, city, { player: state.position, zone: zoneNow });
+      if (!sceneOn) return h?.destroy();
+      if (!h) holder.textContent = '3D cannot be drawn on this device.';
+      scene = h;
+    }).catch(() => {
+      holder.textContent = '3D could not be loaded. Try again.';
+    });
+  });
+
   let checked = false;
   function frame(): void {
     if (destroyed) return;
     const t = state.travel;
     if (t && t.arrivesAt > clock()) {
-      me.setLngLat(along(t.from, t.to, clock() - t.departedAt, t.arrivesAt - t.departedAt));
+      const here = along(t.from, t.to, clock() - t.departedAt, t.arrivesAt - t.departedAt);
+      me.setLngLat(here);
+      scene?.setPlayer(here);
       checked = false;
     } else if ((t || state.flight) && !checked) {
       // The time has passed: ask the server (the record), which finishes the journey or the landing.
       checked = true;
       void api.state().then((s) => {
         apply(s);
-        if (s.position) me.setLngLat(s.position);
+        if (s.position) {
+          me.setLngLat(s.position);
+          scene?.setPlayer(s.position);
+        }
         dest = null;
         target.remove();
       }).catch(() => {
@@ -224,6 +329,7 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   return {
     destroy() {
       destroyed = true;
+      scene?.destroy();
       host.removeEventListener('game-zone-show', showZone);
       cancelAnimationFrame(raf);
       map.remove();

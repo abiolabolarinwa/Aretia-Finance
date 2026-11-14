@@ -6,6 +6,7 @@ import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
 import { mountAddressBook } from './walletAddressBook';
 import { browserStorage, SwapHistory } from '../swings/history.js';
+import { HISTORY_SYNCED_EVENT, swapTokens } from './walletSwapTokens';
 import { airdropExplanation, airdropReasons, isMine, loadMine, markMine, looksLikeAirdrop } from './walletAirdrop';
 import { requestSwap, swapRequestFor } from './walletHoldingActions';
 import { discoverEvmTokens } from './walletTokenDiscovery';
@@ -607,17 +608,8 @@ export function initWalletApp(): void {
     let drawn = false;
     try {
       // The tokens this wallet has swapped through Aretia are looked for too, so one just bought shows here.
-      const extra: ExtraToken[] = [];
-      tradedHere = new Set();
-      for (const h of new SwapHistory(browserStorage()).list(account)) {
-        if (h.status !== 'confirmed' && h.status !== 'submitted') continue;
-        for (const address of [h.toAddress, h.fromAddress]) {
-          if (address && isChainId(h.chain)) {
-            extra.push({ chain: h.chain, address });
-            tradedHere.add(`${h.chain}:${address.toLowerCase()}`);
-          }
-        }
-      }
+      const extra: ExtraToken[] = swapTokens(new SwapHistory(browserStorage()).list(account));
+      tradedHere = new Set(extra.map((t) => `${t.chain}:${t.address.toLowerCase()}`));
       const evmChains = CHAIN_IDS.filter((c) => CHAINS[c].kind === 'evm');
       // The two searches for the wallet's other tokens start now and run while the first, quick read is drawn:
       // Aretia's own (the wallet checked on-chain against every token of Aretia's index) and an outside list, which covers tokens the index does not know.
@@ -648,6 +640,10 @@ export function initWalletApp(): void {
     renderDashboard();
     renderSendAssets();
   }
+  // The swap page brought this wallet's saved swaps onto this device (a new browser, or after signing in): look at the tokens they name.
+  window.addEventListener(HISTORY_SYNCED_EVENT, () => {
+    if (evmAccount) void loadEvm(evmAccount);
+  });
   window.addEventListener(EVM_ACCOUNT_EVENT, (e) => {
     const account = (e as CustomEvent<string | null>).detail;
     if (account !== evmAccount) void loadEvm(account);

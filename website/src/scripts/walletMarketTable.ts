@@ -28,6 +28,8 @@ export interface TableOptions {
   onOpen(row: MarketRow): void;
   /** The Trade button at the end of each row. Absent: no button (the row still opens the token). */
   onTrade?(row: MarketRow): void;
+  /** The Last 24h price line column. Only the all-networks view (the Aretia mark) shows it; a single network keeps the plain table. */
+  showSpark?: boolean;
   /** Where each row's on-chain check stands, so its rating can say "Checking" or "Couldn't check". */
   ratingState?(row: MarketRow): CheckState | undefined;
   /** The row to show as selected (the one the side panel is describing). */
@@ -214,7 +216,7 @@ export function markSelected(table: ParentNode, key: string | null): void {
 
 export function marketTable(o: TableOptions): HTMLElement {
   const wrap = el('div', 'wapp-mt');
-  const table = el('table', 'wapp-mt__table');
+  const table = el('table', o.showSpark ? 'wapp-mt__table has-spark' : 'wapp-mt__table');
   const head = el('thead');
   const hr = el('tr');
   const th = (label: string, cls = '', key?: SortKey, title?: string): HTMLElement => {
@@ -237,7 +239,7 @@ export function marketTable(o: TableOptions): HTMLElement {
   hr.append(th('#', 'wapp-mt__rank'), th('Token', 'wapp-mt__tokenhead'));
   if (o.showRisk) hr.append(th('Aretia rating', '', undefined, `Aretia's own rating of the token, shown as a colour. ${RATING_BANDS.map((b) => `${b.name}: ${b.meaning}`).join(' ')} It is not advice and is not a promise.`));
   for (const c of COLUMNS) hr.append(th(c.label, 'wapp-mt__numhead', c.key, c.title));
-  hr.append(th('Last 24h', 'wapp-mt__numhead wapp-mt__sparkhead', undefined, 'The price over the last 24 hours, drawn from the price now and its changes over 5 minutes, 1, 6 and 24 hours.'));
+  if (o.showSpark) hr.append(th('Last 24h', 'wapp-mt__numhead wapp-mt__sparkhead', undefined, 'The price over the last 24 hours, drawn from the price now and its changes over 5 minutes, 1, 6 and 24 hours.'));
   if (o.onTrade) hr.append(th('', 'wapp-mt__tradehead'));
   head.append(hr);
 
@@ -324,7 +326,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       tr.append(ratingCell(r, o.ratingState?.(r)));
     }
     const live = liveCells(r);
-    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2), sparkCell(r));
+    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2), ...(o.showSpark ? [sparkCell(r)] : []));
     if (o.onTrade) {
       const trade = o.onTrade;
       const cell = el('td', 'wapp-mt__tradecell');

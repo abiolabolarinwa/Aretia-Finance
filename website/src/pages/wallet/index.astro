@@ -1665,8 +1665,53 @@ const sendTips = [
   .wapp-mt__stat strong { color: var(--color-strong); font-size: 14px; }
   .wapp-mt__stat { align-content: center; }
   @media (max-width: 720px) { .wapp-mt__stats { grid-template-columns: 1fr; } }
+  /* The overview band above the Markets list: three cards, then three short lists. */
+  .wapp-ov { display: grid; gap: 10px; margin: 0 0 12px; }
+  .wapp-ov__cards, .wapp-ov__lists { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .wapp-ov__card, .wapp-ov__panel { min-width: 0; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg); font-variant-numeric: tabular-nums; }
+  .wapp-ov__title, .wapp-ov__ptitle { margin: 0; font-size: 14px; font-weight: 700; color: var(--color-strong); }
+  .wapp-ov__hint { margin: 2px 0 8px; font-size: 11px; color: var(--color-muted); }
+  .wapp-ov__none { margin: 10px 0 0; font-size: 12px; color: var(--color-muted); }
+  .wapp-ov__gauge { display: block; width: 100%; max-width: 190px; margin: 0 auto; color: var(--color-strong); }
+  .wapp-ov__score { margin-top: 4px; text-align: center; font-size: 30px; font-weight: 800; line-height: 1; color: var(--color-strong); }
+  .wapp-ov__label { margin-top: 2px; text-align: center; font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .wapp-ov__split { display: flex; justify-content: space-between; gap: 8px; font-size: 22px; line-height: 1.2; margin-top: 6px; }
+  .wapp-ov__bar { display: flex; height: 8px; margin: 10px 0 8px; overflow: hidden; border-radius: 99px; background: var(--color-bg-alt); }
+  .wapp-ov__bar-up { background: #2fb36a; }
+  .wapp-ov__bar-flat { background: var(--color-border); }
+  .wapp-ov__bar-down { background: #e5484d; }
+  .wapp-ov__fine { margin: 0; font-size: 12px; color: var(--color-muted); }
+  .wapp-ov .is-up { color: #1b8a4b; }
+  .wapp-ov .is-down { color: #b3261e; }
+  .wapp-ov__chg { font-weight: 600; white-space: nowrap; }
+  .wapp-ov__venues { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+  .wapp-ov__venue { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px auto auto; align-items: center; gap: 8px; font-size: 12px; color: var(--color-strong); }
+  .wapp-ov__dex { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+  .wapp-ov__dex--letter { display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--color-bg-alt); color: var(--color-muted); }
+  .wapp-ov__vname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .wapp-ov__vshare { height: 6px; border-radius: 99px; background: var(--color-bg-alt); overflow: hidden; }
+  .wapp-ov__vshare i { display: block; height: 100%; background: var(--color-brand); }
+  .wapp-ov__vvol { color: var(--color-muted); text-align: right; }
+  .wapp-ov__phead, .wapp-ov__prow { display: grid; grid-template-columns: minmax(0, 1fr) 84px 64px; align-items: center; gap: 8px; }
+  .wapp-ov__phead { margin: 8px 0 2px; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); }
+  .wapp-ov__phead span:not(:first-child) { text-align: right; }
+  .wapp-ov__prow { width: 100%; padding: 6px 4px; font: inherit; font-size: 12px; text-align: left; color: var(--color-strong); background: none; border: 0; border-radius: 8px; cursor: pointer; }
+  .wapp-ov__prow:hover, .wapp-ov__prow:focus-visible { background: var(--color-brand-soft); outline: none; }
+  .wapp-ov__who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .wapp-ov__who .wapp-mt__logo { width: 28px; height: 28px; flex: none; }
+  .wapp-ov__names { display: grid; min-width: 0; line-height: 1.25; }
+  .wapp-ov__line small, .wapp-ov__full { color: var(--color-muted); font-size: 10px; }
+  .wapp-ov__line small { margin-left: 3px; }
+  .wapp-ov__full { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-ov__price, .wapp-ov__prow .wapp-ov__chg { text-align: right; }
+  @media (max-width: 960px) { .wapp-ov__cards, .wapp-ov__lists { grid-template-columns: 1fr; } }
+  .wapp-mt__sparkhead, .wapp-mt__spark { text-align: center; }
+  .wapp-mt__spark svg { display: block; margin: 0 auto; }
+  .wapp-mt__tradecell { padding-left: 4px; }
+  .wapp-mt__trade { padding: 5px 14px; font: inherit; font-size: 12px; font-weight: 700; color: #fff; background: var(--color-brand); border: 0; border-radius: 8px; cursor: pointer; }
+  .wapp-mt__trade:hover, .wapp-mt__trade:focus-visible { filter: brightness(1.1); outline: 2px solid var(--color-brand-soft); }
   .wapp-mt { overflow-x: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; }
-  .wapp-mt__table { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-mt__table { width: 100%; min-width: 1260px; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-strong); }
   .wapp-mt__table th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-align: right; text-transform: uppercase; white-space: nowrap; color: var(--color-muted); background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
   .wapp-mt__table th.wapp-mt__rank, .wapp-mt__table th.wapp-mt__tokenhead { text-align: left; }
   .wapp-mt__sort { padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; cursor: pointer; }

@@ -5,6 +5,7 @@
  */
 import { CHAINS } from '../swings/core/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
+import { sparkPoints } from '../swings/market/overview.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
 import { LOCK_ICON, lockTitle } from './walletIcons.js';
@@ -25,6 +26,8 @@ export interface TableOptions {
   showRisk: boolean;
   onSort(key: SortKey): void;
   onOpen(row: MarketRow): void;
+  /** The Trade button at the end of each row. Absent: no button (the row still opens the token). */
+  onTrade?(row: MarketRow): void;
   /** Where each row's on-chain check stands, so its rating can say "Checking" or "Couldn't check". */
   ratingState?(row: MarketRow): CheckState | undefined;
   /** The row to show as selected (the one the side panel is describing). */
@@ -55,6 +58,40 @@ const COLUMNS: { key: SortKey; label: string; title: string }[] = [
   { key: 'h24', label: '24H', title: 'Price change over 24 hours' },
   { key: 'liquidity', label: 'Liquidity', title: 'Money in the pool. It can be withdrawn by whoever put it there.' },
 ];
+
+export function marketLogo(r: MarketRow): HTMLElement {
+  return logo(r);
+}
+
+/** A small price line for the last 24 hours, green when the day's change is up and red when down; empty when the figures cannot draw one. */
+function sparkCell(r: MarketRow): HTMLElement {
+  const td = el('td', 'wapp-mt__num wapp-mt__spark');
+  const pts = sparkPoints(r);
+  if (!pts) return td;
+  const W = 84;
+  const H = 26;
+  const prices = pts.map((p) => p[1]);
+  const lo = Math.min(...prices);
+  const hi = Math.max(...prices);
+  const span = hi - lo || 1;
+  const xy = pts.map(([x, p]) => `${(x * W).toFixed(1)},${(H - 3 - ((p - lo) / span) * (H - 6)).toFixed(1)}`).join(' ');
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', String(W));
+  svg.setAttribute('height', String(H));
+  svg.setAttribute('aria-hidden', 'true');
+  const line = document.createElementNS(ns, 'polyline');
+  line.setAttribute('points', xy);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', (r.change.h24 ?? 0) >= 0 ? '#1b8a4b' : '#b3261e');
+  line.setAttribute('stroke-width', '1.6');
+  line.setAttribute('stroke-linejoin', 'round');
+  line.setAttribute('stroke-linecap', 'round');
+  svg.append(line);
+  td.append(svg);
+  return td;
+}
 
 function logo(r: MarketRow): HTMLElement {
   const letters = el('span', 'wapp-avatar wapp-mt__logo', (r.symbol || '?').slice(0, 2).toUpperCase());
@@ -200,6 +237,8 @@ export function marketTable(o: TableOptions): HTMLElement {
   hr.append(th('#', 'wapp-mt__rank'), th('Token', 'wapp-mt__tokenhead'));
   if (o.showRisk) hr.append(th('Aretia rating', '', undefined, `Aretia's own rating of the token, shown as a colour. ${RATING_BANDS.map((b) => `${b.name}: ${b.meaning}`).join(' ')} It is not advice and is not a promise.`));
   for (const c of COLUMNS) hr.append(th(c.label, 'wapp-mt__numhead', c.key, c.title));
+  hr.append(th('Last 24h', 'wapp-mt__numhead wapp-mt__sparkhead', undefined, 'The price over the last 24 hours, drawn from the price now and its changes over 5 minutes, 1, 6 and 24 hours.'));
+  if (o.onTrade) hr.append(th('', 'wapp-mt__tradehead'));
   head.append(hr);
 
   const body = el('tbody');
@@ -285,7 +324,22 @@ export function marketTable(o: TableOptions): HTMLElement {
       tr.append(ratingCell(r, o.ratingState?.(r)));
     }
     const live = liveCells(r);
-    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2));
+    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2), sparkCell(r));
+    if (o.onTrade) {
+      const trade = o.onTrade;
+      const cell = el('td', 'wapp-mt__tradecell');
+      const b = el('button', 'wapp-mt__trade', 'Trade');
+      b.type = 'button';
+      b.setAttribute('aria-label', `Trade ${r.symbol}`);
+      // The row opens the token; the button starts a trade.
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        trade(r);
+      });
+      b.addEventListener('keydown', (e) => e.stopPropagation());
+      cell.append(b);
+      tr.append(cell);
+    }
     body.append(tr);
   });
   table.append(head, body);

@@ -7,10 +7,20 @@
 import type { MarketRow } from './types.js';
 import { marketRowsFromPools } from '../mi/clientRows.js';
 
-const PAGES = 2;
+const PAGES = 3;
+/** The same rules as the stats bar (mi/marketStats.ts): below this liquidity a pool is left out, and so is one whose 24h volume is over 100 times its liquidity (wash trading or a broken price). Without them about half of the busiest pools' volume is such pools. */
+const MIN_LIQUIDITY_USD = 100;
+const MAX_VOLUME_TO_LIQUIDITY = 100;
 const PAGE = 100;
 const TTL_MS = 120_000;
 const cache = new Map<string, { at: number; rows: MarketRow[]; running: Promise<MarketRow[]> | null }>();
+
+/** A pool the stats bar would count: some liquidity, and volume within a hundred times it. */
+export function plausible(r: MarketRow): boolean {
+  const liq = r.liquidityUsd ?? 0;
+  const v = r.volume24hUsd ?? 0;
+  return liq >= MIN_LIQUIDITY_USD && v <= MAX_VOLUME_TO_LIQUIDITY * liq;
+}
 
 export function resetOverviewSample(): void {
   cache.clear();
@@ -38,7 +48,7 @@ export function fetchOverviewSample(chain: string, now: number, fetchImpl: typeo
         const res = await fetchImpl(`/api/v1/pools/top?${q}`, { headers: { accept: 'application/json' } });
         if (!res.ok) break;
         const body = (await res.json()) as { data?: unknown; meta?: { nextCursor?: unknown } };
-        rows.push(...marketRowsFromPools(body.data, now));
+        rows.push(...marketRowsFromPools(body.data, now).filter(plausible));
         cursor = typeof body.meta?.nextCursor === 'string' && body.meta.nextCursor ? body.meta.nextCursor : null;
       } catch {
         break;

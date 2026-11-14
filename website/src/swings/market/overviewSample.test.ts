@@ -9,6 +9,14 @@ const pool = (i: number, dex = 'PumpSwap') => ({
 });
 
 describe('the overview sample', () => {
+  it('leaves out pools the stats bar leaves out: no liquidity, or volume over 100 times it', async () => {
+    const wash = { ...pool(3), liquidity: { quote: 1, usd: 50 } };
+    const hot = { ...pool(4), liquidity: { quote: 1, usd: 5 }, volume: { quote: { h1: 1, h6: 1, m5: 1, h24: 1 }, usd: { h1: 1, h6: 1, m5: 1, h24: 100_000 } } };
+    const f = vi.fn(async () => new Response(JSON.stringify({ data: [pool(1), wash, hot], meta: { nextCursor: null } }))) as unknown as typeof fetch;
+    const rows = await fetchOverviewSample('x', 1_000, f);
+    expect(rows.map((r) => r.symbol)).toEqual(['T1']);
+  });
+
   beforeEach(() => resetOverviewSample());
 
   it('reads the index\'s busiest pools by 24-hour value, with the exchange each trades on, and keeps them for two minutes', async () => {

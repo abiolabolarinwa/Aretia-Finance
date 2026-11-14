@@ -437,3 +437,92 @@ describe('mission settings', () => {
     expect(((await w.call(boss, { op: 'admin-mission-list', city: 'miami' })).data.missions as J[]).find((m) => m.id === 'miami-dive')!.environment).toBe('underwater');
   });
 });
+
+describe('roaming the 3D city', () => {
+  beforeEach(() => resetRateLimit());
+  const PARIS: [number, number] = [2.3522, 48.8566];
+  const north = (m: number, from: [number, number] = PARIS): [number, number] => [from[0], from[1] + m / 111_320];
+
+  it('stores where the player walks to, and refuses to let them jump', async () => {
+    const w = world();
+    const t = await w.signInSolana();
+    await w.call(t, { op: 'select-city', city: 'paris' });
+    const step = await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: north(30) });
+    expect(step.status).toBe(200);
+    expect(step.data.position).toEqual(north(30));
+    expect((await w.call(t, { op: 'state' })).data.position).toEqual(north(30));
+
+    // Three kilometres in an instant, by car: no. The stored position does not move.
+    const jump = await w.call(t, { op: 'roam', city: 'paris', mode: 'car', to: north(3000) });
+    expect(jump.status).toBe(409);
+    expect(jump.data.message).toMatch(/too fast/);
+    expect(jump.data.position).toEqual(north(30));
+    expect((await w.call(t, { op: 'state' })).data.position).toEqual(north(30));
+
+    // After a minute a car can cover that distance, so it is accepted; running cannot.
+    w.wait(60_000);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'run', to: north(3000) })).status).toBe(409);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'car', to: north(1500) })).status).toBe(200);
+    // A long silence does not buy a long jump.
+    w.wait(3_600_000);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'car', to: north(4400, north(1500)) })).status).toBe(409);
+  });
+
+  it('refuses places outside the city, the wrong city, an unknown way of travelling, a stranger, and a player on a journey or in the air', async () => {
+    const w = world();
+    const t = await w.signInSolana();
+    expect((await w.call(null, { op: 'roam', city: 'paris', mode: 'walk', to: PARIS })).status).toBe(401);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: PARIS })).status).toBe(409); // no city chosen
+    await w.call(t, { op: 'select-city', city: 'paris' });
+    expect((await w.call(t, { op: 'roam', city: 'london', mode: 'walk', to: PARIS })).status).toBe(409);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'rocket', to: PARIS })).status).toBe(400);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: [10, 10] })).status).toBe(400);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: 'here' })).status).toBe(400);
+
+    const journey = await w.call(t, { op: 'travel', city: 'paris', mode: 'walk', to: [2.36, 48.86] });
+    expect(journey.status).toBe(200);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: PARIS })).data.message).toMatch(/timed journey/);
+    w.wait(journey.data.travel.arrivesAt - w.now() + 1);
+    await w.call(t, { op: 'state' });
+    const air = await w.call(t, { op: 'fly', to: 'london' });
+    expect(air.status).toBe(200);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: PARIS })).data.message).toMatch(/in the air/);
+  });
+
+  it('has its own allowance, so a busy roamer is not shut out by the shared one, but a flood is stopped', async () => {
+    const w = world();
+    const t = await w.signInSolana();
+    await w.call(t, { op: 'select-city', city: 'paris' });
+    let stopped = 0;
+    for (let i = 0; i < 130; i++) {
+      if ((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: north(i % 2) })).status === 429) stopped++;
+    }
+    expect(stopped).toBeGreaterThan(20);
+    expect(stopped).toBeLessThan(40); // the first 100 in the minute were accepted
+  });
+
+  it('is what collecting a treasure checks: the player has to get there, on foot or in a car', async () => {
+    const w = world();
+    const boss = await w.signInAdmin();
+    const t = await w.signInSolana();
+    const zone = north(220);
+    const placed = await w.call(boss, { op: 'admin-treasure-place', city: 'paris', class: 'lutetium', lng: zone[0], lat: zone[1], radiusM: 60, confirmSafe: true });
+    const treasure = placed.data.id as string;
+    await w.call(boss, { op: 'admin-mission-save', id: 'paris-roam', city: 'paris', title: 'Roam', difficulty: 'beginner', status: 'draft', treasureId: treasure });
+    await w.call(boss, { op: 'admin-clue-save', mission: 'paris-roam', seq: 1, type: 'riddle', content: 'x?', answer: 'x' });
+    await w.call(boss, { op: 'admin-mission-save', id: 'paris-roam', city: 'paris', title: 'Roam', difficulty: 'beginner', status: 'active', treasureId: treasure });
+    await w.call(t, { op: 'select-city', city: 'paris' });
+    await w.call(t, { op: 'mission-start', mission: 'paris-roam' });
+    expect((await w.call(t, { op: 'answer', mission: 'paris-roam', answer: 'x' })).data.treasure.zone).toBeTruthy();
+    expect((await w.call(t, { op: 'collect', treasure })).data.message).toMatch(/not close enough/);
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: north(10) })).status).toBe(200); // the first step, as the page reports it
+    // Trying to claim a position next to it at once is a jump.
+    expect((await w.call(t, { op: 'roam', city: 'paris', mode: 'walk', to: zone })).status).toBe(409);
+    w.wait(30_000); // half a minute of running covers it
+    const run = await w.call(t, { op: 'roam', city: 'paris', mode: 'run', to: zone });
+    expect(run.status).toBe(200);
+    const got = await w.call(t, { op: 'collect', treasure });
+    expect(got.status).toBe(200);
+    expect(got.data).toMatchObject({ discovered: true, treasure: { coin: 'Lutetium Coin' } });
+  });
+});

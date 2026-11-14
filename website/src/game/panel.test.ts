@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CITIES } from './cities.js';
 
 // The map, 3D and the other views are not what is tested here, only the three stages and the wallet step.
+let roamDestroyed = 0;
+vi.mock('./world/roam.js', () => ({ mountRoam: async (host: HTMLElement) => { host.textContent = 'ROAM'; return { destroy() { roamDestroyed++; host.replaceChildren(); } }; } }));
 vi.mock('./explore.js', () => ({ mountExplore: async (host: HTMLElement) => { host.textContent = 'MAP'; return { destroy() {} }; } }));
 vi.mock('./missions.js', () => ({ mountMissions: (host: HTMLElement) => { host.textContent = 'MISSIONS'; return { refresh() {} }; } }));
 vi.mock('./progress.js', () => ({ mountProgress: (host: HTMLElement) => { host.textContent = 'PROGRESS'; return { refresh() {} }; } }));
@@ -76,6 +78,7 @@ async function signedInAtCities(): Promise<HTMLElement> {
 
 describe('the welcome screen and the wallet step', () => {
   beforeEach(() => {
+    roamDestroyed = 0;
     localStorage.clear();
     document.getElementById('ucs-theme')?.remove();
     selected = null;
@@ -216,6 +219,7 @@ describe('the welcome screen and the wallet step', () => {
 
 describe('the city choice and the game', () => {
   beforeEach(() => {
+    roamDestroyed = 0;
     localStorage.clear();
     document.getElementById('ucs-theme')?.remove();
     selected = null;
@@ -250,15 +254,20 @@ describe('the city choice and the game', () => {
     expect(root.querySelector('.ucs-bar h2')?.textContent).toBe('Paris');
     expect(root.textContent).toContain('France');
     const tabs = all(root, '.ucs-tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Explore', 'Missions', 'My progress', 'Leaderboard & team']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Walk & drive', 'Map', 'Missions', 'My progress', 'Leaderboard & team']);
+    // The game opens in the walk-and-drive view, which only runs while its tab is open.
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(root.textContent).toContain('MAP');
+    expect(root.textContent).toContain('ROAM');
+    expect(roamDestroyed).toBe(0);
     await click(tabs[1]);
+    expect(roamDestroyed).toBe(1);
+    expect(root.textContent).toContain('MAP');
+    await click(all(root, '.ucs-tab')[2]);
     expect(root.textContent).toContain('MISSIONS');
     expect(root.textContent).not.toContain('MAP');
-    await click(all(root, '.ucs-tab')[2]);
-    expect(root.textContent).toContain('PROGRESS');
     await click(all(root, '.ucs-tab')[3]);
+    expect(root.textContent).toContain('PROGRESS');
+    await click(all(root, '.ucs-tab')[4]);
     expect(root.textContent).toContain('BOARDS');
     await click(all(root, '.ucs-btn').find((b) => b.textContent === 'Change city'));
     expect(root.querySelector('.ucs-row.five')).not.toBeNull();

@@ -19,6 +19,7 @@ import { loginDomains, openToken, SESSION_MS, sessionSecret, sessionVersion, sig
 import { rest, type Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
 import type { TokensEnv } from './_swingsTokens.js';
+import { CITIES, cityById } from '../src/game/cities.js';
 
 export interface GameInput {
   method: string;
@@ -73,7 +74,7 @@ export function readGameSession(secret: string, authorization: string | null, no
 }
 
 interface WalletRow { player_id: string }
-interface ProfileRow { display_name: string; avatar: string | null; explorer_level: number; total_xp: number; total_discoveries: number; missions_completed: number }
+interface ProfileRow { selected_city?: string | null; display_name: string; avatar: string | null; explorer_level: number; total_xp: number; total_discoveries: number; missions_completed: number }
 
 async function findPlayer(db: Rest, network: string, addressNorm: string): Promise<string | null> {
   const rows = (await db.call(`game_player_wallets?network=eq.${network}&address_norm=eq.${encodeURIComponent(addressNorm)}&select=player_id&limit=1`)) as WalletRow[] | null;
@@ -99,14 +100,57 @@ async function playerFor(db: Rest, network: 'evm' | 'solana', addressNorm: strin
   return { id, created: true };
 }
 
-async function logActivity(db: Rest, playerId: string, network: string, addressNorm: string, type: string, now: number, metadata: Record<string, unknown> = {}): Promise<void> {
-  await db.call('game_player_activities', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: playerId, wallet_address: addressNorm, network, activity_type: type, metadata, created_at: now }) });
+async function logActivity(db: Rest, playerId: string, network: string, addressNorm: string, type: string, now: number, metadata: Record<string, unknown> = {}, cityId: string | null = null): Promise<void> {
+  await db.call('game_player_activities', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: playerId, wallet_address: addressNorm, network, activity_type: type, city_id: cityId, metadata, created_at: now }) });
 }
 
 async function profileOf(db: Rest, playerId: string): Promise<Record<string, unknown>> {
-  const rows = (await db.call(`game_player_profiles?player_id=eq.${playerId}&select=display_name,avatar,explorer_level,total_xp,total_discoveries,missions_completed&limit=1`)) as ProfileRow[] | null;
+  const rows = (await db.call(`game_player_profiles?player_id=eq.${playerId}&select=display_name,avatar,explorer_level,total_xp,total_discoveries,missions_completed,selected_city&limit=1`)) as ProfileRow[] | null;
   const p = rows?.[0];
-  return { playerId, displayName: p?.display_name ?? '', avatar: p?.avatar ?? null, explorerLevel: p?.explorer_level ?? 1, totalXp: Number(p?.total_xp ?? 0), totalDiscoveries: p?.total_discoveries ?? 0, missionsCompleted: p?.missions_completed ?? 0 };
+  return { playerId, displayName: p?.display_name ?? '', avatar: p?.avatar ?? null, explorerLevel: p?.explorer_level ?? 1, totalXp: Number(p?.total_xp ?? 0), totalDiscoveries: p?.total_discoveries ?? 0, missionsCompleted: p?.missions_completed ?? 0, selectedCity: p?.selected_city && cityById(p.selected_city) ? p.selected_city : null };
+}
+
+interface CityRow { id: string; status: string }
+interface PlayerCityRow { city_id: string; first_visit_at: number; last_visit_at: number; city_xp: number; discoveries: number; completed_missions: number; exploration_status: string }
+
+const cityProgress = (r: PlayerCityRow): Record<string, unknown> => ({ firstVisitAt: Number(r.first_visit_at), lastVisitAt: Number(r.last_visit_at), cityXp: Number(r.city_xp), discoveries: r.discoveries, completedMissions: r.completed_missions, explorationStatus: r.exploration_status });
+
+/** Every city with its status and this player's progress in it (null when never visited), and the city last chosen. */
+async function listCities(db: Rest, playerId: string): Promise<Record<string, unknown>> {
+  const [cities, mine, profile] = await Promise.all([
+    db.call('game_cities?select=id,status') as Promise<CityRow[] | null>,
+    db.call(`game_player_cities?player_id=eq.${playerId}&select=city_id,first_visit_at,last_visit_at,city_xp,discoveries,completed_missions,exploration_status`) as Promise<PlayerCityRow[] | null>,
+    profileOf(db, playerId),
+  ]);
+  const status = new Map((cities ?? []).map((c) => [c.id, c.status]));
+  const progress = new Map((mine ?? []).map((r) => [r.city_id, r]));
+  return {
+    selected: profile.selectedCity,
+    cities: CITIES.map((c) => {
+      const p = progress.get(c.id);
+      return { id: c.id, status: status.get(c.id) ?? 'inactive', progress: p ? cityProgress(p) : null };
+    }),
+  };
+}
+
+/**
+ * Chooses a city. The first visit creates the player's progress row for it; later visits only touch the visit time, so switching
+ * city never resets anything. Only an active city from the catalogue can be chosen.
+ */
+async function selectCity(db: Rest, claims: { playerId: string }, network: string, addressNorm: string, cityId: unknown, now: number): Promise<{ ok: true; city: string; first: boolean; changed: boolean } | { ok: false; status: number; message: string }> {
+  const city = typeof cityId === 'string' ? cityById(cityId) : undefined;
+  if (!city) return { ok: false, status: 400, message: 'That city does not exist.' };
+  const rows = (await db.call(`game_cities?id=eq.${city.id}&select=id,status&limit=1`)) as CityRow[] | null;
+  if (rows?.[0]?.status !== 'active') return { ok: false, status: 409, message: `${city.name} is not open yet.` };
+  const before = (await profileOf(db, claims.playerId)).selectedCity as string | null;
+  const existing = (await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}&select=city_id&limit=1`)) as unknown[] | null;
+  const first = !existing || existing.length === 0;
+  if (first) await db.call('game_player_cities?on_conflict=player_id,city_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: claims.playerId, city_id: city.id, first_visit_at: now, last_visit_at: now }) });
+  else await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ last_visit_at: now }) });
+  await db.call(`game_player_profiles?player_id=eq.${claims.playerId}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ selected_city: city.id }) });
+  const changed = before !== null && before !== city.id;
+  await logActivity(db, claims.playerId, network, addressNorm, changed ? 'city_changed' : 'city_selected', now, { from: before, first }, city.id);
+  return { ok: true, city: city.id, first, changed };
 }
 
 export async function handleGame(input: GameInput): Promise<GameOutput> {
@@ -175,6 +219,12 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
     // A session ends when the player signs out everywhere: the token's version is older than the stored one.
     if (claims.version < (await sessionVersion(db, versionKey(claims.owner)))) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
     if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm }, headers);
+    if (op === 'cities') return json(200, await listCities(db, claims.playerId), headers);
+    if (op === 'select-city') {
+      const r = await selectCity(db, claims, network, addressNorm, body.city, input.now);
+      if (!r.ok) return json(r.status, { error: 'city', message: r.message }, headers);
+      return json(200, { ...(await listCities(db, claims.playerId)), first: r.first, changed: r.changed }, headers);
+    }
     if (op === 'logout') {
       await logActivity(db, claims.playerId, network, addressNorm, 'logout', input.now);
       return json(200, { ok: true }, headers);

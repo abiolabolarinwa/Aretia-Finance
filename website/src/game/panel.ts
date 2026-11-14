@@ -2,7 +2,8 @@
  * The Ultimate City Search page inside the wallet (milestone 2: welcome, wallet sign-in and the player's profile).
  * Loaded only when the page is opened. Built with textContent, never innerHTML.
  */
-import { GameClient, type GameSession } from './client.js';
+import { GameClient, type CityList, type GameSession } from './client.js';
+import { CITIES, cityById, type City, type Transport } from './cities.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
 
@@ -42,6 +43,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   let session: GameSession | null = client.saved();
   let message = '';
   let busy = false;
+  let list: CityList | null = null;
 
   async function signIn(make: () => Promise<Signer>): Promise<void> {
     if (busy) return;
@@ -60,6 +62,22 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   async function signOut(everywhere: boolean): Promise<void> {
     if (session) await client.signOut(session, everywhere);
     session = null;
+    list = null;
+    draw();
+  }
+
+  async function chooseCity(id: string): Promise<void> {
+    if (!session || busy) return;
+    busy = true;
+    message = '';
+    draw();
+    try {
+      list = await client.selectCity(session, id);
+      session = { ...session, profile: { ...session.profile, selectedCity: list.selected } };
+    } catch (e) {
+      message = e instanceof Error ? e.message : 'That city could not be opened. Try again.';
+    }
+    busy = false;
     draw();
   }
 
@@ -67,11 +85,47 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     return el('div', {}, el('dt', { text: label }), el('dd', { text: value }));
   }
 
+  const TRANSPORT_LABEL: Record<Transport, string> = { walk: 'Walk', run: 'Run', taxi: 'Taxi', car: 'Car', bus: 'Bus', train: 'Train', metro: 'Metro', ferry: 'Ferry', flight: 'Flights' };
+
+  function cityCard(c: City): HTMLElement {
+    const state = list?.cities.find((x) => x.id === c.id);
+    const open = !state || state.status === 'active';
+    const chosen = list?.selected === c.id;
+    const card = el('article', { class: 'wapp__card' });
+    card.style.borderTop = `4px solid ${c.tint[1]}`;
+    card.style.background = `linear-gradient(135deg, ${c.tint[0]}33, transparent 60%)`;
+    if (chosen) card.style.outline = `2px solid ${c.tint[1]}`;
+    card.append(el('h3', { class: 'wapp__h2', text: c.name }), el('span', { class: 'wapp__eyebrow', text: c.country }), el('p', { text: c.blurb }));
+    card.append(el('p', { class: 'wapp__fine', text: `Getting around: ${c.transport.map((t) => TRANSPORT_LABEL[t]).join(', ')}.` }));
+    const p = state?.progress;
+    card.append(el('p', { class: 'wapp__fine', text: p ? `Your progress: ${p.cityXp} XP, ${p.discoveries} discoveries, ${p.completedMissions} missions. Last visited ${new Date(p.lastVisitAt).toLocaleDateString()}.` : session ? 'Not visited yet.' : 'Sign in to start exploring.' }));
+    card.append(el('p', { class: 'wapp__fine', text: 'Missions: none open yet. Treasure events: none yet.' }));
+    const b = el('button', { class: chosen ? 'wapp__btn wapp__btn--ghost' : 'wapp__btn wapp__btn--primary', text: chosen ? 'You are here' : !open ? 'Not open yet' : p ? 'Return to ' + c.name : 'Enter ' + c.name });
+    b.type = 'button';
+    b.disabled = busy || !session || !open || chosen;
+    b.addEventListener('click', () => void chooseCity(c.id));
+    card.append(b);
+    return card;
+  }
+
+  function cityNodes(): HTMLElement[] {
+    const here = session && list?.selected ? cityById(list.selected) : undefined;
+    const out: HTMLElement[] = [];
+    const head = el('div', { class: 'wapp__card' }, el('h2', { class: 'wapp__h2', text: here ? `You are in ${here.name}` : 'Choose a city' }));
+    head.append(el('p', { class: 'wapp__fine', text: here ? 'You can switch city at any time. Your progress in every city is kept.' : session ? 'Pick where your search begins. You can explore all nine with the same player.' : 'These are the nine cities. You can look around without signing in; progress is only kept for a signed-in wallet.' }));
+    out.push(head);
+    const grid = el('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
+    grid.append(...CITIES.map(cityCard));
+    out.push(grid);
+    return out;
+  }
+
   function draw(): void {
     const intro = el('div', { class: 'wapp__card' }, el('h2', { class: 'wapp__h2', text: 'Ultimate City Search' }));
     intro.append(
       el('p', { text: 'A treasure hunt across nine cities: Lagos, New York, Nairobi, Hong Kong, London, Dubai, Paris, Miami and Nicosia. Follow clues, explore the map and find hidden treasures.' }),
-      el('p', { class: 'wapp__fine', text: 'The game is being built in stages. Signing in and your player profile are ready. The cities, clues and treasures are not open yet, and nothing here can be won today.' }),
+      el('p', { class: 'wapp__fine', text: 'The game is being built in stages. Signing in, your player profile and the nine cities are ready. Maps, clues and treasures are not open yet, and nothing here can be won today.' }),
       el('p', { class: 'wapp__fine', text: 'It is a separate game. It does not use ACT or any token, and signing in is a free message, not a transaction or an approval.' }),
     );
 
@@ -100,7 +154,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       }
     }
     if (message) card.append(el('p', { class: 'wapp__fine', text: message }));
-    root.replaceChildren(intro, card);
+    root.replaceChildren(intro, card, ...cityNodes());
   }
 
   return {
@@ -109,6 +163,12 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       // Refresh the profile from the server (it is the record; the browser only remembers the sign-in).
       if (session) {
         const s = session;
+        void client.cities(s).then((l) => {
+          if (session) {
+            list = l;
+            draw();
+          }
+        }).catch(() => undefined);
         void client.me(s).then((profile) => {
           if (session === s) {
             session = { ...s, profile };

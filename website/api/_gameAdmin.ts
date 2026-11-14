@@ -8,7 +8,8 @@
  * elsewhere and records the payment reference afterwards.
  */
 import { randomUUID } from 'node:crypto';
-import { cityById } from '../src/game/cities.js';
+import { cityById, parseCity } from '../src/game/cities.js';
+import { dropCatalogue, publicCity } from './_gameCatalogue.js';
 import { placementProblem } from '../src/game/exclusions.js';
 import { canPlace, DIFFICULTIES, TREASURE_CLASSES, type PlacedTreasure } from '../src/game/rarity.js';
 import { answerHash } from './_gameMissions.js';
@@ -109,8 +110,40 @@ async function citySet(c: AdminCtx): Promise<AdminOut> {
   }
   if (Object.keys(patch).length === 0) return fail(400, 'Nothing to change.');
   await c.db.call(`game_cities?id=eq.${city.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(patch) });
+  dropCatalogue(c.db);
   await audit(c, 'city_set', city.id, patch);
   return ok();
+}
+
+/** Every city including hidden ones, for the console. */
+async function cityList(c: AdminCtx): Promise<AdminOut> {
+  const rows = ((await c.db.call('game_cities?select=*&order=sort_order.asc')) as Record<string, unknown>[] | null) ?? [];
+  const cities = rows.flatMap((r) => {
+    const city = parseCity(r);
+    return city ? [{ ...publicCity(city), sortOrder: Number(r.sort_order ?? 100) }] : [];
+  });
+  return ok({ cities });
+}
+
+/**
+ * Adds a city or changes one, from a description (name, country, bounds, centre, transport, colours, landmarks, scene, optional
+ * licensed photograph with its credit). Every field is checked; a photograph without a credit is not kept. A new city starts hidden
+ * ("coming_soon") unless the administrator says otherwise, and has no automatic placement exclusions, so the administrator's safety
+ * confirmation is what protects a treasure there.
+ */
+async function citySave(c: AdminCtx): Promise<AdminOut> {
+  const known = typeof c.body.id === 'string' ? ((await c.db.call(`game_cities?id=eq.${encodeURIComponent(c.body.id)}&select=status,sort_order&limit=1`)) as { status: string; sort_order: number }[] | null)?.[0] : undefined;
+  const city = parseCity({ ...c.body, status: c.body.status ?? known?.status ?? 'coming_soon' });
+  if (!city) return fail(400, 'That city is not valid: check the id (lower-case letters and dashes), the bounds (west, south, east, north, under 3 degrees across), that the centre and every landmark are inside them, and that transport includes walk and flight.');
+  if (typeof c.body.imageUrl === 'string' && c.body.imageUrl && !city.imageUrl) return fail(400, 'A photograph needs an https address and a credit that says who made it and under what licence.');
+  const existing = known ? [known] : [];
+  const sort = c.body.sortOrder === undefined ? Number(existing[0]?.sort_order ?? 100) : num(c.body.sortOrder);
+  if (sort === null || !Number.isInteger(sort) || sort < 0 || sort > 10_000) return fail(400, 'The order must be a whole number from 0 to 10000.');
+  const row = { id: city.id, city_name: city.name, country: city.country, bounds: city.bounds, center_lng: city.center[0], center_lat: city.center[1], blurb: city.blurb, transport: city.transport, tint: city.tint, image_url: city.imageUrl, image_credit: city.imageCredit, landmarks: city.landmarks, scene: city.scene, status: city.status, sort_order: sort, ...(existing.length ? {} : { created_at: c.now }) };
+  await c.db.call('game_cities?on_conflict=id', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+  dropCatalogue(c.db);
+  await audit(c, existing.length ? 'city_save' : 'city_create', city.id, { status: city.status, scene: city.scene, photo: Boolean(city.imageUrl), landmarks: city.landmarks.length });
+  return ok({ id: city.id });
 }
 
 // ---------------------------------------------------------------- missions and clues
@@ -359,6 +392,8 @@ export async function adminOp(op: unknown, c: AdminCtx): Promise<AdminOut | null
     case 'admin-overview': return overview(c);
     case 'admin-suspicious': return suspicious(c);
     case 'admin-city-set': return citySet(c);
+    case 'admin-city-list': return cityList(c);
+    case 'admin-city-save': return citySave(c);
     case 'admin-mission-list': return missionList(c);
     case 'admin-mission-save': return missionSave(c);
     case 'admin-clue-list': return clueList(c);

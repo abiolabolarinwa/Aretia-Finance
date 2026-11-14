@@ -7,7 +7,7 @@
  * PUBLIC_SATELLITE_ATTRIBUTION. Street-level imagery is not part of this view yet: it needs a provider account (see the plan).
  */
 import type { Map as MlMap, Marker, StyleSpecification } from 'maplibre-gl';
-import { CITIES, cityById, type City, type Transport } from './cities.js';
+import { allCities, cityById, type City, type Transport } from './cities.js';
 import { along, distanceKm, flightDurationMs, flightKm, localDurationMs, LOCAL_MODES, type LngLat } from './travel.js';
 
 export interface Journey { mode: string; from: LngLat; to: LngLat; departedAt: number; arrivesAt: number }
@@ -93,6 +93,18 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
   };
   host.addEventListener('game-zone-show', showZone);
 
+  // Well-known public places in this city, to find your way by. Positions are approximate.
+  for (const m of city.landmarks) {
+    const pin = el('div');
+    pin.title = m.name;
+    pin.setAttribute('aria-label', m.name);
+    pin.style.cssText = 'display:flex;flex-direction:column;align-items:center;font-size:11px;line-height:1.1;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none';
+    const star = el('span', '', '◆');
+    star.style.color = city.tint[1];
+    pin.append(star, el('span', '', m.name));
+    new maplibre.Marker({ element: pin }).setLngLat([m.lng, m.lat]).addTo(map);
+  }
+
   const clock = (): number => Date.now() + offset;
   const moving = (): boolean => Boolean((state.travel && state.travel.arrivesAt > clock()) || (state.flight && state.flight.arrivesAt > clock()));
 
@@ -114,7 +126,7 @@ export async function mountExplore(host: HTMLElement, city: City, api: ExploreAp
 
   function renderFlights(): void {
     flights.replaceChildren(el('h2', 'wapp__h2', 'Fly to another city'), el('p', 'wapp__fine', 'A simulated journey, not a booking. It takes a short, fixed time, the same for every player.'));
-    for (const c of CITIES) {
+    for (const c of allCities().filter((x) => x.status === 'active')) {
       if (c.id === city.id) continue;
       const km = flightKm(city.id, c.id)!;
       const b = el('button', 'wapp__btn wapp__btn--ghost', `${c.name} · ${Math.round(km).toLocaleString()} km · ${fmt(flightDurationMs(km))}`);

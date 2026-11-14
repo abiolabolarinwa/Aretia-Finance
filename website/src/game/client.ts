@@ -6,7 +6,7 @@
 import { loginMessage, type WalletFamily } from '../swings/account/loginMessage.js';
 import type { Signer } from '../swings/account/client.js';
 import type { ExploreState } from './explore.js';
-import type { Transport } from './cities.js';
+import { parseCity, setCatalogue, type City, type Transport } from './cities.js';
 
 export interface GameProfile {
   playerId: string;
@@ -31,6 +31,13 @@ export interface CityState {
   id: string;
   status: string;
   progress: CityProgress | null;
+}
+
+/** Reads the cities in a server answer and makes them the current catalogue. */
+function learnCities(raw: unknown): void {
+  if (!Array.isArray(raw)) return;
+  const cities = raw.map((c) => parseCity(c)).filter((c): c is City => c !== null);
+  setCatalogue(cities);
 }
 export interface CityList {
   selected: string | null;
@@ -113,12 +120,21 @@ export class GameClient {
     return (await this.post<{ profile: GameProfile }>({ op: 'me' }, session.token)).profile;
   }
 
-  cities(session: GameSession): Promise<CityList> {
-    return this.post<CityList>({ op: 'cities' }, session.token);
+  /** The public list of cities, for visitors too. Becomes the current catalogue. */
+  async catalogue(): Promise<void> {
+    learnCities((await this.post<{ cities: unknown }>({ op: 'catalogue' })).cities);
   }
 
-  selectCity(session: GameSession, city: string): Promise<CityList & { first: boolean; changed: boolean }> {
-    return this.post({ op: 'select-city', city }, session.token);
+  async cities(session: GameSession): Promise<CityList> {
+    const r = await this.post<CityList>({ op: 'cities' }, session.token);
+    learnCities(r.cities);
+    return r;
+  }
+
+  async selectCity(session: GameSession, city: string): Promise<CityList & { first: boolean; changed: boolean }> {
+    const r = await this.post<CityList & { first: boolean; changed: boolean }>({ op: 'select-city', city }, session.token);
+    learnCities(r.cities);
+    return r;
   }
 
   state(session: GameSession): Promise<ExploreState> {

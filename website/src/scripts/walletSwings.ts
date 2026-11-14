@@ -22,6 +22,8 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
+import { overviewBand } from './walletMarketOverview.js';
+import { fetchOverviewSample, overviewSampleNow } from '../swings/market/overviewSample.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -52,6 +54,7 @@ import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRows.js';
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
+import { HISTORY_SYNCED_EVENT } from './walletSwapTokens';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
@@ -303,6 +306,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     history.merge(data.trades);
     const mine = history.list(session.address);
     if (mine.length > 0) await account.saveTrades(session, mine);
+    if (data.trades.length > 0) window.dispatchEvent(new Event(HISTORY_SYNCED_EVENT));
   }
   const redrawAccount = (): void => {
     markets.draw();
@@ -1776,7 +1780,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const locks = createLockQueue({
       check: async (row) => {
         const lock = await checkLock(row.chain, row.pool, { ...(CHAINS[row.chain].kind === 'evm' ? { evm: publicRead(row.chain) } : { sol: rpcCall }) }, Date.now());
-        if (!lock || lock.pct < LOCK_MIN_PCT) return null;
+        // Under the bar is still an answer ("no lock found", with the share burned); only a pool of a kind Aretia cannot read gives none.
+        if (!lock) return null;
+        if (lock.pct < LOCK_MIN_PCT) return { pct: lock.pct, kind: 'burned' as const, until: null };
         return lock.kind === 'time-locked' ? { pct: lock.pct, kind: 'time-locked' as const, until: lock.until, by: lock.by } : { pct: lock.pct, kind: 'burned' as const, until: null };
       },
       onChange: () => {
@@ -2060,6 +2066,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     /** The bar above the lists: 24-hour volume and transactions, and the latest block, read from Aretia's own index. */
     let statsData: MarketStatsDto | null = null;
+    /** When the overview cards' sample was last asked for, so a failing read is not repeated at every redraw. */
+    let sampleTriedAt = 0;
     let statsHost: HTMLElement | null = null;
     let statsTimer: ReturnType<typeof setInterval> | undefined;
     function renderStats(): void {
@@ -2262,6 +2270,23 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       card.append(bar);
       const shownRows = visible();
+      // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
+      // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
+      if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
+        // The three cards are worked out from the index's busiest pools by 24-hour value (not the list's own rows: Gainers holds only risers, which would make
+        // the mood read 100 whatever the market did), and those pools also name their exchange. Read once, kept two minutes; the band redraws when they arrive.
+        const live = (r: MarketRow): boolean => !isDeadMarket(r) && clearsMinLiquidity(r.liquidityUsd, f.liquidity);
+        const sample = overviewSampleNow(m.chain).filter(live);
+        const sampleChain = m.chain;
+        if (sample.length === 0 && Date.now() - sampleTriedAt > 30_000) {
+          sampleTriedAt = Date.now();
+          void fetchOverviewSample(sampleChain, Date.now()).then((got) => {
+            if (got.length > 0 && target.isConnected && !page && m.chain === sampleChain && m.kind !== 'favourites') draw();
+          });
+        }
+        const band = overviewBand(shownRows, { onOpen: userPick, sample });
+        if (band) card.insertBefore(band, bar);
+      }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
         const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
         const note = el('p', { class: 'wapp__fine', text: `${lowHidden} ${lowHidden === 1 ? 'token' : 'tokens'} with under ${limit} of liquidity (or none known) ${lowHidden === 1 ? 'is' : 'are'} hidden. ` });
@@ -2299,7 +2324,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick });
+        // The page on screen is read for its liquidity lock first, so its Lock column fills in before the rest of a long list is looked at.
+        locks.rate(shown);
+        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);

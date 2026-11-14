@@ -14,7 +14,7 @@ describe('finding locked liquidity in the page', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('marks a pool whose liquidity is mostly burned, and only that one', async () => {
+  it('gives every pool an answer: a padlock only where proven, "no lock found" where read, "not checked" where it cannot be read', async () => {
     const answers: Record<string, number | null> = { '0xa': 100, '0xb': 12, '0xc': null };
     const changed = vi.fn();
     const q = createLockQueue({ check: async (r) => found(answers[r.pool] ?? null), onChange: changed });
@@ -23,10 +23,15 @@ describe('finding locked liquidity in the page', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(changed).toHaveBeenCalled();
     const marked = q.sync(rows);
-    expect(marked.map((r) => r.pool)).toEqual(['0xa']);
+    expect(marked.map((r) => r.pool)).toEqual(['0xa', '0xb', '0xc']);
     expect(rows[0]!.lockedPct).toBe(100);
+    // Read, under the bar: no padlock, but an answer with the share burned.
     expect(rows[1]!.lockedPct ?? null).toBeNull();
+    expect(rows[1]).toMatchObject({ lockState: 'checked', lockLowPct: 12 });
+    // A kind of pool that cannot be read: no padlock and no claim either way.
     expect(rows[2]!.lockedPct ?? null).toBeNull();
+    expect(rows[2]!.lockState).toBe('unsupported');
+    expect(q.sync(rows)).toEqual([]);
   });
 
   it('keeps a padlock Aretia already had and does not ask again', async () => {
@@ -115,5 +120,23 @@ describe('finding locked liquidity in the page', () => {
     q.rate(Array.from({ length: 10 }, (_, i) => row(`0x${i}`)));
     await vi.advanceTimersByTimeAsync(1000);
     expect(peak).toBe(3);
+  });
+});
+
+describe('a pool whose reads keep failing', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('is shown as not checked after its tries, never as unlocked, and is asked again when the list refreshes', async () => {
+    let calls = 0;
+    const q = createLockQueue({ check: async () => { calls++; throw new Error('busy'); }, onChange: () => undefined });
+    const rows = [row('0xa')];
+    q.rate(rows);
+    await vi.advanceTimersByTimeAsync(31_000 * 4);
+    expect(calls).toBe(3);
+    const marked = q.sync(rows);
+    expect(marked).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ lockState: 'unreadable' });
+    expect(rows[0]!.lockedPct ?? null).toBeNull();
   });
 });

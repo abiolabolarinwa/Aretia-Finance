@@ -50,6 +50,13 @@ export interface MarketRow {
   lockedPct?: number | null;
   /** How the liquidity is locked: burned (permanent) or held in a locker until a date. Absent means burned, as Aretia's records say. */
   lockInfo?: { kind: 'burned' | 'time-locked'; until: number | null; by?: string } | null;
+  /**
+   * Where the page's own lock check stands when no lock was shown: 'checked' (the pool was read and has no burn and no readable lock), 'unsupported'
+   * (Aretia cannot read this kind of pool's lock yet) or 'unreadable' (the chain did not answer). Absent while the check is queued or running.
+   */
+  lockState?: 'checked' | 'unsupported' | 'unreadable';
+  /** With lockState 'checked': the share of the liquidity tokens that are burned (under the 50% that earns a padlock). */
+  lockLowPct?: number | null;
   /** Aretia's own rating, only for tokens in its registry. */
   risk: { status: string; label: string; score: number | null; /** Where it came from: Aretia's registry, a live on-chain check, or market data alone. */ basis?: 'registry' | 'onchain' | 'market'; /** The check found an admin power still held (minting, freezing, pausing, upgrading...). */ adminPowers?: boolean } | null;
   /** In Aretia's registry of newly detected tokens. */

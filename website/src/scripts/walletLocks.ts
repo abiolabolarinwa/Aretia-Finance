@@ -47,12 +47,26 @@ export function createLockQueue(o: LockQueueOptions) {
     return hit && now() - hit.at <= TTL_MS ? { found: hit.found } : null;
   };
   const apply = (r: MarketRow, found: LockFound | null): boolean => {
-    if (found !== null && found.pct >= LOCK_MIN_PCT && r.lockedPct !== found.pct) {
+    if (found !== null && found.pct >= LOCK_MIN_PCT) {
+      if (r.lockedPct === found.pct) return false;
       r.lockedPct = found.pct;
       r.lockInfo = { kind: found.kind, until: found.until, ...(found.by ? { by: found.by } : {}) };
       return true;
     }
-    return false;
+    // Every row says something: read and under the bar ("no lock found", with the share burned), or a kind of pool Aretia cannot read ("not checked").
+    const state = found === null ? 'unsupported' : 'checked';
+    const low = found === null ? null : found.pct;
+    if (r.lockState === state && (r.lockLowPct ?? null) === low) return false;
+    r.lockState = state;
+    r.lockLowPct = low;
+    return true;
+  };
+  /** A pool whose reads kept failing is shown as "not checked" until the list next refreshes and it is asked again. */
+  const gaveUp = (r: MarketRow): boolean => (tries.get(poolKey(r)) ?? 0) >= MAX_TRIES && !known(r);
+  const markUnreadable = (r: MarketRow): boolean => {
+    if (r.lockState === 'unreadable') return false;
+    r.lockState = 'unreadable';
+    return true;
   };
   const announce = (): void => {
     if (timer) return;
@@ -86,7 +100,7 @@ export function createLockQueue(o: LockQueueOptions) {
                 waiting.push(row);
                 pump();
               }, RETRY_MS);
-            }
+            } else announce();
           },
         )
         .finally(() => {
@@ -111,6 +125,7 @@ export function createLockQueue(o: LockQueueOptions) {
           apply(r, k.found);
           continue;
         }
+        if (gaveUp(r)) markUnreadable(r);
         const key = poolKey(r);
         if (pending.has(key)) continue;
         if ((retryAt.get(key) ?? 0) > now()) continue;
@@ -126,7 +141,9 @@ export function createLockQueue(o: LockQueueOptions) {
       for (const r of rows) {
         if (r.lockedPct !== null && r.lockedPct !== undefined) continue;
         const k = r.pool ? known(r) : null;
-        if (k && apply(r, k.found)) changed.push(r);
+        if (k) {
+          if (apply(r, k.found)) changed.push(r);
+        } else if (r.pool && gaveUp(r) && markUnreadable(r)) changed.push(r);
       }
       return changed;
     },

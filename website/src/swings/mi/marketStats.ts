@@ -6,6 +6,7 @@
  * last 24 hours (liquidity $100+ and listed), not the whole market of a network. A dash means the index has nothing, never zero.
  */
 import { isMiChain, MI_CHAINS, type MiChain } from './chains.js';
+import { MAX_PLAUSIBLE_LIQUIDITY_USD } from './marketList.js';
 import type { AdapterHealth } from './types.js';
 
 /** Pools below this liquidity are left out (the same floor as every Markets list). */
@@ -56,6 +57,8 @@ export function buildStats(pools: readonly StatsPoolRow[], health: readonly Pick
     if (vol === 0) continue;
     const c = at(p.chain);
     const liq = num(p.liquidity_usd);
+    // A pool claiming more than this is an estimate gone wrong (see marketList.ts), not a market: it is not counted, not even as left out.
+    if (liq > MAX_PLAUSIBLE_LIQUIDITY_USD) continue;
     if (liq > 0 && vol > liq * STATS_MAX_VOLUME_TO_LIQUIDITY) {
       c.excludedPools += 1;
       c.excludedVolume24hUsd += vol;

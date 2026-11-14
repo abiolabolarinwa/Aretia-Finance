@@ -224,6 +224,23 @@ export class DirectSolanaProvider implements DexProvider {
     return { received: sim.verdict.received, watched: w ? (w.post ?? 0n) - (w.pre ?? 0n) : null };
   }
 
+  /**
+   * When every pool refuses the amount, the largest share of it (a halving ladder, tried together) that a pool will fill, written
+   * in the units of the token being sold. Null when none of the shares can be filled or the token's decimals cannot be read.
+   */
+  private async largestFillable(web3: typeof Web3, request: SwapRequest, legs: Leg[], blockhash: string): Promise<string | null> {
+    const leg = legs[0];
+    if (!leg) return null;
+    const divisors = [2n, 4n, 8n, 16n, 32n, 64n, 256n, 1024n, 8192n];
+    const tries = divisors.map((d) => leg.amountIn / d).filter((a) => a > 0n);
+    const outs = await Promise.all(tries.map((a) => this.legOut(web3, request, { ...leg, amountIn: a }, blockhash).catch(() => null)));
+    const i = outs.findIndex((o) => o !== null);
+    if (i < 0) return null;
+    const decimals = await this.mintDecimals(leg.tokenIn.address);
+    const n = Number(tries[i]!) / 10 ** decimals;
+    return `${n.toLocaleString('en-US', { maximumFractionDigits: n >= 1 ? 2 : 6 })} of the token you are selling (a smaller amount than you entered)`;
+  }
+
   /** One leg's output: exact local maths where the venue has it, otherwise the program's own answer by simulation. */
   private async legOut(web3: typeof Web3, request: SwapRequest, leg: Leg, blockhash: string): Promise<bigint | null> {
     if (leg.venue.localQuote) {
@@ -405,7 +422,10 @@ export class DirectSolanaProvider implements DexProvider {
       // Pools were found but none could be used: say why, because "no pool" would send the user looking in the wrong place.
       if (direct.length > 0 && this.skipped.length > 0) {
         const why = [...new Set(this.skipped)].slice(0, 2).join('; ');
-        throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}.${/lamport|insufficient|rent|funds/i.test(why) ? ' A first swap into a token also needs a little extra SOL for the new token account and fees.' : ''}`);
+        // A pool that cannot pay out the whole amount may still take a smaller one: find the most it takes, so the person is told a number to use.
+        const room = /cannot take that much/.test(why) ? await this.largestFillable(web3, req, directLegs, blockhash).catch(() => null) : null;
+        const roomNote = room === null ? '' : ` The most this pool can take right now is about ${room}.`;
+        throw new SwingsError('no-route', `Aretia found a pool for this pair but could not price the trade from your account: ${why}.${roomNote}${/lamport|insufficient|rent|funds/i.test(why) ? ' A first swap into a token also needs a little extra SOL for the new token account and fees.' : ''}`);
       }
       // A reader that failed is not the same as a pool that does not exist: saying "no pool" would send the user away from a token that may trade fine.
       if (direct.length === 0 && this.venueMisses > 0) throw new SwingsError('provider-failed', 'Some of the places Aretia reads pools from did not answer, so this may be temporary and the token may well have a pool. Try again in a moment.');

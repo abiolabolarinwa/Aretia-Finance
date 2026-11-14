@@ -18,6 +18,13 @@
 - [What liquidity means in a token pool](https://aretiafinance.org/learn/what-is-liquidity-in-a-token-pool)
 - [How to choose a crypto trading app](https://aretiafinance.org/learn/how-to-choose-a-crypto-trading-app)
 - [Self-custody wallet or exchange account](https://aretiafinance.org/learn/self-custody-wallet-vs-exchange)
+- [How to trade crypto coins](https://aretiafinance.org/learn/how-to-trade-crypto-coins)
+- [How to trade Solana tokens](https://aretiafinance.org/learn/how-to-trade-solana-tokens)
+- [How to trade tokens on Ethereum](https://aretiafinance.org/learn/how-to-trade-tokens-on-ethereum)
+- [How to create a crypto token](https://aretiafinance.org/learn/how-to-create-a-token)
+- [How a bonding curve works](https://aretiafinance.org/learn/how-a-bonding-curve-works)
+- [How people make money in crypto, and how they lose it](https://aretiafinance.org/learn/how-people-make-and-lose-money-in-crypto)
+- [Which crypto should you buy or sell? Why no one can tell you](https://aretiafinance.org/learn/which-crypto-to-buy-or-sell)
 
 ## Pages
 

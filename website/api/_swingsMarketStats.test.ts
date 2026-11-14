@@ -40,6 +40,17 @@ describe('buildStats', () => {
     expect(s.chains.bnb).toMatchObject({ volume24hUsd: 205_000, pools: 3, excludedPools: 1, excludedVolume24hUsd: 201_500_000, cappedPools: 1, txns24h: 100 + 2 + 6 });
     expect(s.total).toMatchObject({ pools: 3, excludedPools: 1, cappedPools: 1 });
   });
+  it('does not count a pool whose liquidity is beyond any real pool, whatever its volume', () => {
+    const s = buildStats(
+      [
+        { chain: 'robinhood', vol24_usd: 50_000_000, buys: { h24: 11 }, sells: { h24: 11 }, liquidity_usd: 2_200_000_000 },
+        { chain: 'robinhood', vol24_usd: 1_000, buys: { h24: 3 }, sells: { h24: 2 }, liquidity_usd: 40_000 },
+      ],
+      [],
+      NOW,
+    );
+    expect(s.chains.robinhood).toMatchObject({ volume24hUsd: 1_000, pools: 1, excludedPools: 0 });
+  });
   it('takes the newest block each network has been seen at, and when', () => {
     const s = buildStats([], [h('ethereum', 100), h('ethereum', 130, { lastSuccessAt: NOW - 1_000 }), h('ethereum', 120), h('solana', 9_000), h('base', null), h('nope', 5)] as never, NOW);
     expect(s.chains.ethereum).toMatchObject({ latestBlock: 130, blockSeenAt: NOW - 1_000 });

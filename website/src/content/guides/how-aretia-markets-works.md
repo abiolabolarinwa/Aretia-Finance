@@ -21,6 +21,7 @@ The indexer supports pools of Uniswap, PancakeSwap, SushiSwap, Aerodrome, QuickS
 - **Fully diluted value, not market cap.** The value shown on an indexed row is the price times the token's total supply read from the chain. It is labelled as fully diluted. It is hidden when the result is not plausible.
 - **Price when there is no trade.** A pool with no stored trade shows a price read from its reserves, marked with a tilde (~) and a note.
 - **Extreme changes.** A change above 1,000% is shown as "greater than 1,000%" and is kept out of the Gainers list. A change beyond one million percent is treated as unknown, because it comes from a first trade priced from a dust amount.
+- **Implausible liquidity.** A pool claiming more than $100 million of liquidity is left out of every list and total. Uniswap V4 pools share one contract, so their liquidity is an estimate, and a pool of a worthless token can make that estimate absurd.
 - **Network totals.** The volume and transaction totals at the top leave out any pool whose daily volume is more than 100 times its liquidity (wash trading or a broken price), and say how many pools they left out. A pool with more than 5,000 trades in a day shows "5,000+" and the totals say they are a floor.
 - **Traders.** The traders column counts distinct accounts that received the output of a swap in 24 hours. It is the index's best count, not a count of people.
 

@@ -20,6 +20,7 @@ import { rest, type Rest } from './_swingsAccount.js';
 import { overBudget } from './_limits.js';
 import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
+import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
 export interface GameInput {
   method: string;
@@ -145,12 +146,106 @@ async function selectCity(db: Rest, claims: { playerId: string }, network: strin
   const before = (await profileOf(db, claims.playerId)).selectedCity as string | null;
   const existing = (await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}&select=city_id&limit=1`)) as unknown[] | null;
   const first = !existing || existing.length === 0;
-  if (first) await db.call('game_player_cities?on_conflict=player_id,city_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: claims.playerId, city_id: city.id, first_visit_at: now, last_visit_at: now }) });
+  if (first) await db.call('game_player_cities?on_conflict=player_id,city_id', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify({ player_id: claims.playerId, city_id: city.id, first_visit_at: now, last_visit_at: now, pos_lng: city.center[0], pos_lat: city.center[1] }) });
   else await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ last_visit_at: now }) });
   await db.call(`game_player_profiles?player_id=eq.${claims.playerId}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ selected_city: city.id }) });
   const changed = before !== null && before !== city.id;
   await logActivity(db, claims.playerId, network, addressNorm, changed ? 'city_changed' : 'city_selected', now, { from: before, first }, city.id);
   return { ok: true, city: city.id, first, changed };
+}
+
+interface TravelRow { city_id: string; pos_lng: number | null; pos_lat: number | null; travel_mode: string | null; travel_from_lng: number | null; travel_from_lat: number | null; travel_to_lng: number | null; travel_to_lat: number | null; travel_departed_at: number | null; travel_arrives_at: number | null }
+interface FlightRow { selected_city: string | null; flight_from: string | null; flight_to: string | null; flight_departed_at: number | null; flight_arrives_at: number | null }
+const TRAVEL_COLS = 'city_id,pos_lng,pos_lat,travel_mode,travel_from_lng,travel_from_lat,travel_to_lng,travel_to_lat,travel_departed_at,travel_arrives_at';
+
+async function flightRow(db: Rest, playerId: string): Promise<FlightRow> {
+  const rows = (await db.call(`game_player_profiles?player_id=eq.${playerId}&select=selected_city,flight_from,flight_to,flight_departed_at,flight_arrives_at&limit=1`)) as FlightRow[] | null;
+  return rows?.[0] ?? { selected_city: null, flight_from: null, flight_to: null, flight_departed_at: null, flight_arrives_at: null };
+}
+
+const flightView = (f: FlightRow): Record<string, unknown> | null => (f.flight_to && f.flight_from ? { from: f.flight_from, to: f.flight_to, departedAt: Number(f.flight_departed_at), arrivesAt: Number(f.flight_arrives_at) } : null);
+
+/** Lands a flight whose time has passed: the destination becomes the selected city. Returns the flight still in the air, if any. */
+async function settleFlight(db: Rest, claims: { playerId: string }, network: string, addressNorm: string, now: number): Promise<Record<string, unknown> | null> {
+  const f = await flightRow(db, claims.playerId);
+  if (!f.flight_to) return null;
+  if (Number(f.flight_arrives_at) > now) return flightView(f);
+  const to = f.flight_to;
+  await db.call(`game_player_profiles?player_id=eq.${claims.playerId}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ flight_from: null, flight_to: null, flight_departed_at: null, flight_arrives_at: null }) });
+  await selectCity(db, claims, network, addressNorm, to, now);
+  await logActivity(db, claims.playerId, network, addressNorm, 'flight_landed', now, { from: f.flight_from }, to);
+  return null;
+}
+
+async function travelRow(db: Rest, playerId: string, cityId: string): Promise<TravelRow | null> {
+  const rows = (await db.call(`game_player_cities?player_id=eq.${playerId}&city_id=eq.${cityId}&select=${TRAVEL_COLS}&limit=1`)) as TravelRow[] | null;
+  return rows?.[0] ?? null;
+}
+
+/** The player's position in a city, finishing a journey whose time has passed. `travel` is the journey still under way, if any. */
+async function exploreState(db: Rest, playerId: string, cityId: string, now: number): Promise<{ position: LngLat; travel: Record<string, unknown> | null }> {
+  const city = cityById(cityId)!;
+  const row = await travelRow(db, playerId, cityId);
+  let position: LngLat = row?.pos_lng != null && row.pos_lat != null ? [row.pos_lng, row.pos_lat] : city.center;
+  if (row?.travel_arrives_at != null && row.travel_to_lng != null && row.travel_to_lat != null) {
+    if (Number(row.travel_arrives_at) > now) {
+      return { position, travel: { mode: row.travel_mode, from: [row.travel_from_lng, row.travel_from_lat], to: [row.travel_to_lng, row.travel_to_lat], departedAt: Number(row.travel_departed_at), arrivesAt: Number(row.travel_arrives_at) } };
+    }
+    position = [row.travel_to_lng, row.travel_to_lat];
+    await db.call(`game_player_cities?player_id=eq.${playerId}&city_id=eq.${cityId}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ pos_lng: position[0], pos_lat: position[1], travel_mode: null, travel_from_lng: null, travel_from_lat: null, travel_to_lng: null, travel_to_lat: null, travel_departed_at: null, travel_arrives_at: null }) });
+  }
+  return { position, travel: null };
+}
+
+type Refusal = { ok: false; status: number; message: string };
+const refuse = (status: number, message: string): Refusal => ({ ok: false, status, message });
+
+/** Starts a journey across the selected city. The server sets the arrival time; a second journey waits for the first. */
+async function startTravel(db: Rest, claims: { playerId: string }, network: string, addressNorm: string, body: Record<string, unknown>, now: number): Promise<{ ok: true } | Refusal> {
+  if (await settleFlight(db, claims, network, addressNorm, now)) return refuse(409, 'You are in the air. Wait for the flight to land.');
+  const selected = (await flightRow(db, claims.playerId)).selected_city;
+  const city = typeof body.city === 'string' ? cityById(body.city) : undefined;
+  if (!city || city.id !== selected) return refuse(409, 'You can only travel in the city you are in.');
+  const mode = body.mode;
+  if (!isLocalMode(mode) || !city.transport.includes(mode)) return refuse(400, `${city.name} has no such way of getting around.`);
+  const to = Array.isArray(body.to) && body.to.length === 2 ? ([Number(body.to[0]), Number(body.to[1])] as LngLat) : null;
+  if (!to || !inBounds(city, to)) return refuse(400, `That place is outside ${city.name}.`);
+  const here = await exploreState(db, claims.playerId, city.id, now);
+  if (here.travel) return refuse(409, 'You are already on a journey.');
+  const km = distanceKm(here.position, to);
+  if (km < 0.05) return refuse(400, 'You are already there.');
+  const arrivesAt = now + localDurationMs(km, mode);
+  await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ pos_lng: here.position[0], pos_lat: here.position[1], travel_mode: mode, travel_from_lng: here.position[0], travel_from_lat: here.position[1], travel_to_lng: to[0], travel_to_lat: to[1], travel_departed_at: now, travel_arrives_at: arrivesAt }) });
+  await db.call('game_journeys', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: claims.playerId, kind: 'local', mode, from_city: city.id, to_city: city.id, distance_km: km, departed_at: now, arrives_at: arrivesAt }) });
+  await logActivity(db, claims.playerId, network, addressNorm, 'journey_started', now, { mode, km: Math.round(km * 100) / 100, to }, city.id);
+  return { ok: true };
+}
+
+/** Starts a simulated flight to another open city. Not a booking: it only moves the player in the game. */
+async function startFlight(db: Rest, claims: { playerId: string }, network: string, addressNorm: string, body: Record<string, unknown>, now: number): Promise<{ ok: true } | Refusal> {
+  if (await settleFlight(db, claims, network, addressNorm, now)) return refuse(409, 'You are already in the air.');
+  const from = (await flightRow(db, claims.playerId)).selected_city;
+  const dest = typeof body.to === 'string' ? cityById(body.to) : undefined;
+  if (!from || !cityById(from)) return refuse(409, 'Choose a city first.');
+  if (!dest) return refuse(400, 'That city does not exist.');
+  if (dest.id === from) return refuse(400, 'You are already in that city.');
+  const open = (await db.call(`game_cities?id=eq.${dest.id}&select=id,status&limit=1`)) as CityRow[] | null;
+  if (open?.[0]?.status !== 'active') return refuse(409, `${dest.name} is not open yet.`);
+  if ((await exploreState(db, claims.playerId, from, now)).travel) return refuse(409, 'Finish your journey before you fly.');
+  const km = flightKm(from, dest.id)!;
+  const arrivesAt = now + flightDurationMs(km);
+  await db.call(`game_player_profiles?player_id=eq.${claims.playerId}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ flight_from: from, flight_to: dest.id, flight_departed_at: now, flight_arrives_at: arrivesAt }) });
+  await db.call('game_journeys', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: claims.playerId, kind: 'flight', mode: 'flight', from_city: from, to_city: dest.id, distance_km: km, departed_at: now, arrives_at: arrivesAt }) });
+  await logActivity(db, claims.playerId, network, addressNorm, 'flight_started', now, { to: dest.id, km: Math.round(km) }, from);
+  return { ok: true };
+}
+
+async function fullState(db: Rest, playerId: string, now: number): Promise<Record<string, unknown>> {
+  const f = await flightRow(db, playerId);
+  const flight = f.flight_to && Number(f.flight_arrives_at) > now ? flightView(f) : null;
+  const selected = f.selected_city && cityById(f.selected_city) ? f.selected_city : null;
+  const here = selected && !flight ? await exploreState(db, playerId, selected, now) : null;
+  return { serverNow: now, selected, flight, position: here?.position ?? null, travel: here?.travel ?? null };
 }
 
 export async function handleGame(input: GameInput): Promise<GameOutput> {
@@ -219,8 +314,16 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
     // A session ends when the player signs out everywhere: the token's version is older than the stored one.
     if (claims.version < (await sessionVersion(db, versionKey(claims.owner)))) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
     if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm }, headers);
+    if (op === 'cities' || op === 'select-city' || op === 'state' || op === 'travel' || op === 'fly') await settleFlight(db, claims, network, addressNorm, input.now);
     if (op === 'cities') return json(200, await listCities(db, claims.playerId), headers);
+    if (op === 'state') return json(200, await fullState(db, claims.playerId, input.now), headers);
+    if (op === 'travel' || op === 'fly') {
+      const r = op === 'travel' ? await startTravel(db, claims, network, addressNorm, body, input.now) : await startFlight(db, claims, network, addressNorm, body, input.now);
+      if (!r.ok) return json(r.status, { error: op, message: r.message }, headers);
+      return json(200, await fullState(db, claims.playerId, input.now), headers);
+    }
     if (op === 'select-city') {
+      if ((await flightRow(db, claims.playerId)).flight_to) return json(409, { error: 'city', message: 'You are in the air. Wait for the flight to land.' }, headers);
       const r = await selectCity(db, claims, network, addressNorm, body.city, input.now);
       if (!r.ok) return json(r.status, { error: 'city', message: r.message }, headers);
       return json(200, { ...(await listCities(db, claims.playerId)), first: r.first, changed: r.changed }, headers);

@@ -5,6 +5,8 @@
  */
 import { loginMessage, type WalletFamily } from '../swings/account/loginMessage.js';
 import type { Signer } from '../swings/account/client.js';
+import type { ExploreState } from './explore.js';
+import type { Transport } from './cities.js';
 
 export interface GameProfile {
   playerId: string;
@@ -112,6 +114,18 @@ export class GameClient {
 
   selectCity(session: GameSession, city: string): Promise<CityList & { first: boolean; changed: boolean }> {
     return this.post({ op: 'select-city', city }, session.token);
+  }
+
+  state(session: GameSession): Promise<ExploreState> {
+    return this.post<ExploreState>({ op: 'state' }, session.token);
+  }
+
+  travel(session: GameSession, city: string, mode: Transport, to: [number, number]): Promise<ExploreState> {
+    return this.post<ExploreState>({ op: 'travel', city, mode, to }, session.token);
+  }
+
+  fly(session: GameSession, to: string): Promise<ExploreState> {
+    return this.post<ExploreState>({ op: 'fly', to }, session.token);
   }
 
   async signOut(session: GameSession, everywhere = false): Promise<void> {

@@ -104,6 +104,11 @@ export class GameClient {
     return session;
   }
 
+  /** Whether the server treats this wallet as an administrator. Only decides what is shown; the server checks every admin call again. */
+  async isAdmin(session: GameSession): Promise<boolean> {
+    return (await this.post<{ admin?: boolean }>({ op: 'me' }, session.token)).admin === true;
+  }
+
   async me(session: GameSession): Promise<GameProfile> {
     return (await this.post<{ profile: GameProfile }>({ op: 'me' }, session.token)).profile;
   }

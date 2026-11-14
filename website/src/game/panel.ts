@@ -8,6 +8,7 @@ import type { ExploreState } from './explore.js';
 import type { HistoryPage, ProgressView } from './progress.js';
 import type { BoardView, TeamBoardView, TeamView } from './boards.js';
 import type { Period } from './periods.js';
+import type { Call } from './admin.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
@@ -52,6 +53,43 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   // The exploration view keeps its own element so the map survives the page being redrawn around it.
   const exploreHost = document.createElement('div');
   let exploring: { city: string; destroy(): void } | null = null;
+  const announceHost = document.createElement('div');
+  const adminHost = document.createElement('div');
+  let adminFor: GameSession | null = null;
+  let adminView: { destroy(): void } | null = null;
+
+  function syncAdmin(): void {
+    const s = session;
+    if (adminFor === s) return;
+    adminView?.destroy();
+    adminFor = s;
+    adminView = null;
+    adminHost.replaceChildren();
+    announceHost.replaceChildren();
+    if (!s) return;
+    const call: Call = <T,>(payload: Record<string, unknown>) => client.call<T>(s, payload);
+    // Announcements are for everyone signed in.
+    void call<{ announcements: { id: string; title: string; body: string }[] }>({ op: 'announcements' }).then((r) => {
+      if (adminFor !== s) return;
+      for (const a of r.announcements.slice(0, 3)) {
+        const box = document.createElement('div');
+        box.className = 'wapp__card';
+        const h = document.createElement('strong');
+        h.textContent = a.title;
+        const p = document.createElement('p');
+        p.className = 'wapp__fine';
+        p.textContent = a.body;
+        box.append(h, p);
+        announceHost.append(box);
+      }
+    }).catch(() => undefined);
+    // The console only appears for an administrator; the server decides, and checks again on every call.
+    void client.isAdmin(s).then(async (yes) => {
+      if (!yes || adminFor !== s) return;
+      const m = await import('./admin.js');
+      if (adminFor === s) adminView = m.mountAdmin(adminHost, call);
+    }).catch(() => undefined);
+  }
   const boardsHost = document.createElement('div');
   let boardsFor: GameSession | null = null;
   let boardsView: { refresh(): void; stop(): void } | null = null;
@@ -151,6 +189,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     const want = session && list?.selected ? list.selected : null;
     syncProgress();
     syncBoards();
+    syncAdmin();
     syncMissions(want);
     if (exploring && exploring.city === want) return;
     exploring?.destroy();
@@ -205,6 +244,11 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     boardsFor = null;
     boardsView = null;
     boardsHost.replaceChildren();
+    adminView?.destroy();
+    adminFor = null;
+    adminView = null;
+    adminHost.replaceChildren();
+    announceHost.replaceChildren();
     draw();
   }
 
@@ -260,7 +304,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
     grid.append(...CITIES.map(cityCard));
     out.push(grid);
-    return session && list?.selected ? [head, exploreHost, missionHost, progressHost, boardsHost, grid] : session ? [...out, progressHost, boardsHost] : out;
+    return session && list?.selected ? [head, announceHost, exploreHost, missionHost, progressHost, boardsHost, grid, adminHost] : session ? [...out, announceHost, progressHost, boardsHost, adminHost] : out;
   }
 
   function draw(): void {

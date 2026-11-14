@@ -22,6 +22,8 @@ import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
 import { missionOp } from './_gameMissions.js';
 import { boardOp } from './_gameBoards.js';
+import { adminOp, playerAdminOp } from './_gameAdmin.js';
+import { adminOwners } from './_adminStats.js';
 import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
@@ -31,7 +33,7 @@ export interface GameInput {
   authorization: string | null;
   ip: string;
   body: unknown;
-  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string; GAME_ANSWER_SECRET?: string };
+  env: TokensEnv & { SWINGS_SESSION_SECRET?: string; SWINGS_LOGIN_DOMAINS?: string; VERCEL_ENV?: string; GAME_ANSWER_SECRET?: string; GAME_PRIZES_ENABLED?: string; ADMIN_WALLETS?: string };
   fetchImpl: typeof fetch;
   now: number;
 }
@@ -316,8 +318,18 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
   try {
     // A session ends when the player signs out everywhere: the token's version is older than the stored one.
     if (claims.version < (await sessionVersion(db, versionKey(claims.owner)))) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
-    if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm }, headers);
+    if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm, admin: adminOwners(input.env).has(claims.owner) }, headers);
     if (op === 'cities' || op === 'select-city' || op === 'state' || op === 'travel' || op === 'fly') await settleFlight(db, claims, network, addressNorm, input.now);
+    const isAdmin = adminOwners(input.env).has(claims.owner);
+    const actx = { db, admin: claims.owner, playerId: claims.playerId, network, addressNorm, body, now: input.now, secret: input.env.GAME_ANSWER_SECRET?.trim() || secret, prizesEnabled: input.env.GAME_PRIZES_ENABLED === '1' };
+    if (typeof op === 'string' && op.startsWith('admin-')) {
+      // To anyone who is not an administrator, an admin op looks exactly like an op that does not exist.
+      if (!isAdmin || overBudget(`gameadmin:${claims.playerId}`, input.now, 120)) return json(404, { error: 'not-found' }, headers);
+      const a = await adminOp(op, actx);
+      return a ? json(a.status, a.data, headers) : json(404, { error: 'not-found' }, headers);
+    }
+    const extra = await playerAdminOp(op, actx);
+    if (extra) return json(extra.status, extra.data, headers);
     const mission = await missionOp(op, {
       db,
       playerId: claims.playerId,

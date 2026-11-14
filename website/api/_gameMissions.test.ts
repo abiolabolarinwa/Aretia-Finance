@@ -60,6 +60,7 @@ function world() {
     }
     const rows = (t[table!] ??= []);
     if (method === 'POST') {
+      if (table === 'game_player_achievements' && String(body.achievement_id).startsWith('ff-') && rows.some((r) => r.achievement_id === body.achievement_id)) return new Response('', { status: 409 });
       const keys = UNIQUE[table!];
       if (keys && rows.some((r) => keys.every((k) => r[k] === body[k]))) return new Response('', { status: prefer.includes('ignore-duplicates') ? 201 : 409 });
       const row = { stage: 1, hints_used: 0, hints_total: 0, status: 'active', discovery_status: 'unlocked', verification_status: 'none', claim_status: 'none', ...body };
@@ -200,8 +201,21 @@ describe('treasure discovery', () => {
     const got = await missionOp('collect', w.ctx(P1, { treasure: T1 }));
     expect(got!.data).toMatchObject({ discovered: true, xp: treasureXp(8), treasure: { coin: 'Lutetium Coin', usd: 0.0027, verification: 'verified' } });
     expect(w.t.game_treasures![0]).toMatchObject({ status: 'found', found_by: P1 });
-    expect(w.t.xp!.at(-1)).toEqual({ p_player: P1, p_city: 'paris', p_xp: 25, p_discoveries: 1, p_missions: 0 });
+    expect(w.t.xp!.at(-2)).toEqual({ p_player: P1, p_city: 'paris', p_xp: 25, p_discoveries: 1, p_missions: 0 });
     expect((await missionOp('collect', w.ctx(P1, { treasure: T1 })))!.status).toBe(409);
+    // The first collector of this class in this city is its First Finder, with a bonus equal to the treasure XP.
+    expect(got!.data).toMatchObject({ firstFinder: true, firstFinderBonus: 25 });
+    expect(w.t.game_player_achievements).toEqual([expect.objectContaining({ player_id: P1, achievement_id: 'ff-paris-lutetium' })]);
+    expect(w.t.xp!.at(-1)).toEqual({ p_player: P1, p_city: 'paris', p_xp: 25, p_discoveries: 0, p_missions: 0 });
+    expect(w.t.game_player_activities!.map((a) => a.activity_type)).toContain('first_finder');
+  });
+
+  it('names First Finder badges in a player progress, and gives the badge to one player only', async () => {
+    const w = world();
+    w.t.game_player_achievements = [{ player_id: P1, achievement_id: 'ff-new-york-diamond', unlocked_at: 5 }];
+    w.t.game_player_profiles = [{ player_id: P1, display_name: '', total_xp: 0 }];
+    const p = (await progress({ db: w.ctx(P1, {}).db, playerId: P1, network: 'solana', addressNorm: 'addr', now: NOW })) as { firstFinds: Row[] };
+    expect(p.firstFinds).toEqual([{ cityId: 'new-york', class: 'diamond', unlockedAt: 5 }]);
   });
 
   it('gives a treasure to the first player to reach it only, even when both solved the trail', async () => {

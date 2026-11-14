@@ -21,6 +21,7 @@ import { overBudget } from './_limits.js';
 import type { TokensEnv } from './_swingsTokens.js';
 import { CITIES, cityById } from '../src/game/cities.js';
 import { missionOp } from './_gameMissions.js';
+import { boardOp } from './_gameBoards.js';
 import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
@@ -334,6 +335,9 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
       const unlocked = mission.status === 200 && (op === 'answer' || op === 'collect') ? await evaluateAchievements(pctx) : [];
       return json(mission.status, unlocked.length > 0 ? { ...mission.data, achievements: unlocked } : mission.data, headers);
     }
+    if (op === 'team-join' && overBudget(`teamjoin:${claims.playerId}`, input.now, 10)) return json(429, { error: 'rate-limit', message: 'Too many tries. Wait a minute.' }, { ...headers, 'retry-after': '60' });
+    const board = await boardOp(op, { db, playerId: claims.playerId, network, addressNorm, body, now: input.now });
+    if (board) return json(board.status, board.data, headers);
     if (op === 'progress') {
       const achievements = await evaluateAchievements(pctx);
       return json(200, { ...(await progress(pctx)), newlyUnlocked: achievements }, headers);

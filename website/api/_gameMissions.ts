@@ -257,7 +257,21 @@ async function collect(c: MissionCtx): Promise<MissionOut> {
   const xp = treasureXp(k?.rank ?? 8);
   await c.db.call('rpc/game_award_xp', { method: 'POST', body: JSON.stringify({ p_player: c.playerId, p_city: t.city_id, p_xp: xp, p_discoveries: 1, p_missions: 0 }) });
   await log(c, 'treasure_discovered', t.city_id, { treasure: t.id, class: t.class_id, verification });
-  return ok({ discovered: true, xp, treasure: { ...treasureCard(t), verification, discoveredAt: c.now } });
+  // First Finder: the first player ever to collect this class of treasure in this city. One holder, enforced by a unique index.
+  let firstFinder = false;
+  try {
+    await c.db.call('game_player_achievements', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ player_id: c.playerId, achievement_id: `ff-${t.city_id}-${t.class_id}`, unlocked_at: c.now }) });
+    firstFinder = true;
+  } catch {
+    // someone already holds it
+  }
+  let bonus = 0;
+  if (firstFinder) {
+    bonus = xp;
+    await c.db.call('rpc/game_award_xp', { method: 'POST', body: JSON.stringify({ p_player: c.playerId, p_city: t.city_id, p_xp: bonus, p_discoveries: 0, p_missions: 0 }) });
+    await log(c, 'first_finder', t.city_id, { class: t.class_id, xp: bonus });
+  }
+  return ok({ discovered: true, xp, firstFinder, firstFinderBonus: bonus, treasure: { ...treasureCard(t), verification, discoveredAt: c.now } });
 }
 
 /** Handles a mission or treasure op, or returns null for any other op. */

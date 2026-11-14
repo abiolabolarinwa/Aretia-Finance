@@ -30,7 +30,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, ..
 const short = (a: string): string => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
 type Stage = 'welcome' | 'cities' | 'play';
-type Tab = 'explore' | 'missions' | 'progress' | 'board' | 'admin';
+type Tab = 'roam' | 'explore' | 'missions' | 'progress' | 'board' | 'admin';
 
 export function initGame(root: HTMLElement): { onShow(): void } {
   installTheme();
@@ -53,12 +53,15 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   let listLoaded = false;
   /** The player pressed "Change city" and is choosing again. */
   let picking = false;
-  let tab: Tab = 'explore';
+  let tab: Tab = 'roam';
   let isAdmin = false;
   let lastStage: Stage | null = null;
 
   // Each part of the game keeps its own element, so the map and the other views survive the screen being redrawn around them.
   const exploreHost = document.createElement('div');
+  const roamHost = document.createElement('div');
+  /** The walk-and-drive view runs only while its tab is open, so it does not draw or report in the background. */
+  let roaming: { city: string; destroy(): void } | null = null;
   const missionHost = document.createElement('div');
   const progressHost = document.createElement('div');
   const boardsHost = document.createElement('div');
@@ -229,6 +232,69 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     });
   }
 
+  function stopRoam(): void {
+    roaming?.destroy();
+    roaming = null;
+    roamHost.replaceChildren();
+  }
+
+  function syncRoam(): void {
+    const s = session;
+    const want = s && tab === 'roam' && !picking && listLoaded && list?.selected ? list.selected : null;
+    if (!want) {
+      stopRoam();
+      return;
+    }
+    if (roaming && roaming.city === want) return;
+    stopRoam();
+    const city = cityById(want);
+    if (!s || !city) return;
+    const mine = { city: want, destroy() {} };
+    roaming = mine;
+    roamHost.textContent = 'Loading the streets…';
+    void (async () => {
+      const m = await import('./world/roam.js');
+      const state = (await client.state(s)) as ExploreState;
+      if (roaming !== mine) return;
+      const start: [number, number] = state.position ?? [city.center[0], city.center[1]];
+      const call = <T,>(payload: Record<string, unknown>): Promise<T> => client.call<T>(s, payload);
+      const view = await m.mountRoam(roamHost, city, start, {
+        async sync(lng, lat, mode) {
+          try {
+            const r = await call<{ position: [number, number] }>({ op: 'roam', city: want, to: [lng, lat], mode });
+            return { ok: true, position: r.position };
+          } catch (e) {
+            const message = e instanceof Error ? e.message : 'Your position could not be saved.';
+            // A refused move comes with the place the server holds; fetch it so the player is put back there.
+            const st = await (client.state(s) as Promise<ExploreState>).catch(() => null);
+            return { ok: false, message, ...(st?.position ? { position: st.position } : {}) };
+          }
+        },
+        async zones() {
+          const r = await call<{ treasures: MyTreasure[] }>({ op: 'treasures' });
+          return r.treasures
+            .filter((t) => t.cityId === want && t.available && t.discoveredAt === null && t.zone)
+            .map((t) => ({ id: t.id, coin: t.coin, lng: t.zone!.lng, lat: t.zone!.lat, radiusM: t.zone!.radiusM }));
+        },
+        async collect(id) {
+          try {
+            const r = await call<{ discovered: boolean; xp: number; treasure: TreasureCard }>({ op: 'collect', treasure: id });
+            progressView?.refresh();
+            boardsView?.refresh();
+            return { ok: true, message: `You found the ${r.treasure.coin}! +${r.xp} XP` };
+          } catch (e) {
+            return { ok: false, message: e instanceof Error ? e.message : 'That did not work. Try again.' };
+          }
+        },
+      });
+      if (!view) return;
+      if (roaming === mine) mine.destroy = view.destroy;
+      else view.destroy();
+    })().catch(() => {
+      if (roaming === mine) roamHost.textContent = 'The city could not be loaded. Try again.';
+    });
+  }
+
   /** Loads where the signed-in player is up to, then the right stage shows. */
   async function loadList(s: GameSession): Promise<void> {
     try {
@@ -333,7 +399,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     list = null;
     listLoaded = false;
     picking = false;
-    tab = 'explore';
+    tab = 'roam';
+    stopRoam();
     exploring?.destroy();
     exploring = null;
     exploreHost.replaceChildren();
@@ -370,7 +437,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       list = await client.selectCity(session, id);
       session = { ...session, profile: { ...session.profile, selectedCity: list.selected } };
       picking = false;
-      tab = 'explore';
+      tab = 'roam';
     } catch (e) {
       message = e instanceof Error ? e.message : 'That city could not be opened. Try again.';
     }
@@ -554,7 +621,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'explore', label: 'Explore' },
+    { id: 'roam', label: 'Walk & drive' },
+    { id: 'explore', label: 'Map' },
     { id: 'missions', label: 'Missions' },
     { id: 'progress', label: 'My progress' },
     { id: 'board', label: 'Leaderboard & team' },
@@ -594,7 +662,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     }
     bar.append(head, tabs);
     const body = el('div', { class: 'ucs-play-body' });
-    const host = tab === 'explore' ? exploreHost : tab === 'missions' ? missionHost : tab === 'progress' ? progressHost : tab === 'board' ? boardsHost : adminHost;
+    const host = tab === 'roam' ? roamHost : tab === 'explore' ? exploreHost : tab === 'missions' ? missionHost : tab === 'progress' ? progressHost : tab === 'board' ? boardsHost : adminHost;
     body.append(announceHost, host);
     if (message) body.prepend(el('p', { class: 'wapp__fine', text: message }));
     return [bar, body];
@@ -616,6 +684,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     root.replaceChildren(el('div', { class: 'ucs' + (stage !== lastStage ? ' ucs-fade' : '') }, ...nodes));
     lastStage = stage;
     syncExplore();
+    syncRoam();
     // A map that was out of sight needs to measure itself again when it comes back.
     if (stage === 'play') requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }

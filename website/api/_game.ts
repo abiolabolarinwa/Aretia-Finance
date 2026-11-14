@@ -24,6 +24,7 @@ import { boardOp } from './_gameBoards.js';
 import { adminOp, playerAdminOp } from './_gameAdmin.js';
 import { adminOwners } from './_adminOwners.js';
 import { evaluateAchievements, history, progress, setDisplayName } from './_gameProgress.js';
+import { isRoamMode, roamAllowed } from '../src/game/roamRules.js';
 import { distanceKm, flightDurationMs, flightKm, inBounds, isLocalMode, localDurationMs, type LngLat } from '../src/game/travel.js';
 
 export interface GameInput {
@@ -251,6 +252,40 @@ async function fullState(db: Rest, playerId: string, now: number): Promise<Recor
   return { serverNow: now, selected, flight, position: here?.position ?? null, travel: here?.travel ?? null };
 }
 
+/**
+ * Records where the player has walked or driven to in the 3D world. The page moves the player freely; this accepts a report only if
+ * it is no further from the last one than that way of travelling allows in the time since (see roamRules.ts), so the stored position,
+ * which is what collecting a treasure is checked against, can only be reached by actually getting there.
+ */
+const FIRST_REPORT_MS = 5_000;
+
+async function roam(db: Rest, claims: { playerId: string }, network: string, addressNorm: string, body: Record<string, unknown>, now: number): Promise<{ status: number; data: Record<string, unknown> }> {
+  const fail = (status: number, message: string, extra: Record<string, unknown> = {}) => ({ status, data: { error: 'roam', message, ...extra } });
+  if (await settleFlight(db, claims, network, addressNorm, now)) return fail(409, 'You are in the air. Wait for the flight to land.');
+  const city = typeof body.city === 'string' ? cityById(body.city) : undefined;
+  const selected = (await flightRow(db, claims.playerId)).selected_city;
+  if (!city || city.id !== selected) return fail(409, 'You can only roam the city you are in.');
+  if (!isRoamMode(body.mode)) return fail(400, 'Unknown way of getting around.');
+  const to = Array.isArray(body.to) && body.to.length === 2 ? ([Number(body.to[0]), Number(body.to[1])] as LngLat) : null;
+  if (!to || !inBounds(city, to)) return fail(400, 'That place is outside ' + city.name + '.');
+  const row = await travelRow(db, claims.playerId, city.id);
+  if (!row) return fail(409, 'Enter the city first.');
+  if (row.travel_arrives_at != null && Number(row.travel_arrives_at) > now) return fail(409, 'You are on a timed journey. Let it finish, or stay on the map until it does.');
+  const from: LngLat = row.pos_lng != null && row.pos_lat != null ? [row.pos_lng, row.pos_lat] : city.center;
+  let at: number | null;
+  try {
+    const t = (await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}&select=pos_at&limit=1`)) as { pos_at: number | null }[] | null;
+    at = t?.[0]?.pos_at ?? null;
+  } catch {
+    return fail(503, 'Roaming needs a database update (d1/0003_roam.sql) that has not been applied yet.');
+  }
+  // With no earlier report there is no elapsed time to count, so only a few seconds are allowed: a first report cannot be a jump.
+  const check = roamAllowed(from, to, body.mode, at === null ? FIRST_REPORT_MS : now - Number(at));
+  if (!check.ok) return fail(409, 'You moved too fast, so you were put back where you were.', { position: from, serverNow: now });
+  await db.call(`game_player_cities?player_id=eq.${claims.playerId}&city_id=eq.${city.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ pos_lng: to[0], pos_lat: to[1], pos_at: now }) });
+  return { status: 200, data: { position: to, serverNow: now } };
+}
+
 export async function handleGame(input: GameInput): Promise<GameOutput> {
   const headers: Record<string, string> = { vary: 'origin', 'cache-control': 'no-store' };
   const allowed = isOriginAllowed(input.origin, input.env);
@@ -264,9 +299,10 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
   if (!allowed) return json(403, { error: 'origin' }, headers);
   const secret = sessionSecret(input.env);
   if (!secret) return json(503, { error: 'not-configured', message: 'The game is not set up on this server yet.' }, headers);
-  if (overLimit(`game:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
   const body = obj(input.body);
   const op = body.op;
+  // Roaming reports where the player is every moment or two, so it has its own allowance (per player, below) instead of the shared one.
+  if (op !== 'roam' && overLimit(`game:${input.ip}`, input.now)) return json(429, { error: 'rate-limit' }, { ...headers, 'retry-after': '60' });
   const db = input.db;
   try {
     await loadCatalogue(db, input.now);
@@ -322,6 +358,11 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
     // A session ends when the player signs out everywhere: the token's version is older than the stored one.
     if (claims.version < (await sessionVersion(db, versionKey(claims.owner)))) return json(401, { error: 'session', message: 'Sign in again to continue.' }, headers);
     if (op === 'me') return json(200, { profile: await profileOf(db, claims.playerId), network, address: addressNorm, admin: adminOwners(input.env).has(claims.owner) }, headers);
+    if (op === 'roam') {
+      if (overBudget(`roam:${claims.playerId}`, input.now, 100)) return json(429, { error: 'rate-limit', message: 'Too many position reports. Slow down a little.' }, { ...headers, 'retry-after': '10' });
+      const r = await roam(db, claims, network, addressNorm, body, input.now);
+      return json(r.status, r.data, headers);
+    }
     if (op === 'cities' || op === 'select-city' || op === 'state' || op === 'travel' || op === 'fly') await settleFlight(db, claims, network, addressNorm, input.now);
     const isAdmin = adminOwners(input.env).has(claims.owner);
     const actx = { db, admin: claims.owner, playerId: claims.playerId, network, addressNorm, body, now: input.now, secret: input.env.GAME_ANSWER_SECRET?.trim() || secret, prizesEnabled: input.env.GAME_PRIZES_ENABLED === '1' };

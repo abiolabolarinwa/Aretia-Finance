@@ -14,8 +14,13 @@ or Vercel. The function is more specific than the site's catch-all `/api` forwar
    npx wrangler d1 execute aretia-game --remote --file=d1/0001_game.sql
    npx wrangler d1 execute aretia-game --remote --file=d1/0002_city_photos.sql
    ```
-   Both files are safe to run again. The first seeds the nine cities and the eight coin classes; the second sets a credited, freely
-   licensed Wikimedia Commons photograph on each city card.
+   ```
+   npx wrangler d1 execute aretia-game --remote --file=d1/0003_roam.sql
+   ```
+   The first two files are safe to run again. The first seeds the nine cities and the eight coin classes; the second sets a credited,
+   freely licensed Wikimedia Commons photograph on each city card. **`0003_roam.sql` must be run exactly once** (SQLite cannot add a
+   column "if not exists"; a second run reports a duplicate column, which is harmless). Until it is run, walking and driving report
+   "needs a database update" and nothing else is affected.
 2. **Bind it to the Pages project** (Cloudflare dashboard, Workers & Pages, the site, Settings, Bindings and Variables):
    - D1 database binding, variable name `GAME_DB`, database `aretia-game`
    - Compatibility flag `nodejs_compat` (Settings, Compatibility flags), for production and preview
@@ -94,7 +99,8 @@ Daily and weekly challenges never carry a prize.
 |---|---|
 | **None of the pages has been seen in a browser, on a phone, or against a real wallet by me.** | The sandbox refused localhost, and there is no device here. WebGL drawing, the map, Mapillary's viewer, WalletConnect and the admin forms need a person to click through them on desktop and phone before launch. |
 | Cloudflare setup | Nothing has been created in your Cloudflare account: no D1 database, binding or secrets. Section 1 lists exactly what to do. |
-| City environments | The 3D city is a stylised model: only landmarks (approximate positions) are real places; buildings are generated to suit the kind of city. It is not a surveyed or photorealistic world. |
+| Walk & drive (GTA-style) | The streets, buildings, rivers and parks are the real map (OpenStreetMap through OpenFreeMap, loaded as you move), with walking, running, cars and boats, walls and water that block you, a minimap and full screen. Buildings are plain extruded shapes at the heights the map gives (or a guess), not textured. Cars are arcade-driven and parked near you, with no other traffic or pedestrians. Where the map has no data the ground is empty. The server only checks that your reported speed is possible for walking, running, driving or boating; it does not replay your path. It is built and tested (map decoding, collisions, physics, geometry, server limits) but has **not been seen running on a real GPU, phone or against the live tile service**. |
+| Overview 3D scene | The older 3D overview (Map tab) is a stylised model: only landmarks (approximate positions) are real places; buildings are generated to suit the kind of city. |
 | Underwater and underground | They are 3D scenes to read a clue in, not separate puzzle engines. Clues are still text. |
 | Street-level imagery | Only where Mapillary has photographs, which varies by city. Google Street View is not used (its terms bar showing it as a game layer without a billed key and Google's own viewer). |
 | Photographs | Real and credited, from Wikimedia Commons, hot-linked. If traffic grows, copy them to R2 with their credits. |
@@ -121,4 +127,5 @@ likely to dominate cost (hundreds of dollars a month at the high end).
 - Client: `src/game/` (panel, explore, missions, progress, boards, admin, signers, street, scene)
 - Rules shared by both: `cities.ts`, `travel.ts`, `rarity.ts`, `achievements.ts`, `periods.ts`, `exclusions.ts`, `challenges.ts`, `sceneModel.ts`
 - Operator tools: `scripts/game-answers.ts` (answer hashes, tutorial), `scripts/game-city-photos.ts` (credited photographs)
-- Database: `d1/0001_game.sql`, `d1/0002_city_photos.sql` (Cloudflare D1)
+- Walk & drive: `src/game/world/` (`roam.ts` the view, `mvt.ts`/`worldData.ts` map data, `colliders.ts`, `physics.ts`, `roamBuild.ts`) and `src/game/roamRules.ts` (speed limits shared with the server)
+- Database: `d1/0001_game.sql`, `d1/0002_city_photos.sql`, `d1/0003_roam.sql` (Cloudflare D1)

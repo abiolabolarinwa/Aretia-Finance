@@ -14,6 +14,7 @@ import type { Call } from './admin.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { SignerOption } from './signers.js';
 import { installTheme } from './theme.js';
+import { METAMASK_LOGO, OTHERS_LOGO, PHANTOM_LOGO } from './walletLogos.js';
 import { browserStorage } from '../swings/history.js';
 
 type Props = { class?: string; text?: string; attrs?: Record<string, string> };
@@ -42,6 +43,11 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   let signingId = '';
   let openingCity = '';
   let options: SignerOption[] | null = null;
+  /** 'main' shows Phantom, MetaMask and Connect others; 'others' lists every other wallet. */
+  let walletView: 'main' | 'others' = 'main';
+  /** A WalletConnect address and its QR code, while one is waiting to be scanned. */
+  let wcUri = '';
+  let wcQr = '';
   let list: CityList | null = null;
   /** True once the server has said which city the signed-in player is in, so the right stage is shown first time. */
   let listLoaded = false;
@@ -255,20 +261,40 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     draw();
     try {
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Your wallet did not answer. Open it, check for a waiting request, and try again.')), WALLET_WAIT_MS));
-      const s = await Promise.race([(async () => client.signIn(await o.make()))(), timeout]);
+      const s = await Promise.race([(async () => client.signIn(await o.make({ onUri: (uri) => showCode(uri, mine) })))(), timeout]);
       if (mine !== attempt) return; // cancelled while waiting
       session = s;
       listLoaded = false;
       await loadList(s);
       picking = false;
       options = null;
+      walletView = 'main';
     } catch (e) {
       if (mine !== attempt) return;
       message = whyNot(e);
     }
     busy = false;
     signingId = '';
+    wcUri = '';
+    wcQr = '';
     draw();
+  }
+
+  /** Shows a WalletConnect address as a code to scan, drawn here on the page. */
+  function showCode(uri: string, mine: number): void {
+    if (mine !== attempt) return;
+    wcUri = uri;
+    wcQr = '';
+    draw();
+    void import('qrcode').then(async (q) => {
+      const canvas = document.createElement('canvas');
+      await q.toCanvas(canvas, uri, { margin: 1, width: 480, errorCorrectionLevel: 'M' });
+      const url = canvas.toDataURL('image/png');
+      if (mine === attempt && wcUri === uri) {
+        wcQr = url;
+        draw();
+      }
+    }).catch(() => undefined);
   }
 
   /** Stops waiting for a wallet, so another can be chosen. */
@@ -276,6 +302,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     attempt++;
     busy = false;
     signingId = '';
+    wcUri = '';
+    wcQr = '';
     message = 'Cancelled. Choose a wallet to try again.';
     draw();
   }
@@ -301,6 +329,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     if (session) await client.signOut(session, everywhere);
     session = null;
     options = null;
+    walletView = 'main';
     list = null;
     listLoaded = false;
     picking = false;
@@ -362,12 +391,92 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     return row;
   };
 
+  /** One big wallet button: its logo, its name, and a line underneath. */
+  function walletButton(logo: string, name: string, sub: string, onClick: () => void, disabled = false): HTMLButtonElement {
+    const img = el('img', { attrs: { alt: '', width: '34', height: '34' } });
+    img.src = logo;
+    const b = el('button', { class: 'ucs-wallet', attrs: { type: 'button' } }, img, el('span', {}, name, ...(sub ? [el('small', { text: sub })] : [])));
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function walletBox(): HTMLElement {
+    const box = el('div', { class: 'ucs-wallets' });
+    const list2 = options ?? [];
+    if (wcUri) {
+      // A WalletConnect code is waiting to be scanned.
+      const qr = el('div', { class: 'ucs-qr' }, el('h3', { text: 'Scan with your wallet app' }));
+      if (wcQr) {
+        const img = el('img', { attrs: { alt: 'WalletConnect code to scan', width: '240', height: '240' } });
+        img.src = wcQr;
+        qr.append(img);
+      } else qr.append(el('p', { class: 'ucs-note', text: 'Making the code…' }));
+      const row = el('div', { class: 'ucs-qr-row' });
+      const copy = el('button', { class: 'ucs-btn', text: 'Copy link', attrs: { type: 'button' } });
+      copy.addEventListener('click', () => {
+        void navigator.clipboard?.writeText(wcUri).then(() => { copy.textContent = 'Copied'; }).catch(() => undefined);
+      });
+      const open = el('a', { class: 'ucs-btn', text: 'Open in wallet app', attrs: { href: wcUri, rel: 'noopener' } });
+      const stop = el('button', { class: 'ucs-btn', text: 'Cancel', attrs: { type: 'button' } });
+      stop.addEventListener('click', cancelSignIn);
+      row.append(copy, open, stop);
+      qr.append(row, el('p', { class: 'ucs-note', text: 'Open your wallet app, choose scan or WalletConnect, and approve. Signing is free and moves no money.' }));
+      box.append(qr);
+      return box;
+    }
+    const phantom = list2.find((o) => o.kind === 'phantom');
+    const metamask = list2.find((o) => o.kind === 'metamask');
+    const others = list2.filter((o) => o.kind === 'other');
+    const waiting = (o: SignerOption | undefined): boolean => Boolean(o && signingId === o.id);
+    const missing = (name: string, where: string): void => {
+      message = name + ' was not found in this browser. Install it from ' + where + ', or choose another wallet.';
+      draw();
+    };
+    if (walletView === 'others') {
+      box.append(el('h3', { text: 'Connect another wallet' }));
+      for (const o of others) {
+        box.append(walletButton(o.icon ?? OTHERS_LOGO, o.label, signingId === o.id ? 'Waiting for your wallet…' : '', () => void signIn(o), busy));
+      }
+      if (others.length === 0) box.append(el('p', { class: 'ucs-note', text: 'No other wallet was found in this browser. Install one, or connect a Solana wallet in the sidebar, then look again.' }));
+      const back = el('button', { class: 'ucs-btn', text: 'Back', attrs: { type: 'button' } });
+      back.disabled = busy;
+      back.addEventListener('click', () => {
+        walletView = 'main';
+        message = '';
+        draw();
+      });
+      box.append(back);
+    } else {
+      box.append(el('h3', { text: 'Connect a wallet to play' }));
+      box.append(walletButton(phantom?.icon ?? PHANTOM_LOGO, 'Phantom', waiting(phantom) ? 'Waiting for your wallet…' : phantom ? '' : 'Not found in this browser', () => (phantom ? void signIn(phantom) : missing('Phantom', 'phantom.app')), busy));
+      box.append(walletButton(metamask?.icon ?? METAMASK_LOGO, 'MetaMask', waiting(metamask) ? 'Waiting for your wallet…' : metamask ? '' : 'Not found in this browser', () => (metamask ? void signIn(metamask) : missing('MetaMask', 'metamask.io')), busy));
+      box.append(walletButton(OTHERS_LOGO, 'Connect others', waiting(others.find((o) => o.id === signingId)) ? 'Waiting for your wallet…' : 'Other wallets, phone and hardware wallets', () => {
+        walletView = 'others';
+        message = '';
+        draw();
+      }, busy));
+    }
+    if (signingId) {
+      box.append(el('p', { class: 'ucs-note', text: 'Look for a request from your wallet: a pop-up window, or the wallet icon in your browser toolbar. Approve the connection, then the signature. Signing is free and moves no money.' }));
+      const stop = el('button', { class: 'ucs-btn', text: 'Cancel', attrs: { type: 'button' } });
+      stop.addEventListener('click', cancelSignIn);
+      box.append(stop);
+    } else if (walletView === 'main') {
+      const again = el('button', { class: 'ucs-btn', text: 'Look again', attrs: { type: 'button' } });
+      again.disabled = busy;
+      again.addEventListener('click', () => void chooseWallet());
+      box.append(again);
+    }
+    return box;
+  }
+
   function welcome(): HTMLElement {
     const hero = el('section', { class: 'ucs-dark ucs-hero' });
     hero.append(
       steps(1),
       el('span', { class: 'ucs-eyebrow', text: 'Aretia Finance' }),
-      el('h1', { class: 'ucs-title' }, 'Welcome to ', el('span', { text: 'Ultimate City Search' })),
+      el('h1', { class: 'ucs-title', text: 'Welcome to Ultimate City Search' }),
       el('p', { class: 'ucs-sub', text: 'Choose your city where you want to find your treasure.' }),
     );
     if (!options) {
@@ -376,33 +485,8 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       play.disabled = busy;
       play.addEventListener('click', () => void chooseWallet());
       hero.append(play);
-    } else {
-      const box = el('div', { class: 'ucs-wallets' }, el('h3', { text: 'Choose the wallet that will be your player' }));
-      for (const o of options) {
-        const b = el('button', { class: 'ucs-wallet', text: signingId === o.id ? 'Waiting for your wallet…' : o.label });
-        b.type = 'button';
-        b.disabled = busy;
-        b.addEventListener('click', () => void signIn(o));
-        box.append(b);
-      }
-      if (options.length === 0) box.append(el('p', { class: 'ucs-note', text: 'No wallet was found in this browser. Install one, or connect a Solana wallet in the sidebar (it can be a phone wallet through WalletConnect), then look again.' }));
-      if (signingId) {
-        box.append(el('p', { class: 'ucs-note', text: 'Look for a request from your wallet: a pop-up window, or the wallet icon in your browser toolbar. Approve the connection, then the signature. Signing is free and moves no money.' }));
-        const stop = el('button', { class: 'ucs-btn', text: 'Cancel' });
-        stop.type = 'button';
-        stop.addEventListener('click', cancelSignIn);
-        box.append(stop);
-      } else {
-        const again = el('button', { class: 'ucs-btn', text: 'Look again' });
-        again.type = 'button';
-        again.disabled = busy;
-        again.addEventListener('click', () => void chooseWallet());
-        box.append(again);
-      }
-      hero.append(box);
-    }
+    } else hero.append(walletBox());
     if (message) hero.append(el('p', { class: 'ucs-msg', text: message }));
-    hero.append(el('p', { class: 'ucs-note', text: 'Signing in is a free message, never a transaction or an approval. This is a separate game: it does not use ACT or any token. Coins show game values, which are not cash unless a prize is announced in the game.' }));
     const strip = el('div', { class: 'ucs-strip' });
     for (const c of allCities().filter((x) => x.status !== 'inactive')) {
       const t = el('div', { class: 'ucs-thumb' });
@@ -478,11 +562,9 @@ export function initGame(root: HTMLElement): { onShow(): void } {
 
   function playStage(): HTMLElement[] {
     const city = list?.selected ? cityById(list.selected) : undefined;
-    const accent = city?.tint[1] ?? '#c9a227';
     const bar = el('section', { class: 'ucs-dark' });
     const head = el('div', { class: 'ucs-bar' });
     const dot = el('span', { class: 'ucs-bar-dot' });
-    dot.style.background = accent;
     head.append(el('div', { class: 'ucs-bar-city' }, dot, el('div', {}, el('h2', { text: city?.name ?? 'Your city' }), el('small', { text: city ? `${city.country} · stage 3 of 3` : '' }))));
     const right = el('div', { class: 'ucs-bar-right' });
     right.append(el('span', { class: 'ucs-chip gold', text: `Lv ${session?.profile.explorerLevel ?? 1} · ${session?.profile.totalXp ?? 0} XP` }), el('span', { class: 'ucs-chip', text: session ? short(session.address) : '' }));

@@ -9,6 +9,8 @@ import { resetRateLimit } from './_rpcProxy.js';
 import { handleAccount, resetAccountState } from './_swingsAccount.js';
 import { handleGame, readGameSession, walletIdentity, type GameInput } from './_game.js';
 import { verifyLogin } from './_swingsAuth.js';
+import { CITIES } from '../src/game/cities.js';
+import { along, distanceKm, flightDurationMs, flightKm, inBounds, localDurationMs } from '../src/game/travel.js';
 
 const NOW = 1_800_000_000_000;
 const ORIGIN = 'https://aretiafinance.org';
@@ -79,6 +81,7 @@ function setup() {
       const v = versions.get(decodeURIComponent(params.get('owner')!.slice(3)));
       return new Response(JSON.stringify(v === undefined ? [] : [{ version: v }]));
     }
+    if (url.includes('/rest/v1/game_journeys')) return new Response('', { status: 201 });
     if (url.includes('/rest/v1/game_cities')) {
       if (params.has('id')) {
         const id = params.get('id')!.slice(3);
@@ -302,6 +305,93 @@ describe('cities', () => {
     expect((await t.call({ op: 'select-city', city: 'miami' }, auth)).status).toBe(409);
     expect(t.playerCities).toHaveLength(0);
     expect(JSON.parse((await t.call({ op: 'me' }, auth)).body).profile.selectedCity).toBeNull();
+  });
+});
+
+describe('travel and flights', () => {
+  beforeEach(() => {
+    resetRateLimit();
+    resetAccountState();
+  });
+  const signedIn = async (t: ReturnType<typeof setup>) => {
+    const a = solana(await t.nonce());
+    const res = JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string };
+    return `Bearer ${res.token}`;
+  };
+  type State = { selected: string | null; flight: { to: string; arrivesAt: number } | null; position: [number, number] | null; travel: { mode: string; arrivesAt: number } | null; message?: string };
+  const at = (t: ReturnType<typeof setup>, auth: string, now: number) => (body: Record<string, unknown>) => t.call(body, auth, { now });
+
+  it('walks across a city on the server clock, one journey at a time, only inside the city and with its own transport', async () => {
+    const t = setup();
+    const auth = await signedIn(t);
+    const go = at(t, auth, NOW);
+    expect((await go({ op: 'travel', city: 'lagos', mode: 'walk', to: [3.4, 6.5] })).status).toBe(409); // no city chosen yet
+    await go({ op: 'select-city', city: 'lagos' });
+    const start = JSON.parse((await go({ op: 'travel', city: 'lagos', mode: 'walk', to: [3.4, 6.5] })).body) as State;
+    expect(start.travel!.mode).toBe('walk');
+    expect(start.travel!.arrivesAt).toBeGreaterThan(NOW + 1_999);
+    expect((await go({ op: 'travel', city: 'lagos', mode: 'taxi', to: [3.38, 6.52] })).status).toBe(409); // already moving
+    const mid = JSON.parse((await go({ op: 'state' })).body) as State;
+    expect(mid.travel).not.toBeNull();
+    const done = JSON.parse((await at(t, auth, start.travel!.arrivesAt + 1)({ op: 'state' })).body) as State;
+    expect(done.travel).toBeNull();
+    expect(done.position).toEqual([3.4, 6.5]);
+    const later = at(t, auth, start.travel!.arrivesAt + 10);
+    expect((await later({ op: 'travel', city: 'lagos', mode: 'run', to: [10, 10] })).status).toBe(400); // outside Lagos
+    expect((await later({ op: 'travel', city: 'lagos', mode: 'metro', to: [3.5, 6.5] })).status).toBe(400); // Lagos has no metro here
+    expect((await later({ op: 'travel', city: 'lagos', mode: 'flight', to: [3.5, 6.5] })).status).toBe(400); // flights are a separate op
+    expect((await later({ op: 'travel', city: 'lagos', mode: 'walk', to: [3.4, 6.5] })).status).toBe(400); // already there
+    expect((await later({ op: 'travel', city: 'paris', mode: 'walk', to: [2.3, 48.85] })).status).toBe(409); // not in Paris
+    expect(t.activities.filter((x) => x.activity_type === 'journey_started')).toHaveLength(1);
+  });
+
+  it('flies between cities on the server clock, and keeps the player from acting while in the air', async () => {
+    const t = setup();
+    const auth = await signedIn(t);
+    const go = at(t, auth, NOW);
+    expect((await go({ op: 'fly', to: 'london' })).status).toBe(409); // no city chosen yet
+    await go({ op: 'select-city', city: 'lagos' });
+    expect((await go({ op: 'fly', to: 'lagos' })).status).toBe(400);
+    expect((await go({ op: 'fly', to: 'atlantis' })).status).toBe(400);
+    t.cityStatus.set('paris', 'inactive');
+    expect((await go({ op: 'fly', to: 'paris' })).status).toBe(409);
+    const up = JSON.parse((await go({ op: 'fly', to: 'london' })).body) as State;
+    expect(up.flight!.to).toBe('london');
+    expect(up.flight!.arrivesAt - NOW).toBeGreaterThanOrEqual(8_000);
+    expect((await go({ op: 'select-city', city: 'dubai' })).status).toBe(409);
+    expect((await go({ op: 'travel', city: 'lagos', mode: 'walk', to: [3.4, 6.5] })).status).toBe(409);
+    expect((await go({ op: 'fly', to: 'dubai' })).status).toBe(409);
+    expect(JSON.parse((await go({ op: 'state' })).body).flight).not.toBeNull();
+    const landed = JSON.parse((await at(t, auth, up.flight!.arrivesAt + 1)({ op: 'state' })).body) as State;
+    expect(landed).toMatchObject({ selected: 'london', flight: null });
+    expect(landed.position).toEqual([-0.1276, 51.5072]);
+    expect(t.playerCities.map((r) => r.city_id).sort()).toEqual(['lagos', 'london']);
+    expect(t.activities.map((x) => x.activity_type)).toEqual(expect.arrayContaining(['flight_started', 'flight_landed']));
+  });
+});
+
+describe('travel rules', () => {
+  it('measures distance and gives every player the same speeds and a bounded journey time', () => {
+    const km = flightKm('lagos', 'london')!;
+    expect(km).toBeGreaterThan(4800);
+    expect(km).toBeLessThan(5200);
+    expect(flightDurationMs(km)).toBeGreaterThan(flightDurationMs(500));
+    expect(flightDurationMs(20_000)).toBeLessThanOrEqual(90_000);
+    expect(localDurationMs(0.1, 'car')).toBe(2_000);
+    expect(localDurationMs(500, 'walk')).toBe(120_000);
+    expect(localDurationMs(10, 'run')).toBeLessThan(localDurationMs(10, 'walk'));
+    expect(distanceKm([0, 0], [0, 0])).toBe(0);
+    expect(along([0, 0], [10, 20], 50, 100)).toEqual([5, 10]);
+    expect(along([0, 0], [10, 20], 500, 100)).toEqual([10, 20]);
+  });
+
+  it('keeps every city centre inside its own bounds, and flights possible between every pair', () => {
+    for (const c of CITIES) {
+      expect(inBounds(c, c.center), c.id).toBe(true);
+      expect(c.transport).toContain('flight');
+      for (const d of CITIES) if (d.id !== c.id) expect(flightKm(c.id, d.id)).toBeGreaterThan(1);
+    }
+    expect(CITIES).toHaveLength(9);
   });
 });
 

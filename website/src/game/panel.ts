@@ -4,6 +4,7 @@
  */
 import { GameClient, type CityList, type GameSession } from './client.js';
 import { CITIES, cityById, type City, type Transport } from './cities.js';
+import type { ExploreState } from './explore.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
 
@@ -44,6 +45,42 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   let message = '';
   let busy = false;
   let list: CityList | null = null;
+  // The exploration view keeps its own element so the map survives the page being redrawn around it.
+  const exploreHost = document.createElement('div');
+  let exploring: { city: string; destroy(): void } | null = null;
+  exploreHost.addEventListener('game-city-changed', () => {
+    const s = session;
+    if (!s) return;
+    void client.cities(s).then((l) => {
+      list = l;
+      draw();
+    }).catch(() => undefined);
+  });
+
+  function syncExplore(): void {
+    const want = session && list?.selected ? list.selected : null;
+    if (exploring && exploring.city === want) return;
+    exploring?.destroy();
+    exploring = null;
+    exploreHost.replaceChildren();
+    const s = session;
+    const city = want ? cityById(want) : undefined;
+    if (!s || !city) return;
+    const mine = { city: city.id, destroy() {} };
+    exploring = mine;
+    void import('./explore.js').then(async (m) => {
+      const api = {
+        state: () => client.state(s) as Promise<ExploreState>,
+        travel: (c: string, mode: Transport, to: [number, number]) => client.travel(s, c, mode, to),
+        fly: (to: string) => client.fly(s, to),
+      };
+      const view = await m.mountExplore(exploreHost, city, api);
+      if (exploring === mine) mine.destroy = view.destroy;
+      else view.destroy();
+    }).catch(() => {
+      exploreHost.textContent = 'The map could not be loaded. Try again.';
+    });
+  }
 
   async function signIn(make: () => Promise<Signer>): Promise<void> {
     if (busy) return;
@@ -63,6 +100,9 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     if (session) await client.signOut(session, everywhere);
     session = null;
     list = null;
+    exploring?.destroy();
+    exploring = null;
+    exploreHost.replaceChildren();
     draw();
   }
 
@@ -118,7 +158,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
     grid.append(...CITIES.map(cityCard));
     out.push(grid);
-    return out;
+    return session && list?.selected ? [head, exploreHost, grid] : out;
   }
 
   function draw(): void {
@@ -155,6 +195,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     }
     if (message) card.append(el('p', { class: 'wapp__fine', text: message }));
     root.replaceChildren(intro, card, ...cityNodes());
+    syncExplore();
   }
 
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AMM_V4_PROGRAM } from '../solana/raydiumAmmV4.js';
-import { burnedShare, checkLock, clearLockIndexes, evmLock, LockReadError, lockedShare, parseLockerEntry, parseV4LockerEntry, solanaLock, v3Lock, v4Lock, V3_LOCKERS, V4_LOCKERS, type LockRead, type SolRead } from './lock.js';
+import { burnedShare, checkLock, clearLockIndexes, evmLock, LockReadError, lockedShare, parseLockerEntry, parseV2Lock, parseV4LockerEntry, solanaLock, v3Lock, v4Lock, V2_LOCKERS, V3_LOCKERS, V4_LOCKERS, type LockRead, type SolRead } from './lock.js';
 import { keccak256 } from '../core/keccak.js';
 import { decodeParams, encodeParams } from '../engine/abiGeneric.js';
 import { selector } from '../engine/abi.js';
@@ -245,5 +245,80 @@ describe('Uniswap V4 pools in a locker', () => {
     clearLockIndexes();
     const read = fakeV4Chain({ poolLiquidity: 100n, tick: 0, positions: [{ id: 1, nft: 5001, unlock: NOW_S + day }] });
     expect((await checkLock('robinhood', POOL_ID, { evm: read }, NOW))?.kind).toBe('time-locked');
+  });
+});
+
+// ------------------------------------------------------------------ V2 pairs whose liquidity tokens sit in UNCX's V2 locker
+
+describe("V2 pairs in UNCX's locker (Ethereum, BNB Chain)", () => {
+  const V2 = '0x' + 'cd'.repeat(20);
+  const DEAD = '0x000000000000000000000000000000000000dEaD';
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const ETH_LOCKER = V2_LOCKERS.ethereum!.locker;
+  const day = 86_400;
+
+  /** Multicall3 answering for one V2 pair and the locker's records of it. `locks` are [amount, unlock seconds]; a null `lockCount` makes the locker unreadable. */
+  function fakeV2(o: { supply: bigint; dead?: bigint; zero?: bigint; locks?: [bigint, number][]; lockCount?: number | null }): LockRead {
+    const sel = (sig: string): string => selector(sig).replace(/^0x/, '');
+    const handlers = new Map<string, string | null>();
+    const key = (to: string, sig: string, arg = ''): string => `${to.toLowerCase()}:${sel(sig)}${arg}`;
+    handlers.set(key(V2, 'totalSupply()'), '0x' + word(o.supply));
+    handlers.set(key(V2, 'balanceOf(address)', addrWord(DEAD)), '0x' + word(o.dead ?? 0n));
+    handlers.set(key(V2, 'balanceOf(address)', addrWord(ZERO)), '0x' + word(o.zero ?? 1000n));
+    handlers.set(key(V2, 'token0()'), '0x' + addrWord('0x' + '01'.repeat(20)));
+    handlers.set(key(V2, 'getReserves()'), '0x' + [word(1), word(1), word(0)].join(''));
+    const locks = o.locks ?? [];
+    handlers.set(key(ETH_LOCKER, 'getNumLocksForToken(address)', addrWord(V2)), o.lockCount === null ? null : '0x' + word(o.lockCount ?? locks.length));
+    locks.forEach(([amount, unlock], i) => {
+      handlers.set(key(ETH_LOCKER, 'tokenLocks(address,uint256)', addrWord(V2) + word(i)), '0x' + [word(NOW_S - day), word(amount), word(amount), word(unlock), word(i), addrWord('0x' + '22'.repeat(20))].join(''));
+    });
+    return (async (_method: string, params: unknown[]) => {
+      const tx = params[0] as { data: string };
+      const [calls] = decodeParams(['(address,bool,bytes)[]'], '0x' + tx.data.slice(10)) as [[string, boolean, string][]];
+      const results = calls.map(([to, , data]) => {
+        const hit = handlers.get(`${to.toLowerCase()}:${data.replace(/^0x/, '')}`);
+        return [hit !== undefined && hit !== null, hit ?? '0x'] as [boolean, string];
+      });
+      return '0x' + encodeParams(['(bool,bytes)[]'], [results]).replace(/^0x/, '');
+    }) as LockRead;
+  }
+
+  it('reads a lock record', () => {
+    const hex = '0x' + [word(1), word(500), word(500), word(NOW_S + day), word(9), addrWord('0x' + '22'.repeat(20))].join('');
+    expect(parseV2Lock(hex)).toEqual({ amount: 500n, unlockDate: BigInt(NOW_S + day) });
+    expect(parseV2Lock('0x')).toBeNull();
+  });
+
+  it('marks a pair whose liquidity tokens are held in the locker, with the earliest unlock date and who holds them', async () => {
+    const read = fakeV2({ supply: 1_000_000n, locks: [[600_000n, NOW_S + 90 * day], [300_000n, NOW_S + 30 * day]] });
+    expect(await evmLock(read, V2, NOW, 'ethereum')).toEqual({ pct: 90, kind: 'time-locked', until: (NOW_S + 30 * day) * 1000, by: 'UNCX', at: NOW });
+  });
+
+  it('does not count a lock that has ended, and falls back to the burn figure with nothing locked', async () => {
+    const read = fakeV2({ supply: 1_000_000n, locks: [[600_000n, NOW_S - day]] });
+    expect(await evmLock(read, V2, NOW, 'ethereum')).toEqual({ pct: 0, kind: 'burned', at: NOW });
+    expect(await evmLock(fakeV2({ supply: 1_000_000n, locks: [] }), V2, NOW, 'ethereum')).toEqual({ pct: 0, kind: 'burned', at: NOW });
+  });
+
+  it('adds locked to burned when neither is half, and lets a burn of half or more stand alone (a burn is permanent)', async () => {
+    const mixed = fakeV2({ supply: 1_000_000n, dead: 200_000n, locks: [[200_000n, NOW_S + 30 * day]] });
+    expect(await evmLock(mixed, V2, NOW, 'ethereum')).toMatchObject({ pct: 40, kind: 'time-locked' });
+    const burned = fakeV2({ supply: 1_000_000n, dead: 600_000n, locks: [[200_000n, NOW_S + 30 * day]] });
+    expect(await evmLock(burned, V2, NOW, 'ethereum')).toEqual({ pct: 60, kind: 'burned', at: NOW });
+  });
+
+  it('does not read a locker on a chain without a known one, or when no chain is given', async () => {
+    const read = fakeV2({ supply: 1_000_000n, locks: [[900_000n, NOW_S + 30 * day]] });
+    expect(await evmLock(read, V2, NOW, 'base')).toEqual({ pct: 0, kind: 'burned', at: NOW });
+    expect(await evmLock(read, V2, NOW)).toEqual({ pct: 0, kind: 'burned', at: NOW });
+  });
+
+  it('throws only LockReadError when the locker cannot be read, so a busy node is retried and not remembered as "no lock"', async () => {
+    await expect(evmLock(fakeV2({ supply: 1_000_000n, lockCount: null }), V2, NOW, 'ethereum')).rejects.toBeInstanceOf(LockReadError);
+  });
+
+  it('is what checkLock gives for a pair on Ethereum', async () => {
+    const read = fakeV2({ supply: 1_000_000n, locks: [[1_000_000n, NOW_S + 365 * day]] });
+    expect(await checkLock('ethereum', V2, { evm: read }, NOW)).toMatchObject({ pct: 100, kind: 'time-locked', by: 'UNCX' });
   });
 });

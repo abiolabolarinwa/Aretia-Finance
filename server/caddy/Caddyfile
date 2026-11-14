@@ -67,7 +67,7 @@
 
 	@data {
 		method GET HEAD POST PATCH DELETE
-		path_regexp data ^/rest/v1/(account_sessions|admin_counters|auth_nonces|discovery_cursors|launchbox_cursors|launchbox_tokens|mi_audit|mi_block_hashes|mi_checkpoints|mi_controls|mi_health|mi_jobs|mi_pools|mi_tokens|mi_trades|notify_channels|notify_inbox|notify_links|notify_prefs|notify_state|pool_ticks|referral_bindings|referral_credits|referral_revocations|swings_events|swings_records|swings_shadow_summary|token_registry|tracked_pools|user_favourites|user_price_orders|user_trades)$
+		path_regexp data ^/rest/v1/(account_sessions|admin_counters|auth_nonces|discovery_cursors|launchbox_cursors|launchbox_tokens|mi_audit|mi_block_hashes|mi_checkpoints|mi_controls|mi_health|mi_jobs|mi_pools|mi_tokens|mi_trades|notify_channels|notify_inbox|notify_links|notify_prefs|notify_state|pool_ticks|referral_bindings|referral_credits|referral_revocations|swings_events|swings_records|swings_shadow_summary|token_registry|tracked_pools|user_favourites|user_price_orders|user_trades|wallet_cursor|wallet_tokens|wallet_watch)$
 	}
 	@rpc {
 		method POST

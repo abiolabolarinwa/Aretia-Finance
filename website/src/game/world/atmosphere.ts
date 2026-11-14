@@ -33,15 +33,43 @@ uniform vec3 uMid;
 uniform vec3 uHaze;
 uniform vec3 uSun;
 uniform vec3 uSunDir;
+uniform float uTime;
 varying vec3 vDir;
+float hash21(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * vnoise(p);
+    p = p * 2.03 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
 void main() {
   vec3 d = normalize(vDir);
   float h = clamp(d.y, 0.0, 1.0);
   vec3 col = mix(uHaze, uMid, smoothstep(0.0, 0.22, h));
   col = mix(col, uZenith, smoothstep(0.18, 0.85, h));
   float s = max(dot(d, uSunDir), 0.0);
-  // A wide warm glow, a tighter one, and the disc itself.
-  col += uSun * (0.18 * pow(s, 3.0) + 0.45 * pow(s, 24.0) + 2.4 * pow(s, 700.0));
+  // Clouds: a layer drifting overhead, thinning to nothing at the horizon, lit warmly on the sun's side.
+  float cloud = 0.0;
+  if (d.y > 0.02) {
+    vec2 cp = d.xz / (d.y + 0.28) * 1.7 + vec2(uTime * 0.012, uTime * 0.005);
+    cloud = smoothstep(0.5, 0.8, fbm(cp)) * smoothstep(0.02, 0.22, d.y);
+    vec3 lit = mix(vec3(0.66, 0.68, 0.74), vec3(1.0, 0.92, 0.8), pow(s, 2.0));
+    col = mix(col, lit, cloud * 0.85);
+  }
+  // A wide warm glow, a tighter one, and the disc itself (partly hidden behind cloud).
+  col += uSun * (0.18 * pow(s, 3.0) + 0.45 * pow(s, 24.0) + 2.4 * pow(s, 700.0)) * (1.0 - cloud * 0.7);
   // Haze thickens towards the horizon, and everything below it is haze.
   col = mix(col, uHaze, (1.0 - smoothstep(0.0, 0.12, h)) * 0.55);
   if (d.y < 0.0) col = uHaze;
@@ -63,6 +91,7 @@ export function skyMaterial(three: Three): T.ShaderMaterial {
       uHaze: { value: new three.Color(HAZE) },
       uSun: { value: new three.Color(SUN_COLOUR) },
       uSunDir: { value: new three.Vector3(...SUN_DIRECTION) },
+      uTime: { value: 0 },
     },
   });
 }
@@ -72,6 +101,8 @@ export interface Atmosphere {
   dome: T.Mesh;
   /** A reflection map of this sky, for scene.environment. */
   environment: T.Texture;
+  /** Moves the clouds on; pass the time in seconds. */
+  tick(seconds: number): void;
   dispose(): void;
 }
 
@@ -90,6 +121,9 @@ export function makeAtmosphere(three: Three, renderer: T.WebGLRenderer): Atmosph
   return {
     dome,
     environment: target.texture,
+    tick(seconds) {
+      material.uniforms.uTime!.value = seconds;
+    },
     dispose() {
       dome.geometry.dispose();
       material.dispose();

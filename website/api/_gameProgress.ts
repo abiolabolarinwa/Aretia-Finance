@@ -69,6 +69,13 @@ export async function progress(c: ProgressCtx): Promise<Record<string, unknown>>
     profile: { displayName: p?.display_name ?? '', avatar: p?.avatar ?? null },
     level: { current: levelFor(xp), xp, toNext: xpToNext(xp) },
     totals: { xp, discoveries: snap.discoveries, missionsCompleted: snap.missionsCompleted, citiesVisited: snap.citiesVisited, flightsLanded: snap.flightsLanded, hintFreeCompletions: snap.hintFreeCompletions },
+    firstFinds: (mine ?? []).filter((r) => r.achievement_id.startsWith('ff-')).map((r) => {
+      const rest = r.achievement_id.slice(3);
+      const cut = rest.lastIndexOf('-');
+      const cityId = rest.slice(0, cut);
+      const cls = rest.slice(cut + 1);
+      return { cityId, class: cls, unlockedAt: Number(r.unlocked_at) };
+    }),
     achievements: ACHIEVEMENTS.map((a) => ({ id: a.id, title: a.title, description: a.description, xp: a.xp, unlockedAt: unlocked.get(a.id) ?? null })),
     cities: CITIES.map((city) => {
       const r = byCity.get(city.id);

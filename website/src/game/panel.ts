@@ -6,6 +6,8 @@ import { GameClient, type CityList, type GameSession } from './client.js';
 import { CITIES, cityById, type City, type Transport } from './cities.js';
 import type { ExploreState } from './explore.js';
 import type { HistoryPage, ProgressView } from './progress.js';
+import type { BoardView, TeamBoardView, TeamView } from './boards.js';
+import type { Period } from './periods.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { Signer } from '../swings/account/client.js';
 import { browserStorage } from '../swings/history.js';
@@ -50,6 +52,33 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   // The exploration view keeps its own element so the map survives the page being redrawn around it.
   const exploreHost = document.createElement('div');
   let exploring: { city: string; destroy(): void } | null = null;
+  const boardsHost = document.createElement('div');
+  let boardsFor: GameSession | null = null;
+  let boardsView: { refresh(): void; stop(): void } | null = null;
+
+  function syncBoards(): void {
+    const s = session;
+    if (boardsFor === s) return;
+    boardsView?.stop();
+    boardsFor = s;
+    boardsView = null;
+    boardsHost.replaceChildren();
+    if (!s) return;
+    const call = <T,>(payload: Record<string, unknown>): Promise<T> => client.call<T>(s, payload);
+    void import('./boards.js').then((m) => {
+      if (boardsFor !== s) return;
+      boardsView = m.mountBoards(boardsHost, () => (list?.selected ? (cityById(list.selected) ?? null) : null), {
+        board: (city, period: Period) => call<BoardView>({ op: 'leaderboard', period, ...(city ? { city } : {}) }),
+        teamBoard: (period: Period) => call<TeamBoardView>({ op: 'team-board', period }),
+        team: () => call<TeamView>({ op: 'team' }),
+        createTeam: (name) => call<TeamView>({ op: 'team-create', name }),
+        joinTeam: (code) => call<TeamView>({ op: 'team-join', code }),
+        leaveTeam: () => call<TeamView>({ op: 'team-leave' }),
+      });
+    }).catch(() => {
+      boardsHost.textContent = 'The leaderboard could not be loaded. Try again.';
+    });
+  }
   const progressHost = document.createElement('div');
   let progressFor: GameSession | null = null;
   let progressView: { refresh(): void } | null = null;
@@ -107,6 +136,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
         collect: (id) => call<{ discovered: boolean; xp: number; treasure: TreasureCard & { verification: string } }>({ op: 'collect', treasure: id }),
       }, () => {
         progressView?.refresh();
+        boardsView?.refresh();
         void client.me(s).then((profile) => {
           if (session === s) session = { ...s, profile };
           draw();
@@ -120,6 +150,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   function syncExplore(): void {
     const want = session && list?.selected ? list.selected : null;
     syncProgress();
+    syncBoards();
     syncMissions(want);
     if (exploring && exploring.city === want) return;
     exploring?.destroy();
@@ -170,6 +201,10 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     progressFor = null;
     progressView = null;
     progressHost.replaceChildren();
+    boardsView?.stop();
+    boardsFor = null;
+    boardsView = null;
+    boardsHost.replaceChildren();
     draw();
   }
 
@@ -225,7 +260,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px';
     grid.append(...CITIES.map(cityCard));
     out.push(grid);
-    return session && list?.selected ? [head, exploreHost, missionHost, progressHost, grid] : session ? [...out, progressHost] : out;
+    return session && list?.selected ? [head, exploreHost, missionHost, progressHost, boardsHost, grid] : session ? [...out, progressHost, boardsHost] : out;
   }
 
   function draw(): void {

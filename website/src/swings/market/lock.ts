@@ -13,7 +13,11 @@
  *  - Uniswap V4 pools on a chain with a known V4 locker (Robinhood Chain: UNCX's V4 locker): the same idea for V4 positions, with the
  *    pool found by its 32-byte pool id. Also a time lock.
  *
- * Not covered, and so never marked: position NFTs sent to a dead address, other lockers, other concentrated-liquidity pools
+ *  - Uniswap V2 / PancakeSwap V2 pairs whose liquidity tokens sit in UNCX's V2 locker (Ethereum, BNB Chain): the share of the pair's liquidity
+ *    tokens held in locks that have not ended, with the earliest unlock date. A time lock, not a burn. Each locker address was checked on the chain
+ *    (its `uniswapFactory()` is the V2 factory of that chain and its lock records decode as expected).
+ *
+ * Not covered, and so never marked: other V2 lockers (Team Finance, PinkLock, and UNCX on networks not listed), position NFTs sent to a dead address, other lockers, other concentrated-liquidity pools
  * (CLMM), and other Solana pool kinds. No mark means "not shown to be locked", not "unlocked".
  */
 import type { ChainId, TimeLock, TokenLock } from '../core/types.js';
@@ -48,10 +52,62 @@ export function burnedShare(totalSupply: bigint, atDead: bigint, atZero: bigint,
   return pct(atDead + zero, totalSupply);
 }
 
-/** An EVM V2-style pair. Null when the address is not one, or the node cannot be read. */
-export async function evmLock(read: LockRead, pool: string, now: number): Promise<TokenLock | null> {
+export interface V2LockerConfig {
+  locker: string;
+  label: string;
+}
+
+/**
+ * UNCX's V2 locker, per chain, for pairs of the factory the locker was deployed for (Ethereum: Uniswap V2; BNB Chain: PancakeSwap V2). Checked on the
+ * chain: each has code, `uniswapFactory()` returns that factory, and for a pair with a lock the record's amount matches the locker's balance of the
+ * pair's liquidity token. Its `tokenLocks(pair, i)` returns six words: lock date, amount, initial amount, unlock date, lock id, owner.
+ */
+export const V2_LOCKERS: Readonly<Partial<Record<ChainId, V2LockerConfig>>> = {
+  ethereum: { locker: '0x663a5c229c09b049e36dcc11a9b0d4a8eb9db214', label: 'UNCX' },
+  bnb: { locker: '0xc765bddb93b0d1c1a88282ba0fa6b2d00e3e0c83', label: 'UNCX' },
+};
+
+/** A pair with more locks than this is read for its first ones only (the rest could only add to the share). */
+const MAX_V2_LOCKS = 25;
+
+/** Pure. One `tokenLocks` answer: the amount still locked and when it unlocks (unix seconds). Null for an empty answer. */
+export function parseV2Lock(hex: string): { amount: bigint; unlockDate: bigint } | null {
+  const w = words(hex);
+  if (w.length < 6) return null;
+  return { amount: BigInt('0x' + w[1]!), unlockDate: BigInt('0x' + w[3]!) };
+}
+
+/** The share of a pair's liquidity tokens held in locks that have not ended, and the earliest end among them. Throws LockReadError when the chain does not answer. */
+async function v2LockerShare(read: LockRead, cfg: V2LockerConfig, pool: string, total: bigint, now: number): Promise<{ share: number; until: number | null } | null> {
+  const [n] = await multicall(read, [[cfg.locker, encodeCall('getNumLocksForToken(address)', [address(pool)])]]);
+  if (!n) throw new LockReadError('The locker could not be read');
+  const count = Math.min(Number(BigInt(n)), MAX_V2_LOCKS);
+  if (count === 0) return null;
+  const calls = Array.from({ length: count }, (_, i): [string, string] => [cfg.locker, encodeCall('tokenLocks(address,uint256)', [address(pool), uint(BigInt(i))])]);
+  const got = await multicall(read, calls);
+  const nowS = BigInt(Math.floor(now / 1000));
+  let locked = 0n;
+  let earliest: bigint | null = null;
+  for (const g of got) {
+    const lock = g ? parseV2Lock(g) : null;
+    if (!lock || lock.amount <= 0n || lock.unlockDate <= nowS) continue;
+    locked += lock.amount;
+    if (lock.unlockDate - nowS < BigInt(FAR_FUTURE_S) && (earliest === null || lock.unlockDate < earliest)) earliest = lock.unlockDate;
+  }
+  if (locked <= 0n || total <= 0n) return null;
+  return { share: Math.min(100, pct(locked, total)), until: earliest === null ? null : Number(earliest) * 1000 };
+}
+
+/**
+ * An EVM V2-style pair. Null when the address is not one, or the node cannot be read. With `chain`, liquidity tokens held in that chain's V2 locker
+ * count too (a time lock): burned liquidity is permanent and wins when it is half or more; otherwise burned and locked are added. Throws LockReadError,
+ * and only that, when the locker could not be read, so a busy node is retried rather than remembered as "no lock".
+ */
+export async function evmLock(read: LockRead, pool: string, now: number, chain?: ChainId): Promise<TokenLock | TimeLock | null> {
   if (!/^0x[0-9a-fA-F]{40}$/.test(pool)) return null;
   const calls = [encodeCall('totalSupply()', []), encodeCall('balanceOf(address)', [address(DEAD)]), encodeCall('balanceOf(address)', [address(ZERO)]), encodeCall('token0()', []), encodeCall('getReserves()', [])];
+  let burnedPct = 0;
+  let supply = 0n;
   try {
     const data = encodeFunction('aggregate3((address,bool,bytes)[])', [calls.map((c) => [pool, true, c])]);
     const out = await read('eth_call', [{ to: MULTICALL3, data }, 'latest']);
@@ -62,10 +118,16 @@ export async function evmLock(read: LockRead, pool: string, now: number): Promis
     if (!ok[0] || !ok[1] || !ok[2] || !ok[3] || !ok[4]) return null;
     const total = BigInt(ok[0]);
     if (total <= 0n) return null;
-    return { pct: burnedShare(total, BigInt(ok[1]), BigInt(ok[2])), kind: 'burned', at: now };
+    burnedPct = burnedShare(total, BigInt(ok[1]), BigInt(ok[2]));
+    supply = total;
   } catch {
     return null;
   }
+  const locker = chain ? V2_LOCKERS[chain] : undefined;
+  if (!locker || burnedPct >= LOCK_MIN_PCT) return { pct: burnedPct, kind: 'burned', at: now };
+  const held = await v2LockerShare(read, locker, pool, supply, now);
+  if (!held) return { pct: burnedPct, kind: 'burned', at: now };
+  return { pct: Math.min(100, burnedPct + held.share), kind: 'time-locked', until: held.until, by: locker.label, at: now };
 }
 
 export type SolRead = <T>(method: string, params: unknown[]) => Promise<T>;
@@ -391,5 +453,5 @@ export async function checkLock(chain: ChainId, pool: string, reads: { evm?: Loc
   if (chain === 'solana') return reads.sol ? solanaLock(reads.sol, pool, now) : null;
   if (!reads.evm) return null;
   // A V2-style pair first (a burned liquidity token is permanent), then a V3 pool, then a V4 pool (named by its 32-byte id), in a locker.
-  return (await evmLock(reads.evm, pool, now)) ?? (await v3Lock(reads.evm, chain, pool, now)) ?? (await v4Lock(reads.evm, chain, pool, now));
+  return (await evmLock(reads.evm, pool, now, chain)) ?? (await v3Lock(reads.evm, chain, pool, now)) ?? (await v4Lock(reads.evm, chain, pool, now));
 }

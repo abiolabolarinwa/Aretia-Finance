@@ -41,7 +41,7 @@ export function lockView(r: Pick<MarketRow, 'lockedPct' | 'lockInfo' | 'risk' | 
     return { kind: 'locked', text: `Burned ${share(pct)}`, title: `Liquidity locked: ${base}` };
   }
   if (r.lockState === 'checked') {
-    const low = r.lockLowPct !== null && r.lockLowPct !== undefined ? ` Only ${share(r.lockLowPct)} of the liquidity tokens are burned.` : '';
+    const low = r.lockLowPct !== null && r.lockLowPct !== undefined ? ` Only ${share(r.lockLowPct)} of the liquidity tokens are burned or locked.` : '';
     return { kind: 'open', text: 'No lock found', title: `Aretia read this pool on the chain and found no burned liquidity and no lock it can read.${low} A lock in a locker contract Aretia cannot read would not show here, so this is not proof that the liquidity can be withdrawn.` };
   }
   if (r.lockState === 'unsupported') return { kind: 'unknown', text: 'Not checked', title: "Aretia cannot yet read the liquidity lock of this kind of pool. This is not a sign either way: it means no answer, not 'unlocked'." };

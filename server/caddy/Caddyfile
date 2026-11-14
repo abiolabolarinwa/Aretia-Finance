@@ -67,11 +67,11 @@
 
 	@data {
 		method GET HEAD POST PATCH DELETE
-		path_regexp data ^/rest/v1/(account_sessions|admin_counters|auth_nonces|discovery_cursors|game_prize_claims|game_reserve_entries|game_announcements|game_abuse_reports|game_admin_audit|game_xp_events|game_teams|game_team_members|game_player_achievements|game_attempts|game_clues|game_missions|game_player_missions|game_player_treasures|game_treasure_classes|game_treasure_locations|game_treasures|game_cities|game_journeys|game_player_activities|game_player_cities|game_player_profiles|game_player_wallets|game_players|launchbox_cursors|launchbox_tokens|mi_audit|mi_block_hashes|mi_checkpoints|mi_controls|mi_health|mi_jobs|mi_pools|mi_tokens|mi_trades|notify_channels|notify_inbox|notify_links|notify_prefs|notify_state|pool_ticks|referral_bindings|referral_credits|referral_revocations|swings_events|swings_records|swings_shadow_summary|token_registry|tracked_pools|user_favourites|user_price_orders|user_trades|wallet_cursor|wallet_tokens|wallet_watch)$
+		path_regexp data ^/rest/v1/(account_sessions|admin_counters|auth_nonces|discovery_cursors|launchbox_cursors|launchbox_tokens|mi_audit|mi_block_hashes|mi_checkpoints|mi_controls|mi_health|mi_jobs|mi_pools|mi_tokens|mi_trades|notify_channels|notify_inbox|notify_links|notify_prefs|notify_state|pool_ticks|referral_bindings|referral_credits|referral_revocations|swings_events|swings_records|swings_shadow_summary|token_registry|tracked_pools|user_favourites|user_price_orders|user_trades|wallet_cursor|wallet_tokens|wallet_watch)$
 	}
 	@rpc {
 		method POST
-		path_regexp rpc ^/rest/v1/rpc/(admin_bump|game_admin_overview|game_award_xp|game_leaderboard|game_player_rank|game_team_board|admin_prune_counters|aretia_housekeeping|aretia_prune|mi_claim_job|mi_delete_pools_from|mi_prune_trades)$
+		path_regexp rpc ^/rest/v1/rpc/(admin_bump|admin_prune_counters|aretia_housekeeping|aretia_prune|mi_claim_job|mi_delete_pools_from|mi_prune_trades)$
 	}
 	@unsigned not header Authorization "Bearer *"
 

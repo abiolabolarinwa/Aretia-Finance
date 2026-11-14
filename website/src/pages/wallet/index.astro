@@ -1631,7 +1631,9 @@ const sendTips = [
   .wapp[data-view='send'] .wapp__top h1 { width: 100%; max-width: 1080px; margin-inline: auto; }
   @media (min-width: 961px) { .wapp-pay [data-pay-panel='send'] .wapp__grid--trade { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
   /* The panes that are mostly text and one form keep to a readable width too. Dashboard, Markets and Shield have their own layouts. */
-  .wapp__pane[data-pane='referrals'], .wapp__pane[data-pane='ultimate-city-search'] { width: 100%; max-width: 760px; justify-self: center; }
+  .wapp__pane[data-pane='referrals'] { width: 100%; max-width: 760px; justify-self: center; }
+  /* The game uses the full width: five cities fit on a row. */
+  .wapp__pane[data-pane='ultimate-city-search'] { width: 100%; max-width: 1280px; justify-self: center; }
   .wapp[data-view='ultimate-city-search'] .wapp__gate, .wapp[data-view='ultimate-city-search'] [data-refresh] { display: none; }
   .wapp__pane[data-pane='activity'] { width: 100%; max-width: 1080px; justify-self: center; }
   .wapp__pane:is([data-pane='radar'], [data-pane='carbon'], [data-pane='launch']) { width: 100%; max-width: 1120px; justify-self: start; }

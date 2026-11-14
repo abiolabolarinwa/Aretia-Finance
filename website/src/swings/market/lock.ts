@@ -106,8 +106,8 @@ async function v2LockerShare(read: LockRead, cfg: V2LockerConfig, pool: string, 
 export async function evmLock(read: LockRead, pool: string, now: number, chain?: ChainId): Promise<TokenLock | TimeLock | null> {
   if (!/^0x[0-9a-fA-F]{40}$/.test(pool)) return null;
   const calls = [encodeCall('totalSupply()', []), encodeCall('balanceOf(address)', [address(DEAD)]), encodeCall('balanceOf(address)', [address(ZERO)]), encodeCall('token0()', []), encodeCall('getReserves()', [])];
-  let burnedPct = 0;
-  let supply = 0n;
+  let burnedPct: number;
+  let supply: bigint;
   try {
     const data = encodeFunction('aggregate3((address,bool,bytes)[])', [calls.map((c) => [pool, true, c])]);
     const out = await read('eth_call', [{ to: MULTICALL3, data }, 'latest']);

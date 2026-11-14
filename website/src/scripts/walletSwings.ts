@@ -52,6 +52,7 @@ import { marketFactsOf, ratingView, riskMemory } from '../swings/market/rowRisk.
 import { GeckoMarket, RECENT_MIN, type MarketKind, type Window as MarketWindow } from '../swings/market/gecko.js';
 import { rowsFromFavourites, rowsFromRecords } from '../swings/market/registryRows.js';
 import { applyRatings, fetchRatings } from '../swings/market/ratings.js';
+import { HISTORY_SYNCED_EVENT } from './walletSwapTokens';
 import { AccountClient, type Session, type Signer } from '../swings/account/client.js';
 import { FavouriteStore, type Favourite } from '../swings/account/favourites.js';
 import { compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow } from '../swings/market/types.js';
@@ -303,6 +304,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     history.merge(data.trades);
     const mine = history.list(session.address);
     if (mine.length > 0) await account.saveTrades(session, mine);
+    if (data.trades.length > 0) window.dispatchEvent(new Event(HISTORY_SYNCED_EVENT));
   }
   const redrawAccount = (): void => {
     markets.draw();

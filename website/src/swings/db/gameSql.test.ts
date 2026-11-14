@@ -125,3 +125,23 @@ describe('one-of-a-kind rules', () => {
     expect((await q('select id from public.game_cities')).length).toBe(9);
   });
 });
+
+describe('the administrator overview', () => {
+  it('adds up players, hidden and waiting value, claims and the reserve', async () => {
+    await db.exec(`insert into public.game_reserve_entries (amount_usd, admin, at) values (9000, 'evm:0xadmin', 1), (-1000, 'evm:0xadmin', 2)`);
+    await db.exec(`insert into public.game_treasures (id, city_id, class_id, status) values ('${P(301)}', 'dubai', 'golden', 'found'), ('${P(302)}', 'miami', 'silver', 'hidden')`);
+    await db.exec(`insert into public.game_player_treasures (player_id, treasure_id, discovery_status, verification_status, unlocked_at) values ('${P(1)}', '${P(301)}', 'discovered', 'pending', 1)`);
+    await db.exec(`insert into public.game_prize_claims (player_id, treasure_id, amount_usd, created_at) values ('${P(1)}', '${P(301)}', 587, 5)`);
+    await expect(db.exec(`insert into public.game_prize_claims (player_id, treasure_id, amount_usd, created_at) values ('${P(2)}', '${P(301)}', 587, 6)`)).rejects.toThrow(/duplicate key/); // one claim per treasure
+    const o = (await q('select public.game_admin_overview(1000) as o'))[0]!.o as Record<string, unknown>;
+    expect(o).toMatchObject({ players: 4, reserveUsd: 8000, pendingVerificationUsd: 587, claims: { pending: { n: 1, usd: 587 } } });
+    expect(Number(o.hiddenValueUsd)).toBeGreaterThanOrEqual(65); // the silver coin, plus the Diamond and Golden coins hidden above
+    expect((o.treasures as Record<string, number>).found).toBe(1);
+  });
+
+  it('is not callable by the public roles', async () => {
+    await db.exec('set role authenticated');
+    await expect(q('select public.game_admin_overview(1)')).rejects.toThrow(/permission denied/);
+    await db.exec('reset role');
+  });
+});

@@ -395,6 +395,36 @@ describe('travel rules', () => {
   });
 });
 
+describe('the admin gate', () => {
+  beforeEach(() => {
+    resetRateLimit();
+    resetAccountState();
+  });
+
+  it('shows the admin ops only to a wallet in ADMIN_WALLETS; to anyone else they look like ops that do not exist', async () => {
+    const t = setup();
+    const priv = ed25519.utils.randomPrivateKey();
+    const boss = solana(await t.nonce(), 'game', priv);
+    const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test', ADMIN_WALLETS: `solana:${boss.address}` };
+    const adminToken = (JSON.parse((await t.call({ op: 'login', message: boss.message, signature: boss.signature }, null, { env })).body) as { token: string }).token;
+    const other = solana(await t.nonce());
+    const userToken = (JSON.parse((await t.call({ op: 'login', message: other.message, signature: other.signature }, null, { env })).body) as { token: string }).token;
+    const as = (token: string, op: string) => t.call({ op }, `Bearer ${token}`, { env });
+
+    expect(JSON.parse((await as(adminToken, 'me')).body).admin).toBe(true);
+    expect(JSON.parse((await as(userToken, 'me')).body).admin).toBe(false);
+    expect((await as(adminToken, 'admin-audit')).status).toBe(200);
+    const denied = await as(userToken, 'admin-audit');
+    const unknown = await as(userToken, 'admin-no-such-op');
+    expect(denied.status).toBe(404);
+    expect(denied.body).toBe(unknown.body);
+    expect((await as(adminToken, 'admin-no-such-op')).status).toBe(404);
+    expect((await t.call({ op: 'admin-audit' }, null, { env })).status).toBe(401); // no session at all
+    // With no administrators configured, nobody is one.
+    expect((await as(adminToken, 'admin-audit').then(() => t.call({ op: 'admin-audit' }, `Bearer ${adminToken}`))).status).toBe(404);
+  });
+});
+
 describe('the game stays apart from ACT', () => {
   it('mentions no token, staking or fee code in the game module or its API', () => {
     const files: string[] = [join(process.cwd(), 'api', '_game.ts')];

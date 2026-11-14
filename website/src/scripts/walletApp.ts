@@ -353,9 +353,9 @@ function avatar(h: { icon: string | null; symbol: string }): HTMLElement {
 
 // ---------------------------------------------------------------- app
 
-type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'launchbox' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'referrals';
-const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'referrals'];
-const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', launchbox: 'Launch Box', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', referrals: 'Referrals' };
+type View = 'dashboard' | 'send' | 'swap' | 'launch' | 'launchbox' | 'carbon' | 'swings' | 'favourites' | 'radar' | 'activity' | 'shield' | 'referrals' | 'ultimate-city-search';
+const VIEWS: View[] = ['dashboard', 'send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'shield', 'referrals', 'ultimate-city-search'];
+const TITLES: Record<View, string> = { dashboard: 'Dashboard', send: 'Pay', swap: 'Swap', launch: 'Launch', launchbox: 'Launch Box', carbon: 'Carbon Credit', swings: 'Markets', favourites: 'Favourites', radar: 'Radar', activity: 'Activity', shield: 'Shield', referrals: 'Referrals', 'ultimate-city-search': 'Ultimate City Search' };
 
 /**
  * The sidebar can be folded down to an icon strip. The choice is remembered on this device. The width is one
@@ -464,6 +464,12 @@ export function initWalletApp(): void {
   let loadToken = 0;
   initRadar();
   let referrals: ReturnType<typeof initReferrals> | null = null;
+  // Ultimate City Search is its own module, downloaded only when its page is opened.
+  const gameLoad = lazyApi<{ onShow(): void }>(async () => {
+    const host = document.querySelector<HTMLElement>('[data-game-root]');
+    if (!host) return { onShow() {} };
+    return (await import('../game/panel')).initGame(host);
+  }, false);
   // The swap engine and the launch tools are large. They are downloaded right after the first screen is drawn (or sooner,
   // if a page needs them), so connecting and the balances never wait for them. Calls made before they arrive are queued.
   const swingsLoad = lazyApi<ReturnType<typeof initSwings>>(async () => {
@@ -527,6 +533,8 @@ export function initWalletApp(): void {
     const raw = routeHash(location.pathname, location.hash).replace(/^#\/?/, '').split('/')[0] ?? '';
     // Trade was folded into Swap, which covers more networks; old links still land somewhere useful.
     const h = (raw === 'trade' ? 'swap' : raw) as View;
+    // The game page exists only on a build made with PUBLIC_GAME_ENABLED=1 (the page then marks the root data-game=1).
+    if (h === 'ultimate-city-search' && root.dataset.game !== '1') return 'dashboard';
     return VIEWS.includes(h) ? h : 'dashboard';
   };
 
@@ -1328,6 +1336,7 @@ export function initWalletApp(): void {
       if (strip) void import('./walletDashRising').then((m) => m.loadRising(strip));
     }
     if (view === 'referrals') referrals?.onShow();
+    if (view === 'ultimate-city-search') void gameLoad.run((g) => g.onShow());
     if (view === 'activity') swings.onActivityShow();
     if (view === 'launchbox') launchTools.onShowLaunchBox();
     if (view === 'shield') shield.onShow(routeHash(location.pathname, location.hash));

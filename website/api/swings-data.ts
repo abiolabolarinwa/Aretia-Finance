@@ -24,6 +24,7 @@
  */
 import { handleAdmin, handleBeacon } from './_adminStats.js';
 import { handleAccount } from './_swingsAccount.js';
+import { handleGame } from './_game.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleMeta, handleUpload } from './_swingsUpload.js';
@@ -98,6 +99,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'mi') out = await handleMi({ ...common, query, body });
   else if (route === 'mi-run') out = await handleMiRun({ ...common, query });
   else if (route === 'mi-admin') out = await handleMiAdmin({ ...common, body });
+  else if (route === 'game') out = await handleGame({ ...common, body });
   else if (route === 'launchbox') out = await handleLaunchbox(common);
   else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };

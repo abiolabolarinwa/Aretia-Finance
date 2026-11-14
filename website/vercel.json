@@ -28,6 +28,7 @@
     { "source": "/api/v1/:path*", "destination": "/api/swings-data?route=mi&path=:path*" },
     { "source": "/api/mi-run", "destination": "/api/swings-data?route=mi-run" },
     { "source": "/api/swings-mi-admin", "destination": "/api/swings-data?route=mi-admin" },
+    { "source": "/api/game", "destination": "/api/swings-data?route=game" },
     { "source": "/api/launchbox", "destination": "/api/swings-data?route=launchbox" },
     { "source": "/api/launchbox-run", "destination": "/api/swings-data?route=launchbox-run" }
   ],

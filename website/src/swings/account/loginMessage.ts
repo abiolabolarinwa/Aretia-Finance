@@ -14,7 +14,16 @@ export const LOGIN_WINDOW_MS = 5 * 60_000;
 
 export const LOGIN_STATEMENT = 'Sign in to Aretia Wallet to save your favourite tokens and swap history to this address. This is not a transaction: it costs nothing and cannot move your funds.';
 
+/** What a sign-in is for. A message made for one purpose is refused by the other's endpoint, so a wallet sign-in can never open a game session or the reverse. */
+export type LoginPurpose = 'wallet' | 'game';
+
+export const GAME_LOGIN_STATEMENT = 'Sign in to Aretia Ultimate City Search to play and keep your progress with this address. This is not a transaction: it costs nothing and cannot move your funds. It is not a token approval and uses no ACT.';
+
+const STATEMENTS: Record<LoginPurpose, string> = { wallet: LOGIN_STATEMENT, game: GAME_LOGIN_STATEMENT };
+
 export interface LoginFields {
+  /** Defaults to 'wallet'. */
+  purpose?: LoginPurpose;
   family: WalletFamily;
   /** As the wallet reports it. EVM addresses are written in their EIP-55 form and compared lower-case. */
   address: string;
@@ -38,7 +47,7 @@ export function loginMessage(f: LoginFields): string {
     `${f.domain} wants you to sign in with your ${evm ? 'Ethereum' : 'Solana'} account:`,
     writtenAddress(f),
     '',
-    LOGIN_STATEMENT,
+    STATEMENTS[f.purpose ?? 'wallet'],
     '',
     `URI: ${loginUri(f.domain)}`,
     'Version: 1',
@@ -61,7 +70,8 @@ export function parseLoginMessage(message: string): LoginFields | null {
   if (!address || !/^[0-9a-f]{16,64}$/.test(nonce)) return null;
   const issuedAt = Date.parse(issued);
   if (!Number.isFinite(issuedAt)) return null;
-  const fields: LoginFields = { family, address, domain: head[1]!, issuedAt, nonce };
+  const purpose: LoginPurpose = lines[3] === GAME_LOGIN_STATEMENT ? 'game' : 'wallet';
+  const fields: LoginFields = { purpose, family, address, domain: head[1]!, issuedAt, nonce };
   // Every line must be the one the builder writes: no extra text, nothing reordered, an EVM address in its checksummed form.
   return loginMessage(fields) === message ? fields : null;
 }

@@ -17,7 +17,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ed25519 } from '@noble/curves/ed25519';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { keccak256 } from '../src/swings/core/keccak.js';
-import { LOGIN_WINDOW_MS, parseLoginMessage, type WalletFamily } from '../src/swings/account/loginMessage.js';
+import { LOGIN_WINDOW_MS, parseLoginMessage, type LoginPurpose, type WalletFamily } from '../src/swings/account/loginMessage.js';
 import { allowedOrigins, type ProxyEnv } from './_rpcProxy.js';
 
 export const SESSION_MS = 7 * 86_400_000;
@@ -119,9 +119,10 @@ function smallOrderKey(key: Uint8Array): boolean {
 }
 
 /** Checks a sign-in: the message, the site, the time, and the signature. `domain` is this site's host, or the list of hosts allowed. */
-export function verifyLogin(input: { message: string; signature: string; domain: string | readonly string[]; now: number }): LoginCheck & { nonce?: string } {
+export function verifyLogin(input: { message: string; signature: string; domain: string | readonly string[]; now: number; purpose?: LoginPurpose }): LoginCheck & { nonce?: string } {
   const f = parseLoginMessage(input.message);
   if (!f) return { ok: false, reason: 'The sign-in message was not recognised.' };
+  if ((f.purpose ?? 'wallet') !== (input.purpose ?? 'wallet')) return { ok: false, reason: 'The sign-in message was made for something else.' };
   const domains = typeof input.domain === 'string' ? [input.domain] : input.domain;
   if (!domains.includes(f.domain.toLowerCase())) return { ok: false, reason: 'The sign-in message names a different site.' };
   if (Math.abs(input.now - f.issuedAt) > LOGIN_WINDOW_MS) return { ok: false, reason: 'The sign-in message has expired. Try again.' };

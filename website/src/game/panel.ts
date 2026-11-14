@@ -11,28 +11,8 @@ import type { Period } from './periods.js';
 import type { Call } from './admin.js';
 import type { AnswerResult, ClueView, MissionSummary, MyTreasure, TreasureCard } from './missions.js';
 import type { Signer } from '../swings/account/client.js';
+import type { SignerOption } from './signers.js';
 import { browserStorage } from '../swings/history.js';
-
-interface Eth { request(a: { method: string; params?: unknown[] }): Promise<unknown> }
-interface Sol { connect(): Promise<{ publicKey: { toString(): string } }>; signMessage(m: Uint8Array, display?: string): Promise<{ signature: Uint8Array }> }
-
-const hex = (m: string): string => '0x' + [...new TextEncoder().encode(m)].map((b) => b.toString(16).padStart(2, '0')).join('');
-
-export async function evmSigner(): Promise<Signer> {
-  const eth = (window as unknown as { ethereum?: Eth }).ethereum;
-  if (!eth) throw new Error('No Ethereum-style wallet was found in this browser.');
-  const [address] = (await eth.request({ method: 'eth_requestAccounts' })) as string[];
-  if (!address) throw new Error('No account was shared.');
-  return { family: 'evm', address, sign: async (m) => (await eth.request({ method: 'personal_sign', params: [hex(m), address] })) as string };
-}
-
-export async function solanaSigner(): Promise<Signer> {
-  const w = window as unknown as { phantom?: { solana?: Sol }; solana?: Sol };
-  const sol = w.phantom?.solana ?? w.solana;
-  if (!sol) throw new Error('No Solana wallet was found in this browser.');
-  const address = (await sol.connect()).publicKey.toString();
-  return { family: 'solana', address, sign: async (m) => btoa(String.fromCharCode(...(await sol.signMessage(new TextEncoder().encode(m), 'utf8')).signature)) };
-}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string } = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -51,6 +31,7 @@ export function initGame(root: HTMLElement): { onShow(): void } {
   let session: GameSession | null = client.saved();
   let message = '';
   let busy = false;
+  let options: SignerOption[] | null = null;
   let list: CityList | null = null;
   // The exploration view keeps its own element so the map survives the page being redrawn around it.
   const exploreHost = document.createElement('div');
@@ -230,9 +211,27 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     draw();
   }
 
+  /** Looks for the wallets this browser has, only when the player asks to sign in. */
+  async function chooseWallet(): Promise<void> {
+    if (busy) return;
+    busy = true;
+    message = '';
+    draw();
+    try {
+      const m = await import('./signers.js');
+      options = await m.signerOptions(await m.pageSignerEnv());
+    } catch {
+      options = [];
+      message = 'Wallets could not be looked for. Try again.';
+    }
+    busy = false;
+    draw();
+  }
+
   async function signOut(everywhere: boolean): Promise<void> {
     if (session) await client.signOut(session, everywhere);
     session = null;
+    options = null;
     list = null;
     exploring?.destroy();
     exploring = null;
@@ -349,12 +348,26 @@ export function initGame(root: HTMLElement): { onShow(): void } {
       card.append(out, all);
     } else {
       card.append(el('span', { class: 'wapp__eyebrow', text: 'Sign in to play' }), el('p', { class: 'wapp__fine', text: 'Choose the wallet that will be your player. You can look around without signing in, but progress is only kept for a signed-in wallet.' }));
-      for (const [label, make] of [['Sign in with an Ethereum-style wallet', evmSigner], ['Sign in with a Solana wallet', solanaSigner]] as const) {
-        const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: busy ? 'Waiting for your wallet…' : label });
-        b.type = 'button';
-        b.disabled = busy;
-        b.addEventListener('click', () => void signIn(make));
-        card.append(b);
+      if (!options) {
+        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: busy ? 'Looking for wallets…' : 'Sign in with a wallet' });
+        go.type = 'button';
+        go.disabled = busy;
+        go.addEventListener('click', () => void chooseWallet());
+        card.append(go);
+      } else {
+        for (const o of options) {
+          const b = el('button', { class: 'wapp__btn wapp__btn--primary', text: busy ? 'Waiting for your wallet…' : o.label });
+          b.type = 'button';
+          b.disabled = busy;
+          b.addEventListener('click', () => void signIn(o.make));
+          card.append(b);
+        }
+        if (options.length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No wallet was found in this browser. Install one, or connect a Solana wallet in the sidebar (it can be a phone wallet through WalletConnect), then try again.' }));
+        const again = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Look again' });
+        again.type = 'button';
+        again.disabled = busy;
+        again.addEventListener('click', () => void chooseWallet());
+        card.append(again);
       }
     }
     if (message) card.append(el('p', { class: 'wapp__fine', text: message }));

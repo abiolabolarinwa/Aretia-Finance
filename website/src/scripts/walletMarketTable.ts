@@ -8,7 +8,8 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { sparkPoints } from '../swings/market/overview.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
-import { LOCK_ICON, lockTitle } from './walletIcons.js';
+import { LOCK_ICON, UNLOCK_ICON, lockTitle } from './walletIcons.js';
+import { lockView } from '../swings/market/lockView.js';
 import { dexInitial, dexLogoSrc } from '../swings/market/dexLogo.js';
 import { padlockShown } from '../swings/market/lock.js';
 import { verifiedBadge } from '../lib/verifiedBadge';
@@ -149,11 +150,26 @@ function liquidityCell(r: MarketRow): HTMLElement {
   return td;
 }
 
+/** The Lock column: every row says whether its liquidity is locked, burned, not found locked or not checked, with the words and the full reason on hover. */
+function lockCell(r: MarketRow): HTMLElement {
+  const v = lockView(r);
+  const td = el('td', 'wapp-mt__lockcol');
+  const chip = el('span', `wapp-mt__lockchip is-${v.kind}`);
+  chip.title = v.title;
+  chip.setAttribute('aria-label', `Liquidity lock: ${v.text}. ${v.title}`);
+  const icon = el('span', 'wapp-mt__lockicon');
+  icon.innerHTML = v.kind === 'locked' || v.kind === 'timed' || v.kind === 'guarded' ? LOCK_ICON : UNLOCK_ICON;
+  chip.append(icon, document.createTextNode(v.text));
+  td.append(chip);
+  return td;
+}
+
 /** Redraws the liquidity cells (and their padlocks) of the given rows in place. */
 export function updateLiquidityCells(table: ParentNode, rows: readonly MarketRow[]): void {
   for (const r of rows) {
     const tr = table.querySelector<HTMLElement>(`.wapp-mt__row[data-k="${CSS.escape(tableRowKey(r))}"]`);
     tr?.querySelector('.wapp-mt__liq')?.replaceWith(liquidityCell(r));
+    tr?.querySelector('.wapp-mt__lockcol')?.replaceWith(lockCell(r));
   }
 }
 
@@ -239,6 +255,7 @@ export function marketTable(o: TableOptions): HTMLElement {
   hr.append(th('#', 'wapp-mt__rank'), th('Token', 'wapp-mt__tokenhead'));
   if (o.showRisk) hr.append(th('Aretia rating', '', undefined, `Aretia's own rating of the token, shown as a colour. ${RATING_BANDS.map((b) => `${b.name}: ${b.meaning}`).join(' ')} It is not advice and is not a promise.`));
   for (const c of COLUMNS) hr.append(th(c.label, 'wapp-mt__numhead', c.key, c.title));
+  hr.append(th('Lock', 'wapp-mt__lockhead', undefined, "Whether the pool's liquidity is locked, as far as Aretia can prove from the chain: burned liquidity tokens, or liquidity held in a locker it can read. 'No lock found' is not proof the liquidity can be withdrawn, and 'Not checked' means no answer."));
   if (o.showSpark) hr.append(th('Last 24h', 'wapp-mt__numhead wapp-mt__sparkhead', undefined, 'The price over the last 24 hours, drawn from the price now and its changes over 5 minutes, 1, 6 and 24 hours.'));
   if (o.onTrade) hr.append(th('', 'wapp-mt__tradehead'));
   head.append(hr);
@@ -326,7 +343,7 @@ export function marketTable(o: TableOptions): HTMLElement {
       tr.append(ratingCell(r, o.ratingState?.(r)));
     }
     const live = liveCells(r);
-    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2), ...(o.showSpark ? [sparkCell(r)] : []));
+    tr.append(live[0]!, live[1]!, el('td', 'wapp-mt__num', formatAge(r.ageMs)), ...live.slice(2), lockCell(r), ...(o.showSpark ? [sparkCell(r)] : []));
     if (o.onTrade) {
       const trade = o.onTrade;
       const cell = el('td', 'wapp-mt__tradecell');

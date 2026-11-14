@@ -1780,7 +1780,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const locks = createLockQueue({
       check: async (row) => {
         const lock = await checkLock(row.chain, row.pool, { ...(CHAINS[row.chain].kind === 'evm' ? { evm: publicRead(row.chain) } : { sol: rpcCall }) }, Date.now());
-        if (!lock || lock.pct < LOCK_MIN_PCT) return null;
+        // Under the bar is still an answer ("no lock found", with the share burned); only a pool of a kind Aretia cannot read gives none.
+        if (!lock) return null;
+        if (lock.pct < LOCK_MIN_PCT) return { pct: lock.pct, kind: 'burned' as const, until: null };
         return lock.kind === 'time-locked' ? { pct: lock.pct, kind: 'time-locked' as const, until: lock.until, by: lock.by } : { pct: lock.pct, kind: 'burned' as const, until: null };
       },
       onChange: () => {
@@ -2322,6 +2324,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
+        // The page on screen is read for its liquidity lock first, so its Lock column fills in before the rest of a long list is looked at.
+        locks.rate(shown);
         tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();

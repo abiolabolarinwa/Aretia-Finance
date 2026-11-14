@@ -142,18 +142,18 @@ function listPanel(title: string, tip: string, items: readonly MarketRow[], onOp
 }
 
 /** The band, or null when the list is too short to say anything. */
-export function overviewBand(rows: readonly MarketRow[], o: { onOpen(r: MarketRow): void; /** The list was picked for its risers (Gainers, Rising), so a mood or a rising count worked out from it would say nothing: only the short lists are shown. */ biased?: boolean }): HTMLElement | null {
+export function overviewBand(rows: readonly MarketRow[], o: { onOpen(r: MarketRow): void; /** The tokens the three cards are worked out from, when they must not be the list's own (Gainers is made of risers, so a mood from it would always read 100). */ sample?: readonly MarketRow[] }): HTMLElement | null {
   if (rows.length < 3) return null;
   const band = h('div', 'wapp-ov');
   const cards = h('div', 'wapp-ov__cards');
-  if (!o.biased) cards.append(moodCard(rows), breadthCard(rows), venueCard(rows));
+  const basis = o.sample && o.sample.length >= 3 ? o.sample : rows;
+  cards.append(moodCard(basis), breadthCard(basis), venueCard(basis));
   const lists = h('div', 'wapp-ov__lists');
   lists.append(
     listPanel('Top gainers', 'The biggest 24-hour risers among the tokens in this list that traded at least $1,000 in the day.', topGainers(rows), o.onOpen),
     listPanel('Newly listed', 'The youngest pools in this list that have traded.', newlyListed(rows), o.onOpen),
     listPanel('Trending', 'The most traded value in the last hour among the tokens in this list.', trendingNow(rows), o.onOpen),
   );
-  if (cards.childElementCount > 0) band.append(cards);
-  band.append(lists);
+  band.append(cards, lists);
   return band;
 }

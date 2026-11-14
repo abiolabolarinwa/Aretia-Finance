@@ -2266,8 +2266,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       card.append(bar);
       const shownRows = visible();
       // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
-      if (rows !== null && !error && !gathering && m.kind !== 'favourites') {
-        const band = overviewBand(shownRows, { onOpen: userPick });
+      // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
+      if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
+        const band = overviewBand(shownRows, { onOpen: userPick, biased: m.kind === 'gainers' || m.kind === 'rising' });
         if (band) card.insertBefore(band, bar);
       }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
@@ -2307,7 +2308,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, onTrade: (r) => (swapHandler(r) ?? (() => userPick(r)))() });
+        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);

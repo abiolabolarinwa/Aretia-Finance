@@ -330,6 +330,8 @@ export async function handleGame(input: GameInput): Promise<GameOutput> {
     }
     const extra = await playerAdminOp(op, actx);
     if (extra) return json(extra.status, extra.data, headers);
+    // Guessing is also limited per address, so many wallets from one place cannot multiply a player's tries.
+    if (op === 'answer' && overBudget(`gameanswer:${input.ip}`, input.now, 30)) return json(429, { error: 'rate-limit', message: 'Too many answers from here. Wait a minute.' }, { ...headers, 'retry-after': '60' });
     const mission = await missionOp(op, {
       db,
       playerId: claims.playerId,

@@ -444,3 +444,19 @@ describe('the game stays apart from ACT', () => {
     }
   });
 });
+
+describe('guessing limits', () => {
+  it('limits answers per address as well as per player', async () => {
+    resetRateLimit();
+    resetAccountState();
+    const t = setup();
+    const a = solana(await t.nonce());
+    const token = (JSON.parse((await t.call({ op: 'login', message: a.message, signature: a.signature })).body) as { token: string }).token;
+    const auth = `Bearer ${token}`;
+    let limited = 0;
+    for (let i = 0; i < 40; i++) if ((await t.call({ op: 'answer', mission: 'some-mission', answer: String(i) }, auth, { ip: '9.9.9.9' })).status === 429) limited++;
+    expect(limited).toBeGreaterThan(0);
+    // Another address is not held back by it.
+    expect((await t.call({ op: 'answer', mission: 'some-mission', answer: '1' }, auth, { ip: '8.8.8.8' })).status).not.toBe(429);
+  });
+});

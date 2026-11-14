@@ -131,6 +131,48 @@ export function buildingsGeometry(three: Three, buildings: Building[], tint: str
   return buf.empty ? null : buf.geometry(three);
 }
 
+/** Metres per window bay, and per storey, for wrapping a window picture round a wall. */
+export const BAY_M = 3.6;
+export const STOREY_M = 3.2;
+
+/**
+ * The same buildings as buildingsGeometry, but in two pieces: walls with picture coordinates (so a window texture can wrap round them,
+ * one bay across and one storey up per repeat) and plain roofs. The wall colours are tints that multiply with the picture.
+ */
+export function buildingParts(three: Three, buildings: Building[], tint: string): { walls: T.BufferGeometry | null; roofs: T.BufferGeometry | null } {
+  const walls = new Buf();
+  const roofs = new Buf();
+  const uv: number[] = [];
+  const base = new three.Color(tint);
+  const palette = ['#e6e1d4', '#d6d0c0', '#c6bfae', '#efe9dc', '#b8b2a3', '#dcd2c2', '#cdb9a3', '#d9d9d6'];
+  for (const b of buildings) {
+    const rings = ringsFor(b);
+    if (rings[0]!.length < 3) continue;
+    const seed = Math.abs(Math.sin(rings[0]![0]![0] * 12.9898 + rings[0]![0]![1] * 78.233) * 43758.5453) % 1;
+    const wall = new three.Color(palette[Math.floor(seed * palette.length)]!).lerp(base, 0.1 + seed * 0.1);
+    const roof: [number, number, number] = [wall.r * 0.62, wall.g * 0.6, wall.b * 0.58];
+    const floors = Math.max(1, Math.round((b.h - b.minH) / STOREY_M));
+    const v0 = b.minH / STOREY_M;
+    const v1 = v0 + floors;
+    for (const ring of rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[j]!;
+        const c = ring[i]!;
+        const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+        if (len < 0.05) continue;
+        const shade = 0.84 + 0.16 * Math.abs(Math.sin(Math.atan2(c[1] - a[1], c[0] - a[0])));
+        const bays = Math.max(1, Math.round(len / BAY_M));
+        walls.quad([a[0], b.minH, a[1]], [c[0], b.minH, c[1]], [c[0], b.h, c[1]], [a[0], b.h, a[1]], [wall.r * shade, wall.g * shade, wall.b * shade]);
+        uv.push(0, v0, bays, v0, bays, v1, 0, v0, bays, v1, 0, v1);
+      }
+    }
+    fill(three, roofs, rings, b.h, roof);
+  }
+  const wg = walls.empty ? null : walls.geometry(three);
+  if (wg) wg.setAttribute('uv', new three.Float32BufferAttribute(uv, 2));
+  return { walls: wg, roofs: roofs.empty ? null : roofs.geometry(three) };
+}
+
 /** Streets as flat strips laid on the ground. Each strip is a little above the one under it, so the bigger road shows at a crossing. */
 export function roadsGeometry(three: Three, roads: Road[]): T.BufferGeometry | null {
   const buf = new Buf();

@@ -18,7 +18,10 @@ import type { RoamMode } from '../roamRules.js';
 import { decodeTile } from './mvt.js';
 import { buildTileWorld, fromLocal, tileOf, tilePoint, tileUrl, toLocal, TILE_ZOOM, type Named, type Origin, type TileWorld } from './worldData.js';
 import { Colliders, TileColliders, nearestOnSegment } from './colliders.js';
-import { areasGeometry, bucketTile, buildingsGeometry, cellCentre, roadsGeometry, waterLinesGeometry, AREA_COLOUR, WATER_COLOUR, type Cell } from './roamBuild.js';
+import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roamBuild.js';
+import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
+import { makeHuman } from './human.js';
+import type { Pt } from './mvt.js';
 import { BOAT, CAR, RUN_SPEED, WALK_SPEED, stepFoot, stepVehicle, type Foot, type Vehicle, type VehicleSpec } from './physics.js';
 
 export interface RoamZone {
@@ -136,15 +139,54 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const sun = new three.DirectionalLight('#fff3dd', 1.5);
   sun.position.set(-120, 220, 90);
   scene.add(sun);
-  const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), new three.MeshLambertMaterial({ color: model.ground }));
+  // The plain ground under everything the map paints: dusty pavement colour, as most of a city is.
+  const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), new three.MeshLambertMaterial({ color: '#a29f94' }));
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  const material = new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide });
-  const flat = (offset: number): T.MeshLambertMaterial => new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide, polygonOffset: true, polygonOffsetFactor: -offset, polygonOffsetUnits: -offset });
-  const roadMaterial = flat(2);
-  const areaMaterial = flat(1);
-  const waterMaterial = new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1.5, polygonOffsetUnits: -1.5 });
+  // Walls take a window picture (one bay wide, one storey tall) multiplied by each building's tint; roofs are plain.
+  const windows = document.createElement('canvas');
+  windows.width = 128;
+  windows.height = 128;
+  const wg = windows.getContext('2d');
+  if (wg) {
+    wg.fillStyle = '#f4f1ea';
+    wg.fillRect(0, 0, 128, 128);
+    wg.fillStyle = '#dcd8cd';
+    wg.fillRect(0, 118, 128, 10); // the floor slab
+    wg.fillStyle = '#3b3f46';
+    wg.fillRect(28, 26, 72, 70); // frame
+    const glass = wg.createLinearGradient(0, 30, 0, 92);
+    glass.addColorStop(0, '#9fb8cc');
+    glass.addColorStop(1, '#4d6a85');
+    wg.fillStyle = glass;
+    wg.fillRect(32, 30, 64, 62);
+    wg.fillStyle = '#3b3f46';
+    wg.fillRect(62, 30, 4, 62);
+    wg.fillStyle = '#e8e4da';
+    wg.fillRect(24, 96, 80, 5); // sill
+  }
+  const windowTexture = new three.CanvasTexture(windows);
+  windowTexture.wrapS = three.RepeatWrapping;
+  windowTexture.wrapT = three.RepeatWrapping;
+  windowTexture.colorSpace = three.SRGBColorSpace;
+  windowTexture.anisotropy = 4;
+  const wallMaterial = new three.MeshLambertMaterial({ vertexColors: true, map: windowTexture });
+  const roofMaterial = new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide });
+
+  // Trees and street lamps are drawn many at a time from one shape each.
+  const trunkGeo = new three.CylinderGeometry(0.14, 0.2, 2.4, 7);
+  trunkGeo.translate(0, 1.2, 0);
+  const crownGeo = new three.IcosahedronGeometry(1.7, 1);
+  crownGeo.translate(0, 3.9, 0);
+  const poleGeo = new three.CylinderGeometry(0.06, 0.08, 7.2, 6);
+  poleGeo.translate(0, 3.6, 0);
+  const lampHeadGeo = new three.BoxGeometry(0.9, 0.12, 0.3);
+  lampHeadGeo.translate(0.35, 7.25, 0);
+  const trunkMat = new three.MeshLambertMaterial({ color: '#5b4331' });
+  const crownMat = new three.MeshLambertMaterial({ color: '#ffffff' });
+  const poleMat = new three.MeshLambertMaterial({ color: '#4a4d52' });
+  const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo]);
 
   // ------------------------------------------------------------ what the player is: a person, a car, a boat
   const box = (w: number, h: number, d: number, colour: string, x = 0, y = 0, z = 0): T.Mesh => {
@@ -152,12 +194,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     m.position.set(x, y, z);
     return m;
   };
-  const person = new three.Group();
-  const legL = box(0.24, 0.85, 0.28, '#2b2b3a', -0.15, 0.43, 0);
-  const legR = box(0.24, 0.85, 0.28, '#2b2b3a', 0.15, 0.43, 0);
-  const armL = box(0.16, 0.7, 0.2, '#e8e8e8', -0.42, 1.28, 0);
-  const armR = box(0.16, 0.7, 0.2, '#e8e8e8', 0.42, 1.28, 0);
-  person.add(legL, legR, box(0.7, 0.8, 0.38, '#f2f2f2', 0, 1.3, 0), armL, armR, box(0.34, 0.34, 0.34, '#c68d5a', 0, 1.95, 0));
+  const human = makeHuman(three);
+  const person = human.group;
   scene.add(person);
 
   const carMesh = (colour: string): T.Group => {
@@ -249,13 +287,32 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       for (const w of world.water) cols.addWater(w.rings);
       for (const l of world.waterLines) cols.addWaterLine(l.pts, l.width);
       colliders.set(id, cols);
-      const mesh = (g: T.BufferGeometry | null, mat: T.Material): void => {
-        if (g) group.add(new three.Mesh(g, mat));
-      };
-      mesh(areasGeometry(three, world.areas, 0.02, (a) => AREA_COLOUR[a.kind]), areaMaterial);
-      mesh(areasGeometry(three, world.water, 0.035, () => WATER_COLOUR), waterMaterial);
-      mesh(waterLinesGeometry(three, world.waterLines, 0.036), waterMaterial);
       scene.add(group);
+      const cells = bucketTile(world);
+      // Squares that hold only a park or water still need their ground painted.
+      const reach = (rings: Pt[][], pad = 0): void => {
+        let minX = Infinity;
+        let minZ = Infinity;
+        let maxX = -Infinity;
+        let maxZ = -Infinity;
+        for (const ring of rings) {
+          for (const p of ring) {
+            minX = Math.min(minX, p[0]);
+            maxX = Math.max(maxX, p[0]);
+            minZ = Math.min(minZ, p[1]);
+            maxZ = Math.max(maxZ, p[1]);
+          }
+        }
+        if (!Number.isFinite(minX)) return;
+        for (let cx = Math.floor((minX - pad) / CELL_M); cx <= Math.floor((maxX + pad) / CELL_M); cx++) {
+          for (let cz = Math.floor((minZ - pad) / CELL_M); cz <= Math.floor((maxZ + pad) / CELL_M); cz++) {
+            if (cells.size < 900 && !cells.has(`${cx},${cz}`)) cells.set(`${cx},${cz}`, { buildings: [], roads: [] });
+          }
+        }
+      };
+      for (const a of world.areas) reach(a.rings);
+      for (const a of world.water) reach(a.rings);
+      for (const l of world.waterLines) reach([l.pts], l.width);
       const named = world.named.map((n) => {
         let minX = Infinity;
         let minZ = Infinity;
@@ -269,7 +326,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         }
         return { n, box: [minX - 25, minZ - 25, maxX + 25, maxZ + 25] as [number, number, number, number] };
       });
-      tiles.set(id, { id, x, y, world, cells: bucketTile(world), named, group, box: tileBox(x, y) });
+      tiles.set(id, { id, x, y, world, cells, named, group, box: tileBox(x, y) });
     } catch {
       failed.set(id, Date.now());
     } finally {
@@ -319,11 +376,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         const d = Math.hypot(cx - x, cz - z);
         const have = built.get(id);
         if (!have && d < BUILD_RADIUS_M && made < maxNew) {
-          const g = new three.Group();
-          const b = buildingsGeometry(three, cell.buildings, city.tint[0]);
-          if (b) g.add(new three.Mesh(b, material));
-          const r = roadsGeometry(three, cell.roads);
-          if (r) g.add(new three.Mesh(r, roadMaterial));
+          const g = buildSquare(t, key, cell);
           scene.add(g);
           built.set(id, g);
           made++;
@@ -339,9 +392,84 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   function disposeGroup(g: T.Object3D): void {
     g.traverse((o) => {
       const m = o as T.Mesh;
-      m.geometry?.dispose();
+      if (m.geometry && !sharedGeos.has(m.geometry)) m.geometry.dispose();
+      // A square's own ground picture is freed with it.
+      if (m.userData.ownMap) {
+        const mat = m.material as T.MeshLambertMaterial;
+        mat.map?.dispose();
+        mat.dispose();
+      }
+      if ((m as T.InstancedMesh).isInstancedMesh) (m as T.InstancedMesh).dispose();
     });
   }
+
+  /** Everything in one 200 m square: its painted ground, its buildings with windows, its trees and its lamps. */
+  function buildSquare(t: LoadedTile, key: string, cell: Cell): T.Group {
+    const g = new three.Group();
+    const sq = squareOf(key);
+    // The ground, painted like a street map seen from above (half a metre to the pixel).
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      paintGround(ctx, size, key, t.world);
+      const tex = new three.CanvasTexture(canvas);
+      tex.colorSpace = three.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.generateMipmaps = true;
+      tex.minFilter = three.LinearMipmapLinearFilter;
+      const plane = new three.Mesh(new three.PlaneGeometry(CELL_M, CELL_M), new three.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(sq.x0 + CELL_M / 2, 0.03, sq.z0 + CELL_M / 2);
+      plane.renderOrder = 1;
+      plane.userData.ownMap = true;
+      g.add(plane);
+    }
+    const parts = buildingParts(three, cell.buildings, city.tint[0]);
+    if (parts.walls) g.add(new three.Mesh(parts.walls, wallMaterial));
+    if (parts.roofs) g.add(new three.Mesh(parts.roofs, roofMaterial));
+    const blocked = (x: number, z: number): boolean => colliders.insideBuilding(x, z) || colliders.inWater(x, z);
+    const trees = treesFor(key, t.world, blocked);
+    if (trees.length) {
+      const trunks = new three.InstancedMesh(trunkGeo, trunkMat, trees.length);
+      const crowns = new three.InstancedMesh(crownGeo, crownMat, trees.length);
+      const m4 = new three.Matrix4();
+      const colour = new three.Color();
+      trees.forEach((p, i) => {
+        m4.makeScale(p.s, p.s * (0.9 + p.v * 0.3), p.s);
+        m4.setPosition(p.x, 0, p.z);
+        trunks.setMatrixAt(i, m4);
+        crowns.setMatrixAt(i, m4);
+        crowns.setColorAt(i, colour.setHSL(0.27 + p.v * 0.07, 0.45, 0.24 + p.v * 0.12));
+      });
+      if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
+      for (const im of [trunks, crowns]) {
+        im.instanceMatrix.needsUpdate = true;
+        im.frustumCulled = false;
+        g.add(im);
+      }
+    }
+    const lamps = lampsFor(key, t.world, blocked);
+    if (lamps.length) {
+      const poles = new three.InstancedMesh(poleGeo, poleMat, lamps.length);
+      const heads = new three.InstancedMesh(lampHeadGeo, poleMat, lamps.length);
+      const m4 = new three.Matrix4();
+      lamps.forEach((p, i) => {
+        m4.makeRotationY(hashAngle(p.x, p.z));
+        m4.setPosition(p.x, 0, p.z);
+        poles.setMatrixAt(i, m4);
+        heads.setMatrixAt(i, m4);
+      });
+      for (const im of [poles, heads]) {
+        im.frustumCulled = false;
+        g.add(im);
+      }
+    }
+    return g;
+  }
+  const hashAngle = (x: number, z: number): number => Math.floor(Math.abs(Math.sin(x * 0.37 + z * 0.91) * 4)) * (Math.PI / 2);
 
   // ------------------------------------------------------------ vehicles: parked cars wherever there are streets, and boats at the water
   function nearestRoadPoint(x: number, z: number, within: number): { x: number; z: number; heading: number; width: number } | null {
@@ -397,7 +525,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       if (road) {
         const side = road.width / 2 + 1.6;
         const spot = freeSpot(road.x + Math.cos(road.heading) * side, road.z + Math.sin(road.heading) * side, CAR.radius);
-        if (spot && Math.hypot(spot.x - x, spot.z - z) > 6) spawnCar(spot.x, spot.z, road.heading);
+        if (spot && Math.hypot(spot.x - x, spot.z - z) > 10) spawnCar(spot.x, spot.z, road.heading);
       }
     }
     if (!near('boat', 220) && !(driving && driving.kind === 'boat')) {
@@ -898,11 +1026,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     person.visible = !driving;
     person.position.set(foot.x, 0, foot.z);
     person.rotation.y = -foot.heading;
-    const swing = Math.sin(now / 110 * (walking > 3.5 ? 1.6 : 1)) * Math.min(1, walking / 2.4) * 0.7;
-    legL.rotation.x = swing;
-    legR.rotation.x = -swing;
-    armL.rotation.x = -swing;
-    armR.rotation.x = swing;
+    human.update(dt, walking, walking > 3.6);
     for (const r of rigs) {
       r.mesh.position.set(r.state.x, r.kind === 'boat' ? 0.05 + Math.sin(now / 500 + r.state.x) * 0.06 : 0, r.state.z);
       r.mesh.rotation.y = -r.state.heading;

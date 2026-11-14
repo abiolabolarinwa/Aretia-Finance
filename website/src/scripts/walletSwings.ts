@@ -22,6 +22,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
+import { overviewBand } from './walletMarketOverview.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -2264,6 +2265,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       card.append(bar);
       const shownRows = visible();
+      // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
+      if (rows !== null && !error && !gathering && m.kind !== 'favourites') {
+        const band = overviewBand(shownRows, { onOpen: userPick });
+        if (band) card.insertBefore(band, bar);
+      }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
         const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
         const note = el('p', { class: 'wapp__fine', text: `${lowHidden} ${lowHidden === 1 ? 'token' : 'tokens'} with under ${limit} of liquidity (or none known) ${lowHidden === 1 ? 'is' : 'are'} hidden. ` });
@@ -2301,7 +2307,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else {
         // Aretia's own list holds everything it fetched and pages through it after sorting; the other lists ask for one page at a time.
         const shown = ix ? shownRows : m.kind !== 'favourites' ? (tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows).slice((pageNo - 1) * pageSize, pageNo * pageSize) : shownRows;
-        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick });
+        tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, onTrade: (r) => (swapHandler(r) ?? (() => userPick(r)))() });
         watchRows(shown);
         const featured = featuredForMarkets();
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);

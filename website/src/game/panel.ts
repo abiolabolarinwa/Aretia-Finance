@@ -156,6 +156,12 @@ export function initGame(root: HTMLElement): { onShow(): void } {
     });
   }
 
+  // Switching the look in the walk-and-drive view: stop it and start it again, which reads the newly saved look.
+  roamHost.addEventListener('game-roam-restyle', () => {
+    stopRoam();
+    syncRoam();
+  });
+
   missionHost.addEventListener('game-zone', (e) => {
     // A treasure zone shown from the missions tab is drawn on the map, so move to the map to see it.
     exploreHost.dispatchEvent(new CustomEvent('game-zone-show', { detail: (e as CustomEvent).detail }));

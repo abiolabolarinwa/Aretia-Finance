@@ -21,6 +21,7 @@ import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roam
 import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
 import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
+import { loadCharacter, makeAnimatedHuman } from './characters.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HAZE, makeAtmosphere, SUN_COLOUR, SUN_DIRECTION } from './atmosphere.js';
 import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
@@ -171,6 +172,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // Real photographed surfaces (free CC0 textures) add the fine grain; the map still decides the colours and where things are.
   const textureBase = String(import.meta.env.BASE_URL ?? '/').replace(/\/?$/, '/');
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 7000));
+  // The rigged, animated person (free CC0 model); the hand-built figure is the fallback if it cannot be loaded.
+  const characterLoading = Promise.race([loadCharacter(three, `${textureBase}game/models/man.glb`), timeout]);
   const [asphaltTex, pavementTex, plasterTex, concreteTex] = await Promise.all(['asphalt', 'pavement', 'plaster', 'concrete'].map((n) => Promise.race([loadDetail(three, `${textureBase}game/textures/${n}.jpg`, renderer), timeout])));
   // The plain ground under everything the map paints: dusty pavement colour, as most of a city is.
   const groundMaterial = new three.MeshLambertMaterial({ color: '#a29f94' });
@@ -242,7 +245,9 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     m.position.set(x, y, z);
     return m;
   };
-  const human = makeHuman(three);
+  const character = await characterLoading;
+  const newPerson = (look?: Look): Human => (character ? makeAnimatedHuman(three, character, look) : makeHuman(three, look));
+  const human = newPerson();
   const person = human.group;
   shadowed(person, true, false);
   scene.add(person);
@@ -663,7 +668,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       const cruise = 7 + Math.random() * 6;
       npcs.push({ agent: startAgent(seg, along, cruise, lane), mesh: car.group, kind, cruise, car });
     } else {
-      const h = makeHuman(three, LOOKS[Math.floor(Math.random() * LOOKS.length)]!);
+      const h = newPerson(LOOKS[Math.floor(Math.random() * LOOKS.length)]!);
       shadowed(h.group, true, false);
       scene.add(h.group);
       const cruise = 1.1 + Math.random() * 0.5;
@@ -677,6 +682,21 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     n.car?.dispose();
     n.human?.dispose();
     npcs.splice(i, 1);
+  }
+
+  // Wheels, body roll and brake lights need to know how the car is turning and speeding up, which is worked out from frame to frame.
+  const motion = new WeakMap<object, { h: number; v: number }>();
+  function animateCar(key: object, parts: CarParts | undefined, heading: number, speed: number, dt: number): void {
+    if (!parts) return;
+    const prev = motion.get(key);
+    let yawRate = 0;
+    let accel = 0;
+    if (prev && dt > 0) {
+      yawRate = Math.atan2(Math.sin(heading - prev.h), Math.cos(heading - prev.h)) / dt;
+      accel = (speed - prev.v) / dt;
+    }
+    motion.set(key, { h: heading, v: speed });
+    parts.animate(dt, speed, Math.max(-4, Math.min(4, yawRate)), Math.max(-30, Math.min(30, accel)));
   }
 
   let lastNpcSpawn = 0;
@@ -713,6 +733,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       n.mesh.position.set(ag.x, 0, ag.z);
       n.mesh.rotation.y = -ag.heading;
       n.human?.update(dt, ag.speed, false);
+      animateCar(n, n.car, ag.heading, ag.speed, dt);
     }
   }
 
@@ -1193,6 +1214,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     for (const r of rigs) {
       r.mesh.position.set(r.state.x, r.kind === 'boat' ? 0.05 + Math.sin(now / 500 + r.state.x) * 0.06 : 0, r.state.z);
       r.mesh.rotation.y = -r.state.heading;
+      animateCar(r, r.parts, r.state.heading, r.state.speed, dt);
     }
     const target = here();
     const dist = driving ? (driving.kind === 'boat' ? 13 : 10.5) : 6.2;
@@ -1203,7 +1225,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       if (!colliders.insideBuilding(camPos.x, camPos.z) || camPos.y > 70) break;
       d *= 0.72;
     }
-    camera.position.lerp(camPos, started ? Math.min(1, 12 * dt) : 1);
+    // The camera follows with a little lag (more in a car), and the view widens with speed.
+    camera.position.lerp(camPos, started ? 1 - Math.exp(-(driving ? 7 : 11) * dt) : 1);
+    const wantFov = 60 + (driving ? Math.min(1, Math.abs(driving.state.speed) / 27) * 16 : Math.min(1, walking / 6.2) * 5);
+    if (Math.abs(camera.fov - wantFov) > 0.05) {
+      camera.fov += (wantFov - camera.fov) * (1 - Math.exp(-3 * dt));
+      camera.updateProjectionMatrix();
+    }
     camLook.set(target.x, driving ? 1.2 : 1.5, target.z);
     camera.lookAt(camLook);
     ground.position.set(target.x, 0, target.z);

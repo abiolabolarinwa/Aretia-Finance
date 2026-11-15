@@ -22,6 +22,7 @@ import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
 import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
 import { loadCharacter, makeAnimatedHuman } from './characters.js';
+import { makeStreetPanel } from './streetPanel.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HAZE, makeAtmosphere, SUN_COLOUR, SUN_DIRECTION } from './atmosphere.js';
 import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
@@ -104,7 +105,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%');
   const prompt = hud('left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;background:rgba(0,0,0,.55);padding:8px 16px;border-radius:999px;display:none');
   const toast = hud('left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;background:rgba(0,0,0,.6);padding:8px 14px;border-radius:12px;display:none');
-  const help = hud('left:14px;bottom:14px;font-size:12px;line-height:1.5;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:12px;font-weight:500', 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen');
+  const help = hud('left:14px;bottom:14px;font-size:12px;line-height:1.5;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:12px;font-weight:500', 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo');
   const mini = document.createElement('canvas');
   mini.width = 176;
   mini.height = 176;
@@ -121,6 +122,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   };
   const fsButton = button('Full screen', 'right:12px;top:152px', () => toggleFullscreen());
   fsButton.setAttribute('aria-label', 'Toggle full screen');
+  // Mapillary's real photograph of the street where the player is, in a panel (V). It needs the site's Mapillary key.
+  const streetPanel = makeStreetPanel(wrap, { token: String(import.meta.env.PUBLIC_MAPILLARY_TOKEN ?? ''), position: () => fromLocal(origin, here().x, here().z) });
+  const toggleStreet = (): void => {
+    const why = streetPanel.toggle();
+    if (why) say(why);
+  };
+  button('Street photo (V)', 'right:12px;top:190px', toggleStreet).setAttribute('aria-label', 'Show or hide a real street photo');
   host.replaceChildren(wrap);
 
   // ------------------------------------------------------------ the 3D scene
@@ -790,12 +798,14 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // ------------------------------------------------------------ input
   const onKey = (down: boolean) => (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
-    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f') return;
+    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f' && k !== 'v') return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (k === 'e') {
       if (down && !e.repeat) pressE = true;
     } else if (k === 'f') {
       if (down && !e.repeat) toggleFullscreen();
+    } else if (k === 'v') {
+      if (down && !e.repeat) toggleStreet();
     } else if (down) keys.add(k);
     else keys.delete(k);
     e.preventDefault();
@@ -1243,6 +1253,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     air.dome.position.copy(camera.position);
     air.tick(now / 1000);
     manageNpcs(now, dt);
+    streetPanel.tick(now);
     started = true;
 
     // Make sure the beacon pillars pulse, and keep the world loading and the server told.
@@ -1296,6 +1307,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       window.removeEventListener('keydown', onEsc);
       window.removeEventListener('blur', blur);
       for (let i = npcs.length - 1; i >= 0; i--) dropNpc(i);
+      streetPanel.destroy();
       air.dispose();
       document.removeEventListener('fullscreenchange', onFullChange);
       if (document.fullscreenElement === wrap) void document.exitFullscreen().catch(() => undefined);

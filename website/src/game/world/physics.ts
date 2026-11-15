@@ -35,8 +35,9 @@ export function stepFoot(s: Foot, input: FootInput, dt: number, w: Hazards): { m
   const top = input.run ? RUN_SPEED : WALK_SPEED;
   const wantX = len > 0.01 ? (input.dx / Math.hypot(input.dx, input.dz)) * top * len : 0;
   const wantZ = len > 0.01 ? (input.dz / Math.hypot(input.dx, input.dz)) * top * len : 0;
-  // Quick to get going and to stop, so it feels like walking and not like sliding.
-  const k = Math.min(1, 14 * dt);
+  // A person takes a moment to get going and a moment to stop: a little slower to start than to stop, so it has weight without feeling sluggish.
+  const speeding = wantX * wantX + wantZ * wantZ > s.vx * s.vx + s.vz * s.vz;
+  const k = 1 - Math.exp(-(speeding ? 9 : 13) * dt);
   s.vx += (wantX - s.vx) * k;
   s.vz += (wantZ - s.vz) * k;
   const fromX = s.x;
@@ -57,7 +58,12 @@ export function stepFoot(s: Foot, input: FootInput, dt: number, w: Hazards): { m
   const r = w.resolve(nx, nz, FOOT_RADIUS);
   s.x = r.x;
   s.z = r.z;
-  if (Math.hypot(s.vx, s.vz) > 0.3) s.heading = Math.atan2(s.vx, -s.vz);
+  // Turn to face the way they are going, over a fraction of a second, by the shorter way round, instead of snapping.
+  if (Math.hypot(s.vx, s.vz) > 0.3) {
+    const want = Math.atan2(s.vx, -s.vz);
+    const diff = Math.atan2(Math.sin(want - s.heading), Math.cos(want - s.heading));
+    s.heading += diff * (1 - Math.exp(-14 * dt));
+  }
   return { moved: Math.hypot(s.x - fromX, s.z - fromZ) > 1e-4 };
 }
 

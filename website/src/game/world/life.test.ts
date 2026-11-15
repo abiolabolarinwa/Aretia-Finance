@@ -1,12 +1,95 @@
 import { describe, expect, it } from 'vitest';
 import * as three from 'three';
 import { pickNext, startAgent, stepAgent, type Seg } from './agents.js';
-import { makeCar } from './vehicles.js';
+import { approach, makeCar, steerAngle } from './vehicles.js';
 import { HAZE, SUN_DIRECTION, skyMaterial } from './atmosphere.js';
 import { applyDetail, detailShader } from './detail.js';
+import { stepFoot, WALK_SPEED, type Foot } from './physics.js';
 import { wallColour } from './worldData.js';
 
 const seg = (ax: number, az: number, bx: number, bz: number, width = 8, cls = 'secondary'): Seg => ({ a: [ax, az], b: [bx, bz], width, cls });
+
+describe('walking with weight', () => {
+  const open = { resolve: (x: number, z: number) => ({ x, z, hit: false }), inWater: () => false };
+
+  it('gets up to speed over a fraction of a second, and stops over a shorter one', () => {
+    const f: Foot = { x: 0, z: 0, vx: 0, vz: 0, heading: 0 };
+    stepFoot(f, { dx: 1, dz: 0, run: false }, 1 / 60, open);
+    expect(Math.hypot(f.vx, f.vz)).toBeGreaterThan(0.05);
+    expect(Math.hypot(f.vx, f.vz)).toBeLessThan(WALK_SPEED * 0.5); // not instantly at full speed
+    for (let i = 0; i < 60; i++) stepFoot(f, { dx: 1, dz: 0, run: false }, 1 / 60, open);
+    expect(Math.hypot(f.vx, f.vz)).toBeGreaterThan(WALK_SPEED * 0.98);
+    let frames = 0;
+    while (Math.hypot(f.vx, f.vz) > 0.1 && frames < 200) {
+      stepFoot(f, { dx: 0, dz: 0, run: false }, 1 / 60, open);
+      frames++;
+    }
+    expect(frames).toBeLessThan(40);
+    expect(frames).toBeGreaterThan(5);
+  });
+
+  it('turns to face a new direction over a few frames, the short way round, without snapping', () => {
+    // Heading 0 is north. Walking east means turning to a quarter turn clockwise.
+    const f: Foot = { x: 0, z: 0, vx: 0, vz: 0, heading: 0 };
+    for (let i = 0; i < 30; i++) stepFoot(f, { dx: 1, dz: 0, run: false }, 1 / 60, open);
+    expect(f.heading).toBeGreaterThan(0.3);
+    expect(f.heading).toBeLessThan(Math.PI / 2 + 0.01);
+    for (let i = 0; i < 120; i++) stepFoot(f, { dx: 1, dz: 0, run: false }, 1 / 60, open);
+    expect(f.heading).toBeCloseTo(Math.PI / 2, 2);
+    // From just left of north, turning to just right of it goes through north, not the long way round.
+    const g: Foot = { x: 0, z: 0, vx: 0, vz: 0, heading: -3.0 };
+    for (let i = 0; i < 6; i++) stepFoot(g, { dx: -0.1, dz: 1, run: false }, 1 / 60, open); // wants to face south-ish, heading about 3.04
+    expect(g.heading).toBeLessThan(-3.0 + 0.0001); // went further negative (the short way through the date line), not back through zero
+  });
+});
+
+describe('car motion', () => {
+  const wheels = (g: three.Object3D): { steer: three.Object3D[]; spin: three.Object3D[]; shell: three.Object3D } => {
+    // Children of the car: the shell (body) first, then four wheel pivots, each holding a spinning group.
+    const kids = g.children;
+    const pivots = kids.filter((c) => c.children.length > 0 && c.position.y > 0.3 && Math.abs(c.position.x) > 0.7);
+    return { steer: pivots.filter((p) => p.position.z < 0), spin: pivots.map((p) => p.children[0]!), shell: kids[0]! };
+  };
+
+  it('works out how far the front wheels turn, to the right for a right turn, and less when fast', () => {
+    expect(steerAngle(0, 10)).toBe(0);
+    expect(steerAngle(0.5, 8)).toBeGreaterThan(0.1);
+    expect(steerAngle(-0.5, 8)).toBeLessThan(-0.1);
+    expect(steerAngle(0.5, 25)).toBeLessThan(steerAngle(0.5, 8));
+    expect(steerAngle(4, 2)).toBeLessThanOrEqual(0.55); // limited to what a car can do
+    expect(steerAngle(0.5, -8)).toBeLessThan(0); // in reverse the wheels turn the other way for the same yaw
+  });
+
+  it('eases towards a target at the same pace at any frame rate', () => {
+    let fast = 0;
+    for (let i = 0; i < 60; i++) fast = approach(fast, 1, 5, 1 / 60);
+    let slow = 0;
+    for (let i = 0; i < 10; i++) slow = approach(slow, 1, 5, 1 / 10);
+    expect(fast).toBeCloseTo(slow, 3);
+  });
+
+  it('spins the wheels forward with speed, steers the front pair only, leans outward in a turn and dips under braking', () => {
+    const car = makeCar(three, '#223344', 'sedan');
+    const { steer, spin, shell } = wheels(car.group);
+    expect(steer).toHaveLength(2);
+    expect(spin).toHaveLength(4);
+    for (let i = 0; i < 90; i++) car.animate(1 / 60, 10, 0, 0);
+    // 1.5 s at 10 m/s on 0.36 m wheels: well over a full turn, and forward is a negative turn about x.
+    expect(spin[0]!.rotation.x).toBeLessThan(-30);
+    expect(Math.abs(steer[0]!.rotation.y)).toBeLessThan(0.01);
+    // Turn right at speed: front wheels turn right (negative about y), the body leans left side down... outward (positive about z).
+    for (let i = 0; i < 60; i++) car.animate(1 / 60, 15, 0.6, 0);
+    expect(steer[0]!.rotation.y).toBeLessThan(-0.1);
+    expect(steer[1]!.rotation.y).toBeCloseTo(steer[0]!.rotation.y);
+    expect(shell.rotation.z).toBeGreaterThan(0.02);
+    // Hard braking: the nose dips (negative about x) and settles back when the car stops braking.
+    for (let i = 0; i < 40; i++) car.animate(1 / 60, 10, 0, -9);
+    expect(shell.rotation.x).toBeLessThan(-0.02);
+    for (let i = 0; i < 180; i++) car.animate(1 / 60, 10, 0, 0);
+    expect(Math.abs(shell.rotation.x)).toBeLessThan(0.005);
+    car.dispose();
+  });
+});
 
 describe('photographed detail and wall colours', () => {
   it('reads colour tags in hex, short hex and plain names, and ignores anything else', () => {

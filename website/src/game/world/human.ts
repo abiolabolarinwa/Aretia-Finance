@@ -19,6 +19,8 @@ export interface Human {
   group: T.Group;
   /** Moves the limbs for this moment: how fast the person is going (m/s), whether running, and the time step in seconds. */
   update(dt: number, speed: number, running: boolean): void;
+  /** Sits the person down or stands them up, when this figure has a sitting pose. */
+  sit?(on: boolean): void;
   dispose(): void;
 }
 

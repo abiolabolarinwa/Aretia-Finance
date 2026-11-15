@@ -6,6 +6,7 @@
 import type * as T from 'three';
 import type { Area, Building, Road, TileWorld, WaterLine } from './worldData.js';
 import type { Pt } from './mvt.js';
+import { REAL, type Palette } from './style.js';
 
 type Three = typeof import('three');
 
@@ -139,19 +140,26 @@ export const STOREY_M = 3.2;
  * The same buildings as buildingsGeometry, but in two pieces: walls with picture coordinates (so a window texture can wrap round them,
  * one bay across and one storey up per repeat) and plain roofs. The wall colours are tints that multiply with the picture.
  */
-export function buildingParts(three: Three, buildings: Building[], tint: string): { walls: T.BufferGeometry | null; roofs: T.BufferGeometry | null } {
+export function buildingParts(three: Three, buildings: Building[], tint: string, look: Palette = REAL): { walls: T.BufferGeometry | null; roofs: T.BufferGeometry | null } {
   const walls = new Buf();
   const roofs = new Buf();
   const uv: number[] = [];
   const base = new three.Color(tint);
-  const palette = ['#e6e1d4', '#d6d0c0', '#c6bfae', '#efe9dc', '#b8b2a3', '#dcd2c2', '#cdb9a3', '#d9d9d6'];
+  const palette = look.buildings.walls;
   for (const b of buildings) {
     const rings = ringsFor(b);
     if (rings[0]!.length < 3) continue;
     const seed = Math.abs(Math.sin(rings[0]![0]![0] * 12.9898 + rings[0]![0]![1] * 78.233) * 43758.5453) % 1;
     // The map's own colour when it has one (softened so a vivid tag does not glare), otherwise a varied neutral.
-    const wall = b.colour ? new three.Color(b.colour).lerp(new three.Color('#cfc9bc'), 0.25) : new three.Color(palette[Math.floor(seed * palette.length)]!).lerp(base, 0.1 + seed * 0.1);
-    const roof: [number, number, number] = [wall.r * 0.62, wall.g * 0.6, wall.b * 0.58];
+    const bright = look.id === 'bright';
+    const wall = b.colour && look.buildings.useMapColour ? new three.Color(b.colour).lerp(new three.Color('#cfc9bc'), 0.25) : new three.Color(palette[Math.floor(seed * palette.length)]!).lerp(base, bright ? 0.04 : 0.1 + seed * 0.1);
+    // Bright look: a clean coloured roof per building, picked from the palette; realistic: a darker shade of the wall.
+    const roofColours = look.buildings.roofs;
+    let roof: [number, number, number];
+    if (roofColours) {
+      const rc = new three.Color(roofColours[Math.floor(((seed * 997) % 1) * roofColours.length)]!);
+      roof = [rc.r, rc.g, rc.b];
+    } else roof = [wall.r * look.buildings.roofShade, wall.g * (look.buildings.roofShade - 0.02), wall.b * (look.buildings.roofShade - 0.04)];
     const floors = Math.max(1, Math.round((b.h - b.minH) / STOREY_M));
     const v0 = b.minH / STOREY_M;
     const v1 = v0 + floors;
@@ -168,7 +176,8 @@ export function buildingParts(three: Three, buildings: Building[], tint: string)
         const bays = Math.max(1, Math.round(len / BAY_M));
         const upper: [number, number, number] = [wall.r * shade, wall.g * shade, wall.b * shade];
         if (shopFront) {
-          const lower: [number, number, number] = [wall.r * shade * 0.78, wall.g * shade * 0.72, wall.b * shade * 0.66];
+          const sh = look.buildings.shop;
+          const lower: [number, number, number] = [wall.r * shade * sh, wall.g * shade * (sh - 0.06), wall.b * shade * (sh - 0.12)];
           walls.quad([a[0], b.minH, a[1]], [c[0], b.minH, c[1]], [c[0], splitY, c[1]], [a[0], splitY, a[1]], lower);
           uv.push(0, v0, bays, v0, bays, v0 + 1, 0, v0, bays, v0 + 1, 0, v0 + 1);
           walls.quad([a[0], splitY, a[1]], [c[0], splitY, c[1]], [c[0], b.h, c[1]], [a[0], b.h, a[1]], upper);

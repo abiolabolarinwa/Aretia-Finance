@@ -7,6 +7,7 @@ import type { Pt } from './mvt.js';
 import type { Area, Road, TileWorld } from './worldData.js';
 import { insidePolygon } from './colliders.js';
 import { CELL_M } from './roamBuild.js';
+import { REAL, type Palette } from './style.js';
 
 export interface Square {
   /** The north-west corner of the square, in metres. */
@@ -33,10 +34,6 @@ const overlaps = (pts: Pt[], s: Square, margin: number): boolean => {
   return maxX >= s.x0 - margin && minX <= s.x0 + CELL_M + margin && maxZ >= s.z0 - margin && minZ <= s.z0 + CELL_M + margin;
 };
 
-const AREA_PAINT: Record<string, string> = { grass: '#5d8a47', wood: '#3f6b3a', sand: '#d8c690', paving: '#b4b1a7' };
-const ASPHALT: Record<string, string> = { motorway: '#2b2b2f', trunk: '#2e2e33', primary: '#323237', secondary: '#38383d', tertiary: '#3e3e44', minor: '#46464c', service: '#55555b' };
-const WATER_PAINT = '#3b79a6';
-
 /** The class of a street that gets pavements either side. */
 const hasPavement = (cls: string): boolean => cls !== 'path' && cls !== 'track' && cls !== 'pier' && cls !== 'service' && cls !== 'motorway' && cls !== 'trunk';
 
@@ -44,7 +41,10 @@ const hasPavement = (cls: string): boolean => cls !== 'path' && cls !== 'track' 
  * Paints one square of the ground. `size` is the picture's side in pixels (it covers CELL_M metres). The background is left clear,
  * so the plain ground colour shows through wherever the map has nothing to say.
  */
-export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: string, world: TileWorld): void {
+export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: string, world: TileWorld, palette: Palette = REAL): void {
+  const AREA_PAINT = palette.area;
+  const WATER_PAINT = palette.water;
+  const R = palette.road;
   const s = squareOf(key);
   const k = size / CELL_M;
   const px = (x: number): number => (x - s.x0) * k;
@@ -62,7 +62,7 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
     }
     ctx.fill('evenodd');
   };
-  for (const a of world.areas) fillArea(a, AREA_PAINT[a.kind] ?? AREA_PAINT.grass!);
+  for (const a of world.areas) fillArea(a, AREA_PAINT[a.kind] ?? AREA_PAINT.grass);
   for (const a of world.water) fillArea(a, WATER_PAINT);
   ctx.lineCap = 'round';
   for (const l of world.waterLines) {
@@ -86,14 +86,14 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
   // 1. pavements, 2. kerb, 3. asphalt, 4. markings
   for (const r of roads) {
     if (!hasPavement(r.cls)) continue;
-    ctx.strokeStyle = '#c9c6bb';
+    ctx.strokeStyle = R.pavement;
     ctx.lineWidth = (r.width + 5) * k;
     trace(r);
     ctx.stroke();
   }
   for (const r of roads) {
     if (r.cls === 'path' || r.cls === 'track' || r.cls === 'pier') {
-      ctx.strokeStyle = r.cls === 'pier' ? '#8a8272' : '#b59f78';
+      ctx.strokeStyle = r.cls === 'pier' ? R.pier : R.path;
       ctx.lineWidth = Math.max(r.width, 1.4) * k;
       ctx.lineCap = 'round';
       trace(r);
@@ -101,11 +101,11 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
       ctx.lineCap = 'butt';
       continue;
     }
-    ctx.strokeStyle = '#7d7b74';
+    ctx.strokeStyle = R.kerb;
     ctx.lineWidth = (r.width + 0.6) * k;
     trace(r);
     ctx.stroke();
-    ctx.strokeStyle = ASPHALT[r.cls] ?? '#46464c';
+    ctx.strokeStyle = R.asphalt[r.cls] ?? R.fallback;
     ctx.lineWidth = r.width * k;
     trace(r);
     ctx.stroke();
@@ -114,7 +114,7 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
     if (r.width < 6 || r.cls === 'path' || r.cls === 'track' || r.cls === 'pier') continue;
     // Edge lines on the bigger streets, and a dashed line down the middle.
     if (r.width >= 8) {
-      ctx.strokeStyle = 'rgba(235,235,235,0.7)';
+      ctx.strokeStyle = R.edge;
       ctx.lineWidth = Math.max(0.12 * k, 0.6);
       ctx.setLineDash([]);
       for (const side of [-1, 1]) {
@@ -123,7 +123,7 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
         ctx.stroke();
       }
     }
-    ctx.strokeStyle = r.cls === 'motorway' || r.cls === 'trunk' ? '#e9c84a' : '#f1f1f1';
+    ctx.strokeStyle = r.cls === 'motorway' || r.cls === 'trunk' ? R.centreHighway : R.centre;
     ctx.lineWidth = Math.max(0.16 * k, 0.8);
     ctx.setLineDash([3 * k, 6 * k]);
     trace(r);

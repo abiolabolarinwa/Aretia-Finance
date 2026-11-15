@@ -278,6 +278,21 @@ describe('the city choice and the game', () => {
     expect(root.querySelector('.ucs-bar h2')?.textContent).toBe('Paris');
   });
 
+  it('starts the walk-and-drive view again when the look is switched, and only that view', async () => {
+    const root = await signedInAtCities();
+    const paris = all(root, '.ucs-city').find((c) => c.querySelector('.ucs-city-name')?.textContent === 'Paris');
+    await click(paris);
+    expect(root.textContent).toContain('ROAM');
+    const host = [...root.querySelectorAll('.ucs-play-body > div')].find((d) => d.textContent === 'ROAM')!;
+    expect(host).toBeDefined();
+    expect(roamDestroyed).toBe(0);
+    host.dispatchEvent(new CustomEvent('game-roam-restyle'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(roamDestroyed).toBe(1); // the old view was stopped
+    expect(root.textContent).toContain('ROAM'); // and a new one is running in its place
+    expect(all(root, '.ucs-tab')[0]!.getAttribute('aria-selected')).toBe('true');
+  });
+
   it('puts a returning player straight into their city, and shows the Admin tab only to an administrator', async () => {
     selected = 'london';
     admin = true;

@@ -23,8 +23,9 @@ import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
 import { loadCharacter, makeAnimatedHuman } from './characters.js';
 import { makeStreetPanel } from './streetPanel.js';
+import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { HAZE, makeAtmosphere, SUN_COLOUR, SUN_DIRECTION } from './atmosphere.js';
+import { makeAtmosphere, SUN_DIRECTION } from './atmosphere.js';
 import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
 import { pickNext, startAgent, stepAgent, type Agent, type Seg } from './agents.js';
 import type { Pt } from './mvt.js';
@@ -87,6 +88,10 @@ const KEY_NAMES = ['w', 'a', 's', 'd', 'shift', ' ', 'arrowleft', 'arrowright', 
 export async function mountRoam(host: HTMLElement, city: City, startAt: [number, number], api: RoamApi): Promise<RoamHandle | null> {
   const three = await import('three');
   const origin: Origin = { lng: city.center[0], lat: city.center[1] };
+  // The look the player chose (bright the first time). Changing it starts the view again with the other look.
+  const look: Palette = PALETTES[savedLook()];
+  const ui = look.ui;
+  const card = `background:${ui.card};border:1px solid ${ui.border};box-shadow:0 2px 10px rgba(0,0,0,.18);`;
 
   // ------------------------------------------------------------ the page: a canvas with a heads-up display over it
   const wrap = document.createElement('div');
@@ -96,26 +101,28 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   wrap.append(canvasHolder);
   const hud = (css: string, text = ''): HTMLDivElement => {
     const d = document.createElement('div');
-    d.style.cssText = 'position:absolute;pointer-events:none;color:#fff;font:600 13px system-ui,sans-serif;text-shadow:0 1px 3px #000,0 0 8px #000;' + css;
+    d.style.cssText = `position:absolute;pointer-events:none;color:${ui.text};font:600 13px system-ui,sans-serif;text-shadow:${ui.shadow};` + css;
     d.textContent = text;
     wrap.append(d);
     return d;
   };
-  const status = hud('left:14px;top:12px;font-size:15px;line-height:1.35');
-  const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%');
-  const prompt = hud('left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;background:rgba(0,0,0,.55);padding:8px 16px;border-radius:999px;display:none');
-  const toast = hud('left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;background:rgba(0,0,0,.6);padding:8px 14px;border-radius:12px;display:none');
-  const help = hud('left:14px;bottom:14px;font-size:12px;line-height:1.5;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:12px;font-weight:500', 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo');
+  // In the bright look every readout sits on a white rounded card; in the realistic look text floats with a shadow.
+  const pill = look.id === 'bright' ? card + 'padding:7px 14px;border-radius:999px;' : '';
+  const status = hud('left:14px;top:12px;font-size:15px;line-height:1.35;' + pill);
+  const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%;' + pill);
+  const prompt = hud(`left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.55);'}padding:8px 16px;border-radius:999px;display:none`);
+  const toast = hud(`left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.6);'}padding:8px 14px;border-radius:${look.id === 'bright' ? '18px' : '12px'};display:none`);
+  const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo');
   const mini = document.createElement('canvas');
   mini.width = 176;
   mini.height = 176;
-  mini.style.cssText = 'position:absolute;right:12px;top:12px;width:132px;height:132px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:#101010;pointer-events:none';
+  mini.style.cssText = `position:absolute;right:12px;top:12px;width:132px;height:132px;border-radius:50%;border:3px solid ${look.id === 'bright' ? '#ffffff' : 'rgba(255,255,255,.7)'};box-shadow:0 2px 10px rgba(0,0,0,.25);background:#101010;pointer-events:none`;
   wrap.append(mini);
   const button = (label: string, css: string, on: () => void): HTMLButtonElement => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
-    b.style.cssText = 'position:absolute;cursor:pointer;border:1px solid rgba(255,255,255,.6);background:rgba(0,0,0,.55);color:#fff;font:700 13px system-ui,sans-serif;border-radius:999px;padding:8px 14px;' + css;
+    b.style.cssText = `position:absolute;cursor:pointer;border:1px solid ${ui.border};background:${look.id === 'bright' ? ui.card : 'rgba(0,0,0,.55)'};color:${ui.text};font:700 13px system-ui,sans-serif;border-radius:999px;padding:8px 14px;${look.id === 'bright' ? 'box-shadow:0 2px 10px rgba(0,0,0,.18);' : ''}` + css;
     b.addEventListener('click', on);
     wrap.append(b);
     return b;
@@ -129,6 +136,11 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     if (why) say(why);
   };
   button('Street photo (V)', 'right:12px;top:190px', toggleStreet).setAttribute('aria-label', 'Show or hide a real street photo');
+  // Switches between the bright and the realistic look: remembered, and the view starts again with the new look.
+  button(`Look: ${look.label} (switch)`, 'right:12px;top:228px', () => {
+    saveLook(otherLook(look.id));
+    host.dispatchEvent(new CustomEvent('game-roam-restyle'));
+  }).setAttribute('aria-label', 'Switch between the bright and the realistic look');
   host.replaceChildren(wrap);
 
   // ------------------------------------------------------------ the 3D scene
@@ -144,21 +156,21 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute('aria-label', 'The city. Use W A S D to move.');
   canvasHolder.append(renderer.domElement);
-  // Film-like light: a warm low sun, soft shadows, a hazy horizon, and a tone curve so bright things glow instead of clipping.
-  renderer.toneMapping = three.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  // Light and air for the chosen look: a tone curve so bright things glow instead of clipping, soft shadows, haze that matches the sky.
+  renderer.toneMapping = look.tone.filmic ? three.ACESFilmicToneMapping : three.NoToneMapping;
+  renderer.toneMappingExposure = look.tone.exposure;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = three.PCFSoftShadowMap;
   const scene = new three.Scene();
-  scene.background = new three.Color(HAZE);
-  scene.fog = new three.Fog(HAZE, 140, 950);
-  const camera = new three.PerspectiveCamera(60, 1, 0.3, 1500);
-  const air = makeAtmosphere(three, renderer);
+  scene.background = new three.Color(look.sky.haze);
+  scene.fog = new three.Fog(look.sky.haze, look.fog[0], look.fog[1]);
+  const camera = new three.PerspectiveCamera(look.camera.fov, 1, 0.3, 1500);
+  const air = makeAtmosphere(three, renderer, look);
   scene.add(air.dome);
   scene.environment = air.environment;
-  scene.environmentIntensity = 0.85;
-  scene.add(new three.HemisphereLight('#cfe0ff', '#85715a', 0.7));
-  const sun = new three.DirectionalLight(SUN_COLOUR, 2.6);
+  scene.environmentIntensity = look.light.env;
+  scene.add(new three.HemisphereLight(look.light.hemiSky, look.light.hemiGround, look.light.hemi));
+  const sun = new three.DirectionalLight(look.sky.sun, look.light.sun);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const SH = 120;
@@ -182,9 +194,10 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 7000));
   // The rigged, animated person (free CC0 model); the hand-built figure is the fallback if it cannot be loaded.
   const characterLoading = Promise.race([loadCharacter(three, `${textureBase}game/models/man.glb`), timeout]);
-  const [asphaltTex, pavementTex, plasterTex, concreteTex] = await Promise.all(['asphalt', 'pavement', 'plaster', 'concrete'].map((n) => Promise.race([loadDetail(three, `${textureBase}game/textures/${n}.jpg`, renderer), timeout])));
-  // The plain ground under everything the map paints: dusty pavement colour, as most of a city is.
-  const groundMaterial = new three.MeshLambertMaterial({ color: '#a29f94' });
+  // The bright look is clean and flat-coloured, so it does not load them at all.
+  const [asphaltTex, pavementTex, plasterTex, concreteTex] = look.photoDetail ? await Promise.all(['asphalt', 'pavement', 'plaster', 'concrete'].map((n) => Promise.race([loadDetail(three, `${textureBase}game/textures/${n}.jpg`, renderer), timeout]))) : [null, null, null, null];
+  // The plain ground under everything the map paints: soft green in the bright look, dusty pavement in the realistic one.
+  const groundMaterial = new three.MeshLambertMaterial({ color: look.ground });
   if (pavementTex) applyDetail(three, groundMaterial, { detail: pavementTex, mode: 'world', scale: 1 / 3, strength: 0.8, near: 40, far: 170 });
   const ground = new three.Mesh(new three.PlaneGeometry(9000, 9000), groundMaterial);
   ground.rotation.x = -Math.PI / 2;
@@ -197,20 +210,21 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   windows.height = 128;
   const wg = windows.getContext('2d');
   if (wg) {
-    wg.fillStyle = '#f4f1ea';
+    const wp = look.buildings.window;
+    wg.fillStyle = wp.wall;
     wg.fillRect(0, 0, 128, 128);
-    wg.fillStyle = '#dcd8cd';
+    wg.fillStyle = wp.slab;
     wg.fillRect(0, 118, 128, 10); // the floor slab
-    wg.fillStyle = '#3b3f46';
+    wg.fillStyle = wp.frame;
     wg.fillRect(28, 26, 72, 70); // frame
     const glass = wg.createLinearGradient(0, 30, 0, 92);
-    glass.addColorStop(0, '#9fb8cc');
-    glass.addColorStop(1, '#4d6a85');
+    glass.addColorStop(0, wp.glassTop);
+    glass.addColorStop(1, wp.glassBottom);
     wg.fillStyle = glass;
     wg.fillRect(32, 30, 64, 62);
-    wg.fillStyle = '#3b3f46';
+    wg.fillStyle = wp.frame;
     wg.fillRect(62, 30, 4, 62);
-    wg.fillStyle = '#e8e4da';
+    wg.fillStyle = wp.sill;
     wg.fillRect(24, 96, 80, 5); // sill
   }
   const windowTexture = new three.CanvasTexture(windows);
@@ -242,7 +256,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   poleGeo.translate(0, 3.6, 0);
   const lampHeadGeo = new three.BoxGeometry(0.9, 0.12, 0.3);
   lampHeadGeo.translate(0.35, 7.25, 0);
-  const trunkMat = new three.MeshLambertMaterial({ color: '#5b4331' });
+  const trunkMat = new three.MeshLambertMaterial({ color: look.tree.trunk });
   const crownMat = new three.MeshLambertMaterial({ color: '#ffffff' });
   const poleMat = new three.MeshLambertMaterial({ color: '#4a4d52' });
   const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo]);
@@ -254,7 +268,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     return m;
   };
   const character = await characterLoading;
-  const newPerson = (look?: Look): Human => (character ? makeAnimatedHuman(three, character, look) : makeHuman(three, look));
+  const newPerson = (appearance?: Look): Human => (character ? makeAnimatedHuman(three, character, appearance) : makeHuman(three, appearance));
   const human = newPerson();
   const person = human.group;
   shadowed(person, true, false);
@@ -285,7 +299,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const rigs: Rig[] = [];
   let driving: Rig | null = null;
   let camYaw = 0;
-  let camPitch = 0.45;
+  let camPitch = look.camera.pitch;
   let lastLook = 0;
   const keys = new Set<string>();
   const stick = { x: 0, y: 0 };
@@ -466,7 +480,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      paintGround(ctx, size, key, t.world);
+      paintGround(ctx, size, key, t.world, look);
       const tex = new three.CanvasTexture(canvas);
       tex.colorSpace = three.SRGBColorSpace;
       tex.anisotropy = 8;
@@ -481,7 +495,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       plane.userData.ownMap = true;
       g.add(plane);
     }
-    const parts = buildingParts(three, cell.buildings, city.tint[0]);
+    const parts = buildingParts(three, cell.buildings, city.tint[0], look);
     if (parts.walls) g.add(new three.Mesh(parts.walls, wallMaterial));
     if (parts.roofs) g.add(new three.Mesh(parts.roofs, roofMaterial));
     const blocked = (x: number, z: number): boolean => colliders.insideBuilding(x, z) || colliders.inWater(x, z);
@@ -496,7 +510,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         m4.setPosition(p.x, 0, p.z);
         trunks.setMatrixAt(i, m4);
         crowns.setMatrixAt(i, m4);
-        crowns.setColorAt(i, colour.setHSL(0.27 + p.v * 0.07, 0.45, 0.24 + p.v * 0.12));
+        crowns.setColorAt(i, colour.setHSL(look.tree.hue + p.v * look.tree.hueSpread, look.tree.sat, look.tree.light + p.v * look.tree.lightSpread));
       });
       if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
       for (const im of [trunks, crowns]) {
@@ -746,11 +760,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   }
 
   // ------------------------------------------------------------ treasure zones the server says this player has unlocked
+  const zoneBobs: { s: T.Sprite; y: number; phase: number }[] = [];
   async function loadZones(): Promise<void> {
     try {
       const list = await api.zones();
       if (destroyed) return;
       zoneGroup.clear();
+      zoneBobs.length = 0;
       zones = list.map((zone) => {
         const [x, z] = toLocal(origin, zone.lng, zone.lat);
         const beacon = new three.Group();
@@ -760,6 +776,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         ring.rotation.x = -Math.PI / 2;
         ring.position.y = 0.3;
         beacon.add(pillar, ring);
+        if (look.id === 'bright') {
+          // A gem bubble bobbing over the spot, so it can be found from a distance.
+          const gem = bubble('💎', zone.coin);
+          gem.position.set(0, 12, 0);
+          beacon.add(gem);
+          zoneBobs.push({ s: gem, y: 12, phase: zoneBobs.length * 0.9 });
+        }
         beacon.position.set(x, 0, z);
         zoneGroup.add(beacon);
         return { zone, x, z, beacon };
@@ -769,9 +792,61 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     }
   }
 
-  // ------------------------------------------------------------ the city's landmarks: pale pillars with their names
+  // ------------------------------------------------------------ the city's landmarks
+  // Bright look: a round white icon that floats and bobs over the place, with its name under it. Realistic look: a pale pillar and a label.
+  const bobbers: { s: T.Sprite; y: number; phase: number }[] = [];
+  function bubble(icon: string, label: string): T.Sprite {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 256;
+    const g = c.getContext('2d');
+    if (g) {
+      g.shadowColor = 'rgba(0,0,0,0.28)';
+      g.shadowBlur = 14;
+      g.shadowOffsetY = 4;
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.arc(256, 100, 78, 0, Math.PI * 2);
+      g.fill();
+      g.shadowColor = 'transparent';
+      g.lineWidth = 10;
+      g.strokeStyle = look.ui.accent;
+      g.stroke();
+      g.font = '84px system-ui, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#000000';
+      g.fillText(icon, 256, 106);
+      if (label) {
+        g.font = '700 34px system-ui, sans-serif';
+        const w = Math.min(490, g.measureText(label).width + 44);
+        g.fillStyle = 'rgba(255,255,255,0.96)';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(256 - w / 2, 196, w, 50, 25);
+        else g.rect(256 - w / 2, 196, w, 50);
+        g.fill();
+        g.fillStyle = '#12301f';
+        g.fillText(label, 256, 222, 440);
+      }
+    }
+    const tex = new three.CanvasTexture(c);
+    tex.colorSpace = three.SRGBColorSpace;
+    const s = new three.Sprite(new three.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    s.scale.set(label ? 30 : 16, label ? 15 : 8, 1);
+    s.renderOrder = 9;
+    return s;
+  }
   for (const m of city.landmarks) {
     const [x, z] = toLocal(origin, m.lng, m.lat);
+    if (look.id === 'bright') {
+      const s = bubble('⭐', m.name);
+      s.position.set(x, 30, z);
+      const pole = new three.Mesh(new three.CylinderGeometry(0.18, 0.18, 24, 6), new three.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8 }));
+      pole.position.set(x, 12, z);
+      scene.add(pole, s);
+      bobbers.push({ s, y: 30, phase: bobbers.length * 1.3 });
+      continue;
+    }
     const pillar = new three.Mesh(new three.CylinderGeometry(1.4, 1.8, 90, 10), new three.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55 }));
     pillar.position.set(x, 45, z);
     const c = document.createElement('canvas');
@@ -1227,7 +1302,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       animateCar(r, r.parts, r.state.heading, r.state.speed, dt);
     }
     const target = here();
-    const dist = driving ? (driving.kind === 'boat' ? 13 : 10.5) : 6.2;
+    const dist = driving ? (driving.kind === 'boat' ? look.camera.car * 1.25 : look.camera.car) : look.camera.foot;
     const lift = driving ? 1.8 : 1.5;
     let d = dist;
     for (let i = 0; i < 6; i++) {
@@ -1237,7 +1312,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     }
     // The camera follows with a little lag (more in a car), and the view widens with speed.
     camera.position.lerp(camPos, started ? 1 - Math.exp(-(driving ? 7 : 11) * dt) : 1);
-    const wantFov = 60 + (driving ? Math.min(1, Math.abs(driving.state.speed) / 27) * 16 : Math.min(1, walking / 6.2) * 5);
+    const wantFov = look.camera.fov + (driving ? Math.min(1, Math.abs(driving.state.speed) / 27) * 16 : Math.min(1, walking / 6.2) * 5);
     if (Math.abs(camera.fov - wantFov) > 0.05) {
       camera.fov += (wantFov - camera.fov) * (1 - Math.exp(-3 * dt));
       camera.updateProjectionMatrix();
@@ -1252,6 +1327,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     sun.target.position.set(gx, 0, gz);
     air.dome.position.copy(camera.position);
     air.tick(now / 1000);
+    for (const b of bobbers) b.s.position.y = b.y + Math.sin(now / 650 + b.phase) * 1.3;
+    for (const b of zoneBobs) b.s.position.y = b.y + Math.sin(now / 500 + b.phase) * 0.9;
     manageNpcs(now, dt);
     streetPanel.tick(now);
     started = true;

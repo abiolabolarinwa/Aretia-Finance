@@ -154,6 +154,9 @@ services:
       MI_WATCH_EVERY_SECONDS: ${MI_WATCH_EVERY_SECONDS:-}
       MI_WATCH_MAX: ${MI_WATCH_MAX:-}
       MI_WATCH_COMMITMENT: ${MI_WATCH_COMMITMENT:-}
+      # Market intelligence snapshots (mood, rising/falling, venues): on by default, every 300 seconds; MI_INTEL=0 turns them off.
+      MI_INTEL: ${MI_INTEL:-}
+      MI_INTEL_EVERY_SECONDS: ${MI_INTEL_EVERY_SECONDS:-}
     logging: *logs
 
   # Pushes the worker's pool updates to the Markets pages that are open (Server-Sent Events, through Caddy's /stream). It holds nothing and reads

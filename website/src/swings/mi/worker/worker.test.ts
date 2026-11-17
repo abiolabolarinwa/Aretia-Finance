@@ -209,6 +209,31 @@ describe('the watched-pools task on venues the server does not scan', () => {
   });
 });
 
+describe('the market intelligence snapshot task', () => {
+  const rec = (i: number) => ({ key: `bnb:0x${i.toString(16).padStart(40, 'c')}`, chain: 'bnb', address: `0x${i.toString(16).padStart(40, 'c')}`, adapter_id: 'uniswap-v3-bnb', dex: 'x', base: `0x${i.toString(16).padStart(40, 'a')}`, quote: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', base_decimals: 18, created_at: Date.now() - 40 * 86_400_000, last_trade_at: Date.now() - 60_000, liquidity_usd: 80_000, vol24_usd: 30_000, p_usd: 1.5, chg: { m5: 100, h1: 200, h6: 300, h24: 500 }, buys: { m5: 1, h1: 5, h6: 20, h24: 60 }, sells: { m5: 1, h1: 4, h6: 15, h24: 50 }, vol: { m5: 100, h1: 1000, h6: 10_000, h24: 30_000 }, ro: false, mk: 25, cp: false });
+  it('exists only when the data service is given and MI_INTEL is not 0, runs every five minutes, and stores a snapshot for all networks and each network that has pools', async () => {
+    const mk = (env: Record<string, string>, intel: { url: string; key: string } | null, fetchImpl?: typeof fetch) => buildTasks({ env, store: new InMemoryMiStore(), now: Date.now, intel, fetchImpl, readFor: () => (async () => null) as unknown as Read });
+    expect(mk({ MI_ADAPTERS: 'pancakeswap-v2-bnb' }, null).some((x) => x.id === 'market:intel')).toBe(false);
+    expect(mk({ MI_ADAPTERS: 'pancakeswap-v2-bnb', MI_INTEL: '0' }, { url: 'http://caddy:8080', key: 'k' }).some((x) => x.id === 'market:intel')).toBe(false);
+    const calls: { method: string; url: string; body: string }[] = [];
+    const fetchImpl = (async (u: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url: String(u), body: String(init?.body ?? '') });
+      if (String(u).includes('/mi_pools')) return new Response(JSON.stringify(Array.from({ length: 30 }, (_, i) => rec(i + 1))));
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+    const task = mk({ MI_ADAPTERS: 'pancakeswap-v2-bnb' }, { url: 'http://caddy:8080', key: 'k' }, fetchImpl).find((x) => x.id === 'market:intel')!;
+    expect(task.lane).toBe('market-intel');
+    expect(task.idleMs).toBe(300_000);
+    expect(await task.run(1000)).toEqual({ ok: true, caughtUp: true });
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.url).toContain('/mi_market_snapshots?on_conflict=scope,at');
+    const rows = JSON.parse(post.body) as { scope: string; eligible: number; volume24h: number }[];
+    expect(rows.map((r) => r.scope)).toEqual(['all', 'bnb']); // no row for a network with nothing in it
+    expect(rows[0]).toMatchObject({ eligible: 30, volume24h: 900_000 });
+    expect(calls.some((c) => c.method === 'DELETE' && c.url.includes('/mi_market_snapshots?at=lt.'))).toBe(true);
+  });
+});
+
 describe('watched pools on EVM chains', () => {
   it('runs the adapter of a watched pool every MI_WATCH_EVERY_SECONDS, and the others at the normal pace', async () => {
     const pool = { key: 'bnb:0x' + 'ab'.repeat(20), chain: 'bnb', address: '0x' + 'ab'.repeat(20), adapterId: 'pancakeswap-v2-bnb', state: 'active', paused: false } as unknown as MiPool;

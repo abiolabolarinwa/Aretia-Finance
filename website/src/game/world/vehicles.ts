@@ -37,6 +37,8 @@ export interface CarParts {
    * the right) and how fast its speed is changing (m/s², negative when braking).
    */
   animate(dt: number, speed: number, yawRate: number, accel: number): void;
+  /** How dark it is, 0 to 1: the headlights shine brighter as it gets dark. */
+  setNight(night: number): void;
   dispose(): void;
 }
 
@@ -144,6 +146,9 @@ export function makeCar(three: Three, colour: string, kind: CarKind = 'sedan'): 
   return {
     group: g,
     animate,
+    setNight(night) {
+      head.emissiveIntensity = 1.4 + Math.max(0, Math.min(1, night)) * 3.4;
+    },
     dispose() {
       for (const x of geos) x.dispose();
       for (const m of mats) m.dispose();

@@ -104,6 +104,11 @@ describe('the bright and realistic looks', () => {
     expect(r.uniforms.uHaze!.value.getHexString()).toBe(new three.Color(REAL.sky.haze).getHexString());
     expect(b.uniforms.uGlow!.value).toBeLessThan(r.uniforms.uGlow!.value);
     expect(b.fragmentShader).toContain('uCloudLit');
+    // Night: the sky can show stars and a moon, and starts with none.
+    expect(b.fragmentShader).toContain('uMoonDir');
+    expect(b.fragmentShader).toContain('hash31');
+    expect(b.uniforms.uNight!.value).toBe(0);
+    expect(b.uniforms.uMoonDir!.value.length()).toBeCloseTo(1);
     b.dispose();
     r.dispose();
   });

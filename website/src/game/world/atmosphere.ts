@@ -4,6 +4,7 @@
  */
 import type * as T from 'three';
 import { REAL, type Palette } from './style.js';
+import type { Moment } from './daylight.js';
 
 type Three = typeof import('three');
 
@@ -38,7 +39,12 @@ uniform vec3 uCloudLit;
 uniform vec3 uCloudShade;
 uniform float uGlow;
 uniform float uTime;
+uniform vec3 uMoonDir;
+uniform float uNight;
 varying vec3 vDir;
+float hash31(vec3 p) {
+  return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+}
 float hash21(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -74,6 +80,14 @@ void main() {
   }
   // A wide warm glow, a tighter one, and the disc itself (partly hidden behind cloud).
   col += uSun * (0.18 * pow(s, 3.0) + 0.45 * pow(s, 24.0) + 2.4 * pow(s, 700.0)) * uGlow * (1.0 - cloud * 0.7);
+  // Night: twinkling stars (hidden by cloud and fading towards the horizon) and a moon with a soft halo.
+  if (uNight > 0.01 && d.y > 0.0) {
+    float star = step(0.9972, hash31(floor(d * 230.0)));
+    float twinkle = 0.55 + 0.45 * sin(uTime * 2.3 + hash31(floor(d * 230.0)) * 60.0);
+    col += vec3(1.0, 0.97, 0.9) * star * twinkle * uNight * smoothstep(0.04, 0.3, d.y) * (1.0 - cloud);
+    float m = max(dot(d, normalize(uMoonDir)), 0.0);
+    col += vec3(0.86, 0.9, 1.0) * (smoothstep(0.9993, 0.9996, m) * 1.7 + 0.1 * pow(m, 48.0)) * uNight;
+  }
   // Haze thickens towards the horizon, and everything below it is haze.
   col = mix(col, uHaze, (1.0 - smoothstep(0.0, 0.12, h)) * 0.55);
   if (d.y < 0.0) col = uHaze;
@@ -98,6 +112,8 @@ export function skyMaterial(three: Three, look: Palette = REAL): T.ShaderMateria
       uCloudLit: { value: new three.Color(look.sky.cloudLit) },
       uCloudShade: { value: new three.Color(look.sky.cloudShade) },
       uGlow: { value: look.sky.glow },
+      uMoonDir: { value: new three.Vector3(-SUN_DIRECTION[0], -SUN_DIRECTION[1], -SUN_DIRECTION[2]) },
+      uNight: { value: 0 },
       uTime: { value: 0 },
     },
   });
@@ -110,6 +126,8 @@ export interface Atmosphere {
   environment: T.Texture;
   /** Moves the clouds on; pass the time in seconds. */
   tick(seconds: number): void;
+  /** Sets the sky for a time of day: its colours, where the sun and moon are, and how many stars show. */
+  setMoment(m: Moment): void;
   dispose(): void;
 }
 
@@ -130,6 +148,19 @@ export function makeAtmosphere(three: Three, renderer: T.WebGLRenderer, look: Pa
     environment: target.texture,
     tick(seconds) {
       material.uniforms.uTime!.value = seconds;
+    },
+    setMoment(m) {
+      const u = material.uniforms;
+      (u.uZenith!.value as T.Color).set(m.sky.zenith);
+      (u.uMid!.value as T.Color).set(m.sky.mid);
+      (u.uHaze!.value as T.Color).set(m.sky.haze);
+      (u.uSun!.value as T.Color).set(m.sky.sun);
+      (u.uCloudLit!.value as T.Color).set(m.sky.cloudLit);
+      (u.uCloudShade!.value as T.Color).set(m.sky.cloudShade);
+      u.uGlow!.value = m.sky.glow;
+      (u.uSunDir!.value as T.Vector3).set(...m.sun);
+      (u.uMoonDir!.value as T.Vector3).set(...m.moon);
+      u.uNight!.value = m.night;
     },
     dispose() {
       dome.geometry.dispose();

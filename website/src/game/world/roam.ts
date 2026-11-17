@@ -23,9 +23,11 @@ import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
 import { loadCharacter, makeAnimatedHuman } from './characters.js';
 import { makeStreetPanel } from './streetPanel.js';
+import { SoundEngine, saveMuted, savedMuted } from './sound.js';
 import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { makeAtmosphere, SUN_DIRECTION } from './atmosphere.js';
+import { makeAtmosphere } from './atmosphere.js';
+import { formatClock, hoursOf, makeClock, mixColours, momentAt } from './daylight.js';
 import { makeCar, TRAFFIC_COLOURS, type CarKind, type CarParts } from './vehicles.js';
 import { pickNext, startAgent, stepAgent, type Agent, type Seg } from './agents.js';
 import type { Pt } from './mvt.js';
@@ -112,7 +114,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%;' + pill);
   const prompt = hud(`left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.55);'}padding:8px 16px;border-radius:999px;display:none`);
   const toast = hud(`left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.6);'}padding:8px 14px;border-radius:${look.id === 'bright' ? '18px' : '12px'};display:none`);
-  const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo');
+  const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo · T time · M sound · H horn');
   const mini = document.createElement('canvas');
   mini.width = 176;
   mini.height = 176;
@@ -136,6 +138,20 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     if (why) say(why);
   };
   button('Street photo (V)', 'right:12px;top:190px', toggleStreet).setAttribute('aria-label', 'Show or hide a real street photo');
+  // Sound is made in the browser; it starts after the first key press or click, and the choice to mute is remembered (M).
+  const sound = new SoundEngine({ muted: savedMuted() });
+  const soundLabel = (): string => `Sound: ${sound.isMuted ? 'off' : 'on'} (M)`;
+  const soundButton = button(soundLabel(), 'right:12px;top:304px', () => toggleSound());
+  soundButton.setAttribute('aria-label', 'Turn the sound on or off');
+  function toggleSound(): void {
+    sound.unlock();
+    sound.setMuted(!sound.isMuted);
+    saveMuted(sound.isMuted);
+    soundButton.textContent = soundLabel();
+  }
+  wrap.addEventListener('pointerdown', () => sound.unlock());
+  // Skips three game hours, to see the evening, the night or the morning (T).
+  button('Time +3 h (T)', 'right:12px;top:266px', () => clock.skip(3)).setAttribute('aria-label', 'Skip three hours of game time');
   // Switches between the bright and the realistic look: remembered, and the view starts again with the new look.
   button(`Look: ${look.label} (switch)`, 'right:12px;top:228px', () => {
     saveLook(otherLook(look.id));
@@ -169,7 +185,11 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   scene.add(air.dome);
   scene.environment = air.environment;
   scene.environmentIntensity = look.light.env;
-  scene.add(new three.HemisphereLight(look.light.hemiSky, look.light.hemiGround, look.light.hemi));
+  const hemi = new three.HemisphereLight(look.light.hemiSky, look.light.hemiGround, look.light.hemi);
+  scene.add(hemi);
+  // The time of day: starts at the player's own local hour and runs fast (a day in about 24 minutes of play).
+  const clock = makeClock(hoursOf(new Date()));
+  let moment = momentAt(clock.hours(), look.sky);
   const sun = new three.DirectionalLight(look.sky.sun, look.light.sun);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -178,7 +198,10 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.6;
   scene.add(sun, sun.target);
-  const sunAt = new three.Vector3(...SUN_DIRECTION).multiplyScalar(260);
+  // Headlights of the car the player drives: one soft beam, only in the dark.
+  const beam = new three.SpotLight('#fff1c9', 0, 80, 0.55, 0.7, 1);
+  beam.visible = false;
+  scene.add(beam, beam.target);
   /** Marks a thing as casting and receiving the sun's shadows. */
   const shadowed = (o: T.Object3D, cast = true, receive = true): void => {
     o.traverse((c) => {
@@ -232,7 +255,22 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   windowTexture.wrapT = three.RepeatWrapping;
   windowTexture.colorSpace = three.SRGBColorSpace;
   windowTexture.anisotropy = 4;
-  const wallMaterial = new three.MeshLambertMaterial({ vertexColors: true, map: windowTexture });
+  // At night the windows glow: the same picture with only the glass lit, used as the wall's emission and faded in with the dark.
+  const lit = document.createElement('canvas');
+  lit.width = 128;
+  lit.height = 128;
+  const lg = lit.getContext('2d');
+  if (lg) {
+    lg.fillStyle = '#000000';
+    lg.fillRect(0, 0, 128, 128);
+    lg.fillStyle = '#ffffff';
+    lg.fillRect(32, 30, 64, 62);
+  }
+  const litTexture = new three.CanvasTexture(lit);
+  litTexture.wrapS = three.RepeatWrapping;
+  litTexture.wrapT = three.RepeatWrapping;
+  litTexture.colorSpace = three.SRGBColorSpace;
+  const wallMaterial = new three.MeshLambertMaterial({ vertexColors: true, map: windowTexture, emissive: '#ffcf8a', emissiveMap: litTexture, emissiveIntensity: 0 });
   const roofMaterial = new three.MeshLambertMaterial({ vertexColors: true, side: three.DoubleSide });
   if (plasterTex) applyDetail(three, wallMaterial, { detail: plasterTex, mode: 'uv', scale: 0.5, strength: 0.75, near: 70, far: 320 });
   if (concreteTex) applyDetail(three, roofMaterial, { detail: concreteTex, mode: 'world', scale: 1 / 3, strength: 0.8, near: 60, far: 260 });
@@ -259,6 +297,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const trunkMat = new three.MeshLambertMaterial({ color: look.tree.trunk });
   const crownMat = new three.MeshLambertMaterial({ color: '#ffffff' });
   const poleMat = new three.MeshLambertMaterial({ color: '#4a4d52' });
+  // Street lamp heads glow warmly once it is dark.
+  const lampHeadMat = new three.MeshLambertMaterial({ color: '#4a4d52', emissive: '#ffc766', emissiveIntensity: 0 });
   const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo]);
 
   // ------------------------------------------------------------ what the player is: a person, a car, a boat
@@ -300,6 +340,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   let driving: Rig | null = null;
   let camYaw = 0;
   let camPitch = look.camera.pitch;
+  let lastThud = 0;
+  let lastHeading = 0;
   let lastLook = 0;
   const keys = new Set<string>();
   const stick = { x: 0, y: 0 };
@@ -522,7 +564,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     const lamps = lampsFor(key, t.world, blocked);
     if (lamps.length) {
       const poles = new three.InstancedMesh(poleGeo, poleMat, lamps.length);
-      const heads = new three.InstancedMesh(lampHeadGeo, poleMat, lamps.length);
+      const heads = new three.InstancedMesh(lampHeadGeo, lampHeadMat, lamps.length);
       const m4 = new three.Matrix4();
       lamps.forEach((p, i) => {
         m4.makeRotationY(hashAngle(p.x, p.z));
@@ -873,7 +915,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // ------------------------------------------------------------ input
   const onKey = (down: boolean) => (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
-    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f' && k !== 'v') return;
+    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f' && k !== 'v' && k !== 't' && k !== 'm' && k !== 'h') return;
+    if (down) sound.unlock();
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (k === 'e') {
       if (down && !e.repeat) pressE = true;
@@ -881,6 +924,12 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       if (down && !e.repeat) toggleFullscreen();
     } else if (k === 'v') {
       if (down && !e.repeat) toggleStreet();
+    } else if (k === 't') {
+      if (down && !e.repeat) clock.skip(3);
+    } else if (k === 'm') {
+      if (down && !e.repeat) toggleSound();
+    } else if (k === 'h') {
+      if (down && !e.repeat && driving) sound.horn();
     } else if (down) keys.add(k);
     else keys.delete(k);
     e.preventDefault();
@@ -1063,6 +1112,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
           foot.vz = 0;
           driving = null;
           v.state.speed = 0;
+          sound.door();
           return;
         }
       }
@@ -1075,6 +1125,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         await sync(true);
         const r = await api.collect(zone.zone.id).catch(() => ({ ok: false, message: 'That did not work. Try again.' }));
         say(r.message, 7000);
+        if (r.ok) sound.chime();
         await loadZones();
       })();
       return;
@@ -1091,6 +1142,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     if (best) {
       driving = best;
       camYaw = best.state.heading;
+      sound.door();
     }
   }
 
@@ -1230,7 +1282,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     const p = here();
     const kmh = driving ? Math.abs(driving.state.speed) * 3.6 : Math.hypot(foot.vx, foot.vz) * 3.6;
     const m = mode();
-    status.textContent = `${m === 'walk' ? 'Walking' : m === 'run' ? 'Running' : m === 'car' ? driving!.name : 'Boat'} · ${Math.round(kmh)} km/h`;
+    status.textContent = `${m === 'walk' ? 'Walking' : m === 'run' ? 'Running' : m === 'car' ? driving!.name : 'Boat'} · ${Math.round(kmh)} km/h · ${formatClock(clock.hours())}`;
     const street = streetName(p.x, p.z);
     const lm = nearestLandmark(p.x, p.z);
     place.textContent = street || (lm && lm.d < 400 ? `Near ${lm.name}` : city.name);
@@ -1270,7 +1322,11 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       interact();
     }
     if (driving) {
-      stepVehicle(driving.state, { throttle: Math.max(-1, Math.min(1, iy)), steer: Math.max(-1, Math.min(1, ix)), handbrake: keys.has(' ') || touchBrake }, driving.spec, dt, colliders);
+      const drive = stepVehicle(driving.state, { throttle: Math.max(-1, Math.min(1, iy)), steer: Math.max(-1, Math.min(1, ix)), handbrake: keys.has(' ') || touchBrake }, driving.spec, dt, colliders);
+      if (drive.crashed && now - lastThud > 700) {
+        lastThud = now;
+        sound.thud();
+      }
       // The camera drifts round behind the vehicle unless the player has just looked around.
       if (now - lastLook > 1800) {
         let diff = driving.state.heading - camYaw;
@@ -1323,14 +1379,55 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     // The sun, its shadows and the sky stay with the player. The shadow box moves in whole metres so shadows do not shimmer.
     const gx = Math.round(target.x);
     const gz = Math.round(target.z);
-    sun.position.set(gx + sunAt.x, sunAt.y, gz + sunAt.z);
+    // Time of day: the sun (or the moon at night), the sky, the haze and the ambient light all follow the clock.
+    clock.tick(dt);
+    moment = momentAt(clock.hours(), look.sky);
+    const ld = moment.lightDir;
+    sun.position.set(gx + ld[0] * 260, Math.max(30, ld[1] * 260), gz + ld[2] * 260);
     sun.target.position.set(gx, 0, gz);
+    sun.color.set(moment.lightColour);
+    sun.intensity = look.light.sun * moment.lightStrength;
+    hemi.intensity = look.light.hemi * moment.ambient;
+    hemi.color.set(mixColours([[look.light.hemiSky, moment.ambient], ['#6f86d0', 1 - moment.ambient]]));
+    scene.environmentIntensity = look.light.env * moment.ambient;
+    renderer.toneMappingExposure = look.tone.exposure * moment.exposure;
+    air.setMoment(moment);
+    (scene.background as T.Color).set(moment.sky.haze);
+    (scene.fog as T.Fog).color.set(moment.sky.haze);
+    wallMaterial.emissiveIntensity = moment.night * 0.95;
+    lampHeadMat.emissiveIntensity = moment.night * 2.6;
+    for (const r of rigs) r.parts?.setNight(moment.night);
+    for (const n of npcs) n.car?.setNight(moment.night);
+    // The car being driven throws a beam of light ahead of it in the dark.
+    if (driving && driving.kind === 'car' && moment.night > 0.05) {
+      const h = driving.state.heading;
+      beam.visible = true;
+      beam.intensity = 38 * moment.night;
+      beam.position.set(driving.state.x + Math.sin(h) * 2.2, 0.9, driving.state.z - Math.cos(h) * 2.2);
+      beam.target.position.set(driving.state.x + Math.sin(h) * 24, 0.2, driving.state.z - Math.cos(h) * 24);
+    } else beam.visible = false;
     air.dome.position.copy(camera.position);
     air.tick(now / 1000);
     for (const b of bobbers) b.s.position.y = b.y + Math.sin(now / 650 + b.phase) * 1.3;
     for (const b of zoneBobs) b.s.position.y = b.y + Math.sin(now / 500 + b.phase) * 0.9;
     manageNpcs(now, dt);
     streetPanel.tick(now);
+    // What is heard follows what is happening: the vehicle's speed and turning, the pedal, the handbrake, and the dark.
+    const heading = driving ? driving.state.heading : foot.heading;
+    const yaw = Math.abs(Math.atan2(Math.sin(heading - lastHeading), Math.cos(heading - lastHeading))) / Math.max(dt, 0.001);
+    lastHeading = heading;
+    sound.update(
+      {
+        mode: driving ? (driving.kind === 'boat' ? 'boat' : 'car') : walking > 3.6 ? 'run' : 'walk',
+        speed: driving ? Math.abs(driving.state.speed) : walking,
+        throttle: driving ? Math.max(0, Math.min(1, iy)) : 0,
+        yaw: Math.min(4, yaw),
+        braking: !!driving && iy < 0 && Math.abs(driving.state.speed) > 1,
+        handbrake: keys.has(' ') || touchBrake,
+        night: moment.night,
+      },
+      dt,
+    );
     started = true;
 
     // Make sure the beacon pillars pulse, and keep the world loading and the server told.
@@ -1385,6 +1482,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       window.removeEventListener('blur', blur);
       for (let i = npcs.length - 1; i >= 0; i--) dropNpc(i);
       streetPanel.destroy();
+      sound.dispose();
       air.dispose();
       document.removeEventListener('fullscreenchange', onFullChange);
       if (document.fullscreenElement === wrap) void document.exitFullscreen().catch(() => undefined);

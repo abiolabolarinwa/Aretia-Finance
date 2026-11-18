@@ -1,5 +1,5 @@
 import * as web3 from '@solana/web3.js';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { buildCpmmSwapTransaction, cpmmSwapInstruction, MAX_PRIORITY_MICRO_LAMPORTS, swapBaseInputDiscriminator, WSOL_MINT, type CpmmSwapStep } from './builder.js';
 import { parseConfigState, parsePoolState, RAYDIUM_CPMM_PROGRAM, RaydiumCpmmAdapter, sortMints, tokenAccountAmount, type SolRpc } from './raydiumCpmm.js';
@@ -12,6 +12,19 @@ import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../../scripts/walletToo
 import type { AretiaFeeConfig, SwapRequest } from '../core/types.js';
 import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
 import { AretiaRouter } from '../router/router.js';
+
+// These tests use fake Solana nodes and must never reach the real internet. Venue lookups (DexScreener pool hints, the Manifest stats
+// server, the site's own /api/swings-pools) go through the global fetch, and a full run made about 700 real requests. From a shared CI
+// machine those get throttled or slow, so each quote waited 20 to 60 seconds, the tests timed out, and CI failed with no code change.
+// With the network switched off the lookups fail at once, which the code already treats as "no hint", and the file runs in seconds.
+beforeAll(() => {
+  vi.stubGlobal('fetch', async () => {
+    throw new Error('network access is switched off in this test file');
+  });
+});
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USER = web3.Keypair.generate().publicKey.toBase58(); // a throwaway public key: no secret is ever used here

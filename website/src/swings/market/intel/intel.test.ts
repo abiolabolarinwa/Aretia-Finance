@@ -223,6 +223,17 @@ describe('ADV: busiest venues', () => {
     expect(r.excludedVolume24hUsd).toBe(900_400_000);
     expect(r.excluded).toEqual({ suspicious: 2, 'no-volume': 2, 'no-venue': 1, 'low-liquidity': 1 });
   });
+  it('leaves out a pool whose few accounts each turn its liquidity over many times, which the other two rules miss (the 5-account, $220M case)', () => {
+    const ant = pool({ venue: 'PancakeSwap V2', vol: 220_290_000, liq: 2_653_000, txns: 1_953, traders: 11 }); // 83 times liquidity is under the cap and 11 accounts is over the account cap
+    const real = pool({ venue: 'PancakeSwap V2', vol: 1_080_000, liq: 117_000, txns: 918, traders: 634 });
+    const r = adv([ant, real], null, 10);
+    expect(r.venues).toHaveLength(1);
+    expect(r.venues[0]!.volume24hUsd).toBe(1_080_000);
+    expect(r.excluded.suspicious).toBe(1);
+    expect(r.excludedVolume24hUsd).toBe(220_290_000);
+    // The same pool with the volume spread over 2,000 accounts is ordinary trading and counts.
+    expect(adv([pool({ venue: 'X', vol: 220_290_000, liq: 2_653_000, txns: 20_000, traders: 2_000 })], null).venues).toHaveLength(1);
+  });
   it('a swap count that is a floor says so', () => {
     const r = adv([{ ...pool({ venue: 'X', vol: 10_000 }), txnsCapped: true }], null);
     expect(r.venues[0]!.swapsCapped).toBe(true);

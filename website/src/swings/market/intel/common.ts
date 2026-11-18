@@ -22,6 +22,8 @@ export interface IntelConfig {
   /** A pool with at least this many transactions in 24 hours but at most `washMaxTraders` accounts is repetitive trading. */
   washMinTxns: number;
   washMaxTraders: number;
+  /** An account that turns a pool's whole liquidity over more than this many times in a day (volume / accounts / liquidity) is not trading, it is looping. */
+  maxTurnoverPerTrader: number;
   /** Fewest eligible tokens for which a breadth figure or an index is shown. */
   minEligible: number;
   /** Trade size, in dollars, the depth measure asks about. */
@@ -35,7 +37,8 @@ export const DEFAULT_CONFIG: IntelConfig = {
   minLiquidityUsd: 1_000,
   maxVolumeToLiquidity: 100,
   washMinTxns: 20,
-  washMaxTraders: 2,
+  washMaxTraders: 10,
+  maxTurnoverPerTrader: 5,
   minEligible: 20,
   depthTradeUsd: 1_000,
   depthZeroImpact: 0.05,
@@ -96,12 +99,17 @@ export interface Screened {
 
 export const bump = (m: Partial<Record<Exclusion, number>>, k: Exclusion): void => void (m[k] = (m[k] ?? 0) + 1);
 
-/** Wash trading or a broken price: far more volume than the pool could hold, or many trades from almost no accounts. */
+/**
+ * Wash trading or a broken price: far more volume than the pool could hold, many trades from a handful of accounts, or a few accounts each
+ * turning the pool's whole liquidity over several times a day. (A day-old token with $2.7M of liquidity that did $220M from five accounts passed
+ * the first two rules and is what the third is for. Real tokens spread their volume over hundreds of accounts.)
+ */
 export function suspicious(p: IntelPool, c: IntelConfig = DEFAULT_CONFIG): boolean {
   const liq = p.liquidityUsd ?? 0;
   const v = p.volumeUsd.h24 ?? 0;
   if (liq > 0 && v > c.maxVolumeToLiquidity * liq) return true;
-  return (p.txns24h ?? 0) >= c.washMinTxns && p.traders24h !== null && p.traders24h <= c.washMaxTraders;
+  if ((p.txns24h ?? 0) >= c.washMinTxns && p.traders24h !== null && p.traders24h <= c.washMaxTraders) return true;
+  return liq > 0 && p.traders24h !== null && p.traders24h >= 1 && v / p.traders24h > c.maxTurnoverPerTrader * liq;
 }
 
 /**

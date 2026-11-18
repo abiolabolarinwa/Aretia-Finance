@@ -18,7 +18,7 @@ Every figure uses the same checks (`common.ts`):
 | Valid change | a change over that very window. A pool that did not trade in the window has none (the index stores no number, never zero), so a stale pool is out |
 | Liquidity | at least $1,000 |
 | Not new | older than the window (at least 15 minutes). A token younger than the window has no price from before it opened and must not read as "rising" because its first price is above zero |
-| Not suspicious | 24-hour volume at most 100 times liquidity, and not 20+ transactions from 2 or fewer accounts |
+| Not suspicious | none of: 24-hour volume above 100 times liquidity; 20+ transactions from 10 or fewer accounts; a few accounts each turning the pool's liquidity over more than 5 times a day (volume / accounts / liquidity). The last rule catches a day-old token that did $220M on $2.7M of liquidity from five accounts, which the first two missed |
 | One pool per token | the most liquid pool stands for the token. The same address on two networks is two tokens |
 | One entry per pool | the same pool listed twice counts once |
 
@@ -65,6 +65,10 @@ Each card shows "Data confidence: High / Medium / Low", the number of eligible t
 
 Hover the line for the coverage and every limit.
 
+## The stats bar and the venue card are one figure
+
+The stats bar (24-hour volume and transactions, per network and in total) and the busiest-venues card read the same pools, once a minute, through one shared read (`api/_intelPools.ts`), and apply the same checks (`screenVenuePools`). So the bar's total equals the sum of all venues, and the volume each leaves out as wash trading is the same number. Before this the bar counted pools down to $100 of liquidity with one check and the venue card used a stricter set, so the two totals differed.
+
 ## Storage and API
 
 * Table `mi_market_snapshots` (migration 0024): per scope (`all` or a network) and time, the inputs of the calculations, a methodology version (a stored row is only read with the formulas it was made with), and the per-venue volumes. Kept 8 days. Written by the worker task `market:intel` every 300 seconds (`MI_INTEL_EVERY_SECONDS`; `MI_INTEL=0` turns it off). The table is on Caddy's public allow-list for reading with the service key.
@@ -73,7 +77,8 @@ Hover the line for the coverage and every limit.
 
 ## Where this differs from the original specification, and what is not done
 
-* **No external price sources.** "Validate prices against multiple independent sources" is not done: Aretia's index prices come from its own reading of the chains. There is no second source to compare with, and the stats bar's own total uses a different universe (liquidity floor $100, no account checks), so its total and the venue total can differ; the venue card says what it covers.
+* **No external price sources.** "Validate prices against multiple independent sources" is not done: Aretia's index prices come from its own reading of the chains. There is no second source to compare with.
+* **The wash-trading checks are heuristics.** They remove the obvious loops, not every one. A pool trading a lot among several dozen accounts still counts. Each card reports the volume it left out, so a reader can see how much was judged.
 * **Executable depth** is estimated from pool liquidity with a constant-product formula. For concentrated-liquidity pools the index's liquidity is the quote-token balance, which can overstate usable depth.
 * **Per-token seven-day volume** is not stored. V compares the whole eligible universe's 24-hour volume with its own earlier values.
 * **USD conversion** uses the index's own references (stablecoins, the chain's coin from its reference pool); there is no second reference to validate against.

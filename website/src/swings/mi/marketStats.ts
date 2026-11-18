@@ -3,27 +3,12 @@
  * each network. Pure: it turns the rows the endpoint reads (api/_swingsMarketIndex.ts, `src=stats`) into the numbers the page shows.
  *
  * What the numbers are, in words the page repeats: the total is the sum over the pools the index follows and has a stored trade for in the
- * last 24 hours (liquidity $100+ and listed), not the whole market of a network. A dash means the index has nothing, never zero.
+ * last 24 hours with $1,000+ of liquidity that pass the wash-trading checks (the same pools as the busiest-venues card), not the whole market of a network. A dash means the index has nothing, never zero.
  */
 import { isMiChain, MI_CHAINS, type MiChain } from './chains.js';
-import { MAX_PLAUSIBLE_LIQUIDITY_USD } from './marketList.js';
+import { screenVenuePools } from '../market/intel/adv.js';
+import type { IntelPool } from '../market/intel/common.js';
 import type { AdapterHealth } from './types.js';
-
-/** Pools below this liquidity are left out (the same floor as every Markets list). */
-export const STATS_MIN_LIQUIDITY_USD = 100;
-
-/** A pool whose 24h volume is more than this many times its liquidity is left out of the totals: that is wash trading or a broken price, and one such pool can outweigh a whole network. */
-export const STATS_MAX_VOLUME_TO_LIQUIDITY = 100;
-
-export interface StatsPoolRow {
-  chain: string;
-  vol24_usd: number | null;
-  buys?: { h24?: number | null } | null;
-  sells?: { h24?: number | null } | null;
-  liquidity_usd?: number | null;
-  /** The pool's counts cover only its newest trades of the day. */
-  cp?: boolean | null;
-}
 
 export interface ChainStats {
   volume24hUsd: number;
@@ -46,28 +31,28 @@ export interface MarketStats {
   chains: Partial<Record<MiChain, ChainStats>>;
 }
 
-const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
-
-export function buildStats(pools: readonly StatsPoolRow[], health: readonly Pick<AdapterHealth, 'chain' | 'head' | 'safeHead' | 'lastSuccessAt' | 'lastRunAt'>[], now: number): MarketStats {
+/**
+ * The stats bar's numbers from the same pools and the same checks as the market intelligence engine's venue volume (src/swings/market/intel/):
+ * a pool counts when it has a day's volume, a venue, at least $1,000 of liquidity and passes the wash-trading checks. A pool that fails those
+ * is left out and its volume reported, so the bar's total and the venues' total are one figure for one set of pools.
+ */
+export function buildStats(pools: readonly IntelPool[], health: readonly Pick<AdapterHealth, 'chain' | 'head' | 'safeHead' | 'lastSuccessAt' | 'lastRunAt'>[], now: number): MarketStats {
   const chains: Partial<Record<MiChain, ChainStats>> = {};
   const at = (c: MiChain): ChainStats => (chains[c] ??= { volume24hUsd: 0, txns24h: 0, pools: 0, excludedPools: 0, excludedVolume24hUsd: 0, cappedPools: 0, latestBlock: null, blockSeenAt: null });
-  for (const p of pools) {
-    if (!isMiChain(p.chain)) continue;
-    const vol = num(p.vol24_usd);
-    if (vol === 0) continue;
-    const c = at(p.chain);
-    const liq = num(p.liquidity_usd);
-    // A pool claiming more than this is an estimate gone wrong (see marketList.ts), not a market: it is not counted, not even as left out.
-    if (liq > MAX_PLAUSIBLE_LIQUIDITY_USD) continue;
-    if (liq > 0 && vol > liq * STATS_MAX_VOLUME_TO_LIQUIDITY) {
-      c.excludedPools += 1;
-      c.excludedVolume24hUsd += vol;
-      continue;
+  const byChain = new Map<MiChain, IntelPool[]>();
+  for (const p of pools) if (isMiChain(p.chain)) byChain.set(p.chain, [...(byChain.get(p.chain) ?? []), p]);
+  for (const [chain, list] of byChain) {
+    const s = screenVenuePools(list);
+    if (s.eligible.length === 0 && s.excludedVolume === 0) continue;
+    const c = at(chain);
+    for (const p of s.eligible) {
+      c.volume24hUsd += p.volumeUsd.h24 ?? 0;
+      c.txns24h += p.txns24h ?? 0;
+      c.pools += 1;
+      if (p.txnsCapped) c.cappedPools += 1;
     }
-    if (p.cp === true) c.cappedPools += 1;
-    c.volume24hUsd += vol;
-    c.txns24h += num(p.buys?.h24) + num(p.sells?.h24);
-    c.pools += 1;
+    c.excludedPools = s.excluded.suspicious ?? 0;
+    c.excludedVolume24hUsd = s.excludedVolume;
   }
   for (const h of health) {
     if (!isMiChain(h.chain)) continue;

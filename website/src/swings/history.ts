@@ -53,6 +53,25 @@ const valid = (v: unknown): v is HistoryItem => {
   );
 };
 
+/** An amount the Swap box can be filled with as it stands: digits and at most one decimal point. */
+const PLAIN_AMOUNT = /^(?:\d+|\d*\.\d+)$/;
+
+/**
+ * The swap to offer to repeat: the newest swap among `items` that confirmed, kept both tokens' addresses and has an amount the box can take.
+ * One tap then fills the pair and the amount; the person still reviews the new quote and confirms it. Null when there is none.
+ */
+export function lastSwapOf(items: readonly HistoryItem[]): HistoryItem | null {
+  let best: HistoryItem | null = null;
+  for (const i of items) {
+    if (i.status !== 'confirmed' || !i.fromAddress || !i.toAddress || !PLAIN_AMOUNT.test(i.amountIn) || !(Number(i.amountIn) > 0)) continue;
+    if (best === null || i.at > best.at) best = i;
+  }
+  return best;
+}
+
+/** "25 USDC → BONK", for the Repeat button. */
+export const repeatLabel = (i: Pick<HistoryItem, 'amountIn' | 'fromSymbol' | 'toSymbol'>): string => `${i.amountIn} ${i.fromSymbol} \u2192 ${i.toSymbol}`;
+
 export class SwapHistory {
   constructor(private readonly storage: StorageLike | null) {}
 

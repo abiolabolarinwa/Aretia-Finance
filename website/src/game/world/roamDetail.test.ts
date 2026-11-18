@@ -58,6 +58,28 @@ describe('the detail of the ground', () => {
     expect(r.strokes.map((s) => s.colour)).toEqual(['#b59f78']);
   });
 
+  it('paints crosswalks and stop lines at a signalised junction, and not on streets with no signals', () => {
+    const lines = (roads: TileWorld['roads']): { moves: number; strokes: number } => {
+      const w = empty();
+      w.roads.push(...roads);
+      const r = recorder();
+      paintGround(r.ctx, 512, '0,0', w);
+      return { moves: r.calls.filter((c) => c === 'moveTo').length, strokes: r.calls.filter((c) => c === 'stroke').length };
+    };
+    const cross = (width: number, cls: string): TileWorld['roads'] => [
+      { pts: [[0, 100], [100, 100]], width, cls },
+      { pts: [[100, 100], [200, 100]], width, cls },
+      { pts: [[100, 0], [100, 100]], width, cls },
+      { pts: [[100, 100], [100, 200]], width, cls },
+    ];
+    const none = lines(cross(6, 'minor'));
+    const signals = lines(cross(10, 'primary'));
+    // Four roads, each with a zebra crossing (about nine stripes) and a stop line.
+    const extraStrokes = signals.strokes - lines(cross(10, 'primary').map((r) => ({ ...r, cls: 'motorway' }))).strokes;
+    expect(extraStrokes).toBeGreaterThanOrEqual(8); // 2 strokes (zebra, stop line) per arm
+    expect(signals.moves).toBeGreaterThan(none.moves + 4 * 9);
+  });
+
   it('moves a line sideways for lane edges', () => {
     const o = offsetPolyline([[0, 0], [10, 0]], 2);
     expect(o[0]![1]).toBeCloseTo(2);

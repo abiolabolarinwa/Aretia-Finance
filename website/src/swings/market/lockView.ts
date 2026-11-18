@@ -24,6 +24,13 @@ export interface LockView {
 const dateOf = (ms: number): string => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const share = (pct: number): string => `${pct.toFixed(pct >= 99.95 ? 0 : 1)}%`;
 
+/** What a finished check gave, as a row-shaped lock state: a lock at the bar or above, a read under the bar, or a pool kind that cannot be read. Pure. */
+export function lockStateFrom(found: { pct: number; kind: 'burned' | 'time-locked'; until: number | null; by?: string | undefined } | null, minPct: number): Pick<MarketRow, 'lockedPct' | 'lockInfo' | 'lockState' | 'lockLowPct'> {
+  if (found !== null && found.pct >= minPct) return { lockedPct: found.pct, lockInfo: { kind: found.kind, until: found.until, ...(found.by ? { by: found.by } : {}) } };
+  if (found !== null) return { lockState: 'checked', lockLowPct: found.pct };
+  return { lockState: 'unsupported' };
+}
+
 export function lockView(r: Pick<MarketRow, 'lockedPct' | 'lockInfo' | 'risk' | 'lockState' | 'lockLowPct' | 'pool'>): LockView {
   const pct = r.lockedPct;
   if (pct !== null && pct !== undefined) {

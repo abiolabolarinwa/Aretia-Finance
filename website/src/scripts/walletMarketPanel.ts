@@ -11,6 +11,10 @@ import { compactCount, formatChange, formatPrice, type MarketRow } from '../swin
 import { CHECK_ICON, COPY_ICON, OPEN_ICON } from './walletIcons.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenTitle } from './walletTitle.js';
+import { lockView, lockStateFrom, type LockView } from '../swings/market/lockView.js';
+import { LOCK_MIN_PCT } from '../swings/market/lock.js';
+import { lockChip } from './walletLockChip.js';
+import { readPoolLock } from './walletPoolLockStatus.js';
 
 export interface MarketPanelOptions {
   /** Aretia's own on-chain check of a token. Null when it could not be made. */
@@ -139,7 +143,40 @@ function addressRow(label: string, address: string, chain: ChainId): HTMLElement
  * The "Pool details" group: when the pool opened, what is in it, the pool's and the token's addresses to copy or open on the explorer.
  * Used by the docked panel and by the token page that opens on a click, so both say the same thing.
  */
-export function poolDetailsGroup(x: { chain: ChainId; address: string; pool: string; ageMs: number | null }, d: PairDetail | null): HTMLElement {
+type LockFields = Pick<MarketRow, 'lockedPct' | 'lockInfo' | 'risk' | 'lockState' | 'lockLowPct'>;
+
+/**
+ * The "Liquidity lock" line of the pool details: every pool says whether its liquidity is locked, as far as Aretia can prove from the chain. A row's own
+ * answer is used when the list has one; otherwise the pool is read here (kept half an hour), "Checking…" meanwhile, and a chain that does not answer
+ * says "Not checked", never "unlocked".
+ */
+function lockLine(x: { chain: ChainId; pool: string; lock?: LockFields | undefined }): HTMLElement {
+  const l = el('div', 'wapp-mp__line');
+  l.append(el('span', 'wapp-mp__lk', 'Liquidity lock'));
+  const v = el('span', 'wapp-mp__lv');
+  l.append(v);
+  const risk = x.lock?.risk ?? null;
+  const show = (view: LockView): void => v.replaceChildren(lockChip(view));
+  const rowKnown = !!x.lock && ((x.lock.lockedPct !== null && x.lock.lockedPct !== undefined) || x.lock.lockState === 'checked' || x.lock.lockState === 'unsupported');
+  if (rowKnown && x.lock) {
+    show(lockView({ ...x.lock, pool: x.pool }));
+    return l;
+  }
+  show(lockView({ lockedPct: null, lockInfo: null, risk, pool: x.pool }));
+  void readPoolLock(x.chain, x.pool).then(
+    (found) => {
+      if (!v.isConnected) return;
+      const s = lockStateFrom(found, LOCK_MIN_PCT);
+      show(lockView({ lockedPct: s.lockedPct ?? null, lockInfo: s.lockInfo ?? null, lockState: s.lockState, lockLowPct: s.lockLowPct, risk, pool: x.pool }));
+    },
+    () => {
+      if (v.isConnected) show(lockView({ lockedPct: null, lockInfo: null, risk, lockState: 'unreadable', pool: x.pool }));
+    },
+  );
+  return l;
+}
+
+export function poolDetailsGroup(x: { chain: ChainId; address: string; pool: string; ageMs: number | null; /** What the list already knows about this pool's lock (a row), so it is not read again. */ lock?: Pick<MarketRow, 'lockedPct' | 'lockInfo' | 'risk' | 'lockState' | 'lockLowPct'> | undefined }, d: PairDetail | null): HTMLElement {
   const info = el('div', 'wapp-mp__group');
   info.append(heading(x.pool ? 'Pool details' : 'Token details'));
   const line = (k: string, v: string): HTMLElement => {
@@ -149,6 +186,7 @@ export function poolDetailsGroup(x: { chain: ChainId; address: string; pool: str
   };
   if (x.pool) {
     info.append(line('Pool opened', agoLong(d?.ageMs ?? x.ageMs)));
+    info.append(lockLine(x));
     if (d && d.pooledBase !== null && d.pooledQuote !== null) info.append(line('In the pool', `${amount(d.pooledBase)} ${d.baseSymbol} · ${amount(d.pooledQuote)} ${d.quoteSymbol}`));
     const pair = d?.pair ?? x.pool;
     info.append(addressRow(pair.length > 42 && x.chain !== 'solana' ? 'Pool ID' : 'Pool address', pair, x.chain));
@@ -268,7 +306,7 @@ export function createMarketPanel(o: MarketPanelOptions) {
     act.append(buy);
     if (!embedded) root.append(act);
 
-    root.append(poolDetailsGroup({ chain: r.chain, address: r.address, pool: r.pool, ageMs: r.ageMs }, d));
+    root.append(poolDetailsGroup({ chain: r.chain, address: r.address, pool: r.pool, ageMs: r.ageMs, lock: r }, d));
     if (d && d.links.length > 0) {
       const g = el('div', 'wapp-mp__group');
       g.append(heading('Links from the project'));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lockView } from './lockView.js';
+import { lockStateFrom, lockView } from './lockView.js';
 
 const base = { lockedPct: null, lockInfo: null, risk: null, lockState: undefined, lockLowPct: undefined, pool: '0x' + 'a'.repeat(40) } as Parameters<typeof lockView>[0];
 
@@ -47,5 +47,19 @@ describe('what every row says about its liquidity lock', () => {
 
   it('never shows a lock that was not proven, whatever else is set', () => {
     expect(lockView({ ...base, lockState: 'unsupported', lockLowPct: 99 }).kind).toBe('unknown');
+  });
+});
+
+describe('lockStateFrom: a finished check as a row lock state', () => {
+  it('gives a lock at the bar, a read under it, or "cannot be read", and each says the right thing in the view', () => {
+    const locked = lockStateFrom({ pct: 100, kind: 'burned', until: null }, 50);
+    expect(lockView({ ...base, ...locked }).kind).toBe('locked');
+    const timed = lockStateFrom({ pct: 80, kind: 'time-locked', until: Date.UTC(2027, 0, 1), by: 'UNCX' }, 50);
+    expect(lockView({ ...base, ...timed }).kind).toBe('timed');
+    const low = lockStateFrom({ pct: 12, kind: 'burned', until: null }, 50);
+    expect(low).toEqual({ lockState: 'checked', lockLowPct: 12 });
+    expect(lockView({ ...base, ...low }).kind).toBe('open');
+    expect(lockStateFrom(null, 50)).toEqual({ lockState: 'unsupported' });
+    expect(lockView({ ...base, ...lockStateFrom(null, 50) }).kind).toBe('unknown');
   });
 });

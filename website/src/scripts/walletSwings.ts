@@ -24,6 +24,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 const hashNow = (): string => routeHash(location.pathname, location.hash);
 import { overviewBand } from './walletMarketOverview.js';
 import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
+import { loadBoardView, marketBoard, saveBoardView, type BoardView, type FourthChain } from './walletMarketBoard.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -1717,6 +1718,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
     let tableEl: HTMLElement | null = null;
+    /** The all-networks list is a four-column board by default; the table is one click away and is kept when a single network is chosen. */
+    let boardView: BoardView = loadBoardView(browserStorage());
+    let fourthChain: FourthChain = 'base';
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
     // off or unreachable nothing changes: the list's own refresh below keeps it current.
     let liveRows = new Map<string, MarketRow>();
@@ -2234,6 +2238,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }, tip));
       }
       bar.append(kindBox);
+      if (m.chain === '' && m.kind !== 'favourites') {
+        const viewBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Layout' } });
+        for (const [v, label] of [['board', 'Board'], ['table', 'Table']] as [BoardView, string][]) {
+          viewBox.append(chip(label, boardView === v, () => {
+            boardView = v;
+            saveBoardView(browserStorage(), v);
+            draw();
+          }));
+        }
+        bar.append(viewBox);
+      }
       if (m.kind === 'trending' || m.kind === 'gainers' || m.kind === 'rising') {
         const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
         for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) {
@@ -2328,11 +2343,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();
-        const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, tableEl] : [tableEl]);
+        const boardMode = boardView === 'board' && m.chain === '' && m.kind !== 'favourites';
+        const body = boardMode
+          ? marketBoard({ rows: tsort.key ? sortRows(shownRows, tsort.key, tsort.dir) : shownRows, fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          : tableEl;
+        const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, body] : [body]);
         inMain = main;
         card.append(main);
         const pages = m.kind === 'favourites' ? 1 : Math.max(1, Math.ceil(shownRows.length / pageSize));
-        main.append(ix ? indexPager(ix) : pager(pages));
+        if (boardMode) tableEl = null;
+        else main.append(ix ? indexPager(ix) : pager(pages));
         // Tokens with no picture get one looked up, then the table redraws once.
         const byChain = new Map<ChainId, string[]>();
         for (const r of shownRows) if (!r.icon && !cachedLogo(r.chain, r.address)) byChain.set(r.chain, [...(byChain.get(r.chain) ?? []), r.address]);

@@ -1,7 +1,10 @@
-/** Light / dark choice for the wallet app: the saved choice if there is one, else the operating system's. */
+/** Light / dark choice for the wallet app: the saved choice if there is one, else dark (the default for everyone, whatever the operating system says). */
 export type Theme = 'light' | 'dark';
 
 export const THEME_KEY = 'aretia-theme';
+
+/** What a visitor who has not chosen sees. */
+export const DEFAULT_THEME: Theme = 'dark';
 
 export const parseTheme = (v: unknown): Theme | null => (v === 'light' || v === 'dark' ? v : null);
 
@@ -32,7 +35,7 @@ export function applyTheme(t: Theme): void {
 export function initThemeToggle(): void {
   const buttons = document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]');
   if (buttons.length === 0) return;
-  applyTheme(savedTheme() ?? systemTheme());
+  applyTheme(savedTheme() ?? DEFAULT_THEME);
   const label = (): void => {
     const dark = currentTheme() === 'dark';
     for (const b of buttons) {
@@ -53,16 +56,5 @@ export function initThemeToggle(): void {
       }
       label();
     });
-  }
-  // Until the visitor chooses, the page follows the system if it changes.
-  try {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (savedTheme() === null) {
-        applyTheme(systemTheme());
-        label();
-      }
-    });
-  } catch {
-    // Older browsers without MediaQueryList events keep the theme they loaded with.
   }
 }

@@ -2287,7 +2287,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const shownRows = visible();
       // The overview band sits above the list's own controls (mood, rising or falling, busiest venues from the market intelligence engine, and three short lists from the rows shown).
       // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
-      if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
+      if (m.chain === '' && boardView !== 'board' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
         // The three cards draw what the market intelligence engine worked out from every eligible pool the index holds (not the list's own rows: Gainers holds
         // only risers, which would make the mood read 100 whatever the market did). Read once a minute; the band redraws when a newer answer arrives.
         const intel = intelNow(m.chain);

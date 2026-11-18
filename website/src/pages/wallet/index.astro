@@ -1708,8 +1708,26 @@ const sendTips = [
   .wapp-ov .is-up { color: #1b8a4b; }
   .wapp-ov .is-down { color: #b3261e; }
   .wapp-ov__chg { font-weight: 600; white-space: nowrap; }
+  .wapp-ov__prov { width: fit-content; margin: 6px auto 0; padding: 1px 8px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 99px; cursor: help; }
+  .wapp-ov__parts { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin: 8px 0 4px; padding: 0; list-style: none; font-size: 11px; color: var(--color-muted); }
+  .wapp-ov__parts li { display: inline-flex; gap: 4px; cursor: help; }
+  .wapp-ov__parts li strong { color: var(--color-strong); }
+  .wapp-ov__parts li.is-off { opacity: .5; }
+  .wapp-ov__chips { display: flex; gap: 4px; margin: 0 0 6px; }
+  .wapp-ov__chip { min-width: 36px; min-height: 26px; padding: 0 8px; font: inherit; font-size: 11px; font-weight: 700; color: var(--color-muted); background: none; border: 1px solid var(--color-border); border-radius: 99px; cursor: pointer; }
+  .wapp-ov__chip[aria-pressed='true'] { color: var(--color-bg); background: var(--color-strong); border-color: var(--color-strong); }
+  .wapp-ov__chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-ov__split3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+  .wapp-ov__cell { display: grid; gap: 1px; }
+  .wapp-ov__cell strong { font-size: 20px; line-height: 1.15; }
+  .wapp-ov__cell .wapp-ov__fine { font-size: 11px; }
+  .wapp-ov__conf { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 11px; color: var(--color-muted); cursor: help; }
+  .wapp-ov__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border); }
+  .wapp-ov__conf--high .wapp-ov__dot { background: #2fb36a; }
+  .wapp-ov__conf--medium .wapp-ov__dot { background: #f5a524; }
+  .wapp-ov__conf--low .wapp-ov__dot { background: #e5484d; }
   .wapp-ov__venues { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
-  .wapp-ov__venue { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px auto auto; align-items: center; gap: 8px; font-size: 12px; color: var(--color-strong); }
+  .wapp-ov__venue { display: grid; grid-template-columns: 18px minmax(0, 1fr) 34px auto auto; align-items: center; gap: 8px; font-size: 12px; color: var(--color-strong); }
   .wapp-ov__dex { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
   .wapp-ov__dex--letter { display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--color-bg-alt); color: var(--color-muted); }
   .wapp-ov__vname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }

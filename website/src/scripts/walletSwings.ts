@@ -23,7 +23,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
 import { overviewBand } from './walletMarketOverview.js';
-import { fetchOverviewSample, overviewSampleNow } from '../swings/market/overviewSample.js';
+import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -2270,21 +2270,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       card.append(bar);
       const shownRows = visible();
-      // The overview band sits above the list's own controls (mood, rising or falling, busiest venues, and three short lists), worked out from the rows shown.
+      // The overview band sits above the list's own controls (mood, rising or falling, busiest venues from the market intelligence engine, and three short lists from the rows shown).
       // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
       if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
-        // The three cards are worked out from the index's busiest pools by 24-hour value (not the list's own rows: Gainers holds only risers, which would make
-        // the mood read 100 whatever the market did), and those pools also name their exchange. Read once, kept two minutes; the band redraws when they arrive.
-        const live = (r: MarketRow): boolean => !isDeadMarket(r) && clearsMinLiquidity(r.liquidityUsd, f.liquidity);
-        const sample = overviewSampleNow(m.chain).filter(live);
-        const sampleChain = m.chain;
-        if (sample.length === 0 && Date.now() - sampleTriedAt > 30_000) {
+        // The three cards draw what the market intelligence engine worked out from every eligible pool the index holds (not the list's own rows: Gainers holds
+        // only risers, which would make the mood read 100 whatever the market did). Read once a minute; the band redraws when a newer answer arrives.
+        const intel = intelNow(m.chain);
+        const intelChain = m.chain;
+        if (Date.now() - sampleTriedAt > 60_000 || (intel === null && Date.now() - sampleTriedAt > 15_000)) {
           sampleTriedAt = Date.now();
-          void fetchOverviewSample(sampleChain, Date.now()).then((got) => {
-            if (got.length > 0 && target.isConnected && !page && m.chain === sampleChain && m.kind !== 'favourites') draw();
+          void fetchMarketIntel(intelChain, Date.now()).then((got) => {
+            if (got && got.asOf !== intel?.asOf && target.isConnected && !page && m.chain === intelChain && m.kind !== 'favourites') draw();
           });
         }
-        const band = overviewBand(shownRows, { onOpen: userPick, sample });
+        const band = overviewBand(shownRows, { onOpen: userPick, intel });
         if (band) card.insertBefore(band, bar);
       }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {

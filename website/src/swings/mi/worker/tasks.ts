@@ -23,6 +23,11 @@ import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
 import { solUsdReader } from '../solana/engine.js';
 import { refreshSolanaReserves } from '../solana/refresher.js';
 import { followWatchedPools } from '../solana/engine.js';
+import { postgrestReader } from '../marketList.js';
+import { MI_CHAINS } from '../chains.js';
+import { buildSnapshot, rowOf } from '../../market/intel/snapshot.js';
+import { readIntelPools, writeSnapshots } from '../../market/intel/read.js';
+import { supabaseHeaders } from '../../tokens/supabaseAuth.js';
 import { refreshSupplies, SUPPLY_LIMIT } from '../supply.js';
 import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
@@ -39,6 +44,8 @@ export interface TaskDeps {
   readFor?: (chain: MiChainConfig) => Read;
   /** The pools open Markets pages are showing now (the stream service's answer); absent when the stream is off. */
   watched?: (() => Promise<string[]>) | null;
+  /** The data service the market intelligence snapshot task reads pools from and writes snapshots to (the worker's own database address and key). */
+  intel?: { url: string; key: string } | null;
   /** Where the watched-pools task says what it did (at most one line a minute, and only while somebody is watching). */
   log?: (line: string) => void;
 }
@@ -143,6 +150,32 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
           Object.assign(sum, { passes: 0, watched: 0, eligible: 0, polled: 0, traded: 0 });
         }
         return { ok: failed === null, error: failed, caughtUp: true };
+      },
+    });
+  }
+
+  // Market intelligence: every few minutes the pools the index holds are read once and a snapshot of what the mood, rising/falling and venue
+  // calculations read is stored for each network and for all of them (src/swings/market/intel/). The volume, momentum and stability parts of the
+  // mood index and the venue growth figure are worked out from these. Off with MI_INTEL=0.
+  if (d.intel && d.env.MI_INTEL !== '0') {
+    const { url, key } = d.intel;
+    tasks.push({
+      id: 'market:intel',
+      chain: 'solana',
+      lane: 'market-intel',
+      idleMs: int(d.env.MI_INTEL_EVERY_SECONDS, 300, 60, 3_600) * 1000,
+      run: async () => {
+        const now = d.now();
+        const fetchImpl = d.fetchImpl ?? fetch;
+        const headers = supabaseHeaders(key);
+        const pools = await readIntelPools(postgrestReader(url, headers, fetchImpl, AbortSignal.timeout(90_000)), now);
+        const rows = ['all', ...MI_CHAINS].flatMap((scope) => {
+          const snap = buildSnapshot(pools, scope, now);
+          return scope === 'all' || snap.eligible > 0 || snap.venues.length > 0 ? [rowOf(snap)] : [];
+        });
+        await writeSnapshots(url, headers, fetchImpl, rows, now);
+        d.log?.(`market intel: ${pools.length} pool(s) read, ${rows.length} snapshot(s) stored`);
+        return { ok: true, caughtUp: true };
       },
     });
   }

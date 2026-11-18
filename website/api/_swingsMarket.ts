@@ -12,6 +12,7 @@ import type { MarketRow } from '../src/swings/market/types.js';
 import { isDeadMarket } from '../src/swings/market/dead.js';
 import { handleMarketIndex } from './_swingsMarketIndex.js';
 import { handleMarketStats } from './_swingsMarketStats.js';
+import { handleMarketIntel } from './_swingsMarketIntel.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const KINDS: readonly string[] = ['trending', 'top', 'gainers', 'new'];
@@ -45,6 +46,8 @@ export async function handleMarket(input: TokensInput): Promise<TokensOutput> {
   if (input.query.src === 'index') return handleMarketIndex(input);
   // `src=stats` is the numbers of the stats bar (api/_swingsMarketStats.ts): 24-hour volume and transactions, and the latest block per network.
   if (input.query.src === 'stats') return handleMarketStats(input);
+  // `src=intel` is the market mood, rising or falling and busiest venues (api/_swingsMarketIntel.ts), worked out from the index and its stored snapshots.
+  if (input.query.src === 'intel') return handleMarketIntel(input);
   const { kind = 'trending', chain = '', window = 'h24' } = input.query;
   const page = Math.floor(Number(input.query.page ?? '1'));
   if (!KINDS.includes(kind) || !WINDOWS.includes(window) || (chain !== '' && !isChainId(chain)) || !Number.isFinite(page) || page < 1 || page > 10) return json(400, { error: 'bad-request' }, headers);

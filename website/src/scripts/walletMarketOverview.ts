@@ -1,10 +1,15 @@
 /**
- * The overview band at the top of the Markets list: a "market mood" gauge, rising against falling, the busiest venues, and three short lists
- * (top gainers, newly listed, trending). Everything is worked out from the rows the list already holds (src/swings/market/overview.ts), so
- * it costs no request, and each card's hover text says what it was worked out from. A click on a token in a short list opens the token.
+ * The overview band at the top of the Markets list: the market mood (AMMI), rising / neutral / falling (ARF) and the busiest venues (ADV), then
+ * three short lists (top gainers, newly listed, trending). The three cards draw what Aretia's market intelligence engine worked out
+ * (src/swings/market/intel/, read through /api/swings-market?src=intel): each says how much data it stands on and when it was worked out, and
+ * where there is not enough it says "Insufficient market data" instead of a number. The short lists come from the rows the list holds.
+ * A click on a token in a short list opens the token.
  */
 import { CHAINS } from '../swings/core/types.js';
-import { breadth, busiestVenues, marketMood, newlyListed, topGainers, trendingNow } from '../swings/market/overview.js';
+import { newlyListed, topGainers, trendingNow } from '../swings/market/overview.js';
+import type { IntelResult } from '../swings/market/intel/compute.js';
+import type { Window } from '../swings/market/intel/common.js';
+import { agoText } from '../swings/market/marketStats.js';
 import { compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { dexInitial, dexLogoSrc } from '../swings/market/dexLogo.js';
 import { marketLogo } from './walletMarketTable.js';
@@ -50,47 +55,104 @@ function changeSpan(n: number | null): HTMLElement {
   return h('span', `wapp-ov__chg ${n !== null && n > 0 ? 'is-up' : n !== null && n < 0 ? 'is-down' : ''}`, n === null ? '–' : formatChange(n));
 }
 
-function moodCard(rows: readonly MarketRow[]): HTMLElement {
-  const mood = marketMood(rows);
-  const c = card('Market mood', mood ? `from ${mood.basis} tokens` : 'not enough trading yet', 'The share of the last 24 hours of traded value that sat on tokens whose price rose, among the tokens in this list. 0 means everything traded fell, 100 means everything traded rose. It describes the pools Aretia follows, not the whole market.');
-  if (!mood) {
-    c.append(h('p', 'wapp-ov__none', 'Too few tokens with both a price change and a volume to say.'));
-    return c;
-  }
-  c.append(moodGauge(mood.score), h('div', 'wapp-ov__score', String(mood.score)), h('div', 'wapp-ov__label', mood.label));
+const MOOD_TIP = 'The Aretia Market Mood Index, 0 to 100: 30% price trend (liquidity-weighted 24-hour return), 25% breadth (rising tokens, neutral ones half), 20% volume against earlier days, 15% momentum (RSI of the hourly market index) and 10% liquidity (depth and stability). Parts that need stored history appear as it builds up; until then the index is provisional, worked out from the parts that exist.';
+const COMPONENTS: [string, string][] = [['T', 'Trend'], ['B', 'Breadth'], ['V', 'Volume'], ['M', 'Momentum'], ['L', 'Liquidity']];
+const LEVEL: Record<string, string> = { high: 'High', medium: 'Medium', low: 'Low', none: 'None' };
+
+/** The line at the foot of a card: how much data it stands on and when it was worked out. */
+function confidenceLine(conf: IntelResult['confidence']['ammi'], asOf: number, what: string): HTMLElement {
+  const p = h('p', `wapp-ov__conf wapp-ov__conf--${conf.level}`);
+  p.append(h('span', 'wapp-ov__dot'), document.createTextNode(`Data confidence: ${LEVEL[conf.level] ?? conf.level} · ${conf.eligible.toLocaleString('en-US')} ${what} · ${agoText(asOf, Date.now())}`));
+  p.title = `${conf.eligible.toLocaleString('en-US')} of ${conf.considered.toLocaleString('en-US')} pools looked at counted (${Math.round(conf.coverage * 100)}%).${conf.limits.length ? ` Limits: ${conf.limits.join('; ')}.` : ''} This is a rule of thumb from coverage and from which parts had data, not a statistical probability.`;
+  return p;
+}
+
+function insufficient(c: HTMLElement, why: string): HTMLElement {
+  c.append(h('p', 'wapp-ov__none', 'Insufficient market data'), h('p', 'wapp-ov__fine', why));
   return c;
 }
 
-function breadthCard(rows: readonly MarketRow[]): HTMLElement {
-  const b = breadth(rows);
-  const total = b.rising + b.falling + b.flat;
-  const c = card('Rising or falling', `${total.toLocaleString('en-US')} tokens with a 24H change`, 'How many tokens in this list rose, fell or did not move over 24 hours, and the middle change among them.');
-  const row = h('div', 'wapp-ov__split');
-  row.append(h('strong', 'is-up', `${b.rising.toLocaleString('en-US')} ▲`), h('strong', 'is-down', `${b.falling.toLocaleString('en-US')} ▼`));
+function moodCard(intel: IntelResult | null): HTMLElement {
+  const c = card('Market mood', intel ? `of ${intel.ammi.eligible.toLocaleString('en-US')} tokens` : 'reading the index', MOOD_TIP);
+  if (!intel) return insufficient(c, 'Waiting for the index.');
+  const m = intel.ammi;
+  if (m.score === null || m.status === 'insufficient') {
+    const why = m.eligible < 20 ? `Needs at least 20 eligible tokens (${m.eligible} now).` : 'The price trend or breadth could not be worked out.';
+    return insufficient(c, why);
+  }
+  c.append(moodGauge(m.score), h('div', 'wapp-ov__score', String(m.score)), h('div', 'wapp-ov__label', m.label ?? ''));
+  if (m.status === 'provisional') {
+    const badge = h('p', 'wapp-ov__prov', 'Provisional');
+    badge.title = 'Some parts of the index need stored history that is still building up, so it is worked out from the parts that exist, with their weights scaled to add to 100%.';
+    c.append(badge);
+  }
+  const parts = h('ul', 'wapp-ov__parts');
+  for (const [k, name] of COMPONENTS) {
+    const part = m.components[k as keyof typeof m.components];
+    const li = h('li', part.used ? '' : 'is-off');
+    li.append(h('span', '', name), h('strong', '', part.score === null ? '–' : String(Math.round(part.score))));
+    li.title = `${name} (${Math.round(part.weight * 100)}%): ${part.note || (part.used ? 'used' : 'not available')}`;
+    parts.append(li);
+  }
+  c.append(parts, confidenceLine(intel.confidence.ammi, intel.asOf, 'tokens'));
+  return c;
+}
+
+const WINDOW_LABEL: Record<Window, string> = { m5: '5M', h1: '1H', h6: '6H', h24: '24H' };
+const WINDOW_NAME: Record<Window, string> = { m5: '5 minutes', h1: 'an hour', h6: '6 hours', h24: '24 hours' };
+/** The window the rising / falling card shows; kept while the page is open. */
+let arfWindow: Window = 'h24';
+
+function breadthCard(intel: IntelResult | null): HTMLElement {
+  const w = arfWindow;
+  const r = intel?.arf[w] ?? null;
+  const c = card('Rising or falling', r ? `${r.eligible.toLocaleString('en-US')} eligible tokens · ${WINDOW_LABEL[w]}` : 'reading the index', `How many eligible tokens rose by more than 0.5%, fell by more than 0.5%, or stayed within 0.5% (neutral) over ${WINDOW_NAME[w]}. Every eligible token is in exactly one group. A token needs a valid price and a change over that very window, enough liquidity and to be older than the window; one token on several pools counts once.`);
+  if (intel) {
+    const chips = h('div', 'wapp-ov__chips');
+    for (const k of ['m5', 'h1', 'h6', 'h24'] as Window[]) {
+      const b = h('button', 'wapp-ov__chip', WINDOW_LABEL[k]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(k === w));
+      b.addEventListener('click', () => {
+        arfWindow = k;
+        c.replaceWith(breadthCard(intel));
+      });
+      chips.append(b);
+    }
+    c.append(chips);
+  }
+  if (!intel || !r || r.eligible === 0 || r.risingPct === null) return insufficient(c, intel ? `No token has a valid change over ${WINDOW_NAME[w]} yet.` : 'Waiting for the index.');
+  const pct = (n: number | null): string => (n === null ? '–' : `${n.toFixed(1)}%`);
+  const row = h('div', 'wapp-ov__split3');
+  for (const [cls, label, n, p] of [['is-up', 'Rising ▲', r.rising, r.risingPct], ['', 'Neutral', r.neutral, r.neutralPct], ['is-down', 'Falling ▼', r.falling, r.fallingPct]] as const) {
+    const cell = h('div', 'wapp-ov__cell');
+    cell.append(h('strong', cls, n.toLocaleString('en-US')), h('span', 'wapp-ov__fine', `${label} · ${pct(p)}`));
+    row.append(cell);
+  }
   const bar = h('div', 'wapp-ov__bar');
-  if (total > 0) {
-    const part = (cls: string, n: number): HTMLElement => {
-      const p = h('span', cls);
-      p.style.width = `${(100 * n) / total}%`;
-      return p;
-    };
-    bar.append(part('wapp-ov__bar-up', b.rising), part('wapp-ov__bar-flat', b.flat), part('wapp-ov__bar-down', b.falling));
+  for (const [cls, n] of [['wapp-ov__bar-up', r.rising], ['wapp-ov__bar-flat', r.neutral], ['wapp-ov__bar-down', r.falling]] as const) {
+    const part = h('span', cls);
+    part.style.width = `${(100 * n) / r.eligible}%`;
+    bar.append(part);
   }
-  const med = h('p', 'wapp-ov__fine');
-  med.append(document.createTextNode('Middle 24H change '), changeSpan(b.median));
-  c.append(row, bar, med);
+  const net = h('p', 'wapp-ov__fine');
+  net.append(document.createTextNode('Net market breadth '), h('strong', (r.netBreadth ?? 0) > 0 ? 'is-up' : (r.netBreadth ?? 0) < 0 ? 'is-down' : '', r.netBreadth === null ? '–' : `${r.netBreadth > 0 ? '+' : ''}${r.netBreadth.toFixed(1)}`));
+  net.title = '(rising − falling) ÷ eligible × 100: from −100 (everything fell) to +100 (everything rose).';
+  const left = Object.values(r.excluded).reduce((a, n) => a + (n ?? 0), 0);
+  const ex = h('p', 'wapp-ov__fine', `${left.toLocaleString('en-US')} pools left out`);
+  ex.title = `Left out: ${Object.entries(r.excluded).map(([k, n]) => `${n} ${k.replace('-', ' ')}`).join(', ') || 'none'}.`;
+  const conf = w === 'h24' ? intel.confidence.arf : { ...intel.confidence.arf, level: r.eligible >= 100 ? ('high' as const) : r.eligible >= 30 ? ('medium' as const) : ('low' as const), eligible: r.eligible, considered: r.considered };
+  c.append(row, bar, net, ex, confidenceLine(conf, intel.asOf, 'tokens'));
   return c;
 }
 
-function venueCard(rows: readonly MarketRow[]): HTMLElement {
-  const venues = busiestVenues(rows, 4);
-  const c = card('Busiest venues', 'by 24H traded value', 'The exchanges with the most traded value among the tokens in this list, their share of it, and the value-weighted 24-hour price change of their tokens (each token capped at ±500% so one outlier cannot set it).');
-  if (venues.length === 0) {
-    c.append(h('p', 'wapp-ov__none', 'No venue is named for these tokens.'));
-    return c;
-  }
+function venueCard(intel: IntelResult | null): HTMLElement {
+  const c = card('Busiest venues', intel ? `of ${intel.adv.venueCount.toLocaleString('en-US')} venues · 24H` : 'reading the index', "The exchanges with the most traded value in the last 24 hours across the pools that pass the checks (each pool once; pools far over their liquidity or traded by a few accounts are left out), each one's share of the total, and its volume against the 24 hours before. Pool-level volume: a route through several pools counts in each.");
+  if (!intel) return insufficient(c, 'Waiting for the index.');
+  const a = intel.adv;
+  if (a.venues.length === 0) return insufficient(c, 'No venue has eligible volume yet.');
   const list = h('ul', 'wapp-ov__venues');
-  for (const v of venues) {
+  for (const v of a.venues) {
     const li = h('li', 'wapp-ov__venue');
     const src = dexLogoSrc(v.venue);
     let mark: HTMLElement;
@@ -104,12 +166,18 @@ function venueCard(rows: readonly MarketRow[]): HTMLElement {
     } else mark = h('span', 'wapp-ov__dex wapp-ov__dex--letter', dexInitial(v.venue));
     const share = h('span', 'wapp-ov__vshare');
     const fill = h('i');
-    fill.style.width = `${Math.max(3, Math.round(v.share * 100))}%`;
+    fill.style.width = `${Math.max(3, Math.round(v.share))}%`;
     share.append(fill);
-    li.append(mark, h('span', 'wapp-ov__vname', v.venue), share, h('span', 'wapp-ov__vvol', compactUsd(v.volumeUsd)), changeSpan(v.change));
+    const vol = h('span', 'wapp-ov__vvol', `${compactUsd(v.volume24hUsd)} · ${v.share.toFixed(1)}%`);
+    vol.title = `${v.swaps24h.toLocaleString('en-US')}${v.swapsCapped ? '+' : ''} swaps in ${v.pools.toLocaleString('en-US')} pool${v.pools === 1 ? '' : 's'}`;
+    const growth = changeSpan(v.growth);
+    growth.title = v.growth === null ? 'No stored figure from 24 hours ago yet, so no growth.' : 'Volume against the 24 hours before.';
+    li.append(mark, h('span', 'wapp-ov__vname', v.venue), share, vol, growth);
     list.append(li);
   }
-  c.append(list);
+  const total = h('p', 'wapp-ov__fine', `${compactUsd(a.totalVolume24hUsd)} eligible volume across ${a.eligiblePools.toLocaleString('en-US')} pools`);
+  total.title = `The venues add up to this total (${a.venueCount} venues). Left out as wash trading or a broken price: ${compactUsd(a.excludedVolume24hUsd)}.`;
+  c.append(list, total, confidenceLine(intel.confidence.adv, intel.asOf, 'pools'));
   return c;
 }
 
@@ -142,13 +210,11 @@ function listPanel(title: string, tip: string, items: readonly MarketRow[], onOp
 }
 
 /** The band, or null when the list is too short to say anything. */
-export function overviewBand(rows: readonly MarketRow[], o: { onOpen(r: MarketRow): void; /** The tokens the three cards are worked out from, when they must not be the list's own (Gainers is made of risers, so a mood from it would always read 100). */ sample?: readonly MarketRow[] }): HTMLElement | null {
+export function overviewBand(rows: readonly MarketRow[], o: { onOpen(r: MarketRow): void; /** What the market intelligence engine worked out, or null before it has answered. */ intel: IntelResult | null }): HTMLElement | null {
   if (rows.length < 3) return null;
   const band = h('div', 'wapp-ov');
   const cards = h('div', 'wapp-ov__cards');
-  // The cards use their own sample when one is given (even an empty one, which shows their "not enough yet" text), never the list's rows.
-  const basis = o.sample ?? rows;
-  cards.append(moodCard(basis), breadthCard(basis), venueCard(basis));
+  cards.append(moodCard(o.intel), breadthCard(o.intel), venueCard(o.intel));
   const lists = h('div', 'wapp-ov__lists');
   lists.append(
     listPanel('Top gainers', 'The biggest 24-hour risers among the tokens in this list that traded at least $1,000 in the day.', topGainers(rows), o.onOpen),

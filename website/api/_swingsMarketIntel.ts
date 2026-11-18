@@ -9,18 +9,17 @@ import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth
 import { isMiChain } from '../src/swings/mi/chains.js';
 import { postgrestReader } from '../src/swings/mi/marketList.js';
 import { computeIntel, type IntelResult } from '../src/swings/market/intel/compute.js';
-import type { IntelPool } from '../src/swings/market/intel/common.js';
-import { readHistory, readIntelPools } from '../src/swings/market/intel/read.js';
+import { readHistory } from '../src/swings/market/intel/read.js';
+import { resetIntelPools, sharedIntelPools } from './_intelPools.js';
 import { scopeOf } from '../src/swings/market/intel/snapshot.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 
 const FRESH_MS = 60_000;
 const STALE_MS = 3_600_000;
 const DEADLINE_MS = 20_000;
-let pools: { at: number; rows: IntelPool[]; running: Promise<IntelPool[]> | null } | null = null;
 const answers = new Map<string, { at: number; result: IntelResult }>();
 export function resetMarketIntelCache(): void {
-  pools = null;
+  resetIntelPools();
   answers.clear();
 }
 
@@ -44,20 +43,7 @@ export async function handleMarketIntel(input: TokensInput): Promise<TokensOutpu
   if (overLimit(`marketintel:${input.ip}`, input.now)) return hit ? ok(hit.result, true) : json(429, { error: 'rate-limit' }, { ...base, 'retry-after': '30' });
   try {
     const reader = postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS));
-    if (!pools || (input.now - pools.at >= FRESH_MS && !pools.running)) {
-      const entry = pools ?? { at: -Infinity, rows: [], running: null };
-      pools = entry;
-      entry.running = readIntelPools(reader, input.now)
-        .then((rows) => {
-          entry.rows = rows;
-          entry.at = input.now;
-          return rows;
-        })
-        .finally(() => {
-          entry.running = null;
-        });
-    }
-    const rows = pools.running ? await pools.running : pools.rows;
+    const rows = await sharedIntelPools(reader, input.now);
     const stored = await readHistory(reader, scope, input.now).catch(() => ({ history: { dailyVolumes: [], hourlyReturns: [], liquiditySamples: [] }, venuesPrev: null }));
     const result = computeIntel(rows, scope, input.now, stored);
     if (answers.size > 20) answers.clear();

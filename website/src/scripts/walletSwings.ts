@@ -82,7 +82,7 @@ import { normalizeTokenRef } from '../swings/core/token.js';
 import { assessTokenSafety, createLiveRouter, onchainDecimals, registerEvmWallet } from '../swings/live.js';
 import { evmGasProblem, EvmSession, publicRead, readBalance, readErc20 } from '../swings/chains/evmSession.js';
 import { isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
-import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
+import { browserStorage, lastSwapOf, repeatLabel, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter, explainNoRoute } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, autoSlippage, defaultSlippageBps, fromSmallestUnit, retrySlippageBps, toSmallestUnit } from './walletTools';
@@ -428,6 +428,24 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (!ref) return null;
     const facts = await readErc20(publicRead(chain), ref.address);
     return facts ? { ...info, mint: ref.address, symbol: facts.symbol, name: facts.name || info.name, decimals: facts.decimals } : null;
+  }
+
+  /** Fills the Swap box with an earlier swap's two tokens and amount. Nothing is sent: a fresh quote is read and the person confirms it. */
+  async function repeatSwap(item: HistoryItem): Promise<void> {
+    if (!item.fromAddress || !item.toAddress) return;
+    s.marketSlippage = null;
+    const token = (mint: string, symbol: string): TokenInfo => ({ mint, symbol, name: symbol, decimals: 0, icon: null, verified: null });
+    if (item.chain !== s.chain) {
+      s.chain = item.chain;
+      s.from = null;
+      s.to = null;
+    }
+    await pick('from', token(item.fromAddress, item.fromSymbol), item.chain);
+    await pick('to', token(item.toAddress, item.toSymbol), item.chain);
+    s.amount = item.amountIn;
+    resetQuote();
+    render();
+    scheduleAuto();
   }
 
   async function pick(side: 'from' | 'to', info: TokenInfo, chain: ChainId = s.chain): Promise<void> {
@@ -1306,6 +1324,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       return;
     }
 
+    // The person's last confirmed swap, one tap away: the pair and the amount fill in, and the new quote is still reviewed and confirmed.
+    const last = s.phase === 'idle' && s.amount === '' ? lastSwapOf([...history.list(host.getAddress()), ...history.list(evm.account)]) : null;
+    if (last) {
+      const again = el('button', { class: 'wapp__chip wapp__chip--btn', text: `Repeat last swap: ${repeatLabel(last)}`, attrs: { type: 'button', title: 'Fills in the same two tokens and amount. You still review the new price and confirm.' } });
+      again.addEventListener('click', () => void repeatSwap(last));
+      card.append(el('div', { class: 'wapp__row' }, [again]));
+    }
     const amount = el('input', { class: 'wapp__swap-amount', attrs: { inputmode: 'decimal', placeholder: '0.0', autocomplete: 'off', 'aria-label': 'Amount to pay' } });
     amount.value = s.amount;
     amount.addEventListener('input', () => {

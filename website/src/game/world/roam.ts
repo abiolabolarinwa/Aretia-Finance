@@ -17,7 +17,7 @@ import type { RoamMode } from '../roamRules.js';
 import { decodeTile } from './mvt.js';
 import { buildTileWorld, fromLocal, tileOf, tilePoint, tileUrl, toLocal, TILE_ZOOM, type Named, type Origin, type TileWorld } from './worldData.js';
 import { Colliders, TileColliders, nearestOnSegment } from './colliders.js';
-import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roamBuild.js';
+import { bucketTile, buildingParts, cellCentre, cellKey, CELL_M, type Cell } from './roamBuild.js';
 import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
 import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
@@ -26,6 +26,8 @@ import { makeStreetPanel } from './streetPanel.js';
 import { SoundEngine, saveMuted, savedMuted } from './sound.js';
 import { WEATHER_LABEL, WeatherSystem, applyWeather, fogRange, wetness, type WeatherName } from './weather.js';
 import { makeRain } from './rain.js';
+import { armGroup, junctionsFor, lightFor, stopDistance, targetAtLight, type Junction } from './junctions.js';
+import { buildSignalSet, headsFor, makeSignalShapes } from './signals3d.js';
 import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeAtmosphere } from './atmosphere.js';
@@ -76,6 +78,8 @@ interface LoadedTile {
   named: { n: Named; box: [number, number, number, number] }[];
   group: T.Group;
   box: { minX: number; minZ: number; maxX: number; maxZ: number };
+  /** The junctions in this tile that have traffic lights. */
+  signals: Junction[];
 }
 
 interface Rig {
@@ -318,6 +322,11 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // Street lamp heads glow warmly once it is dark.
   const lampHeadMat = new three.MeshLambertMaterial({ color: '#4a4d52', emissive: '#ffc766', emissiveIntensity: 0 });
   const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo]);
+  // Traffic lights: one set of shapes shared by every junction, and a note of which junctions already have their posts drawn (a junction
+  // near the edge of two map tiles is found twice).
+  const signalShapes = makeSignalShapes(three);
+  for (const sg of [signalShapes.pole, signalShapes.head, signalShapes.lamp]) sharedGeos.add(sg);
+  const signalIds = new Set<string>();
 
   // ------------------------------------------------------------ what the player is: a person, a car, a boat
   const box = (w: number, h: number, d: number, colour: string, x = 0, y = 0, z = 0): T.Mesh => {
@@ -452,7 +461,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         }
         return { n, box: [minX - 25, minZ - 25, maxX + 25, maxZ + 25] as [number, number, number, number] };
       });
-      tiles.set(id, { id, x, y, world, cells, named, group, box: tileBox(x, y) });
+      tiles.set(id, { id, x, y, world, cells, named, group, box: tileBox(x, y), signals: junctionsFor(world).filter((j) => j.signalised) });
     } catch {
       failed.set(id, Date.now());
     } finally {
@@ -516,6 +525,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   }
 
   function disposeGroup(g: T.Object3D): void {
+    for (const id of (g.userData.junctionIds as string[] | undefined) ?? []) signalIds.delete(id);
     g.traverse((o) => {
       const m = o as T.Mesh;
       if (m.geometry && !sharedGeos.has(m.geometry)) m.geometry.dispose();
@@ -595,6 +605,16 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         im.frustumCulled = false;
         g.add(im);
       }
+    }
+    // Traffic lights for the junctions that lie in this square (each junction is drawn once, by whichever tile finds it first).
+    const mine = t.signals.filter((j) => cellKey(j.x, j.z) === key && !signalIds.has(j.id));
+    const heads = mine.flatMap((j) => headsFor(j));
+    if (heads.length) {
+      const set = buildSignalSet(three, heads, signalShapes);
+      for (const o of set.objects) g.add(o);
+      g.userData.signals = set.update;
+      g.userData.junctionIds = mine.map((j) => j.id);
+      for (const j of mine) signalIds.add(j.id);
     }
     // Everything but the painted ground and lamp heads throws shadows; everything but lamps catches them.
     for (const c of g.children) {
@@ -706,8 +726,33 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     cruise: number;
     human?: Human;
     car?: CarParts;
+    /** The traffic light this car is driving up to, which group of roads it belongs to there, and how far its road's end is from the junction. */
+    stop?: { j: Junction; group: 0 | 1; extra: number } | null;
   }
   const npcs: Npc[] = [];
+  // Traffic lights: the nearest signalised junction to a road's end, for a car to obey as it drives up to it.
+  const signalNear = (x: number, z: number, r: number): Junction | null => {
+    let best: Junction | null = null;
+    let bd = r;
+    for (const t of tiles.values()) {
+      for (const j of t.signals) {
+        const d = Math.hypot(j.x - x, j.z - z);
+        if (d < bd) {
+          bd = d;
+          best = j;
+        }
+      }
+    }
+    return best;
+  };
+  function findStop(seg: Seg): Npc['stop'] {
+    const j = signalNear(seg.b[0], seg.b[1], 8);
+    if (!j) return null;
+    const dx = seg.a[0] - seg.b[0];
+    const dz = seg.a[1] - seg.b[1];
+    const l = Math.hypot(dx, dz) || 1;
+    return { j, group: armGroup(j, dx / l, dz / l), extra: Math.hypot(seg.b[0] - j.x, seg.b[1] - j.z) };
+  }
   const segsNear = (x: number, z: number, r: number, accept: (s: Seg) => boolean): Seg[] => {
     const out: Seg[] = [];
     for (const t of tiles.values()) {
@@ -752,7 +797,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       shadowed(car.group);
       scene.add(car.group);
       const cruise = 7 + Math.random() * 6;
-      npcs.push({ agent: startAgent(seg, along, cruise, lane), mesh: car.group, kind, cruise, car });
+      npcs.push({ agent: startAgent(seg, along, cruise, lane), mesh: car.group, kind, cruise, car, stop: findStop(seg) });
     } else {
       const h = newPerson(LOOKS[Math.floor(Math.random() * LOOKS.length)]!);
       shadowed(h.group, true, false);
@@ -808,6 +853,25 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         const d = Math.hypot(dx, dz);
         const ahead = d > 0.1 ? (dx * Math.sin(ag.heading) - dz * Math.cos(ag.heading)) / d : 0;
         if (d < 16 && ahead > 0.65) target = 0;
+        // Obey the traffic light ahead: slow evenly to stop at the line on red, and on amber if it can.
+        if (n.stop) {
+          const remaining = Math.hypot(ag.seg.b[0] - ag.x, ag.seg.b[1] - ag.z);
+          const gap = remaining + n.stop.extra - stopDistance(n.stop.j) - 2.4; // 2.4 m: half a car's length, so the nose stops at the line
+          target = Math.min(target, targetAtLight(lightFor(n.stop.group, now / 1000, n.stop.j.offset), gap, ag.speed, n.cruise));
+        }
+        // Keep a gap behind the car in front, in the same lane and going the same way.
+        const sin = Math.sin(ag.heading);
+        const cos = Math.cos(ag.heading);
+        for (const m of npcs) {
+          if (m === n || m.kind !== 'car') continue;
+          const rx = m.agent.x - ag.x;
+          const rz = m.agent.z - ag.z;
+          const fwd = rx * sin - rz * cos;
+          if (fwd <= 0 || fwd > 12 || Math.abs(rx * cos + rz * sin) > 2.3) continue;
+          if (Math.abs(Math.atan2(Math.sin(m.agent.heading - ag.heading), Math.cos(m.agent.heading - ag.heading))) > 0.9) continue;
+          const room = fwd - 4.8; // between the two cars' ends
+          target = Math.min(target, room < 1.5 ? 0 : Math.min(n.cruise, m.agent.speed + (room - 1.5) * 0.6));
+        }
       }
       ag.speed += (target - ag.speed) * Math.min(1, dt * 3);
       const before = ag.seg;
@@ -815,7 +879,10 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         const near = segsNear(end[0], end[1], 12, n.kind === 'car' ? drivable : walkable);
         return pickNext(near, end, from, Math.random);
       });
-      if (ag.seg !== before) ag.lane = laneFor(n.kind, ag.seg);
+      if (ag.seg !== before) {
+        ag.lane = laneFor(n.kind, ag.seg);
+        if (n.kind === 'car') n.stop = findStop(ag.seg);
+      }
       n.mesh.position.set(ag.x, 0, ag.z);
       n.mesh.rotation.y = -ag.heading;
       n.human?.update(dt, ag.speed, false);
@@ -1444,6 +1511,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       for (const g of built.values()) for (const c of g.children) if (c.userData.ownMap) ((c as T.Mesh).material as T.MeshLambertMaterial).color.setScalar(dark);
     }
     rain.update(now / 1000, camera.position, weatherNow.rain, weatherNow.wind * 0.6, weatherNow.wind * 0.25);
+    // The traffic lights change on their own clock.
+    for (const sq of built.values()) (sq.userData.signals as ((seconds: number) => void) | undefined)?.(now / 1000);
     for (const th of weather.takeThunder()) sound.thunder(th.power, th.delay);
     sun.position.set(gx + ld[0] * 260, Math.max(30, ld[1] * 260), gz + ld[2] * 260);
     sun.target.position.set(gx, 0, gz);

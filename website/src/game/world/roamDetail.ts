@@ -8,6 +8,7 @@ import type { Area, Road, TileWorld } from './worldData.js';
 import { insidePolygon } from './colliders.js';
 import { CELL_M } from './roamBuild.js';
 import { REAL, type Palette } from './style.js';
+import { crosswalkDistance, junctionsFor, roomForCrosswalk, stopDistance } from './junctions.js';
 
 export interface Square {
   /** The north-west corner of the square, in metres. */
@@ -129,6 +130,41 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
     trace(r);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // Crosswalks (zebra stripes running along the road, side by side across it) and a stop line, on each road of a signalised junction.
+  ctx.lineCap = 'butt';
+  ctx.setLineDash([]);
+  for (const j of junctionsFor(world)) {
+    if (!j.signalised || j.x < s.x0 - 12 || j.x > s.x0 + CELL_M + 12 || j.z < s.z0 - 12 || j.z > s.z0 + CELL_M + 12) continue;
+    for (const arm of j.arms) {
+      if (arm.width < 5 || !roomForCrosswalk(j, arm)) continue;
+      const cd = crosswalkDistance(j);
+      const cx = j.x + arm.dx * cd;
+      const cz = j.z + arm.dz * cd;
+      const px2 = -arm.dz; // across the road
+      const pz2 = arm.dx;
+      const half = arm.width / 2 - 0.4;
+      ctx.strokeStyle = R.centre;
+      ctx.lineWidth = 0.55 * k;
+      ctx.beginPath();
+      for (let off = -half; off <= half + 0.01; off += 1.1) {
+        ctx.moveTo(px(cx + px2 * off - arm.dx * 1.5), pz(cz + pz2 * off - arm.dz * 1.5));
+        ctx.lineTo(px(cx + px2 * off + arm.dx * 1.5), pz(cz + pz2 * off + arm.dz * 1.5));
+      }
+      ctx.stroke();
+      // The stop line, on the side of the road traffic arrives on (their right as they drive towards the junction).
+      const sd = stopDistance(j);
+      const sx = j.x + arm.dx * sd;
+      const sz = j.z + arm.dz * sd;
+      const rx = arm.dz;
+      const rz = -arm.dx;
+      ctx.lineWidth = 0.45 * k;
+      ctx.beginPath();
+      ctx.moveTo(px(sx + rx * 0.2), pz(sz + rz * 0.2));
+      ctx.lineTo(px(sx + rx * (arm.width / 2 - 0.3)), pz(sz + rz * (arm.width / 2 - 0.3)));
+      ctx.stroke();
+    }
   }
 }
 

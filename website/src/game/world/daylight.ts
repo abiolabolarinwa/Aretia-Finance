@@ -25,6 +25,10 @@ export interface Moment {
   /** How much of the look's sky light, reflections and brightness is left (never fully dark, so the city can still be played at night). */
   ambient: number;
   exposure: number;
+  /** 0 to 1: how much of the sky is covered in cloud (the weather sets it; 0 for a clear sky). */
+  cover: number;
+  /** 0 to 1: how bright a lightning flash is this instant (the weather sets it). */
+  flash: number;
 }
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
@@ -114,6 +118,8 @@ export function momentAt(hoursIn: number, day: SkyColours): Moment {
     lightStrength: Math.max(sunUp, moonLight),
     ambient: 0.22 + 0.78 * smoothstep(-0.1, 0.3, e),
     exposure: 1 + 0.25 * nightW,
+    cover: 0,
+    flash: 0,
   };
 }
 

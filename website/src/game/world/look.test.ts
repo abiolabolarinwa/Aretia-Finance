@@ -108,6 +108,9 @@ describe('the bright and realistic looks', () => {
     expect(b.fragmentShader).toContain('uMoonDir');
     expect(b.fragmentShader).toContain('hash31');
     expect(b.uniforms.uNight!.value).toBe(0);
+    // Weather: the sky can fill with cloud, and starts clear.
+    expect(b.uniforms.uCover!.value).toBe(0);
+    expect(b.fragmentShader).toContain('uCover');
     expect(b.uniforms.uMoonDir!.value.length()).toBeCloseTo(1);
     b.dispose();
     r.dispose();

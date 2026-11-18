@@ -41,6 +41,7 @@ uniform float uGlow;
 uniform float uTime;
 uniform vec3 uMoonDir;
 uniform float uNight;
+uniform float uCover;
 varying vec3 vDir;
 float hash31(vec3 p) {
   return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
@@ -74,9 +75,10 @@ void main() {
   float cloud = 0.0;
   if (d.y > 0.02) {
     vec2 cp = d.xz / (d.y + 0.28) * 1.7 + vec2(uTime * 0.012, uTime * 0.005);
-    cloud = smoothstep(0.5, 0.8, fbm(cp)) * smoothstep(0.02, 0.22, d.y);
-    vec3 lit = mix(uCloudShade, uCloudLit, pow(s, 2.0) * 0.6 + 0.4);
-    col = mix(col, lit, cloud * 0.85);
+    // More cloud as the weather closes in: the threshold drops so the gaps fill, until it is one grey sheet.
+    cloud = smoothstep(0.5 - 0.42 * uCover, 0.8 - 0.3 * uCover, fbm(cp)) * smoothstep(0.02, 0.22, d.y);
+    vec3 lit = mix(uCloudShade, uCloudLit, (pow(s, 2.0) * 0.6 + 0.4) * (1.0 - 0.7 * uCover));
+    col = mix(col, lit, cloud * (0.85 + 0.15 * uCover));
   }
   // A wide warm glow, a tighter one, and the disc itself (partly hidden behind cloud).
   col += uSun * (0.18 * pow(s, 3.0) + 0.45 * pow(s, 24.0) + 2.4 * pow(s, 700.0)) * uGlow * (1.0 - cloud * 0.7);
@@ -114,6 +116,7 @@ export function skyMaterial(three: Three, look: Palette = REAL): T.ShaderMateria
       uGlow: { value: look.sky.glow },
       uMoonDir: { value: new three.Vector3(-SUN_DIRECTION[0], -SUN_DIRECTION[1], -SUN_DIRECTION[2]) },
       uNight: { value: 0 },
+      uCover: { value: 0 },
       uTime: { value: 0 },
     },
   });
@@ -161,6 +164,7 @@ export function makeAtmosphere(three: Three, renderer: T.WebGLRenderer, look: Pa
       (u.uSunDir!.value as T.Vector3).set(...m.sun);
       (u.uMoonDir!.value as T.Vector3).set(...m.moon);
       u.uNight!.value = m.night;
+      u.uCover!.value = m.cover;
     },
     dispose() {
       dome.geometry.dispose();

@@ -24,6 +24,8 @@ import { applyDetail, loadDetail } from './detail.js';
 import { loadCharacter, makeAnimatedHuman } from './characters.js';
 import { makeStreetPanel } from './streetPanel.js';
 import { SoundEngine, saveMuted, savedMuted } from './sound.js';
+import { WEATHER_LABEL, WeatherSystem, applyWeather, fogRange, wetness, type WeatherName } from './weather.js';
+import { makeRain } from './rain.js';
 import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeAtmosphere } from './atmosphere.js';
@@ -114,7 +116,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%;' + pill);
   const prompt = hud(`left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.55);'}padding:8px 16px;border-radius:999px;display:none`);
   const toast = hud(`left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.6);'}padding:8px 14px;border-radius:${look.id === 'bright' ? '18px' : '12px'};display:none`);
-  const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo · T time · M sound · H horn');
+  const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo · T time · R weather · M sound · H horn');
   const mini = document.createElement('canvas');
   mini.width = 176;
   mini.height = 176;
@@ -150,6 +152,15 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     soundButton.textContent = soundLabel();
   }
   wrap.addEventListener('pointerdown', () => sound.unlock());
+  // Picks the weather (R): clear, cloudy, rain, storm, fog, then back to changing by itself.
+  function cycleWeather(): void {
+    const order: (WeatherName | 'auto')[] = ['clear', 'cloudy', 'rain', 'storm', 'fog', 'auto'];
+    const now: WeatherName | 'auto' = weather.isAuto ? 'auto' : weather.name;
+    const next = order[(order.indexOf(now) + 1) % order.length]!;
+    weather.set(next);
+    say(next === 'auto' ? 'Weather: it will change by itself' : `Weather: ${WEATHER_LABEL[next]}`, 2500);
+  }
+  button('Weather (R)', 'right:12px;top:342px', cycleWeather).setAttribute('aria-label', 'Change the weather');
   // Skips three game hours, to see the evening, the night or the morning (T).
   button('Time +3 h (T)', 'right:12px;top:266px', () => clock.skip(3)).setAttribute('aria-label', 'Skip three hours of game time');
   // Switches between the bright and the realistic look: remembered, and the view starts again with the new look.
@@ -190,6 +201,13 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // The time of day: starts at the player's own local hour and runs fast (a day in about 24 minutes of play).
   const clock = makeClock(hoursOf(new Date()));
   let moment = momentAt(clock.hours(), look.sky);
+  // Weather: changes by itself every few minutes (mostly clear), or held by the player (R). Rain is drawn around the camera.
+  const weather = new WeatherSystem();
+  let weatherNow = weather.update(0);
+  let wet = 0;
+  let wetApplied = -1;
+  const rain = makeRain(three);
+  scene.add(rain.object);
   const sun = new three.DirectionalLight(look.sky.sun, look.light.sun);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -529,6 +547,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       tex.generateMipmaps = true;
       tex.minFilter = three.LinearMipmapLinearFilter;
       const planeMaterial = new three.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      planeMaterial.color.setScalar(1 - 0.3 * wet); // a square built while it rains starts out wet
       if (asphaltTex) applyDetail(three, planeMaterial, { detail: asphaltTex, mode: 'world', scale: 1 / 2.5, strength: 0.9, near: 35, far: 150 });
       const plane = new three.Mesh(new three.PlaneGeometry(CELL_M, CELL_M), planeMaterial);
       plane.rotation.x = -Math.PI / 2;
@@ -915,7 +934,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // ------------------------------------------------------------ input
   const onKey = (down: boolean) => (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
-    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f' && k !== 'v' && k !== 't' && k !== 'm' && k !== 'h') return;
+    if (!KEY_NAMES.includes(k) && k !== 'e' && k !== 'f' && k !== 'v' && k !== 't' && k !== 'm' && k !== 'h' && k !== 'r') return;
     if (down) sound.unlock();
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (k === 'e') {
@@ -930,6 +949,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       if (down && !e.repeat) toggleSound();
     } else if (k === 'h') {
       if (down && !e.repeat && driving) sound.horn();
+    } else if (k === 'r') {
+      if (down && !e.repeat) cycleWeather();
     } else if (down) keys.add(k);
     else keys.delete(k);
     e.preventDefault();
@@ -1282,7 +1303,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     const p = here();
     const kmh = driving ? Math.abs(driving.state.speed) * 3.6 : Math.hypot(foot.vx, foot.vz) * 3.6;
     const m = mode();
-    status.textContent = `${m === 'walk' ? 'Walking' : m === 'run' ? 'Running' : m === 'car' ? driving!.name : 'Boat'} · ${Math.round(kmh)} km/h · ${formatClock(clock.hours())}`;
+    status.textContent = `${m === 'walk' ? 'Walking' : m === 'run' ? 'Running' : m === 'car' ? driving!.name : 'Boat'} · ${Math.round(kmh)} km/h · ${formatClock(clock.hours())} · ${WEATHER_LABEL[weatherNow.name]}`;
     const street = streetName(p.x, p.z);
     const lm = nearestLandmark(p.x, p.z);
     place.textContent = street || (lm && lm.d < 400 ? `Near ${lm.name}` : city.name);
@@ -1381,8 +1402,24 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     const gz = Math.round(target.z);
     // Time of day: the sun (or the moon at night), the sky, the haze and the ambient light all follow the clock.
     clock.tick(dt);
-    moment = momentAt(clock.hours(), look.sky);
+    weatherNow = weather.update(dt);
+    moment = applyWeather(momentAt(clock.hours(), look.sky), weatherNow);
     const ld = moment.lightDir;
+    // Fog and heavy rain shorten the view; surfaces darken as they get wet; the rain falls round the camera; thunder follows the flash.
+    const fr = fogRange(look.fog, weatherNow);
+    (scene.fog as T.Fog).near = fr[0];
+    (scene.fog as T.Fog).far = fr[1];
+    wet = wetness(weatherNow.rain, wet, dt);
+    if (Math.abs(wet - wetApplied) > 0.004) {
+      wetApplied = wet;
+      const dark = 1 - 0.3 * wet;
+      groundMaterial.color.set(look.ground).multiplyScalar(dark);
+      wallMaterial.color.setScalar(1 - 0.18 * wet);
+      roofMaterial.color.setScalar(1 - 0.2 * wet);
+      for (const g of built.values()) for (const c of g.children) if (c.userData.ownMap) ((c as T.Mesh).material as T.MeshLambertMaterial).color.setScalar(dark);
+    }
+    rain.update(now / 1000, camera.position, weatherNow.rain, weatherNow.wind * 0.6, weatherNow.wind * 0.25);
+    for (const th of weather.takeThunder()) sound.thunder(th.power, th.delay);
     sun.position.set(gx + ld[0] * 260, Math.max(30, ld[1] * 260), gz + ld[2] * 260);
     sun.target.position.set(gx, 0, gz);
     sun.color.set(moment.lightColour);
@@ -1425,6 +1462,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         braking: !!driving && iy < 0 && Math.abs(driving.state.speed) > 1,
         handbrake: keys.has(' ') || touchBrake,
         night: moment.night,
+        rain: weatherNow.rain,
+        wind: weatherNow.wind,
       },
       dt,
     );
@@ -1483,6 +1522,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       for (let i = npcs.length - 1; i >= 0; i--) dropNpc(i);
       streetPanel.destroy();
       sound.dispose();
+      rain.dispose();
       air.dispose();
       document.removeEventListener('fullscreenchange', onFullChange);
       if (document.fullscreenElement === wrap) void document.exitFullscreen().catch(() => undefined);

@@ -21,7 +21,16 @@ export interface SoundState {
   handbrake: boolean;
   /** How dark it is, 0 to 1. */
   night: number;
+  /** How hard it rains and how windy it is, 0 to 1 (none when left out). */
+  rain?: number;
+  wind?: number;
 }
+
+/** The loudness of the rain's hiss and of its low rumble, for how hard it rains. A downpour is much louder than a drizzle. */
+export const rainHiss = (rain: number): number => clamp(rain) ** 1.3 * 0.1;
+export const rainRumble = (rain: number): number => smooth(0.5, 1, rain) * 0.05;
+/** Extra wind noise from the weather (on top of the wind of moving fast). */
+export const weatherWind = (wind: number): number => clamp(wind) * 0.09;
 
 const clamp = (v: number, a = 0, b = 1): number => Math.max(a, Math.min(b, v));
 const smooth = (a: number, b: number, v: number): number => {
@@ -86,6 +95,8 @@ export class SoundEngine {
     wind: GainNode;
     hum: GainNode;
     crickets: GainNode;
+    rain: GainNode;
+    rumble: GainNode;
   } | null = null;
   private noise: AudioBuffer | null = null;
   private stepClock = 0;
@@ -187,6 +198,9 @@ export class SoundEngine {
     const squeal = this.loop(ctx, 'bandpass', 1900, 9, master);
     const wind = this.loop(ctx, 'lowpass', 700, 0.5, master);
     const hum = this.loop(ctx, 'lowpass', 240, 0.4, master);
+    // Rain: a bright hiss of drops, and a low rumble underneath that only a downpour brings.
+    const rain = this.loop(ctx, 'bandpass', 4200, 0.35, master);
+    const rumble = this.loop(ctx, 'lowpass', 520, 0.5, master);
 
     // Crickets: a high tone that chirps, switched on only at night.
     const cricket = ctx.createOscillator();
@@ -208,7 +222,7 @@ export class SoundEngine {
     cricket.start();
     lfo.start();
 
-    this.nodes = { engineGain, engineA, engineB, engineFilter, squeal, wind, hum, crickets };
+    this.nodes = { engineGain, engineA, engineB, engineFilter, squeal, wind, hum, crickets, rain, rumble };
   }
 
   /** Call every frame. */
@@ -226,14 +240,18 @@ export class SoundEngine {
       n.engineFilter.frequency.setTargetAtTime(260 + hz * (boat ? 5 : 11), t, 0.08);
       n.engineGain.gain.setTargetAtTime(boat ? 0.09 + clamp(s.speed / 16) * 0.08 : engineLevel(s.speed, s.throttle), t, 0.06);
       n.squeal.gain.setTargetAtTime(boat ? 0 : squealLevel(s.speed, s.yaw, s.handbrake, s.braking), t, 0.05);
-      n.wind.gain.setTargetAtTime(windLevel(s.speed), t, 0.12);
+      n.wind.gain.setTargetAtTime(windLevel(s.speed) + weatherWind(s.wind ?? 0), t, 0.12);
     } else {
       n.engineGain.gain.setTargetAtTime(0, t, 0.08);
       n.squeal.gain.setTargetAtTime(0, t, 0.05);
-      n.wind.gain.setTargetAtTime(windLevel(s.speed * 2), t, 0.12);
+      n.wind.gain.setTargetAtTime(windLevel(s.speed * 2) + weatherWind(s.wind ?? 0), t, 0.12);
     }
-    n.hum.gain.setTargetAtTime(0.045 * (1 - 0.4 * s.night), t, 0.5);
-    n.crickets.gain.setTargetAtTime(0.011 * s.night, t, 0.8);
+    const wet = s.rain ?? 0;
+    n.rain.gain.setTargetAtTime(rainHiss(wet), t, 0.4);
+    n.rumble.gain.setTargetAtTime(rainRumble(wet), t, 0.6);
+    n.hum.gain.setTargetAtTime(0.045 * (1 - 0.4 * s.night) * (1 - 0.5 * clamp(wet)), t, 0.5);
+    // Crickets stop when it rains.
+    n.crickets.gain.setTargetAtTime(0.011 * s.night * (1 - clamp(wet * 1.6)), t, 0.8);
     // Footsteps, on foot only.
     if (!driving) {
       const every = stepInterval(s.speed, s.mode === 'run');
@@ -248,13 +266,13 @@ export class SoundEngine {
     } else this.stepClock = 0;
   }
 
-  private burst(ctx: AudioContext, freq: number, q: number, level: number, seconds: number): void {
+  private burst(ctx: AudioContext, freq: number, q: number, level: number, seconds: number, at?: number, type: BiquadFilterType = 'bandpass'): void {
     if (!this.master) return;
-    const t = ctx.currentTime;
+    const t = at ?? ctx.currentTime;
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer(ctx);
     const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
+    f.type = type;
     f.frequency.value = freq;
     f.Q.value = q;
     const g = ctx.createGain();
@@ -293,6 +311,16 @@ export class SoundEngine {
     if (!this.ctx) return;
     this.burst(this.ctx, 140, 0.8, 0.55, 0.35);
     this.burst(this.ctx, 1200, 0.6, 0.25, 0.18);
+  }
+
+  /** A peal of thunder that reaches the player `delay` seconds from now (sound is slower than the flash), louder for a closer strike. */
+  thunder(power: number, delay: number): void {
+    if (!this.ctx) return;
+    const at = this.ctx.currentTime + Math.max(0, delay);
+    const p = clamp(power);
+    this.burst(this.ctx, 90, 0.7, 0.9 * p, 2.8, at, 'lowpass'); // the deep crack and roll
+    this.burst(this.ctx, 420, 0.5, 0.35 * p, 1.3, at + 0.05, 'lowpass');
+    this.burst(this.ctx, 140, 0.6, 0.5 * p, 3.6, at + 1.1, 'lowpass'); // the rumble that follows
   }
 
   /** Getting in or out of a vehicle. */

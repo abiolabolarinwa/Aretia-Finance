@@ -9,6 +9,98 @@ import { wallColour } from './worldData.js';
 
 const seg = (ax: number, az: number, bx: number, bz: number, width = 8, cls = 'secondary'): Seg => ({ a: [ax, az], b: [bx, bz], width, cls });
 
+describe('inside the car', () => {
+  /** Meshes you cannot see through. */
+  const solids = (car: ReturnType<typeof makeCar>): three.Object3D[] => {
+    const out: three.Object3D[] = [];
+    car.group.traverse((o) => {
+      const m = o as three.Mesh;
+      if (m.isMesh && !(m.material as three.Material).transparent) out.push(m);
+    });
+    return out;
+  };
+  const fromSide = (car: ReturnType<typeof makeCar>, y: number, z: number): three.Intersection[] => {
+    car.group.updateMatrixWorld(true);
+    const rc = new three.Raycaster(new three.Vector3(4, y, z), new three.Vector3(-1, 0, 0), 0, 8);
+    return rc.intersectObjects(solids(car), false);
+  };
+
+  it('has an open cabin: at head height a ray from the side meets nothing solid, but at door height it meets the door', () => {
+    for (const kind of ['sedan', 'suv', 'taxi'] as const) {
+      const car = makeCar(three, '#aa2222', kind);
+      const [, hy, hz] = car.seat;
+      // Head height beside the driver: only clear glass is in the way.
+      expect(fromSide(car, hy + 0.7, hz), kind).toHaveLength(0);
+      // Door height: the door panel is solid.
+      const door = fromSide(car, 0.7, hz);
+      expect(door.length, kind).toBeGreaterThan(0);
+      expect(door[0]!.point.x, kind).toBeGreaterThan(0.8); // the near door, not something inside
+      car.dispose();
+    }
+  });
+
+  it('seats the driver on the left, inside the car, with the head under the roof and the hips above the floor', () => {
+    for (const kind of ['sedan', 'suv'] as const) {
+      const car = makeCar(three, '#223344', kind);
+      const [x, y, z] = car.seat;
+      expect(x).toBeLessThan(-0.3);
+      const b = new three.Box3().setFromObject(car.group);
+      expect(x).toBeGreaterThan(b.min.x);
+      expect(z).toBeGreaterThan(b.min.z);
+      expect(z).toBeLessThan(b.max.z);
+      expect(y).toBeGreaterThan(0.38);
+      expect(y + 0.95).toBeLessThan(b.max.y + 0.05); // sitting height up to the top of the head fits under the roof
+      car.dispose();
+    }
+  });
+
+  it('shows the windows as clear glass and turns the steering wheel with the road wheels', () => {
+    const car = makeCar(three, '#223344', 'sedan');
+    const clear: three.Mesh[] = [];
+    car.group.traverse((o) => {
+      const m = o as three.Mesh;
+      if (m.isMesh && (m.material as three.Material).transparent) clear.push(m);
+    });
+    expect(clear.length).toBe(1);
+    expect((clear[0]!.material as three.Material).opacity).toBeLessThan(0.5);
+    expect((clear[0]!.material as three.Material).depthWrite).toBe(false);
+    const torus = (() => {
+      let t: three.Mesh | null = null;
+      car.cabin.traverse((o) => {
+        if ((o as three.Mesh).isMesh && (o as three.Mesh).geometry.type === 'TorusGeometry') t = o as three.Mesh;
+      });
+      return t as unknown as three.Mesh;
+    })();
+    expect(torus).toBeDefined();
+    for (let i = 0; i < 60; i++) car.animate(1 / 60, 15, 0.6, 0);
+    expect(torus.rotation.z).toBeLessThan(-0.3); // a right turn turns the wheel clockwise
+    for (let i = 0; i < 120; i++) car.animate(1 / 60, 15, -0.6, 0);
+    expect(torus.rotation.z).toBeGreaterThan(0.3);
+    car.dispose();
+  });
+
+  it('puts a simple driver at the wheel for traffic, once, and takes it away again with the car', () => {
+    const car = makeCar(three, '#223344', 'sedan');
+    const before = car.cabin.children.length;
+    car.addDummyDriver({ skin: '#8d5a3b', hair: '#111111', top: '#2f6b4f' });
+    expect(car.cabin.children.length).toBe(before + 1);
+    car.addDummyDriver({ skin: '#ffffff', hair: '#ffffff', top: '#ffffff' });
+    expect(car.cabin.children.length).toBe(before + 1); // not a second one
+    const driver = car.cabin.children[before]!;
+    const box = new three.Box3().setFromObject(driver);
+    const [sx, sy, sz] = car.seat;
+    expect(driver.position.toArray()).toEqual([sx, sy, sz]); // hips on the seat
+    expect(box.min.x).toBeLessThan(sx);
+    expect(box.max.x).toBeGreaterThan(sx);
+    const carBox = new three.Box3().setFromObject(car.group);
+    expect(box.max.y).toBeLessThan(carBox.max.y); // under the roof
+    expect(box.max.y - box.min.y).toBeGreaterThan(0.8); // a person-sized figure
+    // Still the same size of car with a driver in it.
+    expect(carBox.max.x - carBox.min.x).toBeLessThan(2.1);
+    car.dispose();
+  });
+});
+
 describe('walking with weight', () => {
   const open = { resolve: (x: number, z: number) => ({ x, z, hit: false }), inWater: () => false };
 

@@ -27,6 +27,12 @@ export interface CharacterTemplate {
 }
 
 export const HEIGHT = 1.75;
+/**
+ * Where the character's hips are, relative to where it stands, when it plays the sitting animation (measured from the model file, and
+ * checked against it in the tests). To seat someone at a point, move them by that point minus this.
+ */
+export const SIT_HIPS: [number, number, number] = [-0.069, 0.401, 0.207];
+export const seatOffset = (hipsAt: [number, number, number]): [number, number, number] => [hipsAt[0] - SIT_HIPS[0], hipsAt[1] - SIT_HIPS[1], hipsAt[2] - SIT_HIPS[2]];
 /** The speeds (m/s) the recorded walk and run steps were made for; the clips are played faster or slower to match actual speed. */
 export const WALK_NOMINAL = 1.5;
 export const RUN_NOMINAL = 4.5;

@@ -21,7 +21,7 @@ import { bucketTile, buildingParts, cellCentre, CELL_M, type Cell } from './roam
 import { lampsFor, paintGround, squareOf, treesFor } from './roamDetail.js';
 import { makeHuman, type Human, type Look } from './human.js';
 import { applyDetail, loadDetail } from './detail.js';
-import { loadCharacter, makeAnimatedHuman } from './characters.js';
+import { loadCharacter, makeAnimatedHuman, seatOffset } from './characters.js';
 import { makeStreetPanel } from './streetPanel.js';
 import { SoundEngine, saveMuted, savedMuted } from './sound.js';
 import { WEATHER_LABEL, WeatherSystem, applyWeather, fogRange, wetness, type WeatherName } from './weather.js';
@@ -746,6 +746,9 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       const spec = CAR_KINDS[Math.floor(Math.random() * CAR_KINDS.length)]!;
       const colour = spec.kind === 'taxi' ? spec.colour : TRAFFIC_COLOURS[Math.floor(Math.random() * TRAFFIC_COLOURS.length)]!;
       const car = makeCar(three, colour, spec.kind);
+      // Someone is at the wheel, seen through the glass.
+      const who = LOOKS[Math.floor(Math.random() * LOOKS.length)]!;
+      car.addDummyDriver({ skin: who.skin, hair: who.hair, top: who.top });
       shadowed(car.group);
       scene.add(car.group);
       const cruise = 7 + Math.random() * 6;
@@ -1118,6 +1121,25 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     }
   }
 
+  // ------------------------------------------------------------ the player at the wheel
+  // The driver is a second copy of the animated person, playing the sitting animation, placed on the seat and carried by the car body.
+  // Only the real model can sit; if it did not load, the car is simply driven without a visible driver.
+  let playerDriver: Human | null = null;
+  function seatPlayer(rig: Rig): void {
+    if (!character || rig.kind !== 'car' || !rig.parts) return;
+    playerDriver ??= newPerson();
+    const at = seatOffset(rig.parts.seat);
+    playerDriver.group.position.set(...at);
+    shadowed(playerDriver.group, true, false);
+    playerDriver.sit?.(true);
+    rig.parts.cabin.add(playerDriver.group);
+  }
+  function unseatPlayer(rig: Rig): void {
+    if (!playerDriver) return;
+    rig.parts?.cabin.remove(playerDriver.group);
+    playerDriver.sit?.(false);
+  }
+
   // ------------------------------------------------------------ interaction: get in and out, collect
   function interact(): void {
     if (driving) {
@@ -1131,6 +1153,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
           foot.z = spot.z;
           foot.vx = 0;
           foot.vz = 0;
+          unseatPlayer(v);
           driving = null;
           v.state.speed = 0;
           sound.door();
@@ -1163,6 +1186,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     if (best) {
       driving = best;
       camYaw = best.state.heading;
+      seatPlayer(best);
       sound.door();
     }
   }
@@ -1373,6 +1397,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     person.position.set(foot.x, 0, foot.z);
     person.rotation.y = -foot.heading;
     human.update(dt, walking, walking > 3.6);
+    if (driving) playerDriver?.update(dt, 0, false); // the seated driver keeps breathing and shifting
     for (const r of rigs) {
       r.mesh.position.set(r.state.x, r.kind === 'boat' ? 0.05 + Math.sin(now / 500 + r.state.x) * 0.06 : 0, r.state.z);
       r.mesh.rotation.y = -r.state.heading;
@@ -1523,6 +1548,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
       streetPanel.destroy();
       sound.dispose();
       rain.dispose();
+      playerDriver?.dispose();
       air.dispose();
       document.removeEventListener('fullscreenchange', onFullChange);
       if (document.fullscreenElement === wrap) void document.exitFullscreen().catch(() => undefined);

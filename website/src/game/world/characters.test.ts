@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as three from 'three';
-import { HEIGHT, makeAnimatedHuman, parseCharacter, pickClips, type CharacterTemplate } from './characters.js';
+import { HEIGHT, SIT_HIPS, makeAnimatedHuman, parseCharacter, pickClips, seatOffset, type CharacterTemplate } from './characters.js';
 
 const file = new URL('../../../public/game/models/man.glb', import.meta.url);
 const load = async (): Promise<CharacterTemplate> => {
@@ -92,6 +92,30 @@ describe('the animated person (real model file)', () => {
     expect(g.r).toBeLessThan(0.1);
     red.dispose();
     green.dispose();
+  });
+
+  it('sits with its hips where the seat constants say, so it can be placed on a car seat', async () => {
+    const t = await load();
+    const p = makeAnimatedHuman(three, t);
+    p.sit!(true);
+    for (let i = 0; i < 120; i++) p.update(0.05, 0, false);
+    p.group.updateMatrixWorld(true);
+    let hips: three.Object3D | null = null;
+    let head: three.Object3D | null = null;
+    p.group.traverse((o) => {
+      if (/^hips$/i.test(o.name)) hips = o;
+      if (/^head$/i.test(o.name)) head = o;
+    });
+    const h = new three.Vector3().setFromMatrixPosition((hips as unknown as three.Object3D).matrixWorld);
+    expect(h.x).toBeCloseTo(SIT_HIPS[0], 1);
+    expect(h.y).toBeCloseTo(SIT_HIPS[1], 1);
+    expect(h.z).toBeCloseTo(SIT_HIPS[2], 1);
+    // Seated, the head is well below standing height and about 0.8 m above the hips.
+    const hd = new three.Vector3().setFromMatrixPosition((head as unknown as three.Object3D).matrixWorld);
+    expect(hd.y - h.y).toBeGreaterThan(0.7);
+    expect(hd.y - h.y).toBeLessThan(0.95);
+    expect(seatOffset([-0.45, 0.44, 0.5])).toEqual([-0.45 - SIT_HIPS[0], 0.44 - SIT_HIPS[1], 0.5 - SIT_HIPS[2]]);
+    p.dispose();
   });
 
   it('can sit down and stand up again', async () => {

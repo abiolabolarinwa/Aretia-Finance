@@ -8,8 +8,9 @@ import { cachedLogo } from '../swings/tokens/logos.js';
 import { sparkPoints } from '../swings/market/overview.js';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice, sortRows, type MarketRow, type SortKey } from '../swings/market/types.js';
 import { RATING_BANDS, ratingView, type CheckState } from '../swings/market/rowRisk.js';
-import { LOCK_ICON, UNLOCK_ICON, lockTitle } from './walletIcons.js';
+import { LOCK_ICON, lockTitle } from './walletIcons.js';
 import { lockView } from '../swings/market/lockView.js';
+import { lockChip } from './walletLockChip.js';
 import { dexInitial, dexLogoSrc } from '../swings/market/dexLogo.js';
 import { padlockShown } from '../swings/market/lock.js';
 import { verifiedBadge } from '../lib/verifiedBadge';
@@ -154,13 +155,7 @@ function liquidityCell(r: MarketRow): HTMLElement {
 function lockCell(r: MarketRow): HTMLElement {
   const v = lockView(r);
   const td = el('td', 'wapp-mt__lockcol');
-  const chip = el('span', `wapp-mt__lockchip is-${v.kind}`);
-  chip.title = v.title;
-  chip.setAttribute('aria-label', `Liquidity lock: ${v.text}. ${v.title}`);
-  const icon = el('span', 'wapp-mt__lockicon');
-  icon.innerHTML = v.kind === 'locked' || v.kind === 'timed' || v.kind === 'guarded' ? LOCK_ICON : UNLOCK_ICON;
-  chip.append(icon, document.createTextNode(v.text));
-  td.append(chip);
+  td.append(lockChip(v));
   return td;
 }
 

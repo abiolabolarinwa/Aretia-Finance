@@ -272,6 +272,49 @@ export function retrySlippageBps(currentBps: number): number | null {
   return Number.isFinite(currentBps) && currentBps < widest ? widest : null;
 }
 
+/** What the market knows about a token when a swap into it is opened from Markets. Any field may be unknown. */
+export interface SlippageFacts {
+  liquidityUsd: number | null;
+  /** Age of the pool in milliseconds. */
+  ageMs: number | null;
+  /** Price change over 5 minutes and 1 hour, in percent (12.5 means 12.5%). */
+  change5mPct?: number | null;
+  change1hPct?: number | null;
+}
+
+/**
+ * The slippage to start a swap with, from how the token is behaving, so most people never meet a "price moved" failure and nobody has to
+ * know what slippage is. The widest limit is 3% (the largest preset): a wider one invites sandwich trades, and the swap card already
+ * warns when the limit is generous for the trade's size. The most cautious rule that applies wins, and the reason is said in Details.
+ *
+ *   thin pool (liquidity under $10,000 / $50,000) -> 3%;   under $250,000 -> 1%
+ *   pool under an hour old -> 3%;   under a day old -> 1%
+ *   moving fast: more than 10% in 5 minutes, or 30% in an hour -> 3%;   more than 3% in 5 minutes -> 1%
+ *   nothing known, or none of the above -> the usual 0.5%
+ * A fact that is unknown never raises the limit on its own.
+ */
+export function autoSlippage(f: SlippageFacts): { bps: number; reason: string | null } {
+  const rules: { bps: number; reason: string }[] = [];
+  const liq = f.liquidityUsd;
+  if (liq !== null && Number.isFinite(liq)) {
+    if (liq < 10_000) rules.push({ bps: 300, reason: 'a thin pool (under $10,000 of liquidity)' });
+    else if (liq < 50_000) rules.push({ bps: 300, reason: 'a small pool (under $50,000 of liquidity)' });
+    else if (liq < 250_000) rules.push({ bps: 100, reason: 'a modest pool (under $250,000 of liquidity)' });
+  }
+  const age = f.ageMs;
+  if (age !== null && Number.isFinite(age)) {
+    if (age < 3_600_000) rules.push({ bps: 300, reason: 'a pool under an hour old' });
+    else if (age < 86_400_000) rules.push({ bps: 100, reason: 'a pool under a day old' });
+  }
+  const m5 = f.change5mPct;
+  const h1 = f.change1hPct;
+  if ((typeof m5 === 'number' && Math.abs(m5) > 10) || (typeof h1 === 'number' && Math.abs(h1) > 30)) rules.push({ bps: 300, reason: 'a price that is moving fast' });
+  else if (typeof m5 === 'number' && Math.abs(m5) > 3) rules.push({ bps: 100, reason: 'a price that is moving' });
+  let best: { bps: number; reason: string } | null = null;
+  for (const r of rules) if (best === null || r.bps > best.bps) best = r;
+  return best ? { bps: best.bps, reason: best.reason } : { bps: 50, reason: null };
+}
+
 /** Jupiter's own default is 0.5%; thin tokens such as ACT get 1% because their price moves more between quote and execution. */
 export function defaultSlippageBps(involvesThinToken: boolean): number {
   return involvesThinToken ? 100 : 50;

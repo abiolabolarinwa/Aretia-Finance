@@ -262,6 +262,16 @@ export function splitSwapFee(amount: bigint, feeBps: bigint = SWAP_FEE_BPS): { f
 /** Slippage presets the swap screen offers, in basis points. */
 export const SLIPPAGE_PRESETS_BPS = [50, 100, 300] as const;
 
+/**
+ * The slippage the "Try again" button on a failed swap offers: the largest preset, when the swap used less. A swap that failed because
+ * the price moved needs a wider limit to go through; the person still sees the new quote and confirms it, so nothing is sent for them.
+ * Null when the swap already used the largest preset (a wider limit is not offered: it would invite worse prices for no reason).
+ */
+export function retrySlippageBps(currentBps: number): number | null {
+  const widest = SLIPPAGE_PRESETS_BPS[SLIPPAGE_PRESETS_BPS.length - 1];
+  return Number.isFinite(currentBps) && currentBps < widest ? widest : null;
+}
+
 /** Jupiter's own default is 0.5%; thin tokens such as ACT get 1% because their price moves more between quote and execution. */
 export function defaultSlippageBps(involvesThinToken: boolean): number {
   return involvesThinToken ? 100 : 50;

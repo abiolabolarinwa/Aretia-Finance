@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+describe('the slippage a failed swap offers to try again with', () => {
+  it('is the widest preset when the swap used less, and nothing when it already used the widest', async () => {
+    const { retrySlippageBps, SLIPPAGE_PRESETS_BPS } = await import('./walletTools.js');
+    expect(retrySlippageBps(50)).toBe(300);
+    expect(retrySlippageBps(100)).toBe(300);
+    expect(retrySlippageBps(299)).toBe(300);
+    expect(retrySlippageBps(300)).toBeNull();
+    expect(retrySlippageBps(500)).toBeNull();
+    expect(retrySlippageBps(Number.NaN)).toBeNull();
+    expect(SLIPPAGE_PRESETS_BPS).toContain(300); // the button only offers a number the Details chips also offer
+  });
+});
+
 describe('explainProgramError', () => {
   it('says what Pump.fun\'s program error means, and leaves other programs alone', async () => {
     const { explainProgramError } = await import('./walletTools.js');

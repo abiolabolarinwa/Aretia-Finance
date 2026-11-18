@@ -84,7 +84,7 @@ import { isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter, explainNoRoute } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
-import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, toSmallestUnit } from './walletTools';
+import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, retrySlippageBps, toSmallestUnit } from './walletTools';
 import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
 import { imitationChip } from '../lib/imitationChip';
 
@@ -1383,6 +1383,21 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else if (ex.status === 'failed') {
         card.append(banner('warn', ex.error ?? 'The transaction failed on-chain. Your tokens were not swapped.'));
         card.append(el('p', { class: 'wapp__fine', text: 'The usual reasons: the price moved more than your slippage allows (new tokens can move several percent in seconds), or the token keeps a fee on every trade. Open Details, choose a higher slippage such as 3%, and try again.' }));
+        // One tap instead of "open Details, pick 3%, try again": the wider limit is applied and the swap is quoted again. The person
+        // still reviews the new quote and confirms it, so nothing is sent for them.
+        const retry = retrySlippageBps(s.slippageBps);
+        if (retry !== null) {
+          const again = el('button', { class: 'wapp__btn wapp__btn--primary', text: `Try again with ${retry / 100}% slippage`, attrs: { type: 'button' } });
+          again.addEventListener('click', () => {
+            s.slippageBps = retry;
+            s.slippageTouched = true;
+            resetQuote();
+            render();
+            scheduleAuto();
+          });
+          card.append(again);
+          card.append(el('p', { class: 'wapp__fine', text: `This lets the price move up to ${retry / 100}% against you before the swap is refused. You will see the new quote and confirm it again.` }));
+        }
       } else card.append(banner('info', 'Still waiting for confirmation. Check the transaction before trying again; the swap may still land.'));
       if (ex.txId) card.append(el('a', { text: 'View transaction', attrs: { href: EXPLORER_TX[ex.chain] + encodeURIComponent(ex.txId), target: '_blank', rel: 'noopener noreferrer' } }));
     }

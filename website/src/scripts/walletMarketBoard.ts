@@ -46,7 +46,7 @@ export const FIXED_COLUMNS: readonly BoardColumn[] = [
   { chain: 'ethereum', title: 'Ethereum' },
   { chain: 'bnb', title: 'BNB Chain' },
 ];
-export const FOURTH_TITLES: Readonly<Record<FourthChain, string>> = { base: 'Base', robinhood: 'Robinhood Chain' };
+export const FOURTH_TITLES: Readonly<Record<FourthChain, string>> = { base: 'Base', robinhood: 'Robinhood' };
 export const FOURTH_CHOICES: readonly FourthChain[] = ['base', 'robinhood'];
 
 /** Tokens shown per column. A column that has more says how many it left out. */
@@ -160,7 +160,7 @@ export function marketBoard(o: BoardOptions): HTMLElement {
   sw.setAttribute('role', 'group');
   sw.setAttribute('aria-label', 'Fourth network');
   for (const c of FOURTH_CHOICES) {
-    const b = el('button', '', FOURTH_TITLES[c].replace(' Chain', ''));
+    const b = el('button', '', FOURTH_TITLES[c]);
     b.type = 'button';
     b.setAttribute('aria-pressed', String(c === fourth));
     b.addEventListener('click', () => o.onFourth(c));

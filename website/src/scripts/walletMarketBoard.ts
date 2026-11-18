@@ -9,31 +9,6 @@ import { compactUsd, formatChange, formatPrice, type MarketRow } from '../swings
 import { marketLogo } from './walletMarketTable.js';
 
 export type FourthChain = 'base' | 'robinhood';
-export type BoardView = 'board' | 'table';
-
-const VIEW_KEY = 'aretia-markets-view';
-interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
-
-/** The layout the person last chose; the board until they choose the table. */
-export function loadBoardView(storage: StorageLike | null): BoardView {
-  try {
-    return storage?.getItem(VIEW_KEY) === 'table' ? 'table' : 'board';
-  } catch {
-    return 'board';
-  }
-}
-
-export function saveBoardView(storage: StorageLike | null, v: BoardView): void {
-  try {
-    storage?.setItem(VIEW_KEY, v);
-  } catch {
-    // Not remembered; the choice lasts until the page is closed.
-  }
-}
-
 export interface BoardColumn {
   /** The network this column shows. */
   chain: ChainId;
@@ -49,14 +24,20 @@ export const FIXED_COLUMNS: readonly BoardColumn[] = [
 export const FOURTH_TITLES: Readonly<Record<FourthChain, string>> = { base: 'Base', robinhood: 'Robinhood' };
 export const FOURTH_CHOICES: readonly FourthChain[] = ['base', 'robinhood'];
 
-/** Tokens shown per column. A column that has more says how many it left out. */
-export const PER_COLUMN = 30;
+/** Every network the board can show, in the order it asks the index for them. */
+export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'base', 'robinhood'];
+/** The index serves 100 tokens a page; the board reads two pages of each network, so a column starts with 100 or more. */
+export const BOARD_PAGE_SIZE = 100;
+/** Tokens drawn per column at most. */
+export const PER_COLUMN = 200;
 
 export interface BoardOptions {
   rows: readonly MarketRow[];
   fourth: FourthChain;
   onFourth(c: FourthChain): void;
   onOpen(row: MarketRow): void;
+  /** One network chosen from the rail: a single wide column of that network, with the cards in rows of several. */
+  only?: ChainId;
   /** The key of the token on screen elsewhere (the selected one), to mark. */
   selectedKey?: string | null;
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
@@ -106,19 +87,18 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
     }
   });
 
+  // Two short lines: symbol and name above the price on the left; market cap above the one-hour change on the right.
   const mid = el('div', 'wapp-bd__mid');
   const top = el('div', 'wapp-bd__top');
-  top.append(el('strong', 'wapp-bd__sym', r.symbol));
-  if (r.quoteSymbol) top.append(el('span', 'wapp-bd__quote', `/ ${r.quoteSymbol}`));
-  mid.append(top, el('span', 'wapp-bd__name', r.name));
-  mid.append(el('span', 'wapp-bd__price', formatPrice(r.priceUsd)));
+  top.append(el('strong', 'wapp-bd__sym', r.symbol), el('span', 'wapp-bd__name', r.name));
+  mid.append(top, el('span', 'wapp-bd__price', formatPrice(r.priceUsd)));
 
   const right = el('div', 'wapp-bd__right');
   const cap = el('span', 'wapp-bd__cap', compactUsd(r.capUsd));
-  cap.title = r.capIsFdv ? 'Fully diluted value: price times total supply' : 'Market cap';
+  cap.title = r.capIsFdv ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
   const chg = el('span', `wapp-bd__chg is-${tone}`, tone === 'up' ? `▲ ${formatChange(h1)}` : tone === 'down' ? `▼ ${formatChange(h1).replace('-', '')}` : formatChange(h1));
   chg.title = 'Price change over the last hour';
-  right.append(el('span', 'wapp-bd__lab', 'MCAP'), cap, chg);
+  right.append(cap, chg);
 
   c.append(marketLogo(r), mid, right);
   if (o.favourites) {
@@ -142,17 +122,25 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
   logo.width = 22;
   logo.height = 22;
   head.append(logo, el('h3', 'wapp-bd__title', title), el('span', 'wapp-bd__count', String(rows.length)));
+  head.append(el('span', 'wapp-bd__legend', 'MCAP · 1H'));
   if (switcher) head.append(switcher);
   col.append(head);
   const list = el('div', 'wapp-bd__list');
   if (rows.length === 0) list.append(el('p', 'wapp-bd__empty', `No ${title} tokens match right now.`));
   for (const r of rows.slice(0, PER_COLUMN)) list.append(card(r, o));
-  if (rows.length > PER_COLUMN) list.append(el('p', 'wapp-bd__more', `${rows.length - PER_COLUMN} more not shown. Use the search or the table.`));
+  if (rows.length > PER_COLUMN) list.append(el('p', 'wapp-bd__more', `${rows.length - PER_COLUMN} more not shown. Use the search.`));
   col.append(list);
   return col;
 }
 
 export function marketBoard(o: BoardOptions): HTMLElement {
+  if (o.only) {
+    const one = el('div', 'wapp-bd wapp-bd--single');
+    const chain = o.only;
+    const title = chain === 'solana' ? 'Solana' : chain === 'ethereum' ? 'Ethereum' : chain === 'bnb' ? 'BNB Chain' : chain === 'base' ? 'Base' : chain === 'robinhood' ? 'Robinhood' : chain;
+    one.append(column(title, chain, columnRows(o.rows, chain), o));
+    return one;
+  }
   const board = el('div', 'wapp-bd');
   for (const c of FIXED_COLUMNS) board.append(column(c.title, c.chain, columnRows(o.rows, c.chain), o));
   const fourth = pickFourth(o.rows, o.fourth);

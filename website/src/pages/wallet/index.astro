@@ -967,45 +967,49 @@ const sendTips = [
   }
   .wapp-mt__main { min-width: 0; display: grid; gap: 10px; }
 
-  /* ---- Markets board: four network columns, a compact card per token (market cap, one-hour change, price) ---- */
-  .wapp-bd { --bd-up: #12924f; --bd-down: #d6362b; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  /* ---- Markets board: network columns, a compact card per token (market cap, one-hour change, price) ---- */
+  .wapp-bd { --bd-up: #12924f; --bd-down: #d6362b; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
   :root[data-theme='dark'] .wapp-bd { --bd-up: #3ddc84; --bd-down: #ff6b6b; }
-  .wapp-bd__col { min-width: 0; display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
-  .wapp-bd__head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--color-border); background: var(--color-surface-2); }
-  .wapp-bd__chain { flex: none; width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
-  .wapp-bd__title { white-space: nowrap; margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--color-strong); }
-  .wapp-bd__count { margin-left: 2px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; color: var(--color-muted); background: var(--color-surface-3); }
-  .wapp-bd__switch { margin-left: auto; display: inline-flex; padding: 2px; border-radius: 999px; background: var(--color-surface-3); }
-  .wapp-bd__switch button { font: inherit; font-size: 12px; font-weight: 650; padding: 3px 10px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); cursor: pointer; }
+  .wapp-bd__col { min-width: 0; display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+  .wapp-bd__head { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-bottom: 1px solid var(--color-border); background: var(--color-surface-2); }
+  .wapp-bd__chain { flex: none; width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+  .wapp-bd__title { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; color: var(--color-strong); }
+  .wapp-bd__count { padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 650; color: var(--color-muted); background: var(--color-surface-3); }
+  .wapp-bd__legend { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--color-faint); white-space: nowrap; }
+  .wapp-bd__switch { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--color-surface-3); }
+  .wapp-bd__switch button { font: inherit; font-size: 11px; font-weight: 650; padding: 2px 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); cursor: pointer; }
   .wapp-bd__switch button[aria-pressed='true'] { background: var(--color-strong); color: var(--color-bg); }
-  .wapp-bd__list { display: flex; flex-direction: column; max-height: calc(100vh - 250px); min-height: 160px; overflow-y: auto; overscroll-behavior: contain; }
-  .wapp-bd__card { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px 11px 14px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 140ms ease; }
-  .wapp-bd__card::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-surface-3); }
+  /* Each column scrolls on its own, with no scroll bar showing. */
+  .wapp-bd__list { display: flex; flex-direction: column; max-height: calc(100vh - 190px); min-height: 160px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
+  .wapp-bd__list::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .wapp-bd__card { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 10px 6px 12px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 120ms ease; }
+  .wapp-bd__card::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-surface-3); }
   .wapp-bd__card.is-up::before { background: var(--bd-up); }
   .wapp-bd__card.is-down::before { background: var(--bd-down); }
-  .wapp-bd__card.is-up { background: linear-gradient(90deg, color-mix(in srgb, var(--bd-up) 9%, transparent), transparent 60%); }
-  .wapp-bd__card.is-down { background: linear-gradient(90deg, color-mix(in srgb, var(--bd-down) 9%, transparent), transparent 60%); }
+  .wapp-bd__card.is-up { background: linear-gradient(90deg, color-mix(in srgb, var(--bd-up) 8%, transparent), transparent 55%); }
+  .wapp-bd__card.is-down { background: linear-gradient(90deg, color-mix(in srgb, var(--bd-down) 8%, transparent), transparent 55%); }
   .wapp-bd__card:hover { background: var(--color-surface-2); }
   .wapp-bd__card:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-  .wapp-bd__card .wapp-mt__logo { width: 38px; height: 38px; border-radius: 12px; }
-  .wapp-bd__mid { min-width: 0; display: grid; gap: 1px; }
+  .wapp-bd__card .wapp-mt__logo { width: 28px; height: 28px; border-radius: 8px; font-size: 10px; }
+  .wapp-bd__mid { min-width: 0; display: grid; gap: 0; line-height: 1.25; }
   .wapp-bd__top { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
-  .wapp-bd__sym { font-size: 14px; font-weight: 700; color: var(--color-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .wapp-bd__quote { flex: none; font-size: 11px; color: var(--color-faint); }
-  .wapp-bd__name { font-size: 12px; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .wapp-bd__price { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-text); }
-  .wapp-bd__right { display: grid; justify-items: end; gap: 2px; }
-  .wapp-bd__lab { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--color-faint); }
-  .wapp-bd__right { padding-top: 6px; }
-  .wapp-bd__cap { min-width: 2ch; text-align: right; font-size: 16px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--color-strong); }
-  .wapp-bd__chg { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-muted); background: var(--color-surface-3); }
+  .wapp-bd__sym { flex: none; max-width: 55%; font-size: 13px; font-weight: 700; color: var(--color-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-bd__name { min-width: 0; font-size: 11px; color: var(--color-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wapp-bd__price { font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+  .wapp-bd__right { display: grid; justify-items: end; gap: 1px; line-height: 1.2; }
+  .wapp-bd__cap { min-width: 2ch; text-align: right; font-size: 13.5px; font-weight: 750; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-bd__chg { padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-muted); background: var(--color-surface-3); }
   .wapp-bd__chg.is-up { color: var(--bd-up); background: color-mix(in srgb, var(--bd-up) 16%, transparent); }
   .wapp-bd__chg.is-down { color: var(--bd-down); background: color-mix(in srgb, var(--bd-down) 16%, transparent); }
-  .wapp-bd__star { position: absolute; top: 5px; right: 8px; padding: 0; border: 0; background: transparent; font-size: 15px; line-height: 1; color: var(--color-faint); cursor: pointer; }
+  .wapp-bd__star { position: absolute; top: 1px; right: 4px; padding: 0; border: 0; background: transparent; font-size: 11px; line-height: 1; color: var(--color-faint); cursor: pointer; opacity: 0; }
+  .wapp-bd__card:hover .wapp-bd__star, .wapp-bd__star:focus-visible { opacity: 1; }
   .wapp-bd__star:hover { color: var(--color-gold); }
-  .wapp-bd__empty, .wapp-bd__more { margin: 0; padding: 18px 14px; font-size: 13px; color: var(--color-faint); }
-  @media (max-width: 1280px) { .wapp-bd { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 720px) { .wapp-bd { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { max-height: 70vh; } }
+  .wapp-bd__empty, .wapp-bd__more { margin: 0; padding: 16px 12px; font-size: 13px; color: var(--color-faint); }
+  /* One network chosen from the rail: one wide column, the cards laid out in rows of several. */
+  .wapp-bd--single { grid-template-columns: minmax(0, 1fr); }
+  .wapp-bd--single .wapp-bd__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  @media (max-width: 1280px) { .wapp-bd:not(.wapp-bd--single) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 720px) { .wapp-bd:not(.wapp-bd--single) { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { max-height: 70vh; } }
   /* The chart opened from the docked panel: in the centre, above the list. */
   .wapp-mt__chart { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-soft); }
   .wapp-mt__chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

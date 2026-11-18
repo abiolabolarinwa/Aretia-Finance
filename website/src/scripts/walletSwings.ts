@@ -22,7 +22,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
-import { BOARD_CHAINS, BOARD_PAGE_SIZE, marketBoard, type FourthChain } from './walletMarketBoard.js';
+import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, type FourthChain } from './walletMarketBoard.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -1733,6 +1733,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let tableEl: HTMLElement | null = null;
     /** Every list except Favourites is the board: four network columns, or one wide column when a single network is chosen from the rail. */
     let fourthChain: FourthChain = 'base';
+    /** The tokens that only fill up a short column (keys), as opposed to the tab's own. */
+    let boardFill = new Set<string>();
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
     // off or unreachable nothing changes: the list's own refresh below keeps it current.
     let liveRows = new Map<string, MarketRow>();
@@ -1874,6 +1876,26 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
             )
           : null;
         const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []) : null;
+        // A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens,
+        // listed after the tab's own under a divider, so every column that can have 100 tokens does.
+        boardFill = new Set();
+        if (boardRows && boardPages) {
+          const have = new Set(boardRows.map((r) => rowKey(r.chain, r.address)));
+          const counts = new Map<ChainId, number>();
+          for (const r of boardRows) counts.set(r.chain, (counts.get(r.chain) ?? 0) + 1);
+          const short = boardChains.filter((c) => (counts.get(c) ?? 0) < BOARD_FILL_TO);
+          const filler = await Promise.all(short.flatMap((c) => [1, 2].map((p) => fetchIndexPage({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
+          if (mine !== seq) return;
+          for (const g of filler) {
+            for (const r of g?.rows ?? []) {
+              const k = rowKey(r.chain, r.address);
+              if (have.has(k)) continue;
+              have.add(k);
+              boardFill.add(k);
+              boardRows.push(r);
+            }
+          }
+        }
         if (mine !== seq) return;
         ix = null;
         if (boardRows) {
@@ -2334,7 +2356,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const featured = featuredForMarkets();
         const boardMode = m.kind !== 'favourites';
         const body = boardMode
-          ? marketBoard({ rows: shownRows, ...(m.chain === '' ? {} : { only: m.chain }), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ rows: shownRows, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), ...(m.chain === '' ? {} : { only: m.chain }), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, body] : [body]);
         inMain = main;

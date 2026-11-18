@@ -28,6 +28,8 @@ export const FOURTH_CHOICES: readonly FourthChain[] = ['base', 'robinhood'];
 export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'base', 'robinhood'];
 /** The index serves 100 tokens a page; the board reads two pages of each network, so a column starts with 100 or more. */
 export const BOARD_PAGE_SIZE = 100;
+/** A column holding fewer tokens than this from the tab itself is filled up with the network's most liquid ones (the tab's own may be filtered a little more afterwards). */
+export const BOARD_FILL_TO = 120;
 /** Tokens drawn per column at most. */
 export const PER_COLUMN = 200;
 
@@ -36,6 +38,8 @@ export interface BoardOptions {
   fourth: FourthChain;
   onFourth(c: FourthChain): void;
   onOpen(row: MarketRow): void;
+  /** True for a token added to fill a column that the current tab alone leaves short; it is listed under a divider, after the tab's own tokens. */
+  isFill?(row: MarketRow): boolean;
   /** One network chosen from the rail: a single wide column of that network, with the cards in rows of several. */
   only?: ChainId;
   /** The key of the token on screen elsewhere (the selected one), to mark. */
@@ -127,8 +131,19 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
   col.append(head);
   const list = el('div', 'wapp-bd__list');
   if (rows.length === 0) list.append(el('p', 'wapp-bd__empty', `No ${title} tokens match right now.`));
-  for (const r of rows.slice(0, PER_COLUMN)) list.append(card(r, o));
-  if (rows.length > PER_COLUMN) list.append(el('p', 'wapp-bd__more', `${rows.length - PER_COLUMN} more not shown. Use the search.`));
+  const fill = o.isFill;
+  const own = fill ? rows.filter((r) => !fill(r)) : rows;
+  const extra = fill ? rows.filter((r) => fill(r)) : [];
+  const ordered = [...own.slice(0, PER_COLUMN), ...extra.slice(0, Math.max(0, PER_COLUMN - own.length))];
+  let dividerShown = false;
+  for (const r of ordered) {
+    if (fill && fill(r) && !dividerShown) {
+      dividerShown = true;
+      list.append(el('p', 'wapp-bd__divider', `More on ${title}, by liquidity`));
+    }
+    list.append(card(r, o));
+  }
+  if (rows.length > ordered.length) list.append(el('p', 'wapp-bd__more', `${rows.length - ordered.length} more not shown. Use the search.`));
   col.append(list);
   return col;
 }

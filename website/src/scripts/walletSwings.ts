@@ -85,7 +85,7 @@ import { isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
 import { browserStorage, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter, explainNoRoute } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
-import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, defaultSlippageBps, fromSmallestUnit, retrySlippageBps, toSmallestUnit } from './walletTools';
+import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, autoSlippage, defaultSlippageBps, fromSmallestUnit, retrySlippageBps, toSmallestUnit } from './walletTools';
 import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
 import { imitationChip } from '../lib/imitationChip';
 
@@ -385,6 +385,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     amount: '',
     slippageBps: 50,
     slippageTouched: false,
+    /** Opened from a token's Markets page: the slippage worked out from how that token is behaving, and why (autoSlippage). */
+    marketSlippage: null as { bps: number; reason: string | null } | null,
     /** Solana only: send privately through Jito, with a small tip, to lower the chance of being sandwiched. */
     protect: false,
     phase: 'idle' as Phase,
@@ -443,7 +445,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     picked.set(checked.mint, checked);
     s[side] = checked;
     s.picker = null;
-    if (!s.slippageTouched) s.slippageBps = defaultSlippageBps(checked.mint === ACT_MINT || s.from?.mint === ACT_MINT || s.to?.mint === ACT_MINT);
+    if (!s.slippageTouched) s.slippageBps = s.marketSlippage?.bps ?? defaultSlippageBps(checked.mint === ACT_MINT || s.from?.mint === ACT_MINT || s.to?.mint === ACT_MINT);
     resetQuote();
     if (side === 'to') void loadSafety(chain, checked.mint);
     render();
@@ -1424,6 +1426,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       slip.append(b);
     }
     more.append(slip);
+    if (!s.slippageTouched && s.marketSlippage?.reason && s.slippageBps === s.marketSlippage.bps) {
+      more.append(el('p', { class: 'wapp__fine', text: `Set to ${s.marketSlippage.bps / 100}% for you because this is ${s.marketSlippage.reason}. Choose another to change it.` }));
+    }
     if (s.chain === 'solana' && runtime.protectedSubmit) {
       const label = el('label', { class: 'wapp__fine' });
       const box = el('input', { attrs: { type: 'checkbox' } });
@@ -2687,6 +2692,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function releaseSwap(): void {
     if (!swapEmbedded) return;
     swapEmbedded = false;
+    // The slippage worked out for that token does not follow the person to the next swap they open.
+    s.marketSlippage = null;
+    if (!s.slippageTouched) s.slippageBps = defaultSlippageBps(false);
     if (swapHome) swapHome.insertBefore(swapPanel, swapNext);
     swapPanel.hidden = true;
   }
@@ -2696,6 +2704,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     host.append(swapPanel);
     swapPanel.hidden = false;
     selectChain(r.chain);
+    // The slippage this token needs, from its pool and how it is moving, unless the person has chosen one already.
+    s.marketSlippage = autoSlippage({ liquidityUsd: r.liquidityUsd, ageMs: r.ageMs, change5mPct: r.change.m5 ?? null, change1hPct: r.change.h1 ?? null });
     // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
     void pick('to', { mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? rec?.decimals ?? 0, icon: r.icon ?? rec?.logo ?? null, verified: null }, r.chain);
     render();

@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
+describe('the slippage a swap starts with, from how the token is behaving', () => {
+  const calm = { liquidityUsd: 5_000_000, ageMs: 30 * 86_400_000, change5mPct: 0.4, change1hPct: 1 };
+  it('keeps the usual 0.5% for a deep, old, calm pool, and for a token nothing is known about', async () => {
+    const { autoSlippage } = await import('./walletTools.js');
+    expect(autoSlippage(calm)).toEqual({ bps: 50, reason: null });
+    expect(autoSlippage({ liquidityUsd: null, ageMs: null })).toEqual({ bps: 50, reason: null }); // unknown never raises it
+  });
+  it('widens to 3% for a thin or small pool, a pool under an hour old, or a price moving fast', async () => {
+    const { autoSlippage } = await import('./walletTools.js');
+    expect(autoSlippage({ ...calm, liquidityUsd: 4_000 })).toMatchObject({ bps: 300, reason: expect.stringContaining('thin pool') });
+    expect(autoSlippage({ ...calm, liquidityUsd: 30_000 })).toMatchObject({ bps: 300, reason: expect.stringContaining('small pool') });
+    expect(autoSlippage({ ...calm, ageMs: 20 * 60_000 })).toMatchObject({ bps: 300, reason: 'a pool under an hour old' });
+    expect(autoSlippage({ ...calm, change5mPct: -12 })).toMatchObject({ bps: 300, reason: 'a price that is moving fast' });
+    expect(autoSlippage({ ...calm, change1hPct: 45 })).toMatchObject({ bps: 300 });
+  });
+  it('uses 1% for a modest pool, a pool under a day old, or a price that is moving', async () => {
+    const { autoSlippage } = await import('./walletTools.js');
+    expect(autoSlippage({ ...calm, liquidityUsd: 120_000 })).toMatchObject({ bps: 100, reason: expect.stringContaining('modest pool') });
+    expect(autoSlippage({ ...calm, ageMs: 5 * 3_600_000 })).toMatchObject({ bps: 100, reason: 'a pool under a day old' });
+    expect(autoSlippage({ ...calm, change5mPct: 4 })).toMatchObject({ bps: 100, reason: 'a price that is moving' });
+  });
+  it('takes the most cautious rule that applies, and never goes beyond the widest preset', async () => {
+    const { autoSlippage, SLIPPAGE_PRESETS_BPS } = await import('./walletTools.js');
+    const worst = autoSlippage({ liquidityUsd: 500, ageMs: 60_000, change5mPct: 80, change1hPct: 500 });
+    expect(worst.bps).toBe(300);
+    for (const f of [calm, { ...calm, liquidityUsd: 100 }, { ...calm, ageMs: 1000 }, { ...calm, change5mPct: 50 }]) expect(SLIPPAGE_PRESETS_BPS).toContain(autoSlippage(f).bps as never);
+  });
+});
+
 describe('the slippage a failed swap offers to try again with', () => {
   it('is the widest preset when the swap used less, and nothing when it already used the widest', async () => {
     const { retrySlippageBps, SLIPPAGE_PRESETS_BPS } = await import('./walletTools.js');

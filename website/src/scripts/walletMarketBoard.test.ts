@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MarketRow } from '../swings/market/types';
-import { columnRows, loadBoardView, pickFourth, saveBoardView } from './walletMarketBoard';
+import { BOARD_CHAINS, BOARD_PAGE_SIZE, columnRows, pickFourth } from './walletMarketBoard';
 
 const row = (chain: MarketRow['chain'], symbol: string, over: Partial<MarketRow> = {}): MarketRow =>
   ({ chain, address: `0x${symbol}`, symbol, quoteSymbol: 'X', name: symbol, icon: null, decimals: 18, pool: 'p', priceUsd: 1, capUsd: 100, ageMs: 1, txns24h: 1, volume24hUsd: 1, traders24h: 1, change: { m5: 0, h1: 1, h6: 0, h24: 0 }, liquidityUsd: 1, ...over }) as MarketRow;
@@ -22,20 +22,9 @@ describe('pickFourth', () => {
   });
 });
 
-describe('the remembered layout', () => {
-  const store = () => {
-    const s: Record<string, string> = {};
-    return { getItem: (k: string) => s[k] ?? null, setItem: (k: string, v: string) => void (s[k] = v) };
-  };
-  it('is the board until the table is chosen, and survives missing or broken storage', () => {
-    const s = store();
-    expect(loadBoardView(s)).toBe('board');
-    saveBoardView(s, 'table');
-    expect(loadBoardView(s)).toBe('table');
-    saveBoardView(s, 'board');
-    expect(loadBoardView(s)).toBe('board');
-    expect(loadBoardView(null)).toBe('board');
-    expect(() => saveBoardView({ getItem: () => { throw new Error('x'); }, setItem: () => { throw new Error('full'); } }, 'table')).not.toThrow();
-    expect(loadBoardView({ getItem: () => { throw new Error('x'); }, setItem: () => undefined })).toBe('board');
+describe('what the board asks for', () => {
+  it('reads every network on its own, 100 tokens a page', () => {
+    expect([...BOARD_CHAINS]).toEqual(['solana', 'ethereum', 'bnb', 'base', 'robinhood']);
+    expect(BOARD_PAGE_SIZE).toBe(100);
   });
 });

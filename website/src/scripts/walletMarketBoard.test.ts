@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { MarketRow } from '../swings/market/types';
 import { BOARD_CHAINS, BOARD_PAGE_SIZE, columnRows, pickFourth, pillChange, pillText } from './walletMarketBoard';
@@ -43,5 +44,12 @@ describe('the price-change pill', () => {
     expect(pillText({ label: '6H', value: -2 })).toBe('6H ▼ 2.00%');
     expect(pillText({ label: '24H', value: 0 })).toBe('24H 0.00%');
     expect(pillText({ label: '1H', value: null })).toBe('–');
+  });
+});
+
+describe('a column scrolls by itself', () => {
+  it('tells the page scroller (Lenis) to leave each column to the mouse wheel', () => {
+    const code = readFileSync(new URL('./walletMarketBoard.ts', import.meta.url), 'utf8');
+    expect(code).toContain("list.setAttribute('data-lenis-prevent', '')");
   });
 });

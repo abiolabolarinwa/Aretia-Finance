@@ -52,4 +52,8 @@ describe('a column scrolls by itself', () => {
     const code = readFileSync(new URL('./walletMarketBoard.ts', import.meta.url), 'utf8');
     expect(code).toContain("list.setAttribute('data-lenis-prevent', '')");
   });
+  it('keeps a card from shrinking inside its fixed-height column, or the column would never overflow', () => {
+    const page = readFileSync(new URL('../pages/wallet/index.astro', import.meta.url), 'utf8');
+    expect(page).toMatch(/\.wapp-bd__card \{ flex: none;/);
+  });
 });

@@ -178,7 +178,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
       lane: 'solana-listen',
       idleMs: 3_000,
       run: async (budgetMs) => {
-        listener ??= startListener({ url: wsUrl, venues: listen, now: d.now, ...(d.log ? { log: d.log } : {}), ...(d.listenOpen ? { open: d.listenOpen } : {}), onHeard: (h) => { if (queue.length < 500) queue.push({ h, tries: 0 }); } });
+        listener ??= startListener({ url: wsUrl, venues: listen, now: d.now, maxBytesPerMinute: int(d.env.MI_SOLANA_LISTEN_MAX_MB, 4, 1, 500) * 1_000_000, ...(d.log ? { log: d.log } : {}), ...(d.listenOpen ? { open: d.listenOpen } : {}), onHeard: (h) => { if (queue.length < 500) queue.push({ h, tries: 0 }); } });
         const deadline = d.now() + Math.min(budgetMs, 20_000);
         const later: { h: Heard; tries: number }[] = [];
         let error: string | null = null;

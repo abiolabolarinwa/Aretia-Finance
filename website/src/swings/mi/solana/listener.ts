@@ -144,7 +144,7 @@ export function startListener(o: ListenerOptions): Listener {
       windowBytes += text.length;
       if (windowBytes > maxBytes) {
         stats.tripped++;
-        o.log?.(`creation listener: more than ${Math.round(maxBytes / 1e6)} MB in a minute; closing for ${Math.round(restMs / 60_000)} minutes`);
+        o.log?.(`creation listener: ${(windowBytes / 1e6).toFixed(1)} MB in ${Math.max(1, Math.round((t - windowStart) / 1000))} s is over the limit of ${(maxBytes / 1e6).toFixed(0)} MB a minute (MI_SOLANA_LISTEN_MAX_MB); closing for ${Math.round(restMs / 60_000)} minutes`);
         try {
           s.onclose = null;
           s.close();

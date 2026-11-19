@@ -998,9 +998,11 @@ const sendTips = [
   .wapp-bd__top { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
   .wapp-bd__sym { flex: none; max-width: 55%; font-size: 13px; font-weight: 700; color: var(--color-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wapp-bd__name { min-width: 0; font-size: 11px; color: var(--color-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .wapp-bd__price { font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+  .wapp-bd__sub { font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+  .wapp-bd__mc { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-faint); }
   .wapp-bd__right { display: grid; justify-items: end; gap: 1px; line-height: 1.2; }
-  .wapp-bd__cap { min-width: 2ch; text-align: right; font-size: 13.5px; font-weight: 750; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-bd__cap { color: var(--color-text); }
+  .wapp-bd__big { min-width: 2ch; text-align: right; font-size: 13.5px; font-weight: 750; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--color-strong); }
   .wapp-bd__chg { padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-muted); background: var(--color-surface-3); }
   .wapp-bd__chg.is-up { color: var(--bd-up); background: color-mix(in srgb, var(--bd-up) 16%, transparent); }
   .wapp-bd__chg.is-down { color: var(--bd-down); background: color-mix(in srgb, var(--bd-down) 16%, transparent); }
@@ -1008,10 +1010,10 @@ const sendTips = [
   .wapp-bd__card:hover .wapp-bd__star, .wapp-bd__star:focus-visible { opacity: 1; }
   .wapp-bd__star:hover { color: var(--color-gold); }
   .wapp-bd__divider { margin: 0; padding: 7px 12px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; color: var(--color-faint); background: var(--color-surface-2); border-bottom: 1px solid var(--color-border); }
-  .wapp-bd__price.is-tick-up, .wapp-bd__price.is-tick-down { padding: 0 4px; margin-left: -4px; border-radius: 4px; }
-  .wapp-bd__price.is-tick-up { color: var(--bd-up); background: color-mix(in srgb, var(--bd-up) 22%, transparent); }
-  .wapp-bd__price.is-tick-down { color: var(--bd-down); background: color-mix(in srgb, var(--bd-down) 22%, transparent); }
-  .wapp-bd__price { transition: background 500ms ease, color 500ms ease; }
+  .wapp-bd__big.is-tick-up, .wapp-bd__big.is-tick-down { padding: 0 4px; margin-left: -4px; border-radius: 4px; }
+  .wapp-bd__big.is-tick-up { color: var(--bd-up); background: color-mix(in srgb, var(--bd-up) 22%, transparent); }
+  .wapp-bd__big.is-tick-down { color: var(--bd-down); background: color-mix(in srgb, var(--bd-down) 22%, transparent); }
+  .wapp-bd__big { transition: background 500ms ease, color 500ms ease; }
   .wapp-bd__empty, .wapp-bd__more { margin: 0; padding: 16px 12px; font-size: 13px; color: var(--color-faint); }
   /* One network chosen from the rail: one wide column, the cards laid out in rows of several. */
   @media (max-width: 1280px) { .wapp-bd { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
